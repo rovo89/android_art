@@ -409,6 +409,40 @@ void MarkSweep::SweepSystemWeaks(bool swap_bitmaps) {
   SweepJniWeakGlobals(swap_bitmaps);
 }
 
+bool MarkSweep::VerifyIsLiveCallback(const Object* obj, void* arg) {
+  reinterpret_cast<MarkSweep*>(arg)->VerifyIsLive(obj);
+  // We don't actually want to sweep the object, so lets return "marked"
+  return true;
+}
+
+void MarkSweep::VerifyIsLive(const Object* obj) {
+  Heap* heap = GetHeap();
+  if (!heap->GetLiveBitmap()->Test(obj)) {
+    if (std::find(heap->allocation_stack_->Begin(), heap->allocation_stack_->End(), obj) ==
+        heap->allocation_stack_->End()) {
+      // Object not found!
+      heap->DumpSpaces();
+      LOG(FATAL) << "Found dead object " << obj;
+    }
+  }
+}
+
+void MarkSweep::VerifySystemWeaks() {
+  Runtime* runtime = Runtime::Current();
+  // Verify system weaks, uses a special IsMarked callback which always returns true.
+  runtime->GetInternTable()->SweepInternTableWeaks(VerifyIsLiveCallback, this);
+  runtime->GetMonitorList()->SweepMonitorList(VerifyIsLiveCallback, this);
+
+  JavaVMExt* vm = runtime->GetJavaVM();
+  MutexLock mu(vm->weak_globals_lock);
+  IndirectReferenceTable* table = &vm->weak_globals;
+  typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
+  for (It it = table->begin(), end = table->end(); it != end; ++it) {
+    const Object** entry = *it;
+    VerifyIsLive(*entry);
+  }
+}
+
 struct SweepCallbackContext {
   MarkSweep* mark_sweep;
   AllocSpace* space;

@@ -149,9 +149,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       sticky_gc_count_(0),
       num_bytes_allocated_(0),
       num_objects_allocated_(0),
-      pre_gc_verify_heap_(false),
-      post_gc_verify_heap_(false),
+      verify_missing_card_marks_(false),
+      verify_system_weaks_(false),
+      verify_pre_gc_heap_(false),
+      verify_post_gc_heap_(false),
       verify_mod_union_table_(false),
+      partial_gc_frequency_(10),
+      min_alloc_space_size_for_sticky_gc_(4 * MB),
+      min_remaining_space_for_sticky_gc_(1 * MB),
       last_trim_time_(0),
       try_running_gc_(false),
       requesting_gc_(false),
@@ -261,7 +266,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable"));
 
   // Set up the cumulative timing loggers.
-  for (size_t i = 0; i < static_cast<size_t>(kGcTypeMax); ++i) {
+  for (size_t i = static_cast<size_t>(kGcTypeSticky); i < static_cast<size_t>(kGcTypeMax);
+       ++i) {
     std::ostringstream name;
     name << static_cast<GcType>(i);
     cumulative_timings_.Put(static_cast<GcType>(i),
@@ -449,9 +455,9 @@ void Heap::DumpSpaces() {
   // TODO: C++0x auto
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     Space* space = *it;
-    LOG(INFO) << *space;
-    LOG(INFO) << *space->GetLiveBitmap();
-    LOG(INFO) << *space->GetMarkBitmap();
+    LOG(INFO) << *space << "\n"
+              << *space->GetLiveBitmap() << "\n"
+              << *space->GetMarkBitmap();
   }
 }
 
@@ -461,11 +467,14 @@ void Heap::VerifyObjectBody(const Object* obj) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   }
 
-  // TODO: Smarter live check here which takes into account allocation stacks.
-  //GlobalSynchronization::heap_bitmap_lock_->GetExclusiveOwnerTid()
   if (!GetLiveBitmap()->Test(obj)) {
-    DumpSpaces();
-    LOG(FATAL) << "Object is dead: " << obj;
+    // Check the allocation stack / live stack.
+    if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
+        std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
+            allocation_stack_->End()) {
+      DumpSpaces();
+      LOG(FATAL) << "Object is dead: " << obj;
+    }
   }
 
   // Ignore early dawn of the universe verifications
@@ -583,8 +592,8 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
     switch (gc_type) {
       case kGcTypeSticky: {
           const size_t alloc_space_size = alloc_space_->Size();
-          run_gc = alloc_space_size > kMinAllocSpaceSizeForStickyGC &&
-              alloc_space_->Capacity() - alloc_space_size >= kMinRemainingSpaceForStickyGC;
+          run_gc = alloc_space_size > min_alloc_space_size_for_sticky_gc_ &&
+              alloc_space_->Capacity() - alloc_space_size >= min_remaining_space_for_sticky_gc_;
           break;
         }
       case kGcTypePartial:
@@ -768,7 +777,7 @@ void Heap::PreZygoteFork() {
 }
 
 void Heap::FlushAllocStack() {
-  MarkStackAsLive(allocation_stack_.get());
+  MarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
   allocation_stack_->Reset();
 }
 
@@ -782,45 +791,23 @@ size_t Heap::GetUsedMemorySize() const {
   return total;
 }
 
-void Heap::MarkStackAsLive(MarkStack* alloc_stack) {
-  // We can just assume everything is inside the alloc_space_'s bitmap since we should only have
-  // fresh allocations.
-  SpaceBitmap* live_bitmap = alloc_space_->GetLiveBitmap();
-
+void Heap::MarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack) {
   // Empty the allocation stack.
-  const size_t count = alloc_stack->Size();
+  const size_t count = stack->Size();
   for (size_t i = 0; i < count; ++i) {
-    const Object* obj = alloc_stack->Get(i);
+    const Object* obj = stack->Get(i);
     DCHECK(obj != NULL);
-    live_bitmap->Set(obj);
+    bitmap->Set(obj);
   }
 }
 
-void Heap::UnMarkStack(MarkStack* alloc_stack) {
-  SpaceBitmap* mark_bitmap = alloc_space_->GetMarkBitmap();
-
+void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack) {
   // Clear all of the things in the AllocStack.
-  size_t count = alloc_stack->Size();
+  size_t count = stack->Size();
   for (size_t i = 0; i < count; ++i) {
-    const Object* obj = alloc_stack->Get(i);
+    const Object* obj = stack->Get(i);
     DCHECK(obj != NULL);
-    if (mark_bitmap->Test(obj)) {
-      mark_bitmap->Clear(obj);
-    }
-  }
-}
-
-void Heap::UnMarkStackAsLive(MarkStack* alloc_stack) {
-  SpaceBitmap* live_bitmap = alloc_space_->GetLiveBitmap();
-
-  // Clear all of the things in the AllocStack.
-  size_t count = alloc_stack->Size();
-  for (size_t i = 0; i < count; ++i) {
-    const Object* obj = alloc_stack->Get(i);
-    DCHECK(obj != NULL);
-    if (live_bitmap->Test(obj)) {
-      live_bitmap->Clear(obj);
-    }
+    bitmap->Clear(obj);
   }
 }
 
@@ -853,7 +840,7 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
 
   // We need to do partial GCs every now and then to avoid the heap growing too much and
   // fragmenting.
-  if (gc_type == kGcTypeSticky && ++sticky_gc_count_ > kPartialGCFrequency) {
+  if (gc_type == kGcTypeSticky && ++sticky_gc_count_ > partial_gc_frequency_) {
     gc_type = kGcTypePartial;
   }
   if (gc_type != kGcTypeSticky) {
@@ -899,10 +886,11 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     mark_sweep.Init();
     timings.AddSplit("Init");
 
-    // Pre verify the heap
-    if (pre_gc_verify_heap_) {
+    if (verify_pre_gc_heap_) {
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
-      VerifyHeapReferences(std::string("Pre ") + gc_type_str.str() + "Gc");
+      if (!VerifyHeapReferences()) {
+        LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
+      }
       timings.AddSplit("VerifyHeapReferencesPreGC");
     }
 
@@ -911,9 +899,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     zygote_mod_union_table_->Init(&mark_sweep);
 
     // Swap allocation stack and live stack, enabling us to have new allocations during this GC.
-    MarkStack* temp = allocation_stack_.release();
-    allocation_stack_.reset(live_stack_.release());
-    live_stack_.reset(temp);
+    SwapStacks();
 
     // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
     // TODO: Investigate using a mark stack instead of a vector.
@@ -964,7 +950,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
       mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
     }
 
-    MarkStackAsLive(live_stack_.get());
+    MarkAllocStack(alloc_space_->GetLiveBitmap(), live_stack_.get());
 
     if (gc_type != kGcTypeSticky) {
       live_stack_->Reset();
@@ -994,7 +980,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     }
     mark_sweep.DisableFinger();
 
-    // Need to process references the swap since it uses IsMarked.
+    // Need to process references before the swap since it uses IsMarked.
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
 
@@ -1022,14 +1008,20 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     }
     timings.AddSplit("Sweep");
 
+    if (verify_system_weaks_) {
+      mark_sweep.VerifySystemWeaks();
+      timings.AddSplit("VerifySystemWeaks");
+    }
+
     cleared_references = mark_sweep.GetClearedReferences();
     bytes_freed = mark_sweep.GetFreedBytes();
   }
 
-  // Post gc verify the heap
-  if (post_gc_verify_heap_) {
+  if (verify_post_gc_heap_) {
     WriterMutexLock mu(*Locks::heap_bitmap_lock_);
-    VerifyHeapReferences(std::string("Post ") + gc_type_str.str() + "Gc");
+    if (!VerifyHeapReferences()) {
+      LOG(FATAL) << "Post " + gc_type_str.str() + "Gc verification failed";
+    }
     timings.AddSplit("VerifyHeapReferencesPostGC");
   }
 
@@ -1122,26 +1114,34 @@ class VerifyReferenceVisitor {
       MarkStack* alloc_stack = heap_->allocation_stack_.get();
       MarkStack* live_stack = heap_->live_stack_.get();
 
-      // Print the cards around our object
       byte* card_addr = card_table->CardFromAddr(obj);
-      LOG(INFO) << "Object " << obj << " references dead object " << ref << " on IsDirty = "
+      LOG(ERROR) << "Object " << obj << " references dead object " << ref << " on IsDirty = "
                 << (*card_addr == GC_CARD_DIRTY);
+      LOG(ERROR) << "Obj type " << PrettyTypeOf(obj);
+      LOG(ERROR) << "Ref type " << PrettyTypeOf(ref);
+      card_table->CheckAddrIsInCardTable(reinterpret_cast<const byte*>(obj));
       void* cover_begin = card_table->AddrFromCard(card_addr);
       void* cover_end = reinterpret_cast<void*>(reinterpret_cast<size_t>(cover_begin) +
           GC_CARD_SIZE);
-      LOG(INFO) << "Card " << reinterpret_cast<void*>(card_addr) << " covers " << cover_begin
+      LOG(ERROR) << "Card " << reinterpret_cast<void*>(card_addr) << " covers " << cover_begin
                 << "-" << cover_end;
       SpaceBitmap* bitmap = heap_->GetLiveBitmap()->GetSpaceBitmap(obj);
 
       // Print out how the object is live.
       if (bitmap->Test(obj)) {
-        LOG(INFO) << "Object " << obj << " found in live bitmap";
-      } else if (std::binary_search(alloc_stack->Begin(), alloc_stack->End(), obj)) {
-        LOG(INFO) << "Object " << obj << " found in allocation stack";
+        LOG(ERROR) << "Object " << obj << " found in live bitmap";
+      }
+
+      if (std::binary_search(alloc_stack->Begin(), alloc_stack->End(), obj)) {
+        LOG(ERROR) << "Object " << obj << " found in allocation stack";
+      }
+
+      if (std::binary_search(live_stack->Begin(), live_stack->End(), obj)) {
+        LOG(ERROR) << "Object " << obj << " found in live stack";
       }
 
       if (std::binary_search(live_stack->Begin(), live_stack->End(), ref)) {
-        LOG(INFO) << "Reference " << ref << " found in live stack!";
+        LOG(ERROR) << "Reference " << ref << " found in live stack!";
       }
 
       // Attempt to see if the card table missed the reference.
@@ -1156,14 +1156,15 @@ class VerifyReferenceVisitor {
       ms.Init();
       mark_stack->Reset();
       ms.SetFinger(reinterpret_cast<Object*>(~size_t(0)));
+
       // All the references should end up in the mark stack.
       ms.ScanRoot(obj);
       if (std::find(mark_stack->Begin(), mark_stack->End(), ref)) {
-        LOG(INFO) << "Ref found in the mark_stack when rescanning the object!";
+        LOG(ERROR) << "Ref found in the mark_stack when rescanning the object!";
       } else {
-        LOG(INFO) << "Dumping mark stack contents";
+        LOG(ERROR) << "Dumping mark stack contents";
         for (Object** it = mark_stack->Begin(); it != mark_stack->End(); ++it) {
-          LOG(INFO) << *it;
+          LOG(ERROR) << *it;
         }
       }
       mark_stack->Reset();
@@ -1183,7 +1184,7 @@ class VerifyReferenceVisitor {
       }
     } else {
       heap_->DumpSpaces();
-      LOG(FATAL) << "Object " << obj << " not found in any spaces";
+      LOG(ERROR) << "Object " << obj << " not found in any spaces";
     }
     MarkStack* alloc_stack = heap_->allocation_stack_.get();
     // At this point we need to search the allocation since things in the live stack may get swept.
@@ -1223,7 +1224,7 @@ class VerifyObjectVisitor {
 };
 
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
-void Heap::VerifyHeapReferences(const std::string& phase) {
+bool Heap::VerifyHeapReferences() {
   Locks::mutator_lock_->AssertExclusiveHeld();
   // Lets sort our allocation stacks so that we can efficiently binary search them.
   std::sort(allocation_stack_->Begin(), allocation_stack_->End());
@@ -1235,8 +1236,113 @@ void Heap::VerifyHeapReferences(const std::string& phase) {
   // pointing to dead objects if they are not reachable.
   if (visitor.Failed()) {
     DumpSpaces();
-    LOG(FATAL) << phase << " heap verification failed";
+    return false;
   }
+  return true;
+}
+
+class VerifyReferenceCardVisitor {
+ public:
+  VerifyReferenceCardVisitor(Heap* heap, bool* failed)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+                            Locks::heap_bitmap_lock_)
+      : heap_(heap),
+        failed_(failed) {
+  }
+
+  // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for smarter
+  // analysis.
+  void operator ()(const Object* obj, const Object* ref, const MemberOffset& offset,
+                     bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
+    if (ref != NULL) {
+      CardTable* card_table = heap_->GetCardTable();
+      // If the object is not dirty and it is referencing something in the live stack other than
+      // class, then it must be on a dirty card.
+      if (!card_table->IsDirty(obj)) {
+        MarkStack* live_stack = heap_->live_stack_.get();
+        if (std::binary_search(live_stack->Begin(), live_stack->End(), ref) && !ref->IsClass()) {
+          if (std::binary_search(live_stack->Begin(), live_stack->End(), obj)) {
+            LOG(ERROR) << "Object " << obj << " found in live stack";
+          }
+          if (heap_->GetLiveBitmap()->Test(obj)) {
+            LOG(ERROR) << "Object " << obj << " found in live bitmap";
+          }
+          LOG(ERROR) << "Object " << obj << " " << PrettyTypeOf(obj)
+                    << " references " << ref << " " << PrettyTypeOf(ref) << " in live stack";
+
+          // Print which field of the object is dead.
+          if (!obj->IsObjectArray()) {
+            const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
+            CHECK(klass != NULL);
+            const ObjectArray<Field>* fields = is_static ? klass->GetSFields() : klass->GetIFields();
+            CHECK(fields != NULL);
+            for (int32_t i = 0; i < fields->GetLength(); ++i) {
+              const Field* cur = fields->Get(i);
+              if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
+                LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
+                          << PrettyField(cur);
+                break;
+              }
+            }
+          } else {
+            const ObjectArray<Object>* object_array = obj->AsObjectArray<Object>();
+            for (int32_t i = 0; i < object_array->GetLength(); ++i) {
+              if (object_array->Get(i) == ref) {
+                LOG(ERROR) << (is_static ? "Static " : "") << "obj[" << i << "] = ref";
+              }
+            }
+          }
+
+          *failed_ = true;
+        }
+      }
+    }
+  }
+
+ private:
+  Heap* heap_;
+  bool* failed_;
+};
+
+class VerifyLiveStackReferences {
+ public:
+  VerifyLiveStackReferences(Heap* heap)
+      : heap_(heap),
+        failed_(false) {
+
+  }
+
+  void operator ()(const Object* obj) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
+    MarkSweep::VisitObjectReferences(obj, visitor);
+  }
+
+  bool Failed() const {
+    return failed_;
+  }
+
+ private:
+  Heap* heap_;
+  bool failed_;
+};
+
+bool Heap::VerifyMissingCardMarks() {
+  Locks::mutator_lock_->AssertExclusiveHeld();
+
+  VerifyLiveStackReferences visitor(this);
+  GetLiveBitmap()->Visit(visitor);
+
+  // We can verify objects in the live stack since none of these should reference dead objects.
+  for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
+    visitor(*it);
+  }
+
+  if (visitor.Failed()) {
+    DumpSpaces();
+    return false;
+  }
+  return true;
 }
 
 void Heap::SwapBitmaps() {
@@ -1253,6 +1359,17 @@ void Heap::SwapBitmaps() {
       mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
       space->AsAllocSpace()->SwapBitmaps();
     }
+  }
+}
+
+void Heap::SwapStacks() {
+  MarkStack* temp = allocation_stack_.release();
+  allocation_stack_.reset(live_stack_.release());
+  live_stack_.reset(temp);
+
+  // Sort the live stack so that we can quickly binary search it later.
+  if (VERIFY_OBJECT_ENABLED) {
+    std::sort(live_stack_->Begin(), live_stack_->End());
   }
 }
 
@@ -1277,17 +1394,26 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     mark_sweep.Init();
     timings.AddSplit("Init");
 
-    // Pre verify the heap
-    if (pre_gc_verify_heap_) {
+    if (verify_pre_gc_heap_) {
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
-      VerifyHeapReferences(std::string("Pre ") + gc_type_str.str() + "Gc");
+      if (!VerifyHeapReferences()) {
+        LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
+      }
       timings.AddSplit("VerifyHeapReferencesPreGC");
     }
 
-    // Swap the stacks, this is safe sunce all the mutators are suspended at this point.
-    MarkStack* temp = allocation_stack_.release();
-    allocation_stack_.reset(live_stack_.release());
-    live_stack_.reset(temp);
+    // Swap the stacks, this is safe since all the mutators are suspended at this point.
+    SwapStacks();
+
+    // Check that all objects which reference things in the live stack are on dirty cards.
+    if (verify_missing_card_marks_) {
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      // Sort the live stack so that we can quickly binary search it later.
+      std::sort(live_stack_->Begin(), live_stack_->End());
+      if (!VerifyMissingCardMarks()) {
+        LOG(FATAL) << "Pre GC verification of missing card marks failed";
+      }
+    }
 
     // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
     // TODO: Investigate using a mark stack instead of a vector.
@@ -1341,14 +1467,9 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
         mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
       }
 
-      // Mark everything as live so that sweeping system weak works correctly for sticky mark bit
-      // GCs.
-      MarkStackAsLive(live_stack_.get());
-      timings.AddSplit("MarkStackAsLive");
-
-      // TODO: Investigate whether or not this is really necessary for sticky mark bits.
+      // Marking roots is not necessary for sticky mark bits since we only actually require the
+      // remarking of roots.
       if (gc_type != kGcTypeSticky) {
-        live_stack_->Reset();
         mark_sweep.MarkRoots();
         timings.AddSplit("MarkRoots");
       }
@@ -1373,6 +1494,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       UpdateAndMarkModUnion(timings, gc_type);
+
+      // Mark everything as live so that sweeping system weak works correctly for sticky mark bit
+      // GCs.
+      MarkAllocStack(alloc_space_->GetLiveBitmap(), live_stack_.get());
+      timings.AddSplit("MarkStackAsLive");
+
       if (gc_type != kGcTypeSticky) {
         // Recursively mark all the non-image bits set in the mark bitmap.
         mark_sweep.RecursiveMark(gc_type == kGcTypePartial, timings);
@@ -1394,6 +1521,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       mark_sweep.ReMarkRoots();
       timings.AddSplit("ReMarkRoots");
 
+      if (verify_missing_card_marks_) {
+        // Since verify missing card marks uses a sweep array to empty the allocation stack, we
+        // need to make sure that we don't free weaks which wont get swept by SweepSystemWeaks.
+        MarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
+      }
+
       // Scan dirty objects, this is only required if we are not doing concurrent GC.
       mark_sweep.RecursiveMarkDirtyObjects(false);
       timings.AddSplit("RecursiveMarkDirtyObjects");
@@ -1401,6 +1534,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     {
       ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+
       mark_sweep.ProcessReferences(clear_soft_references);
       timings.AddSplit("ProcessReferences");
 
@@ -1408,6 +1542,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       mark_sweep.SweepSystemWeaks(false);
       timings.AddSplit("SweepSystemWeaks");
     }
+
     // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
     // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
     // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark
@@ -1417,6 +1552,18 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       SwapBitmaps();
     }
 
+    // Only need to do this if we have the card mark verification on, and only during concurrent GC.
+    if (verify_missing_card_marks_) {
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      mark_sweep.SweepArray(timings, allocation_stack_.get(), swap);
+    } else {
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      // We only sweep over the live stack, and the live stack should not intersect with the
+      // allocation stack, so it should be safe to UnMark anything in the allocation stack as live.
+      UnMarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
+      timings.AddSplit("UnMarkAllocStack");
+    }
+
     if (kIsDebugBuild) {
       // Verify that we only reach marked objects from the image space.
       ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
@@ -1424,19 +1571,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       timings.AddSplit("VerifyImageRoots");
     }
 
-    if (gc_type == kGcTypeSticky) {
-      // We only sweep over the live stack, and the live stack should not intersect with the
-      // allocation stack, so it should be safe to UnMark anything in the allocation stack as live.
-      // This only works for sticky Gcs though!
-      UnMarkStackAsLive(allocation_stack_.get());
-    }
-    timings.AddSplit("UnMarkStacks");
-
-    // If we are going to do post Gc verification, lets keep the mutators paused since we don't
-    // want them to touch dead objects before we find these in verification.
-    if (post_gc_verify_heap_) {
+    if (verify_post_gc_heap_) {
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
-      VerifyHeapReferences(std::string("Post ") + gc_type_str.str() + "Gc");
+      if (!VerifyHeapReferences()) {
+        LOG(FATAL) << "Post " << gc_type_str.str() << "Gc verification failed";
+      }
       timings.AddSplit("VerifyHeapReferencesPostGC");
     }
 
@@ -1452,7 +1591,14 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       } else {
         mark_sweep.SweepArray(timings, live_stack_.get(), swap);
       }
+      live_stack_->Reset();
       timings.AddSplit("Sweep");
+    }
+
+    if (verify_system_weaks_) {
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      mark_sweep.VerifySystemWeaks();
+      timings.AddSplit("VerifySystemWeaks");
     }
 
     cleared_references = mark_sweep.GetClearedReferences();
@@ -1729,7 +1875,7 @@ void Heap::ConcurrentGC() {
   if (WaitForConcurrentGcToComplete() == kGcTypeNone) {
     // Start a concurrent GC as one wasn't in progress
     ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
-    if (alloc_space_->Size() > kMinAllocSpaceSizeForStickyGC) {
+    if (alloc_space_->Size() > min_alloc_space_size_for_sticky_gc_) {
       CollectGarbageInternal(kGcTypeSticky, false);
     } else {
       CollectGarbageInternal(kGcTypePartial, false);

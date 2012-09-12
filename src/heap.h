@@ -72,17 +72,6 @@ class LOCKABLE Heap {
 
   static const size_t kMaximumSize = 32 * MB;
 
-  // After how many GCs we force to do a partial GC instead of sticky mark bits GC.
-  static const size_t kPartialGCFrequency = 10;
-
-  // Sticky mark bits GC has some overhead, so if we have less a few megabytes of AllocSpace then
-  // it's probably better to just do a partial GC.
-  static const size_t kMinAllocSpaceSizeForStickyGC = 6 * MB;
-
-  // Minimum remaining size fo sticky GC. Since sticky GC doesn't free up as much memory as a
-  // normal GC, it is important to not use it when we are almost out of memory.
-  static const size_t kMinRemainingSpaceForStickyGC = 1 * MB;
-
   typedef void (RootVisitor)(const Object* root, void* arg);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
 
@@ -108,7 +97,10 @@ class LOCKABLE Heap {
   // Check sanity of all live references. Requires the heap lock.
   void VerifyHeap();
   static void RootMatchesObjectVisitor(const Object* root, void* arg);
-  void VerifyHeapReferences(const std::string& phase)
+  bool VerifyHeapReferences()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool VerifyMissingCardMarks()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -264,14 +256,13 @@ class LOCKABLE Heap {
   void FlushAllocStack()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Mark all the objects in the allocation stack as live.
-  void MarkStackAsLive(MarkStack* alloc_stack);
+  // Mark all the objects in the allocation stack in the specified bitmap.
+  void MarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Un-mark all the objects in the allocation stack.
-  void UnMarkStack(MarkStack* alloc_stack);
-
-  // Un-mark all live objects in the allocation stack.
-  void UnMarkStackAsLive(MarkStack* alloc_stack);
+  // Unmark all the objects in the allocation stack in the specified bitmap.
+  void UnMarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Update and mark mod union table based on gc type.
   void UpdateAndMarkModUnion(TimingLogger& timings, GcType gc_type)
@@ -331,6 +322,7 @@ class LOCKABLE Heap {
 
   // Swpa bitmaps (if we are a full Gc then we swap the zygote bitmap too).
   void SwapBitmaps();
+  void SwapStacks();
 
   Spaces spaces_;
 
@@ -384,9 +376,22 @@ class LOCKABLE Heap {
   volatile size_t num_objects_allocated_;
 
   // Heap verification flags.
-  const bool pre_gc_verify_heap_;
-  const bool post_gc_verify_heap_;
+  const bool verify_missing_card_marks_;
+  const bool verify_system_weaks_;
+  const bool verify_pre_gc_heap_;
+  const bool verify_post_gc_heap_;
   const bool verify_mod_union_table_;
+
+  // After how many GCs we force to do a partial GC instead of sticky mark bits GC.
+  const size_t partial_gc_frequency_;
+
+  // Sticky mark bits GC has some overhead, so if we have less a few megabytes of AllocSpace then
+  // it's probably better to just do a partial GC.
+  const size_t min_alloc_space_size_for_sticky_gc_;
+
+  // Minimum remaining size for sticky GC. Since sticky GC doesn't free up as much memory as a
+  // normal GC, it is important to not use it when we are almost out of memory.
+  const size_t min_remaining_space_for_sticky_gc_;
 
   // Last trim time
   uint64_t last_trim_time_;
@@ -432,6 +437,8 @@ class LOCKABLE Heap {
 
   bool verify_objects_;
 
+  friend class MarkSweep;
+  friend class VerifyReferenceCardVisitor;
   friend class VerifyReferenceVisitor;
   friend class VerifyObjectVisitor;
   friend class ScopedHeapLock;

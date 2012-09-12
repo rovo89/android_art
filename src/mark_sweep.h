@@ -142,6 +142,16 @@ class MarkSweep {
   void SweepSystemWeaks(bool swap_bitmaps)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  static bool VerifyIsLiveCallback(const Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void VerifySystemWeaks()
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Verify that an object is live, either in a live bitmap or in the allocation stack.
+  void VerifyIsLive(const Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   template <typename Visitor>
   static void VisitObjectReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
