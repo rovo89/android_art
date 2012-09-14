@@ -1777,10 +1777,8 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
   llvm::BasicBlock* llvmBB = getLLVMBlock(cUnit, bb->id);
-  if (llvmBB != NULL) {
-    cUnit->irb->SetInsertPoint(llvmBB);
-    setDexOffset(cUnit, bb->startOffset);
-  }
+  cUnit->irb->SetInsertPoint(llvmBB);
+  setDexOffset(cUnit, bb->startOffset);
 
   if (cUnit->printMe) {
     LOG(INFO) << "................................";

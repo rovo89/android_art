@@ -43,6 +43,10 @@ using namespace art::compiler_llvm;
 
 using art::greenland::IntrinsicHelper;
 
+namespace art {
+extern char remapShorty(char shortyType);
+};
+
 namespace {
 
 class GBCExpanderPass : public llvm::FunctionPass {
@@ -2490,13 +2494,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
 
   char ret_shorty = shorty[0];
 #if defined(ART_USE_QUICK_COMPILER)
-  switch(ret_shorty) {
-    case 'Z' : ret_shorty = 'I'; break;
-    case 'B' : ret_shorty = 'I'; break;
-    case 'S' : ret_shorty = 'I'; break;
-    case 'C' : ret_shorty = 'I'; break;
-    default: break;
-  }
+  ret_shorty = art::remapShorty(ret_shorty);
 #endif
   llvm::Type* ret_type = irb_.getJType(ret_shorty, kAccurate);
 
@@ -2511,14 +2509,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
 #if defined(ART_USE_QUICK_COMPILER)
-    char shorty_type = shorty[i];
-    switch(shorty_type) {
-      case 'Z' : shorty_type = 'I'; break;
-      case 'B' : shorty_type = 'I'; break;
-      case 'S' : shorty_type = 'I'; break;
-      case 'C' : shorty_type = 'I'; break;
-      default: break;
-    }
+    char shorty_type = art::remapShorty(shorty[i]);
     args_type.push_back(irb_.getJType(shorty_type, kAccurate));
 #else
     args_type.push_back(irb_.getJType(shorty[i], kAccurate));
@@ -2653,13 +2644,7 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
   // Emit the code to return default value (zero) for the given return type.
   char ret_shorty = oat_compilation_unit_->GetShorty()[0];
 #if defined(ART_USE_QUICK_COMPILER)
-  switch(ret_shorty) {
-    case 'Z' : ret_shorty = 'I'; break;
-    case 'B' : ret_shorty = 'I'; break;
-    case 'S' : ret_shorty = 'I'; break;
-    case 'C' : ret_shorty = 'I'; break;
-    default: break;
-  }
+  ret_shorty = art::remapShorty(ret_shorty);
 #endif
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();
@@ -3521,16 +3506,6 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                 call_inst.getArgOperand(1));
     }
 
-    //==- Switch -----------------------------------------------------------==//
-    case IntrinsicHelper::SparseSwitch: {
-      // Nothing to be done.
-      return NULL;
-    }
-    case IntrinsicHelper::PackedSwitch: {
-      // Nothing to be done.
-      return NULL;
-    }
-
     //==- Const ------------------------------------------------------------==//
     case IntrinsicHelper::ConstInt:
     case IntrinsicHelper::ConstLong: {
@@ -3551,7 +3526,8 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Method Info ------------------------------------------------------==//
     case IntrinsicHelper::MethodInfo: {
-      // Nothing to be done.
+      // Nothing to be done, because MethodInfo carries optional hints that are
+      // not needed by the portable path.
       return NULL;
     }
 
@@ -3636,6 +3612,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 } // anonymous namespace
 
 namespace art {
+
 namespace compiler_llvm {
 
 llvm::FunctionPass*

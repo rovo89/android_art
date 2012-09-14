@@ -1611,23 +1611,6 @@ _EVAL_DEF_INTRINSICS_FUNC(CmpLong,
                           _EXPAND_ARG2(kInt64Ty, kInt64Ty))
 
 //----------------------------------------------------------------------------
-// Switch
-//----------------------------------------------------------------------------
-// void sparse_switch(int, int)
-_EVAL_DEF_INTRINSICS_FUNC(SparseSwitch,
-                          dex_lang_sparse_switch,
-                          kAttrReadOnly | kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG2(kInt32Ty, kInt32Ty))
-
-// void packed_switch(int, int)
-_EVAL_DEF_INTRINSICS_FUNC(PackedSwitch,
-                          dex_lang_packed_switch,
-                          kAttrReadOnly | kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG2(kInt32Ty, kInt32Ty))
-
-//----------------------------------------------------------------------------
 // Const intrinsics to assist MIR to Greenland_ir conversion.  Should not materialize
 // For simplicity, all use integer input
 //----------------------------------------------------------------------------
