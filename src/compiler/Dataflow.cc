@@ -1970,6 +1970,54 @@ bool countChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
   return false;
 }
 
+/* Try to make common case the fallthrough path */
+bool layoutBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+{
+  // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
+  if (!bb->explicitThrow) {
+    return false;
+  }
+  BasicBlock* walker = bb;
+  while (true) {
+    // Check termination conditions
+    if ((walker->blockType == kEntryBlock) || (walker->predecessors->numUsed != 1)) {
+      break;
+    }
+    BasicBlock* prev = GET_ELEM_N(walker->predecessors, BasicBlock*, 0);
+    if (prev->conditionalBranch) {
+      if (prev->fallThrough == walker) {
+        // Already done - return
+        break;
+      }
+      DCHECK_EQ(walker, prev->taken);
+      // Got one.  Flip it and exit
+      Instruction::Code opcode = prev->lastMIRInsn->dalvikInsn.opcode;
+      switch (opcode) {
+        case Instruction::IF_EQ: opcode = Instruction::IF_NE; break;
+        case Instruction::IF_NE: opcode = Instruction::IF_EQ; break;
+        case Instruction::IF_LT: opcode = Instruction::IF_GE; break;
+        case Instruction::IF_GE: opcode = Instruction::IF_LT; break;
+        case Instruction::IF_GT: opcode = Instruction::IF_LE; break;
+        case Instruction::IF_LE: opcode = Instruction::IF_GT; break;
+        case Instruction::IF_EQZ: opcode = Instruction::IF_NEZ; break;
+        case Instruction::IF_NEZ: opcode = Instruction::IF_EQZ; break;
+        case Instruction::IF_LTZ: opcode = Instruction::IF_GEZ; break;
+        case Instruction::IF_GEZ: opcode = Instruction::IF_LTZ; break;
+        case Instruction::IF_GTZ: opcode = Instruction::IF_LEZ; break;
+        case Instruction::IF_LEZ: opcode = Instruction::IF_GTZ; break;
+        default: LOG(FATAL) << "Unexpected opcode 0x" << std::hex << (int)opcode;
+      }
+      prev->lastMIRInsn->dalvikInsn.opcode = opcode;
+      BasicBlock* tBB = prev->taken;
+      prev->taken = prev->fallThrough;
+      prev->fallThrough = tBB;
+      break;
+    }
+    walker = prev;
+  }
+  return false;
+}
+
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
 bool combineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
@@ -1992,9 +2040,14 @@ bool combineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
     // Grab the attributes from the paired opcode
     MIR* throwInsn = mir->meta.throwInsn;
     int dfAttributes = oatDataFlowAttributes[throwInsn->dalvikInsn.opcode];
-    // Only null checks, and null checks eliminated?
-    if (((dfAttributes & DF_HAS_NULL_CHKS) == 0) || ((dfAttributes & DF_HAS_RANGE_CHKS) != 0)
-        || !(throwInsn->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
+    bool canCombine = true;
+    if (dfAttributes & DF_HAS_NULL_CHKS) {
+      canCombine &= ((throwInsn->optimizationFlags & MIR_IGNORE_NULL_CHECK) != 0);
+    }
+    if (dfAttributes & DF_HAS_RANGE_CHKS) {
+      canCombine &= ((throwInsn->optimizationFlags & MIR_IGNORE_RANGE_CHECK) != 0);
+    }
+    if (!canCombine) {
       break;
     }
     // OK - got one.  Combine
@@ -2178,6 +2231,11 @@ void oatMethodNullCheckElimination(CompilationUnit *cUnit)
 void oatMethodBasicBlockCombine(CompilationUnit* cUnit)
 {
   oatDataFlowAnalysisDispatcher(cUnit, combineBlocks, kPreOrderDFSTraversal, false);
+}
+
+void oatMethodCodeLayout(CompilationUnit* cUnit)
+{
+  oatDataFlowAnalysisDispatcher(cUnit, layoutBlocks, kAllNodes, false);
 }
 
 void oatDumpCheckStats(CompilationUnit *cUnit)

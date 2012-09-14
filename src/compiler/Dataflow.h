@@ -168,6 +168,8 @@ void oatDumpCheckStats(CompilationUnit*);
 
 void oatMethodBasicBlockCombine(CompilationUnit*);
 
+void oatMethodCodeLayout(CompilationUnit*);
+
 void oatMethodBasicBlockOptimization(CompilationUnit*);
 
 }  // namespace art

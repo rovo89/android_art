@@ -160,10 +160,10 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
 
   if (cUnit->printMe && loc.home) {
     if (loc.wide) {
-      LOG(INFO) << "Promoted wide " << s << " to regs " << loc.lowReg
+      LOG(INFO) << "Promoted wide " << s << " to regs " << static_cast<int>(loc.lowReg)
                 << "/" << loc.highReg;
     } else {
-      LOG(INFO) << "Promoted " << s << " to reg " << loc.lowReg;
+      LOG(INFO) << "Promoted " << s << " to reg " << static_cast<int>(loc.lowReg);
     }
   }
   cUnit->locMap.Put(val, loc);
@@ -2856,475 +2856,485 @@ RegLocation valToLoc(CompilationUnit* cUnit, llvm::Value* val)
 
 bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
 {
-  bool isEntry = (bb == &cUnit->func->getEntryBlock());
-  // Define the starting label
-  LIR* blockLabel = cUnit->blockToLabelMap.Get(bb);
-  // Extract the type and starting offset from the block's name
-  char blockType = kNormalBlock;
-  if (!isEntry) {
-    const char* blockName = bb->getName().str().c_str();
-    int dummy;
-    sscanf(blockName, kLabelFormat, &blockType, &blockLabel->operands[0], &dummy);
-    cUnit->currentDalvikOffset = blockLabel->operands[0];
-  } else {
-    cUnit->currentDalvikOffset = 0;
-  }
-  // Set the label kind
-  blockLabel->opcode = kPseudoNormalBlockLabel;
-  // Insert the label
-  oatAppendLIR(cUnit, blockLabel);
+  while (cUnit->llvmBlocks.find(bb) == cUnit->llvmBlocks.end()) {
+    llvm::BasicBlock* nextBB = NULL;
+    cUnit->llvmBlocks.insert(bb);
+    bool isEntry = (bb == &cUnit->func->getEntryBlock());
+    // Define the starting label
+    LIR* blockLabel = cUnit->blockToLabelMap.Get(bb);
+    // Extract the type and starting offset from the block's name
+    char blockType = kNormalBlock;
+    if (!isEntry) {
+      const char* blockName = bb->getName().str().c_str();
+      int dummy;
+      sscanf(blockName, kLabelFormat, &blockType, &blockLabel->operands[0], &dummy);
+      cUnit->currentDalvikOffset = blockLabel->operands[0];
+    } else {
+      cUnit->currentDalvikOffset = 0;
+    }
+    // Set the label kind
+    blockLabel->opcode = kPseudoNormalBlockLabel;
+    // Insert the label
+    oatAppendLIR(cUnit, blockLabel);
 
-  LIR* headLIR = NULL;
+    LIR* headLIR = NULL;
 
-  if (blockType == kCatchBlock) {
-    headLIR = newLIR0(cUnit, kPseudoSafepointPC);
-  }
+    if (blockType == kCatchBlock) {
+      headLIR = newLIR0(cUnit, kPseudoSafepointPC);
+    }
 
-  // Free temp registers and reset redundant store tracking */
-  oatResetRegPool(cUnit);
-  oatResetDefTracking(cUnit);
+    // Free temp registers and reset redundant store tracking */
+    oatResetRegPool(cUnit);
+    oatResetDefTracking(cUnit);
 
-  //TODO: restore oat incoming liveness optimization
-  oatClobberAllRegs(cUnit);
+    //TODO: restore oat incoming liveness optimization
+    oatClobberAllRegs(cUnit);
 
-  if (isEntry) {
-    RegLocation* argLocs = (RegLocation*)
-        oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
-    llvm::Function::arg_iterator it(cUnit->func->arg_begin());
-    llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
-    // Skip past Method*
-    it++;
-    for (unsigned i = 0; it != it_end; ++it) {
-      llvm::Value* val = it;
-      argLocs[i++] = valToLoc(cUnit, val);
-      llvm::Type* ty = val->getType();
-      if ((ty == cUnit->irb->getInt64Ty()) || (ty == cUnit->irb->getDoubleTy())) {
-        argLocs[i] = argLocs[i-1];
-        argLocs[i].lowReg = argLocs[i].highReg;
-        argLocs[i].origSReg++;
-        argLocs[i].sRegLow = INVALID_SREG;
-        argLocs[i].highWord = true;
-        i++;
+    if (isEntry) {
+      RegLocation* argLocs = (RegLocation*)
+          oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
+      llvm::Function::arg_iterator it(cUnit->func->arg_begin());
+      llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
+      // Skip past Method*
+      it++;
+      for (unsigned i = 0; it != it_end; ++it) {
+        llvm::Value* val = it;
+        argLocs[i++] = valToLoc(cUnit, val);
+        llvm::Type* ty = val->getType();
+        if ((ty == cUnit->irb->getInt64Ty()) || (ty == cUnit->irb->getDoubleTy())) {
+          argLocs[i] = argLocs[i-1];
+          argLocs[i].lowReg = argLocs[i].highReg;
+          argLocs[i].origSReg++;
+          argLocs[i].sRegLow = INVALID_SREG;
+          argLocs[i].highWord = true;
+          i++;
+        }
+      }
+      genEntrySequence(cUnit, argLocs, cUnit->methodLoc);
+    }
+
+    // Visit all of the instructions in the block
+    for (llvm::BasicBlock::iterator it = bb->begin(), e = bb->end(); it != e;) {
+      llvm::Instruction* inst = it;
+      llvm::BasicBlock::iterator nextIt = ++it;
+      // Extract the Dalvik offset from the instruction
+      uint32_t opcode = inst->getOpcode();
+      llvm::MDNode* dexOffsetNode = inst->getMetadata("DexOff");
+      if (dexOffsetNode != NULL) {
+        llvm::ConstantInt* dexOffsetValue =
+            static_cast<llvm::ConstantInt*>(dexOffsetNode->getOperand(0));
+        cUnit->currentDalvikOffset = dexOffsetValue->getZExtValue();
+      }
+
+      oatResetRegPool(cUnit);
+      if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
+        oatClobberAllRegs(cUnit);
+      }
+
+      if (cUnit->disableOpt & (1 << kSuppressLoads)) {
+        oatResetDefTracking(cUnit);
+      }
+
+  #ifndef NDEBUG
+      /* Reset temp tracking sanity check */
+      cUnit->liveSReg = INVALID_SREG;
+  #endif
+
+      // TODO: use llvm opcode name here instead of "boundary" if verbose
+      LIR* boundaryLIR = markBoundary(cUnit, cUnit->currentDalvikOffset, "boundary");
+
+      /* Remember the first LIR for thisl block*/
+      if (headLIR == NULL) {
+        headLIR = boundaryLIR;
+        headLIR->defMask = ENCODE_ALL;
+      }
+
+      switch(opcode) {
+
+        case llvm::Instruction::ICmp: {
+            llvm::Instruction* nextInst = nextIt;
+            llvm::BranchInst* brInst = llvm::dyn_cast<llvm::BranchInst>(nextInst);
+            if (brInst != NULL /* and... */) {
+              cvtICmpBr(cUnit, inst, brInst);
+              ++it;
+            } else {
+              cvtICmp(cUnit, inst);
+            }
+          }
+          break;
+
+        case llvm::Instruction::Call: {
+            llvm::CallInst* callInst = llvm::dyn_cast<llvm::CallInst>(inst);
+            llvm::Function* callee = callInst->getCalledFunction();
+            greenland::IntrinsicHelper::IntrinsicId id =
+                cUnit->intrinsic_helper->GetIntrinsicId(callee);
+            switch (id) {
+              case greenland::IntrinsicHelper::AllocaShadowFrame:
+              case greenland::IntrinsicHelper::SetShadowFrameEntry:
+              case greenland::IntrinsicHelper::PopShadowFrame:
+                // Ignore shadow frame stuff for quick compiler
+                break;
+              case greenland::IntrinsicHelper::CopyInt:
+              case greenland::IntrinsicHelper::CopyObj:
+              case greenland::IntrinsicHelper::CopyFloat:
+              case greenland::IntrinsicHelper::CopyLong:
+              case greenland::IntrinsicHelper::CopyDouble:
+                cvtCopy(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::ConstInt:
+              case greenland::IntrinsicHelper::ConstObj:
+              case greenland::IntrinsicHelper::ConstLong:
+              case greenland::IntrinsicHelper::ConstFloat:
+              case greenland::IntrinsicHelper::ConstDouble:
+                cvtConst(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::DivInt:
+              case greenland::IntrinsicHelper::DivLong:
+                cvtBinOp(cUnit, kOpDiv, inst);
+                break;
+              case greenland::IntrinsicHelper::RemInt:
+              case greenland::IntrinsicHelper::RemLong:
+                cvtBinOp(cUnit, kOpRem, inst);
+                break;
+              case greenland::IntrinsicHelper::MethodInfo:
+                // Already dealt with - just ignore it here.
+                break;
+              case greenland::IntrinsicHelper::CheckSuspend:
+                genSuspendTest(cUnit, 0 /* optFlags already applied */);
+                break;
+              case greenland::IntrinsicHelper::HLInvokeObj:
+              case greenland::IntrinsicHelper::HLInvokeFloat:
+              case greenland::IntrinsicHelper::HLInvokeDouble:
+              case greenland::IntrinsicHelper::HLInvokeLong:
+              case greenland::IntrinsicHelper::HLInvokeInt:
+                cvtInvoke(cUnit, callInst, false /* isVoid */, false /* newArray */);
+                break;
+              case greenland::IntrinsicHelper::HLInvokeVoid:
+                cvtInvoke(cUnit, callInst, true /* isVoid */, false /* newArray */);
+                break;
+              case greenland::IntrinsicHelper::FilledNewArray:
+                cvtInvoke(cUnit, callInst, false /* isVoid */, true /* newArray */);
+                break;
+              case greenland::IntrinsicHelper::FillArrayData:
+                cvtFillArrayData(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::ConstString:
+                cvtConstObject(cUnit, callInst, true /* isString */);
+                break;
+              case greenland::IntrinsicHelper::ConstClass:
+                cvtConstObject(cUnit, callInst, false /* isString */);
+                break;
+              case greenland::IntrinsicHelper::CheckCast:
+                cvtCheckCast(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::NewInstance:
+                cvtNewInstance(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::HLSgetObject:
+                cvtSget(cUnit, callInst, false /* wide */, true /* Object */);
+                break;
+              case greenland::IntrinsicHelper::HLSget:
+              case greenland::IntrinsicHelper::HLSgetFloat:
+              case greenland::IntrinsicHelper::HLSgetBoolean:
+              case greenland::IntrinsicHelper::HLSgetByte:
+              case greenland::IntrinsicHelper::HLSgetChar:
+              case greenland::IntrinsicHelper::HLSgetShort:
+                cvtSget(cUnit, callInst, false /* wide */, false /* Object */);
+                break;
+              case greenland::IntrinsicHelper::HLSgetWide:
+              case greenland::IntrinsicHelper::HLSgetDouble:
+                cvtSget(cUnit, callInst, true /* wide */, false /* Object */);
+                break;
+              case greenland::IntrinsicHelper::HLSput:
+              case greenland::IntrinsicHelper::HLSputFloat:
+              case greenland::IntrinsicHelper::HLSputBoolean:
+              case greenland::IntrinsicHelper::HLSputByte:
+              case greenland::IntrinsicHelper::HLSputChar:
+              case greenland::IntrinsicHelper::HLSputShort:
+                cvtSput(cUnit, callInst, false /* wide */, false /* Object */);
+                break;
+              case greenland::IntrinsicHelper::HLSputWide:
+              case greenland::IntrinsicHelper::HLSputDouble:
+                cvtSput(cUnit, callInst, true /* wide */, false /* Object */);
+                break;
+              case greenland::IntrinsicHelper::HLSputObject:
+                cvtSput(cUnit, callInst, false /* wide */, true /* Object */);
+                break;
+              case greenland::IntrinsicHelper::GetException:
+                cvtMoveException(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::Throw:
+                cvtThrow(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::MonitorEnter:
+                cvtMonitorEnterExit(cUnit, true /* isEnter */, callInst);
+                break;
+              case greenland::IntrinsicHelper::MonitorExit:
+                cvtMonitorEnterExit(cUnit, false /* isEnter */, callInst);
+                break;
+              case greenland::IntrinsicHelper::ArrayLength:
+                cvtArrayLength(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::NewArray:
+                cvtNewArray(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::InstanceOf:
+                cvtInstanceOf(cUnit, callInst);
+                break;
+
+              case greenland::IntrinsicHelper::HLArrayGet:
+              case greenland::IntrinsicHelper::HLArrayGetObject:
+              case greenland::IntrinsicHelper::HLArrayGetFloat:
+                cvtAget(cUnit, callInst, kWord, 2);
+                break;
+              case greenland::IntrinsicHelper::HLArrayGetWide:
+              case greenland::IntrinsicHelper::HLArrayGetDouble:
+                cvtAget(cUnit, callInst, kLong, 3);
+                break;
+              case greenland::IntrinsicHelper::HLArrayGetBoolean:
+                cvtAget(cUnit, callInst, kUnsignedByte, 0);
+                break;
+              case greenland::IntrinsicHelper::HLArrayGetByte:
+                cvtAget(cUnit, callInst, kSignedByte, 0);
+                break;
+              case greenland::IntrinsicHelper::HLArrayGetChar:
+                cvtAget(cUnit, callInst, kUnsignedHalf, 1);
+                break;
+              case greenland::IntrinsicHelper::HLArrayGetShort:
+                cvtAget(cUnit, callInst, kSignedHalf, 1);
+                break;
+
+              case greenland::IntrinsicHelper::HLArrayPut:
+              case greenland::IntrinsicHelper::HLArrayPutFloat:
+                cvtAputPrimitive(cUnit, callInst, kWord, 2);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutObject:
+                cvtAputObj(cUnit, callInst);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutWide:
+              case greenland::IntrinsicHelper::HLArrayPutDouble:
+                cvtAputPrimitive(cUnit, callInst, kLong, 3);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutBoolean:
+                cvtAputPrimitive(cUnit, callInst, kUnsignedByte, 0);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutByte:
+                cvtAputPrimitive(cUnit, callInst, kSignedByte, 0);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutChar:
+                cvtAputPrimitive(cUnit, callInst, kUnsignedHalf, 1);
+                break;
+              case greenland::IntrinsicHelper::HLArrayPutShort:
+                cvtAputPrimitive(cUnit, callInst, kSignedHalf, 1);
+                break;
+
+              case greenland::IntrinsicHelper::HLIGet:
+              case greenland::IntrinsicHelper::HLIGetFloat:
+                cvtIget(cUnit, callInst, kWord, false /* isWide */, false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetObject:
+                cvtIget(cUnit, callInst, kWord, false /* isWide */, true /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetWide:
+              case greenland::IntrinsicHelper::HLIGetDouble:
+                cvtIget(cUnit, callInst, kLong, true /* isWide */, false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetBoolean:
+                cvtIget(cUnit, callInst, kUnsignedByte, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetByte:
+                cvtIget(cUnit, callInst, kSignedByte, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetChar:
+                cvtIget(cUnit, callInst, kUnsignedHalf, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIGetShort:
+                cvtIget(cUnit, callInst, kSignedHalf, false /* isWide */,
+                        false /* obj */);
+                break;
+
+              case greenland::IntrinsicHelper::HLIPut:
+              case greenland::IntrinsicHelper::HLIPutFloat:
+                cvtIput(cUnit, callInst, kWord, false /* isWide */, false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutObject:
+                cvtIput(cUnit, callInst, kWord, false /* isWide */, true /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutWide:
+              case greenland::IntrinsicHelper::HLIPutDouble:
+                cvtIput(cUnit, callInst, kLong, true /* isWide */, false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutBoolean:
+                cvtIput(cUnit, callInst, kUnsignedByte, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutByte:
+                cvtIput(cUnit, callInst, kSignedByte, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutChar:
+                cvtIput(cUnit, callInst, kUnsignedHalf, false /* isWide */,
+                        false /* obj */);
+                break;
+              case greenland::IntrinsicHelper::HLIPutShort:
+                cvtIput(cUnit, callInst, kSignedHalf, false /* isWide */,
+                        false /* obj */);
+                break;
+
+              case greenland::IntrinsicHelper::IntToChar:
+                cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_CHAR);
+                break;
+              case greenland::IntrinsicHelper::IntToShort:
+                cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_SHORT);
+                break;
+              case greenland::IntrinsicHelper::IntToByte:
+                cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_BYTE);
+                break;
+
+              case greenland::IntrinsicHelper::CmplFloat:
+                cvtFPCompare(cUnit, callInst, Instruction::CMPL_FLOAT);
+                break;
+              case greenland::IntrinsicHelper::CmpgFloat:
+                cvtFPCompare(cUnit, callInst, Instruction::CMPG_FLOAT);
+                break;
+              case greenland::IntrinsicHelper::CmplDouble:
+                cvtFPCompare(cUnit, callInst, Instruction::CMPL_DOUBLE);
+                break;
+              case greenland::IntrinsicHelper::CmpgDouble:
+                cvtFPCompare(cUnit, callInst, Instruction::CMPG_DOUBLE);
+                break;
+
+              case greenland::IntrinsicHelper::CmpLong:
+                cvtLongCompare(cUnit, callInst);
+                break;
+
+              case greenland::IntrinsicHelper::SHLLong:
+                cvtShiftOp(cUnit, Instruction::SHL_LONG, callInst);
+                break;
+              case greenland::IntrinsicHelper::SHRLong:
+                cvtShiftOp(cUnit, Instruction::SHR_LONG, callInst);
+                break;
+              case greenland::IntrinsicHelper::USHRLong:
+                cvtShiftOp(cUnit, Instruction::USHR_LONG, callInst);
+                break;
+              case greenland::IntrinsicHelper::SHLInt:
+                cvtShiftOp(cUnit, Instruction::SHL_INT, callInst);
+                break;
+              case greenland::IntrinsicHelper::SHRInt:
+                cvtShiftOp(cUnit, Instruction::SHR_INT, callInst);
+                break;
+              case greenland::IntrinsicHelper::USHRInt:
+                cvtShiftOp(cUnit, Instruction::USHR_INT, callInst);
+                break;
+
+              case greenland::IntrinsicHelper::CatchTargets: {
+                  llvm::SwitchInst* swInst =
+                      llvm::dyn_cast<llvm::SwitchInst>(nextIt);
+                  DCHECK(swInst != NULL);
+                  /*
+                   * Discard the edges and the following conditional branch.
+                   * Do a direct branch to the default target (which is the
+                   * "work" portion of the pair.
+                   * TODO: awful code layout - rework
+                   */
+                   llvm::BasicBlock* targetBB = swInst->getDefaultDest();
+                   DCHECK(targetBB != NULL);
+                   opUnconditionalBranch(cUnit,
+                                         cUnit->blockToLabelMap.Get(targetBB));
+                   ++it;
+                   // Set next bb to default target - improves code layout
+                   nextBB = targetBB;
+                }
+                break;
+
+              default:
+                LOG(FATAL) << "Unexpected intrinsic " << (int)id << ", "
+                           << cUnit->intrinsic_helper->GetName(id);
+            }
+          }
+          break;
+
+        case llvm::Instruction::Br: cvtBr(cUnit, inst); break;
+        case llvm::Instruction::Add: cvtBinOp(cUnit, kOpAdd, inst); break;
+        case llvm::Instruction::Sub: cvtBinOp(cUnit, kOpSub, inst); break;
+        case llvm::Instruction::Mul: cvtBinOp(cUnit, kOpMul, inst); break;
+        case llvm::Instruction::SDiv: cvtBinOp(cUnit, kOpDiv, inst); break;
+        case llvm::Instruction::SRem: cvtBinOp(cUnit, kOpRem, inst); break;
+        case llvm::Instruction::And: cvtBinOp(cUnit, kOpAnd, inst); break;
+        case llvm::Instruction::Or: cvtBinOp(cUnit, kOpOr, inst); break;
+        case llvm::Instruction::Xor: cvtBinOp(cUnit, kOpXor, inst); break;
+        case llvm::Instruction::PHI: cvtPhi(cUnit, inst); break;
+        case llvm::Instruction::Ret: cvtRet(cUnit, inst); break;
+        case llvm::Instruction::FAdd: cvtBinFPOp(cUnit, kOpAdd, inst); break;
+        case llvm::Instruction::FSub: cvtBinFPOp(cUnit, kOpSub, inst); break;
+        case llvm::Instruction::FMul: cvtBinFPOp(cUnit, kOpMul, inst); break;
+        case llvm::Instruction::FDiv: cvtBinFPOp(cUnit, kOpDiv, inst); break;
+        case llvm::Instruction::FRem: cvtBinFPOp(cUnit, kOpRem, inst); break;
+        case llvm::Instruction::SIToFP: cvtIntToFP(cUnit, inst); break;
+        case llvm::Instruction::FPToSI: cvtFPToInt(cUnit, inst); break;
+        case llvm::Instruction::FPTrunc: cvtDoubleToFloat(cUnit, inst); break;
+        case llvm::Instruction::FPExt: cvtFloatToDouble(cUnit, inst); break;
+        case llvm::Instruction::Trunc: cvtTrunc(cUnit, inst); break;
+
+        case llvm::Instruction::ZExt: cvtIntExt(cUnit, inst, false /* signed */);
+          break;
+        case llvm::Instruction::SExt: cvtIntExt(cUnit, inst, true /* signed */);
+          break;
+
+        case llvm::Instruction::Switch: cvtSwitch(cUnit, inst); break;
+
+        case llvm::Instruction::Unreachable:
+          break;  // FIXME: can we really ignore these?
+
+        case llvm::Instruction::Shl:
+        case llvm::Instruction::LShr:
+        case llvm::Instruction::AShr:
+        case llvm::Instruction::Invoke:
+        case llvm::Instruction::FPToUI:
+        case llvm::Instruction::UIToFP:
+        case llvm::Instruction::PtrToInt:
+        case llvm::Instruction::IntToPtr:
+        case llvm::Instruction::FCmp:
+        case llvm::Instruction::URem:
+        case llvm::Instruction::UDiv:
+        case llvm::Instruction::Resume:
+        case llvm::Instruction::Alloca:
+        case llvm::Instruction::GetElementPtr:
+        case llvm::Instruction::Fence:
+        case llvm::Instruction::AtomicCmpXchg:
+        case llvm::Instruction::AtomicRMW:
+        case llvm::Instruction::BitCast:
+        case llvm::Instruction::VAArg:
+        case llvm::Instruction::Select:
+        case llvm::Instruction::UserOp1:
+        case llvm::Instruction::UserOp2:
+        case llvm::Instruction::ExtractElement:
+        case llvm::Instruction::InsertElement:
+        case llvm::Instruction::ShuffleVector:
+        case llvm::Instruction::ExtractValue:
+        case llvm::Instruction::InsertValue:
+        case llvm::Instruction::LandingPad:
+        case llvm::Instruction::IndirectBr:
+        case llvm::Instruction::Load:
+        case llvm::Instruction::Store:
+          LOG(FATAL) << "Unexpected llvm opcode: " << opcode; break;
+
+        default:
+          LOG(FATAL) << "Unknown llvm opcode: " << inst->getOpcodeName();
+          break;
       }
     }
-    genEntrySequence(cUnit, argLocs, cUnit->methodLoc);
-  }
 
-  // Visit all of the instructions in the block
-  for (llvm::BasicBlock::iterator it = bb->begin(), e = bb->end(); it != e;) {
-    llvm::Instruction* inst = it;
-    llvm::BasicBlock::iterator nextIt = ++it;
-    // Extract the Dalvik offset from the instruction
-    uint32_t opcode = inst->getOpcode();
-    llvm::MDNode* dexOffsetNode = inst->getMetadata("DexOff");
-    if (dexOffsetNode != NULL) {
-      llvm::ConstantInt* dexOffsetValue =
-          static_cast<llvm::ConstantInt*>(dexOffsetNode->getOperand(0));
-      cUnit->currentDalvikOffset = dexOffsetValue->getZExtValue();
+    if (headLIR != NULL) {
+      oatApplyLocalOptimizations(cUnit, headLIR, cUnit->lastLIRInsn);
     }
-
-    oatResetRegPool(cUnit);
-    if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
-      oatClobberAllRegs(cUnit);
+    if (nextBB != NULL) {
+      bb = nextBB;
+      nextBB = NULL;
     }
-
-    if (cUnit->disableOpt & (1 << kSuppressLoads)) {
-      oatResetDefTracking(cUnit);
-    }
-
-#ifndef NDEBUG
-    /* Reset temp tracking sanity check */
-    cUnit->liveSReg = INVALID_SREG;
-#endif
-
-    // TODO: use llvm opcode name here instead of "boundary" if verbose
-    LIR* boundaryLIR = markBoundary(cUnit, cUnit->currentDalvikOffset, "boundary");
-
-    /* Remember the first LIR for thisl block*/
-    if (headLIR == NULL) {
-      headLIR = boundaryLIR;
-      headLIR->defMask = ENCODE_ALL;
-    }
-
-    switch(opcode) {
-
-      case llvm::Instruction::ICmp: {
-          llvm::Instruction* nextInst = nextIt;
-          llvm::BranchInst* brInst = llvm::dyn_cast<llvm::BranchInst>(nextInst);
-          if (brInst != NULL /* and... */) {
-            cvtICmpBr(cUnit, inst, brInst);
-            ++it;
-          } else {
-            cvtICmp(cUnit, inst);
-          }
-        }
-        break;
-
-      case llvm::Instruction::Call: {
-          llvm::CallInst* callInst = llvm::dyn_cast<llvm::CallInst>(inst);
-          llvm::Function* callee = callInst->getCalledFunction();
-          greenland::IntrinsicHelper::IntrinsicId id =
-              cUnit->intrinsic_helper->GetIntrinsicId(callee);
-          switch (id) {
-            case greenland::IntrinsicHelper::AllocaShadowFrame:
-            case greenland::IntrinsicHelper::SetShadowFrameEntry:
-            case greenland::IntrinsicHelper::PopShadowFrame:
-              // Ignore shadow frame stuff for quick compiler
-              break;
-            case greenland::IntrinsicHelper::CopyInt:
-            case greenland::IntrinsicHelper::CopyObj:
-            case greenland::IntrinsicHelper::CopyFloat:
-            case greenland::IntrinsicHelper::CopyLong:
-            case greenland::IntrinsicHelper::CopyDouble:
-              cvtCopy(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::ConstInt:
-            case greenland::IntrinsicHelper::ConstObj:
-            case greenland::IntrinsicHelper::ConstLong:
-            case greenland::IntrinsicHelper::ConstFloat:
-            case greenland::IntrinsicHelper::ConstDouble:
-              cvtConst(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::DivInt:
-            case greenland::IntrinsicHelper::DivLong:
-              cvtBinOp(cUnit, kOpDiv, inst);
-              break;
-            case greenland::IntrinsicHelper::RemInt:
-            case greenland::IntrinsicHelper::RemLong:
-              cvtBinOp(cUnit, kOpRem, inst);
-              break;
-            case greenland::IntrinsicHelper::MethodInfo:
-              // Already dealt with - just ignore it here.
-              break;
-            case greenland::IntrinsicHelper::CheckSuspend:
-              genSuspendTest(cUnit, 0 /* optFlags already applied */);
-              break;
-            case greenland::IntrinsicHelper::HLInvokeObj:
-            case greenland::IntrinsicHelper::HLInvokeFloat:
-            case greenland::IntrinsicHelper::HLInvokeDouble:
-            case greenland::IntrinsicHelper::HLInvokeLong:
-            case greenland::IntrinsicHelper::HLInvokeInt:
-              cvtInvoke(cUnit, callInst, false /* isVoid */, false /* newArray */);
-              break;
-            case greenland::IntrinsicHelper::HLInvokeVoid:
-              cvtInvoke(cUnit, callInst, true /* isVoid */, false /* newArray */);
-              break;
-            case greenland::IntrinsicHelper::FilledNewArray:
-              cvtInvoke(cUnit, callInst, false /* isVoid */, true /* newArray */);
-              break;
-            case greenland::IntrinsicHelper::FillArrayData:
-              cvtFillArrayData(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::ConstString:
-              cvtConstObject(cUnit, callInst, true /* isString */);
-              break;
-            case greenland::IntrinsicHelper::ConstClass:
-              cvtConstObject(cUnit, callInst, false /* isString */);
-              break;
-            case greenland::IntrinsicHelper::CheckCast:
-              cvtCheckCast(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::NewInstance:
-              cvtNewInstance(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::HLSgetObject:
-              cvtSget(cUnit, callInst, false /* wide */, true /* Object */);
-              break;
-            case greenland::IntrinsicHelper::HLSget:
-            case greenland::IntrinsicHelper::HLSgetFloat:
-            case greenland::IntrinsicHelper::HLSgetBoolean:
-            case greenland::IntrinsicHelper::HLSgetByte:
-            case greenland::IntrinsicHelper::HLSgetChar:
-            case greenland::IntrinsicHelper::HLSgetShort:
-              cvtSget(cUnit, callInst, false /* wide */, false /* Object */);
-              break;
-            case greenland::IntrinsicHelper::HLSgetWide:
-            case greenland::IntrinsicHelper::HLSgetDouble:
-              cvtSget(cUnit, callInst, true /* wide */, false /* Object */);
-              break;
-            case greenland::IntrinsicHelper::HLSput:
-            case greenland::IntrinsicHelper::HLSputFloat:
-            case greenland::IntrinsicHelper::HLSputBoolean:
-            case greenland::IntrinsicHelper::HLSputByte:
-            case greenland::IntrinsicHelper::HLSputChar:
-            case greenland::IntrinsicHelper::HLSputShort:
-              cvtSput(cUnit, callInst, false /* wide */, false /* Object */);
-              break;
-            case greenland::IntrinsicHelper::HLSputWide:
-            case greenland::IntrinsicHelper::HLSputDouble:
-              cvtSput(cUnit, callInst, true /* wide */, false /* Object */);
-              break;
-            case greenland::IntrinsicHelper::HLSputObject:
-              cvtSput(cUnit, callInst, false /* wide */, true /* Object */);
-              break;
-            case greenland::IntrinsicHelper::GetException:
-              cvtMoveException(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::Throw:
-              cvtThrow(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::MonitorEnter:
-              cvtMonitorEnterExit(cUnit, true /* isEnter */, callInst);
-              break;
-            case greenland::IntrinsicHelper::MonitorExit:
-              cvtMonitorEnterExit(cUnit, false /* isEnter */, callInst);
-              break;
-            case greenland::IntrinsicHelper::ArrayLength:
-              cvtArrayLength(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::NewArray:
-              cvtNewArray(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::InstanceOf:
-              cvtInstanceOf(cUnit, callInst);
-              break;
-
-            case greenland::IntrinsicHelper::HLArrayGet:
-            case greenland::IntrinsicHelper::HLArrayGetObject:
-            case greenland::IntrinsicHelper::HLArrayGetFloat:
-              cvtAget(cUnit, callInst, kWord, 2);
-              break;
-            case greenland::IntrinsicHelper::HLArrayGetWide:
-            case greenland::IntrinsicHelper::HLArrayGetDouble:
-              cvtAget(cUnit, callInst, kLong, 3);
-              break;
-            case greenland::IntrinsicHelper::HLArrayGetBoolean:
-              cvtAget(cUnit, callInst, kUnsignedByte, 0);
-              break;
-            case greenland::IntrinsicHelper::HLArrayGetByte:
-              cvtAget(cUnit, callInst, kSignedByte, 0);
-              break;
-            case greenland::IntrinsicHelper::HLArrayGetChar:
-              cvtAget(cUnit, callInst, kUnsignedHalf, 1);
-              break;
-            case greenland::IntrinsicHelper::HLArrayGetShort:
-              cvtAget(cUnit, callInst, kSignedHalf, 1);
-              break;
-
-            case greenland::IntrinsicHelper::HLArrayPut:
-            case greenland::IntrinsicHelper::HLArrayPutFloat:
-              cvtAputPrimitive(cUnit, callInst, kWord, 2);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutObject:
-              cvtAputObj(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutWide:
-            case greenland::IntrinsicHelper::HLArrayPutDouble:
-              cvtAputPrimitive(cUnit, callInst, kLong, 3);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutBoolean:
-              cvtAputPrimitive(cUnit, callInst, kUnsignedByte, 0);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutByte:
-              cvtAputPrimitive(cUnit, callInst, kSignedByte, 0);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutChar:
-              cvtAputPrimitive(cUnit, callInst, kUnsignedHalf, 1);
-              break;
-            case greenland::IntrinsicHelper::HLArrayPutShort:
-              cvtAputPrimitive(cUnit, callInst, kSignedHalf, 1);
-              break;
-
-            case greenland::IntrinsicHelper::HLIGet:
-            case greenland::IntrinsicHelper::HLIGetFloat:
-              cvtIget(cUnit, callInst, kWord, false /* isWide */, false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetObject:
-              cvtIget(cUnit, callInst, kWord, false /* isWide */, true /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetWide:
-            case greenland::IntrinsicHelper::HLIGetDouble:
-              cvtIget(cUnit, callInst, kLong, true /* isWide */, false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetBoolean:
-              cvtIget(cUnit, callInst, kUnsignedByte, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetByte:
-              cvtIget(cUnit, callInst, kSignedByte, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetChar:
-              cvtIget(cUnit, callInst, kUnsignedHalf, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIGetShort:
-              cvtIget(cUnit, callInst, kSignedHalf, false /* isWide */,
-                      false /* obj */);
-              break;
-
-            case greenland::IntrinsicHelper::HLIPut:
-            case greenland::IntrinsicHelper::HLIPutFloat:
-              cvtIput(cUnit, callInst, kWord, false /* isWide */, false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutObject:
-              cvtIput(cUnit, callInst, kWord, false /* isWide */, true /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutWide:
-            case greenland::IntrinsicHelper::HLIPutDouble:
-              cvtIput(cUnit, callInst, kLong, true /* isWide */, false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutBoolean:
-              cvtIput(cUnit, callInst, kUnsignedByte, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutByte:
-              cvtIput(cUnit, callInst, kSignedByte, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutChar:
-              cvtIput(cUnit, callInst, kUnsignedHalf, false /* isWide */,
-                      false /* obj */);
-              break;
-            case greenland::IntrinsicHelper::HLIPutShort:
-              cvtIput(cUnit, callInst, kSignedHalf, false /* isWide */,
-                      false /* obj */);
-              break;
-
-            case greenland::IntrinsicHelper::IntToChar:
-              cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_CHAR);
-              break;
-            case greenland::IntrinsicHelper::IntToShort:
-              cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_SHORT);
-              break;
-            case greenland::IntrinsicHelper::IntToByte:
-              cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_BYTE);
-              break;
-
-            case greenland::IntrinsicHelper::CmplFloat:
-              cvtFPCompare(cUnit, callInst, Instruction::CMPL_FLOAT);
-              break;
-            case greenland::IntrinsicHelper::CmpgFloat:
-              cvtFPCompare(cUnit, callInst, Instruction::CMPG_FLOAT);
-              break;
-            case greenland::IntrinsicHelper::CmplDouble:
-              cvtFPCompare(cUnit, callInst, Instruction::CMPL_DOUBLE);
-              break;
-            case greenland::IntrinsicHelper::CmpgDouble:
-              cvtFPCompare(cUnit, callInst, Instruction::CMPG_DOUBLE);
-              break;
-
-            case greenland::IntrinsicHelper::CmpLong:
-              cvtLongCompare(cUnit, callInst);
-              break;
-
-            case greenland::IntrinsicHelper::SHLLong:
-              cvtShiftOp(cUnit, Instruction::SHL_LONG, callInst);
-              break;
-            case greenland::IntrinsicHelper::SHRLong:
-              cvtShiftOp(cUnit, Instruction::SHR_LONG, callInst);
-              break;
-            case greenland::IntrinsicHelper::USHRLong:
-              cvtShiftOp(cUnit, Instruction::USHR_LONG, callInst);
-              break;
-            case greenland::IntrinsicHelper::SHLInt:
-              cvtShiftOp(cUnit, Instruction::SHL_INT, callInst);
-              break;
-            case greenland::IntrinsicHelper::SHRInt:
-              cvtShiftOp(cUnit, Instruction::SHR_INT, callInst);
-              break;
-            case greenland::IntrinsicHelper::USHRInt:
-              cvtShiftOp(cUnit, Instruction::USHR_INT, callInst);
-              break;
-
-            case greenland::IntrinsicHelper::CatchTargets: {
-                llvm::SwitchInst* swInst =
-                    llvm::dyn_cast<llvm::SwitchInst>(nextIt);
-                DCHECK(swInst != NULL);
-                /*
-                 * Discard the edges and the following conditional branch.
-                 * Do a direct branch to the default target (which is the
-                 * "work" portion of the pair.
-                 * TODO: awful code layout - rework
-                 */
-                 llvm::BasicBlock* targetBB = swInst->getDefaultDest();
-                 DCHECK(targetBB != NULL);
-                 opUnconditionalBranch(cUnit,
-                                       cUnit->blockToLabelMap.Get(targetBB));
-                 ++it;
-              }
-              break;
-
-            default:
-              LOG(FATAL) << "Unexpected intrinsic " << (int)id << ", "
-                         << cUnit->intrinsic_helper->GetName(id);
-          }
-        }
-        break;
-
-      case llvm::Instruction::Br: cvtBr(cUnit, inst); break;
-      case llvm::Instruction::Add: cvtBinOp(cUnit, kOpAdd, inst); break;
-      case llvm::Instruction::Sub: cvtBinOp(cUnit, kOpSub, inst); break;
-      case llvm::Instruction::Mul: cvtBinOp(cUnit, kOpMul, inst); break;
-      case llvm::Instruction::SDiv: cvtBinOp(cUnit, kOpDiv, inst); break;
-      case llvm::Instruction::SRem: cvtBinOp(cUnit, kOpRem, inst); break;
-      case llvm::Instruction::And: cvtBinOp(cUnit, kOpAnd, inst); break;
-      case llvm::Instruction::Or: cvtBinOp(cUnit, kOpOr, inst); break;
-      case llvm::Instruction::Xor: cvtBinOp(cUnit, kOpXor, inst); break;
-      case llvm::Instruction::PHI: cvtPhi(cUnit, inst); break;
-      case llvm::Instruction::Ret: cvtRet(cUnit, inst); break;
-      case llvm::Instruction::FAdd: cvtBinFPOp(cUnit, kOpAdd, inst); break;
-      case llvm::Instruction::FSub: cvtBinFPOp(cUnit, kOpSub, inst); break;
-      case llvm::Instruction::FMul: cvtBinFPOp(cUnit, kOpMul, inst); break;
-      case llvm::Instruction::FDiv: cvtBinFPOp(cUnit, kOpDiv, inst); break;
-      case llvm::Instruction::FRem: cvtBinFPOp(cUnit, kOpRem, inst); break;
-      case llvm::Instruction::SIToFP: cvtIntToFP(cUnit, inst); break;
-      case llvm::Instruction::FPToSI: cvtFPToInt(cUnit, inst); break;
-      case llvm::Instruction::FPTrunc: cvtDoubleToFloat(cUnit, inst); break;
-      case llvm::Instruction::FPExt: cvtFloatToDouble(cUnit, inst); break;
-      case llvm::Instruction::Trunc: cvtTrunc(cUnit, inst); break;
-
-      case llvm::Instruction::ZExt: cvtIntExt(cUnit, inst, false /* signed */);
-        break;
-      case llvm::Instruction::SExt: cvtIntExt(cUnit, inst, true /* signed */);
-        break;
-
-      case llvm::Instruction::Switch: cvtSwitch(cUnit, inst); break;
-
-      case llvm::Instruction::Unreachable:
-        break;  // FIXME: can we really ignore these?
-
-      case llvm::Instruction::Shl:
-      case llvm::Instruction::LShr:
-      case llvm::Instruction::AShr:
-      case llvm::Instruction::Invoke:
-      case llvm::Instruction::FPToUI:
-      case llvm::Instruction::UIToFP:
-      case llvm::Instruction::PtrToInt:
-      case llvm::Instruction::IntToPtr:
-      case llvm::Instruction::FCmp:
-      case llvm::Instruction::URem:
-      case llvm::Instruction::UDiv:
-      case llvm::Instruction::Resume:
-      case llvm::Instruction::Alloca:
-      case llvm::Instruction::GetElementPtr:
-      case llvm::Instruction::Fence:
-      case llvm::Instruction::AtomicCmpXchg:
-      case llvm::Instruction::AtomicRMW:
-      case llvm::Instruction::BitCast:
-      case llvm::Instruction::VAArg:
-      case llvm::Instruction::Select:
-      case llvm::Instruction::UserOp1:
-      case llvm::Instruction::UserOp2:
-      case llvm::Instruction::ExtractElement:
-      case llvm::Instruction::InsertElement:
-      case llvm::Instruction::ShuffleVector:
-      case llvm::Instruction::ExtractValue:
-      case llvm::Instruction::InsertValue:
-      case llvm::Instruction::LandingPad:
-      case llvm::Instruction::IndirectBr:
-      case llvm::Instruction::Load:
-      case llvm::Instruction::Store:
-        LOG(FATAL) << "Unexpected llvm opcode: " << opcode; break;
-
-      default:
-        LOG(FATAL) << "Unknown llvm opcode: " << inst->getOpcodeName();
-        break;
-    }
-  }
-
-  if (headLIR != NULL) {
-    oatApplyLocalOptimizations(cUnit, headLIR, cUnit->lastLIRInsn);
   }
   return false;
 }

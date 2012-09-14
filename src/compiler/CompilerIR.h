@@ -280,6 +280,8 @@ struct BasicBlock {
   bool visited;
   bool hidden;
   bool catchEntry;
+  bool explicitThrow;
+  bool conditionalBranch;
 #if defined(ART_USE_QUICK_COMPILER)
   bool hasReturn;
 #endif
@@ -611,6 +613,7 @@ struct CompilationUnit {
   bool requireShadowFrame;
   int numShadowFrameEntries;
   int* shadowMap;
+  std::set<llvm::BasicBlock*> llvmBlocks;
 #endif
 #ifndef NDEBUG
   /*

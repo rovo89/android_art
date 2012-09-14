@@ -519,6 +519,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE:
+      curBlock->conditionalBranch = true;
       target += (int) insn->dalvikInsn.vC;
       break;
     case Instruction::IF_EQZ:
@@ -527,6 +528,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ:
+      curBlock->conditionalBranch = true;
       target += (int) insn->dalvikInsn.vB;
       break;
     default:
@@ -720,6 +722,7 @@ BasicBlock* processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
   }
 
   if (insn->dalvikInsn.opcode == Instruction::THROW){
+    curBlock->explicitThrow = true;
     if ((codePtr < codeEnd) && contentIsInsn(codePtr)) {
       // Force creation of new block following THROW via side-effect
       findBlock(cUnit, curOffset + width, /* split */ false,
@@ -1073,6 +1076,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   if (cUnit->printMe) {
     oatDumpCompilationUnit(cUnit.get());
   }
+
+  /* Do a code layout pass */
+  oatMethodCodeLayout(cUnit.get());
 
   if (cUnit->enableDebug & (1 << kDebugVerifyDataflow)) {
     /* Verify if all blocks are connected as claimed */
