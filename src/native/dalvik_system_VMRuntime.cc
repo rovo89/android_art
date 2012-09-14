@@ -160,7 +160,7 @@ static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
   uint64_t start_ns = NanoTime();
   AllocSpace* alloc_space = heap->GetAllocSpace();
   size_t alloc_space_size = alloc_space->Size();
-  float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
+  float utilization = static_cast<float>(alloc_space->GetNumBytesAllocated()) / alloc_space_size;
   Thread* self = static_cast<JNIEnvExt*>(env)->self;
   heap->Trim(self);
   // Trim the native heap.

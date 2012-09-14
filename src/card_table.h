@@ -26,7 +26,7 @@
 namespace art {
 
 class Heap;
-class Space;
+class ContinuousSpace;
 class SpaceBitmap;
 class Object;
 
@@ -108,13 +108,13 @@ class CardTable {
   void ClearCardTable();
 
   // Resets all of the bytes in the card table which do not map to the image space.
-  void ClearSpaceCards(Space* space);
+  void ClearSpaceCards(ContinuousSpace* space);
 
   // Clean all the cards which map to a space.
-  void PreClearCards(Space* space, std::vector<byte*>& out_cards);
+  void PreClearCards(ContinuousSpace* space, std::vector<byte*>& out_cards);
 
   // Returns all of the dirty cards which map to a space.
-  void GetDirtyCards(Space* space, std::vector<byte*>& out_cards) const;
+  void GetDirtyCards(ContinuousSpace* space, std::vector<byte*>& out_cards) const;
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const byte *card_addr) const {

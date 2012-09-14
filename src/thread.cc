@@ -1860,12 +1860,15 @@ class ReferenceMapVisitor : public StackVisitor {
                 }
                 spill_shifts--;  // wind back one as we want the last match
                 ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
+                if (ref != NULL) {
+                  root_visitor_(ref, arg_);
+                }
               } else {
                 ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
                                                         fp_spills, frame_size, reg));
-              }
-              if (ref != NULL) {
-                root_visitor_(ref, arg_);
+                if (ref != NULL) {
+                  root_visitor_(ref, arg_);
+                }
               }
             }
           }

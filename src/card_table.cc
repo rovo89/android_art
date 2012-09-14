@@ -88,7 +88,7 @@ CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
   ANNOTATE_BENIGN_RACE_SIZED(begin, (end - begin), "writes to GC card table");
 }
 
-void CardTable::ClearSpaceCards(Space* space) {
+void CardTable::ClearSpaceCards(ContinuousSpace* space) {
   // TODO: clear just the range of the table that has been modified
   byte* card_start = CardFromAddr(space->Begin());
   byte* card_end = CardFromAddr(space->End()); // Make sure to round up.
@@ -100,7 +100,7 @@ void CardTable::ClearCardTable() {
   memset(mem_map_->Begin(), GC_CARD_CLEAN, mem_map_->Size());
 }
 
-void CardTable::PreClearCards(Space* space, std::vector<byte*>& out_cards) {
+void CardTable::PreClearCards(ContinuousSpace* space, std::vector<byte*>& out_cards) {
   byte* card_end = CardFromAddr(space->End());
   for (byte* card_cur = CardFromAddr(space->Begin()); card_cur < card_end; ++card_cur) {
     if (*card_cur == GC_CARD_DIRTY) {
@@ -110,7 +110,7 @@ void CardTable::PreClearCards(Space* space, std::vector<byte*>& out_cards) {
   }
 }
 
-void CardTable::GetDirtyCards(Space* space, std::vector<byte*>& out_cards) const {
+void CardTable::GetDirtyCards(ContinuousSpace* space, std::vector<byte*>& out_cards) const {
   byte* card_end = CardFromAddr(space->End());
   for (byte* card_cur = CardFromAddr(space->Begin());card_cur < card_end; ++card_cur) {
     if (*card_cur == GC_CARD_DIRTY) {

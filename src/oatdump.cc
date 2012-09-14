@@ -581,9 +581,13 @@ class ImageDumper {
     }
     ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     // TODO: C++0x auto
-    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-      (*cur)->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
-      os_ << "\n";
+    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
+      Space* space = *it;
+      if (space->IsImageSpace()) {
+        ImageSpace* image_space = space->AsImageSpace();
+        image_space->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
+        os_ << "\n";
+      }
     }
     // Dump the large objects separately.
     heap->GetLargeObjectsSpace()->GetLiveObjects()->Walk(ImageDumper::Callback, this);

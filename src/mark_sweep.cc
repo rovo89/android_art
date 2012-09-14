@@ -190,7 +190,7 @@ void MarkSweep::VerifyImageRootVisitor(Object* root, void* arg) {
   mark_sweep->CheckObject(root);
 }
 
-void MarkSweep::CopyMarkBits(Space* space) {
+void MarkSweep::CopyMarkBits(ContinuousSpace* space) {
   SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
   mark_bitmap->CopyFrom(live_bitmap);
@@ -212,21 +212,6 @@ class ScanImageRootVisitor {
   MarkSweep* const mark_sweep_;
 };
 
-// Marks all objects that are in images and have been touched by the mutator
-void MarkSweep::ScanDirtyImageRoots() {
-  const Spaces& spaces = heap_->GetSpaces();
-  CardTable* card_table = heap_->GetCardTable();
-  ScanImageRootVisitor image_root_visitor(this);
-  // TODO: C++ 0x auto
-  for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    Space* space = *it;
-    if (space->IsImageSpace()) {
-      card_table->Scan(space->GetLiveBitmap(), space->Begin(), space->End(), image_root_visitor,
-                       IdentityFunctor());
-    }
-  }
-}
-
 void MarkSweep::ScanGrayObjects(bool update_finger) {
   const Spaces& spaces = heap_->GetSpaces();
   CardTable* card_table = heap_->GetCardTable();
@@ -234,7 +219,7 @@ void MarkSweep::ScanGrayObjects(bool update_finger) {
   SetFingerVisitor finger_visitor(this);
   // TODO: C++ 0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    Space* space = *it;
+    ContinuousSpace* space = *it;
     byte* begin = space->Begin();
     byte* end = space->End();
     // Image spaces are handled properly since live == marked for them.
@@ -271,8 +256,8 @@ void MarkSweep::VerifyImageRoots() {
   CheckBitmapVisitor visitor(this);
   const Spaces& spaces = heap_->GetSpaces();
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    const Space* space = *it;
-    if (space->IsImageSpace()) {
+    if ((*it)->IsImageSpace()) {
+      ImageSpace* space = (*it)->AsImageSpace();
       uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
       SpaceBitmap* live_bitmap = space->GetLiveBitmap();
@@ -314,7 +299,7 @@ void MarkSweep::RecursiveMark(bool partial, TimingLogger& timings) {
   SetFingerVisitor set_finger_visitor(this);
   ScanObjectVisitor scan_visitor(this);
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    Space* space = *it;
+    ContinuousSpace* space = *it;
     if (space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT ||
         (!partial && space->GetGcRetentionPolicy() == GCRP_FULL_COLLECT)
         ) {
@@ -544,7 +529,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
     } else if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
       size_t size = large_object_space->AllocationSize(obj);
-      freed_bytes_ += size;
+      freed_bytes += size;
       large_object_space->Free(obj);
     }
   }
@@ -574,7 +559,7 @@ void MarkSweep::Sweep(bool partial, bool swap_bitmaps) {
   scc.mark_sweep = this;
   // TODO: C++0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    Space* space = *it;
+    ContinuousSpace* space = *it;
     if (
         space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT ||
         (!partial && space->GetGcRetentionPolicy() == GCRP_FULL_COLLECT)
@@ -603,7 +588,6 @@ void MarkSweep::Sweep(bool partial, bool swap_bitmaps) {
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   // Sweep large objects
   LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  MutexLock mu(large_object_space->GetLock());
   SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
   SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
   if (swap_bitmaps) {
@@ -612,17 +596,19 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   SpaceSetMap::Objects& live_objects = large_live_objects->GetObjects();
   // O(n*log(n)) but hopefully there are not too many large objects.
   size_t freed_objects = 0;
+  size_t freed_bytes = 0;
   // TODO: C++0x
   for (SpaceSetMap::Objects::iterator it = live_objects.begin(); it != live_objects.end(); ++it) {
     if (!large_mark_objects->Test(*it)) {
-      freed_bytes_ += large_object_space->AllocationSize(*it);
+      freed_bytes += large_object_space->AllocationSize(*it);
       large_object_space->Free(const_cast<Object*>(*it));
       ++freed_objects;
     }
   }
   freed_objects_ += freed_objects;
+  freed_bytes_ += freed_bytes;
   // Large objects don't count towards bytes_allocated.
-  GetHeap()->RecordFree(freed_objects, 0);
+  GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 
 // Scans instance fields.
@@ -986,7 +972,6 @@ MarkSweep::~MarkSweep() {
 
   // Reset the marked large objects.
   LargeObjectSpace* large_objects = GetHeap()->GetLargeObjectsSpace();
-  MutexLock mu(large_objects->GetLock());
   large_objects->GetMarkObjects()->Clear();
 }
 

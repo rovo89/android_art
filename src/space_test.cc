@@ -35,37 +35,37 @@ class SpaceTest : public CommonTest {
 TEST_F(SpaceTest, Init) {
   {
     // Init < max == growth
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 16 * MB, 32 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 32 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init == max == growth
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 16 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init > max == growth
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 32 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 32 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Growth == init < max
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 16 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Growth < init < max
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 16 * MB, 8 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 8 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Init < growth < max
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 8 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 8 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init < max < growth
-    UniquePtr<Space> space(Space::CreateAllocSpace("test", 8 * MB, 32 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(AllocSpace::Create("test", 8 * MB, 32 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
 }
@@ -75,7 +75,7 @@ TEST_F(SpaceTest, Init) {
 // allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
 // the GC works with the ZygoteSpace.
 TEST_F(SpaceTest, ZygoteSpace) {
-    AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+    AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
     ASSERT_TRUE(space != NULL);
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -142,7 +142,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
 }
 
 TEST_F(SpaceTest, AllocAndFree) {
-  AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -184,7 +184,7 @@ TEST_F(SpaceTest, AllocAndFree) {
 }
 
 TEST_F(SpaceTest, AllocAndFreeList) {
-  AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -372,7 +372,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
   size_t initial_size = 4 * MB;
   size_t growth_limit = 8 * MB;
   size_t capacity = 16 * MB;
-  AllocSpace* space(Space::CreateAllocSpace("test", initial_size, growth_limit, capacity, NULL));
+  AllocSpace* space(AllocSpace::Create("test", initial_size, growth_limit, capacity, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Basic sanity

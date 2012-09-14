@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "atomic_integer.h"
 #include "card_table.h"
 #include "globals.h"
 #include "gtest/gtest.h"
@@ -52,7 +53,7 @@ class SpaceTest;
 class Thread;
 class TimingLogger;
 
-typedef std::vector<Space*> Spaces;
+typedef std::vector<ContinuousSpace*> Spaces;
 
 // The ordering of the enum matters, it is used to determine which GCs are run first.
 enum GcType {
@@ -68,6 +69,13 @@ enum GcType {
   kGcTypeMax,
 };
 std::ostream& operator<<(std::ostream& os, const GcType& policy);
+
+enum GcCause {
+  kGcCauseForAlloc,
+  kGcCauseBackground,
+  kGcCauseExplicit,
+};
+std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 
 class LOCKABLE Heap {
  public:
@@ -244,7 +252,7 @@ class LOCKABLE Heap {
 
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .
-  Space* FindSpaceFromObject(const Object*) const;
+  ContinuousSpace* FindSpaceFromObject(const Object*) const;
 
   void DumpForSigQuit(std::ostream& os);
 
@@ -311,15 +319,16 @@ class LOCKABLE Heap {
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
   // which type of Gc was actually ran.
-  GcType CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
+  GcType CollectGarbageInternal(GcType gc_plan, GcCause gc_cause, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
                      Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_,
                      Locks::thread_suspend_count_lock_);
-  void CollectGarbageMarkSweepPlan(Thread* self, GcType gc_plan, bool clear_soft_references)
+  void CollectGarbageMarkSweepPlan(Thread* self, GcType gc_plan, GcCause gc_cause,
+                                   bool clear_soft_references)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_);
-  void CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_plan,
+  void CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_plan, GcCause gc_cause,
                                              bool clear_soft_references)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_);
@@ -331,10 +340,7 @@ class LOCKABLE Heap {
 
   size_t GetPercentFree();
 
-  void AddSpace(Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-
-  // Returns true if we "should" be able to allocate a number of bytes.
-  bool CanAllocateBytes(size_t bytes) const;
+  void AddSpace(ContinuousSpace* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
@@ -386,6 +392,9 @@ class LOCKABLE Heap {
   // Last Gc type we ran. Used by WaitForConcurrentGc to know which Gc was waited on.
   volatile GcType last_gc_type_ GUARDED_BY(gc_complete_lock_);
 
+  // Maximum size that the heap can reach.
+  size_t growth_limit_;
+
   // Bytes until concurrent GC starts.
   volatile size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
@@ -403,10 +412,7 @@ class LOCKABLE Heap {
   UniquePtr<LargeObjectSpace> large_object_space_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
-  volatile size_t num_bytes_allocated_;
-
-  // Number of objects allocated.  Adjusted after each allocation and free.
-  volatile size_t num_objects_allocated_;
+  AtomicInteger num_bytes_allocated_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;

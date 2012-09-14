@@ -136,12 +136,11 @@ bool ImageWriter::InSourceSpace(const Object* object) const {
 }
 
 bool ImageWriter::AllocMemory() {
-  typedef std::vector<Space*> SpaceVec;
-  const SpaceVec& spaces = Runtime::Current()->GetHeap()->GetSpaces();
+  const Spaces& spaces = Runtime::Current()->GetHeap()->GetSpaces();
   size_t size = 0;
-  for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      size += (*cur)->Size();
+  for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
+    if ((*it)->IsAllocSpace()) {
+      size += (*it)->Size();
     }
   }
 

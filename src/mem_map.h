@@ -72,7 +72,11 @@ class MemMap {
   }
 
   byte* End() const {
-    return begin_ + size_;
+    return Begin() + Size();
+  }
+
+  bool HasAddress(const void* addr) const {
+    return Begin() <= addr && addr < End();
   }
 
   // Trim by unmapping pages at the end of the map.

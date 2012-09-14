@@ -22,7 +22,6 @@
 #include <limits>
 #include <vector>
 
-#include "atomic.h"
 #include "card_table.h"
 #include "debugger.h"
 #include "heap_bitmap.h"
@@ -131,15 +130,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       card_marking_disabled_(false),
       is_gc_running_(false),
       last_gc_type_(kGcTypeNone),
+      growth_limit_(growth_limit),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
-      bytes_since_last_gc_(0),
       concurrent_gc_start_rate_(3 * MB / 2),
       sticky_gc_count_(0),
-      large_object_threshold_(12 * KB),
+      large_object_threshold_(3 * kPageSize),
       num_bytes_allocated_(0),
-      num_objects_allocated_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(false),
@@ -169,30 +167,27 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   byte* requested_begin = NULL;
   std::string image_file_name(original_image_file_name);
   if (!image_file_name.empty()) {
-    Space* image_space = NULL;
+    ImageSpace* image_space = NULL;
 
     if (OS::FileExists(image_file_name.c_str())) {
       // If the /system file exists, it should be up-to-date, don't try to generate
-      image_space = Space::CreateImageSpace(image_file_name);
+      image_space = ImageSpace::Create(image_file_name);
     } else {
       // If the /system file didn't exist, we need to use one from the art-cache.
       // If the cache file exists, try to open, but if it fails, regenerate.
       // If it does not exist, generate.
       image_file_name = GetArtCacheFilenameOrDie(image_file_name);
       if (OS::FileExists(image_file_name.c_str())) {
-        image_space = Space::CreateImageSpace(image_file_name);
+        image_space = ImageSpace::Create(image_file_name);
       }
       if (image_space == NULL) {
         if (!GenerateImage(image_file_name)) {
           LOG(FATAL) << "Failed to generate image: " << image_file_name;
         }
-        image_space = Space::CreateImageSpace(image_file_name);
+        image_space = ImageSpace::Create(image_file_name);
       }
     }
-    if (image_space == NULL) {
-      LOG(FATAL) << "Failed to create space from " << image_file_name;
-    }
-
+    CHECK(image_space != NULL) << "Failed to create space from " << image_file_name;
     AddSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
@@ -204,26 +199,31 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
     }
   }
 
-  UniquePtr<AllocSpace> alloc_space(Space::CreateAllocSpace(
-      "alloc space", initial_size, growth_limit, capacity, requested_begin));
+  UniquePtr<AllocSpace> alloc_space(AllocSpace::Create("alloc space", initial_size, growth_limit,
+                                                       capacity, requested_begin));
   alloc_space_ = alloc_space.release();
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   AddSpace(alloc_space_);
 
   // Spaces are sorted in order of Begin().
   byte* heap_begin = spaces_.front()->Begin();
-  size_t heap_capacity = (spaces_.back()->Begin() - spaces_.front()->Begin()) + spaces_.back()->NonGrowthLimitCapacity();
+  size_t heap_capacity = spaces_.back()->End() - spaces_.front()->Begin();
+  if (spaces_.back()->IsAllocSpace()) {
+    heap_capacity += spaces_.back()->AsAllocSpace()->NonGrowthLimitCapacity();
+  }
 
   // Mark image objects in the live bitmap
-  for (size_t i = 0; i < spaces_.size(); ++i) {
-    Space* space = spaces_[i];
+  // TODO: C++0x
+  for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
     if (space->IsImageSpace()) {
-      space->AsImageSpace()->RecordImageAllocations(space->GetLiveBitmap());
+      ImageSpace* image_space = space->AsImageSpace();
+      image_space->RecordImageAllocations(image_space->GetLiveBitmap());
     }
   }
 
   // Allocate the large object space.
-  large_object_space_.reset(Space::CreateLargeObjectSpace("large object space"));
+  large_object_space_.reset(FreeListSpace::Create("large object space", 64 * MB));
   live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
   mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
@@ -239,7 +239,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
 
   // TODO: Count objects in the image space here.
   num_bytes_allocated_ = 0;
-  num_objects_allocated_ = 0;
 
   // Max stack size in bytes.
   static const size_t max_stack_size = capacity / SpaceBitmap::kAlignment * kWordSize;
@@ -270,14 +269,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
 }
 
 // Sort spaces based on begin address
-class SpaceSorter {
- public:
-  bool operator ()(const Space* a, const Space* b) const {
+struct SpaceSorter {
+  bool operator ()(const ContinuousSpace* a, const ContinuousSpace* b) const {
     return a->Begin() < b->Begin();
   }
 };
 
-void Heap::AddSpace(Space* space) {
+void Heap::AddSpace(ContinuousSpace* space) {
   WriterMutexLock mu(*Locks::heap_bitmap_lock_);
   DCHECK(space != NULL);
   DCHECK(space->GetLiveBitmap() != NULL);
@@ -324,7 +322,7 @@ Heap::~Heap() {
   STLDeleteValues(&cumulative_timings_);
 }
 
-Space* Heap::FindSpaceFromObject(const Object* obj) const {
+ContinuousSpace* Heap::FindSpaceFromObject(const Object* obj) const {
   // TODO: C++0x auto
   for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     if ((*it)->Contains(obj)) {
@@ -350,22 +348,12 @@ AllocSpace* Heap::GetAllocSpace() {
 }
 
 static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
-  size_t& max_contiguous_allocation = *reinterpret_cast<size_t*>(arg);
-
-  size_t chunk_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(end) - reinterpret_cast<uint8_t*>(start));
-  size_t chunk_free_bytes = 0;
+  size_t chunk_size = reinterpret_cast<uint8_t*>(end) - reinterpret_cast<uint8_t*>(start);
   if (used_bytes < chunk_size) {
-    chunk_free_bytes = chunk_size - used_bytes;
+    size_t chunk_free_bytes = chunk_size - used_bytes;
+    size_t& max_contiguous_allocation = *reinterpret_cast<size_t*>(arg);
+    max_contiguous_allocation = std::max(max_contiguous_allocation, chunk_free_bytes);
   }
-
-  if (chunk_free_bytes > max_contiguous_allocation) {
-    max_contiguous_allocation = chunk_free_bytes;
-  }
-}
-
-bool Heap::CanAllocateBytes(size_t bytes) const {
-  return num_bytes_allocated_ + large_object_space_->GetNumBytesAllocated() + bytes <=
-          alloc_space_->Capacity();
 }
 
 Object* Heap::AllocObject(Class* c, size_t byte_count) {
@@ -382,8 +370,8 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
   // We can only do this for primive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
   if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
-    obj = Allocate(NULL, RoundUp(byte_count, kPageSize));
-    size = 0;
+    size = RoundUp(byte_count, kPageSize);
+    obj = Allocate(NULL, size);
 
     if (obj != NULL) {
       // Make sure that our large object didn't get placed anywhere within the space interval or else
@@ -402,9 +390,6 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
   }
 
   if (LIKELY(obj != NULL)) {
-    android_atomic_add(byte_count, reinterpret_cast<volatile int32_t*>(
-        reinterpret_cast<size_t>(&bytes_since_last_gc_)));
-
     obj->SetClass(c);
 
     // Record allocation after since we want to use the atomic add for the atomic fence to guard
@@ -414,12 +399,10 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     if (Dbg::IsAllocTrackingEnabled()) {
       Dbg::RecordAllocation(c, byte_count);
     }
-    if (bytes_since_last_gc_ >= concurrent_gc_start_rate_ ||
-        num_bytes_allocated_ >= concurrent_start_bytes_) {
+    if (static_cast<size_t>(num_bytes_allocated_) >= concurrent_start_bytes_) {
       // We already have a request pending, no reason to start more until we update
       // concurrent_start_bytes_.
       concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
-      bytes_since_last_gc_ = 0;
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
       Thread* self = Thread::Current();
       SirtRef<Object> ref(self, obj);
@@ -481,7 +464,7 @@ void Heap::VerifyObject(const Object* obj) {
 void Heap::DumpSpaces() {
   // TODO: C++0x auto
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    Space* space = *it;
+    ContinuousSpace* space = *it;
     LOG(INFO) << *space << "\n"
               << *space->GetLiveBitmap() << "\n"
               << *space->GetMarkBitmap();
@@ -508,7 +491,7 @@ void Heap::VerifyObjectBody(const Object* obj) {
   }
 
   // Ignore early dawn of the universe verifications
-  if (!VERIFY_OBJECT_FAST && num_objects_allocated_ > 10) {
+  if (!VERIFY_OBJECT_FAST && GetObjectsAllocated() > 10) {
     const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
         Object::ClassOffset().Int32Value();
     const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
@@ -543,20 +526,17 @@ void Heap::VerifyHeap() {
 void Heap::RecordAllocation(size_t size, const Object* obj) {
   DCHECK(obj != NULL);
   DCHECK_GT(size, 0u);
-  COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
-                 int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
-  android_atomic_add(size, reinterpret_cast<volatile int32_t*>(
-      reinterpret_cast<size_t>(&num_bytes_allocated_)));
-  android_atomic_add(1, reinterpret_cast<volatile int32_t*>(
-      reinterpret_cast<size_t>(&num_objects_allocated_)));
+  num_bytes_allocated_ += size;
 
   if (Runtime::Current()->HasStatsEnabled()) {
-    RuntimeStats* global_stats = Runtime::Current()->GetStats();
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
-    ++global_stats->allocated_objects;
     ++thread_stats->allocated_objects;
-    global_stats->allocated_bytes += size;
     thread_stats->allocated_bytes += size;
+
+    // TODO: Update these atomically.
+    RuntimeStats* global_stats = Runtime::Current()->GetStats();
+    ++global_stats->allocated_objects;
+    global_stats->allocated_bytes += size;
   }
 
   allocation_stack_->AtomicPush(obj);
@@ -565,35 +545,29 @@ void Heap::RecordAllocation(size_t size, const Object* obj) {
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
                  int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
-  DCHECK_LE(freed_objects, num_objects_allocated_);
-  android_atomic_add(-static_cast<int32_t>(freed_objects),
-                        reinterpret_cast<volatile int32_t*>(
-                            reinterpret_cast<size_t>(&num_objects_allocated_)));
-
-  DCHECK_LE(freed_bytes, num_bytes_allocated_);
-  android_atomic_add(-static_cast<int32_t>(freed_bytes),
-                        reinterpret_cast<volatile int32_t*>(
-                            reinterpret_cast<size_t>(&num_bytes_allocated_)));
+  DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
+  num_bytes_allocated_ -= freed_bytes;
 
   if (Runtime::Current()->HasStatsEnabled()) {
-    RuntimeStats* global_stats = Runtime::Current()->GetStats();
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
-    global_stats->freed_objects += freed_objects;
     thread_stats->freed_objects += freed_objects;
-    global_stats->freed_bytes += freed_bytes;
     thread_stats->freed_bytes += freed_bytes;
+
+    // TODO: Do this concurrently.
+    RuntimeStats* global_stats = Runtime::Current()->GetStats();
+    global_stats->freed_objects += freed_objects;
+    global_stats->freed_bytes += freed_bytes;
   }
 }
 
 Object* Heap::TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow) {
+  // Should we try to use a CAS here and fix up num_bytes_allocated_ later with AllocationSize?
+  if (num_bytes_allocated_ + alloc_size > growth_limit_) {
+    return NULL;
+  }
+
   if (UNLIKELY(space == NULL)) {
-    if (CanAllocateBytes(alloc_size)) {
-      // TODO: This is racy, but is it worth fixing?
-      return large_object_space_->Alloc(alloc_size);
-    } else {
-      // Application ran out of heap space.
-      return NULL;
-    }
+    return large_object_space_->Alloc(alloc_size);
   } else if (grow) {
     return space->AllocWithGrowth(alloc_size);
   } else {
@@ -651,14 +625,10 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
     }
 
     if (run_gc) {
-      if (Runtime::Current()->HasStatsEnabled()) {
-        ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-        ++Thread::Current()->GetStats()->gc_for_alloc_count;
-      }
       self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
 
       // If we actually ran a different type of Gc than requested, we can skip the index forwards.
-      GcType gc_type_ran = CollectGarbageInternal(gc_type, false);
+      GcType gc_type_ran = CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
       DCHECK(static_cast<size_t>(gc_type_ran) >= i);
       i = static_cast<size_t>(gc_type_ran);
       self->TransitionFromSuspendedToRunnable();
@@ -694,27 +664,15 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size)
            << " allocation";
 
-  if (Runtime::Current()->HasStatsEnabled()) {
-    ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-    ++Thread::Current()->GetStats()->gc_for_alloc_count;
-  }
   // We don't need a WaitForConcurrentGcToComplete here either.
   self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-  CollectGarbageInternal(kGcTypeFull, true);
+  CollectGarbageInternal(kGcTypeFull, kGcCauseForAlloc, true);
   self->TransitionFromSuspendedToRunnable();
   return TryToAllocate(space, alloc_size, true);
 }
 
 int64_t Heap::GetMaxMemory() {
-  size_t total = 0;
-  // TODO: C++0x auto
-  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    Space* space = *it;
-    if (space->IsAllocSpace()) {
-      total += space->AsAllocSpace()->Capacity();
-    }
-  }
-  return total;
+  return growth_limit_;
 }
 
 int64_t Heap::GetTotalMemory() {
@@ -774,7 +732,8 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   Thread* self = Thread::Current();
   WaitForConcurrentGcToComplete(self);
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
-  CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
+  // CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
+  CollectGarbageInternal(kGcTypeFull, kGcCauseExplicit, clear_soft_references);
 }
 
 void Heap::PreZygoteFork() {
@@ -819,9 +778,6 @@ void Heap::PreZygoteFork() {
        it != cumulative_timings_.end(); ++it) {
     it->second->Reset();
   }
-
-  // Reset this since we now count the ZygoteSpace in the total heap size.
-  num_bytes_allocated_ = 0;
 }
 
 void Heap::FlushAllocStack() {
@@ -831,13 +787,7 @@ void Heap::FlushAllocStack() {
 }
 
 size_t Heap::GetUsedMemorySize() const {
-  size_t total = num_bytes_allocated_ + large_object_space_->GetNumBytesAllocated();
-  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    if ((*it)->IsZygoteSpace()) {
-      total += (*it)->AsAllocSpace()->Size();
-    }
-  }
-  return total;
+  return num_bytes_allocated_;
 }
 
 void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack) {
@@ -866,7 +816,7 @@ void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, Mar
   }
 }
 
-GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
+GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear_soft_references) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
   DCHECK_EQ(self->GetState(), kWaitingPerformingGc);
@@ -893,6 +843,11 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   }
   gc_complete_lock_->AssertNotHeld(self);
 
+  if (gc_cause == kGcCauseForAlloc && Runtime::Current()->HasStatsEnabled()) {
+    ++Runtime::Current()->GetStats()->gc_for_alloc_count;
+    ++Thread::Current()->GetStats()->gc_for_alloc_count;
+  }
+
   // We need to do partial GCs every now and then to avoid the heap growing too much and
   // fragmenting.
   if (gc_type == kGcTypeSticky && ++sticky_gc_count_ > partial_gc_frequency_) {
@@ -903,9 +858,9 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   }
 
   if (concurrent_gc_) {
-    CollectGarbageConcurrentMarkSweepPlan(self, gc_type, clear_soft_references);
+    CollectGarbageConcurrentMarkSweepPlan(self, gc_type, gc_cause, clear_soft_references);
   } else {
-    CollectGarbageMarkSweepPlan(self, gc_type, clear_soft_references);
+    CollectGarbageMarkSweepPlan(self, gc_type, gc_cause, clear_soft_references);
   }
   bytes_since_last_gc_ = 0;
 
@@ -921,7 +876,8 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   return gc_type;
 }
 
-void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, bool clear_soft_references) {
+void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_cause,
+                                       bool clear_soft_references) {
   TimingLogger timings("CollectGarbageInternal", true);
 
   std::stringstream gc_type_str;
@@ -968,7 +924,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, bool clear_
 
     // Clear image space cards and keep track of cards we cleared in the mod-union table.
     for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-      Space* space = *it;
+      ContinuousSpace* space = *it;
       if (space->IsImageSpace()) {
         mod_union_table_->ClearCards(*it);
         timings.AddSplit("ClearModUnionCards");
@@ -1101,7 +1057,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, bool clear_
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
     const size_t total_memory = GetTotalMemory();
-    LOG(INFO) << gc_type_str.str() << " "
+    LOG(INFO) << gc_cause << " " << gc_type_str.str() << " "
               << "GC freed " << PrettySize(bytes_freed) << ", " << percent_free << "% free, "
               << PrettySize(current_heap_size) << "/" << PrettySize(total_memory) << ", "
               << "paused " << PrettyDuration(duration);
@@ -1414,7 +1370,7 @@ void Heap::SwapBitmaps(Thread* self) {
   // instead, resulting in no new allocated objects being incorrectly freed by sweep.
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    Space* space = *it;
+    ContinuousSpace* space = *it;
     // We never allocate into zygote spaces.
     if (space->GetGcRetentionPolicy() != GCRP_NEVER_COLLECT) {
       live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
@@ -1439,7 +1395,8 @@ void Heap::SwapStacks() {
   }
 }
 
-void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, bool clear_soft_references) {
+void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_cause,
+                                                 bool clear_soft_references) {
   TimingLogger timings("ConcurrentCollectGarbageInternal", true);
   uint64_t root_begin = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
   std::stringstream gc_type_str;
@@ -1496,7 +1453,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, b
 
     // Clear image space cards and keep track of cards we cleared in the mod-union table.
     for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-      Space* space = *it;
+      ContinuousSpace* space = *it;
       if (space->IsImageSpace()) {
         mod_union_table_->ClearCards(*it);
         timings.AddSplit("ModUnionClearCards");
@@ -1661,12 +1618,13 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, b
 
     {
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       if (gc_type != kGcTypeSticky) {
+        WriterMutexLock mu(*Locks::heap_bitmap_lock_);
         mark_sweep.SweepLargeObjects(swap);
         timings.AddSplit("SweepLargeObjects");
         mark_sweep.Sweep(gc_type == kGcTypePartial, swap);
       } else {
+        WriterMutexLock mu(*Locks::heap_bitmap_lock_);
         mark_sweep.SweepArray(timings, live_stack_.get(), swap);
         timings.AddSplit("SweepArray");
       }
@@ -1699,7 +1657,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, b
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
     const size_t total_memory = GetTotalMemory();
-    LOG(INFO) << gc_type_str.str()
+    LOG(INFO) << gc_cause << " " << gc_type_str.str()
               << "Concurrent GC freed " << PrettySize(bytes_freed) << ", " << percent_free
               << "% free, " << PrettySize(current_heap_size) << "/"
               << PrettySize(total_memory) << ", " << "paused " << PrettyDuration(pause_roots)
@@ -1745,8 +1703,8 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
 }
 
 void Heap::DumpForSigQuit(std::ostream& os) {
-  os << "Heap: " << GetPercentFree() << "% free, " << PrettySize(num_bytes_allocated_) << "/"
-     << PrettySize(GetTotalMemory()) << "; " << num_objects_allocated_ << " objects\n";
+  os << "Heap: " << GetPercentFree() << "% free, " << PrettySize(GetUsedMemorySize()) << "/"
+     << PrettySize(GetTotalMemory()) << "; " << GetObjectsAllocated() << " objects\n";
   // Dump cumulative timings.
   LOG(INFO) << "Dumping cumulative Gc timings";
   for (CumulativeTimings::iterator it = cumulative_timings_.begin();
@@ -1756,18 +1714,25 @@ void Heap::DumpForSigQuit(std::ostream& os) {
 }
 
 size_t Heap::GetPercentFree() {
-  size_t total = GetTotalMemory();
-  return 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
+  return static_cast<size_t>(100.0f * static_cast<float>(GetFreeMemory()) / GetTotalMemory());
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   AllocSpace* alloc_space = alloc_space_;
-  size_t alloc_space_capacity = alloc_space->Capacity();
-  alloc_space_capacity -= large_object_space_->GetNumBytesAllocated();
-  if (max_allowed_footprint > alloc_space_capacity) {
+  if (max_allowed_footprint > GetMaxMemory()) {
     VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint) << " to "
-             << PrettySize(alloc_space_capacity);
-    max_allowed_footprint = alloc_space_capacity;
+             << PrettySize(GetMaxMemory());
+    max_allowed_footprint = GetMaxMemory();
+  }
+  // We want to update the footprint for just the alloc space.
+  max_allowed_footprint -= large_object_space_->GetNumBytesAllocated();
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    if ((*it)->IsAllocSpace()) {
+      AllocSpace* alloc_space = (*it)->AsAllocSpace();
+      if (alloc_space != alloc_space_) {
+        max_allowed_footprint -= alloc_space->GetNumBytesAllocated();
+      }
+    }
   }
   alloc_space->SetFootprintLimit(max_allowed_footprint);
 }
@@ -1779,33 +1744,24 @@ static const size_t kHeapIdealFree = 2 * MB;
 static const size_t kHeapMinFree = kHeapIdealFree / 4;
 
 void Heap::GrowForUtilization() {
-  size_t target_size;
-  bool use_footprint_limit = false;
-  {
-    // We know what our utilization is at this moment.
-    // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
-    target_size = num_bytes_allocated_ / Heap::GetTargetHeapUtilization();
-
-    if (target_size > num_bytes_allocated_ + kHeapIdealFree) {
-      target_size = num_bytes_allocated_ + kHeapIdealFree;
-    } else if (target_size < num_bytes_allocated_ + kHeapMinFree) {
-      target_size = num_bytes_allocated_ + kHeapMinFree;
-    }
-
-    // Calculate when to perform the next ConcurrentGC.
-    if (GetTotalMemory() - GetUsedMemorySize() < concurrent_min_free_) {
-      // Not enough free memory to perform concurrent GC.
-      concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
-    } else {
-      // Compute below to avoid holding both the statistics and the alloc space lock
-      use_footprint_limit = true;
-    }
+  // We know what our utilization is at this moment.
+  // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
+  size_t target_size = num_bytes_allocated_ / Heap::GetTargetHeapUtilization();
+  if (target_size > num_bytes_allocated_ + kHeapIdealFree) {
+    target_size = num_bytes_allocated_ + kHeapIdealFree;
+  } else if (target_size < num_bytes_allocated_ + kHeapMinFree) {
+    target_size = num_bytes_allocated_ + kHeapMinFree;
   }
 
-  if (use_footprint_limit) {
-    size_t foot_print_limit = alloc_space_->GetFootprintLimit();
-    concurrent_start_bytes_ = foot_print_limit - concurrent_start_size_;
+  // Calculate when to perform the next ConcurrentGC.
+  if (GetFreeMemory() < concurrent_min_free_) {
+    // Not enough free memory to perform concurrent GC.
+    concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+  } else {
+    // Start a concurrent Gc when we get close to the target size.
+    concurrent_start_bytes_ = target_size - concurrent_start_size_;
   }
+
   SetIdealFootprint(target_size);
 }
 
@@ -1902,7 +1858,15 @@ size_t Heap::GetBytesAllocated() const {
 }
 
 size_t Heap::GetObjectsAllocated() const {
-  return num_objects_allocated_;
+  size_t total = 0;
+  // TODO: C++0x
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
+    if (space->IsAllocSpace()) {
+      total += space->AsAllocSpace()->GetNumObjectsAllocated();
+    }
+  }
+  return total;
 }
 
 size_t Heap::GetConcurrentStartSize() const {
@@ -1960,16 +1924,13 @@ void Heap::ConcurrentGC(Thread* self) {
     }
   }
 
-  // TODO: We shouldn't need a WaitForConcurrentGcToComplete here since only
-  //       concurrent GC resumes threads before the GC is completed and this function
-  //       is only called within the GC daemon thread.
   if (WaitForConcurrentGcToComplete(self) == kGcTypeNone) {
     // Start a concurrent GC as one wasn't in progress
     ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
     if (alloc_space_->Size() > min_alloc_space_size_for_sticky_gc_) {
-      CollectGarbageInternal(kGcTypeSticky, false);
+      CollectGarbageInternal(kGcTypeSticky, kGcCauseBackground, false);
     } else {
-      CollectGarbageInternal(kGcTypePartial, false);
+      CollectGarbageInternal(kGcTypePartial, kGcCauseBackground, false);
     }
   }
 }
@@ -1987,13 +1948,12 @@ void Heap::RequestHeapTrim() {
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
   uint64_t ms_time = NsToMs(NanoTime());
-  {
-    float utilization = static_cast<float>(num_bytes_allocated_) / alloc_space_->Size();
-    if ((utilization > 0.75f) || ((ms_time - last_trim_time_) < 2 * 1000)) {
-      // Don't bother trimming the heap if it's more than 75% utilized, or if a
-      // heap trim occurred in the last two seconds.
-      return;
-    }
+  float utilization =
+      static_cast<float>(alloc_space_->GetNumBytesAllocated()) / alloc_space_->Size();
+  if ((utilization > 0.75f) || ((ms_time - last_trim_time_) < 2 * 1000)) {
+    // Don't bother trimming the alloc space if it's more than 75% utilized, or if a
+    // heap trim occurred in the last two seconds.
+    return;
   }
 
   Thread* self = Thread::Current();

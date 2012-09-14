@@ -42,7 +42,7 @@ class ModUnionTable {
   }
 
   // Clear cards which map to a memory range of a space.
-  virtual void ClearCards(Space* space) = 0;
+  virtual void ClearCards(ContinuousSpace* space) = 0;
 
   // Update the mod-union table.
   virtual void Update() = 0;
@@ -82,7 +82,7 @@ class ModUnionTableBitmap : public ModUnionTable {
   virtual ~ModUnionTableBitmap();
 
   // Clear space cards.
-  void ClearCards(Space* space);
+  void ClearCards(ContinuousSpace* space);
 
   // Update table based on cleared cards.
   void Update()
@@ -98,7 +98,7 @@ class ModUnionTableBitmap : public ModUnionTable {
 
   // One bitmap per image space.
   // TODO: Add support for Zygote spaces?
-  typedef SafeMap<Space*, SpaceBitmap*> BitmapMap;
+  typedef SafeMap<ContinuousSpace*, SpaceBitmap*> BitmapMap;
   BitmapMap bitmaps_;
 };
 
@@ -111,7 +111,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   virtual ~ModUnionTableReferenceCache();
 
   // Clear and store cards for a space.
-  void ClearCards(Space* space);
+  void ClearCards(ContinuousSpace* space);
 
   // Update table based on cleared cards.
   void Update()
@@ -145,7 +145,7 @@ class ModUnionTableCardCache : public ModUnionTable {
   virtual ~ModUnionTableCardCache();
 
   // Clear and store cards for a space.
-  void ClearCards(Space* space);
+  void ClearCards(ContinuousSpace* space);
 
   // Nothing to update.
   void Update() {}

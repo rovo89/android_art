@@ -65,7 +65,7 @@ TEST_F(ImageTest, WriteRead) {
 
     Heap* heap = Runtime::Current()->GetHeap();
     ASSERT_EQ(1U, heap->GetSpaces().size());
-    Space* space = heap->GetSpaces()[0];
+    ContinuousSpace* space = heap->GetSpaces().front();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
     ASSERT_TRUE(space->IsAllocSpace());

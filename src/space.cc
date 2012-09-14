@@ -30,8 +30,11 @@ namespace art {
 
 #ifndef NDEBUG
 #define DEBUG_SPACES 1
+#else
+#define DEBUG_SPACES 0
 #endif
 
+// TODO: Remove define macro
 #define CHECK_MEMORY_CALL(call, args, what) \
   do { \
     int rc = call args; \
@@ -41,19 +44,43 @@ namespace art {
     } \
   } while (false)
 
+Space::Space(const std::string& name, GcRetentionPolicy gc_retention_policy)
+    : name_(name),
+      gc_retention_policy_(gc_retention_policy) {
+
+}
+
+ContinuousSpace::ContinuousSpace(const std::string& name, byte* begin, byte* end,
+                                 GcRetentionPolicy gc_retention_policy)
+    : Space(name, gc_retention_policy),
+      begin_(begin),
+      end_(end) {
+
+}
+
+MemMapSpace::MemMapSpace(const std::string& name, MemMap* mem_map, size_t initial_size,
+                         GcRetentionPolicy gc_retention_policy)
+    : ContinuousSpace(name, mem_map->Begin(), mem_map->Begin() + initial_size, gc_retention_policy),
+      mem_map_(mem_map)
+{
+
+}
+
 size_t AllocSpace::bitmap_index_ = 0;
 
-AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
-                       size_t growth_limit)
-    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT),
+AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
+                       byte* end, size_t growth_limit)
+    : MemMapSpace(name, mem_map, end - begin, GCRP_ALWAYS_COLLECT),
+      num_bytes_allocated_(0), num_objects_allocated_(0),
       lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
   size_t bitmap_index = bitmap_index_++;
 
-  DCHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % static_cast<uintptr_t>GC_CARD_SIZE == 0);
-  DCHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % static_cast<uintptr_t>GC_CARD_SIZE == 0);
+  static const uintptr_t kGcCardSize = static_cast<uintptr_t>(GC_CARD_SIZE);
+  CHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % kGcCardSize == 0);
+  CHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % kGcCardSize == 0);
 
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("allocspace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
@@ -66,9 +93,8 @@ AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, b
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
 }
 
-AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size,
-                                    size_t growth_limit, size_t capacity,
-                                    byte* requested_begin) {
+AllocSpace* AllocSpace::Create(const std::string& name, size_t initial_size, size_t growth_limit,
+                               size_t capacity, byte* requested_begin) {
   // Memory we promise to dlmalloc before it asks for morecore.
   // Note: making this value large means that large allocations are unlikely to succeed as dlmalloc
   // will ask for this memory from sys_alloc which will fail as the footprint (this value plus the
@@ -127,19 +153,13 @@ AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size
 
   // Everything is set so record in immutable structure and leave
   MemMap* mem_map_ptr = mem_map.release();
-  AllocSpace* space = new AllocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end, growth_limit);
+  AllocSpace* space = new AllocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end,
+                                     growth_limit);
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Space::CreateAllocSpace exiting (" << PrettyDuration(NanoTime() - start_time)
         << " ) " << *space;
   }
   return space;
-}
-
-LargeObjectSpace* Space::CreateLargeObjectSpace(const std::string& name) {
-  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    VLOG(startup) << "Space::CreateLargeObjectSpace entering " << name;
-  }
-  return new LargeObjectSpace(name);
 }
 
 void* AllocSpace::CreateMallocSpace(void* begin, size_t morecore_start, size_t initial_size) {
@@ -170,12 +190,12 @@ void AllocSpace::SwapBitmaps() {
 
 Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
   Object* result = reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
-#if DEBUG_SPACES
-  if (result != NULL) {
+  if (DEBUG_SPACES && result != NULL) {
     CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
         << ") not in bounds of allocation space " << *this;
   }
-#endif
+  num_bytes_allocated_ += AllocationSize(result);
+  ++num_objects_allocated_;
   return result;
 }
 
@@ -196,9 +216,7 @@ Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
   mspace_set_footprint_limit(mspace_, footprint);
   // Return the new allocation or NULL.
   Object* result = reinterpret_cast<Object*>(ptr);
-#if DEBUG_SPACES
-  CHECK(result == NULL || Contains(result));
-#endif
+  CHECK(!DEBUG_SPACES || result == NULL || Contains(result));
   return result;
 }
 
@@ -220,7 +238,7 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   // Trim the heap so that we minimize the size of the Zygote space.
   Trim();
   // Trim our mem-map to free unused pages.
-  mem_map_->UnMapAtEnd(end_);
+  GetMemMap()->UnMapAtEnd(end_);
   // TODO: Not hardcode these in?
   const size_t starting_size = kPageSize;
   const size_t initial_size = 2 * MB;
@@ -237,10 +255,10 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
   VLOG(heap) << "Creating new AllocSpace: ";
-  VLOG(heap) << "Size " << mem_map_->Size();
+  VLOG(heap) << "Size " << GetMemMap()->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
-  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name_.c_str(), end_, capacity, PROT_READ | PROT_WRITE));
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(GetName().c_str(), End(), capacity, PROT_READ | PROT_WRITE));
   void* mspace = CreateMallocSpace(end_, starting_size, initial_size);
   // Protect memory beyond the initial size.
   byte* end = mem_map->Begin() + starting_size;
@@ -248,10 +266,10 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name_.c_str());
   }
   AllocSpace* alloc_space = new AllocSpace(name_, mem_map.release(), mspace, end_, end, growth_limit);
-  live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
-  CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(end_));
-  mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
-  CHECK_EQ(mark_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(end_));
+  live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
+  CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
+  mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
+  CHECK_EQ(mark_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(End()));
   name_ += "-zygote-transformed";
   VLOG(heap) << "zygote space creation done";
   return alloc_space;
@@ -259,29 +277,35 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
 
 void AllocSpace::Free(Object* ptr) {
   MutexLock mu(lock_);
-#if DEBUG_SPACES
-  CHECK(ptr != NULL);
-  CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
-#endif
+  if (DEBUG_SPACES) {
+    CHECK(ptr != NULL);
+    CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
+  }
+  num_bytes_allocated_ -= AllocationSize(ptr);
+  --num_objects_allocated_;
   mspace_free(mspace_, ptr);
 }
 
 void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
   MutexLock mu(lock_);
-#if DEBUG_SPACES
-  CHECK(ptrs != NULL);
-  size_t num_broken_ptrs = 0;
-  for (size_t i = 0; i < num_ptrs; i++) {
-    if (!Contains(ptrs[i])) {
-      num_broken_ptrs++;
-      LOG(ERROR) << "FreeList[" << i << "] (" << ptrs[i] << ") not in bounds of heap " << *this;
-    } else {
-      size_t size = mspace_usable_size(ptrs[i]);
-      memset(ptrs[i], 0xEF, size);
+  if (DEBUG_SPACES) {
+    CHECK(ptrs != NULL);
+    size_t num_broken_ptrs = 0;
+    for (size_t i = 0; i < num_ptrs; i++) {
+      if (!Contains(ptrs[i])) {
+        num_broken_ptrs++;
+        LOG(ERROR) << "FreeList[" << i << "] (" << ptrs[i] << ") not in bounds of heap " << *this;
+      } else {
+        size_t size = mspace_usable_size(ptrs[i]);
+        memset(ptrs[i], 0xEF, size);
+      }
     }
+    CHECK_EQ(num_broken_ptrs, 0u);
   }
-  CHECK_EQ(num_broken_ptrs, 0u);
-#endif
+  for (size_t i = 0; i < num_ptrs; i++) {
+    num_bytes_allocated_ -= AllocationSize(ptrs[i]);
+  }
+  num_objects_allocated_ -= num_ptrs;
   mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
 }
 
@@ -304,7 +328,7 @@ void* AllocSpace::MoreCore(intptr_t increment) {
       // by mspace_set_footprint_limit.
       CHECK_LE(new_end, Begin() + Capacity());
 #endif
-      CHECK_MEMORY_CALL(mprotect, (original_end, increment, PROT_READ | PROT_WRITE), GetSpaceName());
+      CHECK_MEMORY_CALL(mprotect, (original_end, increment, PROT_READ | PROT_WRITE), GetName());
     } else {
 #if DEBUG_SPACES
       // Should never be asked for negative footprint (ie before begin)
@@ -317,8 +341,8 @@ void* AllocSpace::MoreCore(intptr_t increment) {
       // removing ignoring the memory protection change here and in Space::CreateAllocSpace. It's
       // likely just a useful debug feature.
       size_t size = -increment;
-      CHECK_MEMORY_CALL(madvise, (new_end, size, MADV_DONTNEED), GetSpaceName());
-      CHECK_MEMORY_CALL(mprotect, (new_end, size, PROT_NONE), GetSpaceName());
+      CHECK_MEMORY_CALL(madvise, (new_end, size, MADV_DONTNEED), GetName());
+      CHECK_MEMORY_CALL(mprotect, (new_end, size, PROT_NONE), GetName());
     }
     // Update end_
     end_ = new_end;
@@ -327,7 +351,8 @@ void* AllocSpace::MoreCore(intptr_t increment) {
 }
 
 size_t AllocSpace::AllocationSize(const Object* obj) {
-  return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) + kChunkOverhead;
+  return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) +
+      kChunkOverhead;
 }
 
 void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* arg */) {
@@ -380,7 +405,7 @@ void AllocSpace::SetFootprintLimit(size_t new_size) {
 size_t ImageSpace::bitmap_index_ = 0;
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
-    : Space(name, mem_map, mem_map->Begin(), mem_map->End(), GCRP_NEVER_COLLECT) {
+    : MemMapSpace(name, mem_map, mem_map->Size(), GCRP_NEVER_COLLECT) {
   const size_t bitmap_index = bitmap_index_++;
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("imagespace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
@@ -388,7 +413,7 @@ ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
   DCHECK(live_bitmap_.get() != NULL) << "could not create imagespace live bitmap #" << bitmap_index;
 }
 
-ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
+ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
   CHECK(!image_file_name.empty());
 
   uint64_t start_time = 0;
@@ -478,24 +503,27 @@ void ImageSpace::RecordImageAllocations(SpaceBitmap* live_bitmap) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Space& space) {
-  os << (space.IsImageSpace() ? "Image" : "Alloc") << "Space["
-      << "begin=" << reinterpret_cast<void*>(space.Begin())
-      << ",end=" << reinterpret_cast<void*>(space.End())
-      << ",size=" << PrettySize(space.Size()) << ",capacity=" << PrettySize(space.Capacity())
-      << ",name=\"" << space.GetSpaceName() << "\"]";
+  space.Dump(os);
   return os;
 }
 
-LargeObjectSpace::LargeObjectSpace(const std::string& name)
-    : Space(name, NULL, NULL, NULL, GCRP_ALWAYS_COLLECT),
-      lock_("large object space lock", kAllocSpaceLock),
-      num_bytes_allocated_(0) {
-  live_objects_.reset(new SpaceSetMap("large live objects"));
-  mark_objects_.reset(new SpaceSetMap("large marked objects"));
+void AllocSpace::Dump(std::ostream& os) const {
+  os << GetType()
+      << "begin=" << reinterpret_cast<void*>(Begin())
+      << ",end=" << reinterpret_cast<void*>(End())
+      << ",size=" << PrettySize(Size()) << ",capacity=" << PrettySize(Capacity())
+      << ",name=\"" << GetName() << "\"]";
+}
+
+void ImageSpace::Dump(std::ostream& os) const {
+  os << GetType()
+      << "begin=" << reinterpret_cast<void*>(Begin())
+      << ",end=" << reinterpret_cast<void*>(End())
+      << ",size=" << PrettySize(Size())
+      << ",name=\"" << GetName() << "\"]";
 }
 
 void LargeObjectSpace::SwapBitmaps() {
-  MutexLock mu(lock_);
   SpaceSetMap* temp_live_objects = live_objects_.release();
   live_objects_.reset(mark_objects_.release());
   mark_objects_.reset(temp_live_objects);
@@ -505,7 +533,37 @@ void LargeObjectSpace::SwapBitmaps() {
   mark_objects_->SetName(temp_name);
 }
 
-Object* LargeObjectSpace::Alloc(size_t num_bytes) {
+DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
+                                       GcRetentionPolicy gc_retention_policy)
+    : Space(name, gc_retention_policy) {
+
+}
+
+LargeObjectSpace::LargeObjectSpace(const std::string& name)
+    : DiscontinuousSpace(name, GCRP_ALWAYS_COLLECT),
+      num_bytes_allocated_(0),
+      num_objects_allocated_(0) {
+  live_objects_.reset(new SpaceSetMap("large live objects"));
+  mark_objects_.reset(new SpaceSetMap("large marked objects"));
+}
+
+
+void LargeObjectSpace::CopyLiveToMarked() {
+  mark_objects_->CopyFrom(*live_objects_.get());
+}
+
+LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
+    : LargeObjectSpace(name),
+      lock_("large object space lock", kAllocSpaceLock)
+{
+
+}
+
+LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
+  return new LargeObjectMapSpace(name);
+}
+
+Object* LargeObjectMapSpace::Alloc(size_t num_bytes) {
   MutexLock mu(lock_);
   MemMap* mem_map = MemMap::MapAnonymous("allocation", NULL, num_bytes, PROT_READ | PROT_WRITE);
   if (mem_map == NULL) {
@@ -515,36 +573,185 @@ Object* LargeObjectSpace::Alloc(size_t num_bytes) {
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
   num_bytes_allocated_ += mem_map->Size();
+  ++num_objects_allocated_;
   return obj;
 }
 
-void LargeObjectSpace::CopyLiveToMarked() {
-  mark_objects_->CopyFrom(*live_objects_.get());
-}
-
-void LargeObjectSpace::Free(Object* ptr) {
+void LargeObjectMapSpace::Free(Object* ptr) {
   MutexLock mu(lock_);
   MemMaps::iterator found = mem_maps_.find(ptr);
   CHECK(found != mem_maps_.end()) << "Attempted to free large object which was not live";
   DCHECK_GE(num_bytes_allocated_, found->second->Size());
   num_bytes_allocated_ -= found->second->Size();
+  --num_objects_allocated_;
   delete found->second;
   mem_maps_.erase(found);
 }
 
-size_t LargeObjectSpace::AllocationSize(const Object* obj) {
+size_t LargeObjectMapSpace::AllocationSize(const Object* obj) {
   MutexLock mu(lock_);
   MemMaps::iterator found = mem_maps_.find(const_cast<Object*>(obj));
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
   return found->second->Size();
 }
 
-void LargeObjectSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
+void LargeObjectMapSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
   MutexLock mu(lock_);
   for (MemMaps::iterator it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
     MemMap* mem_map = it->second;
     callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
     callback(NULL, NULL, 0, arg);
+  }
+}
+
+bool LargeObjectMapSpace::Contains(const Object* obj) const {
+  MutexLock mu(const_cast<Mutex&>(lock_));
+  return mem_maps_.find(const_cast<Object*>(obj)) != mem_maps_.end();
+}
+
+FreeListSpace* FreeListSpace::Create(const std::string& name, size_t size) {
+  CHECK(size % kAlignment == 0);
+  MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), NULL, size, PROT_READ | PROT_WRITE);
+  CHECK(mem_map != NULL) << "Failed to allocate large object space mem map";
+  return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
+}
+
+FreeListSpace::FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end)
+    : LargeObjectSpace(name),
+      begin_(begin),
+      end_(end),
+      mem_map_(mem_map),
+      lock_("free list space lock", kAllocSpaceLock) {
+  chunks_.resize(Size() / kAlignment + 1);
+  // Add a dummy chunk so we don't need to handle chunks having no next chunk.
+  chunks_.back().SetSize(kAlignment, false);
+  // Start out with one large free chunk.
+  AddFreeChunk(begin_, end_ - begin_, NULL);
+}
+
+FreeListSpace::~FreeListSpace() {
+
+}
+
+void FreeListSpace::AddFreeChunk(void* address, size_t size, Chunk* previous) {
+  Chunk* chunk = ChunkFromAddr(address);
+  chunk->SetSize(size, true);
+  chunk->SetPrevious(previous);
+  Chunk* next_chunk = GetNextChunk(chunk);
+  next_chunk->SetPrevious(chunk);
+  free_chunks_.insert(chunk);
+}
+
+FreeListSpace::Chunk* FreeListSpace::ChunkFromAddr(void* address) {
+  size_t offset = reinterpret_cast<byte*>(address) - Begin();
+  DCHECK(IsAligned<kAlignment>(offset));
+  DCHECK_LT(offset, Size());
+  return &chunks_[offset / kAlignment];
+}
+
+void* FreeListSpace::AddrFromChunk(Chunk* chunk) {
+  return reinterpret_cast<void*>(Begin() + (chunk - &chunks_.front()) * kAlignment);
+}
+
+void FreeListSpace::RemoveFreeChunk(Chunk* chunk) {
+  // TODO: C++0x
+  // TODO: Improve performance, this might be slow.
+  std::pair<FreeChunks::iterator, FreeChunks::iterator> range = free_chunks_.equal_range(chunk);
+  for (FreeChunks::iterator it = range.first; it != range.second; ++it) {
+    if (*it == chunk) {
+      free_chunks_.erase(it);
+      return;
+    }
+  }
+}
+
+void FreeListSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
+  MutexLock mu(lock_);
+  for (Chunk* chunk = &chunks_.front(); chunk < &chunks_.back(); ) {
+    if (!chunk->IsFree()) {
+      size_t size = chunk->GetSize();
+      void* begin = AddrFromChunk(chunk);
+      void* end = reinterpret_cast<void*>(reinterpret_cast<byte*>(begin) + size);
+      callback(begin, end, size, arg);
+      callback(NULL, NULL, 0, arg);
+    }
+    chunk = GetNextChunk(chunk);
+  }
+}
+
+void FreeListSpace::Free(Object* obj) {
+  MutexLock mu(lock_);
+  CHECK(Contains(obj));
+  // Check adjacent chunks to see if we need to combine.
+  Chunk* chunk = ChunkFromAddr(obj);
+  CHECK(!chunk->IsFree());
+
+  size_t allocation_size = chunk->GetSize();
+  madvise(obj, allocation_size, MADV_DONTNEED);
+  num_objects_allocated_--;
+  num_bytes_allocated_ -= allocation_size;
+  Chunk* prev = chunk->GetPrevious();
+  Chunk* next = GetNextChunk(chunk);
+
+  // Combine any adjacent free chunks
+  size_t extra_size = chunk->GetSize();
+  if (next->IsFree()) {
+    extra_size += next->GetSize();
+    RemoveFreeChunk(next);
+  }
+  if (prev != NULL && prev->IsFree()) {
+    RemoveFreeChunk(prev);
+    AddFreeChunk(AddrFromChunk(prev), prev->GetSize() + extra_size, prev->GetPrevious());
+  } else {
+    AddFreeChunk(AddrFromChunk(chunk), extra_size, prev);
+  }
+}
+
+bool FreeListSpace::Contains(const Object* obj) const {
+  return mem_map_->HasAddress(obj);
+}
+
+FreeListSpace::Chunk* FreeListSpace::GetNextChunk(Chunk* chunk) {
+  return chunk + chunk->GetSize() / kAlignment;
+}
+
+size_t FreeListSpace::AllocationSize(const Object* obj) {
+  Chunk* chunk = ChunkFromAddr(const_cast<Object*>(obj));
+  CHECK(!chunk->IsFree());
+  return chunk->GetSize();
+}
+
+Object* FreeListSpace::Alloc(size_t num_bytes) {
+  MutexLock mu(lock_);
+  num_bytes = RoundUp(num_bytes, kAlignment);
+  Chunk temp;
+  temp.SetSize(num_bytes);
+  // Find the smallest chunk at least num_bytes in size.
+  FreeChunks::iterator found = free_chunks_.lower_bound(&temp);
+  if (found == free_chunks_.end()) {
+    // Out of memory, or too much fragmentation.
+    return NULL;
+  }
+  Chunk* chunk = *found;
+  free_chunks_.erase(found);
+  CHECK(chunk->IsFree());
+  void* addr = AddrFromChunk(chunk);
+  size_t chunk_size = chunk->GetSize();
+  chunk->SetSize(num_bytes);
+  if (chunk_size > num_bytes) {
+    // Split the chunk into two chunks.
+    Chunk* new_chunk = GetNextChunk(chunk);
+    AddFreeChunk(AddrFromChunk(new_chunk), chunk_size - num_bytes, chunk);
+  }
+
+  num_objects_allocated_++;
+  num_bytes_allocated_ += num_bytes;
+  return reinterpret_cast<Object*>(addr);
+}
+
+void FreeListSpace::FreeList(size_t num_ptrs, Object** ptrs) {
+  for (size_t i = 0; i < num_ptrs; ++i) {
+    Free(ptrs[i]);
   }
 }
 
