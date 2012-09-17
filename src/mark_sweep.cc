@@ -100,15 +100,13 @@ inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
 
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
-  if (!current_mark_bitmap_->HasAddress(obj)) {
+  if (UNLIKELY(!current_mark_bitmap_->HasAddress(obj))) {
     current_mark_bitmap_ = heap_->GetMarkBitmap()->GetSpaceBitmap(obj);
-#ifndef NDEBUG
-    if (current_mark_bitmap_ == NULL) {
-      LOG(WARNING) << obj;
+    if (UNLIKELY(current_mark_bitmap_ == NULL)) {
+      LOG(ERROR) << "Failed to find space bitmap for object: " << obj;
       GetHeap()->DumpSpaces();
       LOG(FATAL) << "space_bitmap == NULL";
     }
-#endif
   }
 
   bool is_marked = current_mark_bitmap_->Test(obj);
