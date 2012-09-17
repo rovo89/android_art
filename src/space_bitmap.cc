@@ -76,15 +76,6 @@ void SpaceBitmap::CopyFrom(SpaceBitmap* source_bitmap) {
   std::copy(source_bitmap->Begin(), source_bitmap->Begin() + source_bitmap->Size() / kWordSize, Begin());
 }
 
-// Return true iff <obj> is within the range of pointers that this bitmap could potentially cover,
-// even if a bit has not been set for it.
-bool SpaceBitmap::HasAddress(const void* obj) const {
-  // If obj < heap_begin_ then offset underflows to some very large value past the end of the bitmap.
-  const uintptr_t offset = (uintptr_t)obj - heap_begin_;
-  const size_t index = OffsetToIndex(offset);
-  return index < bitmap_size_ / kWordSize;
-}
-
 // Visits set bits in address order.  The callback is not permitted to
 // change the bitmap bits or max during the traversal.
 void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {

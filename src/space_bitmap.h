@@ -82,7 +82,15 @@ class SpaceBitmap {
     return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
   }
 
-  bool HasAddress(const void* addr) const;
+  // Return true iff <obj> is within the range of pointers that this bitmap could potentially cover,
+  // even if a bit has not been set for it.
+  bool HasAddress(const void* obj) const {
+    // If obj < heap_begin_ then offset underflows to some very large value past the end of the
+    // bitmap.
+    const uintptr_t offset = (uintptr_t)obj - heap_begin_;
+    const size_t index = OffsetToIndex(offset);
+    return index < bitmap_size_ / kWordSize;
+  }
 
   void VisitRange(uintptr_t base, uintptr_t max, Callback* visitor, void* arg) const;
 
