@@ -84,12 +84,8 @@ class CumulativeLogger {
  public:
   explicit CumulativeLogger(const char* name = "", bool precise = false)
     : name_(name),
-      precise_(precise),
-      total_time_squared_(0),
-      index_(0),
-      iterations_(0),
-      last_split_(0) {
-
+      precise_(precise) {
+    Reset();
   }
 
   void Start() {
@@ -108,10 +104,11 @@ class CumulativeLogger {
   }
 
   void Reset() {
-    iterations_ = 0;
     times_.clear();
     labels_.clear();
     times_squared_.clear();
+    iterations_ = 0;
+    total_time_squared_ = 0;
   }
 
   void AddPair(const std::string& label, uint64_t delta_time) {

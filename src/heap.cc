@@ -765,7 +765,7 @@ void Heap::PreZygoteFork() {
     }
   }
 
-  // Reset the cumulative loggers since we now haave a few additional timing phases.
+  // Reset the cumulative loggers since we now have a few additional timing phases.
   // TODO: C++0x
   for (CumulativeTimings::iterator it = cumulative_timings_.begin();
        it != cumulative_timings_.end(); ++it) {
