@@ -14,7 +14,20 @@
 # limitations under the License.
 #
 
-# TODO: move the LLVM compiler out into a separate shared library too...
+ART_USE_PORTABLE_COMPILER := false
+ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
+$(info Enabling ART_USE_PORTABLE_COMPILER because of existence of art/USE_PORTABLE_COMPILER)
+ART_USE_PORTABLE_COMPILER := true
+endif
+ifeq ($(WITH_ART_USE_PORTABLE_COMPILER),true)
+$(info Enabling ART_USE_PORTABLE_COMPILER because WITH_ART_USE_PORTABLE_COMPILER=true)
+ART_USE_PORTABLE_COMPILER := true
+endif
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+WITH_ART_USE_QUICK_COMPILER := true
+WITH_ART_USE_LLVM_COMPILER := true
+endif
+
 # Use llvm as the backend
 ART_USE_LLVM_COMPILER := false
 ifneq ($(wildcard art/USE_LLVM_COMPILER),)
