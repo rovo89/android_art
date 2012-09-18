@@ -21,8 +21,8 @@
 
 namespace art {
 
-extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                           Thread* self, Method** sp)
+extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const AbstractMethod* referrer,
+                                           Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
@@ -36,8 +36,8 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* ref
   return 0;  // Will throw exception by checking with Thread::Current
 }
 
-extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                           Thread* self, Method** sp)
+extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const AbstractMethod* referrer,
+                                           Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
@@ -51,8 +51,8 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* ref
   return 0;  // Will throw exception by checking with Thread::Current
 }
 
-extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
-                                           Thread* self, Method** sp)
+extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const AbstractMethod* referrer,
+                                           Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
@@ -67,7 +67,8 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* ref
 }
 
 extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
-                                             const Method* referrer, Thread* self, Method** sp)
+                                             const AbstractMethod* referrer, Thread* self,
+                                             AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
@@ -86,7 +87,8 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
 }
 
 extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
-                                             const Method* referrer, Thread* self, Method** sp)
+                                             const AbstractMethod* referrer, Thread* self,
+                                             AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL && obj != NULL)) {
@@ -105,7 +107,8 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
 }
 
 extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
-                                              const Method* referrer, Thread* self, Method** sp)
+                                              const AbstractMethod* referrer, Thread* self,
+                                              AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL && obj != NULL)) {
@@ -124,7 +127,8 @@ extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
 }
 
 extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
-                                      const Method* referrer, Thread* self, Method** sp)
+                                      const AbstractMethod* referrer, Thread* self,
+                                      AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
@@ -140,8 +144,8 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
   return -1;  // failure
 }
 
-extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                      uint64_t new_value, Thread* self, Method** sp)
+extern "C" int artSet64StaticFromCode(uint32_t field_idx, const AbstractMethod* referrer,
+                                      uint64_t new_value, Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
@@ -158,7 +162,8 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
 }
 
 extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
-                                       const Method* referrer, Thread* self, Method** sp)
+                                       const AbstractMethod* referrer, Thread* self,
+                                       AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
@@ -177,7 +182,8 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
 }
 
 extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_t new_value,
-                                        const Method* referrer, Thread* self, Method** sp)
+                                        const AbstractMethod* referrer, Thread* self,
+                                        AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
@@ -198,10 +204,10 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_
 }
 
 extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_t new_value,
-                                        Thread* self, Method** sp)
+                                        Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Method* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  Method* referrer = sp[callee_save->GetFrameSizeInBytes() / sizeof(Method*)];
+  AbstractMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  AbstractMethod* referrer = sp[callee_save->GetFrameSizeInBytes() / sizeof(AbstractMethod*)];
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
     field->Set64(obj, new_value);
@@ -222,7 +228,8 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_
 }
 
 extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object* new_value,
-                                         const Method* referrer, Thread* self, Method** sp)
+                                         const AbstractMethod* referrer, Thread* self,
+                                         AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL && obj != NULL)) {

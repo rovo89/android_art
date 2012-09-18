@@ -2547,7 +2547,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  Method::DeclaringClassOffset().Int32Value(),
+                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -2626,7 +2626,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  Method::DeclaringClassOffset().Int32Value(),
+                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -2815,7 +2815,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   } else {
     code_addr =
       irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                Method::GetCodeOffset().Int32Value(),
+                                AbstractMethod::GetCodeOffset().Int32Value(),
                                 GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
                                 kTBAAJRuntime);
   }
@@ -3479,7 +3479,7 @@ llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* static_storage_dex_cache_addr =
-    EmitLoadDexCacheAddr(Method::DexCacheInitializedStaticStorageOffset());
+    EmitLoadDexCacheAddr(AbstractMethod::DexCacheInitializedStaticStorageOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -3490,7 +3490,7 @@ EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* resolved_type_dex_cache_addr =
-    EmitLoadDexCacheAddr(Method::DexCacheResolvedTypesOffset());
+    EmitLoadDexCacheAddr(AbstractMethod::DexCacheResolvedTypesOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -3501,7 +3501,7 @@ EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
   llvm::Value* resolved_method_dex_cache_addr =
-    EmitLoadDexCacheAddr(Method::DexCacheResolvedMethodsOffset());
+    EmitLoadDexCacheAddr(AbstractMethod::DexCacheResolvedMethodsOffset());
 
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
@@ -3512,7 +3512,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
   llvm::Value* string_dex_cache_addr =
-    EmitLoadDexCacheAddr(Method::DexCacheStringsOffset());
+    EmitLoadDexCacheAddr(AbstractMethod::DexCacheStringsOffset());
 
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 

@@ -49,7 +49,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
     }

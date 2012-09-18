@@ -90,7 +90,7 @@ int32_t art_f2i(float f) {
 namespace art {
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
                                   Thread* self, bool access_check) {
   if (UNLIKELY(component_count < 0)) {
     self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
@@ -128,7 +128,7 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
   }
 }
 
-Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
+Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thread* self,
                          FindFieldType type, size_t expected_size) {
   bool is_primitive;
   bool is_set;
@@ -208,11 +208,11 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
 }
 
 // Slow path method resolution
-Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
+AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, const AbstractMethod* referrer,
                            Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_direct = type == kStatic || type == kDirect;
-  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
+  AbstractMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
@@ -221,7 +221,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        Method* interface_method =
+        AbstractMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -231,7 +231,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
           return interface_method;
         }
       } else {
-        ObjectArray<Method>* vtable;
+        ObjectArray<AbstractMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
           vtable = referrer->GetDeclaringClass()->GetSuperClass()->GetVTable();
@@ -273,7 +273,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        Method* interface_method =
+        AbstractMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -283,7 +283,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
           return interface_method;
         }
       } else {
-        ObjectArray<Method>* vtable;
+        ObjectArray<AbstractMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
           Class* super_class = referring_class->GetSuperClass();
@@ -310,7 +310,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
   }
 }
 
-Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
+Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* referrer, Thread* self,
                                bool can_run_clinit, bool verify_access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* klass = class_linker->ResolveType(type_idx, referrer);

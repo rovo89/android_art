@@ -89,7 +89,7 @@ ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   return resolution_trampoline.get();
 }
 
-typedef void (*ThrowAme)(Method*, Thread*);
+typedef void (*ThrowAme)(AbstractMethod*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));

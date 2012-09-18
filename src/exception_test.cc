@@ -74,8 +74,8 @@ class ExceptionTest : public CommonTest {
   std::vector<uint32_t> fake_mapping_data_;
   std::vector<uint16_t> fake_vmap_table_data_;
 
-  Method* method_f_;
-  Method* method_g_;
+  AbstractMethod* method_f_;
+  AbstractMethod* method_g_;
 
  private:
   Class* my_klass_;

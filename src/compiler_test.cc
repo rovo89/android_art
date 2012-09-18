@@ -106,7 +106,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumResolvedMethods());
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-    Method* method = dex_cache->GetResolvedMethod(i);
+    AbstractMethod* method = dex_cache->GetResolvedMethod(i);
     EXPECT_TRUE(method != NULL) << "method_idx=" << i
                                 << " " << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                 << " " << dex->GetMethodName(dex->GetMethodId(i));

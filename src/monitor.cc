@@ -205,7 +205,7 @@ void Monitor::Lock(Thread* self) {
     uint64_t waitStart = 0;
     uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
-    const Method* current_locking_method = NULL;
+    const AbstractMethod* current_locking_method = NULL;
     uint32_t current_locking_dex_pc = 0;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
@@ -461,7 +461,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
   int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const Method* saved_method = locking_method_;
+  const AbstractMethod* saved_method = locking_method_;
   locking_method_ = NULL;
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
@@ -918,7 +918,7 @@ static void DumpLockedObject(std::ostream& os, Object* o)
 }
 
 void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
-  Method* m = stack_visitor->GetMethod();
+  AbstractMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
   // Native methods are an easy special case.
@@ -982,7 +982,7 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
   }
 }
 
-void Monitor::TranslateLocation(const Method* method, uint32_t dex_pc,
+void Monitor::TranslateLocation(const AbstractMethod* method, uint32_t dex_pc,
                                 const char*& source_file, uint32_t& line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {

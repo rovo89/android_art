@@ -142,7 +142,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
 
   // Invoke managed method now!
   llvm::Value* code_field_offset_value =
-    irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
+    irb_.getPtrEquivInt(AbstractMethod::GetCodeOffset().Int32Value());
 
   llvm::Value* code_field_addr =
     irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,

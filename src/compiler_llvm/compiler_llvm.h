@@ -36,7 +36,7 @@ namespace art {
   class CompiledMethod;
   class Compiler;
   class OatCompilationUnit;
-  class Method;
+  class AbstractMethod;
 }
 
 

@@ -193,7 +193,7 @@ class CommonTest : public testing::Test {
                                      const uint32_t* mapping_table,
                                      const uint16_t* vmap_table,
                                      const uint8_t* gc_map,
-                                     const Method::InvokeStub* invoke_stub) {
+                                     const AbstractMethod::InvokeStub* invoke_stub) {
       return OatFile::OatMethod(NULL,
                                 reinterpret_cast<uint32_t>(code),
                                 frame_size_in_bytes,
@@ -209,7 +209,7 @@ class CommonTest : public testing::Test {
                                 );
   }
 
-  void MakeExecutable(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void MakeExecutable(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
 
     MethodHelper mh(method);
@@ -219,8 +219,8 @@ class CommonTest : public testing::Test {
 
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     MakeExecutable(invoke_stub);
-    const Method::InvokeStub* method_invoke_stub =
-        reinterpret_cast<const Method::InvokeStub*>(
+    const AbstractMethod::InvokeStub* method_invoke_stub =
+        reinterpret_cast<const AbstractMethod::InvokeStub*>(
           CompiledCode::CodePointer(&invoke_stub[0],
                                     compiled_invoke_stub->GetInstructionSet()));
 
@@ -479,7 +479,7 @@ class CommonTest : public testing::Test {
     }
   }
 
-  void CompileMethod(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void CompileMethod(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
     MakeExecutable(method);
@@ -495,7 +495,7 @@ class CommonTest : public testing::Test {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    Method* method = klass->FindDirectMethod(method_name, signature);
+    AbstractMethod* method = klass->FindDirectMethod(method_name, signature);
     CHECK(method != NULL) << "Direct method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);
@@ -509,7 +509,7 @@ class CommonTest : public testing::Test {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    Method* method = klass->FindVirtualMethod(method_name, signature);
+    AbstractMethod* method = klass->FindVirtualMethod(method_name, signature);
     CHECK(method != NULL) << "Virtual method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);

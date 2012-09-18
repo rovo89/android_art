@@ -20,7 +20,7 @@
 
 namespace art {
 
-extern "C" const void* artTraceMethodEntryFromCode(Method* method, Thread* self, uintptr_t lr) {
+extern "C" const void* artTraceMethodEntryFromCode(AbstractMethod* method, Thread* self, uintptr_t lr) {
   Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = TraceStackFrame(method, lr);
   self->PushTraceStackFrame(trace_frame);
@@ -33,7 +33,7 @@ extern "C" const void* artTraceMethodEntryFromCode(Method* method, Thread* self,
 extern "C" uintptr_t artTraceMethodExitFromCode() {
   Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = Thread::Current()->PopTraceStackFrame();
-  Method* method = trace_frame.method_;
+  AbstractMethod* method = trace_frame.method_;
   uintptr_t lr = trace_frame.return_pc_;
 
   tracer->LogMethodTraceEvent(Thread::Current(), method, Trace::kMethodTraceExit);

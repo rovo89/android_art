@@ -24,7 +24,7 @@ using namespace art::greenland;
 
 namespace {
 
-Object* art_resolve_string(Method* referrer, uint32_t string_idx) {
+Object* art_resolve_string(AbstractMethod* referrer, uint32_t string_idx) {
   return ResolveStringFromCode(referrer, string_idx);
 }
 

@@ -31,7 +31,7 @@ struct iovec;
 
 namespace art {
 
-class Method;
+class AbstractMethod;
 class Thread;
 
 namespace JDWP {

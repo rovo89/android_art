@@ -80,7 +80,7 @@ CompiledMethod* JniCompiler::Compile() {
     // Load class object
     this_object_or_class_object =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  Method::DeclaringClassOffset().Int32Value(),
+                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
   }
@@ -124,7 +124,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Get callee code_addr
   llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
-                                Method::NativeMethodOffset().Int32Value(),
+                                AbstractMethod::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
                                 kTBAAJRuntime);
 

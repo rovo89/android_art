@@ -498,7 +498,7 @@ void Compiler::CompileAll(jobject class_loader,
   }
 }
 
-void Compiler::CompileOne(const Method* method) {
+void Compiler::CompileOne(const AbstractMethod* method) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject class_loader;
@@ -682,7 +682,7 @@ static Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
                                             class_loader, false);
 }
 
-static Method* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
+static AbstractMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
                                                           OatCompilationUnit* mUnit,
                                                           uint32_t method_idx,
                                                           InvokeType type)
@@ -822,7 +822,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, Method* method,
+void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, AbstractMethod* method,
                                              uintptr_t& direct_code, uintptr_t& direct_method) {
   direct_code = 0;
   direct_method = 0;
@@ -866,7 +866,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
   vtable_idx = -1;
   direct_code = 0;
   direct_method = 0;
-  Method* resolved_method =
+  AbstractMethod* resolved_method =
       ComputeMethodReferencedFromCompilingMethod(soa, mUnit, method_idx, type);
   if (resolved_method != NULL) {
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
@@ -1156,7 +1156,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
     it.Next();
   }
   while (it.HasNextDirectMethod()) {
-    Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+    AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
                                                  class_loader, NULL, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
@@ -1165,7 +1165,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
-    Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
+    AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
                                                  class_loader, NULL, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());

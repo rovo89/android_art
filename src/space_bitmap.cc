@@ -177,7 +177,7 @@ static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* call
     for (int32_t i = 0; i < fields->GetLength(); i++) {
       Field* field = fields->Get(i);
       FieldHelper fh(field);
-      if (!fh.GetType()->IsPrimitive()) {
+      if (!fh.IsPrimitiveType()) {
         Object* value = field->GetObj(obj);
         if (value != NULL) {
           WalkFieldsInOrder(visited, callback, value,  arg);
@@ -207,7 +207,7 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
       for (int32_t i = 0; i < fields->GetLength(); i++) {
         Field* field = fields->Get(i);
         FieldHelper fh(field);
-        if (!fh.GetType()->IsPrimitive()) {
+        if (!fh.IsPrimitiveType()) {
           Object* value = field->GetObj(NULL);
           if (value != NULL) {
             WalkFieldsInOrder(visited, callback, value, arg);

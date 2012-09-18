@@ -25,14 +25,14 @@ namespace art {
  * method entry and offset 0 within the method, we'll use an offset of -1
  * to denote method entry.
  */
-extern "C" void artUpdateDebuggerFromCode(int32_t dex_pc, Thread* self, Method** sp)
+extern "C" void artUpdateDebuggerFromCode(int32_t dex_pc, Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp,  Runtime::kRefsAndArgs);
   Dbg::UpdateDebugger(dex_pc, self);
 }
 
 // Temporary debugging hook for compiler.
-extern void DebugMe(Method* method, uint32_t info)
+extern void DebugMe(AbstractMethod* method, uint32_t info)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   LOG(INFO) << "DebugMe";
   if (method != NULL) {

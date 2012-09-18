@@ -56,7 +56,7 @@ class Compiler {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const Method* method)
+  void CompileOne(const AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsDebuggingSupported() {
@@ -229,7 +229,7 @@ class Compiler {
 
  private:
   // Compute constant code and method pointers when possible
-  void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, Method* method,
+  void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, AbstractMethod* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -350,11 +350,11 @@ class Compiler {
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
 
   typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const Compiler& compiler, const CompiledMethod* cm, const Method* method);
+      (const Compiler& compiler, const CompiledMethod* cm, const AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
-  typedef const Method::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
-      (const Compiler& compiler, const CompiledInvokeStub* cm, const Method* method);
+  typedef const AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
+      (const Compiler& compiler, const CompiledInvokeStub* cm, const AbstractMethod* method);
   CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
 #endif
 

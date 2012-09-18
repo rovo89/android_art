@@ -26,7 +26,7 @@ namespace art {
   class Compiler;
   class DexCache;
   class DexFile;
-  class Method;
+  class AbstractMethod;
   class OatCompilationUnit;
 }
 

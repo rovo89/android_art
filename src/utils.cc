@@ -317,7 +317,7 @@ std::string PrettyReturnType(const char* signature) {
   return PrettyDescriptor(return_type);
 }
 
-std::string PrettyMethod(const Method* m, bool with_signature) {
+std::string PrettyMethod(const AbstractMethod* m, bool with_signature) {
   if (m == NULL) {
     return "null";
   }
@@ -573,7 +573,7 @@ std::string DescriptorToName(const char* descriptor) {
   return descriptor;
 }
 
-std::string JniShortName(const Method* m) {
+std::string JniShortName(const AbstractMethod* m) {
   MethodHelper mh(m);
   std::string class_name(mh.GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
@@ -592,7 +592,7 @@ std::string JniShortName(const Method* m) {
   return short_name;
 }
 
-std::string JniLongName(const Method* m) {
+std::string JniLongName(const AbstractMethod* m) {
   std::string long_name;
   long_name += JniShortName(m);
   long_name += "__";

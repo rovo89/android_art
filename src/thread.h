@@ -50,7 +50,7 @@ class ClassLinker;
 class ClassLoader;
 class Context;
 struct DebugInvokeReq;
-class Method;
+class AbstractMethod;
 class Monitor;
 class Object;
 class Runtime;
@@ -347,11 +347,11 @@ class PACKED Thread {
     long_jump_context_ = context;
   }
 
-  Method* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
+  AbstractMethod* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetTopOfStack(void* stack, uintptr_t pc) {
-    Method** top_method = reinterpret_cast<Method**>(stack);
+    AbstractMethod** top_method = reinterpret_cast<AbstractMethod**>(stack);
     managed_stack_.SetTopQuickFrame(top_method);
     managed_stack_.SetTopQuickFramePc(pc);
   }
@@ -383,7 +383,7 @@ class PACKED Thread {
 
   //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
 
-  void* FindExceptionHandlerInMethod(const Method* method,
+  void* FindExceptionHandlerInMethod(const AbstractMethod* method,
                                      void* throw_pc,
                                      const DexFile& dex_file,
                                      ClassLinker* class_linker);

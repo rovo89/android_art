@@ -32,7 +32,7 @@ namespace art {
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedObjectAccess soa(env);
-  Method* m = soa.Decode<Object*>(javaMethod)->AsMethod();
+  AbstractMethod* m = soa.Decode<Object*>(javaMethod)->AsMethod();
   Class* c = m->GetDeclaringClass();
   if (c->IsAbstract()) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",

@@ -98,7 +98,7 @@ class ClassLinker {
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  String* ResolveString(uint32_t string_idx, const Method* referrer)
+  String* ResolveString(uint32_t string_idx, const AbstractMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(resolved_string == NULL)) {
@@ -129,7 +129,7 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  Class* ResolveType(uint16_t type_idx, const Method* referrer)
+  Class* ResolveType(uint16_t type_idx, const AbstractMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
     if (UNLIKELY(resolved_type == NULL)) {
@@ -170,17 +170,17 @@ class ClassLinker {
   // in ResolveType. What is unique is the method type argument which
   // is used to determine if this method is a direct, static, or
   // virtual method.
-  Method* ResolveMethod(const DexFile& dex_file,
+  AbstractMethod* ResolveMethod(const DexFile& dex_file,
                         uint32_t method_idx,
                         DexCache* dex_cache,
                         ClassLoader* class_loader,
-                        const Method* referrer,
+                        const AbstractMethod* referrer,
                         InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* ResolveMethod(uint32_t method_idx, const Method* referrer, InvokeType type)
+  AbstractMethod* ResolveMethod(uint32_t method_idx, const AbstractMethod* referrer, InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
+    AbstractMethod* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
     if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
@@ -191,7 +191,7 @@ class ClassLinker {
     return resolved_method;
   }
 
-  Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static)
+  Field* ResolveField(uint32_t field_idx, const AbstractMethod* referrer, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Field* resolved_field =
         referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
@@ -228,7 +228,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get shorty from method index without resolution. Used to do handlerization.
-  const char* MethodShorty(uint32_t method_idx, Method* referrer, uint32_t* length)
+  const char* MethodShorty(uint32_t method_idx, AbstractMethod* referrer, uint32_t* length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true on success, false if there's an exception pending.
@@ -273,7 +273,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegistered(const DexFile& dex_file) const
       LOCKS_EXCLUDED(dex_lock_);
-  void FixupDexCaches(Method* resolution_method) const
+  void FixupDexCaches(AbstractMethod* resolution_method) const
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -323,6 +323,22 @@ class ClassLinker {
     return ObjectArray<Class>::Alloc(GetClassRoot(kClassArrayClass), length);
   }
 
+  ObjectArray<String>* AllocStringArray(size_t length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ObjectArray<String>::Alloc(GetClassRoot(kJavaLangStringArrayClass), length);
+  }
+
+  ObjectArray<AbstractMethod>* AllocMethodArray(size_t length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ObjectArray<AbstractMethod>::Alloc(
+        GetClassRoot(kJavaLangReflectAbstractMethodArrayClass), length);
+  }
+
+  ObjectArray<Field>* AllocFieldArray(size_t length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ObjectArray<Field>::Alloc(GetClassRoot(kJavaLangReflectFieldArrayClass), length);
+  }
+
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -332,20 +348,20 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ResolveClassExceptionHandlerTypes(const DexFile& dex_file, Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, Method* klass)
+  void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, AbstractMethod* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
-                          ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws)
+                          ObjectArray<AbstractMethod>* methods, ObjectArray<ObjectArray<Class> >* throws)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(const Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Method* FindMethodForProxy(const Class* proxy_class, const Method* proxy_method)
+  AbstractMethod* FindMethodForProxy(const Class* proxy_class, const AbstractMethod* proxy_method)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method when its class isn't yet initialized
-  const void* GetOatCodeFor(const Method* method)
+  const void* GetOatCodeFor(const AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Relocate the OatFiles (ELF images)
@@ -357,7 +373,7 @@ class ClassLinker {
  private:
   explicit ClassLinker(InternTable*);
 
-  const OatFile::OatMethod GetOatMethodFor(const Method* method)
+  const OatFile::OatMethod GetOatMethodFor(const AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initialize class linker by bootstraping from dex files
@@ -386,6 +402,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Field* AllocField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Method* AllocMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Constructor* AllocConstructor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InterfaceEntry* AllocInterfaceEntry(Class* interface)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -422,8 +439,8 @@ class ClassLinker {
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst);
 
-  void LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
-                  SirtRef<Class>& klass, SirtRef<Method>& dst)
+  AbstractMethod* LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
+                  SirtRef<Class>& klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(Class* klass)
@@ -462,7 +479,7 @@ class ClassLinker {
                                                 const Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsSameMethodSignatureInDifferentClassContexts(const Method* descriptor,
+  bool IsSameMethodSignatureInDifferentClassContexts(const AbstractMethod* descriptor,
                                                      const Class* klass1,
                                                      const Class* klass2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -518,15 +535,14 @@ class ClassLinker {
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class)
+  AbstractMethod* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype)
+  AbstractMethod* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<AbstractMethod>& prototype)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
 
   mutable Mutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<const DexFile*> dex_files_ GUARDED_BY(dex_lock_);
   std::vector<DexCache*> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
@@ -551,11 +567,16 @@ class ClassLinker {
     kClassArrayClass,
     kObjectArrayClass,
     kJavaLangString,
+    kJavaLangDexCache,
     kJavaLangRefReference,
     kJavaLangReflectConstructor,
     kJavaLangReflectField,
+    kJavaLangReflectAbstractMethod,
     kJavaLangReflectMethod,
     kJavaLangReflectProxy,
+    kJavaLangStringArrayClass,
+    kJavaLangReflectFieldArrayClass,
+    kJavaLangReflectAbstractMethodArrayClass,
     kJavaLangClassLoader,
     kJavaLangThrowable,
     kJavaLangClassNotFoundException,

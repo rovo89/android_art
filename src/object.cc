@@ -313,10 +313,10 @@ void Field::SetObject(Object* object, const Object* l) const {
 }
 
 // TODO: get global references for these
-Class* Method::java_lang_reflect_Constructor_ = NULL;
-Class* Method::java_lang_reflect_Method_ = NULL;
+Class* AbstractMethod::java_lang_reflect_Constructor_ = NULL;
+Class* AbstractMethod::java_lang_reflect_Method_ = NULL;
 
-InvokeType Method::GetInvokeType() const {
+InvokeType AbstractMethod::GetInvokeType() const {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {
     return kInterface;
@@ -329,7 +329,7 @@ InvokeType Method::GetInvokeType() const {
   }
 }
 
-void Method::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method) {
+void AbstractMethod::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method) {
   CHECK(java_lang_reflect_Constructor_ == NULL);
   CHECK(java_lang_reflect_Constructor != NULL);
   java_lang_reflect_Constructor_ = java_lang_reflect_Constructor;
@@ -339,7 +339,7 @@ void Method::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_r
   java_lang_reflect_Method_ = java_lang_reflect_Method;
 }
 
-void Method::ResetClasses() {
+void AbstractMethod::ResetClasses() {
   CHECK(java_lang_reflect_Constructor_ != NULL);
   java_lang_reflect_Constructor_ = NULL;
 
@@ -347,48 +347,48 @@ void Method::ResetClasses() {
   java_lang_reflect_Method_ = NULL;
 }
 
-ObjectArray<String>* Method::GetDexCacheStrings() const {
+ObjectArray<String>* AbstractMethod::GetDexCacheStrings() const {
   return GetFieldObject<ObjectArray<String>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_), false);
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_), false);
 }
 
-void Method::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_),
+void AbstractMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_),
                  new_dex_cache_strings, false);
 }
 
-ObjectArray<Method>* Method::GetDexCacheResolvedMethods() const {
-  return GetFieldObject<ObjectArray<Method>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_), false);
+ObjectArray<AbstractMethod>* AbstractMethod::GetDexCacheResolvedMethods() const {
+  return GetFieldObject<ObjectArray<AbstractMethod>*>(
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_), false);
 }
 
-void Method::SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_),
+void AbstractMethod::SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_),
                  new_dex_cache_methods, false);
 }
 
-ObjectArray<Class>* Method::GetDexCacheResolvedTypes() const {
+ObjectArray<Class>* AbstractMethod::GetDexCacheResolvedTypes() const {
   return GetFieldObject<ObjectArray<Class>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_), false);
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_), false);
 }
 
-void Method::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_),
+void AbstractMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_),
                  new_dex_cache_classes, false);
 }
 
-ObjectArray<StaticStorageBase>* Method::GetDexCacheInitializedStaticStorage() const {
+ObjectArray<StaticStorageBase>* AbstractMethod::GetDexCacheInitializedStaticStorage() const {
   return GetFieldObject<ObjectArray<StaticStorageBase>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_initialized_static_storage_),
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
       false);
 }
 
-void Method::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_initialized_static_storage_),
+void AbstractMethod::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
       new_value, false);
 }
 
-size_t Method::NumArgRegisters(const StringPiece& shorty) {
+size_t AbstractMethod::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1, shorty.length());
   uint32_t num_registers = 0;
   for (int i = 1; i < shorty.length(); ++i) {
@@ -402,19 +402,19 @@ size_t Method::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
-bool Method::IsProxyMethod() const {
+bool AbstractMethod::IsProxyMethod() const {
   return GetDeclaringClass()->IsProxyClass();
 }
 
-Method* Method::FindOverriddenMethod() const {
+AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
   if (IsStatic()) {
     return NULL;
   }
   Class* declaring_class = GetDeclaringClass();
   Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
-  ObjectArray<Method>* super_class_vtable = super_class->GetVTable();
-  Method* result = NULL;
+  ObjectArray<AbstractMethod>* super_class_vtable = super_class->GetVTable();
+  AbstractMethod* result = NULL;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
   if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
@@ -433,7 +433,7 @@ Method* Method::FindOverriddenMethod() const {
         InterfaceEntry* entry = iftable->Get(i);
         Class* interface = entry->GetInterface();
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          Method* interface_method = interface->GetVirtualMethod(j);
+          AbstractMethod* interface_method = interface->GetVirtualMethod(j);
           interface_mh.ChangeMethod(interface_method);
           if (mh.HasSameNameAndSignature(&interface_mh)) {
             result = interface_method;
@@ -450,7 +450,8 @@ Method* Method::FindOverriddenMethod() const {
   return result;
 }
 
-static const void* GetOatCode(const Method* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static const void* GetOatCode(const AbstractMethod* m)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   const void* code = m->GetCode();
   // Peel off any method tracing trampoline.
@@ -464,11 +465,11 @@ static const void* GetOatCode(const Method* m) SHARED_LOCKS_REQUIRED(Locks::muta
   return code;
 }
 
-uintptr_t Method::NativePcOffset(const uintptr_t pc) const {
+uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
   return pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
 }
 
-uint32_t Method::ToDexPc(const uintptr_t pc) const {
+uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
 #if !defined(ART_USE_LLVM_COMPILER)
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
@@ -491,7 +492,7 @@ uint32_t Method::ToDexPc(const uintptr_t pc) const {
 #endif
 }
 
-uintptr_t Method::ToNativePc(const uint32_t dex_pc) const {
+uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
     DCHECK_EQ(dex_pc, 0U);
@@ -509,7 +510,7 @@ uintptr_t Method::ToNativePc(const uint32_t dex_pc) const {
   return 0;
 }
 
-uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
+uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   MethodHelper mh(this);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   // Iterate over the catch handlers associated with dex_pc
@@ -533,7 +534,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
   return DexFile::kDexNoIndex;
 }
 
-void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
+void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     MutexLock mu(*Locks::thread_suspend_count_lock_);
@@ -546,7 +547,7 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
 
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
-  Method::InvokeStub* stub = GetInvokeStub();
+  AbstractMethod::InvokeStub* stub = GetInvokeStub();
 
   bool have_executable_code = (GetCode() != NULL);
 
@@ -574,23 +575,23 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
   self->PopManagedStackFragment(fragment);
 }
 
-bool Method::IsRegistered() const {
-  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false);
+bool AbstractMethod::IsRegistered() const {
+  void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_), false);
   CHECK(native_method != NULL);
   void* jni_stub = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
   return native_method != jni_stub;
 }
 
-void Method::RegisterNative(Thread* self, const void* native_method) {
+void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
 #if defined(ART_USE_LLVM_COMPILER)
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_),
                            native_method, false);
 #else
   if (!self->GetJniEnv()->vm->work_around_app_jni_bugs) {
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_),
                              native_method, false);
   } else {
     // We've been asked to associate this method with the given native method but are working
@@ -598,18 +599,18 @@ void Method::RegisterNative(Thread* self, const void* native_method) {
     // the native method to runtime support and store the target somewhere runtime support will
     // find it.
 #if defined(__arm__)
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_),
         reinterpret_cast<const void*>(art_work_around_app_jni_bugs), false);
 #else
     UNIMPLEMENTED(FATAL);
 #endif
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_),
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);
   }
 #endif
 }
 
-void Method::UnregisterNative(Thread* self) {
+void AbstractMethod::UnregisterNative(Thread* self) {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(self, Runtime::Current()->GetJniDlsymLookupStub()->GetData());
@@ -931,7 +932,7 @@ void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-Method* Class::FindVirtualMethodForInterface(Method* method) {
+AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* method) {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != NULL) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
@@ -947,9 +948,9 @@ Method* Class::FindVirtualMethodForInterface(Method* method) {
   return NULL;
 }
 
-Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& signature) const {
+AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& signature) const {
   // Check the current class before checking the interfaces.
-  Method* method = FindDeclaredVirtualMethod(name, signature);
+  AbstractMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
     return method;
   }
@@ -965,9 +966,9 @@ Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& 
   return NULL;
 }
 
-Method* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+AbstractMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   // Check the current class before checking the interfaces.
-  Method* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
+  AbstractMethod* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
   if (method != NULL) {
     return method;
   }
@@ -984,10 +985,10 @@ Method* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_metho
 }
 
 
-Method* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+AbstractMethod* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
-    Method* method = GetDirectMethod(i);
+    AbstractMethod* method = GetDirectMethod(i);
     mh.ChangeMethod(method);
     if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
@@ -996,10 +997,10 @@ Method* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPie
   return NULL;
 }
 
-Method* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+AbstractMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumDirectMethods(); ++i) {
-      Method* method = GetDirectMethod(i);
+      AbstractMethod* method = GetDirectMethod(i);
       if (method->GetDexMethodIndex() == dex_method_idx) {
         return method;
       }
@@ -1008,9 +1009,9 @@ Method* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_
   return NULL;
 }
 
-Method* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+AbstractMethod* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredDirectMethod(name, signature);
+    AbstractMethod* method = klass->FindDeclaredDirectMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -1018,9 +1019,9 @@ Method* Class::FindDirectMethod(const StringPiece& name, const StringPiece& sign
   return NULL;
 }
 
-Method* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+AbstractMethod* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
+    AbstractMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -1028,11 +1029,11 @@ Method* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_i
   return NULL;
 }
 
-Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
+AbstractMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
                                          const StringPiece& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    Method* method = GetVirtualMethod(i);
+    AbstractMethod* method = GetVirtualMethod(i);
     mh.ChangeMethod(method);
     if (name == mh.GetName() && signature == mh.GetSignature()) {
       return method;
@@ -1041,10 +1042,10 @@ Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
-Method* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+AbstractMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-      Method* method = GetVirtualMethod(i);
+      AbstractMethod* method = GetVirtualMethod(i);
       if (method->GetDexMethodIndex() == dex_method_idx) {
         return method;
       }
@@ -1053,9 +1054,9 @@ Method* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex
   return NULL;
 }
 
-Method* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
+AbstractMethod* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredVirtualMethod(name, signature);
+    AbstractMethod* method = klass->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -1063,9 +1064,9 @@ Method* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& sig
   return NULL;
 }
 
-Method* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+AbstractMethod* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
-    Method* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
+    AbstractMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -1495,7 +1496,7 @@ std::string Throwable::Dump() const {
     IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
     MethodHelper mh;
     for (int32_t i = 0; i < depth; ++i) {
-      Method* method = down_cast<Method*>(method_trace->Get(i));
+      AbstractMethod* method = down_cast<AbstractMethod*>(method_trace->Get(i));
       mh.ChangeMethod(method);
       uint32_t dex_pc = pc_trace->Get(i);
       int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);

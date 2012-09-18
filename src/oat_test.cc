@@ -23,7 +23,7 @@ namespace art {
 
 class OatTest : public CommonTest {
  protected:
-  void CheckMethod(Method* method,
+  void CheckMethod(AbstractMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

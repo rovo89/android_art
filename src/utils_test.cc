@@ -194,7 +194,7 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Method* m;
+  AbstractMethod* m;
 
   m = c->FindVirtualMethod("charAt", "(I)C");
   ASSERT_TRUE(m != NULL);

@@ -129,7 +129,7 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
   callInst = opReg(cUnit, kOpBlx, rINVOKE_TGT);
 #else
   if (fastPath && info->type != kInterface) {
-    callInst = opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
+    callInst = opMem(cUnit, kOpBlx, rARG0, AbstractMethod::GetCodeOffset().Int32Value());
   } else {
     int trampoline = 0;
     switch (info->type) {

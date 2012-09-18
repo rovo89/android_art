@@ -105,7 +105,7 @@ static jobjectArray ToArray(const ScopedObjectAccessUnchecked& soa, const char* 
 };
 #define ToArray(a, b, c) WorkAroundGccAnnotalysisBug::ToArray(a, b, c)
 
-static bool IsVisibleConstructor(Method* m, bool public_only) {
+static bool IsVisibleConstructor(AbstractMethod* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
@@ -118,9 +118,9 @@ static bool IsVisibleConstructor(Method* m, bool public_only) {
 static jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   ScopedObjectAccess soa(env);
   Class* c = DecodeClass(soa, javaClass);
-  std::vector<Method*> constructors;
+  std::vector<AbstractMethod*> constructors; // TODO: Use Constructor instead of AbstractMethod
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    Method* m = c->GetDirectMethod(i);
+    AbstractMethod* m = c->GetDirectMethod(i);
     if (IsVisibleConstructor(m, publicOnly)) {
       constructors.push_back(m);
     }
@@ -173,7 +173,7 @@ static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jbool
   return ToArray(soa, "java/lang/reflect/Field", fields);
 }
 
-static bool IsVisibleMethod(Method* m, bool public_only) {
+static bool IsVisibleMethod(AbstractMethod* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
     return false;
   }
@@ -193,10 +193,10 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
     return NULL;
   }
 
-  std::vector<Method*> methods;
+  std::vector<AbstractMethod*> methods;
   MethodHelper mh;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    Method* m = c->GetVirtualMethod(i);
+    AbstractMethod* m = c->GetVirtualMethod(i);
     mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
       if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
@@ -210,7 +210,7 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
     }
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    Method* m = c->GetDirectMethod(i);
+    AbstractMethod* m = c->GetDirectMethod(i);
     mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
       if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
@@ -260,16 +260,17 @@ static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray
   return true;
 }
 
-static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
-                                              ObjectArray<Class>* arg_array)
+static AbstractMethod* FindConstructorOrMethodInArray(ObjectArray<AbstractMethod>* methods,
+                                                      const std::string& name,
+                                                      ObjectArray<Class>* arg_array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (methods == NULL) {
     return NULL;
   }
-  Method* result = NULL;
+  AbstractMethod* result = NULL;
   MethodHelper mh;
   for (int32_t i = 0; i < methods->GetLength(); ++i) {
-    Method* method = methods->Get(i);
+    AbstractMethod* method = methods->Get(i);
     mh.ChangeMethod(method);
     if (method->IsMiranda() || !MethodMatches(&mh, name, arg_array)) {
       continue;
@@ -295,7 +296,7 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
   std::string name(soa.Decode<String*>(javaName)->ToModifiedUtf8());
   ObjectArray<Class>* arg_array = soa.Decode<ObjectArray<Class>*>(javaArgs);
 
-  Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, arg_array);
+  AbstractMethod* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, arg_array);
   if (m == NULL) {
     m = FindConstructorOrMethodInArray(c->GetVirtualMethods(), name, arg_array);
   }
@@ -375,7 +376,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
     return NULL;
   }
 
-  Method* init = c->FindDeclaredDirectMethod("<init>", "()V");
+  AbstractMethod* init = c->FindDeclaredDirectMethod("<init>", "()V");
   if (init == NULL) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s has no default <init>()V constructor", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());

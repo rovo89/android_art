@@ -26,7 +26,7 @@
 
 namespace art {
 
-static void AddReferrerLocation(std::ostream& os, const Method* referrer)
+static void AddReferrerLocation(std::ostream& os, const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
     ClassHelper kh(referrer->GetDeclaringClass());
@@ -58,7 +58,7 @@ void ThrowNullPointerExceptionForFieldAccess(Field* field, bool is_read) {
   Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionForMethodAccess(Method* caller, uint32_t method_idx,
+void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t method_idx,
                                               InvokeType type) {
   DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
@@ -68,7 +68,7 @@ void ThrowNullPointerExceptionForMethodAccess(Method* caller, uint32_t method_id
   Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionFromDexPC(Method* throw_method, uint32_t dex_pc) {
+void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t dex_pc) {
   const DexFile::CodeItem* code = MethodHelper(throw_method).GetCodeItem();
   CHECK_LT(dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
@@ -155,8 +155,8 @@ void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed) {
 }
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* accessed,
-                                                   const Method* caller,
-                                                   const Method* called,
+                                                   const AbstractMethod* caller,
+                                                   const AbstractMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
   msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
@@ -166,7 +166,7 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* acces
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorMethod(Class* referrer, Method* accessed) {
+void ThrowIllegalAccessErrorMethod(Class* referrer, AbstractMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
@@ -182,7 +182,7 @@ void ThrowIllegalAccessErrorField(Class* referrer, Field* accessed) {
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorFinalField(const Method* referrer, Field* accessed) {
+void ThrowIllegalAccessErrorFinalField(const AbstractMethod* referrer, Field* accessed) {
   std::ostringstream msg;
   msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
       << PrettyMethod(referrer) << "'";
@@ -193,7 +193,7 @@ void ThrowIllegalAccessErrorFinalField(const Method* referrer, Field* accessed) 
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method, const Method* referrer) {
+                                       AbstractMethod* method, const AbstractMethod* referrer) {
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
@@ -202,9 +202,9 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
                                        msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const Method* interface_method,
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const AbstractMethod* interface_method,
                                                                 Object* this_object,
-                                                                const Method* referrer) {
+                                                                const AbstractMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
   CHECK(this_object != NULL);
@@ -219,7 +219,7 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const Method* in
 }
 
 void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is_static,
-                                            const Method* referrer) {
+                                            const AbstractMethod* referrer) {
   std::ostringstream msg;
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
@@ -232,7 +232,7 @@ void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const Method* referrer) {
+                            const StringPiece& signature, const AbstractMethod* referrer) {
   std::ostringstream msg;
   ClassHelper kh(c);
   msg << "No " << type << " method " << name << signature
@@ -241,7 +241,7 @@ void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
-void ThrowNoSuchMethodError(uint32_t method_idx, const Method* referrer) {
+void ThrowNoSuchMethodError(uint32_t method_idx, const AbstractMethod* referrer) {
   DexCache* dex_cache = referrer->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
   std::ostringstream msg;

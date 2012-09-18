@@ -375,12 +375,12 @@ class Dex2Oat {
         reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
     MethodHelper mh;
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-      Method* m = c->GetVirtualMethod(i);
+      AbstractMethod* m = c->GetVirtualMethod(i);
       mh.ChangeMethod(m);
       ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
     }
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-      Method* m = c->GetDirectMethod(i);
+      AbstractMethod* m = c->GetDirectMethod(i);
       mh.ChangeMethod(m);
       ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
     }

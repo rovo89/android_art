@@ -26,7 +26,7 @@ namespace art {
 //----------------------------------------------------------------------------
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
-                                             Method* method, uint32_t size);
+                                             AbstractMethod* method, uint32_t size);
 
 void art_pop_shadow_frame_from_code(void*);
 
@@ -49,7 +49,7 @@ void art_throw_stack_overflow_from_code();
 
 void art_throw_exception_from_code(Object* exception);
 
-int32_t art_find_catch_block_from_code(Method* current_method,
+int32_t art_find_catch_block_from_code(AbstractMethod* current_method,
                                        uint32_t ti_offset);
 
 

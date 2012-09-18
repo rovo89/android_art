@@ -193,7 +193,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
       loadWordDisp(cUnit, rARG0,
-        Method::DexCacheResolvedMethodsOffset().Int32Value(),
+        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
         rARG0);
       // Set up direct code if known.
       if (directCode != 0) {
@@ -224,7 +224,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
 #if !defined(TARGET_X86)
     case 3:  // Grab the code from the method*
       if (directCode == 0) {
-        loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
+        loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
                      rINVOKE_TGT);
       }
       break;
@@ -273,7 +273,7 @@ int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
       break;
 #if !defined(TARGET_X86)
     case 4: // Get the compiled code address [uses rARG0, sets rINVOKE_TGT]
-      loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
+      loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
                    rINVOKE_TGT);
       break;
 #endif

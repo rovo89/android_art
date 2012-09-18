@@ -27,7 +27,7 @@
 
 namespace art {
 
-class Method;
+class AbstractMethod;
 class Object;
 class Thread;
 
@@ -40,36 +40,36 @@ struct PACKED RuntimeEntryPoints {
   //----------------------------------------------------------------------------
   // Exception
   //----------------------------------------------------------------------------
-  int32_t (*FindCatchBlock)(Method* current_method, uint32_t ti_offset);
+  int32_t (*FindCatchBlock)(AbstractMethod* current_method, uint32_t ti_offset);
   void (*ThrowIndexOutOfBounds)(int32_t length, int32_t index);
   void (*ThrowNullPointerException)(unsigned dex_pc);
 
   //----------------------------------------------------------------------------
   // Alloc
   //----------------------------------------------------------------------------
-  Object* (*AllocArray)(uint32_t type_idx, Method* referrer,
+  Object* (*AllocArray)(uint32_t type_idx, AbstractMethod* referrer,
                         uint32_t length, Thread* thread);
 
-  Object* (*AllocArrayWithAccessCheck)(uint32_t type_idx, Method* referrer,
+  Object* (*AllocArrayWithAccessCheck)(uint32_t type_idx, AbstractMethod* referrer,
                                        uint32_t length, Thread* thread);
 
-  Object* (*CheckAndAllocArray)(uint32_t type_idx, Method* referrer,
+  Object* (*CheckAndAllocArray)(uint32_t type_idx, AbstractMethod* referrer,
                                 uint32_t length, Thread* thread);
 
   Object* (*CheckAndAllocArrayWithAccessCheck)(uint32_t type_idx,
-                                               Method* referrer,
+                                               AbstractMethod* referrer,
                                                uint32_t length,
                                                Thread* thread);
 
   //----------------------------------------------------------------------------
   // DexCache
   //----------------------------------------------------------------------------
-  Object* (*ResolveString)(Method* referrer, uint32_t string_idx);
+  Object* (*ResolveString)(AbstractMethod* referrer, uint32_t string_idx);
 
   //----------------------------------------------------------------------------
   // Field
   //----------------------------------------------------------------------------
-  Object* (*GetObjectStatic)(uint32_t field_idx, Method* referrer);
+  Object* (*GetObjectStatic)(uint32_t field_idx, AbstractMethod* referrer);
 
   //----------------------------------------------------------------------------
   // Cast

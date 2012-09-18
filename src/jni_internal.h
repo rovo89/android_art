@@ -42,7 +42,7 @@ class ClassLoader;
 class Field;
 union JValue;
 class Libraries;
-class Method;
+class AbstractMethod;
 class ScopedObjectAccess;
 class Thread;
 
@@ -55,7 +55,7 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, Method* m, JValue* args)
+JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, AbstractMethod* m, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
@@ -77,7 +77,7 @@ struct JavaVMExt : public JavaVM {
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(Method* m)
+  void* FindCodeForNativeMethod(AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os);

@@ -46,11 +46,11 @@ namespace art {
 // which is responsible for recording callee save registers. We explicitly handlerize incoming
 // reference arguments (so they survive GC) and create a boxed argument array. Finally we invoke
 // the invocation handler which is a field within the proxy object receiver.
-extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
+extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* receiver,
                                       Thread* self, byte* stack_args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Register the top of the managed stack
-  Method** proxy_sp = reinterpret_cast<Method**>(stack_args - SP_OFFSET_IN_BYTES);
+  AbstractMethod** proxy_sp = reinterpret_cast<AbstractMethod**>(stack_args - SP_OFFSET_IN_BYTES);
   DCHECK_EQ(*proxy_sp, proxy_method);
   self->SetTopOfStack(proxy_sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), FRAME_SIZE_IN_BYTES);
@@ -112,7 +112,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     args_jobj[2].l = soa.AddLocalReference<jobjectArray>(args);
   }
   // Convert proxy method into expected interface method
-  Method* interface_method = proxy_method->FindOverriddenMethod();
+  AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   args_jobj[1].l = soa.AddLocalReference<jobject>(interface_method);

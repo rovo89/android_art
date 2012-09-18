@@ -42,7 +42,7 @@ struct WellKnownClasses {
   static jclass java_lang_Daemons;
   static jclass java_lang_Error;
   static jclass java_lang_reflect_InvocationHandler;
-  static jclass java_lang_reflect_Method;
+  static jclass java_lang_reflect_AbstractMethod;
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_Thread;

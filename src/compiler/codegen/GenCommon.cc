@@ -698,7 +698,7 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
       RegLocation rlMethod  = loadCurrMethod(cUnit);
       rBase = oatAllocTemp(cUnit);
       loadWordDisp(cUnit, rlMethod.lowReg,
-                   Method::DeclaringClassOffset().Int32Value(), rBase);
+                   AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
       if (oatIsTemp(cUnit, rlMethod.lowReg)) {
         oatFreeTemp(cUnit, rlMethod.lowReg);
       }
@@ -716,7 +716,7 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
       rBase = rARG0;
       oatLockTemp(cUnit, rBase);
       loadWordDisp(cUnit, rMethod,
-                   Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       loadWordDisp(cUnit, rBase,
                    Array::DataOffset(sizeof(Object*)).Int32Value() +
@@ -793,7 +793,7 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
       RegLocation rlMethod  = loadCurrMethod(cUnit);
       rBase = oatAllocTemp(cUnit);
       loadWordDisp(cUnit, rlMethod.lowReg,
-                   Method::DeclaringClassOffset().Int32Value(), rBase);
+                   AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -808,7 +808,7 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
       rBase = rARG0;
       oatLockTemp(cUnit, rBase);
       loadWordDisp(cUnit, rMethod,
-                   Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       loadWordDisp(cUnit, rBase,
                    Array::DataOffset(sizeof(Object*)).Int32Value() +
@@ -1142,7 +1142,7 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
   } else {
     // We're don't need access checks, load type from dex cache
     int32_t dex_cache_offset =
-        Method::DexCacheResolvedTypesOffset().Int32Value();
+        AbstractMethod::DexCacheResolvedTypesOffset().Int32Value();
     loadWordDisp(cUnit, rlMethod.lowReg, dex_cache_offset, resReg);
     int32_t offset_of_type =
         Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
@@ -1197,7 +1197,7 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
     oatLockCallTemps(cUnit); // Using explicit registers
     loadCurrMethodDirect(cUnit, rARG2);
     loadWordDisp(cUnit, rARG2,
-                 Method::DexCacheStringsOffset().Int32Value(), rARG0);
+                 AbstractMethod::DexCacheStringsOffset().Int32Value(), rARG0);
     // Might call out to helper, which will return resolved string in rRET0
 #if !defined(TARGET_X86)
     int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pResolveStringFromCode));
@@ -1233,7 +1233,7 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     loadWordDisp(cUnit, rlMethod.lowReg,
-                 Method::DexCacheStringsOffset().Int32Value(), resReg);
+                 AbstractMethod::DexCacheStringsOffset().Int32Value(), resReg);
     loadWordDisp(cUnit, resReg, offset_of_string, rlResult.lowReg);
     storeValue(cUnit, rlDest, rlResult);
   }
@@ -1287,7 +1287,7 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
     // Load dex cache entry into classReg (rARG2)
     loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
     loadWordDisp(cUnit, rARG1,
-                 Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
+                 AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), classReg);
     int32_t offset_of_type =
         Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
         * type_idx);
@@ -1369,7 +1369,7 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
   } else {
     // Load dex cache entry into classReg (rARG2)
     loadWordDisp(cUnit, rARG1,
-                 Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
+                 AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), classReg);
     int32_t offset_of_type =
         Array::DataOffset(sizeof(Class*)).Int32Value() +
         (sizeof(Class*) * type_idx);

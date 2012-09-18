@@ -48,7 +48,7 @@ class DexFile;
 class Heap;
 class InternTable;
 struct JavaVMExt;
-class Method;
+class AbstractMethod;
 class MonitorList;
 class SignalCatcher;
 class String;
@@ -254,7 +254,7 @@ class Runtime {
   void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  Method* GetResolutionMethod() const {
+  AbstractMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
     return resolution_method_;
   }
@@ -263,11 +263,11 @@ class Runtime {
     return resolution_method_ != NULL;
   }
 
-  void SetResolutionMethod(Method* method) {
+  void SetResolutionMethod(AbstractMethod* method) {
     resolution_method_ = method;
   }
 
-  Method* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  AbstractMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -281,20 +281,20 @@ class Runtime {
     return callee_save_methods_[type] != NULL;
   }
 
-  Method* GetCalleeSaveMethod(CalleeSaveType type) const {
+  AbstractMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
     CHECK(HasCalleeSaveMethod(type));
     return callee_save_methods_[type];
   }
 
-  void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
+  void SetCalleeSaveMethod(AbstractMethod* method, CalleeSaveType type);
 
-  Method* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type)
+  AbstractMethod* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
+  AbstractMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
+  AbstractMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
@@ -398,9 +398,9 @@ class Runtime {
 
   ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
-  Method* callee_save_methods_[kLastCalleeSaveType];
+  AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
 
-  Method* resolution_method_;
+  AbstractMethod* resolution_method_;
 
   // As returned by ClassLoader.getSystemClassLoader()
   ClassLoader* system_class_loader_;

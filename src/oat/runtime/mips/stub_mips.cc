@@ -125,7 +125,7 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   return resolution_trampoline.get();
 }
 
-typedef void (*ThrowAme)(Method*, Thread*);
+typedef void (*ThrowAme)(AbstractMethod*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));

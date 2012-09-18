@@ -199,13 +199,10 @@ class ClassHelper {
   }
 
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile* result = dex_file_;
-    if (result == NULL) {
-      const DexCache* dex_cache = GetDexCache();
-      result = &GetClassLinker()->FindDexFile(dex_cache);
-      dex_file_ = result;
+    if (dex_file_ == NULL) {
+      dex_file_ = GetDexCache()->GetDexFile();
     }
-    return *result;
+    return *dex_file_;
   }
 
   DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -366,13 +363,10 @@ class FieldHelper {
     return result;
   }
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile* result = dex_file_;
-    if (result == NULL) {
-      const DexCache* dex_cache = GetDexCache();
-      result = &GetClassLinker()->FindDexFile(dex_cache);
-      dex_file_ = result;
+    if (dex_file_ == NULL) {
+      dex_file_ = GetDexCache()->GetDexFile();
     }
-    return *result;
+    return *dex_file_;
   }
 
   ClassLinker* class_linker_;
@@ -390,21 +384,21 @@ class MethodHelper {
      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
        shorty_len_(0) {}
 
-  explicit MethodHelper(const Method* m)
+  explicit MethodHelper(const AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  MethodHelper(const Method* m, ClassLinker* l)
+  MethodHelper(const AbstractMethod* m, ClassLinker* l)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  void ChangeMethod(Method* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ChangeMethod(AbstractMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_m != NULL);
     if (dex_cache_ != NULL) {
       Class* klass = new_m->GetDeclaringClass();
@@ -675,12 +669,12 @@ class MethodHelper {
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
-  void SetMethod(const Method* method)
+  void SetMethod(const AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
       Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {
-        Method* interface_method =
+        AbstractMethod* interface_method =
             method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
         CHECK(interface_method != NULL);
         CHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
@@ -702,7 +696,7 @@ class MethodHelper {
   ClassLinker* class_linker_;
   DexCache* dex_cache_;
   const DexFile* dex_file_;
-  const Method* method_;
+  const AbstractMethod* method_;
   const char* shorty_;
   uint32_t shorty_len_;
 

@@ -32,7 +32,7 @@ namespace art {
 class Class;
 class DexFile;
 class Field;
-class Method;
+class AbstractMethod;
 class Object;
 class String;
 
@@ -185,7 +185,7 @@ std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_t
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
-std::string PrettyMethod(const Method* m, bool with_signature = true)
+std::string PrettyMethod(const AbstractMethod* m, bool with_signature = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
@@ -249,10 +249,10 @@ bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 bool IsValidMemberName(const char* s);
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
-std::string JniShortName(const Method* m)
+std::string JniShortName(const AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 // Returns the JNI native function name for the overloaded method 'm'.
-std::string JniLongName(const Method* m)
+std::string JniLongName(const AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);

@@ -27,10 +27,10 @@ namespace art {
 void ThrowNullPointerExceptionForFieldAccess(Field* field, bool is_read)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionForMethodAccess(Method* caller, uint32_t method_idx, InvokeType type)
+void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t method_idx, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionFromDexPC(Method* throw_method, uint32_t dex_pc)
+void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // IllegalAccessError
@@ -39,41 +39,41 @@ void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* accessed,
-                                                   const Method* caller, const Method* called,
+                                                   const AbstractMethod* caller, const AbstractMethod* called,
                                                    InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorMethod(Class* referrer, Method* accessed)
+void ThrowIllegalAccessErrorMethod(Class* referrer, AbstractMethod* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void ThrowIllegalAccessErrorField(Class* referrer, Field* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorFinalField(const Method* referrer, Field* accessed)
+void ThrowIllegalAccessErrorFinalField(const AbstractMethod* referrer, Field* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method, const Method* referrer)
+                                       AbstractMethod* method, const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const Method* interface_method,
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const AbstractMethod* interface_method,
                                                                 Object* this_object,
-                                                                const Method* referrer)
+                                                                const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is_static,
-                                            const Method* referrer)
+                                            const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const Method* referrer)
+                            const StringPiece& signature, const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNoSuchMethodError(uint32_t method_idx, const Method* referrer)
+void ThrowNoSuchMethodError(uint32_t method_idx, const AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

@@ -128,7 +128,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
     }
   }
 
-  __ call(Address(EAX, Method::GetCodeOffset()));  // Call code off of method
+  __ call(Address(EAX, AbstractMethod::GetCodeOffset()));  // Call code off of method
 
   // Pop arguments up to EBX and the return address.
   __ addl(ESP, Immediate(frame_size + pad_size - (2 * kPointerSize)));

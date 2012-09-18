@@ -27,7 +27,7 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobject
   String* name = soa.Decode<String*>(javaName);
   ObjectArray<Class>* interfaces = soa.Decode<ObjectArray<Class>*>(javaInterfaces);
   ClassLoader* loader = soa.Decode<ClassLoader*>(javaLoader);
-  ObjectArray<Method>* methods = soa.Decode<ObjectArray<Method>*>(javaMethods);
+  ObjectArray<AbstractMethod>* methods = soa.Decode<ObjectArray<AbstractMethod>*>(javaMethods);
   ObjectArray<ObjectArray<Class> >* throws = soa.Decode<ObjectArray<ObjectArray<Class> >*>(javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);

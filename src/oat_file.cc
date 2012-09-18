@@ -334,9 +334,9 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
-Method::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
+AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
   const byte* stub = GetOatPointer<const byte*>(invoke_stub_offset_);
-  return reinterpret_cast<Method::InvokeStub*>(const_cast<byte*>(stub));
+  return reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(stub));
 }
 
 uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
@@ -355,7 +355,7 @@ const void* OatFile::OatMethod::GetProxyStub() const {
 }
 #endif
 
-void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
+void OatFile::OatMethod::LinkMethodPointers(AbstractMethod* method) const {
   CHECK(method != NULL);
   method->SetCode(GetCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
@@ -367,7 +367,7 @@ void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   method->SetInvokeStub(GetInvokeStub());
 }
 
-void OatFile::OatMethod::LinkMethodOffsets(Method* method) const {
+void OatFile::OatMethod::LinkMethodOffsets(AbstractMethod* method) const {
   CHECK(method != NULL);
   method->SetOatCodeOffset(GetCodeOffset());
   method->SetFrameSizeInBytes(GetFrameSizeInBytes());
