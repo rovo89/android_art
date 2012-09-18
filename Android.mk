@@ -274,7 +274,7 @@ oat-target-sync: oat-target
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
+dump-oat: dump-oat-core dump-oat-boot
 
 .PHONY: dump-oat-core
 dump-oat-core: dump-oat-core-host dump-oat-core-target
@@ -293,12 +293,6 @@ dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
 dump-oat-boot: $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
-
-.PHONY: dump-oat-Calculator
-dump-oat-Calculator: $(call art-cache-out,system/app/Calculator.apk.oat) $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
-	$(OATDUMP) --oat-file=$< --output=/tmp/Calculator.oatdump.txt
-	@echo Output in /tmp/Calculator.oatdump.txt
-
 
 ########################################################################
 # cpplint target
