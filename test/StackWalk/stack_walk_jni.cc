@@ -58,7 +58,7 @@ struct TestReferenceMapVisitor : public StackVisitor {
     }
     const uint8_t* reg_bitmap = NULL;
     if (!IsShadowFrame()) {
-      verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
+      verifier::DexPcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
       reg_bitmap = map.FindBitMap(GetDexPc());
     }
     MethodHelper mh(m);

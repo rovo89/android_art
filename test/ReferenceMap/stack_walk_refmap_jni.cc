@@ -55,7 +55,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
-    verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
+    verifier::DexPcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
 
     if (m->IsCalleeSaveMethod()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);

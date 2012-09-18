@@ -49,7 +49,7 @@ namespace verifier {
 
 class MethodVerifier;
 class InsnFlags;
-class PcToReferenceMap;
+class DexPcToReferenceMap;
 
 /*
  * "Direct" and "virtual" methods are stored independently. The type of call used to invoke the

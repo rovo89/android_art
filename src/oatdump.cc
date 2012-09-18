@@ -394,9 +394,9 @@ class OatDumper {
     }
     uint32_t gc_map_length = (gc_map_raw[0] << 24) | (gc_map_raw[1] << 16) |
                              (gc_map_raw[2] << 8) | (gc_map_raw[3] << 0);
-    verifier::PcToReferenceMap map(gc_map_raw + sizeof(uint32_t), gc_map_length);
+    verifier::DexPcToReferenceMap map(gc_map_raw + sizeof(uint32_t), gc_map_length);
     for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-      os << StringPrintf("\t\t\t0x%04x", map.GetPC(entry));
+      os << StringPrintf("\t\t\t0x%04x", map.GetDexPc(entry));
       size_t num_regs = map.RegWidth() * 8;
       const uint8_t* reg_bitmap = map.GetBitMap(entry);
       bool first = true;

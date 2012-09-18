@@ -1714,7 +1714,7 @@ class ReferenceMapVisitor : public StackVisitor {
         CHECK(gc_map != NULL) << PrettyMethod(m);
         uint32_t gc_map_length = m->GetGcMapLength();
         CHECK_NE(0U, gc_map_length) << PrettyMethod(m);
-        verifier::PcToReferenceMap map(gc_map, gc_map_length);
+        verifier::DexPcToReferenceMap map(gc_map, gc_map_length);
         const uint8_t* reg_bitmap = map.FindBitMap(GetDexPc());
         CHECK(reg_bitmap != NULL);
         const VmapTable vmap_table(m->GetVmapTableRaw());

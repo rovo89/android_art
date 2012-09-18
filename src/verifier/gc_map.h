@@ -34,10 +34,10 @@ enum RegisterMapFormat {
   kRegMapFormatCompact16 = 3, // Compact layout, 16-bit addresses.
 };
 
-// Lightweight wrapper for PC to reference bit maps.
-class PcToReferenceMap {
+// Lightweight wrapper for Dex PC to reference bit maps.
+class DexPcToReferenceMap {
  public:
-  PcToReferenceMap(const uint8_t* data, size_t data_length) {
+  DexPcToReferenceMap(const uint8_t* data, size_t data_length) {
     data_ = data;
     CHECK(data_ != NULL);
     // Check the size of the table agrees with the number of entries
@@ -50,8 +50,8 @@ class PcToReferenceMap {
     return GetData()[2] | (GetData()[3] << 8);
   }
 
-  // Get the PC at the given index
-  uint16_t GetPC(size_t index) const {
+  // Get the Dex PC at the given index
+  uint16_t GetDexPc(size_t index) const {
     size_t entry_offset = index * EntryWidth();
     if (PcWidth() == 1) {
       return Table()[entry_offset];

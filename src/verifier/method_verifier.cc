@@ -3163,8 +3163,8 @@ const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
     return NULL;
   }
   // Write table header
-  table->push_back(format | ((ref_bitmap_bytes >> PcToReferenceMap::kRegMapFormatShift) &
-                             ~PcToReferenceMap::kRegMapFormatMask));
+  table->push_back(format | ((ref_bitmap_bytes >> DexPcToReferenceMap::kRegMapFormatShift) &
+                             ~DexPcToReferenceMap::kRegMapFormatMask));
   table->push_back(ref_bitmap_bytes & 0xFF);
   table->push_back(num_entries & 0xFF);
   table->push_back((num_entries >> 8) & 0xFF);
@@ -3186,13 +3186,13 @@ const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
 void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
   // that the table data is well formed and all references are marked (or not) in the bitmap
-  PcToReferenceMap map(&data[0], data.size());
+  DexPcToReferenceMap map(&data[0], data.size());
   size_t map_index = 0;
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     const uint8_t* reg_bitmap = map.FindBitMap(i, false);
     if (insn_flags_[i].IsGcPoint()) {
       CHECK_LT(map_index, map.NumEntries());
-      CHECK_EQ(map.GetPC(map_index), i);
+      CHECK_EQ(map.GetDexPc(map_index), i);
       CHECK_EQ(map.GetBitMap(map_index), reg_bitmap);
       map_index++;
       RegisterLine* line = reg_table_.GetLine(i);

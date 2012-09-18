@@ -21,13 +21,13 @@
 namespace art {
 namespace verifier {
 
-const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_present) const {
+const uint8_t* DexPcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_present) const {
   size_t num_entries = NumEntries();
   // Do linear or binary search?
   static const size_t kSearchThreshold = 8;
   if (num_entries < kSearchThreshold) {
     for (size_t i = 0; i < num_entries; i++)  {
-      if (GetPC(i) == dex_pc) {
+      if (GetDexPc(i) == dex_pc) {
         return GetBitMap(i);
       }
     }
@@ -36,7 +36,7 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
     int hi = num_entries -1;
     while (hi >= lo) {
       int mid = (hi + lo) / 2;
-      int mid_pc = GetPC(mid);
+      int mid_pc = GetDexPc(mid);
       if (dex_pc > mid_pc) {
         lo = mid + 1;
       } else if (dex_pc < mid_pc) {
