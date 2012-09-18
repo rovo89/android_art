@@ -96,6 +96,7 @@ struct PACKED EntryPoints {
   double (*pDsub)(double, double);
   double (*pF2d)(float);
   double (*pFmod)(double, double);
+  double (*pSqrt)(double);
   double (*pI2d)(int);
   double (*pL2d)(int64_t);
   float (*pD2f)(double);

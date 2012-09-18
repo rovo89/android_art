@@ -1437,6 +1437,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pDsub),
   ENTRY_POINT_INFO(pF2d),
   ENTRY_POINT_INFO(pFmod),
+  ENTRY_POINT_INFO(pSqrt),
   ENTRY_POINT_INFO(pI2d),
   ENTRY_POINT_INFO(pL2d),
   ENTRY_POINT_INFO(pD2f),

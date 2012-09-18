@@ -459,8 +459,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               args << Rn << ", " << d << " .. " << (d + imm8);
             }
           }
-        }
-        if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
+        } else if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
           if ((coproc & 0xE) == 0xA) {
             // VFP data-processing instructions
             // |111|1|1100|0000|0000|1111|110|0|00  |0|0|0000|
@@ -473,21 +472,28 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             //  111 0 1110|1111 0100 1110 101 0 01   1 0 1001 - eef4ea69
             uint32_t opc1 = (instr >> 20) & 0xF;
             uint32_t opc2 = (instr >> 16) & 0xF;
-            //uint32_t opc3 = (instr >> 6) & 0x3;
+            uint32_t opc3 = (instr >> 6) & 0x3;
             if ((opc1 & 0xB) == 0xB) {  // 1x11
               // Other VFP data-processing instructions.
+              uint32_t D  = (instr >> 22) & 0x1;
+              uint32_t Vd = (instr >> 12) & 0xF;
+              uint32_t sz = (instr >> 8) & 1;
+              uint32_t M  = (instr >> 5) & 1;
+              uint32_t Vm = instr & 0xF;
+              bool dp_operation = sz == 1;
               switch (opc2) {
+                case 0x1: // Vneg/Vsqrt
+                  //  1110 11101 D 11 0001 dddd 101s o1M0 mmmm
+                  opcode << (opc3 == 1 ? "vneg" : "vsqrt") << (dp_operation ? ".f64" : ".f32");
+                  if (dp_operation) {
+                    args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
+                  } else {
+                    args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
+                  }
+                  break;
                 case 0x4: case 0x5:  { // Vector compare
                   // 1110 11101 D 11 0100 dddd 101 sE1M0 mmmm
-                  uint32_t D  = (instr >> 22) & 0x1;
-                  uint32_t Vd = (instr >> 12) & 0xF;
-                  uint32_t sz = (instr >> 8) & 1;
-                  uint32_t E  = (instr >> 7) & 1;
-                  uint32_t M  = (instr >> 5) & 1;
-                  uint32_t Vm = instr & 0xF;
-                  bool dp_operation = sz == 1;
-                  opcode << (E == 0 ? "vcmp" : "vcmpe");
-                  opcode << (dp_operation ? ".f64" : ".f32");
+                  opcode << (opc3 == 1 ? "vcmp" : "vcmpe") << (dp_operation ? ".f64" : ".f32");
                   if (dp_operation) {
                     args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
                   } else {
@@ -496,6 +502,24 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                   break;
                 }
               }
+            }
+          }
+        } else if ((op3 & 0x30) == 0x30) {  // 11 xxxx
+          // Advanced SIMD
+          if ((instr & 0xFFBF0ED0) == 0xeeb10ac0) {  // Vsqrt
+            //  1110 11101 D 11 0001 dddd 101S 11M0 mmmm
+            //  1110 11101 0 11 0001 1101 1011 1100 1000 - eeb1dbc8
+            uint32_t D = (instr >> 22) & 1;
+            uint32_t Vd = (instr >> 12) & 0xF;
+            uint32_t sz = (instr >> 8) & 1;
+            uint32_t M = (instr >> 5) & 1;
+            uint32_t Vm = instr & 0xF;
+            bool dp_operation = sz == 1;
+            opcode << "vsqrt" << (dp_operation ? ".f64" : ".f32");
+            if (dp_operation) {
+              args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
+            } else {
+              args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
             }
           }
         }

@@ -213,6 +213,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pDsub = __aeabi_dsub;
   points->pF2d = __aeabi_f2d;
   points->pFmod = fmod;
+  points->pSqrt = sqrt;
   points->pI2d = __aeabi_i2d;
   points->pL2d = __aeabi_l2d;
   points->pD2f = __aeabi_d2f;
