@@ -271,13 +271,6 @@ class Compiler {
   static void CompileClass(const CompilationContext* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void SetGcMaps(jobject class_loader, const std::vector<const DexFile*>& dex_files)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void SetGcMapsDexFile(jobject class_loader, const DexFile& dex_file)
-      LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void SetGcMapsMethod(const DexFile& dex_file, Method* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub)
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
 

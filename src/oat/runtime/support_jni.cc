@@ -179,7 +179,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
     }
   }
   // Load expected destination, see Method::RegisterNative
-  const void* code = reinterpret_cast<const void*>(jni_method->GetGcMapRaw());
+  const void* code = reinterpret_cast<const void*>(jni_method->GetNativeGcMap());
   if (UNLIKELY(code == NULL)) {
     code = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
     jni_method->RegisterNative(self, code);

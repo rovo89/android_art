@@ -243,6 +243,10 @@ class StackVisitor {
     return cur_shadow_frame_ != NULL;
   }
 
+  uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  size_t GetNativePcOffset() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uintptr_t LoadCalleeSave(int num, size_t frame_size) const {
     // Callee saves are held at the top of the frame
     Method* method = GetMethod();
@@ -254,8 +258,6 @@ class StackVisitor {
 #endif
     return *reinterpret_cast<uintptr_t*>(save_addr);
   }
-
-  uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the height of the stack in the managed stack frames, including transitions.
   size_t GetFrameHeight() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -274,8 +276,7 @@ class StackVisitor {
     return num_frames_;
   }
 
-  uint32_t GetVReg(Method* m, int vreg) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t GetVReg(Method* m, int vreg) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetVReg(Method* m, int vreg, uint32_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -18,11 +18,11 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
+#include "gc_map.h"
 #include "object.h"
 #include "object_utils.h"
 #include "jni.h"
 #include "scoped_thread_state_change.h"
-#include "verifier/gc_map.h"
 
 namespace art {
 
@@ -58,8 +58,8 @@ struct TestReferenceMapVisitor : public StackVisitor {
     }
     const uint8_t* reg_bitmap = NULL;
     if (!IsShadowFrame()) {
-      verifier::DexPcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
-      reg_bitmap = map.FindBitMap(GetDexPc());
+      NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
+      reg_bitmap = map.FindBitMap(GetNativePcOffset());
     }
     MethodHelper mh(m);
     StringPiece m_name(mh.GetName());

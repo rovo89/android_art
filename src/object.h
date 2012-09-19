@@ -761,39 +761,22 @@ class MANAGED Method : public Object {
     SetVmapTable(reinterpret_cast<uint16_t*>(vmap_table_offset));
   }
 
-  const uint8_t* GetGcMap() const {
-    const uint8_t* gc_map_raw = GetGcMapRaw();
-    if (gc_map_raw == NULL) {
-      return gc_map_raw;
-    }
-    return gc_map_raw + sizeof(uint32_t);
+  const uint8_t* GetNativeGcMap() const {
+    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_), false);
+  }
+  void SetNativeGcMap(const uint8_t* data) {
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_), data, false);
   }
 
-  uint32_t GetGcMapLength() const {
-    const uint8_t* gc_map_raw = GetGcMapRaw();
-    if (gc_map_raw == NULL) {
-      return 0;
-    }
-    return static_cast<uint32_t>((gc_map_raw[0] << 24) |
-                                 (gc_map_raw[1] << 16) |
-                                 (gc_map_raw[2] << 8) |
-                                 (gc_map_raw[3] << 0));
-  }
-
-  const uint8_t* GetGcMapRaw() const {
-    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
-  }
-  void SetGcMap(const uint8_t* data) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), data, false);
-  }
-
-  uint32_t GetOatGcMapOffset() const {
+  // When building the oat need a convenient place to stuff the offset of the native GC map.
+  void SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
     DCHECK(!Runtime::Current()->IsStarted());
-    return reinterpret_cast<uint32_t>(GetGcMapRaw());
+    SetNativeGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
   }
-  void SetOatGcMapOffset(uint32_t gc_map_offset) {
+
+  uint32_t GetOatNativeGcMapOffset() const {
     DCHECK(!Runtime::Current()->IsStarted());
-    SetGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
+    return reinterpret_cast<uint32_t>(GetNativeGcMap());
   }
 
   size_t GetFrameSizeInBytes() const {
@@ -916,15 +899,13 @@ class MANAGED Method : public Object {
     return result;
   }
 
-  // Converts a native PC to a dex PC.  TODO: this is a no-op
-  // until we associate a PC mapping table with each method.
-  uint32_t ToDexPC(const uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uintptr_t NativePcOffset(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Converts a dex PC to a native PC.  TODO: this is a no-op
-  // until we associate a PC mapping table with each method.
-  uintptr_t ToNativePC(const uint32_t dex_pc) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Converts a native PC to a dex PC.
+  uint32_t ToDexPc(const uintptr_t pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Converts a dex PC to a native PC.
+  uintptr_t ToNativePc(const uint32_t dex_pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc
   uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const
@@ -978,8 +959,8 @@ class MANAGED Method : public Object {
   // Total size in bytes of the frame
   size_t frame_size_in_bytes_;
 
-  // Garbage collection map
-  const uint8_t* gc_map_;
+  // Garbage collection map of native PC offsets to reference bitmaps.
+  const uint8_t* native_gc_map_;
 
   // Native invocation stub entry point for calling from native to managed code.
   InvokeStub* invoke_stub_;

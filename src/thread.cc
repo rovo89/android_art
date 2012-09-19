@@ -31,6 +31,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "debugger.h"
+#include "gc_map.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
@@ -47,7 +48,6 @@
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "utils.h"
-#include "verifier/gc_map.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -1558,7 +1558,7 @@ class CatchBlockStackVisitor : public StackVisitor {
         // Unwind stack when an exception occurs during method tracing
         if (UNLIKELY(method_tracing_active_ && IsTraceExitPc(GetCurrentQuickFramePc()))) {
           uintptr_t pc = TraceMethodUnwindFromCode(Thread::Current());
-          dex_pc = method->ToDexPC(pc);
+          dex_pc = method->ToDexPc(pc);
         } else {
           dex_pc = GetDexPc();
         }
@@ -1568,7 +1568,7 @@ class CatchBlockStackVisitor : public StackVisitor {
       uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
       if (found_dex_pc != DexFile::kDexNoIndex) {
         handler_dex_pc_ = found_dex_pc;
-        handler_quick_frame_pc_ = method->ToNativePC(found_dex_pc);
+        handler_quick_frame_pc_ = method->ToNativePc(found_dex_pc);
         handler_quick_frame_ = GetCurrentQuickFrame();
         return false;  // End stack walk.
       }
@@ -1712,49 +1712,50 @@ class ReferenceMapVisitor : public StackVisitor {
       Method* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
       if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-        const uint8_t* gc_map = m->GetGcMap();
-        CHECK(gc_map != NULL) << PrettyMethod(m);
-        uint32_t gc_map_length = m->GetGcMapLength();
-        CHECK_NE(0U, gc_map_length) << PrettyMethod(m);
-        verifier::DexPcToReferenceMap map(gc_map, gc_map_length);
-        const uint8_t* reg_bitmap = map.FindBitMap(GetDexPc());
-        CHECK(reg_bitmap != NULL);
-        const VmapTable vmap_table(m->GetVmapTableRaw());
-        const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+        const uint8_t* native_gc_map = m->GetNativeGcMap();
+        CHECK(native_gc_map != NULL) << PrettyMethod(m);
+        mh_.ChangeMethod(m);
+        const DexFile::CodeItem* code_item = mh_.GetCodeItem();
         DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
-        uint32_t core_spills = m->GetCoreSpillMask();
-        uint32_t fp_spills = m->GetFpSpillMask();
-        size_t frame_size = m->GetFrameSizeInBytes();
-        // For all dex registers in the bitmap
+        NativePcOffsetToReferenceMap map(native_gc_map);
         size_t num_regs = std::min(map.RegWidth() * 8,
                                    static_cast<size_t>(code_item->registers_size_));
-        Method** cur_quick_frame = GetCurrentQuickFrame();
-        DCHECK(cur_quick_frame != NULL);
-        for (size_t reg = 0; reg < num_regs; ++reg) {
-          // Does this register hold a reference?
-          if (TestBitmap(reg, reg_bitmap)) {
-            uint32_t vmap_offset;
-            Object* ref;
-            if (vmap_table.IsInContext(reg, vmap_offset)) {
-              // Compute the register we need to load from the context
-              uint32_t spill_mask = core_spills;
-              CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
-              uint32_t matches = 0;
-              uint32_t spill_shifts = 0;
-              while (matches != (vmap_offset + 1)) {
-                DCHECK_NE(spill_mask, 0u);
-                matches += spill_mask & 1;  // Add 1 if the low bit is set
-                spill_mask >>= 1;
-                spill_shifts++;
+        if (num_regs > 0) {
+          const uint8_t* reg_bitmap = map.FindBitMap(GetNativePcOffset());
+          DCHECK(reg_bitmap != NULL);
+          const VmapTable vmap_table(m->GetVmapTableRaw());
+          uint32_t core_spills = m->GetCoreSpillMask();
+          uint32_t fp_spills = m->GetFpSpillMask();
+          size_t frame_size = m->GetFrameSizeInBytes();
+          // For all dex registers in the bitmap
+          Method** cur_quick_frame = GetCurrentQuickFrame();
+          DCHECK(cur_quick_frame != NULL);
+          for (size_t reg = 0; reg < num_regs; ++reg) {
+            // Does this register hold a reference?
+            if (TestBitmap(reg, reg_bitmap)) {
+              uint32_t vmap_offset;
+              Object* ref;
+              if (vmap_table.IsInContext(reg, vmap_offset)) {
+                // Compute the register we need to load from the context
+                uint32_t spill_mask = core_spills;
+                CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
+                uint32_t matches = 0;
+                uint32_t spill_shifts = 0;
+                while (matches != (vmap_offset + 1)) {
+                  DCHECK_NE(spill_mask, 0u);
+                  matches += spill_mask & 1;  // Add 1 if the low bit is set
+                  spill_mask >>= 1;
+                  spill_shifts++;
+                }
+                spill_shifts--;  // wind back one as we want the last match
+                ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
+              } else {
+                ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
+                                                        fp_spills, frame_size, reg));
               }
-              spill_shifts--;  // wind back one as we want the last match
-              ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
-            } else {
-              ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
-                                                      fp_spills, frame_size, reg));
-            }
-            if (ref != NULL) {
-              root_visitor_(ref, arg_);
+              if (ref != NULL) {
+                root_visitor_(ref, arg_);
+              }
             }
           }
         }
@@ -1768,10 +1769,12 @@ class ReferenceMapVisitor : public StackVisitor {
     return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
   }
 
-  // Call-back when we visit a root
+  // Call-back when we visit a root.
   Heap::RootVisitor* root_visitor_;
-  // Argument to call-back
+  // Argument to call-back.
   void* arg_;
+  // A method helper we keep around to avoid dex file/cache re-computations.
+  MethodHelper mh_;
 };
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {

@@ -24,7 +24,7 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
-#include "gc_map.h"
+#include "verifier/dex_gc_map.h"
 #include "intern_table.h"
 #include "leb128.h"
 #include "logging.h"
@@ -549,8 +549,9 @@ bool MethodVerifier::ScanTryCatchBlocks() {
 bool MethodVerifier::VerifyInstructions() {
   const Instruction* inst = Instruction::At(code_item_->insns_);
 
-  /* Flag the start of the method as a branch target. */
+  /* Flag the start of the method as a branch target, and a GC point due to stack overflow errors */
   insn_flags_[0].SetBranchTarget();
+  insn_flags_[0].SetGcPoint();
 
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
@@ -945,7 +946,7 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   return true;
 }
 
-const std::vector<uint8_t>* CreateLengthPrefixedGcMap(const std::vector<uint8_t>& gc_map) {
+static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vector<uint8_t>& gc_map) {
   std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
   length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
   length_prefixed_gc_map->push_back((gc_map.size() & 0x00ff0000) >> 16);
@@ -1004,12 +1005,8 @@ bool MethodVerifier::VerifyCodeFlow() {
 #ifndef NDEBUG
   VerifyGcMap(*map);
 #endif
-  const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
-  verifier::MethodVerifier::SetGcMap(ref, *gc_map);
-
-  if (foo_method_ != NULL) {
-    foo_method_->SetGcMap(&gc_map->at(0));
-  }
+  const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
+  verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
 #else  // defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
@@ -3212,31 +3209,31 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-void MethodVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+void MethodVerifier::SetDexGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   {
-    MutexLock mu(*gc_maps_lock_);
-    GcMapTable::iterator it = gc_maps_->find(ref);
-    if (it != gc_maps_->end()) {
+    MutexLock mu(*dex_gc_maps_lock_);
+    DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
+    if (it != dex_gc_maps_->end()) {
       delete it->second;
-      gc_maps_->erase(it);
+      dex_gc_maps_->erase(it);
     }
-    gc_maps_->Put(ref, &gc_map);
+    dex_gc_maps_->Put(ref, &gc_map);
   }
-  CHECK(GetGcMap(ref) != NULL);
+  CHECK(GetDexGcMap(ref) != NULL);
 }
 
-const std::vector<uint8_t>* MethodVerifier::GetGcMap(Compiler::MethodReference ref) {
-  MutexLock mu(*gc_maps_lock_);
-  GcMapTable::const_iterator it = gc_maps_->find(ref);
-  if (it == gc_maps_->end()) {
+const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(Compiler::MethodReference ref) {
+  MutexLock mu(*dex_gc_maps_lock_);
+  DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
+  if (it == dex_gc_maps_->end()) {
     return NULL;
   }
   CHECK(it->second != NULL);
   return it->second;
 }
 
-Mutex* MethodVerifier::gc_maps_lock_ = NULL;
-MethodVerifier::GcMapTable* MethodVerifier::gc_maps_ = NULL;
+Mutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
+MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
 Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
@@ -3247,10 +3244,10 @@ MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_catego
 #endif
 
 void MethodVerifier::Init() {
-  gc_maps_lock_ = new Mutex("verifier GC maps lock");
+  dex_gc_maps_lock_ = new Mutex("verifier GC maps lock");
   {
-    MutexLock mu(*gc_maps_lock_);
-    gc_maps_ = new MethodVerifier::GcMapTable;
+    MutexLock mu(*dex_gc_maps_lock_);
+    dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
   }
 
   rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
@@ -3270,13 +3267,13 @@ void MethodVerifier::Init() {
 
 void MethodVerifier::Shutdown() {
   {
-    MutexLock mu(*gc_maps_lock_);
-    STLDeleteValues(gc_maps_);
-    delete gc_maps_;
-    gc_maps_ = NULL;
+    MutexLock mu(*dex_gc_maps_lock_);
+    STLDeleteValues(dex_gc_maps_);
+    delete dex_gc_maps_;
+    dex_gc_maps_ = NULL;
   }
-  delete gc_maps_lock_;
-  gc_maps_lock_ = NULL;
+  delete dex_gc_maps_lock_;
+  dex_gc_maps_lock_ = NULL;
 
   {
     MutexLock mu(*rejected_classes_lock_);

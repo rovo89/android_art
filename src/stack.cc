@@ -68,11 +68,17 @@ uint32_t StackVisitor::GetDexPc() const {
   if (cur_shadow_frame_ != NULL) {
     return cur_shadow_frame_->GetDexPC();
   } else if (cur_quick_frame_ != NULL) {
-    return GetMethod()->ToDexPC(cur_quick_frame_pc_);
+    return GetMethod()->ToDexPc(cur_quick_frame_pc_);
   } else {
     return 0;
   }
 }
+
+size_t StackVisitor::GetNativePcOffset() const {
+  DCHECK(!IsShadowFrame());
+  return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
+}
+
 
 uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
   if (cur_quick_frame_ != NULL) {

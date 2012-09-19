@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VERIFIER_GC_MAP_H_
-#define ART_SRC_VERIFIER_GC_MAP_H_
+#ifndef ART_SRC_VERIFIER_DEX_GC_MAP_H_
+#define ART_SRC_VERIFIER_DEX_GC_MAP_H_
 
 #include "logging.h"
 #include "macros.h"
@@ -37,8 +37,7 @@ enum RegisterMapFormat {
 // Lightweight wrapper for Dex PC to reference bit maps.
 class DexPcToReferenceMap {
  public:
-  DexPcToReferenceMap(const uint8_t* data, size_t data_length) {
-    data_ = data;
+  DexPcToReferenceMap(const uint8_t* data, size_t data_length) : data_(data) {
     CHECK(data_ != NULL);
     // Check the size of the table agrees with the number of entries
     size_t data_size = data_length - 4;
@@ -53,7 +52,7 @@ class DexPcToReferenceMap {
   // Get the Dex PC at the given index
   uint16_t GetDexPc(size_t index) const {
     size_t entry_offset = index * EntryWidth();
-    if (PcWidth() == 1) {
+    if (DexPcWidth() == 1) {
       return Table()[entry_offset];
     } else {
       return Table()[entry_offset] | (Table()[entry_offset + 1] << 8);
@@ -63,7 +62,7 @@ class DexPcToReferenceMap {
   // Return address of bitmap encoding what are live references
   const uint8_t* GetBitMap(size_t index) const {
     size_t entry_offset = index * EntryWidth();
-    return &Table()[entry_offset + PcWidth()];
+    return &Table()[entry_offset + DexPcWidth()];
   }
 
   // Find the bitmap associated with the given dex pc
@@ -86,7 +85,7 @@ class DexPcToReferenceMap {
   }
 
   // Number of bytes used to encode a dex pc
-  size_t PcWidth() const {
+  size_t DexPcWidth() const {
     RegisterMapFormat format = Format();
     switch (format) {
       case kRegMapFormatCompact8:
@@ -101,7 +100,7 @@ class DexPcToReferenceMap {
 
   // The width of an entry in the table
   size_t EntryWidth() const {
-    return PcWidth() + RegWidth();
+    return DexPcWidth() + RegWidth();
   }
 
   const uint8_t* GetData() const {
@@ -113,10 +112,10 @@ class DexPcToReferenceMap {
   static const int kRegMapFormatShift = 5;
   static const uint8_t kRegMapFormatMask = 0x7;
 
-  const uint8_t* data_;  // The header and table data
+  const uint8_t* const data_;  // The header and table data
 };
 
 }  // namespace verifier
 }  // namespace art
 
-#endif  // ART_SRC_VERIFIER_GC_MAP_H_
+#endif  // ART_SRC_VERIFIER_DEX_GC_MAP_H_

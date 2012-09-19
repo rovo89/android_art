@@ -1217,7 +1217,8 @@ CompiledMethod* compileMethod(Compiler& compiler,
   CompiledMethod* result =
       new CompiledMethod(cUnit->instructionSet, cUnit->codeBuffer,
                          cUnit->frameSize, cUnit->coreSpillMask,
-                         cUnit->fpSpillMask, cUnit->mappingTable, vmapTable);
+                         cUnit->fpSpillMask, cUnit->mappingTable, vmapTable,
+                         cUnit->nativeGcMap);
 
   VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file)
      << " (" << (cUnit->codeBuffer.size() * sizeof(cUnit->codeBuffer[0]))

@@ -260,7 +260,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/utils.cc \
 	src/well_known_classes.cc \
 	src/zip_archive.cc \
-	src/verifier/gc_map.cc \
+	src/verifier/dex_gc_map.cc \
 	src/verifier/method_verifier.cc \
 	src/verifier/reg_type.cc \
 	src/verifier/reg_type_cache.cc \

@@ -1987,30 +1987,6 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
   }
 }
 
-#if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
-static void CheckMethodsHaveGcMaps(Class* klass)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (!Runtime::Current()->IsStarted()) {
-    return;
-  }
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    Method* method = klass->GetDirectMethod(i);
-    if (!method->IsNative() && !method->IsAbstract()) {
-      CHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
-    }
-  }
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    Method* method = klass->GetVirtualMethod(i);
-    if (!method->IsNative() && !method->IsAbstract()) {
-      CHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
-    }
-  }
-}
-#else
-static void CheckMethodsHaveGcMaps(Class*) {
-}
-#endif
-
 void ClassLinker::VerifyClass(Class* klass) {
   // TODO: assert that the monitor on the Class is held
   ObjectLock lock(klass);
@@ -2106,8 +2082,6 @@ void ClassLinker::VerifyClass(Class* klass) {
         klass->SetStatus(Class::kStatusVerified);
       }
     }
-    // Sanity check that a verified class has GC maps on all methods.
-    CheckMethodsHaveGcMaps(klass);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(klass)
         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()

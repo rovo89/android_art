@@ -97,7 +97,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 #endif
   if (type == Runtime::kUnknownMethod) {
     DCHECK(called->IsRuntimeMethod());
-    uint32_t dex_pc = caller->ToDexPC(caller_pc);
+    uint32_t dex_pc = caller->ToDexPc(caller_pc);
     const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);

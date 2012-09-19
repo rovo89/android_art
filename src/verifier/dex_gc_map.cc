@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "gc_map.h"
+#include "verifier/dex_gc_map.h"
 
 #include "logging.h"
 

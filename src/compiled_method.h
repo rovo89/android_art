@@ -87,10 +87,8 @@ class CompiledMethod : public CompiledCode {
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
                  const std::vector<uint32_t>& mapping_table,
-                 const std::vector<uint16_t>& vmap_table);
-
-  // Sets the GC map for a CompiledMethod.
-  void SetGcMap(const std::vector<uint8_t>& gc_map);
+                 const std::vector<uint16_t>& vmap_table,
+                 const std::vector<uint8_t>& native_gc_map);
 
   // Constructs a CompiledMethod for the JniCompiler.
   CompiledMethod(InstructionSet instruction_set,
@@ -107,28 +105,39 @@ class CompiledMethod : public CompiledCode {
         fp_spill_mask_(0) {
   }
 
-  ~CompiledMethod();
+  ~CompiledMethod() {}
 
-  size_t GetFrameSizeInBytes() const;
-  uint32_t GetCoreSpillMask() const;
-  uint32_t GetFpSpillMask() const;
-  const std::vector<uint32_t>& GetMappingTable() const;
-  const std::vector<uint16_t>& GetVmapTable() const;
-  const std::vector<uint8_t>& GetGcMap() const;
-
-#if defined(ART_USE_LLVM_COMPILER)
-  void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
-    frame_size_in_bytes_ = new_frame_size_in_bytes;
+  size_t GetFrameSizeInBytes() const {
+    return frame_size_in_bytes_;
   }
-#endif
+
+  uint32_t GetCoreSpillMask() const {
+    return core_spill_mask_;
+  }
+
+  uint32_t GetFpSpillMask() const {
+    return fp_spill_mask_;
+  }
+
+  const std::vector<uint32_t>& GetMappingTable() const {
+    return mapping_table_;
+  }
+
+  const std::vector<uint16_t>& GetVmapTable() const {
+    return vmap_table_;
+  }
+
+  const std::vector<uint8_t>& GetNativeGcMap() const {
+    return native_gc_map_;
+  }
 
  private:
-  size_t frame_size_in_bytes_;
+  const size_t frame_size_in_bytes_;
   const uint32_t core_spill_mask_;
   const uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;
   std::vector<uint16_t> vmap_table_;
-  std::vector<uint8_t> gc_map_;
+  std::vector<uint8_t> native_gc_map_;
 };
 
 class CompiledInvokeStub : public CompiledCode {
@@ -138,7 +147,7 @@ class CompiledInvokeStub : public CompiledCode {
   explicit CompiledInvokeStub(InstructionSet instruction_set,
                               const std::vector<uint8_t>& code);
 
-  ~CompiledInvokeStub();
+  ~CompiledInvokeStub() {}
 };
 
 }  // namespace art

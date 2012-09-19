@@ -297,7 +297,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       oat_header_->UpdateChecksum(&vmap_table[0], vmap_table_size);
     }
 
-    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+    const std::vector<uint8_t>& gc_map = compiled_method->GetNativeGcMap();
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
     gc_map_offset = (gc_map_size == 0) ? 0 : offset;
 
@@ -412,7 +412,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       method->SetCode(Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
     }
     method->SetOatVmapTableOffset(vmap_table_offset);
-    method->SetOatGcMapOffset(gc_map_offset);
+    method->SetOatNativeGcMapOffset(gc_map_offset);
     method->SetOatInvokeStubOffset(invoke_stub_offset);
   }
 
@@ -665,7 +665,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
     }
     DCHECK_CODE_OFFSET();
 
-    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+    const std::vector<uint8_t>& gc_map = compiled_method->GetNativeGcMap();
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
 
     // Deduplicate GC maps

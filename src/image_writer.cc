@@ -534,9 +534,9 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
     const byte* vmap_table = GetOatAddress(vmap_table_offset);
     copy->vmap_table_ = reinterpret_cast<const uint16_t*>(vmap_table);
 
-    uint32_t gc_map_offset = orig->GetOatGcMapOffset();
-    const byte* gc_map = GetOatAddress(gc_map_offset);
-    copy->gc_map_ = reinterpret_cast<const uint8_t*>(gc_map);
+    uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
+    const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
+    copy->native_gc_map_ = reinterpret_cast<const uint8_t*>(native_gc_map);
   }
 }
 

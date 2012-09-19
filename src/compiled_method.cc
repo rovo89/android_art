@@ -78,9 +78,11 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
                                const std::vector<uint32_t>& mapping_table,
-                               const std::vector<uint16_t>& vmap_table)
+                               const std::vector<uint16_t>& vmap_table,
+                               const std::vector<uint8_t>& native_gc_map)
     : CompiledCode(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
-      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask)
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
+      native_gc_map_(native_gc_map)
 {
   CHECK_NE(code.size(), 0U);
   DCHECK_EQ(vmap_table.size(),
@@ -113,17 +115,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask) + __builtin_popcount(fp_spill_mask)));
 }
 
-void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
-  CHECK_NE(gc_map.size(), 0U);
-
-#if !defined(ART_USE_LLVM_COMPILER) && !defined(ART_USE_GREENLAND_COMPILER)
-  // Should only be used with CompiledMethods created with the non-LLVM compilers.
-  CHECK_NE(mapping_table_.size(), 0U);
-#endif
-
-  gc_map_ = gc_map;
-}
-
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
@@ -134,32 +125,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
 }
 
-CompiledMethod::~CompiledMethod() {}
-
-size_t CompiledMethod::GetFrameSizeInBytes() const {
-  return frame_size_in_bytes_;
-}
-
-uint32_t CompiledMethod::GetCoreSpillMask() const {
-  return core_spill_mask_;
-}
-
-uint32_t CompiledMethod::GetFpSpillMask() const {
-  return fp_spill_mask_;
-}
-
-const std::vector<uint32_t>& CompiledMethod::GetMappingTable() const {
-  return mapping_table_;
-}
-
-const std::vector<uint16_t>& CompiledMethod::GetVmapTable() const {
-  return vmap_table_;
-}
-
-const std::vector<uint8_t>& CompiledMethod::GetGcMap() const {
-  return gc_map_;
-}
-
 CompiledInvokeStub::CompiledInvokeStub(InstructionSet instruction_set)
     : CompiledCode(instruction_set) {
 }
@@ -168,7 +133,5 @@ CompiledInvokeStub::CompiledInvokeStub(InstructionSet instruction_set,
                                        const std::vector<uint8_t>& code)
     : CompiledCode(instruction_set, code) {
 }
-
-CompiledInvokeStub::~CompiledInvokeStub() {}
 
 }  // namespace art

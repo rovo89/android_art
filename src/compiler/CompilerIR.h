@@ -472,6 +472,7 @@ struct CompilationUnit {
   std::vector<uint32_t> mappingTable;
   std::vector<uint32_t> coreVmapTable;
   std::vector<uint32_t> fpVmapTable;
+  std::vector<uint8_t> nativeGcMap;
   bool genDebugger;                   // Generate code for debugger
   bool printMe;
   bool hasClassLiterals;              // Contains class ptrs used as literals

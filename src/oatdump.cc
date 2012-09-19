@@ -35,7 +35,7 @@
 #include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stringpiece.h"
-#include "verifier/gc_map.h"
+#include "gc_map.h"
 
 namespace art {
 
@@ -224,7 +224,7 @@ class OatDumper {
     offsets_.insert(code_offset);
     offsets_.insert(oat_method.GetMappingTableOffset());
     offsets_.insert(oat_method.GetVmapTableOffset());
-    offsets_.insert(oat_method.GetGcMapOffset());
+    offsets_.insert(oat_method.GetNativeGcMapOffset());
     offsets_.insert(oat_method.GetInvokeStubOffset());
   }
 
@@ -309,8 +309,8 @@ class OatDumper {
     DumpVmap(os, oat_method.GetVmapTable(), oat_method.GetCoreSpillMask(),
              oat_method.GetFpSpillMask());
     os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
-                       oat_method.GetGcMap(), oat_method.GetGcMapOffset());
-    DumpGcMap(os, oat_method.GetGcMap());
+                       oat_method.GetNativeGcMap(), oat_method.GetNativeGcMapOffset());
+    DumpGcMap(os, oat_method.GetNativeGcMap());
     os << StringPrintf("\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
                        oat_method.GetCode(),
                        oat_method.GetCodeOffset(),
@@ -392,11 +392,9 @@ class OatDumper {
     if (gc_map_raw == NULL) {
       return;
     }
-    uint32_t gc_map_length = (gc_map_raw[0] << 24) | (gc_map_raw[1] << 16) |
-                             (gc_map_raw[2] << 8) | (gc_map_raw[3] << 0);
-    verifier::DexPcToReferenceMap map(gc_map_raw + sizeof(uint32_t), gc_map_length);
+    NativePcOffsetToReferenceMap map(gc_map_raw);
     for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-      os << StringPrintf("\t\t\t0x%04x", map.GetDexPc(entry));
+      os << StringPrintf("\t\t\t0x%04x", map.GetNativePcOffset(entry));
       size_t num_regs = map.RegWidth() * 8;
       const uint8_t* reg_bitmap = map.GetBitMap(entry);
       bool first = true;
@@ -770,8 +768,7 @@ class ImageDumper {
     } else if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
       if (method->IsNative()) {
-        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
-        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
         bool first_occurrence;
         size_t invoke_stub_size = state->ComputeOatSize(
@@ -790,13 +787,11 @@ class ImageDumper {
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod()) {
-        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
-        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
 #if !defined(ART_USE_LLVM_COMPILER)
-        DCHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
-        DCHECK_NE(0U, method->GetGcMapLength()) << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap() != NULL) << PrettyMethod(method);
 #endif
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
@@ -804,7 +799,7 @@ class ImageDumper {
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
         bool first_occurrence;
-        size_t gc_map_bytes = state->ComputeOatSize(method->GetGcMapRaw(), &first_occurrence);
+        size_t gc_map_bytes = state->ComputeOatSize(method->GetNativeGcMap(), &first_occurrence);
         if (first_occurrence) {
           state->stats_.gc_map_bytes += gc_map_bytes;
         }

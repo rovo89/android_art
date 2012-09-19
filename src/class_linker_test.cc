@@ -468,7 +468,7 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),     "coreSpillMask"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),       "fpSpillMask"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_), "frameSizeInBytes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, gc_map_),              "gcMap"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_gc_map_),       "gcMap"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),         "invokeStub"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),       "mappingTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_dex_index_),    "methodDexIndex"));

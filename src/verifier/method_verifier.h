@@ -188,8 +188,8 @@ class MethodVerifier {
   // information
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref)
-      LOCKS_EXCLUDED(gc_maps_lock_);
+  static const std::vector<uint8_t>* GetDexGcMap(Compiler::MethodReference ref)
+      LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in 'm'.
@@ -578,11 +578,11 @@ class MethodVerifier {
   InsnFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
-  typedef SafeMap<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
-  static Mutex* gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static GcMapTable* gc_maps_ GUARDED_BY(gc_maps_lock_);
-  static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map)
-      LOCKS_EXCLUDED(gc_maps_lock_);
+  typedef SafeMap<const Compiler::MethodReference, const std::vector<uint8_t>*> DexGcMapTable;
+  static Mutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
+  static void SetDexGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
+      LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
   typedef std::set<Compiler::ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

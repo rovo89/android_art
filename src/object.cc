@@ -450,8 +450,7 @@ Method* Method::FindOverriddenMethod() const {
   return result;
 }
 
-static const void* GetOatCode(const Method* m)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static const void* GetOatCode(const Method* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   const void* code = m->GetCode();
   // Peel off any method tracing trampoline.
@@ -465,7 +464,11 @@ static const void* GetOatCode(const Method* m)
   return code;
 }
 
-uint32_t Method::ToDexPC(const uintptr_t pc) const {
+uintptr_t Method::NativePcOffset(const uintptr_t pc) const {
+  return pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
+}
+
+uint32_t Method::ToDexPc(const uintptr_t pc) const {
 #if !defined(ART_USE_LLVM_COMPILER)
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
@@ -488,7 +491,7 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
 #endif
 }
 
-uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
+uintptr_t Method::ToNativePc(const uint32_t dex_pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
     DCHECK_EQ(dex_pc, 0U);
@@ -600,7 +603,7 @@ void Method::RegisterNative(Thread* self, const void* native_method) {
 #else
     UNIMPLEMENTED(FATAL);
 #endif
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_),
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);
   }
 #endif

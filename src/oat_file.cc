@@ -297,7 +297,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
     fp_spill_mask_(fp_spill_mask),
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
-    gc_map_offset_(gc_map_offset),
+    native_gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset)
 #if defined(ART_USE_LLVM_COMPILER)
   , proxy_stub_offset_(proxy_stub_offset)
@@ -363,7 +363,7 @@ void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   method->SetFpSpillMask(fp_spill_mask_);
   method->SetMappingTable(GetMappingTable());
   method->SetVmapTable(GetVmapTable());
-  method->SetGcMap(GetGcMap());  // Note, used by native methods in work around JNI mode.
+  method->SetNativeGcMap(GetNativeGcMap());  // Note, used by native methods in work around JNI mode.
   method->SetInvokeStub(GetInvokeStub());
 }
 
@@ -375,7 +375,7 @@ void OatFile::OatMethod::LinkMethodOffsets(Method* method) const {
   method->SetFpSpillMask(GetFpSpillMask());
   method->SetOatMappingTableOffset(GetMappingTableOffset());
   method->SetOatVmapTableOffset(GetVmapTableOffset());
-  method->SetOatGcMapOffset(GetGcMapOffset());
+  method->SetOatNativeGcMapOffset(GetNativeGcMapOffset());
   method->SetOatInvokeStubOffset(GetInvokeStubOffset());
 }
 
