@@ -946,6 +946,7 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   return true;
 }
 
+#if !defined(ART_USE_LLVM_COMPILER) && !defined(ART_USE_GREENLAND_COMPILER)
 static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vector<uint8_t>& gc_map) {
   std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
   length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
@@ -963,6 +964,7 @@ static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vecto
                                 (length_prefixed_gc_map->at(3) << 0)));
   return length_prefixed_gc_map;
 }
+#endif
 
 bool MethodVerifier::VerifyCodeFlow() {
   uint16_t registers_size = code_item_->registers_size_;
