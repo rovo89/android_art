@@ -128,8 +128,9 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
    * think it warrants full versioning.  They might be extraneous and could
    * be removed from a future version.
    */
+  char native_thread_state;
   int utime, stime, task_cpu;
-  GetTaskStats(t->GetTid(), utime, stime, task_cpu);
+  GetTaskStats(t->GetTid(), native_thread_state, utime, stime, task_cpu);
 
   std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
   JDWP::Append4BE(bytes, t->GetThinLockId());

@@ -913,7 +913,7 @@ void SetThreadName(const char* thread_name) {
 #endif
 }
 
-void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
+void GetTaskStats(pid_t tid, char& state, int& utime, int& stime, int& task_cpu) {
   utime = stime = task_cpu = 0;
   std::string stats;
   if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", tid), &stats)) {
@@ -924,6 +924,7 @@ void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
   // Extract the three fields we care about.
   std::vector<std::string> fields;
   Split(stats, ' ', fields);
+  state = fields[0][0];
   utime = strtoull(fields[11].c_str(), NULL, 10);
   stime = strtoull(fields[12].c_str(), NULL, 10);
   task_cpu = strtoull(fields[36].c_str(), NULL, 10);

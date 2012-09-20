@@ -671,12 +671,14 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     scheduler_stats = "0 0 0";
   }
 
+  char native_thread_state = '?';
   int utime = 0;
   int stime = 0;
   int task_cpu = 0;
-  GetTaskStats(tid, utime, stime, task_cpu);
+  GetTaskStats(tid, native_thread_state, utime, stime, task_cpu);
 
-  os << "  | schedstat=( " << scheduler_stats << " )"
+  os << "  | state=" << native_thread_state
+     << " schedstat=( " << scheduler_stats << " )"
      << " utm=" << utime
      << " stm=" << stime
      << " core=" << task_cpu
