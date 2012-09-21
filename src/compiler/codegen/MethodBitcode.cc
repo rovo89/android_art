@@ -1796,7 +1796,10 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
                                      cUnit->numDalvikRegisters, true,
                                      kAllocMisc);
     for (int i = 0; i < cUnit->numSSARegs; i++) {
-      canBeRef[SRegToVReg(cUnit, i)] |= cUnit->regLocation[i].ref;
+      int vReg = SRegToVReg(cUnit, i);
+      if (vReg > SSA_METHOD_BASEREG) {
+        canBeRef[SRegToVReg(cUnit, i)] |= cUnit->regLocation[i].ref;
+      }
     }
     for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
       if (canBeRef[i]) {
