@@ -780,10 +780,11 @@ class NativePcToReferenceMapBuilder {
     }
     // Resize table and set up header.
     table->resize((EntryWidth() * entries) + sizeof(uint32_t));
-    CHECK_LT(native_offset_width_, 1U << 8);
-    (*table)[0] = native_offset_width_;
-    CHECK_LT(references_width_, 1U << 8);
-    (*table)[1] = references_width_;
+    CHECK_LT(native_offset_width_, 1U << 3);
+    (*table)[0] = native_offset_width_ & 7;
+    CHECK_LT(references_width_, 1U << 13);
+    (*table)[0] |= (references_width_ << 3) & 0xFF;
+    (*table)[1] = (references_width_ >> 5) & 0xFF;
     CHECK_LT(entries, 1U << 16);
     (*table)[2] = entries & 0xFF;
     (*table)[3] = (entries >> 8) & 0xFF;

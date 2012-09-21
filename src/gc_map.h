@@ -70,7 +70,7 @@ class NativePcOffsetToReferenceMap {
 
   // The number of bytes used to encode registers.
   size_t RegWidth() const {
-    return data_[1];
+    return ((size_t)data_[0] | ((size_t)data_[1] << 8)) >> 3;
   }
 
  private:
@@ -81,7 +81,7 @@ class NativePcOffsetToReferenceMap {
 
   // Number of bytes used to encode a native offset.
   size_t NativeOffsetWidth() const {
-    return data_[0];
+    return data_[0] & 7;
   }
 
   // The width of an entry in the table.
