@@ -310,7 +310,7 @@ class OatDumper {
              oat_method.GetFpSpillMask());
     os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
                        oat_method.GetNativeGcMap(), oat_method.GetNativeGcMapOffset());
-    DumpGcMap(os, oat_method.GetNativeGcMap());
+    DumpGcMap(os, oat_method.GetCode(), oat_method.GetNativeGcMap());
     os << StringPrintf("\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
                        oat_method.GetCode(),
                        oat_method.GetCodeOffset(),
@@ -388,13 +388,15 @@ class OatDumper {
     os << "\n";
   }
 
-  void DumpGcMap(std::ostream& os, const uint8_t* gc_map_raw) {
+  void DumpGcMap(std::ostream& os, const void* code, const uint8_t* gc_map_raw) {
     if (gc_map_raw == NULL) {
       return;
     }
     NativePcOffsetToReferenceMap map(gc_map_raw);
     for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-      os << StringPrintf("\t\t\t0x%04x", map.GetNativePcOffset(entry));
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) +
+                                 map.GetNativePcOffset(entry);
+      os << StringPrintf("\t\t\t%p", native_pc);
       size_t num_regs = map.RegWidth() * 8;
       const uint8_t* reg_bitmap = map.GetBitMap(entry);
       bool first = true;
