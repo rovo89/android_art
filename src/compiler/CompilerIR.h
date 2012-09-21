@@ -34,12 +34,8 @@ namespace art {
 #define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
 #define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
 #define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
-#define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
-  (1 << kDebugSlowestFieldPath))
 #define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
   (1 << kDebugSlowestStringPath))
-#define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
-  (1 << kDebugExerciseResolveMethod))
 
 // Minimum field size to contain Dalvik vReg number
 #define VREG_NUM_WIDTH 16
@@ -134,14 +130,11 @@ struct RegisterPool {
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
 #define INVALID_REG (0xFF)
-#define INVALID_OFFSET (-1)
 
 /* SSA encodings for special registers */
 #define SSA_METHOD_BASEREG (-2)
 /* First compiler temp basereg, grows smaller */
 #define SSA_CTEMP_BASEREG (SSA_METHOD_BASEREG - 1)
-/* Max SSA name length */
-#define SSA_NAME_MAX 16
 
 /*
  * Some code patterns cause the generation of excessively large
@@ -159,16 +152,12 @@ enum BBType {
   kDalvikByteCode,
   kExitBlock,
   kExceptionHandling,
-  kCatchEntry,
   kDead,
 };
 
 /* Utility macros to traverse the LIR list */
 #define NEXT_LIR(lir) (lir->next)
 #define PREV_LIR(lir) (lir->prev)
-
-#define NEXT_LIR_LVALUE(lir) (lir)->next
-#define PREV_LIR_LVALUE(lir) (lir)->prev
 
 struct LIR {
   int offset;                        // Offset of this instruction
@@ -181,9 +170,8 @@ struct LIR {
   struct {
     bool isNop:1;           // LIR is optimized away
     bool pcRelFixup:1;      // May need pc-relative fixup
-    unsigned int age:4;     // default is 0, set lazily by the optimizer
     unsigned int size:5;    // in bytes
-    unsigned int unused:21;
+    unsigned int unused:25;
   } flags;
   int aliasInfo;              // For Dalvik register & litpool disambiguation
   u8 useMask;                 // Resource mask for use
@@ -233,13 +221,6 @@ enum MIROptimizationFlagPositons {
 #define MIR_DUP                         (1 << kMIRDup)
 #define MIR_MARK                        (1 << kMIRMark)
 
-struct CallsiteInfo {
-  const char* classDescriptor;
-  Object* classLoader;
-  const Method* method;
-  LIR* misPredBranchOver;
-};
-
 struct Checkstats {
   int nullChecks;
   int nullChecksEliminated;
@@ -255,7 +236,6 @@ struct MIR {
   MIR* next;
   SSARepresentation* ssaRep;
   int optimizationFlags;
-  int seqNum;
   union {
     // Used to quickly locate all Phi opcodes
     MIR* phiNext;
@@ -287,9 +267,7 @@ struct BasicBlock {
 #endif
   uint16_t startOffset;
   uint16_t nestingDepth;
-  const Method* containingMethod;     // For blocks from the callee
   BBType blockType;
-  bool isFallThroughFromInvoke;       // True means the block needs alignment
   MIR* firstMIRInsn;
   MIR* lastMIRInsn;
   BasicBlock* fallThrough;
@@ -325,7 +303,6 @@ struct Memstats;
 enum AssemblerStatus {
   kSuccess,
   kRetryAll,
-  kRetryHalve
 };
 
 #define NOTVISITED (-1)
@@ -347,27 +324,18 @@ struct CompilationUnit {
       literalList(NULL),
       methodLiteralList(NULL),
       codeLiteralList(NULL),
-      classPointerList(NULL),
-      numClassPointers(0),
-      chainCellOffsetLIR(NULL),
       disableOpt(0),
       enableDebug(0),
-      headerSize(0),
       dataOffset(0),
       totalSize(0),
       assemblerStatus(kSuccess),
       assemblerRetries(0),
       genDebugger(false),
       printMe(false),
-      hasClassLiterals(false),
       hasLoop(false),
       hasInvoke(false),
-      heapMemOp(false),
       qdMode(false),
-      usesLinkRegister(false),
-      methodTraceSupport(false),
       regPool(NULL),
-      optRound(0),
       instructionSet(kNone),
       numSSARegs(0),
       ssaBaseVRegs(NULL),
@@ -380,16 +348,13 @@ struct CompilationUnit {
       phiAliasMap(NULL),
       phiList(NULL),
       regLocation(NULL),
-      sequenceNumber(0),
       promotionMap(NULL),
       methodSReg(0),
-      switchOverflowPad(NULL),
       numReachableBlocks(0),
       numDalvikRegisters(0),
       entryBlock(NULL),
       exitBlock(NULL),
       curBlock(NULL),
-      nextCodegenBlock(NULL),
       iDomList(NULL),
       tryBlockAddr(NULL),
       defBlockMatrix(NULL),
@@ -397,10 +362,7 @@ struct CompilationUnit {
       tempDalvikRegisterV(NULL),
       tempSSARegisterV(NULL),
       tempSSABlockIdV(NULL),
-      printSSANames(false),
       blockLabelList(NULL),
-      quitLoopMode(false),
-      preservedRegsUsed(0),
       numIns(0),
       numOuts(0),
       numRegs(0),
@@ -433,7 +395,6 @@ struct CompilationUnit {
       entryBB(NULL),
       entryTargetBB(NULL),
       tempName(0),
-      requireShadowFrame(false),
       numShadowFrameEntries(0),
       shadowMap(NULL),
 #endif
@@ -458,12 +419,8 @@ struct CompilationUnit {
   LIR* literalList;                   // Constants
   LIR* methodLiteralList;             // Method literals requiring patching
   LIR* codeLiteralList;               // Code literals requiring patching
-  LIR* classPointerList;              // Relocatable
-  int numClassPointers;
-  LIR* chainCellOffsetLIR;
   uint32_t disableOpt;                // optControlVector flags
   uint32_t enableDebug;               // debugControlVector flags
-  int headerSize;                     // bytes before the first code ptr
   int dataOffset;                     // starting offset of literal pool
   int totalSize;                      // header + code size
   AssemblerStatus assemblerStatus;    // Success or fix and retry
@@ -475,15 +432,10 @@ struct CompilationUnit {
   std::vector<uint8_t> nativeGcMap;
   bool genDebugger;                   // Generate code for debugger
   bool printMe;
-  bool hasClassLiterals;              // Contains class ptrs used as literals
   bool hasLoop;                       // Contains a loop
   bool hasInvoke;                     // Contains an invoke instruction
-  bool heapMemOp;                     // Mark mem ops for self verification
   bool qdMode;                        // Compile for code size/compile time
-  bool usesLinkRegister;              // For self-verification only
-  bool methodTraceSupport;            // For TraceView profiling
   RegisterPool* regPool;
-  int optRound;                       // round number to tell an LIR's age
   InstructionSet instructionSet;
   /* Number of total regs used in the whole cUnit after SSA transformation */
   int numSSARegs;
@@ -510,7 +462,6 @@ struct CompilationUnit {
 
   /* Map SSA names to location */
   RegLocation* regLocation;
-  int sequenceNumber;
 
   /* Keep track of Dalvik vReg to physical register mappings */
   PromotionMap* promotionMap;
@@ -519,18 +470,11 @@ struct CompilationUnit {
   int methodSReg;
   RegLocation methodLoc;            // Describes location of method*
 
-  /*
-   * Set to the Dalvik PC of the switch instruction if it has more than
-   * MAX_CHAINED_SWITCH_CASES cases.
-   */
-  const u2* switchOverflowPad;
-
   int numReachableBlocks;
   int numDalvikRegisters;             // method->registersSize
   BasicBlock* entryBlock;
   BasicBlock* exitBlock;
   BasicBlock* curBlock;
-  BasicBlock* nextCodegenBlock;       // for extended trace codegen
   GrowableList dfsOrder;
   GrowableList dfsPostOrder;
   GrowableList domPostOrderTraversal;
@@ -545,10 +489,7 @@ struct CompilationUnit {
   ArenaBitVector* tempDalvikRegisterV;
   ArenaBitVector* tempSSARegisterV;   // numSSARegs
   int* tempSSABlockIdV;               // working storage for Phi labels
-  bool printSSANames;
   LIR* blockLabelList;
-  bool quitLoopMode;                  // cold path/complex bytecode
-  int preservedRegsUsed;              // How many callee save regs used
   /*
    * Frame layout details.
    * NOTE: for debug support it will be necessary to add a structure
@@ -612,7 +553,6 @@ struct CompilationUnit {
   SafeMap<llvm::BasicBlock*, LIR*> blockToLabelMap; // llvm bb -> LIR label
   SafeMap<int32_t, llvm::BasicBlock*> idToBlockMap; // block id -> llvm bb
   SafeMap<llvm::Value*, RegLocation> locMap; // llvm Value to loc rec
-  bool requireShadowFrame;
   int numShadowFrameEntries;
   int* shadowMap;
   std::set<llvm::BasicBlock*> llvmBlocks;

@@ -15,7 +15,6 @@
  */
 
 #if defined(ART_USE_QUICK_COMPILER)
-
 #include "object_utils.h"
 
 #include <llvm/Support/ToolOutputFile.h>
@@ -1777,8 +1776,12 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
   llvm::BasicBlock* llvmBB = getLLVMBlock(cUnit, bb->id);
-  cUnit->irb->SetInsertPoint(llvmBB);
-  setDexOffset(cUnit, bb->startOffset);
+  if (llvmBB == NULL) {
+    CHECK(bb->blockType == kExitBlock);
+  } else {
+    cUnit->irb->SetInsertPoint(llvmBB);
+    setDexOffset(cUnit, bb->startOffset);
+  }
 
   if (cUnit->printMe) {
     LOG(INFO) << "................................";

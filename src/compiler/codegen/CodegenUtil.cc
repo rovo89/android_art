@@ -421,13 +421,6 @@ void oatCodegenDump(CompilationUnit* cUnit)
   for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
     oatDumpLIRInsn(cUnit, lirInsn, 0);
   }
-  for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
-    thisLIR = (LIR*) lirInsn;
-    LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
-                              thisLIR->offset, thisLIR->offset,
-                              ((CallsiteInfo *)
-                              thisLIR->operands[0])->classDescriptor);
-  }
   for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
     thisLIR = (LIR*) lirInsn;
     LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
