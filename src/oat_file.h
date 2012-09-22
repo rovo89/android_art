@@ -65,10 +65,10 @@ class OatFile {
   class OatMethod {
    public:
     // Link Method for execution using the contents of this OatMethod
-    void LinkMethodPointers(Method* method) const;
+    void LinkMethodPointers(AbstractMethod* method) const;
 
     // Link Method for image writing using the contents of this OatMethod
-    void LinkMethodOffsets(Method* method) const;
+    void LinkMethodOffsets(AbstractMethod* method) const;
 
     uint32_t GetCodeOffset() const {
       return code_offset_;
@@ -108,7 +108,7 @@ class OatFile {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
     }
 
-    Method::InvokeStub* GetInvokeStub() const;
+    AbstractMethod::InvokeStub* GetInvokeStub() const;
     uint32_t GetInvokeStubSize() const;
 
 #if defined(ART_USE_LLVM_COMPILER)

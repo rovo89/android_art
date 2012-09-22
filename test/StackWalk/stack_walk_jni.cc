@@ -47,7 +47,7 @@ struct TestReferenceMapVisitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
 

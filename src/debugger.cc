@@ -95,7 +95,7 @@ class ObjectRegistry {
 };
 
 struct AllocRecordStackTraceElement {
-  Method* method;
+  AbstractMethod* method;
   uint32_t dex_pc;
 
   int32_t LineNumber() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -119,9 +119,9 @@ struct AllocRecord {
 };
 
 struct Breakpoint {
-  Method* method;
+  AbstractMethod* method;
   uint32_t dex_pc;
-  Breakpoint(Method* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
+  Breakpoint(AbstractMethod* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
 };
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
@@ -138,7 +138,7 @@ struct SingleStepControl {
   JDWP::JdwpStepSize step_size;
   JDWP::JdwpStepDepth step_depth;
 
-  const Method* method;
+  const AbstractMethod* method;
   int32_t line_number; // Or -1 for native methods.
   std::set<uint32_t> dex_pcs;
   int stack_depth;
@@ -181,7 +181,7 @@ static Mutex gBreakpointsLock DEFAULT_MUTEX_ACQUIRED_AFTER ("breakpoints lock");
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(gBreakpointsLock);
 static SingleStepControl gSingleStepControl GUARDED_BY(gBreakpointsLock);
 
-static bool IsBreakpoint(Method* m, uint32_t dex_pc)
+static bool IsBreakpoint(AbstractMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MutexLock mu(gBreakpointsLock);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
@@ -928,7 +928,7 @@ static JDWP::FieldId ToFieldId(const Field* f)
 #endif
 }
 
-static JDWP::MethodId ToMethodId(const Method* m)
+static JDWP::MethodId ToMethodId(const AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
@@ -946,16 +946,16 @@ static Field* FromFieldId(JDWP::FieldId fid)
 #endif
 }
 
-static Method* FromMethodId(JDWP::MethodId mid)
+static AbstractMethod* FromMethodId(JDWP::MethodId mid)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
-  return reinterpret_cast<Method*>(static_cast<uintptr_t>(mid));
+  return reinterpret_cast<AbstractMethod*>(static_cast<uintptr_t>(mid));
 #endif
 }
 
-static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc)
+static void SetLocation(JDWP::JdwpLocation& location, AbstractMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m == NULL) {
     memset(&location, 0, sizeof(location));
@@ -970,7 +970,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc
 
 std::string Dbg::GetMethodName(JDWP::RefTypeId, JDWP::MethodId methodId)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Method* m = FromMethodId(methodId);
+  AbstractMethod* m = FromMethodId(methodId);
   return MethodHelper(m).GetName();
 }
 
@@ -1012,7 +1012,7 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
   return newSlot;
 }
 
-static uint16_t DemangleSlot(uint16_t slot, Method* m)
+static uint16_t DemangleSlot(uint16_t slot, AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
@@ -1065,7 +1065,7 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId classId, bool with_ge
   expandBufAdd4BE(pReply, direct_method_count + virtual_method_count);
 
   for (size_t i = 0; i < direct_method_count + virtual_method_count; ++i) {
-    Method* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
+    AbstractMethod* m = (i < direct_method_count) ? c->GetDirectMethod(i) : c->GetVirtualMethod(i - direct_method_count);
     MethodHelper mh(m);
     expandBufAddMethodId(pReply, ToMethodId(m));
     expandBufAddUtf8String(pReply, mh.GetName());
@@ -1109,7 +1109,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::Expand
       return true;
     }
   };
-  Method* m = FromMethodId(methodId);
+  AbstractMethod* m = FromMethodId(methodId);
   MethodHelper mh(m);
   uint64_t start, end;
   if (m->IsNative()) {
@@ -1163,7 +1163,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId methodId, bool wit
       ++pContext->variable_count;
     }
   };
-  Method* m = FromMethodId(methodId);
+  AbstractMethod* m = FromMethodId(methodId);
   MethodHelper mh(m);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
 
@@ -1676,7 +1676,7 @@ struct GetThisVisitor : public StackVisitor {
     if (frame_id != GetFrameId()) {
       return true;  // continue
     }
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (m->IsNative() || m->IsStatic()) {
       this_object = NULL;
     } else {
@@ -1690,7 +1690,7 @@ struct GetThisVisitor : public StackVisitor {
   JDWP::FrameId frame_id;
 };
 
-static Object* GetThis(Thread* self, Method* m, size_t frame_id)
+static Object* GetThis(Thread* self, AbstractMethod* m, size_t frame_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: should we return the 'this' we passed through to non-static native methods?
   if (m->IsNative() || m->IsStatic()) {
@@ -1742,7 +1742,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
-      Method* m = GetMethod();
+      AbstractMethod* m = GetMethod();
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -1861,7 +1861,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
         return true;  // Not our frame, carry on.
       }
       // TODO: check that the tag is compatible with the actual type of the slot!
-      Method* m = GetMethod();
+      AbstractMethod* m = GetMethod();
       uint16_t reg = DemangleSlot(slot_, m);
 
       switch (tag_) {
@@ -1920,7 +1920,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, int event_flags) {
+void Dbg::PostLocationEvent(const AbstractMethod* m, int dex_pc, Object* this_object, int event_flags) {
   Class* c = m->GetDeclaringClass();
 
   JDWP::JdwpLocation location;
@@ -1942,8 +1942,8 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
 }
 
 void Dbg::PostException(Thread* thread,
-                        JDWP::FrameId throw_frame_id, Method* throw_method, uint32_t throw_dex_pc,
-                        Method* catch_method, uint32_t catch_dex_pc, Throwable* exception) {
+                        JDWP::FrameId throw_frame_id, AbstractMethod* throw_method, uint32_t throw_dex_pc,
+                        AbstractMethod* catch_method, uint32_t catch_dex_pc, Throwable* exception) {
   if (!IsDebuggerActive()) {
     return;
   }
@@ -1993,7 +1993,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
   }
 
   size_t frame_id;
-  Method* m = self->GetCurrentMethod(NULL, &frame_id);
+  AbstractMethod* m = self->GetCurrentMethod(NULL, &frame_id);
   //LOG(INFO) << "UpdateDebugger " << PrettyMethod(m) << "@" << dex_pc << " frame " << frame_id;
 
   if (dex_pc == -1) {
@@ -2097,14 +2097,14 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
 
 void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(gBreakpointsLock);
-  Method* m = FromMethodId(location->method_id);
+  AbstractMethod* m = FromMethodId(location->method_id);
   gBreakpoints.push_back(Breakpoint(m, location->dex_pc));
   VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
 void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(gBreakpointsLock);
-  Method* m = FromMethodId(location->method_id);
+  AbstractMethod* m = FromMethodId(location->method_id);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->dex_pc) {
       VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
@@ -2150,7 +2150,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       gBreakpointsLock.AssertHeld();
-      const Method* m = GetMethod();
+      const AbstractMethod* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
@@ -2215,7 +2215,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     uint32_t last_pc;
   };
   gSingleStepControl.dex_pcs.clear();
-  const Method* m = gSingleStepControl.method;
+  const AbstractMethod* m = gSingleStepControl.method;
   if (m->IsNative()) {
     gSingleStepControl.line_number = -1;
   } else {
@@ -2352,7 +2352,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
       return status;
     }
 
-    Method* m = FromMethodId(methodId);
+    AbstractMethod* m = FromMethodId(methodId);
     if (m->IsStatic() != (receiver == NULL)) {
       return JDWP::ERR_INVALID_METHODID;
     }
@@ -2461,9 +2461,9 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   soa.Self()->ClearException();
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  Method* m = pReq->method_;
+  AbstractMethod* m = pReq->method_;
   if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
-    Method* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+    AbstractMethod* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
     if (actual_method != m) {
       VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
       m = actual_method;
@@ -3128,7 +3128,7 @@ struct AllocRecordStackVisitor : public StackVisitor {
     if (depth >= kMaxAllocRecordStackDepth) {
       return false;
     }
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (!m->IsRuntimeMethod()) {
       record->stack[depth].method = m;
       record->stack[depth].dex_pc = GetDexPc();
@@ -3211,7 +3211,7 @@ void Dbg::DumpRecentAllocations() {
               << PrettyClass(record->type);
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
-      const Method* m = record->stack[stack_frame].method;
+      const AbstractMethod* m = record->stack[stack_frame].method;
       if (m == NULL) {
         break;
       }
@@ -3330,7 +3330,7 @@ jbyteArray Dbg::GetRecentAllocations() {
 
     MethodHelper mh;
     for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-      Method* m = record->stack[i].method;
+      AbstractMethod* m = record->stack[i].method;
       if (m != NULL) {
         mh.ChangeMethod(m);
         class_names.Add(mh.GetDeclaringClassDescriptor());

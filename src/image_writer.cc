@@ -235,7 +235,7 @@ void ImageWriter::PruneNonImageClasses() {
     class_linker->RemoveClass((*it).c_str(), NULL);
   }
 
-  Method* resolution_method = runtime->GetResolutionMethod();
+  AbstractMethod* resolution_method = runtime->GetResolutionMethod();
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
@@ -247,7 +247,7 @@ void ImageWriter::PruneNonImageClasses() {
       }
     }
     for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-      Method* method = dex_cache->GetResolvedMethod(i);
+      AbstractMethod* method = dex_cache->GetResolvedMethod(i);
       if (method != NULL && !IsImageClass(method->GetDeclaringClass())) {
         dex_cache->SetResolvedMethod(i, resolution_method);
       }
@@ -398,12 +398,15 @@ void ImageWriter::CalculateNewObjectOffsets() {
     heap->FlushAllocStack();
   }
 
-  // TODO: Image spaces only?
   {
-    for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-      (*cur)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
+    // TODO: Image spaces only?
+    // TODO: Add InOrderWalk to heap bitmap.
+    const char* old = Thread::Current()->StartAssertNoThreadSuspension("ImageWriter");
+    for (SpaceVec::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
+      (*it)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }
+    Thread::Current()->EndAssertNoThreadSuspension(old);
   }
 
   // Note that image_top_ is left at end of used space
@@ -421,6 +424,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
 void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const char* old_cause = Thread::Current()->StartAssertNoThreadSuspension("ImageWriter");
   Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
@@ -428,6 +432,7 @@ void ImageWriter::CopyAndFixupObjects()
   ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
+  Thread::Current()->EndAssertNoThreadSuspension(old_cause);
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
@@ -461,7 +466,7 @@ void ImageWriter::FixupObject(const Object* orig, Object* copy) {
   } else if (orig->IsObjectArray()) {
     FixupObjectArray(orig->AsObjectArray<Object>(), down_cast<ObjectArray<Object>*>(copy));
   } else if (orig->IsMethod()) {
-    FixupMethod(orig->AsMethod(), down_cast<Method*>(copy));
+    FixupMethod(orig->AsMethod(), down_cast<AbstractMethod*>(copy));
   } else {
     FixupInstanceFields(orig, copy);
   }
@@ -472,7 +477,7 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupStaticFields(orig, copy);
 }
 
-void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
+void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) {
   FixupInstanceFields(orig, copy);
 
   // OatWriter replaces the code_ and invoke_stub_ with offset values.
@@ -481,7 +486,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   // Every type of method can have an invoke stub
   uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();
   const byte* invoke_stub = GetOatAddress(invoke_stub_offset);
-  copy->invoke_stub_ = reinterpret_cast<Method::InvokeStub*>(const_cast<byte*>(invoke_stub));
+  copy->invoke_stub_ = reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(invoke_stub));
 
   if (orig->IsAbstract()) {
     // Abstract methods are pointed to a stub that will throw AbstractMethodError if they are called
@@ -603,12 +608,12 @@ void ImageWriter::FixupFields(const Object* orig,
   }
 }
 
-static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
+static AbstractMethod* GetReferrerMethod(const Compiler::PatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
-  Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
+  AbstractMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
                                                patch->GetReferrerMethodIdx(),
                                                dex_cache,
                                                NULL,
@@ -625,11 +630,11 @@ static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
   return method;
 }
 
-static Method* GetTargetMethod(const Compiler::PatchInformation* patch)
+static AbstractMethod* GetTargetMethod(const Compiler::PatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
-  Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
+  AbstractMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
                                                patch->GetTargetMethodIdx(),
                                                dex_cache,
                                                NULL,
@@ -652,7 +657,7 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
   const std::vector<const Compiler::PatchInformation*>& code_to_patch = compiler.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
     const Compiler::PatchInformation* patch = code_to_patch[i];
-    Method* target = GetTargetMethod(patch);
+    AbstractMethod* target = GetTargetMethod(patch);
     uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
     uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
     uint32_t code_offset = code - code_base;
@@ -663,14 +668,14 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
       = compiler.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const Compiler::PatchInformation* patch = methods_to_patch[i];
-    Method* target = GetTargetMethod(patch);
+    AbstractMethod* target = GetTargetMethod(patch);
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
   }
 }
 
 void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Method* method = GetReferrerMethod(patch);
+  AbstractMethod* method = GetReferrerMethod(patch);
   // Goodbye const, we are about to modify some code.
   void* code = const_cast<void*>(class_linker->GetOatCodeFor(method));
   // TODO: make this Thumb2 specific

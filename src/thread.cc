@@ -115,7 +115,7 @@ void* Thread::CreateCallback(void* arg) {
     CHECK(self->peer_ != NULL);
     Object* receiver = self->peer_;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
+    AbstractMethod* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     m->Invoke(self, receiver, NULL, NULL);
   }
 
@@ -708,7 +708,7 @@ struct StackDumpVisitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
     }
@@ -757,7 +757,7 @@ struct StackDumpVisitor : public StackVisitor {
   const Thread* thread;
   bool can_allocate;
   MethodHelper mh;
-  Method* last_method;
+  AbstractMethod* last_method;
   int last_line_number;
   int repetition_count;
   int frame_count;
@@ -962,7 +962,7 @@ void Thread::HandleUncaughtExceptions(const ScopedObjectAccess& soa) {
 
   // Call the handler.
   jmethodID mid = WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
-  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
+  AbstractMethod* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
   JValue args[2];
   args[0].SetL(peer_);
   args[1].SetL(exception);
@@ -982,7 +982,7 @@ void Thread::RemoveFromThreadGroup(const ScopedObjectAccess& soa) {
   Object* group = GetThreadGroup(soa);
   if (group != NULL) {
     jmethodID mid = WellKnownClasses::java_lang_ThreadGroup_removeThread;
-    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
+    AbstractMethod* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     JValue args[1];
     args[0].SetL(peer_);
     m->Invoke(this, group, args, NULL);
@@ -1091,7 +1091,7 @@ class CountStackDepthVisitor : public StackVisitor {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (skipping_ && !m->IsRuntimeMethod() &&
         !Throwable::GetJavaLangThrowable()->IsAssignableFrom(m->GetDeclaringClass())) {
       skipping_ = false;
@@ -1166,7 +1166,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       skip_depth_--;
       return true;
     }
-    Method* m = GetMethod();
+    AbstractMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
@@ -1255,7 +1255,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   MethodHelper mh;
   for (int32_t i = 0; i < depth; ++i) {
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
-    Method* method = down_cast<Method*>(method_trace->Get(i));
+    AbstractMethod* method = down_cast<AbstractMethod*>(method_trace->Get(i));
     mh.ChangeMethod(method);
     uint32_t dex_pc = pc_trace->Get(i);
     int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
@@ -1535,7 +1535,7 @@ class CatchBlockStackVisitor : public StackVisitor {
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method = GetMethod();
+    AbstractMethod* method = GetMethod();
     if (method == NULL) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       handler_quick_frame_pc_ = GetCurrentQuickFramePc();
@@ -1577,7 +1577,7 @@ class CatchBlockStackVisitor : public StackVisitor {
   }
 
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* catch_method = *handler_quick_frame_;
+    AbstractMethod* catch_method = *handler_quick_frame_;
     Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
                        catch_method, handler_dex_pc_, exception_);
     if (kDebugExceptionDelivery) {
@@ -1607,11 +1607,11 @@ class CatchBlockStackVisitor : public StackVisitor {
   Throwable* exception_;
   // The type of the exception catch block to find.
   Class* to_find_;
-  Method* throw_method_;
+  AbstractMethod* throw_method_;
   JDWP::FrameId throw_frame_id_;
   uint32_t throw_dex_pc_;
   // Quick frame with found handler or last frame if no handler found.
-  Method** handler_quick_frame_;
+  AbstractMethod** handler_quick_frame_;
   // PC to branch to for the handler.
   uintptr_t handler_quick_frame_pc_;
   // Associated dex PC.
@@ -1652,7 +1652,7 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
-Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
+AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
@@ -1660,7 +1660,7 @@ Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
         : StackVisitor(stack, trace_stack, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      Method* m = GetMethod();
+      AbstractMethod* m = GetMethod();
       if (m->IsRuntimeMethod()) {
         // Continue if this is a runtime method.
         return true;
@@ -1670,7 +1670,7 @@ Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
       frame_id_ = GetFrameId();
       return false;
     }
-    Method* method_;
+    AbstractMethod* method_;
     uint32_t dex_pc_;
     size_t frame_id_;
   };
@@ -1709,7 +1709,7 @@ class ReferenceMapVisitor : public StackVisitor {
     if (shadow_frame != NULL) {
       shadow_frame->VisitRoots(root_visitor_, arg_);
     } else {
-      Method* m = GetMethod();
+      AbstractMethod* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
       if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
         const uint8_t* native_gc_map = m->GetNativeGcMap();
@@ -1728,7 +1728,7 @@ class ReferenceMapVisitor : public StackVisitor {
           uint32_t fp_spills = m->GetFpSpillMask();
           size_t frame_size = m->GetFrameSizeInBytes();
           // For all dex registers in the bitmap
-          Method** cur_quick_frame = GetCurrentQuickFrame();
+          AbstractMethod** cur_quick_frame = GetCurrentQuickFrame();
           DCHECK(cur_quick_frame != NULL);
           for (size_t reg = 0; reg < num_regs; ++reg) {
             // Does this register hold a reference?

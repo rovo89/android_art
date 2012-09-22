@@ -93,7 +93,7 @@ size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len) {
 
 class ArgArray {
  public:
-  explicit ArgArray(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  explicit ArgArray(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(method);
     shorty_ = mh.GetShorty();
     shorty_len_ = mh.GetShortyLength();
@@ -200,7 +200,7 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   return reinterpret_cast<jweak>(ref);
 }
 
-static void CheckMethodArguments(Method* m, JValue* args)
+static void CheckMethodArguments(AbstractMethod* m, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
   ObjectArray<Class>* parameter_types = mh.GetParameterTypes();
@@ -226,7 +226,7 @@ static void CheckMethodArguments(Method* m, JValue* args)
 }
 
 static JValue InvokeWithArgArray(const ScopedObjectAccess& soa, Object* receiver,
-                                 Method* method, JValue* args)
+                                 AbstractMethod* method, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, args);
@@ -240,13 +240,13 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
                                 jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
-  Method* method = soa.DecodeMethod(mid);
+  AbstractMethod* method = soa.DecodeMethod(mid);
   ArgArray arg_array(method);
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
 
-static Method* FindVirtualMethod(Object* receiver, Method* method)
+static AbstractMethod* FindVirtualMethod(Object* receiver, AbstractMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method);
 }
@@ -255,7 +255,7 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
-  Method* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   ArgArray arg_array(method);
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
@@ -265,7 +265,7 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
-  Method* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
+  AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   ArgArray arg_array(method);
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
@@ -310,7 +310,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     return NULL;
   }
 
-  Method* method = NULL;
+  AbstractMethod* method = NULL;
   if (is_static) {
     method = c->FindDirectMethod(name, sig);
   } else {
@@ -332,7 +332,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 
 static ClassLoader* GetClassLoader(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Method* method = self->GetCurrentMethod();
+  AbstractMethod* method = self->GetCurrentMethod();
   if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
     return self->GetClassLoaderOverride();
   }
@@ -614,7 +614,7 @@ class Libraries {
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
-  void* FindNativeMethod(const Method* m, std::string& detail)
+  void* FindNativeMethod(const AbstractMethod* m, std::string& detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
@@ -652,13 +652,13 @@ class Libraries {
 JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID mid,
                          jvalue* args) {
   Object* receiver = soa.Decode<Object*>(obj);
-  Method* method = soa.DecodeMethod(mid);
+  AbstractMethod* method = soa.DecodeMethod(mid);
   ArgArray arg_array(method);
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
 
-JValue InvokeWithJValues(const ScopedObjectAccess& soa, Object* receiver, Method* m,
+JValue InvokeWithJValues(const ScopedObjectAccess& soa, Object* receiver, AbstractMethod* m,
                          JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return InvokeWithArgArray(soa, receiver, m, args);
@@ -692,7 +692,7 @@ class JNI {
 
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject java_method) {
     ScopedObjectAccess soa(env);
-    Method* method = soa.Decode<Method*>(java_method);
+    AbstractMethod* method = soa.Decode<AbstractMethod*>(java_method);
     return soa.EncodeMethod(method);
   }
 
@@ -704,7 +704,7 @@ class JNI {
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
     ScopedObjectAccess soa(env);
-    Method* method = soa.DecodeMethod(mid);
+    AbstractMethod* method = soa.DecodeMethod(mid);
     return soa.AddLocalReference<jobject>(method);
   }
 
@@ -2125,7 +2125,7 @@ class JNI {
         ++sig;
       }
 
-      Method* m = c->FindDirectMethod(name, sig);
+      AbstractMethod* m = c->FindDirectMethod(name, sig);
       if (m == NULL) {
         m = c->FindVirtualMethod(name, sig);
       }
@@ -2153,13 +2153,13 @@ class JNI {
     VLOG(jni) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
 
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-      Method* m = c->GetDirectMethod(i);
+      AbstractMethod* m = c->GetDirectMethod(i);
       if (m->IsNative()) {
         m->UnregisterNative(soa.Self());
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-      Method* m = c->GetVirtualMethod(i);
+      AbstractMethod* m = c->GetVirtualMethod(i);
       if (m->IsNative()) {
         m->UnregisterNative(soa.Self());
       }
@@ -2939,7 +2939,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   return result;
 }
 
-void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
+void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
   CHECK(m->IsNative());
 
   Class* c = m->GetDeclaringClass();

@@ -19,7 +19,7 @@
 
 namespace art {
 
-extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, Method** sp)
+extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, AbstractMethod** sp)
     UNLOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
@@ -27,7 +27,7 @@ extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, Method** sp)
   return obj->MonitorExit(self) ? 0 /* Success */ : -1 /* Failure */;
 }
 
-extern "C" void artLockObjectFromCode(Object* obj, Thread* thread, Method** sp)
+extern "C" void artLockObjectFromCode(Object* obj, Thread* thread, AbstractMethod** sp)
     EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);        // Assumed to have been checked before entry

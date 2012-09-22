@@ -123,7 +123,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   }
 
   // Load the code pointer we are about to call.
-  __ LoadFromOffset(kLoadWord, T9, A0, Method::GetCodeOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, T9, A0, AbstractMethod::GetCodeOffset().Int32Value());
 
   // Do the call.
   __ Jalr(T9);

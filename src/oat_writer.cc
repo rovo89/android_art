@@ -397,7 +397,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     DexCache* dex_cache = linker->FindDexCache(*dex_file);
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
+    AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
                                            soa.Decode<ClassLoader*>(class_loader_), NULL, type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);

@@ -156,7 +156,7 @@ class OatDumper {
     return oat_file_.GetOatHeader().GetInstructionSet();
   }
 
-  const void* GetOatCode(Method* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const void* GetOatCode(AbstractMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -611,7 +611,7 @@ class ImageDumper {
       Field* field = value->AsField();
       StringAppendF(&summary, "%p   Field: %s\n", field, PrettyField(field).c_str());
     } else if (value->IsMethod()) {
-      Method* method = value->AsMethod();
+      AbstractMethod* method = value->AsMethod();
       StringAppendF(&summary, "%p   Method: %s\n", method, PrettyMethod(method).c_str());
     } else {
       StringAppendF(&summary, "%p   %s\n", value, PrettyDescriptor(type).c_str());
@@ -666,7 +666,7 @@ class ImageDumper {
     return image_space_.Contains(object);
   }
 
-  const void* GetOatCodeBegin(Method* m)
+  const void* GetOatCodeBegin(AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
@@ -679,7 +679,7 @@ class ImageDumper {
     return code;
   }
 
-  uint32_t GetOatCodeSize(Method* m)
+  uint32_t GetOatCodeSize(AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -688,7 +688,7 @@ class ImageDumper {
     return oat_code_begin[-1];
   }
 
-  const void* GetOatCodeEnd(Method* m)
+  const void* GetOatCodeEnd(AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -768,7 +768,7 @@ class ImageDumper {
         }
       }
     } else if (obj->IsMethod()) {
-      Method* method = obj->AsMethod();
+      AbstractMethod* method = obj->AsMethod();
       if (method->IsNative()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
@@ -895,7 +895,7 @@ class ImageDumper {
 
     size_t dex_instruction_bytes;
 
-    std::vector<Method*> method_outlier;
+    std::vector<AbstractMethod*> method_outlier;
     std::vector<size_t> method_outlier_size;
     std::vector<double> method_outlier_expansion;
 
@@ -947,7 +947,7 @@ class ImageDumper {
       return (static_cast<double>(size) / static_cast<double>(object_bytes)) * 100;
     }
 
-    void ComputeOutliers(size_t total_size, double expansion, Method* method) {
+    void ComputeOutliers(size_t total_size, double expansion, AbstractMethod* method) {
       method_outlier_size.push_back(total_size);
       method_outlier_expansion.push_back(expansion);
       method_outlier.push_back(method);

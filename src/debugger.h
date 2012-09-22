@@ -56,7 +56,7 @@ struct DebugInvokeReq {
   Object* receiver_;      /* not used for ClassType.InvokeMethod */
   Object* thread_;
   Class* class_;
-  Method* method_;
+  AbstractMethod* method_;
   uint32_t arg_count_;
   uint64_t* arg_values_;   /* will be NULL if arg_count_ == 0 */
   uint32_t options_;
@@ -281,10 +281,10 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags)
+  static void PostLocationEvent(const AbstractMethod* method, int pcOffset, Object* thisPtr, int eventFlags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id, Method* throw_method,
-                            uint32_t throw_dex_pc, Method* catch_method, uint32_t catch_dex_pc,
+  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id, AbstractMethod* throw_method,
+                            uint32_t throw_dex_pc, AbstractMethod* catch_method, uint32_t catch_dex_pc,
                             Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)

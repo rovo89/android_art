@@ -80,7 +80,7 @@ size_t StackVisitor::GetNativePcOffset() const {
 }
 
 
-uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
+uint32_t StackVisitor::GetVReg(AbstractMethod* m, int vreg) const {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -115,7 +115,7 @@ uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
   }
 }
 
-void StackVisitor::SetVReg(Method* m, int vreg, uint32_t new_value) {
+void StackVisitor::SetVReg(AbstractMethod* m, int vreg, uint32_t new_value) {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
@@ -144,14 +144,14 @@ uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
-  Method** sp = GetCurrentQuickFrame();
+  AbstractMethod** sp = GetCurrentQuickFrame();
   CHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
-  Method** sp = GetCurrentQuickFrame();
+  AbstractMethod** sp = GetCurrentQuickFrame();
   CHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
@@ -178,9 +178,9 @@ size_t StackVisitor::ComputeNumFrames() const {
 
 void StackVisitor::SanityCheckFrame() const {
 #ifndef NDEBUG
-  Method* method = GetMethod();
-  CHECK(method->GetClass() == Method::GetMethodClass() ||
-        method->GetClass() == Method::GetConstructorClass());
+  AbstractMethod* method = GetMethod();
+  CHECK(method->GetClass() == AbstractMethod::GetMethodClass() ||
+        method->GetClass() == AbstractMethod::GetConstructorClass());
   if (cur_quick_frame_ != NULL) {
     method->AssertPcIsWithinCode(cur_quick_frame_pc_);
     // Frame sanity.
@@ -204,7 +204,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
-      Method* method = *cur_quick_frame_;
+      AbstractMethod* method = *cur_quick_frame_;
       do {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
@@ -234,7 +234,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_quick_frame_pc_ = return_pc;
         byte* next_frame = reinterpret_cast<byte*>(cur_quick_frame_) + frame_size;
-        cur_quick_frame_ = reinterpret_cast<Method**>(next_frame);
+        cur_quick_frame_ = reinterpret_cast<AbstractMethod**>(next_frame);
         cur_depth_++;
         method = *cur_quick_frame_;
       } while (method != NULL);

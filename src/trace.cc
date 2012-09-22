@@ -162,14 +162,14 @@ static bool InstallStubsClassVisitor(Class* klass, void*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    Method* method = klass->GetDirectMethod(i);
+    AbstractMethod* method = klass->GetDirectMethod(i);
     if (tracer->GetSavedCodeFromMap(method) == NULL) {
       tracer->SaveAndUpdateCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    Method* method = klass->GetVirtualMethod(i);
+    AbstractMethod* method = klass->GetVirtualMethod(i);
     if (tracer->GetSavedCodeFromMap(method) == NULL) {
       tracer->SaveAndUpdateCode(method);
     }
@@ -181,14 +181,14 @@ static bool UninstallStubsClassVisitor(Class* klass, void*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    Method* method = klass->GetDirectMethod(i);
+    AbstractMethod* method = klass->GetDirectMethod(i);
     if (tracer->GetSavedCodeFromMap(method) != NULL) {
       tracer->ResetSavedCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    Method* method = klass->GetVirtualMethod(i);
+    AbstractMethod* method = klass->GetVirtualMethod(i);
     if (tracer->GetSavedCodeFromMap(method) != NULL) {
       tracer->ResetSavedCode(method);
     }
@@ -221,16 +221,16 @@ static void TraceRestoreStack(Thread* self, void*) {
   visitor.WalkStack();
 }
 
-void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
+void Trace::AddSavedCodeToMap(const AbstractMethod* method, const void* code) {
   saved_code_map_.Put(method, code);
 }
 
-void Trace::RemoveSavedCodeFromMap(const Method* method) {
+void Trace::RemoveSavedCodeFromMap(const AbstractMethod* method) {
   saved_code_map_.erase(method);
 }
 
-const void* Trace::GetSavedCodeFromMap(const Method* method) {
-  typedef SafeMap<const Method*, const void*>::const_iterator It; // TODO: C++0x auto
+const void* Trace::GetSavedCodeFromMap(const AbstractMethod* method) {
+  typedef SafeMap<const AbstractMethod*, const void*>::const_iterator It; // TODO: C++0x auto
   It it = saved_code_map_.find(method);
   if (it == saved_code_map_.end()) {
     return NULL;
@@ -239,7 +239,7 @@ const void* Trace::GetSavedCodeFromMap(const Method* method) {
   }
 }
 
-void Trace::SaveAndUpdateCode(Method* method) {
+void Trace::SaveAndUpdateCode(AbstractMethod* method) {
 #if defined(ART_USE_LLVM_COMPILER)
   UNIMPLEMENTED(FATAL);
 #else
@@ -250,7 +250,7 @@ void Trace::SaveAndUpdateCode(Method* method) {
 #endif
 }
 
-void Trace::ResetSavedCode(Method* method) {
+void Trace::ResetSavedCode(AbstractMethod* method) {
   CHECK(GetSavedCodeFromMap(method) != NULL);
   method->SetCode(GetSavedCodeFromMap(method));
   RemoveSavedCodeFromMap(method);
@@ -419,7 +419,7 @@ void Trace::FinishTracing() {
   }
 }
 
-void Trace::LogMethodTraceEvent(Thread* self, const Method* method, Trace::TraceEvent event) {
+void Trace::LogMethodTraceEvent(Thread* self, const AbstractMethod* method, Trace::TraceEvent event) {
   if (thread_clock_base_map_.find(self) == thread_clock_base_map_.end()) {
     uint64_t time = ThreadCpuMicroTime();
     thread_clock_base_map_.Put(self, time);
@@ -464,16 +464,16 @@ void Trace::GetVisitedMethods(size_t end_offset) {
 
   while (ptr < end) {
     uint32_t method_value = ptr[2] | (ptr[3] << 8) | (ptr[4] << 16) | (ptr[5] << 24);
-    Method* method = reinterpret_cast<Method*>(TraceMethodId(method_value));
+    AbstractMethod* method = reinterpret_cast<AbstractMethod*>(TraceMethodId(method_value));
     visited_methods_.insert(method);
     ptr += record_size_;
   }
 }
 
 void Trace::DumpMethodList(std::ostream& os) {
-  typedef std::set<const Method*>::const_iterator It; // TODO: C++0x auto
+  typedef std::set<const AbstractMethod*>::const_iterator It; // TODO: C++0x auto
   for (It it = visited_methods_.begin(); it != visited_methods_.end(); ++it) {
-    const Method* method = *it;
+    const AbstractMethod* method = *it;
     MethodHelper mh(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),
@@ -508,7 +508,7 @@ void Trace::UninstallStubs() {
 uint32_t TraceMethodUnwindFromCode(Thread* self) {
   Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = self->PopTraceStackFrame();
-  Method* method = trace_frame.method_;
+  AbstractMethod* method = trace_frame.method_;
   uint32_t lr = trace_frame.return_pc_;
 
   tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);

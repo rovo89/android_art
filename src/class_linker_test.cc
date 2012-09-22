@@ -135,7 +135,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
-  void AssertMethod(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void AssertMethod(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
@@ -232,14 +232,14 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(klass->CanAccess(klass));
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-      Method* method = klass->GetDirectMethod(i);
+      AbstractMethod* method = klass->GetDirectMethod(i);
       AssertMethod(method);
       EXPECT_TRUE(method->IsDirect());
       EXPECT_EQ(klass, method->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-      Method* method = klass->GetVirtualMethod(i);
+      AbstractMethod* method = klass->GetVirtualMethod(i);
       AssertMethod(method);
       EXPECT_FALSE(method->IsDirect());
       EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
@@ -325,7 +325,7 @@ class ClassLinkerTest : public CommonTest {
     class_linker_->VisitRoots(TestRootVisitor, NULL);
     // Verify the dex cache has resolution methods in all resolved method slots
     DexCache* dex_cache = class_linker_->FindDexCache(*dex);
-    ObjectArray<Method>* resolved_methods = dex_cache->GetResolvedMethods();
+    ObjectArray<AbstractMethod>* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
       EXPECT_TRUE(resolved_methods->Get(i) != NULL);
     }
@@ -452,36 +452,41 @@ struct FieldOffsets : public CheckOffsets<Field> {
   };
 };
 
-struct MethodOffsets : public CheckOffsets<Method> {
-  MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
+struct AbstractMethodOffsets : public CheckOffsets<AbstractMethod> {
+  AbstractMethodOffsets() : CheckOffsets<AbstractMethod>(false, "Ljava/lang/reflect/AbstractMethod;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "dexCacheStrings"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_),                      "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_strings_),                    "dexCacheStrings"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, access_flags_),        "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_),                "code"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, code_item_offset_),    "codeItemOffset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, core_spill_mask_),     "coreSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, fp_spill_mask_),       "fpSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, frame_size_in_bytes_), "frameSizeInBytes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_gc_map_),       "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, invoke_stub_),         "invokeStub"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, mapping_table_),       "mappingTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_dex_index_),    "methodDexIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, method_index_),        "methodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, native_method_),       "nativeMethod"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, vmap_table_),          "vmapTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, access_flags_),        "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_),                "code"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_item_offset_),    "codeItemOffset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, core_spill_mask_),     "coreSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, fp_spill_mask_),       "fpSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, frame_size_in_bytes_), "frameSizeInBytes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_gc_map_),       "gcMap"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, invoke_stub_),         "invokeStub"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, mapping_table_),       "mappingTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_dex_index_),    "methodDexIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_index_),        "methodIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_method_),       "nativeMethod"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, vmap_table_),          "vmapTable"));
   };
 };
 
-struct ConstructorOffsets : public MethodOffsets {
-  ConstructorOffsets() : MethodOffsets() {
-    // We use Method* for both java.lang.reflect.Constructor and java.lang.reflect.Method.
-    class_descriptor = "Ljava/lang/reflect/Constructor;";
+struct ConstructorOffsets : public CheckOffsets<Constructor> {
+  // java.lang.reflect.Constructor is a subclass of java.lang.reflect.AbstractMethod
+  ConstructorOffsets() : CheckOffsets<Constructor>(false, "Ljava/lang/reflect/Constructor;") {
+  }
+};
+
+struct MethodOffsets : public CheckOffsets<Method> {
+  // java.lang.reflect.Method is a subclass of java.lang.reflect.AbstractMethod
+  MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
   }
 };
 
@@ -604,6 +609,19 @@ struct MethodClassOffsets : public CheckOffsets<MethodClass> {
   };
 };
 
+struct DexCacheOffsets : public CheckOffsets<DexCache> {
+  DexCacheOffsets() : CheckOffsets<DexCache>(false, "Ljava/lang/DexCache;") {
+    // alphabetical references
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, initialized_static_storage_), "initializedStaticStorage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, location_),                   "location"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_fields_),            "resolvedFields"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_methods_),           "resolvedMethods"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, resolved_types_),             "resolvedTypes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, strings_),                    "strings"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(DexCache, dex_file_),                   "dexFile"));
+  };
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -611,14 +629,16 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_TRUE(ObjectOffsets().Check());
   EXPECT_TRUE(ConstructorOffsets().Check());
-  EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(MethodOffsets().Check());
+  EXPECT_TRUE(FieldOffsets().Check());
+  EXPECT_TRUE(AbstractMethodOffsets().Check());
   EXPECT_TRUE(ClassOffsets().Check());
   EXPECT_TRUE(StringOffsets().Check());
   EXPECT_TRUE(ThrowableOffsets().Check());
   EXPECT_TRUE(StackTraceElementOffsets().Check());
   EXPECT_TRUE(ClassLoaderOffsets().Check());
   EXPECT_TRUE(ProxyOffsets().Check());
+  EXPECT_TRUE(DexCacheOffsets().Check());
 
   EXPECT_TRUE(ClassClassOffsets().Check());
   EXPECT_TRUE(StringClassOffsets().Check());
@@ -844,7 +864,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.
   // So <clinit> should be null.
-  Method* clinit = statics->FindDirectMethod("<clinit>", "()V");
+  AbstractMethod* clinit = statics->FindDirectMethod("<clinit>", "()V");
   EXPECT_TRUE(clinit == NULL);
 
   EXPECT_EQ(9U, statics->NumStaticFields());
@@ -931,15 +951,15 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_TRUE(K->IsAssignableFrom(B));
   EXPECT_TRUE(J->IsAssignableFrom(B));
 
-  Method* Ii = I->FindVirtualMethod("i", "()V");
-  Method* Jj1 = J->FindVirtualMethod("j1", "()V");
-  Method* Jj2 = J->FindVirtualMethod("j2", "()V");
-  Method* Kj1 = K->FindInterfaceMethod("j1", "()V");
-  Method* Kj2 = K->FindInterfaceMethod("j2", "()V");
-  Method* Kk = K->FindInterfaceMethod("k", "()V");
-  Method* Ai = A->FindVirtualMethod("i", "()V");
-  Method* Aj1 = A->FindVirtualMethod("j1", "()V");
-  Method* Aj2 = A->FindVirtualMethod("j2", "()V");
+  AbstractMethod* Ii = I->FindVirtualMethod("i", "()V");
+  AbstractMethod* Jj1 = J->FindVirtualMethod("j1", "()V");
+  AbstractMethod* Jj2 = J->FindVirtualMethod("j2", "()V");
+  AbstractMethod* Kj1 = K->FindInterfaceMethod("j1", "()V");
+  AbstractMethod* Kj2 = K->FindInterfaceMethod("j2", "()V");
+  AbstractMethod* Kk = K->FindInterfaceMethod("k", "()V");
+  AbstractMethod* Ai = A->FindVirtualMethod("i", "()V");
+  AbstractMethod* Aj1 = A->FindVirtualMethod("j1", "()V");
+  AbstractMethod* Aj2 = A->FindVirtualMethod("j2", "()V");
   ASSERT_TRUE(Ii != NULL);
   ASSERT_TRUE(Jj1 != NULL);
   ASSERT_TRUE(Jj2 != NULL);
@@ -984,8 +1004,8 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   CHECK(dex_file != NULL);
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
-  Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
-  Method* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
+  AbstractMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  AbstractMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");
   const DexFile::StringId* string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(string_id != NULL);
   const DexFile::TypeId* type_id = dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));

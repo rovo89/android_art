@@ -24,7 +24,7 @@ using namespace art::greenland;
 
 namespace {
 
-Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer) {
+Object* art_get_obj_static_from_code(uint32_t field_idx, AbstractMethod* referrer) {
   Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);

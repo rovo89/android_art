@@ -431,14 +431,14 @@ ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
 
   Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
-  runtime->SetResolutionMethod(down_cast<Method*>(resolution_method));
+  runtime->SetResolutionMethod(down_cast<AbstractMethod*>(resolution_method));
 
   Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kSaveAll);
+  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kSaveAll);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsOnly);
+  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kRefsOnly);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kRefsAndArgs);
+  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kRefsAndArgs);
 
   ImageSpace* space = new ImageSpace(image_file_name, map.release());
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {

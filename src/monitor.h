@@ -56,7 +56,7 @@ namespace art {
 #define LW_LOCK_OWNER_SHIFT 3
 #define LW_LOCK_OWNER(x) (((x) >> LW_LOCK_OWNER_SHIFT) & LW_LOCK_OWNER_MASK)
 
-class Method;
+class AbstractMethod;
 class Object;
 class Thread;
 class StackVisitor;
@@ -132,7 +132,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
-  void TranslateLocation(const Method* method, uint32_t pc,
+  void TranslateLocation(const AbstractMethod* method, uint32_t pc,
                          const char*& source_file, uint32_t& line_number) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -156,7 +156,7 @@ class Monitor {
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
-  const Method* locking_method_ GUARDED_BY(monitor_lock_);
+  const AbstractMethod* locking_method_ GUARDED_BY(monitor_lock_);
   uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
 
   friend class MonitorList;

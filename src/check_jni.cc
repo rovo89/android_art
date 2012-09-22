@@ -36,7 +36,7 @@ namespace art {
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  Method* current_method = self->GetCurrentMethod();
+  AbstractMethod* current_method = self->GetCurrentMethod();
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
@@ -123,7 +123,7 @@ static const char* gBuiltInPrefixes[] = {
   NULL
 };
 
-static bool ShouldTrace(JavaVMExt* vm, const Method* method)
+static bool ShouldTrace(JavaVMExt* vm, const AbstractMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
@@ -276,7 +276,7 @@ class ScopedCheck {
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* m = CheckMethodID(mid);
+    AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -324,7 +324,7 @@ class ScopedCheck {
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const Method* m = CheckMethodID(mid);
+    const AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -344,7 +344,7 @@ class ScopedCheck {
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const Method* m = CheckMethodID(mid);
+    const AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -395,7 +395,7 @@ class ScopedCheck {
       SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
     va_list ap;
 
-    const Method* traceMethod = NULL;
+    const AbstractMethod* traceMethod = NULL;
     if ((!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
@@ -481,7 +481,7 @@ class ScopedCheck {
           StringAppendF(&msg, "%d", i);
         } else if (ch == 'm') { // jmethodID
           jmethodID mid = va_arg(ap, jmethodID);
-          Method* m = reinterpret_cast<Method*>(mid);
+          AbstractMethod* m = reinterpret_cast<AbstractMethod*>(mid);
           msg += PrettyMethod(m);
           if (!entry) {
             StringAppendF(&msg, " (%p)", mid);
@@ -702,12 +702,12 @@ class ScopedCheck {
     return f;
   }
 
-  Method* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  AbstractMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mid == NULL) {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
-    Method* m = soa_.DecodeMethod(mid);
+    AbstractMethod* m = soa_.DecodeMethod(mid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsMethod()) {
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;

@@ -68,7 +68,7 @@ class JniInternalTest : public CommonTest {
     CommonTest::TearDown();
   }
 
-  Method::InvokeStub* DoCompile(Method*& method, Object*& receiver, bool is_static,
+  AbstractMethod::InvokeStub* DoCompile(AbstractMethod*& method, Object*& receiver, bool is_static,
                                 const char* method_name, const char* method_signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
@@ -91,24 +91,24 @@ class JniInternalTest : public CommonTest {
 
     receiver = (is_static ? NULL : c->AllocObject());
 
-    Method::InvokeStub* stub = method->GetInvokeStub();
+    AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
     CHECK(stub != NULL);
 
     return stub;
   }
 
   void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
     (*stub)(method, receiver, Thread::Current(), NULL, NULL);
   }
 
   void InvokeIdentityByteMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
 
     JValue args[1];
     JValue result;
@@ -136,9 +136,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
 
     JValue args[1];
     JValue result;
@@ -166,9 +166,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
 
     JValue args[1];
     JValue result;
@@ -196,9 +196,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
 
     JValue result;
     result.SetI(-1);
@@ -235,9 +235,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
 
     JValue result;
     result.SetI(-1);
@@ -279,9 +279,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
 
     JValue result;
     result.SetI(-1);
@@ -328,9 +328,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
 
     JValue result;
     result.SetI(-1.0);
@@ -382,9 +382,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
 
     JValue args[2];
     JValue result;
@@ -422,9 +422,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
 
     JValue args[3];
     JValue result;
@@ -453,9 +453,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
 
     JValue args[4];
     JValue result;
@@ -487,9 +487,9 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method;
+    AbstractMethod* method;
     Object* receiver;
-    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
+    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
 
     JValue args[5];
     JValue result;
@@ -1388,10 +1388,10 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
-  Method* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
+  AbstractMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
   ASSERT_TRUE(method != NULL);
 
-  Method::InvokeStub* stub = method->GetInvokeStub();
+  AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
 
   JValue args[1];
   args[0].SetL(NULL);

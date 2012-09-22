@@ -40,7 +40,8 @@ static bool IsMethodPublic(JNIEnv* env, jclass c, jmethodID method_id) {
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
-  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_reflect_Method, "getModifiers", "()I");
+  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_reflect_AbstractMethod,
+                                   "getModifiers", "()I");
   if (mid == NULL) {
     fprintf(stderr, "Failed to find java.lang.reflect.Method.getModifiers\n");
     return false;

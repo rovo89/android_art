@@ -32,7 +32,7 @@ X86Context::X86Context() {
 }
 
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
-  Method* method = fr.GetMethod();
+  AbstractMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);
   DCHECK_EQ(method->GetFpSpillMask(), 0u);

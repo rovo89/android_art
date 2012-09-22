@@ -28,7 +28,7 @@ namespace art {
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject javaReceiver,
                      jobject javaArgs) {
   jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
-  Method* m = soa.DecodeMethod(mid);
+  AbstractMethod* m = soa.DecodeMethod(mid);
 
   Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
@@ -243,7 +243,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
   soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &value);
 }
 
-static std::string UnboxingFailureKind(Method* m, int index, Field* f)
+static std::string UnboxingFailureKind(AbstractMethod* m, int index, Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m != NULL && index != -1) {
     ++index; // Humans count from 1.
@@ -255,7 +255,7 @@ static std::string UnboxingFailureKind(Method* m, int index, Field* f)
   return "result";
 }
 
-static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, Method* m,
+static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, AbstractMethod* m,
                            int index, Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!dst_class->IsPrimitive()) {
@@ -326,7 +326,7 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, M
                                boxed_value, unboxed_value);
 }
 
-bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, Method* m, size_t index) {
+bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, AbstractMethod* m, size_t index) {
   CHECK(m != NULL);
   return UnboxPrimitive(o, dst_class, unboxed_value, m, index, NULL);
 }

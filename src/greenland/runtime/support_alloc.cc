@@ -25,28 +25,28 @@ using namespace art::greenland;
 namespace {
 
 Object* art_alloc_array_from_code(uint32_t type_idx,
-                                  Method* referrer,
+                                  AbstractMethod* referrer,
                                   uint32_t length,
                                   Thread* thread) {
   return AllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                    Method* referrer,
+                                                    AbstractMethod* referrer,
                                                     uint32_t length,
                                                     Thread* thread) {
   return AllocArrayFromCode(type_idx, referrer, length, thread, true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
-                                            Method* referrer,
+                                            AbstractMethod* referrer,
                                             uint32_t length,
                                             Thread* thread) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
 Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                              Method* referrer,
+                                                              AbstractMethod* referrer,
                                                               uint32_t length,
                                                               Thread* thread) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, true);

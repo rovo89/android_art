@@ -25,7 +25,7 @@ using namespace art::greenland;
 
 namespace {
 
-int32_t art_find_catch_block(Method* current_method, uint32_t ti_offset) {
+int32_t art_find_catch_block(AbstractMethod* current_method, uint32_t ti_offset) {
   Thread* thread = art_get_current_thread();
   Class* exception_type = thread->GetException()->GetClass();
   MethodHelper mh(current_method);
@@ -66,7 +66,7 @@ void art_throw_null_pointer_exception(uint32_t dex_pc) {
   Thread* thread = art_get_current_thread();
   NthCallerVisitor visitor(0);
   thread->WalkStack(&visitor);
-  Method* throw_method = visitor.caller;
+  AbstractMethod* throw_method = visitor.caller;
   ThrowNullPointerExceptionFromDexPC(thread, throw_method, dex_pc);
 }
 

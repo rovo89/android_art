@@ -556,7 +556,7 @@ static void CreateSystemClassLoader() {
   Class* class_loader_class = soa.Decode<Class*>(WellKnownClasses::java_lang_ClassLoader);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
 
-  Method* getSystemClassLoader = class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
+  AbstractMethod* getSystemClassLoader = class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
   ClassLoader* class_loader =
@@ -960,9 +960,9 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
   resolution_stub_array_[type] = resolution_stub_array;
 }
 
-Method* Runtime::CreateResolutionMethod() {
-  Class* method_class = Method::GetMethodClass();
-  SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
+AbstractMethod* Runtime::CreateResolutionMethod() {
+  Class* method_class = AbstractMethod::GetMethodClass();
+  SirtRef<AbstractMethod> method(down_cast<AbstractMethod*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -972,9 +972,9 @@ Method* Runtime::CreateResolutionMethod() {
   return method.get();
 }
 
-Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
-  Class* method_class = Method::GetMethodClass();
-  SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
+AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
+  Class* method_class = AbstractMethod::GetMethodClass();
+  SirtRef<AbstractMethod> method(down_cast<AbstractMethod*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -1046,7 +1046,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
   return method.get();
 }
 
-void Runtime::SetCalleeSaveMethod(Method* method, CalleeSaveType type) {
+void Runtime::SetCalleeSaveMethod(AbstractMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = method;
 }

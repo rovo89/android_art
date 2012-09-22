@@ -190,7 +190,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   ScopedObjectAccess soa(Thread::Current());
   Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
-  Method* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
+  AbstractMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
   ASSERT_TRUE(string_id != NULL);
   const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId(
@@ -213,7 +213,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Class* klass =
       class_linker_->FindClass("LStaticsFromCode;", soa.Decode<ClassLoader*>(class_loader));
-  Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
+  AbstractMethod* clinit = klass->FindDirectMethod("<clinit>", "()V");
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId(
@@ -331,29 +331,29 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Class* klass2 = linker->FindClass("LProtoCompare2;", class_loader_2.get());
   ASSERT_TRUE(klass2 != NULL);
 
-  Method* m1_1 = klass1->GetVirtualMethod(0);
+  AbstractMethod* m1_1 = klass1->GetVirtualMethod(0);
   MethodHelper mh(m1_1);
   EXPECT_STREQ(mh.GetName(), "m1");
-  Method* m2_1 = klass1->GetVirtualMethod(1);
+  AbstractMethod* m2_1 = klass1->GetVirtualMethod(1);
   mh.ChangeMethod(m2_1);
   EXPECT_STREQ(mh.GetName(), "m2");
-  Method* m3_1 = klass1->GetVirtualMethod(2);
+  AbstractMethod* m3_1 = klass1->GetVirtualMethod(2);
   mh.ChangeMethod(m3_1);
   EXPECT_STREQ(mh.GetName(), "m3");
-  Method* m4_1 = klass1->GetVirtualMethod(3);
+  AbstractMethod* m4_1 = klass1->GetVirtualMethod(3);
   mh.ChangeMethod(m4_1);
   EXPECT_STREQ(mh.GetName(), "m4");
 
-  Method* m1_2 = klass2->GetVirtualMethod(0);
+  AbstractMethod* m1_2 = klass2->GetVirtualMethod(0);
   mh.ChangeMethod(m1_2);
   EXPECT_STREQ(mh.GetName(), "m1");
-  Method* m2_2 = klass2->GetVirtualMethod(1);
+  AbstractMethod* m2_2 = klass2->GetVirtualMethod(1);
   mh.ChangeMethod(m2_2);
   EXPECT_STREQ(mh.GetName(), "m2");
-  Method* m3_2 = klass2->GetVirtualMethod(2);
+  AbstractMethod* m3_2 = klass2->GetVirtualMethod(2);
   mh.ChangeMethod(m3_2);
   EXPECT_STREQ(mh.GetName(), "m3");
-  Method* m4_2 = klass2->GetVirtualMethod(3);
+  AbstractMethod* m4_2 = klass2->GetVirtualMethod(3);
   mh.ChangeMethod(m4_2);
   EXPECT_STREQ(mh.GetName(), "m4");
 

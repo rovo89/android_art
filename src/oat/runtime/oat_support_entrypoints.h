@@ -27,7 +27,7 @@ namespace art {
 
 class Class;
 class DvmDex;
-class Method;
+class AbstractMethod;
 class Thread;
 
 struct PACKED EntryPoints {
@@ -45,7 +45,7 @@ struct PACKED EntryPoints {
   void (*pCheckCastFromCode)(void*, void*);
 
   // Debug
-  void (*pDebugMe)(Method*, uint32_t);
+  void (*pDebugMe)(AbstractMethod*, uint32_t);
   void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
 
   // DexCache
@@ -126,7 +126,7 @@ struct PACKED EntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(Method*, Method**, Thread*,
+  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(AbstractMethod*, AbstractMethod**, Thread*,
                                                            Runtime::TrampolineType);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
@@ -141,7 +141,7 @@ struct PACKED EntryPoints {
 
   // Throws
   void (*pDeliverException)(void*);
-  void (*pThrowAbstractMethodErrorFromCode)(Method* m, Thread* thread, Method** sp);
+  void (*pThrowAbstractMethodErrorFromCode)(AbstractMethod* m, Thread* thread, AbstractMethod** sp);
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
   void (*pThrowDivZeroFromCode)();
   void (*pThrowNoSuchMethodFromCode)(int32_t);

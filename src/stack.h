@@ -28,7 +28,7 @@
 
 namespace art {
 
-class Method;
+class AbstractMethod;
 class Object;
 class ShadowFrame;
 class StackIndirectReferenceTable;
@@ -75,12 +75,12 @@ class ShadowFrame {
     references_[i] = object;
   }
 
-  Method* GetMethod() const {
+  AbstractMethod* GetMethod() const {
     DCHECK_NE(method_, static_cast<void*>(NULL));
     return method_;
   }
 
-  void SetMethod(Method* method) {
+  void SetMethod(AbstractMethod* method) {
     DCHECK_NE(method, static_cast<void*>(NULL));
     method_ = method;
   }
@@ -132,7 +132,7 @@ class ShadowFrame {
 
   uint32_t number_of_references_;
   ShadowFrame* link_;
-  Method* method_;
+  AbstractMethod* method_;
   uint32_t dex_pc_;
   Object* references_[];
 
@@ -154,11 +154,11 @@ class PACKED ManagedStack {
     return link_;
   }
 
-  Method** GetTopQuickFrame() const {
+  AbstractMethod** GetTopQuickFrame() const {
     return top_quick_frame_;
   }
 
-  void SetTopQuickFrame(Method** top) {
+  void SetTopQuickFrame(AbstractMethod** top) {
     top_quick_frame_ = top;
   }
 
@@ -207,7 +207,7 @@ class PACKED ManagedStack {
  private:
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  Method** top_quick_frame_;
+  AbstractMethod** top_quick_frame_;
   uintptr_t top_quick_frame_pc_;
 };
 
@@ -229,7 +229,7 @@ class StackVisitor {
   void WalkStack(bool include_transitions = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* GetMethod() const {
+  AbstractMethod* GetMethod() const {
     if (cur_shadow_frame_ != NULL) {
       return cur_shadow_frame_->GetMethod();
     } else if (cur_quick_frame_ != NULL) {
@@ -249,7 +249,7 @@ class StackVisitor {
 
   uintptr_t LoadCalleeSave(int num, size_t frame_size) const {
     // Callee saves are held at the top of the frame
-    Method* method = GetMethod();
+    AbstractMethod* method = GetMethod();
     DCHECK(method != NULL);
     byte* save_addr =
         reinterpret_cast<byte*>(cur_quick_frame_) + frame_size - ((num + 1) * kPointerSize);
@@ -276,14 +276,14 @@ class StackVisitor {
     return num_frames_;
   }
 
-  uint32_t GetVReg(Method* m, int vreg) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t GetVReg(AbstractMethod* m, int vreg) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVReg(Method* m, int vreg, uint32_t new_value)
+  void SetVReg(AbstractMethod* m, int vreg, uint32_t new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t GetGPR(uint32_t reg) const;
 
-  uint32_t GetVReg(Method** cur_quick_frame, const DexFile::CodeItem* code_item,
+  uint32_t GetVReg(AbstractMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                    uint32_t core_spills, uint32_t fp_spills, size_t frame_size, int vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
     DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
@@ -356,7 +356,7 @@ class StackVisitor {
     return cur_quick_frame_pc_;
   }
 
-  Method** GetCurrentQuickFrame() const {
+  AbstractMethod** GetCurrentQuickFrame() const {
     return cur_quick_frame_;
   }
 
@@ -365,7 +365,7 @@ class StackVisitor {
   }
 
   StackIndirectReferenceTable* GetCurrentSirt() const {
-    Method** sp = GetCurrentQuickFrame();
+    AbstractMethod** sp = GetCurrentQuickFrame();
     ++sp; // Skip Method*; SIRT comes next;
     return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
@@ -382,7 +382,7 @@ class StackVisitor {
   const ManagedStack* const stack_start_;
   const std::vector<TraceStackFrame>* const trace_stack_;
   ShadowFrame* cur_shadow_frame_;
-  Method** cur_quick_frame_;
+  AbstractMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;
   // Lazily computed, number of frames in the stack.
   size_t num_frames_;

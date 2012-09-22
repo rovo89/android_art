@@ -35,7 +35,7 @@ MipsContext::MipsContext() {
 }
 
 void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
-  Method* method = fr.GetMethod();
+  AbstractMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   uint32_t fp_core_spills = method->GetFpSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);

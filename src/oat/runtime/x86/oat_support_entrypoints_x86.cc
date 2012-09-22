@@ -33,7 +33,7 @@ extern "C" void art_can_put_array_element_from_code(void*, void*);
 extern "C" void art_check_cast_from_code(void*, void*);
 
 // Debug entrypoints.
-extern void DebugMe(Method* method, uint32_t info);
+extern void DebugMe(AbstractMethod* method, uint32_t info);
 
 // DexCache entrypoints.
 extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
@@ -97,7 +97,7 @@ extern "C" int32_t art_string_compareto(void*, void*);
 extern "C" void* art_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
-const void* UnresolvedDirectMethodTrampolineFromCode(Method*, Method**, Thread*,
+const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod*, AbstractMethod**, Thread*,
                                                      Runtime::TrampolineType);
 extern "C" void art_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
@@ -111,7 +111,7 @@ extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_test_suspend();
 
 // Throw entrypoints.
-extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
+extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod** sp);
 extern "C" void art_deliver_exception_from_code(void*);
 extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
 extern "C" void art_throw_div_zero_from_code();

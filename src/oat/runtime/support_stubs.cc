@@ -32,7 +32,7 @@ namespace art {
 
 #if !defined(ART_USE_LLVM_COMPILER)
 // Lazily resolve a method. Called by stub code.
-const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp, Thread* thread,
+const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, AbstractMethod** sp, Thread* thread,
                                                      Runtime::TrampolineType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__arm__)
@@ -52,7 +52,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   // | R0         |
   // | Method*    |  <- sp
   DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  Method** caller_sp = reinterpret_cast<Method**>(reinterpret_cast<byte*>(sp) + 48);
+  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
   uintptr_t caller_pc = regs[10];
 #elif defined(__i386__)
@@ -71,12 +71,12 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   // | ECX         |    arg1
   // | EAX/Method* |  <- sp
   DCHECK_EQ(32U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  Method** caller_sp = reinterpret_cast<Method**>(reinterpret_cast<byte*>(sp) + 32);
+  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 32);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
   uintptr_t caller_pc = regs[7];
 #else
   UNIMPLEMENTED(FATAL);
-  Method** caller_sp = NULL;
+  AbstractMethod** caller_sp = NULL;
   uintptr_t* regs = NULL;
   uintptr_t caller_pc = 0;
 #endif
@@ -88,7 +88,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  Method* caller = *caller_sp;
+  AbstractMethod* caller = *caller_sp;
   InvokeType invoke_type;
   uint32_t dex_method_idx;
 #if !defined(__i386__)
@@ -227,11 +227,11 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   return code;
 }
 #else // ART_USE_LLVM_COMPILER
-const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** called_addr,
+const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, AbstractMethod** called_addr,
                                                      Thread* thread, Runtime::TrampolineType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;
-  Method* caller = thread->GetCurrentMethod(&dex_pc);
+  AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
@@ -321,7 +321,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
 
 #if !defined(ART_USE_LLVM_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
-extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp)
+extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
@@ -329,7 +329,7 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
   thread->DeliverException();
 }
 #else // ART_USE_LLVM_COMPILER
-extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method**)
+extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod**)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());

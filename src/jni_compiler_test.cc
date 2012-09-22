@@ -44,7 +44,7 @@ class JniCompilerTest : public CommonTest {
     ScopedObjectAccess soa(Thread::Current());
     // Compile the native method before starting the runtime
     Class* c = class_linker_->FindClass("LMyClassNatives;", soa.Decode<ClassLoader*>(class_loader));
-    Method* method;
+    AbstractMethod* method;
     if (direct) {
       method = c->FindDirectMethod(method_name, method_sig);
     } else {

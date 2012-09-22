@@ -38,7 +38,7 @@ struct NthCallerVisitor : public StackVisitor {
 
   size_t n;
   size_t count;
-  Method* caller;
+  AbstractMethod* caller;
 };
 
 }  // namespace art

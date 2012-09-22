@@ -30,7 +30,7 @@ static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiv
 
 static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   ScopedObjectAccess soa(env);
-  Method* proxy_method = soa.Decode<Object*>(javaMethod)->AsMethod();
+  AbstractMethod* proxy_method = soa.Decode<Object*>(javaMethod)->AsMethod();
   CHECK(proxy_method->GetDeclaringClass()->IsProxyClass());
   SynthesizedProxyClass* proxy_class =
       down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
@@ -49,7 +49,7 @@ static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
 
 static jobject Method_findOverriddenMethodNative(JNIEnv* env, jobject javaMethod) {
   ScopedObjectAccess soa(env);
-  Method* method = soa.Decode<Object*>(javaMethod)->AsMethod();
+  AbstractMethod* method = soa.Decode<Object*>(javaMethod)->AsMethod();
   return soa.AddLocalReference<jobject>(method->FindOverriddenMethod());
 }
 

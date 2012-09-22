@@ -193,7 +193,7 @@ class MethodVerifier {
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in 'm'.
-  static void FindLocksAtDexPc(Method* m, uint32_t dex_pc,
+  static void FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
                                std::vector<uint32_t>& monitor_enter_dex_pcs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -211,7 +211,7 @@ class MethodVerifier {
  private:
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-      uint32_t method_idx, Method* method, uint32_t access_flags)
+      uint32_t method_idx, AbstractMethod* method, uint32_t access_flags)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
@@ -233,9 +233,9 @@ class MethodVerifier {
    */
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-      Method* method, uint32_t method_access_flags)
+      AbstractMethod* method, uint32_t method_access_flags)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void VerifyMethodAndDump(Method* method)
+  static void VerifyMethodAndDump(AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run verification on the method. Returns true if verification completes and false if the input
@@ -493,7 +493,7 @@ class MethodVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  Method* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
+  AbstractMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -518,7 +518,7 @@ class MethodVerifier {
    * Returns the resolved method on success, NULL on failure (with *failure
    * set appropriately).
    */
-  Method* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
+  AbstractMethod* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                MethodType method_type, bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -618,7 +618,7 @@ class MethodVerifier {
 
   uint32_t method_idx_;  // The method we're working on.
   // Its object representation if known.
-  Method* foo_method_ GUARDED_BY(Locks::mutator_lock_);
+  AbstractMethod* foo_method_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t method_access_flags_;  // Method's access flags.
   const DexFile* dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.

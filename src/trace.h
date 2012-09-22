@@ -29,17 +29,17 @@
 
 namespace art {
 
-class Method;
+class AbstractMethod;
 class Thread;
 
 uint32_t TraceMethodUnwindFromCode(Thread* self);
 
 struct TraceStackFrame {
-  TraceStackFrame(Method* method, uintptr_t return_pc)
+  TraceStackFrame(AbstractMethod* method, uintptr_t return_pc)
       : method_(method), return_pc_(return_pc) {
   }
 
-  Method* method_;
+  AbstractMethod* method_;
   uintptr_t return_pc_;
 };
 
@@ -70,14 +70,14 @@ class Trace {
   bool UseWallClock();
   bool UseThreadCpuClock();
 
-  void LogMethodTraceEvent(Thread* self, const Method* method, TraceEvent event);
+  void LogMethodTraceEvent(Thread* self, const AbstractMethod* method, TraceEvent event);
 
-  void AddSavedCodeToMap(const Method* method, const void* code);
-  void RemoveSavedCodeFromMap(const Method* method);
-  const void* GetSavedCodeFromMap(const Method* method);
+  void AddSavedCodeToMap(const AbstractMethod* method, const void* code);
+  void RemoveSavedCodeFromMap(const AbstractMethod* method);
+  const void* GetSavedCodeFromMap(const AbstractMethod* method);
 
-  void SaveAndUpdateCode(Method* method);
-  void ResetSavedCode(Method* method);
+  void SaveAndUpdateCode(AbstractMethod* method);
+  void ResetSavedCode(AbstractMethod* method);
 
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
@@ -97,10 +97,10 @@ class Trace {
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Maps a method to its original code pointer.
-  SafeMap<const Method*, const void*> saved_code_map_;
+  SafeMap<const AbstractMethod*, const void*> saved_code_map_;
 
   // Set of methods visited by the profiler.
-  std::set<const Method*> visited_methods_;
+  std::set<const AbstractMethod*> visited_methods_;
 
   // Maps a thread to its clock base.
   SafeMap<Thread*, uint64_t> thread_clock_base_map_;

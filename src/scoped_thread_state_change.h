@@ -227,7 +227,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     return reinterpret_cast<jfieldID>(field);
   }
 
-  Method* DecodeMethod(jmethodID mid) const
+  AbstractMethod* DecodeMethod(jmethodID mid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -237,10 +237,10 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     // TODO: we should make these unique weak globals if Method instances can ever move.
     UNIMPLEMENTED(WARNING);
 #endif
-    return reinterpret_cast<Method*>(mid);
+    return reinterpret_cast<AbstractMethod*>(mid);
   }
 
-  jmethodID EncodeMethod(Method* method) const
+  jmethodID EncodeMethod(AbstractMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.

@@ -46,7 +46,8 @@ class DexCache;
 class Field;
 class InterfaceEntry;
 class Monitor;
-class Method;
+class Member;
+class AbstractMethod;
 class Object;
 class StaticStorageBase;
 class String;
@@ -250,14 +251,14 @@ class MANAGED Object {
 
   bool IsMethod() const;
 
-  Method* AsMethod() {
+  AbstractMethod* AsMethod() {
     DCHECK(IsMethod());
-    return down_cast<Method*>(this);
+    return down_cast<AbstractMethod*>(this);
   }
 
-  const Method* AsMethod() const {
+  const AbstractMethod* AsMethod() const {
     DCHECK(IsMethod());
-    return down_cast<const Method*>(this);
+    return down_cast<const AbstractMethod*>(this);
   }
 
   bool IsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -506,10 +507,10 @@ class MANAGED Field : public Object {
 };
 
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
-class MANAGED Method : public Object {
+class MANAGED AbstractMethod : public Object {
  public:
   // A function that invokes a method with an array of its arguments.
-  typedef void InvokeStub(const Method* method,
+  typedef void InvokeStub(const AbstractMethod* method,
                           Object* obj,
                           Thread* thread,
                           JValue* args,
@@ -520,13 +521,13 @@ class MANAGED Method : public Object {
   void SetDeclaringClass(Class *new_declaring_class);
 
   static MemberOffset DeclaringClassOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(Method, declaring_class_));
+    return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_));
   }
 
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), new_access_flags, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, access_flags_), new_access_flags, false);
   }
 
   // Approximate what kind of method call would be used for this method.
@@ -598,19 +599,19 @@ class MANAGED Method : public Object {
   }
 
   void SetMethodIndex(uint16_t new_method_index) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), new_method_index, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_), new_method_index, false);
   }
 
   static MemberOffset MethodIndexOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_);
   }
 
   uint32_t GetCodeItemOffset() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_item_offset_), false);
   }
 
   void SetCodeItemOffset(uint32_t new_code_off) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, code_item_offset_), new_code_off, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_item_offset_), new_code_off, false);
   }
 
   // Number of 32bit registers that would be required to hold all the arguments
@@ -619,31 +620,31 @@ class MANAGED Method : public Object {
   uint32_t GetDexMethodIndex() const;
 
   void SetDexMethodIndex(uint32_t new_idx) {
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), new_idx, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_dex_index_), new_idx, false);
   }
 
   ObjectArray<String>* GetDexCacheStrings() const;
   void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings);
 
   static MemberOffset DexCacheStringsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_);
   }
 
   static MemberOffset DexCacheResolvedMethodsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_);
   }
 
   static MemberOffset DexCacheResolvedTypesOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_);
   }
 
   static MemberOffset DexCacheInitializedStaticStorageOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method,
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod,
         dex_cache_initialized_static_storage_);
   }
 
-  ObjectArray<Method>* GetDexCacheResolvedMethods() const;
-  void SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods);
+  ObjectArray<AbstractMethod>* GetDexCacheResolvedMethods() const;
+  void SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods);
 
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types);
@@ -652,17 +653,17 @@ class MANAGED Method : public Object {
   void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
 
   // Find the method that this method overrides
-  Method* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {
-    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
+    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_), false);
   }
 
   void SetCode(const void* code) {
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), code, false);
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_), code, false);
   }
 
   uint32_t GetCodeSize() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -704,7 +705,7 @@ class MANAGED Method : public Object {
   }
 
   static MemberOffset GetCodeOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, code_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_);
   }
 
   const uint32_t* GetMappingTable() const {
@@ -724,11 +725,11 @@ class MANAGED Method : public Object {
   }
 
   const uint32_t* GetMappingTableRaw() const {
-    return GetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_), false);
+    return GetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_), false);
   }
 
   void SetMappingTable(const uint32_t* mapping_table) {
-    SetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(Method, mapping_table_),
+    SetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_),
                                  mapping_table, false);
   }
 
@@ -744,11 +745,11 @@ class MANAGED Method : public Object {
 
   // Callers should wrap the uint16_t* in a VmapTable instance for convenient access.
   const uint16_t* GetVmapTableRaw() const {
-    return GetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+    return GetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), false);
   }
 
   void SetVmapTable(const uint16_t* vmap_table) {
-    SetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), vmap_table, false);
+    SetFieldPtr<const uint16_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, vmap_table_), vmap_table, false);
   }
 
   uint32_t GetOatVmapTableOffset() const {
@@ -762,10 +763,11 @@ class MANAGED Method : public Object {
   }
 
   const uint8_t* GetNativeGcMap() const {
-    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_), false);
+    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_), false);
   }
   void SetNativeGcMap(const uint8_t* data) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, native_gc_map_), data, false);
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_), data,
+        false);
   }
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
@@ -781,14 +783,14 @@ class MANAGED Method : public Object {
 
   size_t GetFrameSizeInBytes() const {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_), false);
+    size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, frame_size_in_bytes_), false);
     DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
     return result;
   }
 
   void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_),
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, frame_size_in_bytes_),
                new_frame_size_in_bytes, false);
   }
 
@@ -804,7 +806,7 @@ class MANAGED Method : public Object {
   void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset NativeMethodOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_);
   }
 
   const void* GetNativeMethod() const {
@@ -814,13 +816,13 @@ class MANAGED Method : public Object {
   // Native to managed invocation stub entry point
   InvokeStub* GetInvokeStub() const {
     InvokeStub* result = GetFieldPtr<InvokeStub*>(
-        OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), false);
+        OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_), false);
     // TODO: DCHECK(result != NULL);  should be ahead of time compiled
     return result;
   }
 
   void SetInvokeStub(InvokeStub* invoke_stub) {
-    SetFieldPtr<InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_),
+    SetFieldPtr<InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_),
                              invoke_stub, false);
   }
 
@@ -845,29 +847,29 @@ class MANAGED Method : public Object {
   }
 
   static MemberOffset GetInvokeStubOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_);
   }
 
   static MemberOffset GetMethodIndexOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_);
   }
 
   uint32_t GetCoreSpillMask() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, core_spill_mask_), false);
   }
 
   void SetCoreSpillMask(uint32_t core_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, core_spill_mask_), core_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, core_spill_mask_), core_spill_mask, false);
   }
 
   uint32_t GetFpSpillMask() const {
-    return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), false);
+    return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, fp_spill_mask_), false);
   }
 
   void SetFpSpillMask(uint32_t fp_spill_mask) {
     // Computed during compilation
-    SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
+    SetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, fp_spill_mask_), fp_spill_mask, false);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
@@ -923,7 +925,7 @@ class MANAGED Method : public Object {
 
   static void ResetClasses();
 
- private:
+ protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of
   Class* declaring_class_;
@@ -991,8 +993,18 @@ class MANAGED Method : public Object {
   static Class* java_lang_reflect_Method_;
 
   friend class ImageWriter;  // for relocating code_ and invoke_stub_
+  friend struct AbstractMethodOffsets;  // for verifying offset information
+  friend struct ConstructorMethodOffsets;  // for verifying offset information
   friend struct MethodOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(Method);
+  DISALLOW_IMPLICIT_CONSTRUCTORS(AbstractMethod);
+};
+
+class MANAGED Method : public AbstractMethod {
+
+};
+
+class MANAGED Constructor : public AbstractMethod {
+
 };
 
 class MANAGED Array : public Object {
@@ -1536,29 +1548,29 @@ class MANAGED Class : public StaticStorageBase {
 
   void SetDexCache(DexCache* new_dex_cache);
 
-  ObjectArray<Method>* GetDirectMethods() const {
+  ObjectArray<AbstractMethod>* GetDirectMethods() const {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetFieldObject<ObjectArray<Method>*>(
+    return GetFieldObject<ObjectArray<AbstractMethod>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
   }
 
-  void SetDirectMethods(ObjectArray<Method>* new_direct_methods) {
-    DCHECK(NULL == GetFieldObject<ObjectArray<Method>*>(
+  void SetDirectMethods(ObjectArray<AbstractMethod>* new_direct_methods) {
+    DCHECK(NULL == GetFieldObject<ObjectArray<AbstractMethod>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false));
     DCHECK_NE(0, new_direct_methods->GetLength());
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_),
                    new_direct_methods, false);
   }
 
-  Method* GetDirectMethod(int32_t i) const
+  AbstractMethod* GetDirectMethod(int32_t i) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetDirectMethods()->Get(i);
   }
 
-  void SetDirectMethod(uint32_t i, Method* f)  // TODO: uint16_t
+  void SetDirectMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
-    ObjectArray<Method>* direct_methods =
-        GetFieldObject<ObjectArray<Method>*>(
+    ObjectArray<AbstractMethod>* direct_methods =
+        GetFieldObject<ObjectArray<AbstractMethod>*>(
             OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
     direct_methods->Set(i, f);
   }
@@ -1568,13 +1580,13 @@ class MANAGED Class : public StaticStorageBase {
     return (GetDirectMethods() != NULL) ? GetDirectMethods()->GetLength() : 0;
   }
 
-  ObjectArray<Method>* GetVirtualMethods() const {
+  ObjectArray<AbstractMethod>* GetVirtualMethods() const {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetFieldObject<ObjectArray<Method>*>(
+    return GetFieldObject<ObjectArray<AbstractMethod>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
   }
 
-  void SetVirtualMethods(ObjectArray<Method>* new_virtual_methods) {
+  void SetVirtualMethods(ObjectArray<AbstractMethod>* new_virtual_methods) {
     // TODO: we reassign virtual methods to grow the table for miranda
     // methods.. they should really just be assigned once
     DCHECK_NE(0, new_virtual_methods->GetLength());
@@ -1587,37 +1599,37 @@ class MANAGED Class : public StaticStorageBase {
     return (GetVirtualMethods() != NULL) ? GetVirtualMethods()->GetLength() : 0;
   }
 
-  Method* GetVirtualMethod(uint32_t i) const
+  AbstractMethod* GetVirtualMethod(uint32_t i) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
-  Method* GetVirtualMethodDuringLinking(uint32_t i) const
+  AbstractMethod* GetVirtualMethodDuringLinking(uint32_t i) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsLoaded() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
-  void SetVirtualMethod(uint32_t i, Method* f)  // TODO: uint16_t
+  void SetVirtualMethod(uint32_t i, AbstractMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<Method>* virtual_methods =
-        GetFieldObject<ObjectArray<Method>*>(
+    ObjectArray<AbstractMethod>* virtual_methods =
+        GetFieldObject<ObjectArray<AbstractMethod>*>(
             OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
     virtual_methods->Set(i, f);
   }
 
-  ObjectArray<Method>* GetVTable() const {
+  ObjectArray<AbstractMethod>* GetVTable() const {
     DCHECK(IsResolved() || IsErroneous());
-    return GetFieldObject<ObjectArray<Method>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+    return GetFieldObject<ObjectArray<AbstractMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
 
-  ObjectArray<Method>* GetVTableDuringLinking() const {
+  ObjectArray<AbstractMethod>* GetVTableDuringLinking() const {
     DCHECK(IsLoaded() || IsErroneous());
-    return GetFieldObject<ObjectArray<Method>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
+    return GetFieldObject<ObjectArray<AbstractMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
 
-  void SetVTable(ObjectArray<Method>* new_vtable) {
+  void SetVTable(ObjectArray<AbstractMethod>* new_vtable) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
   }
 
@@ -1628,7 +1640,7 @@ class MANAGED Class : public StaticStorageBase {
   // Given a method implemented by this class but potentially from a
   // super class, return the specific implementation
   // method for this class.
-  Method* FindVirtualMethodForVirtual(Method* method)
+  AbstractMethod* FindVirtualMethodForVirtual(AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!method->GetDeclaringClass()->IsInterface());
     // The argument method may from a super class.
@@ -1639,16 +1651,16 @@ class MANAGED Class : public StaticStorageBase {
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
-  Method* FindVirtualMethodForInterface(Method* method)
+  AbstractMethod* FindVirtualMethodForInterface(AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
+  AbstractMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  AbstractMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindVirtualMethodForVirtualOrInterface(Method* method)
+  AbstractMethod* FindVirtualMethodForVirtualOrInterface(AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsDirect()) {
       return method;
@@ -1659,28 +1671,28 @@ class MANAGED Class : public StaticStorageBase {
     return FindVirtualMethodForVirtual(method);
   }
 
-  Method* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
+  AbstractMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  AbstractMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
+  AbstractMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  AbstractMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
+  AbstractMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  AbstractMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
+  AbstractMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Method* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
+  AbstractMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetIfTableCount() const {
@@ -1894,7 +1906,7 @@ class MANAGED Class : public StaticStorageBase {
   DexCache* dex_cache_;
 
   // static, private, and <init> methods
-  ObjectArray<Method>* direct_methods_;
+  ObjectArray<AbstractMethod>* direct_methods_;
 
   // instance fields
   //
@@ -1936,13 +1948,13 @@ class MANAGED Class : public StaticStorageBase {
   Class* verify_error_class_;
 
   // virtual methods defined in this class; invoked through vtable
-  ObjectArray<Method>* virtual_methods_;
+  ObjectArray<AbstractMethod>* virtual_methods_;
 
   // Virtual method table (vtable), for use by "invoke-virtual".  The vtable from the superclass is
   // copied in, and virtual methods from our class either replace those from the super or are
   // appended. For abstract classes, methods may be created in the vtable that aren't in
   // virtual_ methods_ for miranda methods.
-  ObjectArray<Method>* vtable_;
+  ObjectArray<AbstractMethod>* vtable_;
 
   // access flags; low 16 bits are defined by VM spec
   uint32_t access_flags_;
@@ -2043,7 +2055,9 @@ inline bool Object::IsField() const {
 
 inline bool Object::IsMethod() const {
   Class* c = GetClass();
-  return c == Method::GetMethodClass() || c == Method::GetConstructorClass();
+  return
+      c == AbstractMethod::GetMethodClass() ||
+      c == AbstractMethod::GetConstructorClass();
 }
 
 inline bool Object::IsReferenceInstance() const {
@@ -2076,7 +2090,7 @@ inline size_t Object::SizeOf() const {
     result = GetClass()->GetObjectSize();
   }
   DCHECK(!IsField()  || result == sizeof(Field));
-  DCHECK(!IsMethod() || result == sizeof(Method));
+  DCHECK(!IsMethod() || result == sizeof(AbstractMethod));
   return result;
 }
 
@@ -2091,15 +2105,15 @@ inline void Field::SetDeclaringClass(Class *new_declaring_class) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), new_declaring_class, false);
 }
 
-inline Class* Method::GetDeclaringClass() const {
-  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), false);
+inline Class* AbstractMethod::GetDeclaringClass() const {
+  Class* result = GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, declaring_class_), false);
   DCHECK(result != NULL) << this;
   DCHECK(result->IsIdxLoaded() || result->IsErroneous()) << this;
   return result;
 }
 
-inline void Method::SetDeclaringClass(Class *new_declaring_class) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, declaring_class_), new_declaring_class, false);
+inline void AbstractMethod::SetDeclaringClass(Class *new_declaring_class) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, declaring_class_), new_declaring_class, false);
 }
 
 inline size_t Array::SizeOf() const {
@@ -2421,27 +2435,27 @@ inline uint32_t Class::GetAccessFlags() const {
   DCHECK(IsLoaded() || IsErroneous() ||
       this == String::GetJavaLangString() ||
       this == Field::GetJavaLangReflectField() ||
-      this == Method::GetConstructorClass() ||
-      this == Method::GetMethodClass());
+      this == AbstractMethod::GetConstructorClass() ||
+      this == AbstractMethod::GetMethodClass());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), false);
 }
 
-inline uint32_t Method::GetAccessFlags() const {
+inline uint32_t AbstractMethod::GetAccessFlags() const {
   DCHECK(GetDeclaringClass()->IsIdxLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, access_flags_), false);
 }
 
-inline uint16_t Method::GetMethodIndex() const {
+inline uint16_t AbstractMethod::GetMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsResolved() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_), false);
 }
 
-inline uint32_t Method::GetDexMethodIndex() const {
+inline uint32_t AbstractMethod::GetDexMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), false);
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_dex_index_), false);
 }
 
-inline bool Method::CheckIncompatibleClassChange(InvokeType type) {
+inline bool AbstractMethod::CheckIncompatibleClassChange(InvokeType type) {
   switch (type) {
     case kStatic:
       return !IsStatic();
@@ -2463,7 +2477,7 @@ inline bool Method::CheckIncompatibleClassChange(InvokeType type) {
   }
 }
 
-inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {
+inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (!kIsDebugBuild) {
     return;
   }
@@ -2599,21 +2613,21 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
   }
 
   size_t GetMethodArrayCount() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
+    ObjectArray<AbstractMethod>* method_array = down_cast<ObjectArray<AbstractMethod>*>(Get(kMethodArray));
     if (method_array == NULL) {
       return 0;
     }
     return method_array->GetLength();
   }
 
-  ObjectArray<Method>* GetMethodArray() const
+  ObjectArray<AbstractMethod>* GetMethodArray() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
+    ObjectArray<AbstractMethod>* method_array = down_cast<ObjectArray<AbstractMethod>*>(Get(kMethodArray));
     DCHECK(method_array != NULL);
     return method_array;
   }
 
-  void SetMethodArray(ObjectArray<Method>* new_ma)
+  void SetMethodArray(ObjectArray<AbstractMethod>* new_ma)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_ma != NULL);
     DCHECK(Get(kMethodArray) == NULL);

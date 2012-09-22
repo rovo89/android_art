@@ -21,10 +21,10 @@
 
 namespace art {
 
-class Method;
+class AbstractMethod;
 
 // Place a special frame at the TOS that will save the callee saves for the given type.
-static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type)
+static void  FinishCalleeSaveFrameSetup(Thread* self, AbstractMethod** sp, Runtime::CalleeSaveType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Be aware the store below may well stomp on an incoming argument.
   Locks::mutator_lock_->AssertSharedHeld();

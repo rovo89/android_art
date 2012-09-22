@@ -41,14 +41,14 @@ namespace art {
 class Array;
 class Class;
 class Field;
-class Method;
+class AbstractMethod;
 class Object;
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
+static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* method, Thread* self,
                                           bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
@@ -83,7 +83,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+static inline Array* AllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
                                         bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
@@ -110,7 +110,7 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32
   return Array::Alloc(klass, component_count);
 }
 
-extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
                                          Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -127,12 +127,12 @@ enum FindFieldType {
 };
 
 // Slow field find that can initialize classes and may throw exceptions.
-extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
+extern Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thread* self,
                                 FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
-static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer,
+static inline Field* FindFieldFast(uint32_t field_idx, const AbstractMethod* referrer,
                                    FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
@@ -181,14 +181,14 @@ static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer,
 }
 
 // Fast path method resolution that can't throw exceptions.
-static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object,
-                                     const Method* referrer, bool access_check, InvokeType type)
+static inline AbstractMethod* FindMethodFast(uint32_t method_idx, Object* this_object,
+                                     const AbstractMethod* referrer, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
   }
-  Method* resolved_method =
+  AbstractMethod* resolved_method =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx);
   if (UNLIKELY(resolved_method == NULL)) {
     return NULL;
@@ -221,15 +221,15 @@ static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object,
   }
 }
 
-extern Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
+extern AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, const AbstractMethod* referrer,
                                   Thread* self, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
+extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* referrer, Thread* self,
                                      bool can_run_clinit, bool verify_access)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx)
+static inline String* ResolveStringFromCode(const AbstractMethod* referrer, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
@@ -268,7 +268,7 @@ static inline void CheckReferenceResult(Object* o, Thread* self)
               PrettyMethod(self->GetCurrentMethod()).c_str());
   }
   // Make sure that the result is an instance of the type this method was expected to return.
-  Method* m = self->GetCurrentMethod();
+  AbstractMethod* m = self->GetCurrentMethod();
   MethodHelper mh(m);
   Class* return_type = mh.GetReturnType();
 

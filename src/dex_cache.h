@@ -27,39 +27,42 @@ namespace art {
 class Class;
 class Field;
 class ImageWriter;
-class Method;
+class AbstractMethod;
 class String;
 union JValue;
 
-class MANAGED DexCache : public ObjectArray<Object> {
+class MANAGED DexCacheClass : public Class {
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(DexCacheClass);
+};
+
+class MANAGED DexCache : public Object {
  public:
-  void Init(String* location,
+  void Init(const DexFile* dex_file,
+            String* location,
             ObjectArray<String>* strings,
             ObjectArray<Class>* types,
-            ObjectArray<Method>* methods,
+            ObjectArray<AbstractMethod>* methods,
             ObjectArray<Field>* fields,
             ObjectArray<StaticStorageBase>* initialized_static_storage)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Fixup(Method* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Fixup(AbstractMethod* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   String* GetLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Get(kLocation)->AsString();
+    return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), false);
   }
 
   static MemberOffset StringsOffset() {
-    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
-                        kStrings * sizeof(Object*));
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, strings_);
   }
 
   static MemberOffset ResolvedFieldsOffset() {
-    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
-                        kResolvedFields * sizeof(Object*));
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_fields_);
   }
 
   static MemberOffset ResolvedMethodsOffset() {
-    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
-                        kResolvedMethods * sizeof(Object*));
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_methods_);
   }
 
   size_t NumStrings() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -103,9 +106,9 @@ class MANAGED DexCache : public ObjectArray<Object> {
     GetResolvedTypes()->Set(type_idx, resolved);
   }
 
-  Method* GetResolvedMethod(uint32_t method_idx) const
+  AbstractMethod* GetResolvedMethod(uint32_t method_idx) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Method* method = GetResolvedMethods()->Get(method_idx);
+    AbstractMethod* method = GetResolvedMethods()->Get(method_idx);
     // Hide resolution trampoline methods from the caller
     if (method != NULL && method->GetDexMethodIndex() == DexFile::kDexNoIndex16) {
       DCHECK(method == Runtime::Current()->GetResolutionMethod());
@@ -115,7 +118,7 @@ class MANAGED DexCache : public ObjectArray<Object> {
     }
   }
 
-  void SetResolvedMethod(uint32_t method_idx, Method* resolved)
+  void SetResolvedMethod(uint32_t method_idx, AbstractMethod* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedMethods()->Set(method_idx, resolved);
   }
@@ -132,47 +135,49 @@ class MANAGED DexCache : public ObjectArray<Object> {
 
   ObjectArray<String>* GetStrings() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
-  }
-  ObjectArray<Class>* GetResolvedTypes() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return static_cast<ObjectArray<Class>*>(GetNonNull(kResolvedTypes));
-  }
-  ObjectArray<Method>* GetResolvedMethods() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return static_cast<ObjectArray<Method>*>(GetNonNull(kResolvedMethods));
-  }
-  ObjectArray<Field>* GetResolvedFields() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return static_cast<ObjectArray<Field>*>(GetNonNull(kResolvedFields));
-  }
-  ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return static_cast<ObjectArray<StaticStorageBase>*>(GetNonNull(kInitializedStaticStorage));
+    return GetFieldObject< ObjectArray<String>* >(StringsOffset(), false);
   }
 
-  static size_t LengthAsArray() {
-    return kMax;
+  ObjectArray<Class>* GetResolvedTypes() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<Class>* >(
+        OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), false);
+  }
+
+  ObjectArray<AbstractMethod>* GetResolvedMethods() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<AbstractMethod>* >(ResolvedMethodsOffset(), false);
+  }
+
+  ObjectArray<Field>* GetResolvedFields() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<Field>* >(ResolvedFieldsOffset(), false);
+  }
+
+  ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetFieldObject< ObjectArray<StaticStorageBase>* >(
+        OFFSET_OF_OBJECT_MEMBER(DexCache, initialized_static_storage_), false);
+  }
+
+  const DexFile* GetDexFile() const {
+    return GetFieldPtr<const DexFile*>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), false);
+  }
+
+  void SetDexFile(const DexFile* dex_file) {
+    return SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file, false);
   }
 
  private:
-  enum ArrayIndex {
-    kLocation                 = 0,
-    kStrings                  = 1,
-    kResolvedTypes            = 2,
-    kResolvedMethods          = 3,
-    kResolvedFields           = 4,
-    kInitializedStaticStorage = 5,
-    kMax                      = 6,
-  };
+  ObjectArray<StaticStorageBase>* initialized_static_storage_;
+  String* location_;
+  ObjectArray<Object>* resolved_fields_;
+  ObjectArray<AbstractMethod>* resolved_methods_;
+  ObjectArray<Class>* resolved_types_;
+  ObjectArray<String>* strings_;
+  uint32_t dex_file_;
 
-  Object* GetNonNull(ArrayIndex array_index) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Object* obj = Get(array_index);
-    DCHECK(obj != NULL);
-    return obj;
-  }
-
+  friend struct DexCacheOffsets; // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 
