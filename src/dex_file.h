@@ -790,8 +790,6 @@ class DexFile {
     }
   }
 
-  void ChangePermissions(int prot) const;
-
   int GetPermissions() const {
     if (mem_map_.get() == NULL) {
       return 0;

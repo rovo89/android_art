@@ -2507,6 +2507,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
 
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
     if (clinit != NULL && !can_run_clinit) {
+      DCHECK_EQ(klass->GetStatus(), Class::kStatusVerified) << PrettyClass(klass);
       // if the class has a <clinit> but we can't run it during compilation,
       // don't bother going to kStatusInitializing. We return false so that
       // sub-classes don't believe this class is initialized.
@@ -2532,6 +2533,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
 
     if (!ValidateSuperClassDescriptors(klass)) {
       klass->SetStatus(Class::kStatusError);
+      lock.NotifyAll();
       return false;
     }
 
@@ -2552,6 +2554,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
     } else {
       CHECK(klass->IsErroneous());
     }
+    // Signal to any waiting threads that saw this class as initializing.
+    ObjectLock lock(klass);
+    lock.NotifyAll();
     return false;
   }
 
@@ -2615,6 +2620,10 @@ bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock&
     // Spurious wakeup? Go back to waiting.
     if (klass->GetStatus() == Class::kStatusInitializing) {
       continue;
+    }
+    if (klass->GetStatus() == Class::kStatusVerified && Runtime::Current()->IsCompiler()) {
+      // Compile time initialization failed.
+      return false;
     }
     if (klass->IsErroneous()) {
       // The caller wants an exception, but it was thrown in a

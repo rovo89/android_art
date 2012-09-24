@@ -227,19 +227,20 @@ class Compiler {
     return methods_to_patch_;
   }
 
+  // Checks if class specified by type_idx is one of the image_classes_
+  bool IsImageClass(const std::string& descriptor) const;
+
+  void RecordClassStatus(ClassReference ref, CompiledClass* compiled_class);
+
  private:
   // Compute constant code and method pointers when possible
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, AbstractMethod* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Checks if class specified by type_idx is one of the image_classes_
-  bool IsImageClass(const std::string& descriptor) const;
-
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                   TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void PostCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -250,18 +251,22 @@ class Compiler {
   void ResolveDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files);
-  void VerifyDexFile(jobject class_loader, const DexFile& dex_file)
+  void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+              TimingLogger& timings);
+  void VerifyDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void InitializeClassesWithoutClinit(jobject class_loader,
-                                      const std::vector<const DexFile*>& dex_files)
+                                      const std::vector<const DexFile*>& dex_files,
+                                      TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void InitializeClassesWithoutClinit(jobject class_loader, const DexFile& dex_file)
+  void InitializeClassesWithoutClinit(jobject class_loader, const DexFile& dex_file,
+                                      TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
-  void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files);
-  void CompileDexFile(jobject class_loader, const DexFile& dex_file)
+  void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+               TimingLogger& timings);
+  void CompileDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t method_idx,

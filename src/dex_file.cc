@@ -94,10 +94,6 @@ const DexFile* DexFile::Open(const std::string& filename,
   return DexFile::OpenFile(filename, location, true);
 }
 
-void DexFile::ChangePermissions(int prot) const {
-  CHECK(mem_map_->Protect(prot)) << GetLocation();
-}
-
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& location,
                                  bool verify) {
