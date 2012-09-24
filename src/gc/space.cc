@@ -72,7 +72,7 @@ size_t AllocSpace::bitmap_index_ = 0;
 
 AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                        byte* end, size_t growth_limit)
-    : MemMapSpace(name, mem_map, end - begin, GCRP_ALWAYS_COLLECT),
+    : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
       num_bytes_allocated_(0), num_objects_allocated_(0),
       lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
@@ -80,10 +80,9 @@ AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, b
 
   size_t bitmap_index = bitmap_index_++;
 
-  static const uintptr_t kGcCardSize = static_cast<uintptr_t>(GC_CARD_SIZE);
+  static const uintptr_t kGcCardSize = static_cast<uintptr_t>(CardTable::kCardSize);
   CHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % kGcCardSize == 0);
   CHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % kGcCardSize == 0);
-
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("allocspace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
@@ -239,8 +238,8 @@ void AllocSpace::SetGrowthLimit(size_t growth_limit) {
 
 AllocSpace* AllocSpace::CreateZygoteSpace() {
   end_ = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(end_), kPageSize));
-  DCHECK(IsAligned<GC_CARD_SIZE>(begin_));
-  DCHECK(IsAligned<GC_CARD_SIZE>(end_));
+  DCHECK(IsAligned<CardTable::kCardSize>(begin_));
+  DCHECK(IsAligned<CardTable::kCardSize>(end_));
   DCHECK(IsAligned<kPageSize>(begin_));
   DCHECK(IsAligned<kPageSize>(end_));
   size_t size = RoundUp(Size(), kPageSize);
@@ -254,11 +253,11 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   // Remaining size is for the new alloc space.
   const size_t growth_limit = growth_limit_ - size;
   const size_t capacity = Capacity() - size;
-  VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_);
-  VLOG(heap) << "End " << reinterpret_cast<const void*>(end_);
-  VLOG(heap) << "Size " << size;
-  VLOG(heap) << "GrowthLimit " << growth_limit_;
-  VLOG(heap) << "Capacity " << Capacity();
+  VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_) << "\n"
+             << "End " << reinterpret_cast<const void*>(end_) << "\n"
+             << "Size " << size << "\n"
+             << "GrowthLimit " << growth_limit_ << "\n"
+             << "Capacity " << Capacity();
   SetGrowthLimit(RoundUp(size, kPageSize));
   SetFootprintLimit(RoundUp(size, kPageSize));
   // FIXME: Do we need reference counted pointers here?
@@ -417,7 +416,7 @@ void AllocSpace::SetFootprintLimit(size_t new_size) {
 size_t ImageSpace::bitmap_index_ = 0;
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
-    : MemMapSpace(name, mem_map, mem_map->Size(), GCRP_NEVER_COLLECT) {
+    : MemMapSpace(name, mem_map, mem_map->Size(), kGcRetentionPolicyNeverCollect) {
   const size_t bitmap_index = bitmap_index_++;
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("imagespace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
@@ -552,7 +551,7 @@ DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
 }
 
 LargeObjectSpace::LargeObjectSpace(const std::string& name)
-    : DiscontinuousSpace(name, GCRP_ALWAYS_COLLECT),
+    : DiscontinuousSpace(name, kGcRetentionPolicyAlwaysCollect),
       num_bytes_allocated_(0),
       num_objects_allocated_(0) {
   live_objects_.reset(new SpaceSetMap("large live objects"));

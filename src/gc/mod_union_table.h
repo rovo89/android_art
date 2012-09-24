@@ -33,7 +33,7 @@ class ModUnionTable {
   typedef std::vector<const Object*> ReferenceArray;
   typedef std::set<byte*> ClearedCards;
 
-  ModUnionTable(Heap* heap) : heap_(heap), mark_sweep_(0) {
+  ModUnionTable(Heap* heap) : heap_(heap) {
 
   }
 
@@ -48,7 +48,7 @@ class ModUnionTable {
   virtual void Update() = 0;
 
   // Mark all references which are stored in the mod union table.
-  virtual void MarkReferences() = 0;
+  virtual void MarkReferences(MarkSweep* mark_sweep) = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
   // for said cards. Exclusive lock is required since verify sometimes uses
@@ -56,22 +56,12 @@ class ModUnionTable {
   // bitmap or not.
   virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) = 0;
 
-  // Should probably clean this up later.
-  void Init(MarkSweep* mark_sweep) {
-    mark_sweep_ = mark_sweep;
-  }
-
-  MarkSweep* GetMarkSweep() {
-    return mark_sweep_;
-  }
-
   Heap* GetHeap() {
     return heap_;
   }
 
  protected:
   Heap* heap_;
-  MarkSweep* mark_sweep_;
 };
 
 // Bitmap implementation.
@@ -90,7 +80,7 @@ class ModUnionTableBitmap : public ModUnionTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void MarkReferences(MarkSweep* mark_sweep) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
  protected:
   // Cleared card array, used to update the mod-union table.
@@ -119,7 +109,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void MarkReferences(MarkSweep* mark_sweep) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.
@@ -151,7 +141,7 @@ class ModUnionTableCardCache : public ModUnionTable {
   void Update() {}
 
   // Mark all references to the alloc space(s).
-  void MarkReferences()
+  void MarkReferences(MarkSweep* mark_sweep)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -170,7 +160,7 @@ public:
   }
 
   bool AddReference(const Object* /* obj */, const Object* ref) {
-    const Spaces& spaces = Implementation::GetMarkSweep()->GetHeap()->GetSpaces();
+    const Spaces& spaces = Implementation::GetHeap()->GetSpaces();
     for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
       if ((*it)->Contains(ref)) {
         return (*it)->IsAllocSpace();
@@ -189,10 +179,10 @@ public:
   }
 
   bool AddReference(const Object* /* obj */, const Object* ref) {
-    const Spaces& spaces = Implementation::GetMarkSweep()->GetHeap()->GetSpaces();
+    const Spaces& spaces = Implementation::GetHeap()->GetSpaces();
     for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
       if ((*it)->Contains(ref)) {
-        return (*it)->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT;
+        return (*it)->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect;
       }
     }
     if (ref != NULL) {

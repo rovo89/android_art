@@ -21,12 +21,12 @@
 #include <string>
 #include <vector>
 
-#include "atomic_stack.h"
 #include "atomic_integer.h"
-#include "card_table.h"
+#include "gc/atomic_stack.h"
+#include "gc/card_table.h"
+#include "gc/heap_bitmap.h"
 #include "globals.h"
 #include "gtest/gtest.h"
-#include "heap_bitmap.h"
 #include "locks.h"
 #include "offsets.h"
 #include "safe_map.h"
@@ -45,6 +45,7 @@ class ConditionVariable;
 class HeapBitmap;
 class ImageSpace;
 class LargeObjectSpace;
+class MarkSweep;
 class ModUnionTable;
 class Mutex;
 class Object;
@@ -282,7 +283,7 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Update and mark mod union table based on gc type.
-  void UpdateAndMarkModUnion(TimingLogger& timings, GcType gc_type)
+  void UpdateAndMarkModUnion(MarkSweep* mark_sweep, TimingLogger& timings, GcType gc_type)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
@@ -316,7 +317,8 @@ class Heap {
   void RequestConcurrentGC(Thread* self);
 
   // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
-  void SwapBitmaps(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void SwapBitmaps(Thread* self, GcType gc_type);
+  void SwapLargeObjects(Thread* self);
 
   void RecordAllocation(size_t size, Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
@@ -357,6 +359,9 @@ class Heap {
 
   // Swap the allocation stack with the live stack.
   void SwapStacks();
+
+  // Clear cards and update the mod union table.
+  void ClearCards(TimingLogger& timings);
 
   Spaces spaces_;
 

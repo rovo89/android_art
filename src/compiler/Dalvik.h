@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "card_table.h"
+#include "gc/card_table.h"
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"

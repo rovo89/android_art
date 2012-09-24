@@ -19,11 +19,11 @@
 
 #include <string>
 
+#include "../mutex.h"
 #include "UniquePtr.h"
 #include "globals.h"
 #include "image.h"
 #include "macros.h"
-#include "mutex.h"
 #include "dlmalloc.h"
 #include "mem_map.h"
 
@@ -36,9 +36,9 @@ class Object;
 class SpaceBitmap;
 
 enum GcRetentionPolicy {
-  GCRP_NEVER_COLLECT,
-  GCRP_ALWAYS_COLLECT,
-  GCRP_FULL_COLLECT,
+  kGcRetentionPolicyNeverCollect,
+  kGcRetentionPolicyAlwaysCollect,
+  kGcRetentionPolicyFullCollect, // Collect only for full GC
 };
 std::ostream& operator<<(std::ostream& os, const GcRetentionPolicy& policy);
 
@@ -319,6 +319,7 @@ class AllocSpace : public MemMapSpace {
 
   UniquePtr<SpaceBitmap> live_bitmap_;
   UniquePtr<SpaceBitmap> mark_bitmap_;
+  UniquePtr<SpaceBitmap> temp_bitmap_;
 
   // Approximate number of bytes which have been allocated into the space.
   size_t num_bytes_allocated_;
@@ -350,6 +351,8 @@ class AllocSpace : public MemMapSpace {
   // however, capacity normally can't vary. In the case of the growth_limit_ it can be cleared
   // one time by a call to ClearGrowthLimit.
   size_t growth_limit_;
+
+  friend class MarkSweep;
 
   DISALLOW_COPY_AND_ASSIGN(AllocSpace);
 };
@@ -451,6 +454,7 @@ class LargeObjectSpace : public DiscontinuousSpace {
   }
 
  protected:
+
   LargeObjectSpace(const std::string& name);
 
   // Approximate number of bytes which have been allocated into the space.

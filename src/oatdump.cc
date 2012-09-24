@@ -33,7 +33,7 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "space.h"
+#include "gc/space.h"
 #include "stringpiece.h"
 #include "gc_map.h"
 

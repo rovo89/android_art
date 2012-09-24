@@ -280,7 +280,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
   newLIR2(cUnit, kX86Mov32RT, regCardBase,
           Thread::CardTableOffset().Int32Value());
 #endif
-  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
+  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
   storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);

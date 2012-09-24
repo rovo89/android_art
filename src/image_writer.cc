@@ -37,7 +37,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "space.h"
+#include "gc/space.h"
 #include "UniquePtr.h"
 #include "utils.h"
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef DALVIK_ALLOC_CARDTABLE_H_
-#define DALVIK_ALLOC_CARDTABLE_H_
+#ifndef ART_SRC_GC_CARDTABLE_H_
+#define ART_SRC_GC_CARDTABLE_H_
 
 #include "globals.h"
 #include "logging.h"
@@ -30,38 +30,38 @@ class ContinuousSpace;
 class SpaceBitmap;
 class Object;
 
-#define GC_CARD_SHIFT 7
-#define GC_CARD_SIZE (1 << GC_CARD_SHIFT)
-#define GC_CARD_CLEAN 0
-#define GC_CARD_DIRTY 0x70
-
 // Maintain a card table from the the write barrier. All writes of
 // non-NULL values to heap addresses should go through an entry in
 // WriteBarrier, and from there to here.
 class CardTable {
  public:
+  static const size_t kCardShift = 7;
+  static const size_t kCardSize = (1 << kCardShift);
+  static const uint8_t kCardClean  = 0x0;
+  static const uint8_t kCardDirty = 0x70;
+
   static CardTable* Create(const byte* heap_begin, size_t heap_capacity);
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
   void MarkCard(const void *addr) {
     byte* card_addr = CardFromAddr(addr);
-    *card_addr = GC_CARD_DIRTY;
+    *card_addr = kCardDirty;
   }
 
   // Is the object on a dirty card?
   bool IsDirty(const Object* obj) const {
-    return *CardFromAddr(obj) == GC_CARD_DIRTY;
+    return *CardFromAddr(obj) == kCardDirty;
   }
 
-  // Visit cards within memory range.
+  // Visit and clear cards within memory range, only visits dirty cards.
   template <typename Visitor>
   void VisitClear(const void* start, const void* end, const Visitor& visitor) {
     byte* card_start = CardFromAddr(start);
     byte* card_end = CardFromAddr(end);
-    for (byte* cur = card_start; cur != card_end; ++cur) {
-      if (*cur == GC_CARD_DIRTY) {
-        *cur = GC_CARD_CLEAN;
-        visitor(cur);
+    for (byte* it = card_start; it != card_end; ++it) {
+      if (*it == kCardDirty) {
+        *it = kCardClean;
+        visitor(it);
       }
     }
   }
@@ -84,13 +84,13 @@ class CardTable {
     byte* card_end = CardFromAddr(scan_end);
     while (card_cur < card_end) {
       // Find the first dirty card.
-      card_cur = reinterpret_cast<byte*>(memchr(card_cur, GC_CARD_DIRTY, card_end - card_cur));
+      card_cur = reinterpret_cast<byte*>(memchr(card_cur, kCardDirty, card_end - card_cur));
       if (card_cur == NULL) {
         break;
       }
       byte* run_start = card_cur++;
 
-      while (*card_cur == GC_CARD_DIRTY && card_cur < card_end) {
+      while (*card_cur == kCardDirty && card_cur < card_end) {
         card_cur++;
       }
       byte* run_end = card_cur;
@@ -123,17 +123,19 @@ class CardTable {
       << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
       << " end: " << reinterpret_cast<void*>(mem_map_->End());
     uintptr_t offset = card_addr - biased_begin_;
-    return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
+    return reinterpret_cast<void*>(offset << kCardShift);
   }
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
-    byte *card_addr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
+    byte *card_addr = biased_begin_ + ((uintptr_t)addr >> kCardShift);
     // Sanity check the caller was asking for address covered by the card table
     DCHECK(IsValidCard(card_addr)) << "addr: " << addr
         << " card_addr: " << reinterpret_cast<void*>(card_addr);
     return card_addr;
   }
+
+  bool AddrIsInCardTable(const void* addr) const;
 
  private:
   CardTable(MemMap* begin, byte* biased_begin, size_t offset);

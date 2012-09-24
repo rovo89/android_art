@@ -44,6 +44,9 @@ class MarkSweep {
   // Initializes internal structures.
   void Init();
 
+  // Find the default mark bitmap.
+  void FindDefaultMarkBitmap();
+
   // Marks the root set at the start of a garbage collection.
   void MarkRoots()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -59,6 +62,13 @@ class MarkSweep {
 
   // Copies mark bits from live bitmap of ZygoteSpace to mark bitmap for partial GCs.
   void CopyMarkBits(ContinuousSpace* space);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void BindLiveToMarkBitmap(ContinuousSpace* space)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void UnBindBitmaps()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Builds a mark stack with objects on dirty cards and recursively mark
   // until it empties.
@@ -138,7 +148,11 @@ class MarkSweep {
     immune_end_ = end;
   }
 
-  void SweepSystemWeaks(bool swap_bitmaps)
+  void SweepSystemWeaks()
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Only sweep the weaks which are inside of an allocation stack.
+  void SweepSystemWeaksArray(ObjectStack* allocations)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static bool VerifyIsLiveCallback(const Object* obj, void* arg)
@@ -168,19 +182,12 @@ class MarkSweep {
 
  private:
   // Returns true if the object has its bit set in the mark bitmap.
-  bool IsMarked(const Object* object) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    DCHECK(current_mark_bitmap_ != NULL);
-    if (current_mark_bitmap_->HasAddress(object)) {
-      return current_mark_bitmap_->Test(object);
-    }
-    return heap_->GetMarkBitmap()->Test(object);
-  }
+  bool IsMarked(const Object* object) const;
 
   static bool IsMarkedCallback(const Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static bool IsLiveCallback(const Object* object, void* arg)
+  static bool IsMarkedArrayCallback(const Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void MarkObjectVisitor(const Object* root, void* arg)
@@ -363,7 +370,7 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepJniWeakGlobals(bool swap_bitmaps)
+  void SweepJniWeakGlobals(Heap::IsMarkedTester is_marked, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Current space, we check this space first to avoid searching for the appropriate space for an object.

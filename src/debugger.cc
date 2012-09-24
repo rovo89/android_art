@@ -32,7 +32,7 @@
 #include "ScopedPrimitiveArray.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "space.h"
+#include "gc/space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "well_known_classes.h"

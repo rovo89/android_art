@@ -41,7 +41,7 @@
 #include "signal_catcher.h"
 #include "signal_set.h"
 #include "sirt_ref.h"
-#include "space.h"
+#include "gc/space.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"

@@ -164,7 +164,6 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
-	src/card_table.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/common_throws.cc \
@@ -182,8 +181,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/dlmalloc.cc \
 	src/file.cc \
 	src/file_linux.cc \
+	src/gc/card_table.cc \
+	src/gc/heap_bitmap.cc \
+	src/gc/mark_sweep.cc \
+	src/gc/mod_union_table.cc \
+	src/gc/space.cc \
+	src/gc/space_bitmap.cc \
 	src/heap.cc \
-	src/heap_bitmap.cc \
 	src/hprof/hprof.cc \
 	src/image.cc \
 	src/image_writer.cc \
@@ -198,10 +202,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/jobject_comparator.cc \
 	src/locks.cc \
 	src/logging.cc \
-	src/mark_sweep.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
-	src/mod_union_table.cc \
 	src/monitor.cc \
 	src/mutex.cc \
 	src/native/dalvik_system_DexFile.cc \
@@ -248,8 +250,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/runtime.cc \
 	src/runtime_support.cc \
 	src/signal_catcher.cc \
-	src/space.cc \
-	src/space_bitmap.cc \
 	src/stack.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
@@ -373,6 +373,7 @@ endif # HOST_ARCH != x86
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/dex_instruction.h \
+	src/gc/space.h \
 	src/heap.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
@@ -383,7 +384,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/mutex.h \
 	src/object.h \
 	src/thread.h \
-	src/space.h \
 	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
@@ -398,6 +398,8 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_instruction_visitor_test.cc \
 	src/exception_test.cc \
 	src/file_test.cc \
+	src/gc/space_bitmap_test.cc \
+	src/gc/space_test.cc \
 	src/gtest_test.cc \
 	src/heap_test.cc \
 	src/image_test.cc \
@@ -413,8 +415,6 @@ TEST_COMMON_SRC_FILES := \
 	src/reference_table_test.cc \
 	src/runtime_support_test.cc \
 	src/runtime_test.cc \
-	src/space_bitmap_test.cc \
-	src/space_test.cc \
 	src/utils_test.cc \
 	src/zip_archive_test.cc \
 	src/verifier/method_verifier_test.cc \

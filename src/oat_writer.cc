@@ -24,7 +24,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "space.h"
+#include "gc/space.h"
 #include "stl_util.h"
 #include "verifier/method_verifier.h"
 

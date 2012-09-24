@@ -26,8 +26,8 @@ namespace art {
 
 class MarkIfReachesAllocspaceVisitor {
  public:
-  explicit MarkIfReachesAllocspaceVisitor(MarkSweep* const mark_sweep, SpaceBitmap* bitmap)
-    : mark_sweep_(mark_sweep),
+  explicit MarkIfReachesAllocspaceVisitor(Heap* const heap, SpaceBitmap* bitmap)
+    : heap_(heap),
       bitmap_(bitmap) {
   }
 
@@ -35,7 +35,7 @@ class MarkIfReachesAllocspaceVisitor {
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */, bool /* is_static */) const {
     // TODO: Optimize?
     // TODO: C++0x auto
-    const Spaces& spaces = mark_sweep_->heap_->GetSpaces();
+    const Spaces& spaces = heap_->GetSpaces();
     for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       if ((*cur)->IsAllocSpace() && (*cur)->Contains(ref)) {
         bitmap_->Set(obj);
@@ -45,14 +45,14 @@ class MarkIfReachesAllocspaceVisitor {
   }
 
  private:
-  MarkSweep* const mark_sweep_;
+  Heap* const heap_;
   SpaceBitmap* bitmap_;
 };
 
 class ModUnionVisitor {
  public:
-  explicit ModUnionVisitor(MarkSweep* const mark_sweep, SpaceBitmap* bitmap)
-    : mark_sweep_(mark_sweep),
+  explicit ModUnionVisitor(Heap* const heap, SpaceBitmap* bitmap)
+    : heap_(heap),
       bitmap_(bitmap) {
   }
 
@@ -60,13 +60,13 @@ class ModUnionVisitor {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_) {
     DCHECK(obj != NULL);
-    // We don't have an early exit since we use the visitor pattern, an early
-    // exit should significantly speed this up.
-    MarkIfReachesAllocspaceVisitor visitor(mark_sweep_, bitmap_);
-    mark_sweep_->VisitObjectReferences(obj, visitor);
+    // We don't have an early exit since we use the visitor pattern, an early exit should
+    // significantly speed this up.
+    MarkIfReachesAllocspaceVisitor visitor(heap_, bitmap_);
+    MarkSweep::VisitObjectReferences(obj, visitor);
   }
  private:
-  MarkSweep* const mark_sweep_;
+  Heap* const heap_;
   SpaceBitmap* bitmap_;
 };
 
@@ -100,7 +100,7 @@ ModUnionTableBitmap::ModUnionTableBitmap(Heap* heap) : ModUnionTable(heap)  {
   // Prevent fragmentation of the heap which is caused by resizing of the vector.
   // TODO: Make a new vector which uses madvise (basically same as a mark stack).
   cleared_cards_.reserve(32);
-  const Spaces& spaces = mark_sweep_->GetHeap()->GetSpaces();
+  const Spaces& spaces = heap->GetSpaces();
   // Create one heap bitmap per image space.
   // TODO: C++0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
@@ -121,20 +121,20 @@ ModUnionTableBitmap::~ModUnionTableBitmap() {
 }
 
 void ModUnionTableBitmap::ClearCards(ContinuousSpace* space) {
-  CardTable* card_table = mark_sweep_->heap_->GetCardTable();
+  CardTable* card_table = heap_->GetCardTable();
   ModUnionClearCardVisitor visitor(&cleared_cards_);
   // Clear dirty cards in the this image space and update the corresponding mod-union bits.
   card_table->VisitClear(space->Begin(), space->End(), visitor);
 }
 
 void ModUnionTableBitmap::Update() {
-  CardTable* card_table = mark_sweep_->heap_->GetCardTable();
+  CardTable* card_table = heap_->GetCardTable();
   while (!cleared_cards_.empty()) {
     byte* card = cleared_cards_.back();
     cleared_cards_.pop_back();
 
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-    uintptr_t end = start + GC_CARD_SIZE;
+    uintptr_t end = start + CardTable::kCardSize;
     ContinuousSpace* space = heap_->FindSpaceFromObject(reinterpret_cast<Object*>(start));
     SpaceBitmap* bitmap = space->GetLiveBitmap();
 
@@ -144,7 +144,7 @@ void ModUnionTableBitmap::Update() {
 
     // At this point we need to update the mod-union bitmap to contain all the objects which reach
     // the alloc space.
-    ModUnionVisitor visitor(mark_sweep_, bitmap);
+    ModUnionVisitor visitor(heap_, bitmap);
     space->GetLiveBitmap()->VisitMarkedRange(start, end, visitor, IdentityFunctor());
   }
 }
@@ -165,14 +165,14 @@ class ModUnionScanImageRootVisitor {
   MarkSweep* const mark_sweep_;
 };
 
-void ModUnionTableBitmap::MarkReferences() {
+void ModUnionTableBitmap::MarkReferences(MarkSweep* mark_sweep) {
   // Some tests have no image space, and therefore no mod-union bitmap.
-  ModUnionScanImageRootVisitor image_root_scanner(GetMarkSweep());
-  for (BitmapMap::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
-    const ContinuousSpace* space = cur->first;
+  ModUnionScanImageRootVisitor image_root_scanner(mark_sweep);
+  for (BitmapMap::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+    const ContinuousSpace* space = it->first;
     uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
     uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
-    cur->second->VisitMarkedRange(begin, end, image_root_scanner, IdentityFunctor());
+    it->second->VisitMarkedRange(begin, end, image_root_scanner, IdentityFunctor());
   }
 }
 
@@ -185,9 +185,8 @@ ModUnionTableReferenceCache::~ModUnionTableReferenceCache() {
 
 }
 
-
 void ModUnionTableReferenceCache::ClearCards(ContinuousSpace* space) {
-  CardTable* card_table = GetMarkSweep()->GetHeap()->GetCardTable();
+  CardTable* card_table = GetHeap()->GetCardTable();
   ModUnionClearCardSetVisitor visitor(&cleared_cards_);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
   card_table->VisitClear(space->Begin(), space->End(), visitor);
@@ -232,7 +231,7 @@ class ModUnionReferenceVisitor {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_, references_);
-    mod_union_table_->GetMarkSweep()->VisitObjectReferences(obj, visitor);
+    MarkSweep::VisitObjectReferences(obj, visitor);
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
@@ -255,7 +254,7 @@ class CheckReferenceVisitor {
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
                      bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    Heap* heap = mod_union_table_->GetMarkSweep()->GetHeap();
+    Heap* heap = mod_union_table_->GetHeap();
     if (mod_union_table_->AddReference(obj, ref) && references_.find(ref) == references_.end()) {
       ContinuousSpace* from_space = heap->FindSpaceFromObject(obj);
       ContinuousSpace* to_space = heap->FindSpaceFromObject(ref);
@@ -288,9 +287,8 @@ class ModUnionCheckReferences {
   void operator ()(Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     DCHECK(obj != NULL);
-    MarkSweep* mark_sweep = mod_union_table_->GetMarkSweep();
     CheckReferenceVisitor visitor(mod_union_table_, references_);
-    mark_sweep->VisitObjectReferences(obj, visitor);
+    MarkSweep::VisitObjectReferences(obj, visitor);
   }
 
  private:
@@ -300,7 +298,7 @@ class ModUnionCheckReferences {
 
 void ModUnionTableReferenceCache::Verify() {
   // Start by checking that everything in the mod union table is marked.
-  Heap* heap = GetMarkSweep()->GetHeap();
+  Heap* heap = GetHeap();
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
     for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
       DCHECK(heap->GetLiveBitmap()->Test(*it_ref));
@@ -310,7 +308,7 @@ void ModUnionTableReferenceCache::Verify() {
   // Check the references of each clean card which is also in the mod union table.
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
     const byte* card = &*it->first;
-    if (*card == GC_CARD_CLEAN) {
+    if (*card == CardTable::kCardClean) {
       std::set<const Object*> reference_set;
       for (ReferenceArray::const_iterator itr = it->second.begin(); itr != it->second.end();++itr) {
         reference_set.insert(*itr);
@@ -318,7 +316,7 @@ void ModUnionTableReferenceCache::Verify() {
       ModUnionCheckReferences visitor(this, reference_set);
       CardTable* card_table = heap->GetCardTable();
       uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-      uintptr_t end = start + GC_CARD_SIZE;
+      uintptr_t end = start + CardTable::kCardSize;
       SpaceBitmap* live_bitmap =
               heap->FindSpaceFromObject(reinterpret_cast<Object*>(start))->GetLiveBitmap();
       live_bitmap->VisitMarkedRange(start, end, visitor, IdentityFunctor());
@@ -327,7 +325,7 @@ void ModUnionTableReferenceCache::Verify() {
 }
 
 void ModUnionTableReferenceCache::Update() {
-  Heap* heap = GetMarkSweep()->GetHeap();
+  Heap* heap = GetHeap();
   CardTable* card_table = heap->GetCardTable();
 
   ReferenceArray cards_references;
@@ -338,7 +336,7 @@ void ModUnionTableReferenceCache::Update() {
     // Clear and re-compute alloc space references associated with this card.
     cards_references.clear();
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-    uintptr_t end = start + GC_CARD_SIZE;
+    uintptr_t end = start + CardTable::kCardSize;
     SpaceBitmap* live_bitmap =
         heap->FindSpaceFromObject(reinterpret_cast<Object*>(start))->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, visitor, IdentityFunctor());
@@ -359,8 +357,7 @@ void ModUnionTableReferenceCache::Update() {
   cleared_cards_.clear();
 }
 
-void ModUnionTableReferenceCache::MarkReferences() {
-  MarkSweep* mark_sweep = GetMarkSweep();
+void ModUnionTableReferenceCache::MarkReferences(MarkSweep* mark_sweep) {
   // TODO: C++0x auto
   size_t count = 0;
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
@@ -383,20 +380,20 @@ ModUnionTableCardCache::~ModUnionTableCardCache() {
 }
 
 void ModUnionTableCardCache::ClearCards(ContinuousSpace* space) {
-  CardTable* card_table = GetMarkSweep()->GetHeap()->GetCardTable();
+  CardTable* card_table = GetHeap()->GetCardTable();
   ModUnionClearCardSetVisitor visitor(&cleared_cards_);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
   card_table->VisitClear(space->Begin(), space->End(), visitor);
 }
 
 // Mark all references to the alloc space(s).
-void ModUnionTableCardCache::MarkReferences() {
+void ModUnionTableCardCache::MarkReferences(MarkSweep* mark_sweep) {
   CardTable* card_table = heap_->GetCardTable();
-  ModUnionScanImageRootVisitor visitor(GetMarkSweep());
+  ModUnionScanImageRootVisitor visitor(mark_sweep);
   for (ClearedCards::const_iterator it = cleared_cards_.begin(); it != cleared_cards_.end(); ++it) {
     byte* card = *it;
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
-    uintptr_t end = start + GC_CARD_SIZE;
+    uintptr_t end = start + CardTable::kCardSize;
     SpaceBitmap* live_bitmap =
         heap_->FindSpaceFromObject(reinterpret_cast<Object*>(start))->GetLiveBitmap();
     live_bitmap->VisitMarkedRange(start, end, visitor, IdentityFunctor());

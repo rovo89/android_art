@@ -27,7 +27,7 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "space.h"
+#include "gc/space.h"
 #include "toStringArray.h"
 #include "zip_archive.h"
 

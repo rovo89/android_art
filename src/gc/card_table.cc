@@ -50,7 +50,7 @@ namespace art {
 
 CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   /* Set up the card table */
-  size_t capacity = heap_capacity / GC_CARD_SIZE;
+  size_t capacity = heap_capacity / kCardSize;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous("dalvik-card-table", NULL,
                                                  capacity + 256, PROT_READ | PROT_WRITE));
@@ -61,7 +61,7 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   }
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
-  CHECK_EQ(GC_CARD_CLEAN, 0);
+  COMPILE_ASSERT(kCardClean == 0, card_clean_must_be_0);
 
   byte* cardtable_begin = mem_map->Begin();
   CHECK(cardtable_begin != NULL);
@@ -70,13 +70,13 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   // GC_CARD_DIRTY, compute a offset value to make this the case
   size_t offset = 0;
   byte* biased_begin = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(cardtable_begin) -
-      (reinterpret_cast<uintptr_t>(heap_begin) >> GC_CARD_SHIFT));
-  if (((uintptr_t)biased_begin & 0xff) != GC_CARD_DIRTY) {
-    int delta = GC_CARD_DIRTY - (reinterpret_cast<int>(biased_begin) & 0xff);
+      (reinterpret_cast<uintptr_t>(heap_begin) >> kCardShift));
+  if (((uintptr_t)biased_begin & 0xff) != kCardDirty) {
+    int delta = kCardDirty - (reinterpret_cast<int>(biased_begin) & 0xff);
     offset = delta + (delta < 0 ? 0x100 : 0);
     biased_begin += offset;
   }
-  CHECK_EQ(reinterpret_cast<int>(biased_begin) & 0xff, GC_CARD_DIRTY);
+  CHECK_EQ(reinterpret_cast<int>(biased_begin) & 0xff, kCardDirty);
 
   return new CardTable(mem_map.release(), biased_begin, offset);
 }
@@ -92,20 +92,20 @@ void CardTable::ClearSpaceCards(ContinuousSpace* space) {
   // TODO: clear just the range of the table that has been modified
   byte* card_start = CardFromAddr(space->Begin());
   byte* card_end = CardFromAddr(space->End()); // Make sure to round up.
-  memset(reinterpret_cast<void*>(card_start), GC_CARD_CLEAN, card_end - card_start);
+  memset(reinterpret_cast<void*>(card_start), kCardClean, card_end - card_start);
 }
 
 void CardTable::ClearCardTable() {
   // TODO: clear just the range of the table that has been modified
-  memset(mem_map_->Begin(), GC_CARD_CLEAN, mem_map_->Size());
+  memset(mem_map_->Begin(), kCardClean, mem_map_->Size());
 }
 
 void CardTable::PreClearCards(ContinuousSpace* space, std::vector<byte*>& out_cards) {
   byte* card_end = CardFromAddr(space->End());
   for (byte* card_cur = CardFromAddr(space->Begin()); card_cur < card_end; ++card_cur) {
-    if (*card_cur == GC_CARD_DIRTY) {
+    if (*card_cur == kCardDirty) {
       out_cards.push_back(card_cur);
-      *card_cur = GC_CARD_CLEAN;
+      *card_cur = kCardClean;
     }
   }
 }
@@ -113,22 +113,28 @@ void CardTable::PreClearCards(ContinuousSpace* space, std::vector<byte*>& out_ca
 void CardTable::GetDirtyCards(ContinuousSpace* space, std::vector<byte*>& out_cards) const {
   byte* card_end = CardFromAddr(space->End());
   for (byte* card_cur = CardFromAddr(space->Begin());card_cur < card_end; ++card_cur) {
-    if (*card_cur == GC_CARD_DIRTY) {
+    if (*card_cur == kCardDirty) {
       out_cards.push_back(card_cur);
     }
   }
 }
 
+bool CardTable::AddrIsInCardTable(const void* addr) const {
+  return IsValidCard(biased_begin_ + ((uintptr_t)addr >> kCardShift));
+}
+
 void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
-  byte* card_addr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
-  if (!IsValidCard(card_addr)) {
-    byte* begin = mem_map_->Begin() + offset_;
-    byte* end = mem_map_->End();
-    LOG(FATAL) << "Cardtable - begin: " << reinterpret_cast<void*>(begin)
-               << " end: " << reinterpret_cast<void*>(end)
-               << " addr: " << reinterpret_cast<const void*>(addr)
-               << " card_addr: " << reinterpret_cast<void*>(card_addr);
-  }
+  byte* card_addr = biased_begin_ + ((uintptr_t)addr >> kCardShift);
+  byte* begin = mem_map_->Begin() + offset_;
+  byte* end = mem_map_->End();
+  CHECK(AddrIsInCardTable(addr))
+      << "Card table " << this
+      << " begin: " << reinterpret_cast<void*>(begin)
+      << " end: " << reinterpret_cast<void*>(end)
+      << " card_addr: " << reinterpret_cast<void*>(card_addr)
+      << " heap begin: " << AddrFromCard(begin)
+      << " heap end: " << AddrFromCard(end)
+      << " addr: " << reinterpret_cast<const void*>(addr);
 }
 
 void CardTable::VerifyCardTable() {

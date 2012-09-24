@@ -30,7 +30,7 @@
 #include "oat/runtime/stub.h"
 #include "object_utils.h"
 #include "runtime.h"
-#include "space.h"
+#include "gc/space.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "stl_util.h"

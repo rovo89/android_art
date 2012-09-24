@@ -22,7 +22,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
-#include "space.h"
+#include "gc/space.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "toStringArray.h"

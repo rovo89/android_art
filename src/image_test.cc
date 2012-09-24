@@ -23,7 +23,7 @@
 #include "image_writer.h"
 #include "oat_writer.h"
 #include "signal_catcher.h"
-#include "space.h"
+#include "gc/space.h"
 #include "utils.h"
 
 namespace art {
