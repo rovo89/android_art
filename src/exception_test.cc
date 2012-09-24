@@ -53,12 +53,18 @@ class ExceptionTest : public CommonTest {
 
     fake_vmap_table_data_.push_back(0);
 
+    fake_gc_map_.push_back(0);  // 0 bytes to encode references and native pc offsets.
+    fake_gc_map_.push_back(0);
+    fake_gc_map_.push_back(0);  // 0 entries.
+    fake_gc_map_.push_back(0);
+
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_f_->SetMappingTable(&fake_mapping_data_[0]);
     method_f_->SetVmapTable(&fake_vmap_table_data_[0]);
+    method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
@@ -66,6 +72,7 @@ class ExceptionTest : public CommonTest {
     method_g_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_g_->SetMappingTable(&fake_mapping_data_[0]);
     method_g_->SetVmapTable(&fake_vmap_table_data_[0]);
+    method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
 
   const DexFile* dex_;
@@ -73,6 +80,7 @@ class ExceptionTest : public CommonTest {
   std::vector<uint8_t> fake_code_;
   std::vector<uint32_t> fake_mapping_data_;
   std::vector<uint16_t> fake_vmap_table_data_;
+  std::vector<uint8_t> fake_gc_map_;
 
   AbstractMethod* method_f_;
   AbstractMethod* method_g_;
