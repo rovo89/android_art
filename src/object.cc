@@ -115,6 +115,51 @@ void Object::Wait(int64_t ms, int32_t ns) {
   Monitor::Wait(Thread::Current(), this, ms, ns, true);
 }
 
+#if VERIFY_OBJECT_ENABLED
+void Object::CheckFieldAssignment(MemberOffset field_offset, const Object* new_value) {
+  const Class* c = GetClass();
+  if (Runtime::Current()->GetClassLinker() == NULL ||
+      !Runtime::Current()->GetHeap()->IsObjectValidationEnabled() ||
+      !c->IsResolved()) {
+    return;
+  }
+  for (const Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
+    ObjectArray<Field>* fields = cur->GetIFields();
+    if (fields != NULL) {
+      size_t num_ref_ifields = cur->NumReferenceInstanceFields();
+      for (size_t i = 0; i < num_ref_ifields; ++i) {
+        Field* field = fields->Get(i);
+        if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+          FieldHelper fh(field);
+          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          return;
+        }
+      }
+    }
+  }
+  if (c->IsArrayClass()) {
+    // Bounds and assign-ability done in the array setter.
+    return;
+  }
+  if (IsClass()) {
+    ObjectArray<Field>* fields = AsClass()->GetSFields();
+    if (fields != NULL) {
+      size_t num_ref_sfields = AsClass()->NumReferenceStaticFields();
+      for (size_t i = 0; i < num_ref_sfields; ++i) {
+        Field* field = fields->Get(i);
+        if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+          FieldHelper fh(field);
+          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          return;
+        }
+      }
+    }
+  }
+  LOG(FATAL) << "Failed to find field for assignment to " << reinterpret_cast<void*>(this)
+      << " of type " << PrettyDescriptor(c) << " at offset " << field_offset;
+}
+#endif
+
 // TODO: get global references for these
 Class* Field::java_lang_reflect_Field_ = NULL;
 

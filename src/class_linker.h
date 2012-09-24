@@ -334,6 +334,11 @@ class ClassLinker {
         GetClassRoot(kJavaLangReflectAbstractMethodArrayClass), length);
   }
 
+  ObjectArray<InterfaceEntry>* AllocIfTable(size_t length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ObjectArray<InterfaceEntry>::Alloc(GetClassRoot(kObjectArrayArrayClass), length);
+  }
+
   ObjectArray<Field>* AllocFieldArray(size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ObjectArray<Field>::Alloc(GetClassRoot(kJavaLangReflectFieldArrayClass), length);
@@ -437,14 +442,12 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
-                 SirtRef<Field>& dst);
+                 SirtRef<Field>& dst) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   AbstractMethod* LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
-                  SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                  SirtRef<Class>& klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FixupStaticTrampolines(Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FixupStaticTrampolines(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the associated oat class for a dex_file and descriptor
   const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor);
@@ -566,6 +569,7 @@ class ClassLinker {
     kJavaLangObject,
     kClassArrayClass,
     kObjectArrayClass,
+    kObjectArrayArrayClass,
     kJavaLangString,
     kJavaLangDexCache,
     kJavaLangRefReference,

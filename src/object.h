@@ -292,10 +292,12 @@ class MANAGED Object {
     return result;
   }
 
-  void SetFieldObject(MemberOffset field_offset, const Object* new_value, bool is_volatile, bool this_is_valid = true) {
+  void SetFieldObject(MemberOffset field_offset, const Object* new_value, bool is_volatile,
+                      bool this_is_valid = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime::Current()->GetHeap()->VerifyObject(new_value);
     SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
     if (new_value != NULL) {
+      CheckFieldAssignment(field_offset, new_value);
       Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
     }
   }
@@ -370,6 +372,14 @@ class MANAGED Object {
   }
 
  private:
+#if VERIFY_OBJECT_ENABLED
+  void CheckFieldAssignment(MemberOffset field_offset, const Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#else
+  void CheckFieldAssignment(MemberOffset, const Object*)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {}
+#endif
+
   Class* klass_;
 
   uint32_t monitor_;
@@ -384,7 +394,7 @@ class MANAGED Field : public Object {
  public:
   Class* GetDeclaringClass() const;
 
-  void SetDeclaringClass(Class *new_declaring_class);
+  void SetDeclaringClass(Class *new_declaring_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetAccessFlags() const;
 
@@ -518,7 +528,7 @@ class MANAGED AbstractMethod : public Object {
 
   Class* GetDeclaringClass() const;
 
-  void SetDeclaringClass(Class *new_declaring_class);
+  void SetDeclaringClass(Class *new_declaring_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset DeclaringClassOffset() {
     return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_));
@@ -624,7 +634,8 @@ class MANAGED AbstractMethod : public Object {
   }
 
   ObjectArray<String>* GetDexCacheStrings() const;
-  void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings);
+  void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset DexCacheStringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_);
@@ -644,13 +655,16 @@ class MANAGED AbstractMethod : public Object {
   }
 
   ObjectArray<AbstractMethod>* GetDexCacheResolvedMethods() const;
-  void SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods);
+  void SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
-  void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types);
+  void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<StaticStorageBase>* GetDexCacheInitializedStaticStorage() const;
-  void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
+  void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the method that this method overrides
   AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -1087,8 +1101,7 @@ class MANAGED ObjectArray : public Array {
 
   // Set element without bound and element type checks, to be used in limited
   // circumstances, such as during boot image writing
-  void SetWithoutChecks(int32_t i, T* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetWithoutChecks(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   T* GetWithoutChecks(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -1298,10 +1311,10 @@ class MANAGED Class : public StaticStorageBase {
   }
 
 
-  String* GetName() const; // Returns the cached name
-  void SetName(String* name);  // Sets the cached name
-  String* ComputeName()  // Computes the name, then sets the cached value
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  String* GetName() const;  // Returns the cached name.
+  void SetName(String* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);  // Sets the cached name.
+  // Computes the name, then sets the cached value.
+  String* ComputeName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsProxyClass() const {
     // Read access flags without using getter as whether something is a proxy can be check in
@@ -1386,7 +1399,7 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
   }
 
-  void SetComponentType(Class* new_component_type) {
+  void SetComponentType(Class* new_component_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == NULL);
     DCHECK(new_component_type != NULL);
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), new_component_type, false);
@@ -1510,7 +1523,7 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
   }
 
-  void SetSuperClass(Class *new_super_class) {
+  void SetSuperClass(Class *new_super_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // super class is assigned once, except during class linker initialization
     Class* old_super_class = GetFieldObject<Class*>(
         OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
@@ -1529,7 +1542,7 @@ class MANAGED Class : public StaticStorageBase {
 
   ClassLoader* GetClassLoader() const;
 
-  void SetClassLoader(ClassLoader* new_cl);
+  void SetClassLoader(ClassLoader* new_cl) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset DexCacheOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));
@@ -1546,7 +1559,7 @@ class MANAGED Class : public StaticStorageBase {
 
   DexCache* GetDexCache() const;
 
-  void SetDexCache(DexCache* new_dex_cache);
+  void SetDexCache(DexCache* new_dex_cache) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<AbstractMethod>* GetDirectMethods() const {
     DCHECK(IsLoaded() || IsErroneous());
@@ -1554,7 +1567,8 @@ class MANAGED Class : public StaticStorageBase {
         OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
   }
 
-  void SetDirectMethods(ObjectArray<AbstractMethod>* new_direct_methods) {
+  void SetDirectMethods(ObjectArray<AbstractMethod>* new_direct_methods)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(NULL == GetFieldObject<ObjectArray<AbstractMethod>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false));
     DCHECK_NE(0, new_direct_methods->GetLength());
@@ -1586,7 +1600,8 @@ class MANAGED Class : public StaticStorageBase {
         OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
   }
 
-  void SetVirtualMethods(ObjectArray<AbstractMethod>* new_virtual_methods) {
+  void SetVirtualMethods(ObjectArray<AbstractMethod>* new_virtual_methods)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // TODO: we reassign virtual methods to grow the table for miranda
     // methods.. they should really just be assigned once
     DCHECK_NE(0, new_virtual_methods->GetLength());
@@ -1629,7 +1644,8 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<ObjectArray<AbstractMethod>*>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), false);
   }
 
-  void SetVTable(ObjectArray<AbstractMethod>* new_vtable) {
+  void SetVTable(ObjectArray<AbstractMethod>* new_vtable)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable, false);
   }
 
@@ -1709,7 +1725,8 @@ class MANAGED Class : public StaticStorageBase {
         OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
   }
 
-  void SetIfTable(ObjectArray<InterfaceEntry>* new_iftable) {
+  void SetIfTable(ObjectArray<InterfaceEntry>* new_iftable)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable, false);
   }
 
@@ -1719,7 +1736,7 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
   }
 
-  void SetIFields(ObjectArray<Field>* new_ifields) {
+  void SetIFields(ObjectArray<Field>* new_ifields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false));
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), new_ifields, false);
@@ -1796,7 +1813,7 @@ class MANAGED Class : public StaticStorageBase {
     return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
   }
 
-  void SetSFields(ObjectArray<Field>* new_sfields) {
+  void SetSFields(ObjectArray<Field>* new_sfields) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(NULL == GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false));
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), new_sfields, false);
@@ -1881,8 +1898,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
  private:
-  void SetVerifyErrorClass(Class* klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(klass != NULL) << PrettyClass(this);
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
   }
@@ -2386,7 +2402,7 @@ class MANAGED String : public Object {
     SetField32(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset, false);
   }
 
-  void SetArray(CharArray* new_array) {
+  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_array != NULL);
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(String, array_), new_array, false);
   }
@@ -2505,9 +2521,8 @@ inline void Class::SetName(String* name) {
 // C++ mirror of java.lang.Throwable
 class MANAGED Throwable : public Object {
  public:
-  void SetDetailMessage(String* new_detail_message) {
-    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
-                   new_detail_message, false);
+  void SetDetailMessage(String* new_detail_message) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), new_detail_message, false);
   }
   String* GetDetailMessage() const {
     return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
@@ -2517,7 +2532,7 @@ class MANAGED Throwable : public Object {
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
-  void SetCause(Throwable* cause);
+  void SetCause(Throwable* cause) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsCheckedException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() {

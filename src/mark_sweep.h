@@ -339,7 +339,7 @@ class MarkSweep {
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(Object* reference)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
@@ -355,7 +355,7 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ClearWhiteReferences(Object** list)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void ProcessReferences(Object** soft_references, bool clear_soft_references,
                          Object** weak_references,

@@ -165,6 +165,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/Object;",
   "[Ljava/lang/Class;",
   "[Ljava/lang/Object;",
+  "[[Ljava/lang/Object;",
   "Ljava/lang/String;",
   "Ljava/lang/DexCache;",
   "Ljava/lang/ref/Reference;",
@@ -242,39 +243,43 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SirtRef<Class> class_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
   class_array_class->SetComponentType(java_lang_Class.get());
 
-  // java_lang_Object comes next so that object_array_class can be created
+  // java_lang_Object comes next so that object_array_class can be created.
   SirtRef<Class> java_lang_Object(AllocClass(java_lang_Class.get(), sizeof(Class)));
   CHECK(java_lang_Object.get() != NULL);
-  // backfill Object as the super class of Class
+  // backfill Object as the super class of Class.
   java_lang_Class->SetSuperClass(java_lang_Object.get());
   java_lang_Object->SetStatus(Class::kStatusLoaded);
 
-  // Object[] next to hold class roots
+  // Object[] next to hold class roots.
   SirtRef<Class> object_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
   object_array_class->SetComponentType(java_lang_Object.get());
 
-  // Setup the char class to be used for char[]
+  // Object[][] needed for iftables.
+  SirtRef<Class> object_array_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
+  object_array_array_class->SetComponentType(object_array_class.get());
+
+  // Setup the char class to be used for char[].
   SirtRef<Class> char_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
 
-  // Setup the char[] class to be used for String
+  // Setup the char[] class to be used for String.
   SirtRef<Class> char_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
   char_array_class->SetComponentType(char_class.get());
   CharArray::SetArrayClass(char_array_class.get());
 
-  // Setup String
+  // Setup String.
   SirtRef<Class> java_lang_String(AllocClass(java_lang_Class.get(), sizeof(StringClass)));
   String::SetClass(java_lang_String.get());
   java_lang_String->SetObjectSize(sizeof(String));
   java_lang_String->SetStatus(Class::kStatusResolved);
 
-  // Create storage for root classes, save away our work so far (requires
-  // descriptors)
+  // Create storage for root classes, save away our work so far (requires descriptors).
   class_roots_ = ObjectArray<Class>::Alloc(object_array_class.get(), kClassRootsMax);
   CHECK(class_roots_ != NULL);
   SetClassRoot(kJavaLangClass, java_lang_Class.get());
   SetClassRoot(kJavaLangObject, java_lang_Object.get());
   SetClassRoot(kClassArrayClass, class_array_class.get());
   SetClassRoot(kObjectArrayClass, object_array_class.get());
+  SetClassRoot(kObjectArrayArrayClass, object_array_array_class.get());
   SetClassRoot(kCharArrayClass, char_array_class.get());
   SetClassRoot(kJavaLangString, java_lang_String.get());
 
@@ -288,10 +293,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass(Primitive::kPrimDouble));
   SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(Primitive::kPrimVoid));
 
-  // Create array interface entries to populate once we can load system classes
-  array_iftable_ = AllocObjectArray<InterfaceEntry>(2);
+  // Create array interface entries to populate once we can load system classes.
+  array_iftable_ = AllocIfTable(2);
 
-  // Create int array type for AllocDexCache (done in AppendToBootClassPath)
+  // Create int array type for AllocDexCache (done in AppendToBootClassPath).
   SirtRef<Class> int_array_class(AllocClass(java_lang_Class.get(), sizeof(Class)));
   int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
   IntArray::SetArrayClass(int_array_class.get());
@@ -347,9 +352,9 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   object_array_abstract_method->SetComponentType(java_lang_reflect_AbstractMethod.get());
   SetClassRoot(kJavaLangReflectAbstractMethodArrayClass, object_array_abstract_method.get());
 
-  // setup boot_class_path_ and register class_path now that we can
-  // use AllocObjectArray to create DexCache instances
-  // Needs to be after String, Field, Method arrays since AllocDexCache uses these roots.
+  // Setup boot_class_path_ and register class_path now that we can use AllocObjectArray to create
+  // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
+  // these roots.
   CHECK_NE(0U, boot_class_path.size());
   for (size_t i = 0; i != boot_class_path.size(); ++i) {
     const DexFile* dex_file = boot_class_path[i];
@@ -378,7 +383,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK_EQ(java_lang_DexCache.get(), DexCache_class);
   CHECK_EQ(java_lang_DexCache->GetObjectSize(), sizeof(DexCache));
 
-  // Setup the primitive array type classes - can't be done until Object has a vtable
+  // Setup the primitive array type classes - can't be done until Object has a vtable.
   SetClassRoot(kBooleanArrayClass, FindSystemClass("[Z"));
   BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
 
@@ -409,26 +414,28 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
   CHECK_EQ(object_array_class.get(), found_object_array_class);
 
-  // Setup the single, global copies of "interfaces" and "iftable"
+  Class* found_object_array_array_class = FindSystemClass("[[Ljava/lang/Object;");
+  CHECK_EQ(object_array_array_class.get(), found_object_array_array_class);
+
+  // Setup the single, global copy of "iftable".
   Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
   CHECK(java_lang_Cloneable != NULL);
   Class* java_io_Serializable = FindSystemClass("Ljava/io/Serializable;");
   CHECK(java_io_Serializable != NULL);
-  // We assume that Cloneable/Serializable don't have superinterfaces --
-  // normally we'd have to crawl up and explicitly list all of the
-  // supers as well.
+  // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
+  // crawl up and explicitly list all of the supers as well.
   array_iftable_->Set(0, AllocInterfaceEntry(java_lang_Cloneable));
   array_iftable_->Set(1, AllocInterfaceEntry(java_io_Serializable));
 
-  // Sanity check Class[] and Object[]'s interfaces
+  // Sanity check Class[] and Object[]'s interfaces.
   ClassHelper kh(class_array_class.get(), this);
   CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
   CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
   kh.ChangeClass(object_array_class.get());
   CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
   CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
-  // run Class, Constructor, Field, and Method through FindSystemClass.
-  // this initializes their dex_cache_ fields and register them in classes_.
+  // Run Class, Constructor, Field, and Method through FindSystemClass. This initializes their
+  // dex_cache_ fields and register them in classes_.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class.get(), Class_class);
 
@@ -460,9 +467,9 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
       FindSystemClass(class_roots_descriptors_[kJavaLangReflectAbstractMethodArrayClass]);
   CHECK_EQ(object_array_abstract_method.get(), Abstract_method_array_class);
 
-  // End of special init trickery, subsequent classes may be loaded via FindSystemClass
+  // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
 
-  // Create java.lang.reflect.Proxy root
+  // Create java.lang.reflect.Proxy root.
   Class* java_lang_reflect_Proxy = FindSystemClass("Ljava/lang/reflect/Proxy;");
   SetClassRoot(kJavaLangReflectProxy, java_lang_reflect_Proxy);
 
@@ -485,13 +492,13 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
 
-  // Setup the ClassLoader, verifying the object_size_
+  // Setup the ClassLoader, verifying the object_size_.
   Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
   CHECK_EQ(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
   SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
 
   // Set up java.lang.Throwable, java.lang.ClassNotFoundException, and
-  // java.lang.StackTraceElement as a convenience
+  // java.lang.StackTraceElement as a convenience.
   SetClassRoot(kJavaLangThrowable, FindSystemClass("Ljava/lang/Throwable;"));
   Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   SetClassRoot(kJavaLangClassNotFoundException, FindSystemClass("Ljava/lang/ClassNotFoundException;"));
@@ -1862,6 +1869,8 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, ClassLoader*
       new_class.reset(GetClassRoot(kClassArrayClass));
     } else if (descriptor == "[Ljava/lang/Object;") {
       new_class.reset(GetClassRoot(kObjectArrayClass));
+    } else if (descriptor == "[[Ljava/lang/Object;") {
+      new_class.reset(GetClassRoot(kObjectArrayArrayClass));
     } else if (descriptor == class_roots_descriptors_[kJavaLangStringArrayClass]) {
       new_class.reset(GetClassRoot(kJavaLangStringArrayClass));
     } else if (descriptor == class_roots_descriptors_[kJavaLangReflectFieldArrayClass]) {
@@ -3037,7 +3046,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     // DCHECK(klass->GetIfTable() == NULL);
     return true;
   }
-  SirtRef<ObjectArray<InterfaceEntry> > iftable(AllocObjectArray<InterfaceEntry>(ifcount));
+  SirtRef<ObjectArray<InterfaceEntry> > iftable(AllocIfTable(ifcount));
   if (super_ifcount != 0) {
     ObjectArray<InterfaceEntry>* super_iftable = klass->GetSuperClass()->GetIfTable();
     for (size_t i = 0; i < super_ifcount; i++) {

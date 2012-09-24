@@ -170,13 +170,14 @@ class LOCKABLE Heap {
                            MemberOffset finalizer_reference_zombie_offset);
 
   Object* GetReferenceReferent(Object* reference);
-  void ClearReferenceReferent(Object* reference);
+  void ClearReferenceReferent(Object* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the reference object has not yet been enqueued.
   bool IsEnqueuable(const Object* ref);
-  void EnqueueReference(Object* ref, Object** list);
-  void EnqueuePendingReference(Object* ref, Object** list);
-  Object* DequeuePendingReference(Object** list);
+  void EnqueueReference(Object* ref, Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnqueuePendingReference(Object* ref, Object** list)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* DequeuePendingReference(Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   MemberOffset GetReferencePendingNextOffset() {
     DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
@@ -197,6 +198,10 @@ class LOCKABLE Heap {
 
   void DisableObjectValidation() {
     verify_objects_ = false;
+  }
+
+  bool IsObjectValidationEnabled() const {
+    return verify_objects_;
   }
 
   void RecordFree(size_t freed_objects, size_t freed_bytes);
