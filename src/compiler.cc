@@ -1272,6 +1272,7 @@ static void InitializeClassWithoutClinit(const CompilationContext* context,
   const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
   Class* klass = context->GetClassLinker()->FindClass(descriptor, class_loader);
   if (klass != NULL) {
+    ObjectLock lock(klass);
     if (klass->IsVerified()) {
       // Only try to initialize classes that were successfully verified.
       bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
