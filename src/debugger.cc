@@ -1475,10 +1475,10 @@ bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
 void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
   class ThreadListVisitor {
    public:
-    ThreadListVisitor(const ScopedObjectAccessUnchecked& ts, Object* thread_group,
+    ThreadListVisitor(const ScopedObjectAccessUnchecked& soa, Object* thread_group,
                       std::vector<JDWP::ObjectId>& thread_ids)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : ts_(ts), thread_group_(thread_group), thread_ids_(thread_ids) {}
+        : soa_(soa), thread_group_(thread_group), thread_ids_(thread_ids) {}
 
     static void Visit(Thread* t, void* arg) {
       reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
@@ -1492,13 +1492,13 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
-      if (thread_group_ == NULL || t->GetThreadGroup(ts_) == thread_group_) {
-        thread_ids_.push_back(gRegistry->Add(t->GetPeer()));
+      if (thread_group_ == NULL || t->GetThreadGroup(soa_) == thread_group_) {
+        thread_ids_.push_back(gRegistry->Add(soa_.Decode<Object*>(t->GetPeer())));
       }
     }
 
    private:
-    const ScopedObjectAccessUnchecked& ts_;
+    const ScopedObjectAccessUnchecked& soa_;
     Object* const thread_group_;
     std::vector<JDWP::ObjectId>& thread_ids_;
   };
@@ -1607,7 +1607,8 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
-  return gRegistry->Add(Thread::Current()->GetPeer());
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  return gRegistry->Add(soa.Decode<Object*>(Thread::Current()->GetPeer()));
 }
 
 void Dbg::SuspendVM() {
@@ -2708,7 +2709,8 @@ void Dbg::DdmSetThreadNotification(bool enable) {
 
 void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
   if (IsDebuggerActive()) {
-    JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    JDWP::ObjectId id = gRegistry->Add(soa.Decode<Object*>(t->GetPeer()));
     gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
     // If this thread's just joined the party while we're already debugging, make sure it knows
     // to give us updates when it's running.

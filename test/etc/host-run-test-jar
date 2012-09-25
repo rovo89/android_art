@@ -92,7 +92,7 @@ if [ "$GDB" = "y" ]; then
     gdbargs="--args $exe"
 fi
 
-JNI_OPTS="-Xjnigreflimit:256 -Xcheck:jni"
+JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cd $ANDROID_BUILD_TOP
 $INVOKE_WITH $gdb $exe $gdbargs -Ximage:$ANDROID_ROOT/framework/core.art \

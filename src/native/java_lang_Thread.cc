@@ -25,8 +25,7 @@
 namespace art {
 
 static jobject Thread_currentThread(JNIEnv* env, jclass) {
-  ScopedObjectAccess soa(env);
-  return soa.AddLocalReference<jobject>(soa.Self()->GetPeer());
+  return reinterpret_cast<JNIEnvExt*>(env)->self->GetPeer();
 }
 
 static jboolean Thread_interrupted(JNIEnv* env, jclass) {
@@ -110,9 +109,8 @@ static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   ScopedUtfChars name(env, java_name);
   {
     ScopedObjectAccess soa(env);
-    Thread* self = Thread::Current();
-    if (soa.Decode<Object*>(peer) == self->GetPeer()) {
-      self->SetThreadName(name.c_str());
+    if (soa.Env()->IsSameObject(peer, soa.Self()->GetPeer())) {
+      soa.Self()->SetThreadName(name.c_str());
       return;
     }
   }

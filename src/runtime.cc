@@ -572,7 +572,7 @@ static void CreateSystemClassLoader() {
                                                                       "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
-  contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
+  contextClassLoader->SetObject(soa.Decode<Object*>(soa.Self()->GetPeer()), class_loader);
 }
 
 void Runtime::Start() {

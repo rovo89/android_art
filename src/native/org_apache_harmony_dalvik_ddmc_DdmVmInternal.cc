@@ -39,7 +39,7 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
   return Dbg::IsAllocTrackingEnabled();
 }
 
-static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
+static jobject FindThreadByThinLockId(JNIEnv*, uint32_t thin_lock_id) {
   struct ThreadFinder {
     explicit ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
     }
@@ -60,8 +60,7 @@ static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
     Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
   }
   if (finder.thread != NULL) {
-    ScopedObjectAccess soa(env);
-    return soa.AddLocalReference<jobject>(finder.thread->GetPeer());
+    return finder.thread->GetPeer();
   } else {
     return NULL;
   }

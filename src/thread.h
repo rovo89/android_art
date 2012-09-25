@@ -283,7 +283,7 @@ class PACKED Thread {
   // Sets the thread's name.
   void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject GetPeer() const {
     return peer_;
   }
 
@@ -702,7 +702,7 @@ class PACKED Thread {
   Thread* self_;
 
   // Our managed peer (an instance of java.lang.Thread).
-  Object* peer_;
+  jobject peer_;
 
   // The "lowest addressable byte" of the stack
   byte* stack_begin_;

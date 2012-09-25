@@ -114,7 +114,7 @@ if [ "$DEBUG" = "y" ]; then
   DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
-JNI_OPTS="-Xjnigreflimit:256 -Xcheck:jni"
+JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cmdline="cd $DEX_LOCATION && mkdir art-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
     $INVOKE_WITH $OATEXEC $ZYGOTE $JNI_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
