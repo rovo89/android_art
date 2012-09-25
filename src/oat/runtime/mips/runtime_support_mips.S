@@ -787,7 +787,7 @@ art_check_and_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_test_suspend:
-    lw     $a0, THREAD_SUSPEND_COUNT_OFFSET(rSELF)
+    lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
     addi  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     jr     $ra

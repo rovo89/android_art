@@ -42,6 +42,9 @@ extern "C" void* art_initialize_type_from_code(uint32_t, void*);
 extern "C" void* art_initialize_type_and_verify_access_from_code(uint32_t, void*);
 extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
+// Exception entrypoints.
+extern "C" void* GetAndClearException(Thread*);
+
 // Field entrypoints.
 extern "C" int art_set32_instance_from_code(uint32_t, void*, int32_t);
 extern "C" int art_set32_static_from_code(uint32_t, int32_t);
@@ -170,6 +173,9 @@ void InitEntryPoints(EntryPoints* points) {
   points->pInitializeTypeAndVerifyAccessFromCode = art_initialize_type_and_verify_access_from_code;
   points->pInitializeTypeFromCode = art_initialize_type_from_code;
   points->pResolveStringFromCode = art_resolve_string_from_code;
+
+  // Exceptions
+  points->pGetAndClearException = GetAndClearException;
 
   // Field
   points->pSet32Instance = art_set32_instance_from_code;

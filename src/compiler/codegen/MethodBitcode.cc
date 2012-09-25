@@ -2663,21 +2663,8 @@ void cvtArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
 
 void cvtMoveException(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
-  DCHECK_EQ(callInst->getNumArgOperands(), 0U);
-  int exOffset = Thread::ExceptionOffset().Int32Value();
   RegLocation rlDest = getLoc(cUnit, callInst);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-#if defined(TARGET_X86)
-  newLIR2(cUnit, kX86Mov32RT, rlResult.lowReg, exOffset);
-  newLIR2(cUnit, kX86Mov32TI, exOffset, 0);
-#else
-  int resetReg = oatAllocTemp(cUnit);
-  loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
-  loadConstant(cUnit, resetReg, 0);
-  storeWordDisp(cUnit, rSELF, exOffset, resetReg);
-  oatFreeTemp(cUnit, resetReg);
-#endif
-  storeValue(cUnit, rlDest, rlResult);
+  genMoveException(cUnit, rlDest);
 }
 
 void cvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,

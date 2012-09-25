@@ -22,6 +22,14 @@
 
 namespace art {
 
+// Used to implement MOVE_EXCEPTION.
+extern "C" void* GetAndClearException(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(self->IsExceptionPending());
+  Throwable* exception = self->GetException();
+  self->ClearException();
+  return exception;
+}
+
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way.
 extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

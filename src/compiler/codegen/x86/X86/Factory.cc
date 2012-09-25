@@ -372,56 +372,16 @@ LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
-  UNIMPLEMENTED(WARNING) << "loadMultiple";
+  UNIMPLEMENTED(FATAL) << "loadMultiple";
   newLIR0(cUnit, kX86Bkpt);
   return NULL;
-#if 0
-  int i;
-  int loadCnt = 0;
-  LIR *res = NULL ;
-  genBarrier(cUnit);
-
-  for (i = 0; i < 8; i++, rMask >>= 1) {
-    if (rMask & 0x1) {
-      newLIR3(cUnit, kX86Lw, i+r_A0, loadCnt*4, rBase);
-      loadCnt++;
-    }
-  }
-
-  if (loadCnt) {/* increment after */
-    newLIR3(cUnit, kX86Addiu, rBase, rBase, loadCnt*4);
-  }
-
-  genBarrier(cUnit);
-  return res; /* NULL always returned which should be ok since no callers use it */
-#endif
 }
 
 LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
-  UNIMPLEMENTED(WARNING) << "storeMultiple";
+  UNIMPLEMENTED(FATAL) << "storeMultiple";
   newLIR0(cUnit, kX86Bkpt);
   return NULL;
-#if 0
-  int i;
-  int storeCnt = 0;
-  LIR *res = NULL ;
-  genBarrier(cUnit);
-
-  for (i = 0; i < 8; i++, rMask >>= 1) {
-    if (rMask & 0x1) {
-      newLIR3(cUnit, kX86Sw, i+r_A0, storeCnt*4, rBase);
-      storeCnt++;
-    }
-  }
-
-  if (storeCnt) { /* increment after */
-    newLIR3(cUnit, kX86Addiu, rBase, rBase, storeCnt*4);
-  }
-
-  genBarrier(cUnit);
-  return res; /* NULL always returned which should be ok since no callers use it */
-#endif
 }
 
 LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,

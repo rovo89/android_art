@@ -740,7 +740,7 @@ art_check_and_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_test_suspend:
-    ldr    r0, [rSELF, #THREAD_SUSPEND_COUNT_OFFSET]
+    ldrh    r0, [rSELF, #THREAD_FLAGS_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
     bxeq   rLR                                @ return if suspend_count_ == 0

@@ -30,6 +30,8 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
 #include "debugger.h"
 #include "gc_map.h"
 #include "heap.h"
@@ -424,7 +426,7 @@ void Thread::ShortDump(std::ostream& os) const {
     os << GetThinLockId()
              << ",tid=" << GetTid() << ',';
   }
-  os << GetStateUnsafe()
+  os << GetState()
            << ",Thread*=" << this
            << ",peer=" << peer_
            << ",\"" << *name_ << "\""
@@ -461,6 +463,24 @@ static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSI
   LOG(FATAL) << self << " suspend count already zero.\n" << ss.str();
 }
 
+void Thread::AtomicSetFlag(ThreadFlag flag) {
+  android_atomic_or(flag, reinterpret_cast<int32_t*>(&state_and_flags_));
+}
+
+void Thread::AtomicClearFlag(ThreadFlag flag) {
+  android_atomic_and(-1 ^ flag, reinterpret_cast<int32_t*>(&state_and_flags_));
+}
+
+ThreadState Thread::SetState(ThreadState new_state) {
+  // Cannot use this code to change into Runnable as changing to Runnable should fail if
+  // old_state_and_flags.suspend_request is true.
+  DCHECK_NE(new_state, kRunnable);
+  DCHECK_EQ(this, Thread::Current());
+  struct StateAndFlags old_state_and_flags = state_and_flags_;
+  state_and_flags_.state = new_state;
+  return static_cast<ThreadState>(old_state_and_flags.state);
+}
+
 void Thread::ModifySuspendCount(int delta, bool for_debugger) {
   DCHECK(delta == -1 || delta == +1 || delta == -debug_suspend_count_)
       << delta << " " << debug_suspend_count_ << " " << this;
@@ -478,6 +498,11 @@ void Thread::ModifySuspendCount(int delta, bool for_debugger) {
   if (for_debugger) {
     debug_suspend_count_ += delta;
   }
+  if (suspend_count_ == 0) {
+    AtomicClearFlag(kSuspendRequest);
+  } else {
+    AtomicSetFlag(kSuspendRequest);
+  }
 }
 
 void Thread::FullSuspendCheck() {
@@ -491,41 +516,46 @@ void Thread::FullSuspendCheck() {
 
 void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   AssertThreadSuspensionIsAllowable();
-  CHECK_NE(new_state, kRunnable);
-  CHECK_EQ(this, Thread::Current());
+  DCHECK_NE(new_state, kRunnable);
+  DCHECK_EQ(this, Thread::Current());
   // Change to non-runnable state, thereby appearing suspended to the system.
-  ThreadState old_state = SetStateUnsafe(new_state);
-  CHECK_EQ(old_state, kRunnable);
+  DCHECK_EQ(GetState(), kRunnable);
+  state_and_flags_.state = new_state;
   // Release share on mutator_lock_.
   Locks::mutator_lock_->SharedUnlock();
 }
 
 ThreadState Thread::TransitionFromSuspendedToRunnable() {
   bool done = false;
-  ThreadState old_state = GetStateUnsafe();
+  ThreadState old_state = GetState();
   DCHECK_NE(old_state, kRunnable);
   do {
-    // Do a racy unsafe check of the suspend count to see if a wait is necessary. Any race that
-    // may occur is covered by the second check after we acquire a share of the mutator_lock_.
-    if (GetSuspendCountUnsafe() > 0) {
+    Locks::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
+    DCHECK_EQ(GetState(), old_state);
+    if (ReadFlag(kSuspendRequest)) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(*Locks::thread_suspend_count_lock_);
-      Locks::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
-      while (GetSuspendCount() != 0) {
+      DCHECK_EQ(GetState(), old_state);
+      while (ReadFlag(kSuspendRequest)) {
         // Re-check when Thread::resume_cond_ is notified.
         Thread::resume_cond_->Wait(*Locks::thread_suspend_count_lock_);
+        DCHECK_EQ(GetState(), old_state);
       }
+      DCHECK_EQ(GetSuspendCount(), 0);
     }
     // Re-acquire shared mutator_lock_ access.
     Locks::mutator_lock_->SharedLock();
-    // Holding the mutator_lock_, synchronize with any thread trying to raise the suspend count
-    // and change state to Runnable if no suspend is pending.
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    if (GetSuspendCount() == 0) {
-      SetState(kRunnable);
-      done = true;
-    } else {
-      // Release shared mutator_lock_ access and try again.
+    // Atomically change from suspended to runnable if no suspend request pending.
+    int16_t old_flags = state_and_flags_.flags;
+    if ((old_flags & kSuspendRequest) == 0) {
+      int32_t old_state_and_flags = old_flags | (old_state << 16);
+      int32_t new_state_and_flags = old_flags | (kRunnable << 16);
+      done = android_atomic_cmpxchg(old_state_and_flags, new_state_and_flags,
+                                    reinterpret_cast<volatile int32_t*>(&state_and_flags_))
+                                        == 0;
+    }
+    if (!done) {
+      // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
       Locks::mutator_lock_->SharedUnlock();
     }
   } while (!done);
@@ -828,7 +858,6 @@ Thread::Thread(bool daemon)
       managed_stack_(),
       jni_env_(NULL),
       self_(NULL),
-      state_(kNative),
       peer_(NULL),
       stack_begin_(NULL),
       stack_size_(0),
@@ -855,6 +884,8 @@ Thread::Thread(bool daemon)
       last_no_thread_suspension_cause_(NULL),
       thread_exit_check_count_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
+  state_and_flags_.flags = 0;
+  state_and_flags_.state = kNative;
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
 
@@ -927,7 +958,8 @@ Thread::~Thread() {
   {
     MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_NE(GetState(), kRunnable);
-    SetState(kTerminated);
+    // We may be deleting a still born thread.
+    SetStateUnsafe(kTerminated);
   }
 
   delete wait_cond_;
@@ -1021,7 +1053,7 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
 }
 
 Object* Thread::DecodeJObject(jobject obj) {
-  DCHECK(CanAccessDirectReferences());
+  Locks::mutator_lock_->AssertSharedHeld();
   if (obj == NULL) {
     return NULL;
   }
@@ -1407,6 +1439,7 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccessFromCode),
   ENTRY_POINT_INFO(pInitializeTypeFromCode),
   ENTRY_POINT_INFO(pResolveStringFromCode),
+  ENTRY_POINT_INFO(pGetAndClearException),
   ENTRY_POINT_INFO(pSet32Instance),
   ENTRY_POINT_INFO(pSet32Static),
   ENTRY_POINT_INFO(pSet64Instance),
@@ -1488,12 +1521,12 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   CHECK_EQ(size_of_pointers, 4U); // TODO: support 64-bit targets.
 
 #define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { os << # x; return; }
+  DO_THREAD_OFFSET(state_and_flags_);
   DO_THREAD_OFFSET(card_table_);
   DO_THREAD_OFFSET(exception_);
   DO_THREAD_OFFSET(jni_env_);
   DO_THREAD_OFFSET(self_);
   DO_THREAD_OFFSET(stack_end_);
-  DO_THREAD_OFFSET(state_);
   DO_THREAD_OFFSET(suspend_count_);
   DO_THREAD_OFFSET(thin_lock_id_);
   //DO_THREAD_OFFSET(top_of_managed_stack_);
@@ -1505,7 +1538,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   CHECK_EQ(entry_point_count * size_of_pointers, sizeof(EntryPoints));
   uint32_t expected_offset = OFFSETOF_MEMBER(Thread, entrypoints_);
   for (size_t i = 0; i < entry_point_count; ++i) {
-    CHECK_EQ(gThreadEntryPointInfo[i].offset, expected_offset);
+    CHECK_EQ(gThreadEntryPointInfo[i].offset, expected_offset) << gThreadEntryPointInfo[i].name;
     expected_offset += size_of_pointers;
     if (gThreadEntryPointInfo[i].offset == offset) {
       os << gThreadEntryPointInfo[i].name;

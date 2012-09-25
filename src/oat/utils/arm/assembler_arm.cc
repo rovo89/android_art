@@ -1863,39 +1863,6 @@ void ArmAssembler::GetCurrentThread(FrameOffset offset,
   StoreToOffset(kStoreWord, TR, SP, offset.Int32Value(), AL);
 }
 
-void ArmAssembler::SuspendPoll(ManagedRegister mscratch,
-                               ManagedRegister return_reg,
-                               FrameOffset return_save_location,
-                               size_t return_size) {
-  ArmManagedRegister scratch = mscratch.AsArm();
-  ArmSuspendCountSlowPath* slow =
-      new ArmSuspendCountSlowPath(return_reg.AsArm(), return_save_location,
-                                  return_size);
-  buffer_.EnqueueSlowPath(slow);
-  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
-                 TR, Thread::SuspendCountOffset().Int32Value());
-  cmp(scratch.AsCoreRegister(), ShifterOperand(0));
-  b(slow->Entry(), NE);
-  Bind(slow->Continuation());
-}
-
-void ArmSuspendCountSlowPath::Emit(Assembler* sasm) {
-  ArmAssembler* sp_asm = down_cast<ArmAssembler*>(sasm);
-#define __ sp_asm->
-  __ Bind(&entry_);
-  // Save return value
-  __ Store(return_save_location_, return_register_, return_size_);
-  // Pass thread as argument
-  __ mov(R0, ShifterOperand(TR));
-  __ LoadFromOffset(kLoadWord, R12, TR, ENTRYPOINT_OFFSET(pCheckSuspendFromCode));
-  // Note: assume that link register will be spilled/filled on method entry/exit
-  __ blx(R12);
-  // Reload return value
-  __ Load(return_register_, return_save_location_, return_size_);
-  __ b(&continuation_);
-#undef __
-}
-
 void ArmAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjust) {
   ArmManagedRegister scratch = mscratch.AsArm();
   ArmExceptionSlowPath* slow = new ArmExceptionSlowPath(scratch, stack_adjust);

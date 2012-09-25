@@ -286,7 +286,6 @@ class MANAGED Object {
   // Accessors for Java type fields
   template<class T>
   T GetFieldObject(MemberOffset field_offset, bool is_volatile) const {
-    DCHECK(Thread::Current() == NULL || Thread::Current()->CanAccessDirectReferences());
     T result = reinterpret_cast<T>(GetField32(field_offset, is_volatile));
     Runtime::Current()->GetHeap()->VerifyObject(result);
     return result;

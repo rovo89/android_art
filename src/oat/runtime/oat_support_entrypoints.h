@@ -54,6 +54,9 @@ struct PACKED EntryPoints {
   void* (*pInitializeTypeFromCode)(uint32_t, void*);
   void* (*pResolveStringFromCode)(void*, uint32_t);
 
+  // Exceptions
+  void* (*pGetAndClearException)(Thread*);
+
   // Field
   int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
   int (*pSet32Static)(uint32_t, int32_t);

@@ -395,7 +395,7 @@ void ThreadList::SuspendAllDaemonThreads() {
       // daemons.
       CHECK(thread->IsDaemon());
       if (thread != Thread::Current()) {
-        ++thread->suspend_count_;
+        thread->ModifySuspendCount(+1, false);
       }
     }
   }

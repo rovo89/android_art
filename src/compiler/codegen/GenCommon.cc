@@ -1260,6 +1260,20 @@ void genNewInstance(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDes
   storeValue(cUnit, rlDest, rlResult);
 }
 
+void genMoveException(CompilationUnit* cUnit, RegLocation rlDest)
+{
+  oatFlushAllRegs(cUnit);  /* Everything to home location */
+  int funcOffset = ENTRYPOINT_OFFSET(pGetAndClearException);
+#if defined(TARGET_X86)
+  // Runtime helper will load argument for x86.
+  callRuntimeHelperReg(cUnit, funcOffset, rARG0, false);
+#else
+  callRuntimeHelperReg(cUnit, funcOffset, rSELF, false);
+#endif
+  RegLocation rlResult = oatGetReturn(cUnit, false);
+  storeValue(cUnit, rlDest, rlResult);
+}
+
 void genThrow(CompilationUnit* cUnit, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
@@ -2527,7 +2541,7 @@ void genSuspendTest(CompilationUnit* cUnit, int optFlags)
     newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
     branch = opCondBranch(cUnit, kCondEq, NULL);
 #elif defined(TARGET_X86)
-    newLIR2(cUnit, kX86Cmp32TI8, Thread::SuspendCountOffset().Int32Value(), 0);
+    newLIR2(cUnit, kX86Cmp16TI8, Thread::ThreadFlagsOffset().Int32Value(), 0);
     branch = opCondBranch(cUnit, kCondNe, NULL);
 #else
     opRegImm(cUnit, kOpSub, rSUSPEND, 1);
@@ -2557,7 +2571,7 @@ void genSuspendTestAndBranch(CompilationUnit* cUnit, int optFlags, LIR* target)
     newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
     opCondBranch(cUnit, kCondNe, target);
 #elif defined(TARGET_X86)
-    newLIR2(cUnit, kX86Cmp32TI8, Thread::SuspendCountOffset().Int32Value(), 0);
+    newLIR2(cUnit, kX86Cmp16TI8, Thread::ThreadFlagsOffset().Int32Value(), 0);
     opCondBranch(cUnit, kCondEq, target);
 #else
     opRegImm(cUnit, kOpSub, rSUSPEND, 1);

@@ -374,6 +374,13 @@ TWO_ARG_DOWNCALL art_initialize_static_storage_from_code, artInitializeStaticSto
 TWO_ARG_DOWNCALL art_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
+DEFINE_FUNCTION art_get_and_clear_exception
+    subl LITERAL(8), %esp         // alignment padding
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    call SYMBOL(GetAndClearException)  // (Thread*)
+    addl LITERAL(12), %esp        // pop arguments
+    ret
+
 ONE_ARG_DOWNCALL art_lock_object_from_code, artLockObjectFromCode, ret
 ONE_ARG_DOWNCALL art_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
 

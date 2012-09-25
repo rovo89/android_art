@@ -555,13 +555,6 @@ class ArmAssembler : public Assembler {
                     ManagedRegister scratch);
   virtual void Call(ThreadOffset offset, ManagedRegister scratch);
 
-  // Generate code to check if Thread::Current()->suspend_count_ is non-zero
-  // and branch to a SuspendSlowPath if it is. The SuspendSlowPath will continue
-  // at the next instruction.
-  virtual void SuspendPoll(ManagedRegister scratch, ManagedRegister return_reg,
-                           FrameOffset return_save_location,
-                           size_t return_size);
-
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
   virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);
@@ -657,23 +650,6 @@ class ArmExceptionSlowPath : public SlowPath {
  private:
   const ArmManagedRegister scratch_;
   const size_t stack_adjust_;
-};
-
-// Slowpath entered when Thread::Current()->_suspend_count is non-zero
-class ArmSuspendCountSlowPath : public SlowPath {
- public:
-  ArmSuspendCountSlowPath(ArmManagedRegister return_reg,
-                          FrameOffset return_save_location,
-                          size_t return_size)
-      : return_register_(return_reg), return_save_location_(return_save_location),
-        return_size_(return_size) {}
-  virtual void Emit(Assembler *sp_asm);
-
- private:
-  // Remember how to save the return value
-  const ArmManagedRegister return_register_;
-  const FrameOffset return_save_location_;
-  const size_t return_size_;
 };
 
 }  // namespace arm

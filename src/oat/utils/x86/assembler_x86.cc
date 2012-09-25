@@ -1832,36 +1832,6 @@ void X86Assembler::GetCurrentThread(FrameOffset offset,
   movl(Address(ESP, offset), scratch.AsCpuRegister());
 }
 
-void X86Assembler::SuspendPoll(ManagedRegister /*scratch*/,
-                               ManagedRegister return_reg,
-                               FrameOffset return_save_location,
-                               size_t return_size) {
-  X86SuspendCountSlowPath* slow =
-      new X86SuspendCountSlowPath(return_reg.AsX86(), return_save_location,
-                                  return_size);
-  buffer_.EnqueueSlowPath(slow);
-  fs()->cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
-  j(kNotEqual, slow->Entry());
-  Bind(slow->Continuation());
-}
-
-void X86SuspendCountSlowPath::Emit(Assembler *sasm) {
-  X86Assembler* sp_asm = down_cast<X86Assembler*>(sasm);
-#define __ sp_asm->
-  __ Bind(&entry_);
-  // Save return value
-  __ Store(return_save_location_, return_register_, return_size_);
-  // Pass Thread::Current as argument
-  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));
-  __ fs()->call(Address::Absolute(ENTRYPOINT_OFFSET(pCheckSuspendFromCode)));
-  // Release argument
-  __ addl(ESP, Immediate(kPointerSize));
-  // Reload return value
-  __ Load(return_register_, return_save_location_, return_size_);
-  __ jmp(&continuation_);
-#undef __
-}
-
 void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
   X86ExceptionSlowPath* slow = new X86ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);

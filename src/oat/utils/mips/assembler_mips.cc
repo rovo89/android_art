@@ -979,38 +979,6 @@ void MipsAssembler::GetCurrentThread(FrameOffset offset,
   StoreToOffset(kStoreWord, S1, SP, offset.Int32Value());
 }
 
-void MipsAssembler::SuspendPoll(ManagedRegister /*mscratch*/,
-                                ManagedRegister /*return_reg*/,
-                                FrameOffset /*return_save_location*/,
-                                size_t /*return_size*/) {
-  UNIMPLEMENTED(FATAL) << "NEEDS TO BE IMPLEMENTED";
-#if 0
-  MipsSuspendCountSlowPath* slow =
-      new MipsSuspendCountSlowPath(return_reg.AsMips(), return_save_location,
-                                  return_size);
-  buffer_.EnqueueSlowPath(slow);
-  fs()->cmpl(Address::Absolute(Thread::SuspendCountOffset()), Immediate(0));
-  j(kNotEqual, slow->Entry());
-  Bind(slow->Continuation());
-#endif
-}
-
-void MipsSuspendCountSlowPath::Emit(Assembler* sasm) {
-  MipsAssembler* sp_asm = down_cast<MipsAssembler*>(sasm);
-#define __ sp_asm->
-  __ Bind(&entry_, true);
-  // Save return value
-  __ Store(return_save_location_, return_register_, return_size_);
-  // Pass Thread::Current as argument and call pCheckSuspendFromCode
-  __ Move(A0, S1);
-  __ LoadFromOffset(kLoadWord, T9, S1, ENTRYPOINT_OFFSET(pCheckSuspendFromCode));
-  __ Jalr(T9);
-  // Reload return value
-  __ Load(return_register_, return_save_location_, return_size_);
-  __ EmitJump(&continuation_, false);
-#undef __
-}
-
 void MipsAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjust) {
   MipsManagedRegister scratch = mscratch.AsMips();
   MipsExceptionSlowPath* slow = new MipsExceptionSlowPath(scratch, stack_adjust);

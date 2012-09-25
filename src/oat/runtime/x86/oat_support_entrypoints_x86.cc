@@ -41,6 +41,9 @@ extern "C" void* art_initialize_type_from_code(uint32_t, void*);
 extern "C" void* art_initialize_type_and_verify_access_from_code(uint32_t, void*);
 extern "C" void* art_resolve_string_from_code(void*, uint32_t);
 
+// Exception entrypoints.
+extern "C" void* art_get_and_clear_exception(Thread*);
+
 // Field entrypoints.
 extern "C" int art_set32_instance_from_code(uint32_t, void*, int32_t);
 extern "C" int art_set32_static_from_code(uint32_t, int32_t);
@@ -136,6 +139,9 @@ void InitEntryPoints(EntryPoints* points) {
   // Debug
   points->pDebugMe = DebugMe;
   points->pUpdateDebuggerFromCode = NULL; // Controlled by SetDebuggerUpdatesEnabled.
+
+  // Exceptions
+  points->pGetAndClearException = art_get_and_clear_exception;
 
   // DexCache
   points->pInitializeStaticStorage = art_initialize_static_storage_from_code;

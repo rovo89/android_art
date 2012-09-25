@@ -121,7 +121,7 @@ void SignalCatcher::HandleSigQuit() {
   thread_list->SuspendAll();
 
   // We should exclusively hold the mutator lock, set state to Runnable without a pending
-  // suspension to avoid giving away or trying re-acquire the mutator lock.
+  // suspension to avoid giving away or trying to re-acquire the mutator lock.
   Locks::mutator_lock_->AssertExclusiveHeld();
   Thread* self = Thread::Current();
   ThreadState old_state;
@@ -133,7 +133,7 @@ void SignalCatcher::HandleSigQuit() {
       CHECK_EQ(suspend_count, 1);
       self->ModifySuspendCount(-1, false);
     }
-    old_state = self->SetState(kRunnable);
+    old_state = self->SetStateUnsafe(kRunnable);
   }
 
   std::ostringstream os;

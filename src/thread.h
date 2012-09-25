@@ -96,6 +96,12 @@ enum ThreadState {
   kSuspended                      = 16,  // Thread.RUNNABLE       JDWP TS_RUNNING - suspended by GC or debugger
 };
 
+enum ThreadFlag {
+  kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0.
+  kExceptionPending = 2,  // If set implies that exception_ != NULL.
+  kEnterInterpreter = 4,  // Instruct managed code it should enter the interpreter.
+};
+
 class PACKED Thread {
  public:
   // Space to throw a StackOverflowError in.
@@ -146,25 +152,11 @@ class PACKED Thread {
   static void DumpState(std::ostream& os, const Thread* thread, pid_t tid)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
-  ThreadState GetState() const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    Locks::thread_suspend_count_lock_->AssertHeld();
-    return state_;
+  ThreadState GetState() const {
+    return static_cast<ThreadState>(state_and_flags_.state);
   }
 
-  ThreadState SetState(ThreadState new_state)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    Locks::thread_suspend_count_lock_->AssertHeld();
-    ThreadState old_state = state_;
-    if (new_state == kRunnable) {
-      // Sanity, should never become runnable with a pending suspension and should always hold
-      // share of mutator_lock_.
-      CHECK_EQ(GetSuspendCount(), 0);
-      Locks::mutator_lock_->AssertSharedHeld();
-    }
-    state_ = new_state;
-    return old_state;
-  }
+  ThreadState SetState(ThreadState new_state);
 
   int GetSuspendCount() const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
@@ -250,13 +242,6 @@ class PACKED Thread {
   }
 #endif
 
-  bool CanAccessDirectReferences() const {
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
-#endif
-    return true;
-  }
-
   bool IsDaemon() const {
     return daemon_;
   }
@@ -316,26 +301,29 @@ class PACKED Thread {
   bool IsStillStarting() const;
 
   bool IsExceptionPending() const {
-    return exception_ != NULL;
+    bool result = ReadFlag(kExceptionPending);
+    DCHECK_EQ(result, exception_ != NULL);
+    return result;
   }
 
   Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(CanAccessDirectReferences());
     return exception_;
   }
 
   void AssertNoPendingException() const;
 
-  void SetException(Throwable* new_exception)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(CanAccessDirectReferences());
+  void SetException(Throwable* new_exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_exception != NULL);
-    // TODO: CHECK(exception_ == NULL);
-    exception_ = new_exception;  // TODO
+    // TODO: DCHECK(!IsExceptionPending());
+    exception_ = new_exception;
+    AtomicSetFlag(kExceptionPending);
+    DCHECK(IsExceptionPending());
   }
 
   void ClearException() {
     exception_ = NULL;
+    AtomicClearFlag(kExceptionPending);
+    DCHECK(!IsExceptionPending());
   }
 
   // Find catch block and perform long jump to appropriate exception handle
@@ -431,9 +419,7 @@ class PACKED Thread {
     NotifyLocked();
   }
 
-  ClassLoader* GetClassLoaderOverride()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(CanAccessDirectReferences());
+  ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return class_loader_override_;
   }
 
@@ -482,12 +468,8 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, card_table_));
   }
 
-  static ThreadOffset SuspendCountOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, suspend_count_));
-  }
-
-  static ThreadOffset StateOffset() {
-    return ThreadOffset(OFFSETOF_VOLATILE_MEMBER(Thread, state_));
+  static ThreadOffset ThreadFlagsOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, state_and_flags_));
   }
 
   // Size of stack less any space reserved for stack overflow
@@ -619,27 +601,13 @@ class PACKED Thread {
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
   friend class Runtime; // For CreatePeer.
 
-  // TODO: remove, callers should use GetState and hold the appropriate locks. Used only by
-  //       ShortDump, TransitionFromSuspendedToRunnable and ScopedThreadStateChange.
-  ThreadState GetStateUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
-    return state_;
-  }
-
-  // TODO: remove, callers should use SetState and hold the appropriate locks. Used only by
-  //       TransitionFromRunnableToSuspended and ScopedThreadStateChange that don't need to observe
-  //       suspend counts in situations where they know that the thread is already suspended.
-  ThreadState SetStateUnsafe(ThreadState new_state) NO_THREAD_SAFETY_ANALYSIS {
-    ThreadState old_state = state_;
-    state_ = new_state;
+  // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit and ~Thread.
+  ThreadState SetStateUnsafe(ThreadState new_state) {
+    ThreadState old_state = GetState();
+    state_and_flags_.state = new_state;
     return old_state;
   }
-
-  // TODO: remove, callers should use GetSuspendCount and hold the appropriate locks. Used only by
-  //       TransitionFromSuspendedToRunnable that covers any data race. Note, this call is similar
-  //       to the reads done in managed code.
-  int GetSuspendCountUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
-    return suspend_count_;
-  }
+  friend class SignalCatcher;  // For SetStateUnsafe.
 
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const
@@ -672,6 +640,14 @@ class PACKED Thread {
     }
   }
 
+  bool ReadFlag(ThreadFlag flag) const {
+    return (state_and_flags_.flags & flag) != 0;
+  }
+
+  void AtomicSetFlag(ThreadFlag flag);
+
+  void AtomicClearFlag(ThreadFlag flag);
+
   static void ThreadExitCallback(void* arg);
 
   // TLS key used to retrieve the Thread*.
@@ -683,6 +659,22 @@ class PACKED Thread {
       GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   // --- Frequently accessed fields first for short offsets ---
+
+  // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
+  // change from being Suspended to Runnable without a suspend request occurring.
+  struct PACKED StateAndFlags {
+    // Bitfield of flag values. Must be changed atomically so that flag values aren't lost. See
+    // ThreadFlags for bit field meanings.
+    volatile uint16_t flags;
+    // Holds the ThreadState. May be changed non-atomically between Suspended (ie not Runnable)
+    // transitions. Changing to Runnable requires that the suspend_request be part of the atomic
+    // operation. If a thread is suspended and a suspend_request is present, a thread may not
+    // change to Runnable as a GC or other operation is in progress.
+    uint16_t state;
+  };
+  struct StateAndFlags state_and_flags_;
+  COMPILE_ASSERT(sizeof(struct StateAndFlags) == sizeof(int32_t),
+                 sizeof_state_and_flags_and_int32_are_different);
 
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.
@@ -708,8 +700,6 @@ class PACKED Thread {
   // off of Thread::Current is easy but getting the address of Thread::Current
   // is hard. This field can be read off of Thread::Current to give the address.
   Thread* self_;
-
-  volatile ThreadState state_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   // Our managed peer (an instance of java.lang.Thread).
   Object* peer_;

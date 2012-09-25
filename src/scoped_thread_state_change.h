@@ -40,11 +40,11 @@ class ScopedThreadStateChange {
       DCHECK_EQ(self, Thread::Current());
       // Read state without locks, ok as state is effectively thread local and we're not interested
       // in the suspend count (this will be handled in the runnable transitions).
-      old_thread_state_ = self->GetStateUnsafe();
+      old_thread_state_ = self->GetState();
       runnable_transition = old_thread_state_ == kRunnable || new_thread_state == kRunnable;
       if (!runnable_transition) {
         // A suspended transition to another effectively suspended transition, ok to use Unsafe.
-        self_->SetStateUnsafe(new_thread_state);
+        self_->SetState(new_thread_state);
       }
       if (runnable_transition && old_thread_state_ != new_thread_state) {
         if (new_thread_state == kRunnable) {
@@ -70,7 +70,7 @@ class ScopedThreadStateChange {
           self_->TransitionFromRunnableToSuspended(old_thread_state_);
         } else {
           // A suspended transition to another effectively suspended transition, ok to use Unsafe.
-          self_->SetStateUnsafe(old_thread_state_);
+          self_->SetState(old_thread_state_);
         }
       }
     }

@@ -260,22 +260,9 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::NOP:
       break;
 
-    case Instruction::MOVE_EXCEPTION: {
-      int exOffset = Thread::ExceptionOffset().Int32Value();
-      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-#if defined(TARGET_X86)
-      newLIR2(cUnit, kX86Mov32RT, rlResult.lowReg, exOffset);
-      newLIR2(cUnit, kX86Mov32TI, exOffset, 0);
-#else
-      int resetReg = oatAllocTemp(cUnit);
-      loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
-      loadConstant(cUnit, resetReg, 0);
-      storeWordDisp(cUnit, rSELF, exOffset, resetReg);
-      oatFreeTemp(cUnit, resetReg);
-#endif
-      storeValue(cUnit, rlDest, rlResult);
+    case Instruction::MOVE_EXCEPTION:
+      genMoveException(cUnit, rlDest);
       break;
-    }
     case Instruction::RETURN_VOID:
       if (!(cUnit->attrs & METHOD_IS_LEAF)) {
         genSuspendTest(cUnit, optFlags);
