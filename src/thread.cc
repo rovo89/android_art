@@ -468,11 +468,11 @@ static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSI
 }
 
 void Thread::AtomicSetFlag(ThreadFlag flag) {
-  android_atomic_or(flag, reinterpret_cast<int32_t*>(&state_and_flags_));
+  android_atomic_or(flag, &state_and_flags_.as_int);
 }
 
 void Thread::AtomicClearFlag(ThreadFlag flag) {
-  android_atomic_and(-1 ^ flag, reinterpret_cast<int32_t*>(&state_and_flags_));
+  android_atomic_and(-1 ^ flag, &state_and_flags_.as_int);
 }
 
 ThreadState Thread::SetState(ThreadState new_state) {
@@ -480,9 +480,9 @@ ThreadState Thread::SetState(ThreadState new_state) {
   // old_state_and_flags.suspend_request is true.
   DCHECK_NE(new_state, kRunnable);
   DCHECK_EQ(this, Thread::Current());
-  struct StateAndFlags old_state_and_flags = state_and_flags_;
-  state_and_flags_.state = new_state;
-  return static_cast<ThreadState>(old_state_and_flags.state);
+  union StateAndFlags old_state_and_flags = state_and_flags_;
+  state_and_flags_.as_struct.state = new_state;
+  return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
 
 void Thread::ModifySuspendCount(int delta, bool for_debugger) {
@@ -524,7 +524,7 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   DCHECK_EQ(this, Thread::Current());
   // Change to non-runnable state, thereby appearing suspended to the system.
   DCHECK_EQ(GetState(), kRunnable);
-  state_and_flags_.state = new_state;
+  state_and_flags_.as_struct.state = new_state;
   // Release share on mutator_lock_.
   Locks::mutator_lock_->SharedUnlock();
 }
@@ -550,7 +550,7 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
     // Re-acquire shared mutator_lock_ access.
     Locks::mutator_lock_->SharedLock();
     // Atomically change from suspended to runnable if no suspend request pending.
-    int16_t old_flags = state_and_flags_.flags;
+    int16_t old_flags = state_and_flags_.as_struct.flags;
     if ((old_flags & kSuspendRequest) == 0) {
       int32_t old_state_and_flags = old_flags | (old_state << 16);
       int32_t new_state_and_flags = old_flags | (kRunnable << 16);
@@ -884,8 +884,8 @@ Thread::Thread(bool daemon)
       last_no_thread_suspension_cause_(NULL),
       thread_exit_check_count_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
-  state_and_flags_.flags = 0;
-  state_and_flags_.state = kNative;
+  state_and_flags_.as_struct.flags = 0;
+  state_and_flags_.as_struct.state = kNative;
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
 

@@ -153,7 +153,7 @@ class PACKED Thread {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
   ThreadState GetState() const {
-    return static_cast<ThreadState>(state_and_flags_.state);
+    return static_cast<ThreadState>(state_and_flags_.as_struct.state);
   }
 
   ThreadState SetState(ThreadState new_state);
@@ -604,7 +604,7 @@ class PACKED Thread {
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit and ~Thread.
   ThreadState SetStateUnsafe(ThreadState new_state) {
     ThreadState old_state = GetState();
-    state_and_flags_.state = new_state;
+    state_and_flags_.as_struct.state = new_state;
     return old_state;
   }
   friend class SignalCatcher;  // For SetStateUnsafe.
@@ -641,7 +641,7 @@ class PACKED Thread {
   }
 
   bool ReadFlag(ThreadFlag flag) const {
-    return (state_and_flags_.flags & flag) != 0;
+    return (state_and_flags_.as_struct.flags & flag) != 0;
   }
 
   void AtomicSetFlag(ThreadFlag flag);
@@ -662,18 +662,21 @@ class PACKED Thread {
 
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
-  struct PACKED StateAndFlags {
-    // Bitfield of flag values. Must be changed atomically so that flag values aren't lost. See
-    // ThreadFlags for bit field meanings.
-    volatile uint16_t flags;
-    // Holds the ThreadState. May be changed non-atomically between Suspended (ie not Runnable)
-    // transitions. Changing to Runnable requires that the suspend_request be part of the atomic
-    // operation. If a thread is suspended and a suspend_request is present, a thread may not
-    // change to Runnable as a GC or other operation is in progress.
-    uint16_t state;
+  union StateAndFlags {
+    struct PACKED {
+      // Bitfield of flag values. Must be changed atomically so that flag values aren't lost. See
+      // ThreadFlags for bit field meanings.
+      volatile uint16_t flags;
+      // Holds the ThreadState. May be changed non-atomically between Suspended (ie not Runnable)
+      // transitions. Changing to Runnable requires that the suspend_request be part of the atomic
+      // operation. If a thread is suspended and a suspend_request is present, a thread may not
+      // change to Runnable as a GC or other operation is in progress.
+      uint16_t state;
+    } as_struct;
+    int32_t as_int;
   };
-  struct StateAndFlags state_and_flags_;
-  COMPILE_ASSERT(sizeof(struct StateAndFlags) == sizeof(int32_t),
+  union StateAndFlags state_and_flags_;
+  COMPILE_ASSERT(sizeof(union StateAndFlags) == sizeof(int32_t),
                  sizeof_state_and_flags_and_int32_are_different);
 
   // A non-zero value is used to tell the current thread to enter a safe point
