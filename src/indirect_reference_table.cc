@@ -318,6 +318,12 @@ void IndirectReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
   std::vector<const Object*> entries(table_, table_ + Capacity());
+  // Remove NULLs.
+  for (int i = entries.size() - 1; i >= 0; --i) {
+    if (entries[i] == NULL) {
+      entries.erase(entries.begin() + i);
+    }
+  }
   ReferenceTable::Dump(os, entries);
 }
 

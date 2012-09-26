@@ -26,34 +26,79 @@ class ReferenceTableTest : public CommonTest {
 TEST_F(ReferenceTableTest, Basics) {
   ScopedObjectAccess soa(Thread::Current());
   Object* o1 = String::AllocFromModifiedUtf8("hello");
-  Object* o2 = ShortArray::Alloc(0);
 
-  ReferenceTable rt("test", 0, 4);
-  std::ostringstream oss1;
-  rt.Dump(oss1);
-  EXPECT_TRUE(oss1.str().find("(empty)") != std::string::npos) << oss1.str();
-  EXPECT_EQ(0U, rt.Size());
+  ReferenceTable rt("test", 0, 11);
+
+  // Check dumping the empty table.
+  {
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_NE(oss.str().find("(empty)"), std::string::npos) << oss.str();
+    EXPECT_EQ(0U, rt.Size());
+  }
+
+  // Check removal of all NULLs in a empty table is a no-op.
   rt.Remove(NULL);
   EXPECT_EQ(0U, rt.Size());
+
+  // Check removal of all o1 in a empty table is a no-op.
   rt.Remove(o1);
   EXPECT_EQ(0U, rt.Size());
-  rt.Add(o1);
-  EXPECT_EQ(1U, rt.Size());
-  rt.Add(o2);
-  EXPECT_EQ(2U, rt.Size());
-  rt.Add(o2);
-  EXPECT_EQ(3U, rt.Size());
-  std::ostringstream oss2;
-  rt.Dump(oss2);
-  EXPECT_TRUE(oss2.str().find("Last 3 entries (of 3):") != std::string::npos) << oss2.str();
-  EXPECT_TRUE(oss2.str().find("1 of java.lang.String") != std::string::npos) << oss2.str();
-  EXPECT_TRUE(oss2.str().find("2 of short[] (1 unique instances)") != std::string::npos) << oss2.str();
-  rt.Remove(o1);
-  EXPECT_EQ(2U, rt.Size());
-  rt.Remove(o2);
-  EXPECT_EQ(1U, rt.Size());
-  rt.Remove(o2);
-  EXPECT_EQ(0U, rt.Size());
+
+  // Add o1 and check we have 1 element and can dump.
+  {
+    rt.Add(o1);
+    EXPECT_EQ(1U, rt.Size());
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_NE(oss.str().find("1 of java.lang.String"), std::string::npos) << oss.str();
+    EXPECT_EQ(oss.str().find("short[]"), std::string::npos) << oss.str();
+  }
+
+  // Add a second object 10 times and check dumping is sane.
+  Object* o2 = ShortArray::Alloc(0);
+  for (size_t i = 0; i < 10; ++i) {
+    rt.Add(o2);
+    EXPECT_EQ(i + 2, rt.Size());
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_NE(oss.str().find(StringPrintf("Last %zd entries (of %zd):",
+                                          i + 2 > 10 ? 10 : i + 2,
+                                          i + 2)),
+              std::string::npos) << oss.str();
+    EXPECT_NE(oss.str().find("1 of java.lang.String"), std::string::npos) << oss.str();
+    if (i == 0) {
+      EXPECT_NE(oss.str().find("1 of short[]"), std::string::npos) << oss.str();
+    } else {
+      EXPECT_NE(oss.str().find(StringPrintf("%zd of short[] (1 unique instances)", i + 1)),
+                std::string::npos) << oss.str();
+    }
+  }
+
+  // Remove o1 (first element).
+  {
+    rt.Remove(o1);
+    EXPECT_EQ(10U, rt.Size());
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_EQ(oss.str().find("java.lang.String"), std::string::npos) << oss.str();
+  }
+
+  // Remove o2 ten times.
+  for (size_t i = 0; i < 10; ++i) {
+    rt.Remove(o2);
+    EXPECT_EQ(9 - i, rt.Size());
+    std::ostringstream oss;
+    rt.Dump(oss);
+    if (i == 9) {
+      EXPECT_EQ(oss.str().find("short[]"), std::string::npos) << oss.str();
+    } else if (i == 8) {
+      EXPECT_NE(oss.str().find("1 of short[]"), std::string::npos) << oss.str();
+    } else {
+      EXPECT_NE(oss.str().find(StringPrintf("%zd of short[] (1 unique instances)", 10 - i - 1)),
+                std::string::npos) << oss.str();
+    }
+  }
 }
 
 }  // namespace art
