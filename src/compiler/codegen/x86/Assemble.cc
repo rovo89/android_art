@@ -220,6 +220,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Test32RI, kRegImm,             IS_BINARY_OP   | REG_USE0  | SETS_CCODES, { 0,    0, 0xF7, 0, 0, 0, 0, 4}, "Test32RI", "!0r,!1d" },
   { kX86Test32MI, kMemImm,   IS_LOAD | IS_TERTIARY_OP | REG_USE0  | SETS_CCODES, { 0,    0, 0xF7, 0, 0, 0, 0, 4}, "Test32MI", "[!0r+!1d],!2d" },
   { kX86Test32AI, kArrayImm, IS_LOAD | IS_QUIN_OP     | REG_USE01 | SETS_CCODES, { 0,    0, 0xF7, 0, 0, 0, 0, 4}, "Test32AI", "[!0r+!1r<<!2d+!3d],!4d" },
+  { kX86Test32RR, kRegReg,             IS_BINARY_OP   | REG_USE01 | SETS_CCODES, { 0,    0, 0x85, 0, 0, 0, 0, 0}, "Test32RR", "!0r,!1r" },
 
 #define UNARY_ENCODING_MAP(opname, modrm, is_store, sets_ccodes, \
                            reg, reg_kind, reg_flags, \

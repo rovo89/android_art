@@ -105,6 +105,7 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
   if (value == 0) {
     res = newLIR2(cUnit, kX86Xor32RR, rDest, rDest);
   } else {
+    // Note, there is no byte immediate form of a 32 bit immediate move.
     res = newLIR2(cUnit, kX86Mov32RI, rDest, value);
   }
 

@@ -402,6 +402,7 @@ enum X86OpCode {
   opcode ## 16 ## reg, opcode ## 16 ## mem, opcode ## 16 ## array, \
   opcode ## 32 ## reg, opcode ## 32 ## mem, opcode ## 32 ## array
   UnaryOpcode(kX86Test, RI, MI, AI),
+  kX86Test32RR,
   UnaryOpcode(kX86Not, R, M, A),
   UnaryOpcode(kX86Neg, R, M, A),
   UnaryOpcode(kX86Mul,  DaR, DaM, DaA),

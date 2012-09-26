@@ -312,11 +312,11 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target)
 {
-  if (false && (checkValue == 0) && (cond == kCondEq || cond == kCondNe)) {
+  if ((checkValue == 0) && (cond == kCondEq || cond == kCondNe)) {
     // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
-    // newLIR2(cUnit, kX86Test32RR, reg, reg);
+    newLIR2(cUnit, kX86Test32RR, reg, reg);
   } else {
-    newLIR2(cUnit, kX86Cmp32RI, reg, checkValue);
+    newLIR2(cUnit, IS_SIMM8(checkValue) ? kX86Cmp32RI8 : kX86Cmp32RI, reg, checkValue);
   }
   X86ConditionCode cc = oatX86ConditionEncoding(cond);
   LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
