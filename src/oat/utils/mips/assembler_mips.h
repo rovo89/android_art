@@ -296,6 +296,7 @@ class MipsAssembler : public Assembler {
   void Sdc1(DRegister ft, Register rs, uint16_t imm16);
 
   void Break();
+  void Nop();
   void Move(Register rt, Register rs);
   void Clear(Register rt);
   void Not(Register rt, Register rs);

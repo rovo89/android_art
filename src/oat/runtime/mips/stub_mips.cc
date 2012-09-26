@@ -131,36 +131,20 @@ ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 #if !defined(ART_USE_LLVM_COMPILER)
   // Save callee saves and ready frame for exception delivery
-  __ AddConstant(SP, SP, -176);
-  __ StoreToOffset(kStoreWord, RA, SP, 172);
-  __ StoreToOffset(kStoreWord, T9, SP, 168);
-  __ StoreToOffset(kStoreWord, T8, SP, 164);
-  __ StoreToOffset(kStoreWord, T7, SP, 160);
-  __ StoreToOffset(kStoreWord, T6, SP, 156);
-  __ StoreToOffset(kStoreWord, T5, SP, 152);
-  __ StoreToOffset(kStoreWord, T4, SP, 148);
-  __ StoreToOffset(kStoreWord, T3, SP, 144);
-  __ StoreToOffset(kStoreWord, T2, SP, 140);
-  __ StoreToOffset(kStoreWord, T1, SP, 136);
-  __ StoreToOffset(kStoreWord, T0, SP, 132);
-  __ StoreDToOffset(D15, SP, 124);
-  __ StoreDToOffset(D14, SP, 116);
-  __ StoreDToOffset(D13, SP, 108);
-  __ StoreDToOffset(D12, SP, 100);
-  __ StoreDToOffset(D11, SP, 92);
-  __ StoreDToOffset(D10, SP, 84);
-  __ StoreDToOffset(D9, SP, 76);
-  __ StoreDToOffset(D8, SP, 68);
-  __ StoreDToOffset(D7, SP, 60);
-  __ StoreDToOffset(D6, SP, 52);
-  __ StoreDToOffset(D5, SP, 44);
-  __ StoreDToOffset(D4, SP, 36);
-  __ StoreDToOffset(D3, SP, 28);
-  __ StoreDToOffset(D2, SP, 20);
-  __ StoreDToOffset(D1, SP, 12);
-  __ StoreDToOffset(D0, SP, 4);
+  __ AddConstant(SP, SP, -48);
+  __ StoreToOffset(kStoreWord, RA, SP, 44);
+  __ StoreToOffset(kStoreWord, T9, SP, 40);
+  __ StoreToOffset(kStoreWord, T8, SP, 36);
+  __ StoreToOffset(kStoreWord, T7, SP, 32);
+  __ StoreToOffset(kStoreWord, T6, SP, 28);
+  __ StoreToOffset(kStoreWord, T5, SP, 24);
+  __ StoreToOffset(kStoreWord, T4, SP, 20);
+  __ StoreToOffset(kStoreWord, T3, SP, 16);
+  __ StoreToOffset(kStoreWord, T2, SP, 12);
+  __ StoreToOffset(kStoreWord, T1, SP, 8);
+  __ StoreToOffset(kStoreWord, T0, SP, 4);
 
-  // R0 is the Method* already
+  // A0 is the Method* already
   __ Move(A1, S1);  // Pass Thread::Current() in A1
   __ Move(A2, SP);  // Pass SP in A2
   // Call to throw AbstractMethodError

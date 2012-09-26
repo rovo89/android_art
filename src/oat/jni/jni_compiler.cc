@@ -288,6 +288,11 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   // 11. Save return value
   FrameOffset return_save_location = main_jni_conv->ReturnValueSaveLocation();
   if (main_jni_conv->SizeOfReturnValue() != 0 && !reference_return) {
+    if (instruction_set == kMips && main_jni_conv->GetReturnType() == Primitive::kPrimDouble &&
+        return_save_location.Uint32Value() % 8 != 0) {
+      // Ensure doubles are 8-byte aligned for MIPS
+      return_save_location = FrameOffset(return_save_location.Uint32Value() + kPointerSize);
+    }
     CHECK_LT(return_save_location.Uint32Value(), frame_size+main_out_arg_size);
     __ Store(return_save_location, main_jni_conv->ReturnRegister(), main_jni_conv->SizeOfReturnValue());
   }
