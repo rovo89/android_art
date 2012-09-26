@@ -73,6 +73,9 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
     reg_bytes = num_arg_array_bytes;
   }
 
+  // Method* at bottom of frame is null thereby terminating managed stack crawls
+  __ StoreToOffset(kStoreWord, ZERO, SP, 0);
+
   // Copy values onto the stack.
   size_t src_offset = 0;
   size_t dst_offset = (is_static ? 1 : 2) * kPointerSize;
@@ -131,7 +134,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   // If the method returns a value, store it to the result pointer.
   if (shorty[0] != 'V') {
     // Load the result JValue pointer of the stub caller's out args.
-    __ LoadFromOffset(kLoadWord, T9, SP, frame_size);
+    __ LoadFromOffset(kLoadWord, T9, SP, frame_size + 16);
     switch (shorty[0]) {
       case 'D':
         __ StoreDToOffset(D0, T9, 0);

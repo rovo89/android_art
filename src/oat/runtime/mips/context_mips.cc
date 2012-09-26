@@ -30,7 +30,6 @@ MipsContext::MipsContext() {
   for (int i = 0; i < 32; i++) {
     fprs_[i] = kBadGprBase + i;
   }
-  pc_ = 0xEBAD601F;
 #endif
 }
 
@@ -56,7 +55,7 @@ void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
     int j = 1;
     for (int i = 0; i < 32; i++) {
       if (((fp_core_spills >> i) & 1) != 0) {
-        fprs_[i] = fr.LoadCalleeSave(spill_count +fp_spill_count - j, frame_size);
+        fprs_[i] = fr.LoadCalleeSave(spill_count + fp_spill_count - j, frame_size);
         j++;
       }
     }
@@ -69,7 +68,6 @@ void MipsContext::SmashCallerSaves() {
   gprs_[A1] = kBadGprBase + A1;
   gprs_[A2] = kBadGprBase + A2;
   gprs_[A3] = kBadGprBase + A3;
-  gprs_[RA] = kBadGprBase + RA;
 }
 
 extern "C" void art_do_long_jump(uint32_t*, uint32_t*);

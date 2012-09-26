@@ -16,6 +16,7 @@
 
 #include "asm_support.h"
 
+    .set noreorder
     .balign 4
 
     /* Deliver the given exception */
@@ -31,10 +32,10 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
-     * callee-save: $s0-$s8 + $ra, 10 total + 2 words
+     * callee-save: $s2-$s8 + $ra, 8 total + 2 words
      */
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    addiu  $sp, $sp, 48
+    addiu  $sp, $sp, -48
     sw     $ra, 44($sp)
     sw     $s8, 40($sp)
     sw     $s7, 36($sp)
@@ -43,9 +44,7 @@
     sw     $s4, 24($sp)
     sw     $s3, 20($sp)
     sw     $s2, 16($sp)
-    sw     $s1, 12($sp)
-    sw     $s0, 8($sp)
-    # 2 open words, bottom will hold Method*
+    # 4 open words, bottom will hold Method*
 .endm
 
     /*
@@ -55,7 +54,7 @@
      * callee-save: $s2-$s8 + $ra, 8 total + 4 words
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    addiu  $sp, $sp, 48
+    addiu  $sp, $sp, -48
     sw     $ra, 44($sp)
     sw     $s8, 40($sp)
     sw     $s7, 36($sp)
@@ -84,7 +83,7 @@
      * $a1-$a3, $s2-$s8, $ra, 11 total + 1
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    addiu  $sp, $sp, 48
+    addiu  $sp, $sp, -48
     sw     $ra, 44($sp)
     sw     $s8, 40($sp)
     sw     $s7, 36($sp)
@@ -945,8 +944,10 @@ art_ushr_long:
     ALIGN_FUNCTION_ENTRY
 art_indexof:
     jr $ra
+    nop
 
     .global art_string_compareto
     ALIGN_FUNCTION_ENTRY
 art_string_compareto:
     jr $ra
+    nop

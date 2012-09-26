@@ -69,9 +69,9 @@ int MipsManagedRegister::AllocIdLow() const {
     low = (r * 2) + kNumberOfCoreRegIds;  // Return an FRegister.
   } else {
     CHECK(IsRegisterPair());
-    low = (r - kNumberOfDRegIds) * 2;  // Return a Register.
-    if (low > 24) {
-      // we got a pair higher than T8_T9, must be the dalvik special case
+    low = (r - kNumberOfDRegIds) * 2 + 2;  // Return a Register.
+    if (low >= 24) {
+      // we got a pair higher than S6_S7, must be the dalvik special case
       low = 5;
     }
   }

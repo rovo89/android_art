@@ -36,7 +36,7 @@ class MipsContext : public Context {
   }
 
   virtual void SetPC(uintptr_t new_pc) {
-    pc_ = new_pc;
+    gprs_[RA] = new_pc;
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
@@ -51,7 +51,6 @@ class MipsContext : public Context {
  private:
   uintptr_t gprs_[32];
   uint32_t fprs_[32];
-  uintptr_t pc_;
 };
 }  // namespace mips
 }  // namespace art

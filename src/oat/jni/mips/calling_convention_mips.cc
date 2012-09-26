@@ -59,7 +59,7 @@ ManagedRegister MipsJniCallingConvention::IntReturnRegister() {
 // Managed runtime calling convention
 
 ManagedRegister MipsManagedRuntimeCallingConvention::MethodRegister() {
-  return MipsManagedRegister::FromCoreRegister(V0);
+  return MipsManagedRegister::FromCoreRegister(A0);
 }
 
 bool MipsManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
@@ -107,7 +107,7 @@ MipsJniCallingConvention::MipsJniCallingConvention(bool is_static, bool is_synch
                                                  const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty) {
   // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
-  // or jclass for static methods and the JNIEnv. We start at the aligned register r2.
+  // or jclass for static methods and the JNIEnv. We start at the aligned register A2.
   size_t padding = 0;
   for (size_t cur_arg = IsStatic() ? 0 : 1, cur_reg = 2; cur_arg < NumArgs(); cur_arg++) {
     if (IsParamALongOrDouble(cur_arg)) {
@@ -198,7 +198,7 @@ ManagedRegister MipsJniCallingConvention::CurrentParamRegister() {
 
 FrameOffset MipsJniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
-  size_t offset = displacement_.Int32Value() - OutArgSize() + ((itr_slots_ - 4) * kPointerSize);
+  size_t offset = displacement_.Int32Value() - OutArgSize() + (itr_slots_ * kPointerSize);
   CHECK_LT(offset, OutArgSize());
   return FrameOffset(offset);
 }
@@ -207,8 +207,8 @@ size_t MipsJniCallingConvention::NumberOfOutgoingStackArgs() {
   size_t static_args = IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
   size_t param_args = NumArgs() + NumLongOrDoubleArgs();
-  // count JNIEnv* less arguments in registers
-  return static_args + param_args + 1 - 4;
+  // count JNIEnv*
+  return static_args + param_args + 1;
 }
 }  // namespace mips
 }  // namespace art

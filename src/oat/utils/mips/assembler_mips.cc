@@ -349,26 +349,32 @@ void MipsAssembler::Sltiu(Register rt, Register rs, uint16_t imm16) {
 
 void MipsAssembler::Beq(Register rt, Register rs, uint16_t imm16) {
   EmitI(0x4, rs, rt, imm16);
+  Nop();
 }
 
 void MipsAssembler::Bne(Register rt, Register rs, uint16_t imm16) {
   EmitI(0x5, rs, rt, imm16);
+  Nop();
 }
 
 void MipsAssembler::J(uint32_t address) {
   EmitJ(0x2, address);
+  Nop();
 }
 
 void MipsAssembler::Jal(uint32_t address) {
   EmitJ(0x2, address);
+  Nop();
 }
 
 void MipsAssembler::Jr(Register rs) {
   EmitR(0, rs, static_cast<Register>(0), static_cast<Register>(0), 0, 0x08);
+  Nop();
 }
 
 void MipsAssembler::Jalr(Register rs) {
-  EmitR(0, rs, static_cast<Register>(0), static_cast<Register>(0), 0, 0x09);
+  EmitR(0, rs, static_cast<Register>(0), RA, 0, 0x09);
+  Nop();
 }
 
 void MipsAssembler::AddS(FRegister fd, FRegister fs, FRegister ft) {
@@ -443,6 +449,10 @@ void MipsAssembler::Sdc1(DRegister ft, Register rs, uint16_t imm16) {
 void MipsAssembler::Break() {
   EmitR(0, static_cast<Register>(0), static_cast<Register>(0),
         static_cast<Register>(0), 0, 0xD);
+}
+
+void MipsAssembler::Nop() {
+  EmitR(0x0, static_cast<Register>(0), static_cast<Register>(0), static_cast<Register>(0), 0, 0x0);
 }
 
 void MipsAssembler::Move(Register rt, Register rs) {
@@ -604,6 +614,9 @@ void MipsAssembler::RemoveFrame(size_t frame_size,
 
   // Decrease frame to required size.
   DecreaseFrameSize(frame_size);
+
+  // Then jump to the return address.
+  Jr(RA);
 }
 
 void MipsAssembler::IncreaseFrameSize(size_t adjust) {
