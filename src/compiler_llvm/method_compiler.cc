@@ -1257,16 +1257,7 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  // Get thread-local exception field address
-  llvm::Value* exception_object_addr =
-    irb_.Runtime().EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
-                                            irb_.getJObjectTy(),
-                                            kTBAAJRuntime);
-
-  // Set thread-local exception field address to NULL
-  irb_.Runtime().EmitStoreToThreadOffset(Thread::ExceptionOffset().Int32Value(),
-                                         irb_.getJNull(),
-                                         kTBAAJRuntime);
+  llvm::Value* exception_object_addr = irb_.Runtime().EmitGetAndClearException();
 
   // Keep the exception object in the Dalvik register
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);

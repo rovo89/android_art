@@ -463,6 +463,17 @@ func_art_pop_shadow_frame_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_pop_shadow_frame_from_code_PAL;
 func_art_pop_shadow_frame_from_code->setAttributes(func_art_pop_shadow_frame_from_code_PAL);
 
+Function* func_art_get_and_clear_exception = mod->getFunction("art_get_and_clear_exception");
+if (!func_art_get_and_clear_exception) {
+func_art_get_and_clear_exception = Function::Create(
+ /*Type=*/FuncTy_4,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_get_and_clear_exception", mod); // (external, no body)
+func_art_get_and_clear_exception->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_get_and_clear_exception_PAL;
+func_art_get_and_clear_exception->setAttributes(func_art_get_and_clear_exception_PAL);
+
 Function* func_art_throw_div_zero_from_code = mod->getFunction("art_throw_div_zero_from_code");
 if (!func_art_throw_div_zero_from_code) {
 func_art_throw_div_zero_from_code = Function::Create(

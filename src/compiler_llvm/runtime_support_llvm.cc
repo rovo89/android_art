@@ -167,6 +167,14 @@ void art_throw_exception_from_code(Object* exception)
   }
 }
 
+void* art_get_and_clear_exception(Thread* self)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(self->IsExceptionPending());
+  Throwable* exception = self->GetException();
+  self->ClearException();
+  return exception;
+}
+
 int32_t art_find_catch_block_from_code(AbstractMethod* current_method,
                                        uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

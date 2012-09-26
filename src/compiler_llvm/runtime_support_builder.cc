@@ -133,7 +133,12 @@ void RuntimeSupportBuilder::EmitPopShadowFrame(llvm::Value* old_shadow_frame) {
 }
 
 
-/* Check */
+/* Exception */
+
+llvm::Value* RuntimeSupportBuilder::EmitGetAndClearException() {
+  Function* slow_func = GetRuntimeSupportFunction(runtime_support::GetAndClearException);
+  return irb_.CreateCall(slow_func, EmitGetCurrentThread());
+}
 
 llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
   Value* exception = EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
@@ -143,12 +148,15 @@ llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
   return irb_.CreateIsNotNull(exception);
 }
 
+
+/* Suspend */
+
 void RuntimeSupportBuilder::EmitTestSuspend() {
   Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
-  Value* suspend_count = EmitLoadFromThreadOffset(Thread::SuspendCountOffset().Int32Value(),
-                                                  irb_.getJIntTy(),
+  Value* suspend_count = EmitLoadFromThreadOffset(Thread::ThreadFlagsOffset().Int32Value(),
+                                                  irb_.getInt16Ty(),
                                                   kTBAARuntimeInfo);
-  Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
+  Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getInt16(0));
 
   Function* parent_func = irb_.GetInsertBlock()->getParent();
   BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", parent_func);

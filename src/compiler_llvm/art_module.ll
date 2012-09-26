@@ -53,6 +53,7 @@ declare void @art_pop_shadow_frame_from_code(%ShadowFrame*)
 ; Exception
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+declare %JavaObject* @art_get_and_clear_exception(%JavaObject*)
 declare void @art_throw_div_zero_from_code()
 declare void @art_throw_array_bounds_from_code(i32, i32)
 declare void @art_throw_no_such_method_from_code(i32)

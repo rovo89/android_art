@@ -30,6 +30,24 @@
 
 using namespace llvm;
 
+namespace {
+
+char LDRSTRSuffixByType(art::compiler_llvm::IRBuilder& irb, llvm::Type* type) {
+  int width = type->isPointerTy() ?
+              irb.getSizeOfPtrEquivInt()*8 :
+              llvm::cast<IntegerType>(type)->getBitWidth();
+  switch (width) {
+    case 8:  return 'b';
+    case 16: return 'h';
+    case 32: return ' ';
+    default:
+      LOG(FATAL) << "Unsupported width: " << width;
+      return ' ';
+  }
+}
+
+} // namespace
+
 namespace art {
 namespace compiler_llvm {
 
@@ -48,7 +66,9 @@ llvm::Value* RuntimeSupportBuilderARM::EmitLoadFromThreadOffset(int64_t offset, 
                                                                 TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/type,
                                             /*isVarArg=*/false);
-  std::string inline_asm(StringPrintf("ldr $0, [r9, #%d]", static_cast<int>(offset)));
+  std::string inline_asm(StringPrintf("ldr%c $0, [r9, #%d]",
+                                      LDRSTRSuffixByType(irb_, type),
+                                      static_cast<int>(offset)));
   InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "=r", true);
   CallInst* result = irb_.CreateCall(func);
   result->setOnlyReadsMemory();
@@ -61,7 +81,9 @@ void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, llvm::Val
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*Params=*/value->getType(),
                                             /*isVarArg=*/false);
-  std::string inline_asm(StringPrintf("str $0, [r9, #%d]", static_cast<int>(offset)));
+  std::string inline_asm(StringPrintf("str%c $0, [r9, #%d]",
+                                      LDRSTRSuffixByType(irb_, value->getType()),
+                                      static_cast<int>(offset)));
   InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "r", true);
   CallInst* call_inst = irb_.CreateCall(func, value);
   irb_.SetTBAA(call_inst, s_ty);

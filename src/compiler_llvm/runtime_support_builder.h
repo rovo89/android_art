@@ -56,8 +56,11 @@ class RuntimeSupportBuilder {
                                                llvm::Value* method, uint32_t size);
   virtual void EmitPopShadowFrame(llvm::Value* old_shadow_frame);
 
-  /* Check */
+  /* Exception */
+  virtual llvm::Value* EmitGetAndClearException();
   virtual llvm::Value* EmitIsExceptionPending();
+
+  /* Suspend */
   virtual void EmitTestSuspend();
 
   /* Monitor */

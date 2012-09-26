@@ -161,8 +161,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   void Expand_MarkGCCard(llvm::CallInst& call_inst);
 
-  llvm::Value* Expand_GetException();
-
   llvm::Value* Expand_LoadStringFromDexCache(llvm::Value* string_idx_value);
 
   llvm::Value* Expand_LoadTypeFromDexCache(llvm::Value* type_idx_value);
@@ -773,21 +771,6 @@ void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
 void GBCExpanderPass::Expand_MarkGCCard(llvm::CallInst& call_inst) {
   irb_.Runtime().EmitMarkGCCard(call_inst.getArgOperand(0), call_inst.getArgOperand(1));
   return;
-}
-
-llvm::Value* GBCExpanderPass::Expand_GetException() {
-  // Get thread-local exception field address
-  llvm::Value* exception_object_addr =
-    irb_.Runtime().EmitLoadFromThreadOffset(art::Thread::ExceptionOffset().Int32Value(),
-                                            irb_.getJObjectTy(),
-                                            kTBAAJRuntime);
-
-  // Set thread-local exception field address to NULL
-  irb_.Runtime().EmitStoreToThreadOffset(art::Thread::ExceptionOffset().Int32Value(),
-                                         irb_.getJNull(),
-                                         kTBAAJRuntime);
-
-  return exception_object_addr;
 }
 
 llvm::Value*
@@ -2721,7 +2704,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return NULL;
     }
     case IntrinsicHelper::GetException: {
-      return Expand_GetException();
+      return irb_.Runtime().EmitGetAndClearException();
     }
     case IntrinsicHelper::IsExceptionPending: {
       return irb_.Runtime().EmitIsExceptionPending();

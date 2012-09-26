@@ -37,7 +37,7 @@ namespace compiler_llvm {
 
 llvm::Value* RuntimeSupportBuilderX86::EmitGetCurrentThread() {
   Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
-  std::string inline_asm(StringPrintf("movl %%fs:%d, $0", Thread::SelfOffset().Int32Value()));
+  std::string inline_asm(StringPrintf("mov %%fs:%d, $0", Thread::SelfOffset().Int32Value()));
   InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), inline_asm, "=r", false);
   CallInst* thread = irb_.CreateCall(func);
   thread->setDoesNotAccessMemory();
@@ -49,7 +49,7 @@ llvm::Value* RuntimeSupportBuilderX86::EmitLoadFromThreadOffset(int64_t offset, 
                                                                 TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/type,
                                             /*isVarArg=*/false);
-  std::string inline_asm(StringPrintf("movl %%fs:%d, $0", static_cast<int>(offset)));
+  std::string inline_asm(StringPrintf("mov %%fs:%d, $0", static_cast<int>(offset)));
   InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "=r", true);
   CallInst* result = irb_.CreateCall(func);
   result->setOnlyReadsMemory();
@@ -62,7 +62,7 @@ void RuntimeSupportBuilderX86::EmitStoreToThreadOffset(int64_t offset, llvm::Val
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*Params=*/value->getType(),
                                             /*isVarArg=*/false);
-  std::string inline_asm(StringPrintf("movl $0, %%fs:%d", static_cast<int>(offset)));
+  std::string inline_asm(StringPrintf("mov $0, %%fs:%d", static_cast<int>(offset)));
   InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "r", true);
   CallInst* call_inst = irb_.CreateCall(func, value);
   irb_.SetTBAA(call_inst, s_ty);
