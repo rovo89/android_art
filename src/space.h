@@ -391,6 +391,11 @@ class LargeObjectSpace : public Space {
     return lock_;
   }
 
+  bool Contains(const Object* obj) const {
+    MutexLock mu(const_cast<Mutex&>(lock_));
+    return mem_maps_.find(const_cast<Object*>(obj)) != mem_maps_.end();
+  }
+
  private:
   LargeObjectSpace(const std::string& name);
 

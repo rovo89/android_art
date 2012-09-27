@@ -108,6 +108,7 @@ inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
       LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
       SpaceSetMap* large_objects = large_object_space->GetMarkObjects();
       if (!large_objects->Test(obj)) {
+        CHECK(large_object_space->Contains(obj)) << "Attempting to mark object " << obj << " not in large object space";
         large_objects->Set(obj);
         // Don't need to check finger since large objects never have any object references.
       }
