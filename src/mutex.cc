@@ -18,6 +18,9 @@
 
 #include <errno.h>
 
+#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
+#include "linux/futex.h"
 #include "logging.h"
 #include "runtime.h"
 #include "thread.h"
@@ -32,6 +35,16 @@
 extern int pthread_mutex_lock(pthread_mutex_t* mutex) EXCLUSIVE_LOCK_FUNCTION(mutex);
 extern int pthread_mutex_unlock(pthread_mutex_t* mutex) UNLOCK_FUNCTION(1);
 extern int pthread_mutex_trylock(pthread_mutex_t* mutex) EXCLUSIVE_TRYLOCK_FUNCTION(0, mutex);
+
+#if ART_USE_FUTEXES
+#include "sys/syscall.h"
+#ifndef SYS_futex
+#define SYS_futex __NR_futex
+#endif
+int futex(volatile int *uaddr, int op, int val, const struct timespec *timeout, int *, int ) {
+  return syscall(SYS_futex, uaddr, op, val, timeout, NULL, NULL);
+}
+#endif  // ART_USE_FUTEXES
 
 namespace art {
 
@@ -75,47 +88,9 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
   // ...other stuff we don't care about.
 };
 
-ReaderWriterMutex* Locks::mutator_lock_ = NULL;
-Mutex* Locks::thread_list_lock_ = NULL;
-Mutex* Locks::classlinker_classes_lock_ = NULL;
-ReaderWriterMutex* Locks::heap_bitmap_lock_ = NULL;
-Mutex* Locks::abort_lock_ = NULL;
-Mutex* Locks::logging_lock_ = NULL;
-Mutex* Locks::unexpected_signal_lock_ = NULL;
-Mutex* Locks::thread_suspend_count_lock_ = NULL;
+BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {}
 
-void Locks::Init() {
-  if (logging_lock_ != NULL) {
-    // Already initialized.
-    DCHECK(mutator_lock_ != NULL);
-    DCHECK(thread_list_lock_ != NULL);
-    DCHECK(classlinker_classes_lock_ != NULL);
-    DCHECK(heap_bitmap_lock_ != NULL);
-    DCHECK(abort_lock_ != NULL);
-    DCHECK(logging_lock_ != NULL);
-    DCHECK(unexpected_signal_lock_ != NULL);
-    DCHECK(thread_suspend_count_lock_ != NULL);
-  } else {
-    logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
-    abort_lock_ = new Mutex("abort lock", kAbortLock, true);
-    DCHECK(mutator_lock_ == NULL);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
-    DCHECK(thread_list_lock_ == NULL);
-    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
-    DCHECK(classlinker_classes_lock_ == NULL);
-    classlinker_classes_lock_ = new Mutex("ClassLinker classes lock", kClassLinkerClassesLock);
-    DCHECK(heap_bitmap_lock_ == NULL);
-    heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", kHeapBitmapLock);
-    DCHECK(unexpected_signal_lock_ == NULL);
-    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
-    DCHECK(thread_suspend_count_lock_ == NULL);
-    thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
-  }
-}
-
-BaseMutex::BaseMutex(const char* name, MutexLevel level) : level_(level), name_(name) {}
-
-static void CheckUnattachedThread(MutexLevel level) {
+static void CheckUnattachedThread(LockLevel level) {
   // The check below enumerates the cases where we expect not to be able to sanity check locks
   // on a thread. TODO: tighten this check.
   if (kDebugLocking) {
@@ -126,9 +101,8 @@ static void CheckUnattachedThread(MutexLevel level) {
   }
 }
 
-void BaseMutex::RegisterAsLockedWithCurrentThread() {
-  Thread* self = Thread::Current();
-  if (self == NULL) {
+void BaseMutex::RegisterAsLocked(Thread* self) {
+  if (UNLIKELY(self == NULL)) {
     CheckUnattachedThread(level_);
     return;
   }
@@ -136,7 +110,7 @@ void BaseMutex::RegisterAsLockedWithCurrentThread() {
     // Check if a bad Mutex of this level or lower is held.
     bool bad_mutexes_held = false;
     for (int i = level_; i >= 0; --i) {
-      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
       if (UNLIKELY(held_mutex != NULL)) {
         LOG(ERROR) << "Lock level violation: holding \"" << held_mutex->name_ << "\" (level " << i
             << ") while locking \"" << name_ << "\" (level " << static_cast<int>(level_) << ")";
@@ -155,9 +129,8 @@ void BaseMutex::RegisterAsLockedWithCurrentThread() {
   }
 }
 
-void BaseMutex::RegisterAsUnlockedWithCurrentThread() {
-  Thread* self = Thread::Current();
-  if (self == NULL) {
+void BaseMutex::RegisterAsUnlocked(Thread* self) {
+  if (UNLIKELY(self == NULL)) {
     CheckUnattachedThread(level_);
     return;
   }
@@ -169,8 +142,7 @@ void BaseMutex::RegisterAsUnlockedWithCurrentThread() {
   }
 }
 
-void BaseMutex::CheckSafeToWait() {
-  Thread* self = Thread::Current();
+void BaseMutex::CheckSafeToWait(Thread* self) {
   if (self == NULL) {
     CheckUnattachedThread(level_);
     return;
@@ -180,7 +152,7 @@ void BaseMutex::CheckSafeToWait() {
     bool bad_mutexes_held = false;
     for (int i = kMaxMutexLevel; i >= 0; --i) {
       if (i != level_) {
-        BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+        BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
         if (held_mutex != NULL) {
           LOG(ERROR) << "Holding " << held_mutex->name_ << " (level " << i
               << ") while performing wait on: "
@@ -193,7 +165,7 @@ void BaseMutex::CheckSafeToWait() {
   }
 }
 
-Mutex::Mutex(const char* name, MutexLevel level, bool recursive)
+Mutex::Mutex(const char* name, LockLevel level, bool recursive)
     : BaseMutex(name, level), recursive_(recursive), recursion_count_(0) {
 #if defined(__BIONIC__) || defined(__APPLE__)
   // Use recursive mutexes for bionic and Apple otherwise the
@@ -220,27 +192,27 @@ Mutex::~Mutex() {
   }
 }
 
-void Mutex::ExclusiveLock() {
+void Mutex::ExclusiveLock(Thread* self) {
   if (kDebugLocking && !recursive_) {
-    AssertNotHeld();
+    AssertNotHeld(self);
   }
-  if (!recursive_ || !IsExclusiveHeld()) {
+  if (!recursive_ || !IsExclusiveHeld(self)) {
     CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
-    RegisterAsLockedWithCurrentThread();
+    RegisterAsLocked(self);
   }
   recursion_count_++;
   if (kDebugLocking) {
     CHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
         << name_ << " " << recursion_count_;
-    AssertHeld();
+    AssertHeld(self);
   }
 }
 
-bool Mutex::ExclusiveTryLock() {
+bool Mutex::ExclusiveTryLock(Thread* self) {
   if (kDebugLocking && !recursive_) {
-    AssertNotHeld();
+    AssertNotHeld(self);
   }
-  if (!recursive_ || !IsExclusiveHeld()) {
+  if (!recursive_ || !IsExclusiveHeld(self)) {
     int result = pthread_mutex_trylock(&mutex_);
     if (result == EBUSY) {
       return false;
@@ -249,32 +221,31 @@ bool Mutex::ExclusiveTryLock() {
       errno = result;
       PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
     }
-    RegisterAsLockedWithCurrentThread();
+    RegisterAsLocked(self);
   }
   recursion_count_++;
   if (kDebugLocking) {
     CHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
         << name_ << " " << recursion_count_;
-    AssertHeld();
+    AssertHeld(self);
   }
   return true;
 }
 
-void Mutex::ExclusiveUnlock() {
-  AssertHeld();
+void Mutex::ExclusiveUnlock(Thread* self) {
+  AssertHeld(self);
   recursion_count_--;
   if (!recursive_ || recursion_count_ == 0) {
     if (kDebugLocking) {
       CHECK(recursion_count_ == 0 || recursive_) << "Unexpected recursion count on mutex: "
           << name_ << " " << recursion_count_;
     }
-    RegisterAsUnlockedWithCurrentThread();
+    RegisterAsUnlocked(self);
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
   }
 }
 
-bool Mutex::IsExclusiveHeld() const {
-  Thread* self = Thread::Current();
+bool Mutex::IsExclusiveHeld(const Thread* self) const {
   bool result;
   if (self == NULL || level_ == kMonitorLock) {  // Handle unattached threads and monitors.
     result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
@@ -309,11 +280,24 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #endif
 }
 
-ReaderWriterMutex::ReaderWriterMutex(const char* name, MutexLevel level) : BaseMutex(name, level) {
+ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level) :
+    BaseMutex(name, level)
+#if ART_USE_FUTEXES
+    , state_(0), exclusive_owner_(0), num_pending_readers_(0), num_pending_writers_(0)
+#endif
+{
+#if !ART_USE_FUTEXES
   CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, NULL));
+#endif
 }
 
 ReaderWriterMutex::~ReaderWriterMutex() {
+#if ART_USE_FUTEXES
+  CHECK_EQ(state_, 0);
+  CHECK_EQ(exclusive_owner_, 0U);
+  CHECK_EQ(num_pending_readers_, 0);
+  CHECK_EQ(num_pending_writers_, 0);
+#else
   // We can't use CHECK_MUTEX_CALL here because on shutdown a suspended daemon thread
   // may still be using locks.
   int rc = pthread_rwlock_destroy(&rwlock_);
@@ -323,23 +307,89 @@ ReaderWriterMutex::~ReaderWriterMutex() {
     bool shutting_down = Runtime::Current()->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
   }
+#endif
 }
 
-void ReaderWriterMutex::ExclusiveLock() {
-  AssertNotExclusiveHeld();
+void ReaderWriterMutex::ExclusiveLock(Thread* self) {
+  AssertNotExclusiveHeld(self);
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (cur_state == 0) {
+      // Change state from 0 to -1.
+      done = android_atomic_cmpxchg(0, -1, &state_) == 0;
+    } else {
+      // Failed to acquire, hang up.
+      android_atomic_inc(&num_pending_writers_);
+      if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
+        if (errno != EAGAIN) {
+          PLOG(FATAL) << "futex wait failed for " << name_;
+        }
+      }
+      android_atomic_dec(&num_pending_writers_);
+    }
+  } while(!done);
+  exclusive_owner_ = static_cast<uint64_t>(GetTid());
+#else
   CHECK_MUTEX_CALL(pthread_rwlock_wrlock, (&rwlock_));
-  RegisterAsLockedWithCurrentThread();
-  AssertExclusiveHeld();
+#endif
+  RegisterAsLocked(self);
+  AssertExclusiveHeld(self);
 }
 
-void ReaderWriterMutex::ExclusiveUnlock() {
-  AssertExclusiveHeld();
-  RegisterAsUnlockedWithCurrentThread();
+void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
+  AssertExclusiveHeld(self);
+  RegisterAsUnlocked(self);
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (cur_state == -1) {
+      // We're no longer the owner.
+      exclusive_owner_ = 0;
+      // Change state from -1 to 0.
+      done = android_atomic_cmpxchg(-1, 0, &state_) == 0;
+      if (done) { // cmpxchg may fail due to noise?
+        // Wake any waiters.
+        if (num_pending_readers_ > 0 || num_pending_writers_ > 0) {
+          futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
+        }
+      }
+    } else {
+      LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
+    }
+  } while(!done);
+#else
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
+#endif
 }
 
 #if HAVE_TIMED_RWLOCK
-bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
+bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, const timespec& abs_timeout) {
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (cur_state == 0) {
+      // Change state from 0 to -1.
+      done = android_atomic_cmpxchg(0, -1, &state_) == 0;
+    } else {
+      // Failed to acquire, hang up.
+      android_atomic_inc(&num_pending_writers_);
+      if (futex(&state_, FUTEX_WAIT, cur_state, &abs_timeout, NULL, 0) != 0) {
+        if (errno == ETIMEDOUT) {
+          android_atomic_dec(&num_pending_writers_);
+          return false;
+        } else if (errno != EAGAIN) {
+          PLOG(FATAL) << "timed futex wait failed for " << name_;
+        }
+      }
+      android_atomic_dec(&num_pending_writers_);
+    }
+  } while(!done);
+  exclusive_owner_ = static_cast<uint64_t>(GetTid());
+#else
   int result = pthread_rwlock_timedwrlock(&rwlock_, &abs_timeout);
   if (result == ETIMEDOUT) {
     return false;
@@ -348,19 +398,53 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
     errno = result;
     PLOG(FATAL) << "pthread_rwlock_timedwrlock failed for " << name_;
   }
-  RegisterAsLockedWithCurrentThread();
-  AssertSharedHeld();
+#endif
+  RegisterAsLocked(self);
+  AssertSharedHeld(self);
   return true;
 }
 #endif
 
-void ReaderWriterMutex::SharedLock() {
+void ReaderWriterMutex::SharedLock(Thread* self) {
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (cur_state >= 0) {
+      // Add as an extra reader.
+      done = android_atomic_cmpxchg(cur_state, cur_state + 1, &state_) == 0;
+    } else {
+      // Owner holds it exclusively, hang up.
+      android_atomic_inc(&num_pending_readers_);
+      if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
+        if (errno != EAGAIN) {
+          PLOG(FATAL) << "futex wait failed for " << name_;
+        }
+      }
+      android_atomic_dec(&num_pending_readers_);
+    }
+  } while(!done);
+#else
   CHECK_MUTEX_CALL(pthread_rwlock_rdlock, (&rwlock_));
-  RegisterAsLockedWithCurrentThread();
-  AssertSharedHeld();
+#endif
+  RegisterAsLocked(self);
+  AssertSharedHeld(self);
 }
 
-bool ReaderWriterMutex::SharedTryLock() {
+bool ReaderWriterMutex::SharedTryLock(Thread* self) {
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (cur_state >= 0) {
+      // Add as an extra reader.
+      done = android_atomic_cmpxchg(cur_state, cur_state + 1, &state_) == 0;
+    } else {
+      // Owner holds it exclusively.
+      return false;
+    }
+  } while(!done);
+#else
   int result = pthread_rwlock_tryrdlock(&rwlock_);
   if (result == EBUSY) {
     return false;
@@ -369,32 +453,50 @@ bool ReaderWriterMutex::SharedTryLock() {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
   }
-  RegisterAsLockedWithCurrentThread();
-  AssertSharedHeld();
+#endif
+  RegisterAsLocked(self);
+  AssertSharedHeld(self);
   return true;
 }
 
-void ReaderWriterMutex::SharedUnlock() {
-  AssertSharedHeld();
-  RegisterAsUnlockedWithCurrentThread();
+void ReaderWriterMutex::SharedUnlock(Thread* self) {
+  AssertSharedHeld(self);
+  RegisterAsUnlocked(self);
+#if ART_USE_FUTEXES
+  bool done = false;
+  do {
+    int32_t cur_state = state_;
+    if (LIKELY(cur_state > 0)) {
+      // Reduce state by 1.
+      done = android_atomic_cmpxchg(cur_state, cur_state - 1, &state_) == 0;
+      if (done && (cur_state - 1) == 0) { // cmpxchg may fail due to noise?
+        if (num_pending_writers_ > 0 || num_pending_readers_ > 0) {
+          // Wake any exclusive waiters as there are now no readers.
+          futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
+        }
+      }
+    } else {
+      LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
+    }
+  } while(!done);
+#else
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
+#endif
 }
 
-bool ReaderWriterMutex::IsExclusiveHeld() const {
+bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
   bool result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
   if (kDebugLocking) {
     // Sanity that if the pthread thinks we own the lock the Thread agrees.
-    Thread* self = Thread::Current();
     CHECK((self == NULL) || !result || (self->GetHeldMutex(level_) == this));
   }
   return result;
 }
 
-bool ReaderWriterMutex::IsSharedHeld() const {
-  Thread* self = Thread::Current();
+bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
   bool result;
   if (UNLIKELY(self == NULL)) {  // Handle unattached threads.
-    result = IsExclusiveHeld(); // TODO: a better best effort here.
+    result = IsExclusiveHeld(self); // TODO: a better best effort here.
   } else {
     result = (self->GetHeldMutex(level_) == this);
   }
@@ -402,12 +504,16 @@ bool ReaderWriterMutex::IsSharedHeld() const {
 }
 
 uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
+#if ART_USE_FUTEXES
+  return exclusive_owner_;
+#else
 #if defined(__BIONIC__)
   return rwlock_.writerThreadId;
 #elif defined(__GLIBC__)
   return reinterpret_cast<const glibc_pthread_rwlock_t*>(&rwlock_)->writer;
 #elif defined(__APPLE__)
-  const darwin_pthread_rwlock_t* dprwlock = reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_);
+  const darwin_pthread_rwlock_t*
+      dprwlock = reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_);
   pthread_t owner = dprwlock->darwin_pthread_rwlock_owner;
   if (owner == (pthread_t)0) {
     return 0;
@@ -417,6 +523,7 @@ uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
   return tid;
 #else
 #error unsupported C library
+#endif
 #endif
 }
 
@@ -443,21 +550,21 @@ void ConditionVariable::Signal() {
   CHECK_MUTEX_CALL(pthread_cond_signal, (&cond_));
 }
 
-void ConditionVariable::Wait(Mutex& mutex) {
-  mutex.CheckSafeToWait();
+void ConditionVariable::Wait(Thread* self, Mutex& mutex) {
+  mutex.CheckSafeToWait(self);
   unsigned int old_recursion_count = mutex.recursion_count_;
   mutex.recursion_count_ = 0;
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &mutex.mutex_));
   mutex.recursion_count_ = old_recursion_count;
 }
 
-void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
+void ConditionVariable::TimedWait(Thread* self, Mutex& mutex, const timespec& ts) {
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
 #define TIMEDWAIT pthread_cond_timedwait_monotonic
 #else
 #define TIMEDWAIT pthread_cond_timedwait
 #endif
-  mutex.CheckSafeToWait();
+  mutex.CheckSafeToWait(self);
   unsigned int old_recursion_count = mutex.recursion_count_;
   mutex.recursion_count_ = 0;
   int rc = TIMEDWAIT(&cond_, &mutex.mutex_, &ts);

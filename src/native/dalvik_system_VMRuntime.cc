@@ -154,14 +154,15 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
   }
 }
 
-static void VMRuntime_trimHeap(JNIEnv*, jobject) {
+static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
   // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
   uint64_t start_ns = NanoTime();
   AllocSpace* alloc_space = heap->GetAllocSpace();
   size_t alloc_space_size = alloc_space->Size();
   float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
-  heap->Trim();
+  Thread* self = static_cast<JNIEnvExt*>(env)->self;
+  heap->Trim(self);
   // Trim the native heap.
   dlmalloc_trim(0);
   dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
@@ -170,8 +171,9 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
             << " alloc space with " << static_cast<int>(100 * utilization) << "% utilization";
 }
 
-static void VMRuntime_concurrentGC(JNIEnv*, jobject) {
-  Runtime::Current()->GetHeap()->ConcurrentGC();
+static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
+  Thread* self = static_cast<JNIEnvExt*>(env)->self;
+  Runtime::Current()->GetHeap()->ConcurrentGC(self);
 }
 
 static JNINativeMethod gMethods[] = {

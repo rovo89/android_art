@@ -527,7 +527,7 @@ class SharedLibrary {
       } else {
         while (jni_on_load_result_ == kPending) {
           VLOG(jni) << "[" << *self << " waiting for \"" << path_ << "\" " << "JNI_OnLoad...]";
-          jni_on_load_cond_.Wait(jni_on_load_lock_);
+          jni_on_load_cond_.Wait(self, jni_on_load_lock_);
         }
 
         okay = (jni_on_load_result_ == kOkay);

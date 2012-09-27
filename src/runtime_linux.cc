@@ -21,6 +21,7 @@
 #include <sys/utsname.h>
 
 #include "logging.h"
+#include "mutex.h"
 #include "stringprintf.h"
 #include "utils.h"
 

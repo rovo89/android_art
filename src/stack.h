@@ -147,8 +147,21 @@ class PACKED ManagedStack {
  public:
   ManagedStack()
       : link_(NULL), top_shadow_frame_(NULL), top_quick_frame_(NULL), top_quick_frame_pc_(0) {}
-  void PushManagedStackFragment(ManagedStack* fragment);
-  void PopManagedStackFragment(const ManagedStack& record);
+
+  void PushManagedStackFragment(ManagedStack* fragment) {
+    // Copy this top fragment into given fragment.
+    memcpy(fragment, this, sizeof(ManagedStack));
+    // Clear this fragment, which has become the top.
+    memset(this, 0, sizeof(ManagedStack));
+    // Link our top fragment onto the given fragment.
+    link_ = fragment;
+  }
+
+  void PopManagedStackFragment(const ManagedStack& fragment) {
+    DCHECK(&fragment == link_);
+    // Copy this given fragment back to the top.
+    memcpy(this, &fragment, sizeof(ManagedStack));
+  }
 
   ManagedStack* GetLink() const {
     return link_;

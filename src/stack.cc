@@ -24,21 +24,6 @@
 
 namespace art {
 
-void ManagedStack::PushManagedStackFragment(ManagedStack* fragment) {
-  // Copy this top fragment into given fragment.
-  memcpy(fragment, this, sizeof(ManagedStack));
-  // Clear this fragment, which has become the top.
-  memset(this, 0, sizeof(ManagedStack));
-  // Link our top fragment onto the given fragment.
-  link_ = fragment;
-}
-
-void ManagedStack::PopManagedStackFragment(const ManagedStack& fragment) {
-  DCHECK(&fragment == link_);
-  // Copy this given fragment back to the top.
-  memcpy(this, &fragment, sizeof(ManagedStack));
-}
-
 size_t ManagedStack::NumShadowFrameReferences() const {
   size_t count = 0;
   for (const ManagedStack* current_fragment = this; current_fragment != NULL;

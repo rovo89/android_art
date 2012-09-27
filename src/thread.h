@@ -25,14 +25,10 @@
 #include <string>
 #include <vector>
 
-#include "dex_file.h"
 #include "globals.h"
-#include "jni_internal.h"
-#include "logging.h"
 #include "macros.h"
-#include "mutex.h"
-#include "mem_map.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "locks.h"
 #include "offsets.h"
 #include "runtime_stats.h"
 #include "stack.h"
@@ -44,13 +40,16 @@
 
 namespace art {
 
+class AbstractMethod;
 class Array;
+class BaseMutex;
 class Class;
 class ClassLinker;
 class ClassLoader;
 class Context;
 struct DebugInvokeReq;
-class AbstractMethod;
+class DexFile;
+struct JNIEnvExt;
 class Monitor;
 class Object;
 class Runtime;
@@ -158,22 +157,16 @@ class PACKED Thread {
 
   ThreadState SetState(ThreadState new_state);
 
-  int GetSuspendCount() const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    Locks::thread_suspend_count_lock_->AssertHeld();
+  int GetSuspendCount() const EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
     return suspend_count_;
   }
 
-  int GetDebugSuspendCount() const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    Locks::thread_suspend_count_lock_->AssertHeld();
+  int GetDebugSuspendCount() const EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
     return debug_suspend_count_;
   }
 
-  bool IsSuspended() const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    int suspend_count = GetSuspendCount();
-    return suspend_count != 0 && GetState() != kRunnable;
+  bool IsSuspended() const EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
+    return GetState() != kRunnable && ReadFlag(kSuspendRequest);
   }
 
   void ModifySuspendCount(int delta, bool for_debugger)
@@ -386,38 +379,14 @@ class PACKED Thread {
   }
 
   // Convert a jobject into a Object*
-  Object* DecodeJObject(jobject obj)
-      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
-                     JavaVMExt::weak_globals_lock)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* DecodeJObject(jobject obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implements java.lang.Thread.interrupted.
-  bool Interrupted() {
-    MutexLock mu(*wait_mutex_);
-    bool interrupted = interrupted_;
-    interrupted_ = false;
-    return interrupted;
-  }
-
+  bool Interrupted();
   // Implements java.lang.Thread.isInterrupted.
-  bool IsInterrupted() {
-    MutexLock mu(*wait_mutex_);
-    return interrupted_;
-  }
-
-  void Interrupt() {
-    MutexLock mu(*wait_mutex_);
-    if (interrupted_) {
-      return;
-    }
-    interrupted_ = true;
-    NotifyLocked();
-  }
-
-  void Notify() {
-    MutexLock mu(*wait_mutex_);
-    NotifyLocked();
-  }
+  bool IsInterrupted();
+  void Interrupt();
+  void Notify();
 
   ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return class_loader_override_;
@@ -579,11 +548,11 @@ class PACKED Thread {
     return frame;
   }
 
-  BaseMutex* GetHeldMutex(MutexLevel level) const {
+  BaseMutex* GetHeldMutex(LockLevel level) const {
     return held_mutexes_[level];
   }
 
-  void SetHeldMutex(MutexLevel level, BaseMutex* mutex) {
+  void SetHeldMutex(LockLevel level, BaseMutex* mutex) {
     held_mutexes_[level] = mutex;
   }
 
@@ -634,11 +603,7 @@ class PACKED Thread {
   void InitPthreadKeySelf();
   void InitStackHwm();
 
-  void NotifyLocked() EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_) {
-    if (wait_monitor_ != NULL) {
-      wait_cond_->Signal();
-    }
-  }
+  void NotifyLocked() EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
 
   bool ReadFlag(ThreadFlag flag) const {
     return (state_and_flags_.as_struct.flags & flag) != 0;

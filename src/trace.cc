@@ -489,8 +489,9 @@ static void DumpThread(Thread* t, void* arg) {
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
-  Locks::thread_list_lock_->AssertNotHeld();
-  MutexLock mu(*Locks::thread_list_lock_);
+  Thread* self = Thread::Current();
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  MutexLock mu(self, *Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
 }
 
@@ -499,9 +500,10 @@ void Trace::InstallStubs() {
 }
 
 void Trace::UninstallStubs() {
-  Locks::thread_list_lock_->AssertNotHeld();
+  Thread* self = Thread::Current();
+  Locks::thread_list_lock_->AssertNotHeld(self);
   Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(self, *Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
 }
 

@@ -25,10 +25,12 @@
 #include "heap.h"
 #include "indirect_reference_table.h"
 #include "intern_table.h"
+#include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
 #include "mark_stack.h"
 #include "monitor.h"
+#include "mutex.h"
 #include "object.h"
 #include "runtime.h"
 #include "space.h"
@@ -456,7 +458,7 @@ struct SweepCallbackContext {
 };
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  Locks::heap_bitmap_lock_->AssertExclusiveHeld();
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
 
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
@@ -490,7 +492,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  Locks::heap_bitmap_lock_->AssertExclusiveHeld();
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
 
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
   Heap* heap = context->mark_sweep->GetHeap();

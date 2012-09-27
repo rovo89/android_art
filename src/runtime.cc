@@ -118,7 +118,7 @@ Runtime::~Runtime() {
   }
 
   // Make sure to let the GC complete if it is running.
-  heap_->WaitForConcurrentGcToComplete();
+  heap_->WaitForConcurrentGcToComplete(Thread::Current());
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();

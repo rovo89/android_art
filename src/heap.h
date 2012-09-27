@@ -25,7 +25,7 @@
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "heap_bitmap.h"
-#include "mutex.h"
+#include "locks.h"
 #include "offsets.h"
 #include "safe_map.h"
 #include "timing_logger.h"
@@ -39,12 +39,13 @@ namespace art {
 
 class AllocSpace;
 class Class;
+class ConditionVariable;
 class HeapBitmap;
 class ImageSpace;
 class LargeObjectSpace;
 class MarkStack;
 class ModUnionTable;
-
+class Mutex;
 class Object;
 class Space;
 class SpaceTest;
@@ -122,7 +123,7 @@ class LOCKABLE Heap {
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
-  void ConcurrentGC();
+  void ConcurrentGC(Thread* self);
 
   // Implements java.lang.Runtime.maxMemory.
   int64_t GetMaxMemory();
@@ -159,7 +160,7 @@ class LOCKABLE Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns
   // true if we waited for the GC to complete.
-  GcType WaitForConcurrentGcToComplete();
+  GcType WaitForConcurrentGcToComplete(Thread* self);
 
   const Spaces& GetSpaces() {
     return spaces_;
@@ -247,7 +248,7 @@ class LOCKABLE Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  void Trim();
+  void Trim(Thread* self);
 
   HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return live_bitmap_.get();
@@ -303,7 +304,7 @@ class LOCKABLE Heap {
   void RequestConcurrentGC();
 
   // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
-  void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void SwapBitmaps(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   void RecordAllocation(size_t size, const Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
@@ -315,10 +316,11 @@ class LOCKABLE Heap {
                      Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_,
                      Locks::thread_suspend_count_lock_);
-  void CollectGarbageMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
+  void CollectGarbageMarkSweepPlan(Thread* self, GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_);
-  void CollectGarbageConcurrentMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
+  void CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_plan,
+                                             bool clear_soft_references)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_);
 

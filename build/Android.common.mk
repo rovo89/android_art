@@ -196,6 +196,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_socket.cc \
 	src/jni_internal.cc \
 	src/jobject_comparator.cc \
+	src/locks.cc \
 	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
@@ -378,6 +379,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/invoke_type.h \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
+	src/locks.h \
 	src/mutex.h \
 	src/object.h \
 	src/thread.h \

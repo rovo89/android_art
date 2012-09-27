@@ -69,9 +69,10 @@ SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
   // Create a raw pthread; its start routine will attach to the runtime.
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
 
-  MutexLock mu(lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
   while (thread_ == NULL) {
-    cond_.Wait(lock_);
+    cond_.Wait(self, lock_);
   }
 }
 
@@ -122,12 +123,12 @@ void SignalCatcher::HandleSigQuit() {
 
   // We should exclusively hold the mutator lock, set state to Runnable without a pending
   // suspension to avoid giving away or trying to re-acquire the mutator lock.
-  Locks::mutator_lock_->AssertExclusiveHeld();
   Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
   ThreadState old_state;
   int suspend_count;
   {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     suspend_count = self->GetSuspendCount();
     if (suspend_count != 0) {
       CHECK_EQ(suspend_count, 1);
@@ -155,7 +156,7 @@ void SignalCatcher::HandleSigQuit() {
 
   os << "----- end " << getpid() << " -----\n";
   {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     self->SetState(old_state);
     if (suspend_count != 0) {
       self->ModifySuspendCount(+1, false);
@@ -201,7 +202,7 @@ void* SignalCatcher::Run(void* arg) {
   Thread* self = Thread::Current();
 
   {
-    MutexLock mu(signal_catcher->lock_);
+    MutexLock mu(self, signal_catcher->lock_);
     signal_catcher->thread_ = self;
     signal_catcher->cond_.Broadcast();
   }

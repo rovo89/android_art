@@ -24,7 +24,7 @@ namespace art {
 
 // Used by the JNI dlsym stub to find the native method to invoke if none is registered.
 extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_) {
-  Locks::mutator_lock_->AssertNotHeld();  // We come here as Native.
+  Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
   DCHECK(Thread::Current() == self);
   ScopedObjectAccess soa(self);
 

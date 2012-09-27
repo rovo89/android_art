@@ -17,6 +17,7 @@
 #include "reference_table.h"
 
 #include "indirect_reference_table.h"
+#include "mutex.h"
 
 #include "object.h"
 
@@ -63,7 +64,7 @@ struct ObjectComparator {
   bool operator()(const Object* obj1, const Object* obj2)
     // TODO: enable analysis when analysis can work with the STL.
       NO_THREAD_SAFETY_ANALYSIS {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;

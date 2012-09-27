@@ -98,7 +98,7 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
   ScopedObjectAccess soa(env);
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
     thread->Interrupt();

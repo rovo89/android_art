@@ -118,7 +118,7 @@ void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
   {
     MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
-    Locks::mutator_lock_->AssertNotHeld();
+    Locks::mutator_lock_->AssertNotHeld(Thread::Current());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);

@@ -16,6 +16,7 @@
 
 #include "compiled_method.h"
 #include "compiler.h"
+#include "jni_internal.h"
 #include "oat/utils/assembler.h"
 #include "oat/utils/x86/assembler_x86.h"
 #include "object.h"

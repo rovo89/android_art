@@ -118,7 +118,8 @@ JdwpState::JdwpState(const JdwpOptions* options)
  * the thread is accepting network connections.
  */
 JdwpState* JdwpState::Create(const JdwpOptions* options) {
-  Locks::mutator_lock_->AssertNotHeld();
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertNotHeld(self);
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
@@ -157,7 +158,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
        * Wait until the thread finishes basic initialization.
        * TODO: cond vars should be waited upon in a loop
        */
-      state->thread_start_cond_.Wait(state->thread_start_lock_);
+      state->thread_start_cond_.Wait(self, state->thread_start_lock_);
     } else {
       {
         MutexLock attach_locker(state->attach_lock_);
@@ -171,7 +172,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
          * Wait until the thread finishes basic initialization.
          * TODO: cond vars should be waited upon in a loop
          */
-        state->thread_start_cond_.Wait(state->thread_start_lock_);
+        state->thread_start_cond_.Wait(self, state->thread_start_lock_);
 
         /*
          * For suspend=y, wait for the debugger to connect to us or for us to
@@ -182,8 +183,8 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
          * when we wake up.
          */
         {
-          ScopedThreadStateChange tsc(Thread::Current(), kWaitingForDebuggerToAttach);
-          state->attach_cond_.Wait(state->attach_lock_);
+          ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
+          state->attach_cond_.Wait(self, state->attach_lock_);
         }
       }
       if (!state->IsActive()) {
@@ -294,14 +295,15 @@ void JdwpState::Run() {
   thread_ = Thread::Current();
   run = true;
 
-  thread_start_lock_.Lock();
-  debug_thread_started_ = true;
-  thread_start_cond_.Broadcast();
-  thread_start_lock_.Unlock();
+  {
+    MutexLock locker(thread_, thread_start_lock_);
+    debug_thread_started_ = true;
+    thread_start_cond_.Broadcast();
+  }
 
   /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
   {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(thread_, *Locks::thread_suspend_count_lock_);
     CHECK_EQ(thread_->GetState(), kNative);
     thread_->SetState(kWaitingInMainDebuggerLoop);
   }
@@ -346,7 +348,7 @@ void JdwpState::Run() {
     while (!Dbg::IsDisposed()) {
       {
         // sanity check -- shouldn't happen?
-        MutexLock mu(*Locks::thread_suspend_count_lock_);
+        MutexLock mu(thread_, *Locks::thread_suspend_count_lock_);
         CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
       }
 
@@ -366,7 +368,7 @@ void JdwpState::Run() {
         }
 
         /* wake anybody who's waiting for us */
-        MutexLock mu(attach_lock_);
+        MutexLock mu(thread_, attach_lock_);
         attach_cond_.Broadcast();
       }
     }
@@ -400,11 +402,8 @@ void JdwpState::Run() {
   }
 
   /* back to native, for thread shutdown */
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
-    thread_->SetState(kNative);
-  }
+  CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
+  thread_->SetState(kNative);
 
   VLOG(jdwp) << "JDWP: thread detaching and exiting...";
   runtime->DetachCurrentThread();

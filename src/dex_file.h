@@ -26,7 +26,6 @@
 #include "logging.h"
 #include "mem_map.h"
 #include "modifiers.h"
-#include "mutex.h"
 #include "safe_map.h"
 #include "stringpiece.h"
 #include "UniquePtr.h"

@@ -585,7 +585,8 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
   bool waited = false;
 
   /* this is held for very brief periods; contention is unlikely */
-  MutexLock mu(event_thread_lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, event_thread_lock_);
 
   /*
    * If another thread is already doing stuff, wait for it.  This can
@@ -594,7 +595,7 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
   while (event_thread_id_ != 0) {
     VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", event_thread_id_, threadId);
     waited = true;
-    event_thread_cond_.Wait(event_thread_lock_);
+    event_thread_cond_.Wait(self, event_thread_lock_);
   }
 
   if (waited || threadId != 0) {
@@ -1075,7 +1076,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   Thread* self = Thread::Current();
   bool safe_to_release_mutator_lock_over_send;
   for (size_t i=0; i < kMutatorLock; ++i) {
-    if (self->GetHeldMutex(static_cast<MutexLevel>(i)) != NULL) {
+    if (self->GetHeldMutex(static_cast<LockLevel>(i)) != NULL) {
       safe_to_release_mutator_lock_over_send = false;
       break;
     }

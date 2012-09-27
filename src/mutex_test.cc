@@ -28,9 +28,9 @@ struct MutexTester {
 
     // This test is single-threaded, so we also know _who_ should hold the lock.
     if (expected_depth == 0) {
-      mu.AssertNotHeld();
+      mu.AssertNotHeld(Thread::Current());
     } else {
-      mu.AssertHeld();
+      mu.AssertHeld(Thread::Current());
     }
   }
 };
@@ -38,9 +38,9 @@ struct MutexTester {
 TEST_F(MutexTest, LockUnlock) {
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
-  mu.Lock();
+  mu.Lock(Thread::Current());
   MutexTester::AssertDepth(mu, 1U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 0U);
 }
 
@@ -48,9 +48,9 @@ TEST_F(MutexTest, LockUnlock) {
 static void TryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
-  ASSERT_TRUE(mu.TryLock());
+  ASSERT_TRUE(mu.TryLock(Thread::Current()));
   MutexTester::AssertDepth(mu, 1U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 0U);
 }
 
@@ -62,13 +62,13 @@ TEST_F(MutexTest, TryLockUnlock) {
 static void RecursiveLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   Mutex mu("test mutex", kDefaultMutexLevel, true);
   MutexTester::AssertDepth(mu, 0U);
-  mu.Lock();
+  mu.Lock(Thread::Current());
   MutexTester::AssertDepth(mu, 1U);
-  mu.Lock();
+  mu.Lock(Thread::Current());
   MutexTester::AssertDepth(mu, 2U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 1U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 0U);
 }
 
@@ -80,13 +80,13 @@ TEST_F(MutexTest, RecursiveLockUnlock) {
 static void RecursiveTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   Mutex mu("test mutex", kDefaultMutexLevel, true);
   MutexTester::AssertDepth(mu, 0U);
-  ASSERT_TRUE(mu.TryLock());
+  ASSERT_TRUE(mu.TryLock(Thread::Current()));
   MutexTester::AssertDepth(mu, 1U);
-  ASSERT_TRUE(mu.TryLock());
+  ASSERT_TRUE(mu.TryLock(Thread::Current()));
   MutexTester::AssertDepth(mu, 2U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 1U);
-  mu.Unlock();
+  mu.Unlock(Thread::Current());
   MutexTester::AssertDepth(mu, 0U);
 }
 
@@ -102,9 +102,9 @@ struct RecursiveLockWait {
 
   static void* Callback(void* arg) {
     RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
-    state->mu.Lock();
+    state->mu.Lock(Thread::Current());
     state->cv.Signal();
-    state->mu.Unlock();
+    state->mu.Unlock(Thread::Current());
     return NULL;
   }
 
@@ -115,17 +115,17 @@ struct RecursiveLockWait {
 // GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
 static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
   RecursiveLockWait state;
-  state.mu.Lock();
-  state.mu.Lock();
+  state.mu.Lock(Thread::Current());
+  state.mu.Lock(Thread::Current());
 
   pthread_t pthread;
   int pthread_create_result = pthread_create(&pthread, NULL, RecursiveLockWait::Callback, &state);
   ASSERT_EQ(0, pthread_create_result);
 
-  state.cv.Wait(state.mu);
+  state.cv.Wait(Thread::Current(), state.mu);
 
-  state.mu.Unlock();
-  state.mu.Unlock();
+  state.mu.Unlock(Thread::Current());
+  state.mu.Unlock(Thread::Current());
 }
 
 // This ensures we don't hang when waiting on a recursively locked mutex,
@@ -136,33 +136,33 @@ TEST_F(MutexTest, RecursiveLockWait) {
 
 TEST_F(MutexTest, SharedLockUnlock) {
   ReaderWriterMutex mu("test rwmutex");
-  mu.AssertNotHeld();
-  mu.AssertNotExclusiveHeld();
-  mu.SharedLock();
-  mu.AssertSharedHeld();
-  mu.AssertNotExclusiveHeld();
-  mu.SharedUnlock();
-  mu.AssertNotHeld();
+  mu.AssertNotHeld(Thread::Current());
+  mu.AssertNotExclusiveHeld(Thread::Current());
+  mu.SharedLock(Thread::Current());
+  mu.AssertSharedHeld(Thread::Current());
+  mu.AssertNotExclusiveHeld(Thread::Current());
+  mu.SharedUnlock(Thread::Current());
+  mu.AssertNotHeld(Thread::Current());
 }
 
 TEST_F(MutexTest, ExclusiveLockUnlock) {
   ReaderWriterMutex mu("test rwmutex");
-  mu.AssertNotHeld();
-  mu.ExclusiveLock();
-  mu.AssertSharedHeld();
-  mu.AssertExclusiveHeld();
-  mu.ExclusiveUnlock();
-  mu.AssertNotHeld();
+  mu.AssertNotHeld(Thread::Current());
+  mu.ExclusiveLock(Thread::Current());
+  mu.AssertSharedHeld(Thread::Current());
+  mu.AssertExclusiveHeld(Thread::Current());
+  mu.ExclusiveUnlock(Thread::Current());
+  mu.AssertNotHeld(Thread::Current());
 }
 
 // GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
 static void SharedTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   ReaderWriterMutex mu("test rwmutex");
-  mu.AssertNotHeld();
-  ASSERT_TRUE(mu.SharedTryLock());
-  mu.AssertSharedHeld();
-  mu.SharedUnlock();
-  mu.AssertNotHeld();
+  mu.AssertNotHeld(Thread::Current());
+  ASSERT_TRUE(mu.SharedTryLock(Thread::Current()));
+  mu.AssertSharedHeld(Thread::Current());
+  mu.SharedUnlock(Thread::Current());
+  mu.AssertNotHeld(Thread::Current());
 }
 
 TEST_F(MutexTest, SharedTryLockUnlock) {

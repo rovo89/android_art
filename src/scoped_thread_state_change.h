@@ -18,6 +18,7 @@
 #define ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
 
 #include "casts.h"
+#include "jni_internal.h"
 #include "thread.h"
 
 namespace art {
@@ -197,7 +198,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
@@ -206,7 +207,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: we should make these unique weak globals if Field instances can ever move.
@@ -219,7 +220,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     UNIMPLEMENTED(WARNING);
@@ -231,7 +232,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: we should make these unique weak globals if Method instances can ever move.
@@ -242,7 +243,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 
   jmethodID EncodeMethod(AbstractMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     UNIMPLEMENTED(WARNING);
@@ -285,14 +286,14 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(env) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
   explicit ScopedObjectAccess(Thread* self)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(self) {
-    Locks::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
   ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) {

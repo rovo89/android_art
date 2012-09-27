@@ -124,7 +124,7 @@ Monitor::Monitor(Thread* owner, Object* obj)
       wait_set_(NULL),
       locking_method_(NULL),
       locking_dex_pc_(0) {
-  monitor_lock_.Lock();
+  monitor_lock_.Lock(owner);
   // Propagate the lock state.
   uint32_t thin = *obj->GetRawLockWordAddress();
   lock_count_ = LW_LOCK_COUNT(thin);
@@ -201,7 +201,7 @@ void Monitor::Lock(Thread* self) {
     return;
   }
 
-  if (!monitor_lock_.TryLock()) {
+  if (!monitor_lock_.TryLock(self)) {
     uint64_t waitStart = 0;
     uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
@@ -215,7 +215,7 @@ void Monitor::Lock(Thread* self) {
       current_locking_method = locking_method_;
       current_locking_dex_pc = locking_dex_pc_;
 
-      monitor_lock_.Lock();
+      monitor_lock_.Lock(self);
       if (wait_threshold != 0) {
         waitEnd = NanoTime() / 1000;
       }
@@ -343,7 +343,7 @@ bool Monitor::Unlock(Thread* self, bool for_wait) {
       owner_ = NULL;
       locking_method_ = NULL;
       locking_dex_pc_ = 0;
-      monitor_lock_.Unlock();
+      monitor_lock_.Unlock(self);
     } else {
       --lock_count_;
     }
@@ -353,7 +353,7 @@ bool Monitor::Unlock(Thread* self, bool for_wait) {
     DCHECK(owner == NULL);
     DCHECK(locking_method_ == NULL);
     DCHECK_EQ(locking_dex_pc_, 0u);
-    monitor_lock_.Unlock();
+    monitor_lock_.Unlock(self);
   } else {
     // We don't own this, so we're not allowed to unlock it.
     // The JNI spec says that we should throw IllegalMonitorStateException
@@ -496,9 +496,9 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
     } else {
       // Wait for a notification or a timeout to occur.
       if (!timed) {
-        self->wait_cond_->Wait(*self->wait_mutex_);
+        self->wait_cond_->Wait(self, *self->wait_mutex_);
       } else {
-        self->wait_cond_->TimedWait(*self->wait_mutex_, ts);
+        self->wait_cond_->TimedWait(self, *self->wait_mutex_, ts);
       }
       if (self->interrupted_) {
         wasInterrupted = true;
@@ -515,7 +515,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
   Lock(self);
 
 
-  self->wait_mutex_->AssertNotHeld();
+  self->wait_mutex_->AssertNotHeld(self);
 
   /*
    * We remove our thread from wait set after restoring the count

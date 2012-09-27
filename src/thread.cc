@@ -37,6 +37,7 @@
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
+#include "mutex.h"
 #include "oat/runtime/context.h"
 #include "object.h"
 #include "object_utils.h"
@@ -139,9 +140,11 @@ Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, Object
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
-  MutexLock mu(*Locks::thread_suspend_count_lock_);
-  if (result != NULL && !result->IsSuspended()) {
-    Locks::thread_list_lock_->AssertHeld();
+  if (kIsDebugBuild) {
+    MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
+    if (result != NULL && !result->IsSuspended()) {
+      Locks::thread_list_lock_->AssertHeld(soa.Self());
+    }
   }
   return result;
 }
@@ -453,13 +456,13 @@ void Thread::GetThreadName(std::string& name) const {
 
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
 static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
-  Locks::thread_suspend_count_lock_->Unlock();
-  Locks::mutator_lock_->SharedTryLock();
-  if (!Locks::mutator_lock_->IsSharedHeld()) {
+  Locks::thread_suspend_count_lock_->Unlock(self);
+  Locks::mutator_lock_->SharedTryLock(self);
+  if (!Locks::mutator_lock_->IsSharedHeld(self)) {
     LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
   }
-  Locks::thread_list_lock_->TryLock();
-  if (!Locks::thread_list_lock_->IsExclusiveHeld()) {
+  Locks::thread_list_lock_->TryLock(self);
+  if (!Locks::thread_list_lock_->IsExclusiveHeld(self)) {
     LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
   }
   std::ostringstream ss;
@@ -526,7 +529,7 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   DCHECK_EQ(GetState(), kRunnable);
   state_and_flags_.as_struct.state = new_state;
   // Release share on mutator_lock_.
-  Locks::mutator_lock_->SharedUnlock();
+  Locks::mutator_lock_->SharedUnlock(this);
 }
 
 ThreadState Thread::TransitionFromSuspendedToRunnable() {
@@ -534,33 +537,33 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
   ThreadState old_state = GetState();
   DCHECK_NE(old_state, kRunnable);
   do {
-    Locks::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
+    Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
     DCHECK_EQ(GetState(), old_state);
     if (ReadFlag(kSuspendRequest)) {
       // Wait while our suspend count is non-zero.
-      MutexLock mu(*Locks::thread_suspend_count_lock_);
+      MutexLock mu(this, *Locks::thread_suspend_count_lock_);
       DCHECK_EQ(GetState(), old_state);
       while (ReadFlag(kSuspendRequest)) {
         // Re-check when Thread::resume_cond_ is notified.
-        Thread::resume_cond_->Wait(*Locks::thread_suspend_count_lock_);
+        Thread::resume_cond_->Wait(this, *Locks::thread_suspend_count_lock_);
         DCHECK_EQ(GetState(), old_state);
       }
       DCHECK_EQ(GetSuspendCount(), 0);
     }
     // Re-acquire shared mutator_lock_ access.
-    Locks::mutator_lock_->SharedLock();
+    Locks::mutator_lock_->SharedLock(this);
     // Atomically change from suspended to runnable if no suspend request pending.
     int16_t old_flags = state_and_flags_.as_struct.flags;
     if ((old_flags & kSuspendRequest) == 0) {
       int32_t old_state_and_flags = old_flags | (old_state << 16);
       int32_t new_state_and_flags = old_flags | (kRunnable << 16);
       done = android_atomic_cmpxchg(old_state_and_flags, new_state_and_flags,
-                                    reinterpret_cast<volatile int32_t*>(&state_and_flags_))
+                                    &state_and_flags_.as_int)
                                         == 0;
     }
     if (!done) {
       // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
-      Locks::mutator_lock_->SharedUnlock();
+      Locks::mutator_lock_->SharedUnlock(this);
     }
   } while (!done);
   return old_state;
@@ -576,14 +579,14 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
     Thread* thread;
     {
       ScopedObjectAccess soa(Thread::Current());
-      MutexLock mu(*Locks::thread_list_lock_);
+      MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == NULL) {
         LOG(WARNING) << "No such thread for suspend: " << peer;
         return NULL;
       }
       {
-        MutexLock mu(*Locks::thread_suspend_count_lock_);
+        MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
         if (request_suspension) {
           thread->ModifySuspendCount(+1, true /* for_debugger */);
           request_suspension = false;
@@ -612,7 +615,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
       // Release locks and come out of runnable state.
     }
     for (int i = kMaxMutexLevel; i >= 0; --i) {
-      BaseMutex* held_mutex = Thread::Current()->GetHeldMutex(static_cast<MutexLevel>(i));
+      BaseMutex* held_mutex = Thread::Current()->GetHeldMutex(static_cast<LockLevel>(i));
       if (held_mutex != NULL) {
         LOG(FATAL) << "Holding " << held_mutex->GetName()
             << " while sleeping for thread suspension";
@@ -640,9 +643,10 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   std::string group_name;
   int priority;
   bool is_daemon = false;
+  Thread* self = Thread::Current();
 
   if (thread != NULL && thread->peer_ != NULL) {
-    ScopedObjectAccess soa(Thread::Current());
+    ScopedObjectAccess soa(self);
     Object* native_peer = soa.Decode<Object*>(thread->peer_);
     priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(native_peer);
     is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(native_peer);
@@ -667,7 +671,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     if (is_daemon) {
       os << " daemon";
     }
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     os << " prio=" << priority
        << " tid=" << thread->GetThinLockId()
        << " " << thread->GetState() << "\n";
@@ -678,7 +682,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   }
 
   if (thread != NULL) {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     os << "  | group=\"" << group_name << "\""
        << " sCount=" << thread->suspend_count_
        << " dsCount=" << thread->debug_suspend_count_
@@ -1059,7 +1063,7 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
 }
 
 Object* Thread::DecodeJObject(jobject obj) {
-  Locks::mutator_lock_->AssertSharedHeld();
+  Locks::mutator_lock_->AssertSharedHeld(this);
   if (obj == NULL) {
     return NULL;
   }
@@ -1077,7 +1081,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& globals = vm->globals;
-      MutexLock mu(vm->globals_lock);
+      MutexLock mu(this, vm->globals_lock);
       result = const_cast<Object*>(globals.Get(ref));
       break;
     }
@@ -1085,7 +1089,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& weak_globals = vm->weak_globals;
-      MutexLock mu(vm->weak_globals_lock);
+      MutexLock mu(this, vm->weak_globals_lock);
       result = const_cast<Object*>(weak_globals.Get(ref));
       if (result == kClearedJniWeakGlobal) {
         // This is a special case where it's okay to return NULL.
@@ -1115,6 +1119,40 @@ Object* Thread::DecodeJObject(jobject obj) {
     }
   }
   return result;
+}
+
+// Implements java.lang.Thread.interrupted.
+bool Thread::Interrupted() {
+  MutexLock mu(*wait_mutex_);
+  bool interrupted = interrupted_;
+  interrupted_ = false;
+  return interrupted;
+}
+
+// Implements java.lang.Thread.isInterrupted.
+bool Thread::IsInterrupted() {
+  MutexLock mu(*wait_mutex_);
+  return interrupted_;
+}
+
+void Thread::Interrupt() {
+  MutexLock mu(*wait_mutex_);
+  if (interrupted_) {
+    return;
+  }
+  interrupted_ = true;
+  NotifyLocked();
+}
+
+void Thread::Notify() {
+  MutexLock mu(*wait_mutex_);
+  NotifyLocked();
+}
+
+void Thread::NotifyLocked() {
+  if (wait_monitor_ != NULL) {
+    wait_cond_->Signal();
+  }
 }
 
 class CountStackDepthVisitor : public StackVisitor {
@@ -1874,7 +1912,7 @@ void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
     for (int i = kMaxMutexLevel; i >= 0; --i) {
       // We expect no locks except the mutator_lock_.
       if (i != kMutatorLock) {
-        BaseMutex* held_mutex = GetHeldMutex(static_cast<MutexLevel>(i));
+        BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
         if (held_mutex != NULL) {
           LOG(ERROR) << "holding \"" << held_mutex->GetName()
                   << "\" at point where thread suspension is expected";

@@ -461,7 +461,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
 }
 
 bool Heap::IsLiveObjectLocked(const Object* obj) {
-  Locks::heap_bitmap_lock_->AssertReaderHeld();
+  Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
   return IsHeapAddress(obj) && GetLiveBitmap()->Test(obj);
 }
 
@@ -604,10 +604,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   // done in the runnable state where suspension is expected.
 #ifndef NDEBUG
   Thread* self = Thread::Current();
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(self->GetState(), kRunnable);
-  }
+  DCHECK_EQ(self->GetState(), kRunnable);
   self->AssertThreadSuspensionIsAllowable();
 #endif
 
@@ -618,7 +615,10 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
 
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
-  GcType last_gc = WaitForConcurrentGcToComplete();
+#ifdef NDEBUG
+  Thread* self = Thread::Current();
+#endif
+  GcType last_gc = WaitForConcurrentGcToComplete(self);
   if (last_gc != kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
     ptr = TryToAllocate(space, alloc_size, false);
@@ -628,9 +628,6 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
-#ifdef NDEBUG
-  Thread* self = Thread::Current();
-#endif
   for (size_t i = static_cast<size_t>(last_gc) + 1; i < static_cast<size_t>(kGcTypeMax); ++i) {
     bool run_gc = false;
     GcType gc_type = static_cast<GcType>(i);
@@ -772,14 +769,16 @@ int64_t Heap::CountInstances(Class* c, bool count_assignable) {
 void Heap::CollectGarbage(bool clear_soft_references) {
   // Even if we waited for a GC we still need to do another GC since weaks allocated during the
   // last GC will not have necessarily been cleared.
-  WaitForConcurrentGcToComplete();
-  ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
+  Thread* self = Thread::Current();
+  WaitForConcurrentGcToComplete(self);
+  ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
 }
 
 void Heap::PreZygoteFork() {
   static Mutex zygote_creation_lock_("zygote creation lock", kZygoteCreationLock);
-  MutexLock mu(zygote_creation_lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, zygote_creation_lock_);
 
   // Try to see if we have any Zygote spaces.
   if (have_zygote_space_) {
@@ -790,7 +789,7 @@ void Heap::PreZygoteFork() {
 
   {
     // Flush the alloc stack.
-    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     FlushAllocStack();
   }
 
@@ -866,31 +865,27 @@ void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, Mar
 }
 
 GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
-  Locks::mutator_lock_->AssertNotHeld();
-#ifndef NDEBUG
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(Thread::Current()->GetState(), kWaitingPerformingGc);
-  }
-#endif
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertNotHeld(self);
+  DCHECK_EQ(self->GetState(), kWaitingPerformingGc);
 
   // Ensure there is only one GC at a time.
   bool start_collect = false;
   while (!start_collect) {
     {
-      MutexLock mu(*gc_complete_lock_);
+      MutexLock mu(self, *gc_complete_lock_);
       if (!is_gc_running_) {
         is_gc_running_ = true;
         start_collect = true;
       }
     }
     if (!start_collect) {
-      WaitForConcurrentGcToComplete();
+      WaitForConcurrentGcToComplete(self);
       // TODO: if another thread beat this one to do the GC, perhaps we should just return here?
       //       Not doing at the moment to ensure soft references are cleared.
     }
   }
-  gc_complete_lock_->AssertNotHeld();
+  gc_complete_lock_->AssertNotHeld(self);
 
   // We need to do partial GCs every now and then to avoid the heap growing too much and
   // fragmenting.
@@ -902,14 +897,14 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   }
 
   if (concurrent_gc_) {
-    CollectGarbageConcurrentMarkSweepPlan(gc_type, clear_soft_references);
+    CollectGarbageConcurrentMarkSweepPlan(self, gc_type, clear_soft_references);
   } else {
-    CollectGarbageMarkSweepPlan(gc_type, clear_soft_references);
+    CollectGarbageMarkSweepPlan(self, gc_type, clear_soft_references);
   }
   bytes_since_last_gc_ = 0;
 
   {
-    MutexLock mu(*gc_complete_lock_);
+    MutexLock mu(self, *gc_complete_lock_);
     is_gc_running_ = false;
     last_gc_type_ = gc_type;
     // Wake anyone who may have been waiting for the GC to complete.
@@ -920,7 +915,7 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   return gc_type;
 }
 
-void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_references) {
+void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, bool clear_soft_references) {
   TimingLogger timings("CollectGarbageInternal", true);
 
   std::stringstream gc_type_str;
@@ -931,7 +926,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
   timings.AddSplit("SuspendAll");
-  Locks::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
 
   size_t bytes_freed = 0;
   Object* cleared_references = NULL;
@@ -942,7 +937,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     timings.AddSplit("Init");
 
     if (verify_pre_gc_heap_) {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       if (!VerifyHeapReferences()) {
         LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
       }
@@ -1049,7 +1044,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
 
     const bool swap = true;
     if (swap) {
-      SwapBitmaps();
+      SwapBitmaps(self);
     }
 
 #ifndef NDEBUG
@@ -1077,7 +1072,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
   }
 
   if (verify_post_gc_heap_) {
-    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     if (!VerifyHeapReferences()) {
       LOG(FATAL) << "Post " + gc_type_str.str() + "Gc verification failed";
     }
@@ -1286,7 +1281,7 @@ class VerifyObjectVisitor {
 
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
 bool Heap::VerifyHeapReferences() {
-  Locks::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
   // Lets sort our allocation stacks so that we can efficiently binary search them.
   std::sort(allocation_stack_->Begin(), allocation_stack_->End());
   std::sort(live_stack_->Begin(), live_stack_->End());
@@ -1389,7 +1384,7 @@ class VerifyLiveStackReferences {
 };
 
 bool Heap::VerifyMissingCardMarks() {
-  Locks::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
 
   VerifyLiveStackReferences visitor(this);
   GetLiveBitmap()->Visit(visitor);
@@ -1406,12 +1401,12 @@ bool Heap::VerifyMissingCardMarks() {
   return true;
 }
 
-void Heap::SwapBitmaps() {
+void Heap::SwapBitmaps(Thread* self) {
   // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
   // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
   // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark bit
   // instead, resulting in no new allocated objects being incorrectly freed by sweep.
-  WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     Space* space = *it;
     // We never allocate into zygote spaces.
@@ -1438,7 +1433,7 @@ void Heap::SwapStacks() {
   }
 }
 
-void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft_references) {
+void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, bool clear_soft_references) {
   TimingLogger timings("ConcurrentCollectGarbageInternal", true);
   uint64_t root_begin = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
   std::stringstream gc_type_str;
@@ -1448,7 +1443,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
   timings.AddSplit("SuspendAll");
-  Locks::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
 
   size_t bytes_freed = 0;
   Object* cleared_references = NULL;
@@ -1460,7 +1455,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     timings.AddSplit("Init");
 
     if (verify_pre_gc_heap_) {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       if (!VerifyHeapReferences()) {
         LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
       }
@@ -1472,7 +1467,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     // Check that all objects which reference things in the live stack are on dirty cards.
     if (verify_missing_card_marks_) {
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Sort the live stack so that we can quickly binary search it later.
       std::sort(live_stack_->Begin(), live_stack_->End());
       if (!VerifyMissingCardMarks()) {
@@ -1509,7 +1504,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     }
 
     {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
       for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
         CHECK(!GetLiveBitmap()->Test(*it));
@@ -1560,11 +1555,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     // Allow mutators to go again, acquire share on mutator_lock_ to continue.
     thread_list->ResumeAll();
     {
-      ReaderMutexLock reader_lock(*Locks::mutator_lock_);
+      ReaderMutexLock reader_lock(self, *Locks::mutator_lock_);
       root_end = NanoTime();
       timings.AddSplit("RootEnd");
 
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       UpdateAndMarkModUnion(timings, gc_type);
 
       // Mark everything as live so that sweeping system weak works correctly for sticky mark bit
@@ -1585,10 +1580,10 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     dirty_begin = NanoTime();
     thread_list->SuspendAll();
     timings.AddSplit("ReSuspend");
-    Locks::mutator_lock_->AssertExclusiveHeld();
+    Locks::mutator_lock_->AssertExclusiveHeld(self);
 
     {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
       // Re-mark root set.
       mark_sweep.ReMarkRoots();
@@ -1607,7 +1602,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     }
 
     {
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
       mark_sweep.ProcessReferences(clear_soft_references);
       timings.AddSplit("ProcessReferences");
@@ -1623,15 +1618,15 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     // bit instead, resulting in no new allocated objects being incorrectly freed by sweep.
     const bool swap = true;
     if (swap) {
-      SwapBitmaps();
+      SwapBitmaps(self);
     }
 
     // Only need to do this if we have the card mark verification on, and only during concurrent GC.
     if (verify_missing_card_marks_) {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       mark_sweep.SweepArray(timings, allocation_stack_.get(), swap);
     } else {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // We only sweep over the live stack, and the live stack should not intersect with the
       // allocation stack, so it should be safe to UnMark anything in the allocation stack as live.
       UnMarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
@@ -1641,13 +1636,13 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     if (kIsDebugBuild) {
       // Verify that we only reach marked objects from the image space.
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       mark_sweep.VerifyImageRoots();
       timings.AddSplit("VerifyImageRoots");
     }
 
     if (verify_post_gc_heap_) {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       if (!VerifyHeapReferences()) {
         LOG(FATAL) << "Post " << gc_type_str.str() << "Gc verification failed";
       }
@@ -1656,11 +1651,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     thread_list->ResumeAll();
     dirty_end = NanoTime();
-    Locks::mutator_lock_->AssertNotHeld();
+    Locks::mutator_lock_->AssertNotHeld(self);
 
     {
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       if (gc_type != kGcTypeSticky) {
         mark_sweep.SweepLargeObjects(swap);
         timings.AddSplit("SweepLargeObjects");
@@ -1674,7 +1669,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     }
 
     if (verify_system_weaks_) {
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       mark_sweep.VerifySystemWeaks();
       timings.AddSplit("VerifySystemWeaks");
     }
@@ -1714,23 +1709,23 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   logger->End(); // Next iteration.
 }
 
-GcType Heap::WaitForConcurrentGcToComplete() {
+GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
   GcType last_gc_type = kGcTypeNone;
   if (concurrent_gc_) {
     bool do_wait;
     uint64_t wait_start = NanoTime();
     {
       // Check if GC is running holding gc_complete_lock_.
-      MutexLock mu(*gc_complete_lock_);
+      MutexLock mu(self, *gc_complete_lock_);
       do_wait = is_gc_running_;
     }
     if (do_wait) {
       // We must wait, change thread state then sleep on gc_complete_cond_;
       ScopedThreadStateChange tsc(Thread::Current(), kWaitingForGcToComplete);
       {
-        MutexLock mu(*gc_complete_lock_);
+        MutexLock mu(self, *gc_complete_lock_);
         while (is_gc_running_) {
-          gc_complete_cond_->Wait(*gc_complete_lock_);
+          gc_complete_cond_->Wait(self, *gc_complete_lock_);
         }
         last_gc_type = last_gc_type_;
       }
@@ -1809,7 +1804,7 @@ void Heap::GrowForUtilization() {
 }
 
 void Heap::ClearGrowthLimit() {
-  WaitForConcurrentGcToComplete();
+  WaitForConcurrentGcToComplete(Thread::Current());
   alloc_space_->ClearGrowthLimit();
 }
 
@@ -1941,7 +1936,7 @@ void Heap::RequestConcurrentGC() {
   requesting_gc_ = false;
 }
 
-void Heap::ConcurrentGC() {
+void Heap::ConcurrentGC(Thread* self) {
   if (Runtime::Current()->IsShuttingDown() || !concurrent_gc_) {
     return;
   }
@@ -1949,9 +1944,9 @@ void Heap::ConcurrentGC() {
   // TODO: We shouldn't need a WaitForConcurrentGcToComplete here since only
   //       concurrent GC resumes threads before the GC is completed and this function
   //       is only called within the GC daemon thread.
-  if (WaitForConcurrentGcToComplete() == kGcTypeNone) {
+  if (WaitForConcurrentGcToComplete(self) == kGcTypeNone) {
     // Start a concurrent GC as one wasn't in progress
-    ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
+    ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
     if (alloc_space_->Size() > min_alloc_space_size_for_sticky_gc_) {
       CollectGarbageInternal(kGcTypeSticky, false);
     } else {
@@ -1960,8 +1955,8 @@ void Heap::ConcurrentGC() {
   }
 }
 
-void Heap::Trim() {
-  WaitForConcurrentGcToComplete();
+void Heap::Trim(Thread* self) {
+  WaitForConcurrentGcToComplete(self);
   alloc_space_->Trim();
 }
 

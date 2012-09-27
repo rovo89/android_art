@@ -16,6 +16,7 @@
 
 #include "logging.h"
 
+#include "mutex.h"
 #include "runtime.h"
 #include "thread.h"
 #include "utils.h"

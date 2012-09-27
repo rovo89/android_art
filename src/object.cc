@@ -582,7 +582,6 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) 
 void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(kRunnable, self->GetState());
   }
 

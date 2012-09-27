@@ -23,6 +23,7 @@
 #include "globals.h"
 #include "image.h"
 #include "macros.h"
+#include "mutex.h"
 #include "dlmalloc.h"
 #include "mem_map.h"
 

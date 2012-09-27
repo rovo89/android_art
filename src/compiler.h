@@ -27,6 +27,7 @@
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
+#include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
