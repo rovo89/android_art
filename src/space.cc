@@ -519,7 +519,6 @@ Object* LargeObjectSpace::Alloc(size_t num_bytes) {
 }
 
 void LargeObjectSpace::CopyLiveToMarked() {
-  MutexLock mu(lock_);
   mark_objects_->CopyFrom(*live_objects_.get());
 }
 

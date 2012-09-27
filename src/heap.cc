@@ -584,8 +584,14 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
 }
 
 Object* Heap::TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow) {
-  if (UNLIKELY(space == NULL) && CanAllocateBytes(alloc_size)) {
-    return large_object_space_->Alloc(alloc_size);
+  if (UNLIKELY(space == NULL)) {
+    if (CanAllocateBytes(alloc_size)) {
+      // TODO: This is racy, but is it worth fixing?
+      return large_object_space_->Alloc(alloc_size);
+    } else {
+      // Application ran out of heap space.
+      return NULL;
+    }
   } else if (grow) {
     return space->AllocWithGrowth(alloc_size);
   } else {
