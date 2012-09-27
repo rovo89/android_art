@@ -2840,22 +2840,6 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   // Failures here are expected when java.library.path has several entries
   // and we have to hunt for the lib.
 
-  // The current version of the dynamic linker prints detailed information
-  // about dlopen() failures.  Some things to check if the message is
-  // cryptic:
-  //   - make sure the library exists on the device
-  //   - verify that the right path is being opened (the debug log message
-  //     above can help with that)
-  //   - check to see if the library is valid (e.g. not zero bytes long)
-  //   - check config/prelink-linux-arm.map to ensure that the library
-  //     is listed and is not being overrun by the previous entry (if
-  //     loading suddenly stops working on a prelinked library, this is
-  //     a good one to check)
-  //   - write a trivial app that calls sleep() then dlopen(), attach
-  //     to it with "strace -p <pid>" while it sleeps, and watch for
-  //     attempts to open nonexistent dependent shared libs
-  // TODO: automate some of these checks!
-
   // Below we dlopen but there is no paired dlclose, this would be necessary if we supported
   // class unloading. Libraries will only be unloaded when the reference count (incremented by
   // dlopen) becomes zero from dlclose.
@@ -2867,10 +2851,11 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   void* handle = dlopen(path.empty() ? NULL : path.c_str(), RTLD_LAZY);
   self->TransitionFromSuspendedToRunnable();
 
-  VLOG(jni) << "[Call to dlopen(\"" << path << "\") returned " << handle << "]";
+  VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_LAZY) returned " << handle << "]";
 
   if (handle == NULL) {
     detail = dlerror();
+    LOG(ERROR) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << detail;
     return false;
   }
 
