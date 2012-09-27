@@ -1127,7 +1127,7 @@ ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length)
 }
 
 template<class T>
-T* ObjectArray<T>::Get(int32_t i) const {
+inline T* ObjectArray<T>::Get(int32_t i) const {
   if (UNLIKELY(!IsValidIndex(i))) {
     return NULL;
   }
