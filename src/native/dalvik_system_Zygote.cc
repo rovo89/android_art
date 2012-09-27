@@ -42,6 +42,7 @@
 
 #if defined(__linux__)
 #include <sys/personality.h>
+#include <sys/utsname.h>
 #endif
 
 namespace art {
@@ -337,6 +338,24 @@ static void MountExternalStorage(uid_t uid, jint mount_external) {
 #endif
 }
 
+#if defined(__linux__)
+static bool NeedsNoRandomizeWorkaround() {
+    int major;
+    int minor;
+    struct utsname uts;
+    if (uname(&uts) == -1) {
+        return false;
+    }
+
+    if (sscanf(uts.release, "%d.%d", &major, &minor) != 2) {
+        return false;
+    }
+
+    // Kernels before 3.4.* need the workaround.
+    return (major < 3) || ((major == 3) && (minor < 4));
+}
+#endif
+
 // Utility routine to fork zygote and specialize the child process.
 static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
                                      jint debug_flags, jobjectArray javaRlimits,
@@ -383,11 +402,13 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     }
 
 #if defined(__linux__)
-    // Work around ARM kernel ASLR lossage (http://b/5817320).
-    int old_personality = personality(0xffffffff);
-    int new_personality = personality(old_personality | ADDR_NO_RANDOMIZE);
-    if (new_personality == -1) {
-      PLOG(WARNING) << "personality(" << new_personality << ") failed";
+    if (NeedsNoRandomizeWorkaround()) {
+        // Work around ARM kernel ASLR lossage (http://b/5817320).
+        int old_personality = personality(0xffffffff);
+        int new_personality = personality(old_personality | ADDR_NO_RANDOMIZE);
+        if (new_personality == -1) {
+            PLOG(WARNING) << "personality(" << new_personality << ") failed";
+        }
     }
 #endif
 
