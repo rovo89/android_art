@@ -515,7 +515,7 @@ uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
 }
 
 // Find the lowest-address native safepoint pc for a given dex pc
-uint32_t AbstractMethod::ToFirstNativeSafepointPc(const uintptr_t dex_pc) const {
+uintptr_t AbstractMethod::ToFirstNativeSafepointPc(const uint32_t dex_pc) const {
 #if !defined(ART_USE_LLVM_COMPILER)
   const uint32_t* mapping_table = GetPcToDexMappingTable();
   if (mapping_table == NULL) {
