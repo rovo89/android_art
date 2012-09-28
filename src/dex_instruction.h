@@ -74,13 +74,16 @@ class Instruction {
     DISALLOW_COPY_AND_ASSIGN(ArrayDataPayload);
   };
 
-  enum Code {
+  // TODO: the code layout below is deliberate to avoid this enum being picked up by
+  //       generate-operator-out.py.
+  enum Code
+  {
 #define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_ENUM
-  };
+  } ;
 
   enum Format {
     k10x,  // op
@@ -147,10 +150,21 @@ class Instruction {
   void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
 
   // Returns the size (in 2 byte code units) of this instruction.
-  size_t SizeInCodeUnits() const;
+  size_t SizeInCodeUnits() const {
+    int result = kInstructionSizeInCodeUnits[Opcode()];
+    if (UNLIKELY(result < 0)) {
+      return SizeInCodeUnitsComplexOpcode();
+    } else {
+      return static_cast<size_t>(result);
+    }
+  }
 
   // Returns a pointer to the next instruction in the stream.
-  const Instruction* Next() const;
+  const Instruction* Next() const {
+    size_t current_size_in_bytes = SizeInCodeUnits() * sizeof(uint16_t);
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
+    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+  }
 
   // Returns the name of this instruction's opcode.
   const char* Name() const {
@@ -163,7 +177,11 @@ class Instruction {
   }
 
   // Returns the opcode field of the instruction.
-  Code Opcode() const;
+  Code Opcode() const {
+    const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
+    int opcode = *insns & 0xFF;
+    return static_cast<Code>(opcode);
+  }
 
   // Reads an instruction out of the stream at the specified address.
   static const Instruction* At(const uint16_t* code) {
@@ -177,7 +195,7 @@ class Instruction {
   }
 
   // Returns the flags for the given opcode.
-  static int Flags(Code opcode) {
+  static int FlagsOf(Code opcode) {
     return kInstructionFlags[opcode];
   }
 
@@ -242,12 +260,19 @@ class Instruction {
   std::string DumpHex(size_t code_units) const;
 
  private:
+  size_t SizeInCodeUnitsComplexOpcode() const;
+
   static const char* const kInstructionNames[];
   static Format const kInstructionFormats[];
   static int const kInstructionFlags[];
   static int const kInstructionVerifyFlags[];
+  static int const kInstructionSizeInCodeUnits[];
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instruction);
 };
+std::ostream& operator<<(std::ostream& os, const Instruction::Code& code);
+std::ostream& operator<<(std::ostream& os, const Instruction::Format& format);
+std::ostream& operator<<(std::ostream& os, const Instruction::Flags& flags);
+std::ostream& operator<<(std::ostream& os, const Instruction::VerifyFlag& vflags);
 
 /*
  * Holds the contents of a decoded instruction.
@@ -260,7 +285,10 @@ struct DecodedInstruction {
   uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
   Instruction::Code opcode;
 
-  explicit DecodedInstruction(const Instruction* inst);
+  explicit DecodedInstruction(const Instruction* inst) {
+    inst->Decode(vA, vB, vB_wide, vC, arg);
+    opcode = inst->Opcode();
+  }
 };
 
 }  // namespace art

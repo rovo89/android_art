@@ -875,7 +875,7 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
     flags = 0;
   } else {
     str.append(Instruction::Name(insn.opcode));
-    flags = Instruction::Flags(insn.opcode);
+    flags = Instruction::FlagsOf(insn.opcode);
   }
 
   if (note) {
@@ -983,7 +983,7 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
   }
 
   /* For branches, decode the instructions to print out the branch targets */
-  if (Instruction::Flags(insn->opcode) & Instruction::kBranch) {
+  if (Instruction::FlagsOf(insn->opcode) & Instruction::kBranch) {
     Instruction::Format dalvikFormat = Instruction::FormatOf(insn->opcode);
     int delta = 0;
     switch (dalvikFormat) {
@@ -1265,7 +1265,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
       // If not a pseudo-op, note non-leaf or can throw
     if (static_cast<int>(mir->dalvikInsn.opcode) <
         static_cast<int>(kNumPackedOpcodes)) {
-      int flags = Instruction::Flags(mir->dalvikInsn.opcode);
+      int flags = Instruction::FlagsOf(mir->dalvikInsn.opcode);
 
       if (flags & Instruction::kThrow) {
         cUnit->attrs &= ~METHOD_IS_THROW_FREE;
@@ -2292,7 +2292,7 @@ bool findBackEdges(struct CompilationUnit* cUnit, struct BasicBlock* bb)
     return false;
   }
   Instruction::Code opcode = bb->lastMIRInsn->dalvikInsn.opcode;
-  if (Instruction::Flags(opcode) & Instruction::kBranch) {
+  if (Instruction::FlagsOf(opcode) & Instruction::kBranch) {
     if (bb->taken && (bb->taken->startOffset <= bb->startOffset)) {
       DCHECK(bb->dominators != NULL);
       if (oatIsBitSet(bb->dominators, bb->taken->id)) {

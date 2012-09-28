@@ -986,7 +986,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
     oatAppendMIR(curBlock, insn);
 
     codePtr += width;
-    int flags = Instruction::Flags(insn->dalvikInsn.opcode);
+    int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
 
     int dfFlags = oatDataFlowAttributes[insn->dalvikInsn.opcode];
 

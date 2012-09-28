@@ -214,7 +214,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       // Special-case handling for format 35c/3rc invokes
       Instruction::Code opcode = mir->dalvikInsn.opcode;
       int flags = (static_cast<int>(opcode) >= kNumPackedOpcodes)
-          ? 0 : Instruction::Flags(mir->dalvikInsn.opcode);
+          ? 0 : Instruction::FlagsOf(mir->dalvikInsn.opcode);
       if ((flags & Instruction::kInvoke) &&
           (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
         DCHECK_EQ(next, 0);

@@ -1333,7 +1333,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   const uint16_t* insns = code_item_->insns_ + work_insn_idx_;
   const Instruction* inst = Instruction::At(insns);
   DecodedInstruction dec_insn(inst);
-  int opcode_flags = Instruction::Flags(inst->Opcode());
+  int opcode_flags = Instruction::FlagsOf(inst->Opcode());
 
   int32_t branch_target = 0;
   bool just_set_result = false;

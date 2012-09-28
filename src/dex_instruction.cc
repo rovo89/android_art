@@ -53,6 +53,20 @@ int const Instruction::kInstructionVerifyFlags[] = {
 #undef INSTRUCTION_VERIFY_FLAGS
 };
 
+int const Instruction::kInstructionSizeInCodeUnits[] = {
+#define INSTRUCTION_SIZE(opcode, c, p, format, r, i, a, v) \
+  (( opcode == NOP                      ) ? -1 : \
+   ((format >= k10x) && (format <= k10t)) ? 1 : \
+   ((format >= k20t) && (format <= k22c)) ? 2 : \
+   ((format >= k32x) && (format <= k3rc)) ? 3 : \
+   ( format == k51l                     ) ? 5 : -1 \
+  ),
+#include "dex_instruction_list.h"
+  DEX_INSTRUCTION_LIST(INSTRUCTION_SIZE)
+#undef DEX_INSTRUCTION_LIST
+#undef INSTRUCTION_SIZE
+};
+
 /*
  * Handy macros for helping decode instructions.
  */
@@ -70,9 +84,9 @@ static inline uint32_t fetch_u4_impl(uint32_t offset, const uint16_t* insns) {
 void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
   uint16_t insn = *insns;
-  int opcode = insn & 0xFF;
+  Code opcode = static_cast<Code>(insn & 0xFF);
 
-  switch (FormatOf(Opcode())) {
+  switch (FormatOf(opcode)) {
     case k10x:       // op
       /* nothing to do; copy the AA bits out for the verifier */
       vA = INST_AA(insn);
@@ -201,69 +215,33 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       vB_wide = FETCH_u4(1) | ((uint64_t) FETCH_u4(3) << 32);
       break;
     default:
-      LOG(ERROR) << "Can't decode unexpected format " << static_cast<int>(FormatOf(Opcode())) << " (op=" << opcode << ")";
+      LOG(ERROR) << "Can't decode unexpected format " << FormatOf(opcode) << " (op=" << opcode << ")";
       return;
   }
 }
 
-size_t Instruction::SizeInCodeUnits() const {
+size_t Instruction::SizeInCodeUnitsComplexOpcode() const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
-  if (*insns == Instruction::kPackedSwitchSignature) {
-    return (4 + insns[1] * 2);
-  } else if (*insns == Instruction::kSparseSwitchSignature) {
-    return (2 + insns[1] * 4);
-  } else if (*insns == kArrayDataSignature) {
-    uint16_t element_size = insns[1];
-    uint32_t length = insns[2] | (((uint32_t)insns[3]) << 16);
-    // The plus 1 is to round up for odd size and width.
-    return (4 + (element_size * length + 1) / 2);
-  } else {
-    switch (FormatOf(Opcode())) {
-      case k10x:
-      case k12x:
-      case k11n:
-      case k11x:
-      case k10t:
-        return 1;
-      case k20t:
-      case k22x:
-      case k21t:
-      case k21s:
-      case k21h:
-      case k21c:
-      case k23x:
-      case k22b:
-      case k22t:
-      case k22s:
-      case k22c:
-        return 2;
-      case k32x:
-      case k30t:
-      case k31t:
-      case k31i:
-      case k31c:
-      case k35c:
-      case k3rc:
-        return 3;
-      case k51l:
-        return 5;
-      default:
-        LOG(FATAL) << "Unreachable";
+  // Handle special NOP encoded variable length sequences.
+  switch (*insns) {
+    case kPackedSwitchSignature:
+      return (4 + insns[1] * 2);
+    case kSparseSwitchSignature:
+      return (2 + insns[1] * 4);
+    case kArrayDataSignature: {
+      uint16_t element_size = insns[1];
+      uint32_t length = insns[2] | (((uint32_t)insns[3]) << 16);
+      // The plus 1 is to round up for odd size and width.
+      return (4 + (element_size * length + 1) / 2);
     }
+    default:
+      if ((*insns & 0xFF) == 0) {
+        return 1;  // NOP.
+      } else {
+        LOG(FATAL) << "Unreachable: " << DumpString(NULL);
+        return 0;
+      }
   }
-  return 0;
-}
-
-Instruction::Code Instruction::Opcode() const {
-  const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
-  int opcode = *insns & 0xFF;
-  return static_cast<Code>(opcode);
-}
-
-const Instruction* Instruction::Next() const {
-  size_t current_size_in_bytes = SizeInCodeUnits() * sizeof(uint16_t);
-  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-  return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
 }
 
 std::string Instruction::DumpHex(size_t code_units) const {
@@ -449,9 +427,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
   return os.str();
 }
 
-DecodedInstruction::DecodedInstruction(const Instruction* inst) {
-  inst->Decode(vA, vB, vB_wide, vC, arg);
-  opcode = inst->Opcode();
+std::ostream& operator<<(std::ostream& os, const Instruction::Code& code) {
+  return os << Instruction::Name(code);
 }
 
 }  // namespace art
