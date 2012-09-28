@@ -88,6 +88,14 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
   // ...other stuff we don't care about.
 };
 
+static uint64_t SafeGetTid(const Thread* self) {
+  if (self != NULL) {
+    return static_cast<uint64_t>(self->GetTid());
+  } else {
+    return static_cast<uint64_t>(GetTid());
+  }
+}
+
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {}
 
 static void CheckUnattachedThread(LockLevel level) {
@@ -193,6 +201,7 @@ Mutex::~Mutex() {
 }
 
 void Mutex::ExclusiveLock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   if (kDebugLocking && !recursive_) {
     AssertNotHeld(self);
   }
@@ -209,6 +218,7 @@ void Mutex::ExclusiveLock(Thread* self) {
 }
 
 bool Mutex::ExclusiveTryLock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   if (kDebugLocking && !recursive_) {
     AssertNotHeld(self);
   }
@@ -233,6 +243,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
 }
 
 void Mutex::ExclusiveUnlock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   AssertHeld(self);
   recursion_count_--;
   if (!recursive_ || recursion_count_ == 0) {
@@ -246,14 +257,12 @@ void Mutex::ExclusiveUnlock(Thread* self) {
 }
 
 bool Mutex::IsExclusiveHeld(const Thread* self) const {
-  bool result;
-  if (self == NULL || level_ == kMonitorLock) {  // Handle unattached threads and monitors.
-    result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
-  } else {
-    result = (self->GetHeldMutex(level_) == this);
-    // Sanity debug check that if we think it is locked, so does the pthread.
-    if (kDebugLocking) {
-      CHECK(result == (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid())));
+  DCHECK(self == NULL || self == Thread::Current());
+  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
+  if (kDebugLocking) {
+    // Sanity debug check that if we think it is locked we have it in our held mutexes.
+    if (result && self != NULL && level_ != kMonitorLock) {
+      CHECK_EQ(self->GetHeldMutex(level_), this);
     }
   }
   return result;
@@ -278,6 +287,19 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #else
 #error unsupported C library
 #endif
+}
+
+std::string Mutex::Dump() const {
+  return StringPrintf("%s %s level=%d count=%d owner=%llx",
+                      recursive_ ? "recursive" : "non-recursive",
+                      name_.c_str(),
+                      static_cast<int>(level_),
+                      recursion_count_,
+                      GetExclusiveOwnerTid());
+}
+
+std::ostream& operator<<(std::ostream& os, const Mutex& mu) {
+  return os << mu.Dump();
 }
 
 ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level) :
@@ -311,6 +333,7 @@ ReaderWriterMutex::~ReaderWriterMutex() {
 }
 
 void ReaderWriterMutex::ExclusiveLock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   AssertNotExclusiveHeld(self);
 #if ART_USE_FUTEXES
   bool done = false;
@@ -330,7 +353,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       android_atomic_dec(&num_pending_writers_);
     }
   } while(!done);
-  exclusive_owner_ = static_cast<uint64_t>(GetTid());
+  exclusive_owner_ = static_cast<uint64_t>(self->GetTid());
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_wrlock, (&rwlock_));
 #endif
@@ -339,6 +362,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
 }
 
 void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   AssertExclusiveHeld(self);
   RegisterAsUnlocked(self);
 #if ART_USE_FUTEXES
@@ -367,6 +391,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
 
 #if HAVE_TIMED_RWLOCK
 bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, const timespec& abs_timeout) {
+  DCHECK(self == NULL || self == Thread::Current());
 #if ART_USE_FUTEXES
   bool done = false;
   do {
@@ -388,7 +413,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, const timespec& a
       android_atomic_dec(&num_pending_writers_);
     }
   } while(!done);
-  exclusive_owner_ = static_cast<uint64_t>(GetTid());
+  exclusive_owner_ = SafeGetTid(self);
 #else
   int result = pthread_rwlock_timedwrlock(&rwlock_, &abs_timeout);
   if (result == ETIMEDOUT) {
@@ -406,6 +431,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, const timespec& a
 #endif
 
 void ReaderWriterMutex::SharedLock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
 #if ART_USE_FUTEXES
   bool done = false;
   do {
@@ -432,6 +458,7 @@ void ReaderWriterMutex::SharedLock(Thread* self) {
 }
 
 bool ReaderWriterMutex::SharedTryLock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
 #if ART_USE_FUTEXES
   bool done = false;
   do {
@@ -460,6 +487,7 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
 }
 
 void ReaderWriterMutex::SharedUnlock(Thread* self) {
+  DCHECK(self == NULL || self == Thread::Current());
   AssertSharedHeld(self);
   RegisterAsUnlocked(self);
 #if ART_USE_FUTEXES
@@ -485,18 +513,22 @@ void ReaderWriterMutex::SharedUnlock(Thread* self) {
 }
 
 bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {
-  bool result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
+  DCHECK(self == NULL || self == Thread::Current());
+  bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
   if (kDebugLocking) {
     // Sanity that if the pthread thinks we own the lock the Thread agrees.
-    CHECK((self == NULL) || !result || (self->GetHeldMutex(level_) == this));
+    if (self != NULL && result)  {
+      CHECK_EQ(self->GetHeldMutex(level_), this);
+    }
   }
   return result;
 }
 
 bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
+  DCHECK(self == NULL || self == Thread::Current());
   bool result;
   if (UNLIKELY(self == NULL)) {  // Handle unattached threads.
-    result = IsExclusiveHeld(self); // TODO: a better best effort here.
+    result = IsExclusiveHeld(self);  // TODO: a better best effort here.
   } else {
     result = (self->GetHeldMutex(level_) == this);
   }
@@ -525,6 +557,17 @@ uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #error unsupported C library
 #endif
 #endif
+}
+
+std::string ReaderWriterMutex::Dump() const {
+  return StringPrintf("%s level=%d owner=%llx",
+                      name_.c_str(),
+                      static_cast<int>(level_),
+                      GetExclusiveOwnerTid());
+}
+
+std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu) {
+  return os << mu.Dump();
 }
 
 ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {

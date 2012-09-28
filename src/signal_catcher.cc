@@ -132,7 +132,7 @@ void SignalCatcher::HandleSigQuit() {
     suspend_count = self->GetSuspendCount();
     if (suspend_count != 0) {
       CHECK_EQ(suspend_count, 1);
-      self->ModifySuspendCount(-1, false);
+      self->ModifySuspendCount(self, -1, false);
     }
     old_state = self->SetStateUnsafe(kRunnable);
   }
@@ -159,7 +159,7 @@ void SignalCatcher::HandleSigQuit() {
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     self->SetState(old_state);
     if (suspend_count != 0) {
-      self->ModifySuspendCount(+1, false);
+      self->ModifySuspendCount(self, +1, false);
     }
   }
   thread_list->ResumeAll();

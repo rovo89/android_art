@@ -274,6 +274,7 @@ void Thread::Init() {
   InitRuntimeEntryPoints(&runtime_entry_points_);
 #endif
   InitCardTable();
+  InitTid();
 
   Runtime* runtime = Runtime::Current();
   CHECK(runtime != NULL);
@@ -283,7 +284,6 @@ void Thread::Init() {
   thin_lock_id_ = runtime->GetThreadList()->AllocThreadId();
   pthread_self_ = pthread_self();
 
-  InitTid();
   InitStackHwm();
 
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
@@ -454,22 +454,6 @@ void Thread::GetThreadName(std::string& name) const {
   name.assign(*name_);
 }
 
-// Attempt to rectify locks so that we dump thread list with required locks before exiting.
-static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
-  Locks::thread_suspend_count_lock_->Unlock(self);
-  Locks::mutator_lock_->SharedTryLock(self);
-  if (!Locks::mutator_lock_->IsSharedHeld(self)) {
-    LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
-  }
-  Locks::thread_list_lock_->TryLock(self);
-  if (!Locks::thread_list_lock_->IsExclusiveHeld(self)) {
-    LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
-  }
-  std::ostringstream ss;
-  Runtime::Current()->GetThreadList()->DumpLocked(ss);
-  LOG(FATAL) << self << " suspend count already zero.\n" << ss.str();
-}
-
 void Thread::AtomicSetFlag(ThreadFlag flag) {
   android_atomic_or(flag, &state_and_flags_.as_int);
 }
@@ -488,23 +472,42 @@ ThreadState Thread::SetState(ThreadState new_state) {
   return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
 
-void Thread::ModifySuspendCount(int delta, bool for_debugger) {
+// Attempt to rectify locks so that we dump thread list with required locks before exiting.
+static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
+  Locks::thread_suspend_count_lock_->Unlock(self);
+  if (!Locks::mutator_lock_->IsSharedHeld(self)) {
+    Locks::mutator_lock_->SharedTryLock(self);
+    if (!Locks::mutator_lock_->IsSharedHeld(self)) {
+      LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
+    }
+  }
+  if (!Locks::thread_list_lock_->IsExclusiveHeld(self)) {
+    Locks::thread_list_lock_->TryLock(self);
+    if (!Locks::thread_list_lock_->IsExclusiveHeld(self)) {
+      LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
+    }
+  }
+  std::ostringstream ss;
+  Runtime::Current()->GetThreadList()->DumpLocked(ss);
+  LOG(FATAL) << *thread << " suspend count already zero.\n" << ss.str();
+}
+
+void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   DCHECK(delta == -1 || delta == +1 || delta == -debug_suspend_count_)
       << delta << " " << debug_suspend_count_ << " " << this;
   DCHECK_GE(suspend_count_, debug_suspend_count_) << this;
-  Locks::thread_suspend_count_lock_->AssertHeld();
+  Locks::thread_suspend_count_lock_->AssertHeld(self);
 
-  if (delta == -1 && suspend_count_ <= 0) {
-    // This is expected if you attach a thread during a GC.
-    if (UNLIKELY(!IsStillStarting())) {
-      UnsafeLogFatalForSuspendCount(this);
-    }
+  if (UNLIKELY(delta < 0 && suspend_count_ <= 0)) {
+    UnsafeLogFatalForSuspendCount(self, this);
     return;
   }
+
   suspend_count_ += delta;
   if (for_debugger) {
     debug_suspend_count_ += delta;
   }
+
   if (suspend_count_ == 0) {
     AtomicClearFlag(kSuspendRequest);
   } else {
@@ -534,30 +537,35 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
 
 ThreadState Thread::TransitionFromSuspendedToRunnable() {
   bool done = false;
-  ThreadState old_state = GetState();
-  DCHECK_NE(old_state, kRunnable);
+  union StateAndFlags old_state_and_flags = state_and_flags_;
+  int16_t old_state = old_state_and_flags.as_struct.state;
+  DCHECK_NE(static_cast<ThreadState>(old_state), kRunnable);
   do {
     Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
-    DCHECK_EQ(GetState(), old_state);
-    if (ReadFlag(kSuspendRequest)) {
+    old_state_and_flags = state_and_flags_;
+    DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
+    if ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(this, *Locks::thread_suspend_count_lock_);
-      DCHECK_EQ(GetState(), old_state);
-      while (ReadFlag(kSuspendRequest)) {
+      old_state_and_flags = state_and_flags_;
+      DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
+      while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
         // Re-check when Thread::resume_cond_ is notified.
         Thread::resume_cond_->Wait(this, *Locks::thread_suspend_count_lock_);
-        DCHECK_EQ(GetState(), old_state);
+        old_state_and_flags = state_and_flags_;
+        DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       }
       DCHECK_EQ(GetSuspendCount(), 0);
     }
     // Re-acquire shared mutator_lock_ access.
     Locks::mutator_lock_->SharedLock(this);
     // Atomically change from suspended to runnable if no suspend request pending.
-    int16_t old_flags = state_and_flags_.as_struct.flags;
-    if ((old_flags & kSuspendRequest) == 0) {
-      int32_t old_state_and_flags = old_flags | (old_state << 16);
-      int32_t new_state_and_flags = old_flags | (kRunnable << 16);
-      done = android_atomic_cmpxchg(old_state_and_flags, new_state_and_flags,
+    old_state_and_flags = state_and_flags_;
+    DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
+    if ((old_state_and_flags.as_struct.flags & kSuspendRequest) == 0) {
+      union StateAndFlags new_state_and_flags = old_state_and_flags;
+      new_state_and_flags.as_struct.state = kRunnable;
+      done = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
                                     &state_and_flags_.as_int)
                                         == 0;
     }
@@ -566,7 +574,7 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
       Locks::mutator_lock_->SharedUnlock(this);
     }
   } while (!done);
-  return old_state;
+  return static_cast<ThreadState>(old_state);
 }
 
 Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timeout) {
@@ -588,7 +596,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
       {
         MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
         if (request_suspension) {
-          thread->ModifySuspendCount(+1, true /* for_debugger */);
+          thread->ModifySuspendCount(soa.Self(), +1, true /* for_debugger */);
           request_suspension = false;
           did_suspend_request = true;
         }
@@ -606,7 +614,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
         if (total_delay_us >= kTimeoutUs) {
           LOG(ERROR) << "Thread suspension timed out: " << peer;
           if (did_suspend_request) {
-            thread->ModifySuspendCount(-1, true /* for_debugger */);
+            thread->ModifySuspendCount(soa.Self(), -1, true /* for_debugger */);
           }
           *timeout = true;
           return NULL;
