@@ -20,7 +20,6 @@
 
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
-#include "linux/futex.h"
 #include "logging.h"
 #include "runtime.h"
 #include "thread.h"
@@ -37,6 +36,7 @@ extern int pthread_mutex_unlock(pthread_mutex_t* mutex) UNLOCK_FUNCTION(1);
 extern int pthread_mutex_trylock(pthread_mutex_t* mutex) EXCLUSIVE_TRYLOCK_FUNCTION(0, mutex);
 
 #if ART_USE_FUTEXES
+#include "linux/futex.h"
 #include "sys/syscall.h"
 #ifndef SYS_futex
 #define SYS_futex __NR_futex
