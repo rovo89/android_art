@@ -47,7 +47,13 @@ class ExceptionTest : public CommonTest {
       fake_code_.push_back(0x70 | i);
     }
 
-    fake_mapping_data_.push_back(2);  // first element is count of remaining elements
+    fake_mapping_data_.push_back(4);  // first element is count
+    fake_mapping_data_.push_back(4);  // total (non-length) elements
+    fake_mapping_data_.push_back(2);  // count of pc to dex elements
+                                      // ---  pc to dex table
+    fake_mapping_data_.push_back(3);  // offset 3
+    fake_mapping_data_.push_back(3);  // maps to dex offset 3
+                                      // ---  dex to pc table
     fake_mapping_data_.push_back(3);  // offset 3
     fake_mapping_data_.push_back(3);  // maps to dex offset 3
 

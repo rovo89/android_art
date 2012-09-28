@@ -341,6 +341,9 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     case kPseudoSafepointPC:
       LOG(INFO) << "LsafepointPC_0x" << std::hex << lir->offset << "_" << lir->dalvikOffset << ":";
       break;
+    case kPseudoExportedPC:
+      LOG(INFO) << "LexportedPC_0x" << std::hex << lir->offset << "_" << lir->dalvikOffset << ":";
+      break;
     case kPseudoCaseLabel:
       LOG(INFO) << "LC" << (void*)lir << ": Case target 0x"
                 << std::hex << lir->operands[0] << "|" << std::dec <<
@@ -397,6 +400,23 @@ void oatDumpPromotionMap(CompilationUnit *cUnit)
   }
 }
 
+/* Dump a mapping table */
+void dumpMappingTable(const char* table_name, const std::string& descriptor,
+                      const std::string& name, const std::string& signature,
+                      const std::vector<uint32_t>& v) {
+  if (v.size() > 0) {
+    std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
+                     descriptor.c_str(), name.c_str(), signature.c_str(), v.size()));
+    std::replace(line.begin(), line.end(), ';', '_');
+    LOG(INFO) << line;
+    for (uint32_t i = 0; i < v.size(); i+=2) {
+      line = StringPrintf("    {0x%05x, 0x%04x},", v[i], v[i+1]);
+      LOG(INFO) << line;
+    }
+    LOG(INFO) <<"  };\n\n";
+  }
+}
+
 /* Dump instructions and constant pool contents */
 void oatCodegenDump(CompilationUnit* cUnit)
 {
@@ -434,21 +454,9 @@ void oatCodegenDump(CompilationUnit* cUnit)
   std::string name(cUnit->dex_file->GetMethodName(method_id));
   std::string descriptor(cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
-  // Dump mapping table
-  if (cUnit->mappingTable.size() > 0) {
-    std::string
-        line(StringPrintf("\n  MappingTable %s%s_%s_mappingTable[%zu] = {",
-                          descriptor.c_str(), name.c_str(), signature.c_str(),
-                          cUnit->mappingTable.size()));
-    std::replace(line.begin(), line.end(), ';', '_');
-    LOG(INFO) << line;
-    for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
-      line = StringPrintf("    {0x%05x, 0x%04x},",
-                          cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
-      LOG(INFO) << line;
-    }
-    LOG(INFO) <<"  };\n\n";
-  }
+  // Dump mapping tables
+  dumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, cUnit->pc2dexMappingTable);
+  dumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, cUnit->dex2pcMappingTable);
 }
 
 
@@ -465,7 +473,8 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
   insn->operands[4] = op4;
   insn->target = target;
   oatSetupResourceMasks(insn);
-  if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC)) {
+  if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
+      (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
     insn->useMask = insn->defMask = ENCODE_ALL;
   }
@@ -755,14 +764,27 @@ int assignLiteralOffsetCommon(LIR* lir, int offset)
   return offset;
 }
 
-void createMappingTable(CompilationUnit* cUnit)
+void createMappingTables(CompilationUnit* cUnit)
 {
   for (LIR* tgtLIR = (LIR *) cUnit->firstLIRInsn; tgtLIR != NULL; tgtLIR = NEXT_LIR(tgtLIR)) {
     if (!tgtLIR->flags.isNop && (tgtLIR->opcode == kPseudoSafepointPC)) {
-      cUnit->mappingTable.push_back(tgtLIR->offset);
-      cUnit->mappingTable.push_back(tgtLIR->dalvikOffset);
+      cUnit->pc2dexMappingTable.push_back(tgtLIR->offset);
+      cUnit->pc2dexMappingTable.push_back(tgtLIR->dalvikOffset);
+    }
+    if (!tgtLIR->flags.isNop && (tgtLIR->opcode == kPseudoExportedPC)) {
+      cUnit->dex2pcMappingTable.push_back(tgtLIR->offset);
+      cUnit->dex2pcMappingTable.push_back(tgtLIR->dalvikOffset);
     }
   }
+  cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size() +
+                                        cUnit->dex2pcMappingTable.size());
+  cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size());
+  cUnit->combinedMappingTable.insert(cUnit->combinedMappingTable.end(),
+                                     cUnit->pc2dexMappingTable.begin(),
+                                     cUnit->pc2dexMappingTable.end());
+  cUnit->combinedMappingTable.insert(cUnit->combinedMappingTable.end(),
+                                     cUnit->dex2pcMappingTable.begin(),
+                                     cUnit->dex2pcMappingTable.end());
 }
 
 class NativePcToReferenceMapBuilder {
@@ -844,7 +866,7 @@ class NativePcToReferenceMapBuilder {
 };
 
 static void createNativeGcMap(CompilationUnit* cUnit) {
-  const std::vector<uint32_t>& mapping_table = cUnit->mappingTable;
+  const std::vector<uint32_t>& mapping_table = cUnit->pc2dexMappingTable;
   uint32_t max_native_offset = 0;
   for (size_t i = 0; i < mapping_table.size(); i += 2) {
     uint32_t native_offset = mapping_table[i + 0];
@@ -864,13 +886,8 @@ static void createNativeGcMap(CompilationUnit* cUnit) {
     uint32_t native_offset = mapping_table[i + 0];
     uint32_t dex_pc = mapping_table[i + 1];
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
-    if (references != NULL) {
-      native_gc_map_builder.AddEntry(native_offset, references);
-    } else {
-      // TODO: there is a mapping table entry but no reference bitmap. This happens because of
-      //       catch block entries. We should check that the dex_pc corresponds with a catch block
-      //       here.
-    }
+    CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
+    native_gc_map_builder.AddEntry(native_offset, references);
   }
 }
 
@@ -981,7 +998,7 @@ void oatAssembleLIR(CompilationUnit* cUnit)
   installFillArrayData(cUnit);
 
   // Create the mapping table and native offset to reference map.
-  createMappingTable(cUnit);
+  createMappingTables(cUnit);
 
   createNativeGcMap(cUnit);
 }

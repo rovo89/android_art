@@ -514,14 +514,37 @@ uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
   return pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
 }
 
-uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
+// Find the lowest-address native safepoint pc for a given dex pc
+uint32_t AbstractMethod::ToFirstNativeSafepointPc(const uintptr_t dex_pc) const {
 #if !defined(ART_USE_LLVM_COMPILER)
-  const uint32_t* mapping_table = GetMappingTable();
+  const uint32_t* mapping_table = GetPcToDexMappingTable();
   if (mapping_table == NULL) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
-  size_t mapping_table_length = GetMappingTableLength();
+  size_t mapping_table_length = GetPcToDexMappingTableLength();
+  for (size_t i = 0; i < mapping_table_length; i += 2) {
+    if (mapping_table[i + 1] == dex_pc) {
+      return mapping_table[i] + reinterpret_cast<uintptr_t>(GetOatCode(this));
+    }
+  }
+  LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
+             << " in " << PrettyMethod(this);
+  return 0;
+#else
+  // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
+  return static_cast<uint32_t>(dex_pc);
+#endif
+}
+
+uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
+#if !defined(ART_USE_LLVM_COMPILER)
+  const uint32_t* mapping_table = GetPcToDexMappingTable();
+  if (mapping_table == NULL) {
+    DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
+    return DexFile::kDexNoIndex;   // Special no mapping case
+  }
+  size_t mapping_table_length = GetPcToDexMappingTableLength();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
   for (size_t i = 0; i < mapping_table_length; i += 2) {
     if (mapping_table[i] == sought_offset) {
@@ -538,12 +561,12 @@ uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
 }
 
 uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
-  const uint32_t* mapping_table = GetMappingTable();
+  const uint32_t* mapping_table = GetDexToPcMappingTable();
   if (mapping_table == NULL) {
     DCHECK_EQ(dex_pc, 0U);
     return 0;   // Special no mapping/pc == 0 case
   }
-  size_t mapping_table_length = GetMappingTableLength();
+  size_t mapping_table_length = GetDexToPcMappingTableLength();
   for (size_t i = 0; i < mapping_table_length; i += 2) {
     uint32_t map_offset = mapping_table[i];
     uint32_t map_dex_offset = mapping_table[i + 1];
@@ -551,7 +574,8 @@ uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
       return reinterpret_cast<uintptr_t>(GetOatCode(this)) + map_offset;
     }
   }
-  LOG(FATAL) << "Looking up Dex PC not contained in method";
+  LOG(FATAL) << "Looking up Dex PC not contained in method, 0x" << std::hex << dex_pc
+             << " in " << PrettyMethod(this);
   return 0;
 }
 

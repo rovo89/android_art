@@ -729,13 +729,39 @@ class MANAGED AbstractMethod : public Object {
     return map + 1;
   }
 
-  uint32_t GetMappingTableLength() const {
+  uint32_t GetPcToDexMappingTableLength() const {
     const uint32_t* map = GetMappingTableRaw();
     if (map == NULL) {
       return 0;
     }
-    return *map;
+    return map[2];
   }
+
+  const uint32_t* GetPcToDexMappingTable() const {
+    const uint32_t* map = GetMappingTableRaw();
+    if (map == NULL) {
+      return map;
+    }
+    return map + 3;
+  }
+
+
+  uint32_t GetDexToPcMappingTableLength() const {
+    const uint32_t* map = GetMappingTableRaw();
+    if (map == NULL) {
+      return 0;
+    }
+    return map[1] - map[2];
+  }
+
+  const uint32_t* GetDexToPcMappingTable() const {
+    const uint32_t* map = GetMappingTableRaw();
+    if (map == NULL) {
+      return map;
+    }
+    return map + 3 + map[2];
+  }
+
 
   const uint32_t* GetMappingTableRaw() const {
     return GetFieldPtr<const uint32_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, mapping_table_), false);
@@ -921,6 +947,10 @@ class MANAGED AbstractMethod : public Object {
 
   // Converts a dex PC to a native PC.
   uintptr_t ToNativePc(const uint32_t dex_pc) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Converts a dex PC to the first corresponding safepoint PC.
+  uintptr_t ToFirstNativeSafepointPc(const uint32_t dex_pc)
+      const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc
   uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const

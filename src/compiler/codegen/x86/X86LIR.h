@@ -297,6 +297,7 @@ enum X86ConditionCode {
  * Assemble.cc.
  */
 enum X86OpCode {
+  kPseudoExportedPC = -18,
   kPseudoSafepointPC = -17,
   kPseudoIntrinsicRetry = -16,
   kPseudoSuspendTarget = -15,

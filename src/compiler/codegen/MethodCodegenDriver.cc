@@ -870,9 +870,9 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 
   LIR* headLIR = NULL;
 
-  /* If this is a catch block, mark the beginning as a safepoint */
+  /* If this is a catch block, export the start address */
   if (bb->catchEntry) {
-    headLIR = newLIR0(cUnit, kPseudoSafepointPC);
+    headLIR = newLIR0(cUnit, kPseudoExportedPC);
   }
 
   /* Free temp registers and reset redundant store tracking */

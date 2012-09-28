@@ -423,13 +423,18 @@ class OatDumper {
 
     uint32_t length = *raw_table;
     ++raw_table;
+    uint32_t pc_to_dex_entries = *raw_table;
+    ++raw_table;
 
     os << "\t\t{";
     for (size_t i = 0; i < length; i += 2) {
       const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
       uint32_t dex_pc = raw_table[i + 1];
       os << StringPrintf("%p -> 0x%04x", native_pc, dex_pc);
-      if (i + 2 < length) {
+      if (i + 2 == pc_to_dex_entries) {
+        // Separate the pc -> dex from dex -> pc sections
+        os << "}\n\t\t{";
+      } else if (i + 2 < length) {
         os << ", ";
       }
     }

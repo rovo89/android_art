@@ -426,7 +426,18 @@ struct CompilationUnit {
   AssemblerStatus assemblerStatus;    // Success or fix and retry
   int assemblerRetries;
   std::vector<uint8_t> codeBuffer;
-  std::vector<uint32_t> mappingTable;
+  /*
+   * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
+   * Native PC is on the return address of the safepointed operation.  Dex PC is for
+   * the instruction being executed at the safepoint.
+   */
+  std::vector<uint32_t> pc2dexMappingTable;
+  /*
+   * Holds mapping from Dex PC to native PC for catch entry points.  Native PC and Dex PC
+   * immediately preceed the instruction.
+   */
+  std::vector<uint32_t> dex2pcMappingTable;
+  std::vector<uint32_t> combinedMappingTable;
   std::vector<uint32_t> coreVmapTable;
   std::vector<uint32_t> fpVmapTable;
   std::vector<uint8_t> nativeGcMap;

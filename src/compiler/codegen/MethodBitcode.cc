@@ -2891,7 +2891,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
     LIR* headLIR = NULL;
 
     if (blockType == kCatchBlock) {
-      headLIR = newLIR0(cUnit, kPseudoSafepointPC);
+      headLIR = newLIR0(cUnit, kPseudoExportedPC);
     }
 
     // Free temp registers and reset redundant store tracking */

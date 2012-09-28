@@ -291,6 +291,7 @@ enum ArmConditionCode {
  * Assemble.cc.
  */
 enum ArmOpcode {
+  kPseudoExportedPC = -18,
   kPseudoSafepointPC = -17,
   kPseudoIntrinsicRetry = -16,
   kPseudoSuspendTarget = -15,
