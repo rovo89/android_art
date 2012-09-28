@@ -169,7 +169,7 @@ class PACKED Thread {
     return GetState() != kRunnable && ReadFlag(kSuspendRequest);
   }
 
-  void ModifySuspendCount(int delta, bool for_debugger)
+  void ModifySuspendCount(Thread* self, int delta, bool for_debugger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
@@ -636,9 +636,9 @@ class PACKED Thread {
       // transitions. Changing to Runnable requires that the suspend_request be part of the atomic
       // operation. If a thread is suspended and a suspend_request is present, a thread may not
       // change to Runnable as a GC or other operation is in progress.
-      uint16_t state;
+      volatile uint16_t state;
     } as_struct;
-    int32_t as_int;
+    volatile int32_t as_int;
   };
   union StateAndFlags state_and_flags_;
   COMPILE_ASSERT(sizeof(union StateAndFlags) == sizeof(int32_t),

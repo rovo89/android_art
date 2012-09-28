@@ -76,6 +76,7 @@ class BaseMutex {
 // Exclusive | Block*        | Free
 // * Mutex is not reentrant and so an attempt to ExclusiveLock on the same thread will result in
 //   an error. Being non-reentrant simplifies Waiting on ConditionVariables.
+std::ostream& operator<<(std::ostream& os, const Mutex& mu);
 class LOCKABLE Mutex : public BaseMutex {
  public:
   explicit Mutex(const char* name, LockLevel level = kDefaultMutexLevel, bool recursive = false);
@@ -101,7 +102,7 @@ class LOCKABLE Mutex : public BaseMutex {
   // Assert that the Mutex is exclusively held by the current thread.
   void AssertExclusiveHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(IsExclusiveHeld(self));
+      CHECK(IsExclusiveHeld(self)) << *this;
     }
   }
   void AssertHeld(const Thread* self) { AssertExclusiveHeld(self); }
@@ -110,7 +111,7 @@ class LOCKABLE Mutex : public BaseMutex {
   // Assert that the Mutex is not held by the current thread.
   void AssertNotHeldExclusive(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(!IsExclusiveHeld(self));
+      CHECK(!IsExclusiveHeld(self)) << *this;
     }
   }
   void AssertNotHeld(const Thread* self) { AssertNotHeldExclusive(self); }
@@ -122,6 +123,8 @@ class LOCKABLE Mutex : public BaseMutex {
   unsigned int GetDepth() const {
     return recursion_count_;
   }
+
+  std::string Dump() const;
 
  private:
   pthread_mutex_t mutex_;
@@ -148,6 +151,7 @@ class LOCKABLE Mutex : public BaseMutex {
 // Exclusive | Block         | Free            | Block            | error
 // Shared(n) | Block         | error           | SharedLock(n+1)* | Shared(n-1) or Free
 // * for large values of n the SharedLock may block.
+std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu);
 class LOCKABLE ReaderWriterMutex : public BaseMutex {
  public:
   explicit ReaderWriterMutex(const char* name, LockLevel level = kDefaultMutexLevel);
@@ -187,7 +191,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread has exclusive access to the ReaderWriterMutex.
   void AssertExclusiveHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(IsExclusiveHeld(self));
+      CHECK(IsExclusiveHeld(self)) << *this;
     }
   }
   void AssertWriterHeld(const Thread* self) { AssertExclusiveHeld(self); }
@@ -206,7 +210,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread has shared access to the ReaderWriterMutex.
   void AssertSharedHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(IsSharedHeld(self));
+      CHECK(IsSharedHeld(self)) << *this;
     }
   }
   void AssertReaderHeld(const Thread* self) { AssertSharedHeld(self); }
@@ -215,12 +219,14 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // mode.
   void AssertNotHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(!IsSharedHeld(self));
+      CHECK(!IsSharedHeld(self)) << *this;
     }
   }
 
   // Id associated with exclusive owner.
   uint64_t GetExclusiveOwnerTid() const;
+
+  std::string Dump() const;
 
  private:
 #if ART_USE_FUTEXES

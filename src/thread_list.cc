@@ -117,12 +117,16 @@ void ThreadList::DumpLocked(std::ostream& os) {
   }
 }
 
-void ThreadList::AssertThreadsAreSuspended() {
+void ThreadList::AssertThreadsAreSuspended(Thread* ignore1, Thread* ignore2) {
   MutexLock mu(*Locks::thread_list_lock_);
   MutexLock mu2(*Locks::thread_suspend_count_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
-    CHECK_NE(thread->GetState(), kRunnable);
+    if (thread != ignore1 || thread == ignore2) {
+      CHECK(thread->IsSuspended())
+            << "\nUnsuspended thread: <<" << *thread << "\n"
+            << "self: <<" << *Thread::Current();
+    }
   }
 }
 
@@ -171,7 +175,7 @@ void ThreadList::SuspendAll() {
           continue;
         }
         VLOG(threads) << "requesting thread suspend: " << *thread;
-        thread->ModifySuspendCount(+1, false);
+        thread->ModifySuspendCount(self, +1, false);
       }
     }
   }
@@ -190,7 +194,7 @@ void ThreadList::SuspendAll() {
 #endif
 
   // Debug check that all threads are suspended.
-  AssertThreadsAreSuspended();
+  AssertThreadsAreSuspended(self);
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
@@ -199,6 +203,10 @@ void ThreadList::ResumeAll() {
   Thread* self = Thread::Current();
 
   VLOG(threads) << *self << " ResumeAll starting";
+
+  // Debug check that all threads are suspended.
+  AssertThreadsAreSuspended(self);
+
   Locks::mutator_lock_->ExclusiveUnlock(self);
   {
     MutexLock mu(self, *Locks::thread_list_lock_);
@@ -211,7 +219,7 @@ void ThreadList::ResumeAll() {
       if (thread == self) {
         continue;
       }
-      thread->ModifySuspendCount(-1, false);
+      thread->ModifySuspendCount(self, -1, false);
     }
 
     // Broadcast a notification to all suspended threads, some or all of
@@ -236,7 +244,7 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
     if (!Contains(thread)) {
       return;
     }
-    thread->ModifySuspendCount(-1, for_debugger);
+    thread->ModifySuspendCount(self, -1, for_debugger);
   }
 
   {
@@ -268,7 +276,7 @@ void ThreadList::SuspendAllForDebugger() {
           continue;
         }
         VLOG(threads) << "requesting thread suspend: " << *thread;
-        thread->ModifySuspendCount(+1, true);
+        thread->ModifySuspendCount(self, +1, true);
       }
     }
   }
@@ -289,7 +297,7 @@ void ThreadList::SuspendAllForDebugger() {
   Locks::mutator_lock_->ExclusiveLock(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
 #endif
-  AssertThreadsAreSuspended();
+  AssertThreadsAreSuspended(self, debug_thread);
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
@@ -306,7 +314,7 @@ void ThreadList::SuspendSelfForDebugger() {
   // to ensure that we're the only one fiddling with the suspend count
   // though.
   MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-  self->ModifySuspendCount(+1, true);
+  self->ModifySuspendCount(self, +1, true);
 
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
@@ -351,7 +359,7 @@ void ThreadList::UndoDebuggerSuspensions() {
       if (thread == self || thread->debug_suspend_count_ == 0) {
         continue;
       }
-      thread->ModifySuspendCount(-thread->debug_suspend_count_, true);
+      thread->ModifySuspendCount(self, -thread->debug_suspend_count_, true);
     }
   }
 
@@ -397,7 +405,7 @@ void ThreadList::SuspendAllDaemonThreads() {
       // daemons.
       CHECK(thread->IsDaemon());
       if (thread != self) {
-        thread->ModifySuspendCount(+1, false);
+        thread->ModifySuspendCount(self, +1, false);
       }
     }
   }
@@ -438,6 +446,9 @@ void ThreadList::Register(Thread* self) {
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
   self->suspend_count_ = suspend_all_count_;
   self->debug_suspend_count_ = debug_suspend_all_count_;
+  if (self->suspend_count_ > 0) {
+    self->AtomicSetFlag(kSuspendRequest);
+  }
   CHECK(!Contains(self));
   list_.push_back(self);
 }
