@@ -20,41 +20,45 @@
 
 namespace art {
 
-ReaderWriterMutex* Locks::mutator_lock_ = NULL;
-Mutex* Locks::thread_list_lock_ = NULL;
+Mutex* Locks::abort_lock_ = NULL;
 Mutex* Locks::classlinker_classes_lock_ = NULL;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = NULL;
-Mutex* Locks::abort_lock_ = NULL;
 Mutex* Locks::logging_lock_ = NULL;
-Mutex* Locks::unexpected_signal_lock_ = NULL;
+ReaderWriterMutex* Locks::mutator_lock_ = NULL;
+Mutex* Locks::runtime_shutdown_lock_ = NULL;
+Mutex* Locks::thread_list_lock_ = NULL;
 Mutex* Locks::thread_suspend_count_lock_ = NULL;
+Mutex* Locks::unexpected_signal_lock_ = NULL;
 
 void Locks::Init() {
   if (logging_lock_ != NULL) {
     // Already initialized.
-    DCHECK(mutator_lock_ != NULL);
-    DCHECK(thread_list_lock_ != NULL);
+    DCHECK(abort_lock_ != NULL);
     DCHECK(classlinker_classes_lock_ != NULL);
     DCHECK(heap_bitmap_lock_ != NULL);
-    DCHECK(abort_lock_ != NULL);
     DCHECK(logging_lock_ != NULL);
-    DCHECK(unexpected_signal_lock_ != NULL);
+    DCHECK(mutator_lock_ != NULL);
+    DCHECK(thread_list_lock_ != NULL);
     DCHECK(thread_suspend_count_lock_ != NULL);
+    DCHECK(unexpected_signal_lock_ != NULL);
   } else {
     logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
     abort_lock_ = new Mutex("abort lock", kAbortLock, true);
-    DCHECK(mutator_lock_ == NULL);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
-    DCHECK(thread_list_lock_ == NULL);
-    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
+
     DCHECK(classlinker_classes_lock_ == NULL);
     classlinker_classes_lock_ = new Mutex("ClassLinker classes lock", kClassLinkerClassesLock);
     DCHECK(heap_bitmap_lock_ == NULL);
     heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", kHeapBitmapLock);
-    DCHECK(unexpected_signal_lock_ == NULL);
-    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
+    DCHECK(mutator_lock_ == NULL);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
+    DCHECK(runtime_shutdown_lock_ == NULL);
+    runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", kRuntimeShutdownLock);
+    DCHECK(thread_list_lock_ == NULL);
+    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
     DCHECK(thread_suspend_count_lock_ == NULL);
     thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
+    DCHECK(unexpected_signal_lock_ == NULL);
+    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
   }
 }
 

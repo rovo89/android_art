@@ -75,7 +75,10 @@ Runtime::Runtime()
       abstract_method_error_stub_array_(NULL),
       resolution_method_(NULL),
       system_class_loader_(NULL),
+      threads_being_born_(0),
+      shutdown_cond_(new ConditionVariable("Runtime shutdown")),
       shutting_down_(false),
+      shutting_down_started_(false),
       started_(false),
       finished_starting_(false),
       vfprintf_(NULL),
@@ -111,14 +114,22 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
-  shutting_down_ = true;
+  Thread* self = Thread::Current();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    shutting_down_started_ = true;
+    while (threads_being_born_ > 0) {
+      shutdown_cond_->Wait(self, *Locks::runtime_shutdown_lock_);
+    }
+    shutting_down_ = true;
+  }
 
   if (IsMethodTracingActive()) {
     Trace::Shutdown();
   }
 
   // Make sure to let the GC complete if it is running.
-  heap_->WaitForConcurrentGcToComplete(Thread::Current());
+  heap_->WaitForConcurrentGcToComplete(self);
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
@@ -619,6 +630,14 @@ void Runtime::Start() {
   finished_starting_ = true;
 }
 
+void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+  DCHECK_GT(threads_being_born_, 0U);
+  threads_being_born_--;
+  if (shutting_down_started_ && threads_being_born_ == 0) {
+    shutdown_cond_->Broadcast();
+  }
+}
+
 void Runtime::DidForkFromZygote() {
   is_zygote_ = false;
 
@@ -705,10 +724,11 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   // ClassLinker needs an attached thread, but we can't fully attach a thread
   // without creating objects. We can't supply a thread group yet; it will be fixed later.
-  Thread::Attach("main", false, NULL);
+  Thread* self = Thread::Attach("main", false, NULL);
+  CHECK(self != NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
-  Thread::Current()->TransitionFromSuspendedToRunnable();
+  self->TransitionFromSuspendedToRunnable();
 
   // Now we're attached, we can take the heap lock and validate the heap.
   GetHeap()->EnableObjectValidation();
@@ -903,11 +923,12 @@ void Runtime::BlockSignals() {
   signals.Block();
 }
 
-void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group) {
-  Thread::Attach(thread_name, as_daemon, thread_group);
+bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group) {
+  bool success = Thread::Attach(thread_name, as_daemon, thread_group) != NULL;
   if (thread_name == NULL) {
     LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
   }
+  return success;
 }
 
 void Runtime::DetachCurrentThread() {

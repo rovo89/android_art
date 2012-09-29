@@ -1019,7 +1019,7 @@ class WorkerThread {
     WorkerThread* worker = reinterpret_cast<WorkerThread*>(arg);
     Runtime* runtime = Runtime::Current();
     if (worker->spawn_) {
-      runtime->AttachCurrentThread("Compiler Worker", true, NULL);
+      CHECK(runtime->AttachCurrentThread("Compiler Worker", true, NULL));
     }
     worker->Run();
     if (worker->spawn_) {

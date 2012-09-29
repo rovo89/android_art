@@ -1244,7 +1244,7 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteLocalRef(s);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid local reference: 0x1400001");
+    check_jni_abort_catcher.Check("native code passing in reference to invalid local reference: 0x1500001");
   }
 
   s = env_->NewStringUTF("");
@@ -1325,7 +1325,7 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteGlobalRef(o);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid global reference: 0x100056");
+    check_jni_abort_catcher.Check("native code passing in reference to invalid global reference: 0x10005a");
   }
 
   jobject o1 = env_->NewGlobalRef(s);

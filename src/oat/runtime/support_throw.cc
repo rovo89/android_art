@@ -19,6 +19,7 @@
 #include "object_utils.h"
 #include "runtime_support.h"
 #include "thread.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -87,18 +88,31 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
   thread->DeliverException();
 }
 
-extern "C" void artThrowStackOverflowFromCode(Thread* thread, AbstractMethod** sp)
+extern "C" void artThrowStackOverflowFromCode(Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  CHECK(!self->IsHandlingStackOverflow()) << "Recursive stack overflow.";
   // Remove extra entry pushed onto second stack during method tracing.
   if (Runtime::Current()->IsMethodTracingActive()) {
-    TraceMethodUnwindFromCode(thread);
+    TraceMethodUnwindFromCode(self);
   }
-  thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
-  thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;", "stack size %s",
-                             PrettySize(thread->GetStackSize()).c_str());
-  thread->ResetDefaultStackEnd();  // Return to default stack size.
-  thread->DeliverException();
+  self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
+  JNIEnvExt* env = self->GetJniEnv();
+  std::string msg("stack size ");
+  msg += PrettySize(self->GetStackSize());
+  // Use low-level JNI routine and pre-baked error class to avoid class linking operations that
+  // would consume more stack.
+  int rc = ::art::ThrowNewException(env, WellKnownClasses::java_lang_StackOverflowError,
+                                    msg.c_str(), NULL);
+  if (rc != JNI_OK) {
+    // TODO: ThrowNewException failed presumably because of an OOME, we continue to throw the OOME
+    //       or die in the CHECK below. We may want to throw a pre-baked StackOverflowError
+    //       instead.
+    LOG(ERROR) << "Couldn't throw new StackOverflowError because JNI ThrowNew failed.";
+    CHECK(self->IsExceptionPending());
+  }
+  self->ResetDefaultStackEnd();  // Return to default stack size.
+  self->DeliverException();
 }
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,

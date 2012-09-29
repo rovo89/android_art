@@ -98,14 +98,15 @@ static uint64_t SafeGetTid(const Thread* self) {
 
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {}
 
-static void CheckUnattachedThread(LockLevel level) {
+static void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALYSIS {
   // The check below enumerates the cases where we expect not to be able to sanity check locks
-  // on a thread. TODO: tighten this check.
+  // on a thread. Lock checking is disabled to avoid deadlock when checking shutdown lock.
+  // TODO: tighten this check.
   if (kDebugLocking) {
     Runtime* runtime = Runtime::Current();
     CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
-          level == kDefaultMutexLevel  || level == kThreadListLock ||
-          level == kLoggingLock || level == kAbortLock);
+          level == kDefaultMutexLevel  || level == kRuntimeShutdownLock ||
+          level == kThreadListLock || level == kLoggingLock || level == kAbortLock);
   }
 }
 
@@ -195,7 +196,9 @@ Mutex::~Mutex() {
   if (rc != 0) {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    bool shutting_down = Runtime::Current()->IsShuttingDown();
+    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    Runtime* runtime = Runtime::Current();
+    bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
   }
 }
@@ -326,8 +329,10 @@ ReaderWriterMutex::~ReaderWriterMutex() {
   if (rc != 0) {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    bool shutting_down = Runtime::Current()->IsShuttingDown();
-    PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
+    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    Runtime* runtime = Runtime::Current();
+    bool shutting_down = runtime == NULL || runtime->IsShuttingDown();
+    PLOG(shutting_down ? WARNING : FATAL) << "pthread_rwlock_destroy failed for " << name_;
   }
 #endif
 }
@@ -581,7 +586,9 @@ ConditionVariable::~ConditionVariable() {
   int rc = pthread_cond_destroy(&cond_);
   if (rc != 0) {
     errno = rc;
-    bool shutting_down = Runtime::Current()->IsShuttingDown();
+    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    Runtime* runtime = Runtime::Current();
+    bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_cond_destroy failed for " << name_;
   }
 }

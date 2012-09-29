@@ -481,9 +481,13 @@ static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, 
     thread_group = args->group;
   }
 
-  runtime->AttachCurrentThread(thread_name, as_daemon, thread_group);
-  *p_env = Thread::Current()->GetJniEnv();
-  return JNI_OK;
+  if (!runtime->AttachCurrentThread(thread_name, as_daemon, thread_group)) {
+    *p_env = NULL;
+    return JNI_ERR;
+  } else {
+    *p_env = Thread::Current()->GetJniEnv();
+    return JNI_OK;
+  }
 }
 
 class SharedLibrary {
@@ -761,13 +765,11 @@ class JNI {
   }
 
   static jboolean ExceptionCheck(JNIEnv* env) {
-    ScopedObjectAccess soa(env);
-    return soa.Self()->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
+    return static_cast<JNIEnvExt*>(env)->self->IsExceptionPending() ? JNI_TRUE : JNI_FALSE;
   }
 
   static void ExceptionClear(JNIEnv* env) {
-    ScopedObjectAccess soa(env);
-    soa.Self()->ClearException();
+    static_cast<JNIEnvExt*>(env)->self->ClearException();
   }
 
   static void ExceptionDescribe(JNIEnv* env) {
@@ -907,8 +909,7 @@ class JNI {
 
   static jboolean IsSameObject(JNIEnv* env, jobject obj1, jobject obj2) {
     ScopedObjectAccess soa(env);
-    return (soa.Decode<Object*>(obj1) == soa.Decode<Object*>(obj2))
-        ? JNI_TRUE : JNI_FALSE;
+    return (soa.Decode<Object*>(obj1) == soa.Decode<Object*>(obj2)) ? JNI_TRUE : JNI_FALSE;
   }
 
   static jobject AllocObject(JNIEnv* env, jclass java_class) {

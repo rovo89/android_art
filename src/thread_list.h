@@ -74,11 +74,9 @@ class ThreadList {
 
   // Add/remove current thread from list.
   void Register(Thread* self)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_);
-  void Unregister(Thread* self)
-      LOCKS_EXCLUDED(Locks::mutator_lock_,
-                     Locks::thread_list_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_)
+      LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
+  void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

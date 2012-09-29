@@ -73,10 +73,10 @@ std::string GetThreadName(pid_t tid) {
   return result;
 }
 
-void GetThreadStack(void*& stack_base, size_t& stack_size) {
+void GetThreadStack(pthread_t thread, void*& stack_base, size_t& stack_size) {
 #if defined(__APPLE__)
-  stack_size = pthread_get_stacksize_np(pthread_self());
-  void* stack_addr = pthread_get_stackaddr_np(pthread_self());
+  stack_size = pthread_get_stacksize_np(thread);
+  void* stack_addr = pthread_get_stackaddr_np(thread);
 
   // Check whether stack_addr is the base or end of the stack.
   // (On Mac OS 10.7, it's the end.)
@@ -88,7 +88,7 @@ void GetThreadStack(void*& stack_base, size_t& stack_size) {
   }
 #else
   pthread_attr_t attributes;
-  CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_self(), &attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &stack_base, &stack_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #endif

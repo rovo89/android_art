@@ -298,8 +298,8 @@ pid_t GetTid();
 // Returns the given thread's name.
 std::string GetThreadName(pid_t tid);
 
-// Returns details of the calling thread's stack.
-void GetThreadStack(void*& stack_base, size_t& stack_size);
+// Returns details of the given thread's stack.
+void GetThreadStack(pthread_t thread, void*& stack_base, size_t& stack_size);
 
 // Reads data from "/proc/self/task/${tid}/stat".
 void GetTaskStats(pid_t tid, char& state, int& utime, int& stime, int& task_cpu);

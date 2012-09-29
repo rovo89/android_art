@@ -42,10 +42,11 @@ enum LockLevel {
   kLoadLibraryLock = 7,
   kClassLinkerClassesLock = 8,
   kThreadListLock = 9,
-  kHeapBitmapLock = 10,
-  kMonitorLock = 11,
-  kMutatorLock = 12,
-  kZygoteCreationLock = 13,
+  kRuntimeShutdownLock = 10,
+  kHeapBitmapLock = 11,
+  kMonitorLock = 12,
+  kMutatorLock = 13,
+  kZygoteCreationLock = 14,
   kMaxMutexLevel = kMutatorLock,
 };
 std::ostream& operator<<(std::ostream& os, const LockLevel& rhs);
@@ -118,9 +119,12 @@ class Locks {
   // Allow reader-writer mutual exclusion on the mark and live bitmaps of the heap.
   static ReaderWriterMutex* heap_bitmap_lock_ ACQUIRED_AFTER(mutator_lock_);
 
+  // Guards shutdown of the runtime.
+  static Mutex* runtime_shutdown_lock_ ACQUIRED_AFTER(heap_bitmap_lock_);
+
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
-  static Mutex* thread_list_lock_ ACQUIRED_AFTER(heap_bitmap_lock_);
+  static Mutex* thread_list_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
 
   // Guards lists of classes within the class linker.
   static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(thread_list_lock_);
