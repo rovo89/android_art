@@ -353,7 +353,8 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       android_atomic_dec(&num_pending_writers_);
     }
   } while(!done);
-  exclusive_owner_ = static_cast<uint64_t>(self->GetTid());
+  DCHECK_EQ(state_, -1);
+  exclusive_owner_ = SafeGetTid(self);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_wrlock, (&rwlock_));
 #endif
