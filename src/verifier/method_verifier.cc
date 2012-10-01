@@ -212,8 +212,16 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   size_t error_count = 0;
   bool hard_fail = false;
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  int64_t previous_direct_method_idx = -1;
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
+    if (method_idx == previous_direct_method_idx) {
+      // smali can create dex files with two encoded_methods sharing the same method_idx
+      // http://code.google.com/p/smali/issues/detail?id=119
+      it.Next();
+      continue;
+    }
+    previous_direct_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
     AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
@@ -238,8 +246,16 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     }
     it.Next();
   }
+  int64_t previous_virtual_method_idx = -1;
   while (it.HasNextVirtualMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
+    if (method_idx == previous_virtual_method_idx) {
+      // smali can create dex files with two encoded_methods sharing the same method_idx
+      // http://code.google.com/p/smali/issues/detail?id=119
+      it.Next();
+      continue;
+    }
+    previous_virtual_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
     AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
