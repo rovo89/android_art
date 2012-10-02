@@ -576,6 +576,7 @@ struct CompilationUnit {
    */
   int liveSReg;
 #endif
+  std::set<uint32_t> catches;
   int* opcodeCount;    // Count Dalvik opcodes for tuning
 };
 

@@ -540,10 +540,16 @@ void setShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
   if (index == -1) {
     return;
   }
+  llvm::Type* ty = newVal->getType();
   greenland::IntrinsicHelper::IntrinsicId id =
       greenland::IntrinsicHelper::SetShadowFrameEntry;
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* tableSlot = cUnit->irb->getInt32(index);
+  // If newVal is a Null pointer, we'll see it here as a const int.  Replace
+  if (!ty->isPointerTy()) {
+    // TODO: assert newVal created w/ dex_lang_const_int(0) or dex_lang_const_float(0)
+    newVal = cUnit->irb->GetJNull();
+  }
   llvm::Value* args[] = { newVal, tableSlot };
   cUnit->irb->CreateCall(func, args);
 }
@@ -2112,8 +2118,13 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
     std::string errmsg;
     std::string fname(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
     oatReplaceSpecialChars(fname);
-    // TODO: make configurable
+    // TODO: make configurable change naming mechanism to avoid fname length issues.
     fname = StringPrintf("/sdcard/Bitcode/%s.bc", fname.c_str());
+
+    if (fname.size() > 240) {
+      LOG(INFO) << "Warning: bitcode filename too long. Truncated.";
+      fname.resize(240);
+    }
 
     llvm::OwningPtr<llvm::tool_output_file> out_file(
         new llvm::tool_output_file(fname.c_str(), errmsg,

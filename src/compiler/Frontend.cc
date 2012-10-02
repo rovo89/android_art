@@ -700,6 +700,7 @@ BasicBlock* processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                                          false /* creat */,
                                          NULL  /* immedPredBlockP */);
       catchBlock->catchEntry = true;
+      cUnit->catches.insert(catchBlock->startOffset);
       SuccessorBlockInfo *successorBlockInfo = (SuccessorBlockInfo *)
           oatNew(cUnit, sizeof(SuccessorBlockInfo), false, kAllocSuccessor);
       successorBlockInfo->block = catchBlock;
@@ -840,7 +841,9 @@ CompiledMethod* compileMethod(Compiler& compiler,
   }
 #if defined(ART_USE_QUICK_COMPILER)
   if (cUnit->genBitcode) {
-    //cUnit->enableDebug |= (1 << kDebugVerifyBitcode);
+#ifndef NDEBUG
+    cUnit->enableDebug |= (1 << kDebugVerifyBitcode);
+#endif
     //cUnit->printMe = true;
     //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
   }

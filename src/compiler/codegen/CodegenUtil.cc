@@ -764,6 +764,40 @@ int assignLiteralOffsetCommon(LIR* lir, int offset)
   return offset;
 }
 
+// Make sure we have a code address for every declared catch entry
+bool verifyCatchEntries(CompilationUnit* cUnit)
+{
+  bool success = true;
+  for (std::set<uint32_t>::const_iterator it = cUnit->catches.begin(); it != cUnit->catches.end(); ++it) {
+    uint32_t dexPc = *it;
+    bool found = false;
+    for (size_t i = 0; i < cUnit->dex2pcMappingTable.size(); i += 2) {
+      if (dexPc == cUnit->dex2pcMappingTable[i+1]) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      LOG(INFO) << "Missing native PC for catch entry @ 0x" << std::hex << dexPc;
+      success = false;
+    }
+  }
+  // Now, try in the other direction
+  for (size_t i = 0; i < cUnit->dex2pcMappingTable.size(); i += 2) {
+    uint32_t dexPc = cUnit->dex2pcMappingTable[i+1];
+    if (cUnit->catches.find(dexPc) == cUnit->catches.end()) {
+      LOG(INFO) << "Unexpected catch entry @ dex pc 0x" << std::hex << dexPc;
+      success = false;
+    }
+  }
+  if (!success) {
+    LOG(INFO) << "Bad dex2pcMapping table in " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    LOG(INFO) << "Entries @ decode: " << cUnit->catches.size() << ", Entries in table: "
+              << cUnit->dex2pcMappingTable.size()/2;
+  }
+  return success;
+}
+
 void createMappingTables(CompilationUnit* cUnit)
 {
   for (LIR* tgtLIR = (LIR *) cUnit->firstLIRInsn; tgtLIR != NULL; tgtLIR = NEXT_LIR(tgtLIR)) {
@@ -776,6 +810,7 @@ void createMappingTables(CompilationUnit* cUnit)
       cUnit->dex2pcMappingTable.push_back(tgtLIR->dalvikOffset);
     }
   }
+  DCHECK(verifyCatchEntries(cUnit));
   cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size() +
                                         cUnit->dex2pcMappingTable.size());
   cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size());
