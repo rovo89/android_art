@@ -29,6 +29,7 @@
 #include <llvm/Support/InstIterator.h>
 
 static const char* kLabelFormat = "%c0x%x_%d";
+static const char kInvalidBlock = 0xff;
 static const char kNormalBlock = 'L';
 static const char kCatchBlock = 'C';
 
@@ -2885,15 +2886,21 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
     // Define the starting label
     LIR* blockLabel = cUnit->blockToLabelMap.Get(bb);
     // Extract the type and starting offset from the block's name
-    char blockType = kNormalBlock;
-    if (!isEntry) {
-      const char* blockName = bb->getName().str().c_str();
-      int dummy;
-      sscanf(blockName, kLabelFormat, &blockType, &blockLabel->operands[0], &dummy);
-      cUnit->currentDalvikOffset = blockLabel->operands[0];
+    char blockType = kInvalidBlock;
+    if (isEntry) {
+      blockType = kNormalBlock;
+      blockLabel->operands[0] = 0;
+    } else if (!bb->hasName()) {
+      blockType = kNormalBlock;
+      blockLabel->operands[0] = DexFile::kDexNoIndex;
     } else {
-      cUnit->currentDalvikOffset = 0;
+      std::string blockName = bb->getName().str();
+      int dummy;
+      sscanf(blockName.c_str(), kLabelFormat, &blockType, &blockLabel->operands[0], &dummy);
+      cUnit->currentDalvikOffset = blockLabel->operands[0];
     }
+    DCHECK((blockType == kNormalBlock) || (blockType == kCatchBlock));
+    cUnit->currentDalvikOffset = blockLabel->operands[0];
     // Set the label kind
     blockLabel->opcode = kPseudoNormalBlockLabel;
     // Insert the label
