@@ -421,6 +421,7 @@ class OatDumper {
       return;
     }
 
+    ++raw_table;
     uint32_t length = *raw_table;
     ++raw_table;
     uint32_t pc_to_dex_entries = *raw_table;
