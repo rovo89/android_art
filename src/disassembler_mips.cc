@@ -164,9 +164,8 @@ static const MipsInstruction gMipsInstructions[] = {
 };
 
 static uint32_t ReadU32(const uint8_t* ptr) {
-  // TODO: MIPS is bi. how do we handle that?
-  return ptr[3] | (ptr[2] << 8) | (ptr[1] << 16) | (ptr[0] << 24);
-  //return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
+  // We only support little-endian MIPS.
+  return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
 }
 
 static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {

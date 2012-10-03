@@ -147,14 +147,12 @@ namespace art {
 /* RegisterLocation templates return values (r_V0, or r_V0/r_V1) */
 #define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
                       INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_FLOAT  LOC_C_RETURN
-#define LOC_C_RETURN_ALT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V1, \
-                          INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define LOC_C_RETURN_FLOAT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0, \
+                            INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_RESULT0, \
                            r_RESULT1, INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE_DOUBLE  LOC_C_RETURN_WIDE
-#define LOC_C_RETURN_WIDE_ALT {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
-                               r_FRESULT1, INVALID_SREG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
+                                  r_FRESULT1, INVALID_SREG, INVALID_SREG}
 
 enum ResourceEncodingPos {
   kGPReg0   = 0,
