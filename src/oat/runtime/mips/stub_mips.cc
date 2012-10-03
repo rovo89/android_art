@@ -41,19 +41,16 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   // Save callee saves and ready frame for exception delivery
   __ AddConstant(SP, SP, -64);
   __ StoreToOffset(kStoreWord, RA, SP, 60);
-  __ StoreToOffset(kStoreWord, T9, SP, 56);
-  __ StoreToOffset(kStoreWord, T8, SP, 52);
-  __ StoreToOffset(kStoreWord, T7, SP, 48);
-  __ StoreToOffset(kStoreWord, T6, SP, 44);
-  __ StoreToOffset(kStoreWord, T5, SP, 40);
-  __ StoreToOffset(kStoreWord, T4, SP, 36);
-  __ StoreToOffset(kStoreWord, T3, SP, 32);
-  __ StoreToOffset(kStoreWord, T2, SP, 28);
-  __ StoreToOffset(kStoreWord, T1, SP, 24);
-  __ StoreToOffset(kStoreWord, T0, SP, 20);
-  __ StoreToOffset(kStoreWord, A3, SP, 16);
-  __ StoreToOffset(kStoreWord, A2, SP, 12);
-  __ StoreToOffset(kStoreWord, A1, SP, 8);
+  __ StoreToOffset(kStoreWord, FP, SP, 56);
+  __ StoreToOffset(kStoreWord, S7, SP, 52);
+  __ StoreToOffset(kStoreWord, S6, SP, 48);
+  __ StoreToOffset(kStoreWord, S5, SP, 44);
+  __ StoreToOffset(kStoreWord, S4, SP, 40);
+  __ StoreToOffset(kStoreWord, S3, SP, 36);
+  __ StoreToOffset(kStoreWord, S2, SP, 32);
+  __ StoreToOffset(kStoreWord, A3, SP, 28);
+  __ StoreToOffset(kStoreWord, A2, SP, 24);
+  __ StoreToOffset(kStoreWord, A1, SP, 20);
 
   __ LoadFromOffset(kLoadWord, T9, S1,
                     ENTRYPOINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode));
@@ -63,19 +60,16 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ Jalr(T9); // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
 
   // Restore registers which may have been modified by GC
-  __ LoadFromOffset(kLoadWord, A1, SP, 8);
-  __ LoadFromOffset(kLoadWord, A2, SP, 12);
-  __ LoadFromOffset(kLoadWord, A3, SP, 16);
-  __ LoadFromOffset(kLoadWord, T0, SP, 20);
-  __ LoadFromOffset(kLoadWord, T1, SP, 24);
-  __ LoadFromOffset(kLoadWord, T2, SP, 28);
-  __ LoadFromOffset(kLoadWord, T3, SP, 32);
-  __ LoadFromOffset(kLoadWord, T4, SP, 36);
-  __ LoadFromOffset(kLoadWord, T5, SP, 40);
-  __ LoadFromOffset(kLoadWord, T6, SP, 44);
-  __ LoadFromOffset(kLoadWord, T7, SP, 48);
-  __ LoadFromOffset(kLoadWord, T8, SP, 52);
-  __ LoadFromOffset(kLoadWord, T9, SP, 56);
+  __ LoadFromOffset(kLoadWord, A1, SP, 20);
+  __ LoadFromOffset(kLoadWord, A2, SP, 24);
+  __ LoadFromOffset(kLoadWord, A3, SP, 28);
+  __ LoadFromOffset(kLoadWord, S2, SP, 32);
+  __ LoadFromOffset(kLoadWord, S3, SP, 36);
+  __ LoadFromOffset(kLoadWord, S4, SP, 40);
+  __ LoadFromOffset(kLoadWord, S5, SP, 44);
+  __ LoadFromOffset(kLoadWord, S6, SP, 48);
+  __ LoadFromOffset(kLoadWord, S7, SP, 52);
+  __ LoadFromOffset(kLoadWord, FP, SP, 56);
   __ LoadFromOffset(kLoadWord, RA, SP, 60);
   __ AddConstant(SP, SP, 64);
 
@@ -133,16 +127,13 @@ ByteArray* CreateAbstractMethodErrorStub() {
   // Save callee saves and ready frame for exception delivery
   __ AddConstant(SP, SP, -48);
   __ StoreToOffset(kStoreWord, RA, SP, 44);
-  __ StoreToOffset(kStoreWord, T9, SP, 40);
-  __ StoreToOffset(kStoreWord, T8, SP, 36);
-  __ StoreToOffset(kStoreWord, T7, SP, 32);
-  __ StoreToOffset(kStoreWord, T6, SP, 28);
-  __ StoreToOffset(kStoreWord, T5, SP, 24);
-  __ StoreToOffset(kStoreWord, T4, SP, 20);
-  __ StoreToOffset(kStoreWord, T3, SP, 16);
-  __ StoreToOffset(kStoreWord, T2, SP, 12);
-  __ StoreToOffset(kStoreWord, T1, SP, 8);
-  __ StoreToOffset(kStoreWord, T0, SP, 4);
+  __ StoreToOffset(kStoreWord, FP, SP, 40);
+  __ StoreToOffset(kStoreWord, S7, SP, 36);
+  __ StoreToOffset(kStoreWord, S6, SP, 32);
+  __ StoreToOffset(kStoreWord, S5, SP, 28);
+  __ StoreToOffset(kStoreWord, S4, SP, 24);
+  __ StoreToOffset(kStoreWord, S3, SP, 20);
+  __ StoreToOffset(kStoreWord, S2, SP, 16);
 
   // A0 is the Method* already
   __ Move(A1, S1);  // Pass Thread::Current() in A1

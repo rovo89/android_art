@@ -1784,13 +1784,11 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
            RegLocation rlSrc1, RegLocation rlSrc2)
 {
   OpKind op = kOpBkpt;
-  bool callOut = false;
+  bool isDivRem = false;
   bool checkZero = false;
   bool unary = false;
   RegLocation rlResult;
   bool shiftOp = false;
-  int funcOffset;
-  int retReg = rRET0;
   switch (opcode) {
     case Instruction::NEG_INT:
       op = kOpNeg;
@@ -1816,18 +1814,14 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
     case Instruction::DIV_INT_2ADDR:
       checkZero = true;
       op = kOpDiv;
-      callOut = true;
-      funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
-      retReg = rRET0;
+      isDivRem = true;
       break;
     /* NOTE: returns in rARG1 */
     case Instruction::REM_INT:
     case Instruction::REM_INT_2ADDR:
       checkZero = true;
       op = kOpRem;
-      callOut = true;
-      funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
-      retReg = rRET1;
+      isDivRem = true;
       break;
     case Instruction::AND_INT:
     case Instruction::AND_INT_2ADDR:
@@ -1860,7 +1854,7 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
       LOG(FATAL) << "Invalid word arith op: " <<
         (int)opcode;
   }
-  if (!callOut) {
+  if (!isDivRem) {
     if (unary) {
       rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -1889,10 +1883,24 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
     }
     storeValue(cUnit, rlDest, rlResult);
   } else {
+#if defined(TARGET_MIPS)
+    rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
+    if (checkZero) {
+        genNullCheck(cUnit, rlSrc2.sRegLow, rlSrc2.lowReg, 0);
+    }
+    newLIR4(cUnit, kMipsDiv, r_HI, r_LO, rlSrc1.lowReg, rlSrc2.lowReg);
+    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    if (op == kOpDiv) {
+      newLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+    } else {
+      newLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+    }
+#else
+    int funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
     RegLocation rlResult;
     oatFlushAllRegs(cUnit);   /* Send everything to home location */
     loadValueDirectFixed(cUnit, rlSrc2, rARG1);
-#if !defined(TARGET_X86)
+#if defined(TARGET_ARM)
     int rTgt = loadHelper(cUnit, funcOffset);
 #endif
     loadValueDirectFixed(cUnit, rlSrc1, rARG0);
@@ -1900,17 +1908,18 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
       genImmedCheck(cUnit, kCondEq, rARG1, 0, kThrowDivZero);
     }
     // NOTE: callout here is not a safepoint
-#if !defined(TARGET_X86)
+#if defined(TARGET_ARM)
     opReg(cUnit, kOpBlx, rTgt);
     oatFreeTemp(cUnit, rTgt);
 #else
     opThreadMem(cUnit, kOpBlx, funcOffset);
 #endif
-    if (retReg == rRET0)
+    if (op == kOpDiv)
       rlResult = oatGetReturn(cUnit, false);
     else
       rlResult = oatGetReturnAlt(cUnit);
     storeValue(cUnit, rlDest, rlResult);
+#endif
   }
   return false;
 }
@@ -2077,7 +2086,6 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
   OpKind op = (OpKind)0;    /* Make gcc happy */
   int shiftOp = false;
   bool isDiv = false;
-  int funcOffset;
 
   switch (opcode) {
     case Instruction::RSUB_INT_LIT8:
@@ -2140,7 +2148,7 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
     case Instruction::DIV_INT_LIT8:
     case Instruction::DIV_INT_LIT16:
     case Instruction::REM_INT_LIT8:
-    case Instruction::REM_INT_LIT16:
+    case Instruction::REM_INT_LIT16: {
       if (lit == 0) {
         genImmedCheck(cUnit, kCondAl, 0, 0, kThrowDivZero);
         return false;
@@ -2148,24 +2156,39 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
       if (handleEasyDivide(cUnit, opcode, rlSrc, rlDest, lit)) {
         return false;
       }
-      oatFlushAllRegs(cUnit);   /* Everything to home location */
-      loadValueDirectFixed(cUnit, rlSrc, rARG0);
-      oatClobber(cUnit, rARG0);
-      funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
       if ((opcode == Instruction::DIV_INT_LIT8) ||
           (opcode == Instruction::DIV_INT_LIT16)) {
         isDiv = true;
       } else {
         isDiv = false;
       }
+#if defined(TARGET_MIPS)
+      rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+      int tReg = oatAllocTemp(cUnit);
+      newLIR3(cUnit, kMipsAddiu, tReg, r_ZERO, lit);
+      newLIR4(cUnit, kMipsDiv, r_HI, r_LO, rlSrc.lowReg, tReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+      if (isDiv) {
+        newLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+      } else {
+        newLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+      }
+      oatFreeTemp(cUnit, tReg);
+#else
+      oatFlushAllRegs(cUnit);   /* Everything to home location */
+      loadValueDirectFixed(cUnit, rlSrc, rARG0);
+      oatClobber(cUnit, rARG0);
+      int funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
       callRuntimeHelperRegImm(cUnit, funcOffset, rARG0, lit, false);
       if (isDiv)
         rlResult = oatGetReturn(cUnit, false);
       else
         rlResult = oatGetReturnAlt(cUnit);
+#endif
       storeValue(cUnit, rlDest, rlResult);
       return false;
       break;
+    }
     default:
       return true;
   }

@@ -138,20 +138,15 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = LOC_C_RETURN_WIDE_ALT;
-  oatClobber(cUnit, res.lowReg);
-  oatClobber(cUnit, res.highReg);
-  oatMarkInUse(cUnit, res.lowReg);
-  oatMarkInUse(cUnit, res.highReg);
-  oatMarkPair(cUnit, res.lowReg, res.highReg);
+  UNIMPLEMENTED(FATAL) << "No oatGetReturnWideAlt for MIPS";
+  RegLocation res = LOC_C_RETURN_WIDE;
   return res;
 }
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = LOC_C_RETURN_ALT;
-  oatClobber(cUnit, res.lowReg);
-  oatMarkInUse(cUnit, res.lowReg);
+  UNIMPLEMENTED(FATAL) << "No oatGetReturnAlt for MIPS";
+  RegLocation res = LOC_C_RETURN;
   return res;
 }
 
