@@ -19,17 +19,19 @@
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 
 namespace art {
 
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
-static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions)
+static Array* CreateMultiArray(Thread* self, Class* array_class, int current_dimension,
+                               IntArray* dimensions)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension++);
-  SirtRef<Array> new_array(Array::Alloc(array_class, array_length));
+  SirtRef<Array> new_array(self, Array::Alloc(array_class, array_length));
   if (new_array.get() == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(self->IsExceptionPending());
     return NULL;
   }
   if (current_dimension == dimensions->GetLength()) {
@@ -46,16 +48,17 @@ static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArr
   Class* sub_array_class = class_linker->FindClass(sub_array_descriptor.c_str(),
                                                    array_class->GetClassLoader());
   if (sub_array_class == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(self->IsExceptionPending());
     return NULL;
   }
   DCHECK(sub_array_class->IsArrayClass());
   // Create a new sub-array in every element of the array.
-  SirtRef<ObjectArray<Array> > object_array(new_array->AsObjectArray<Array>());
+  SirtRef<ObjectArray<Array> > object_array(self, new_array->AsObjectArray<Array>());
   for (int32_t i = 0; i < array_length; i++) {
-    SirtRef<Array> sub_array(CreateMultiArray(sub_array_class, current_dimension, dimensions));
+    SirtRef<Array> sub_array(self, CreateMultiArray(self, sub_array_class, current_dimension,
+                                                    dimensions));
     if (sub_array.get() == NULL) {
-      CHECK(Thread::Current()->IsExceptionPending());
+      CHECK(self->IsExceptionPending());
       return NULL;
     }
     object_array->Set(i, sub_array.get());
@@ -105,13 +108,13 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
   if (array_class == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
   // create the array
-  Array* new_array = CreateMultiArray(array_class, 0, dimensions_array);
+  Array* new_array = CreateMultiArray(soa.Self(), array_class, 0, dimensions_array);
   if (new_array == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
   return soa.AddLocalReference<jobject>(new_array);

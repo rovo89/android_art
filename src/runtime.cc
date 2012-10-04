@@ -40,6 +40,7 @@
 #include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
+#include "sirt_ref.h"
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -983,7 +984,8 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
 
 AbstractMethod* Runtime::CreateResolutionMethod() {
   Class* method_class = AbstractMethod::GetMethodClass();
-  SirtRef<AbstractMethod> method(down_cast<AbstractMethod*>(method_class->AllocObject()));
+  SirtRef<AbstractMethod> method(Thread::Current(),
+                                 down_cast<AbstractMethod*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -993,9 +995,11 @@ AbstractMethod* Runtime::CreateResolutionMethod() {
   return method.get();
 }
 
-AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
+AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
+                                                CalleeSaveType type) {
   Class* method_class = AbstractMethod::GetMethodClass();
-  SirtRef<AbstractMethod> method(down_cast<AbstractMethod*>(method_class->AllocObject()));
+  SirtRef<AbstractMethod>
+      method(Thread::Current(), down_cast<AbstractMethod*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);

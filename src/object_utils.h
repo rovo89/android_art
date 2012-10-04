@@ -32,8 +32,8 @@ namespace art {
 
 class ObjectLock {
  public:
-  explicit ObjectLock(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : self_(Thread::Current()), obj_(object) {
+  explicit ObjectLock(Thread* self, Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : self_(self), obj_(object) {
     CHECK(object != NULL);
     obj_->MonitorEnter(self_);
   }

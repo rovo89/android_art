@@ -32,6 +32,7 @@
 #include "offsets.h"
 #include "runtime_stats.h"
 #include "stack.h"
+#include "stack_indirect_reference_table.h"
 #include "trace.h"
 #include "UniquePtr.h"
 #ifdef ART_USE_GREENLAND_COMPILER
@@ -518,8 +519,17 @@ class PACKED Thread {
 
   void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
-  void PushSirt(StackIndirectReferenceTable* sirt);
-  StackIndirectReferenceTable* PopSirt();
+  void PushSirt(StackIndirectReferenceTable* sirt) {
+    sirt->SetLink(top_sirt_);
+    top_sirt_ = sirt;
+  }
+
+  StackIndirectReferenceTable* PopSirt() {
+    StackIndirectReferenceTable* sirt = top_sirt_;
+    DCHECK(sirt != NULL);
+    top_sirt_ = top_sirt_->GetLink();
+    return sirt;
+  }
 
   static ThreadOffset TopSirtOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));

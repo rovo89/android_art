@@ -34,6 +34,7 @@
 #include "os.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "space.h"
 #include "stl_util.h"
 #include "thread_list.h"
@@ -420,8 +421,9 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
       concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
       bytes_since_last_gc_ = 0;
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
-      SirtRef<Object> ref(obj);
-      RequestConcurrentGC();
+      Thread* self = Thread::Current();
+      SirtRef<Object> ref(self, obj);
+      RequestConcurrentGC(self);
     }
     VerifyObject(obj);
 
@@ -1923,14 +1925,13 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
   }
 }
 
-void Heap::RequestConcurrentGC() {
+void Heap::RequestConcurrentGC(Thread* self) {
   // Make sure that we can do a concurrent GC.
   Runtime* runtime = Runtime::Current();
   if (requesting_gc_ || runtime == NULL || !runtime->IsFinishedStarting() ||
       !runtime->IsConcurrentGcEnabled()) {
     return;
   }
-  Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     if (runtime->IsShuttingDown()) {

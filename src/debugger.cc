@@ -31,6 +31,7 @@
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -2464,7 +2465,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  SirtRef<Throwable> old_exception(soa.Self()->GetException());
+  SirtRef<Throwable> old_exception(soa.Self(), soa.Self()->GetException());
   soa.Self()->ClearException();
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
@@ -2677,7 +2678,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    SirtRef<String> name(t->GetThreadName(soa));
+    SirtRef<String> name(soa.Self(), t->GetThreadName(soa));
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
     const jchar* chars = name->GetCharArray()->GetData();
 

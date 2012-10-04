@@ -30,7 +30,6 @@
 #include "oat_file.h"
 #include "object.h"
 #include "safe_map.h"
-#include "stack_indirect_reference_table.h"
 
 namespace art {
 
@@ -38,12 +37,13 @@ class ClassLoader;
 class ImageSpace;
 class InternTable;
 class ObjectLock;
+template<class T> class SirtRef;
 
 typedef bool (ClassVisitor)(Class* c, void* arg);
 
 class ClassLinker {
  public:
-  // Creates the class linker by boot strapping from dex files.
+  // Creates the class linker by bootstrapping from dex files.
   static ClassLinker* CreateFromCompiler(const std::vector<const DexFile*>& boot_class_path,
                                          InternTable* intern_table)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

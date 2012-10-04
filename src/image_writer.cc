@@ -36,6 +36,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "space.h"
 #include "UniquePtr.h"
 #include "utils.h"
@@ -320,7 +321,7 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
-    SirtRef<String> interned(obj->AsString()->Intern());
+    SirtRef<String> interned(Thread::Current(), obj->AsString()->Intern());
     if (obj != interned.get()) {
       if (!image_writer->IsImageOffsetAssigned(interned.get())) {
         // interned obj is after us, allocate its location early
@@ -351,8 +352,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   }
 
   // build an Object[] of the roots needed to restore the runtime
-  SirtRef<ObjectArray<Object> > image_roots(
-      ObjectArray<Object>::Alloc(object_array_class, ImageHeader::kImageRootsMax));
+  SirtRef<ObjectArray<Object> >
+      image_roots(Thread::Current(),
+                  ObjectArray<Object>::Alloc(object_array_class, ImageHeader::kImageRootsMax));
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
@@ -380,7 +382,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
 }
 
 void ImageWriter::CalculateNewObjectOffsets() {
-  SirtRef<ObjectArray<Object> > image_roots(CreateImageRoots());
+  Thread* self = Thread::Current();
+  SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
 
   Heap* heap = Runtime::Current()->GetHeap();
   const Spaces& spaces = heap->GetSpaces();
@@ -392,20 +395,20 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   {
-    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
   }
 
   {
     // TODO: Image spaces only?
     // TODO: Add InOrderWalk to heap bitmap.
-    const char* old = Thread::Current()->StartAssertNoThreadSuspension("ImageWriter");
+    const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK(heap->GetLargeObjectsSpace()->GetLiveObjects()->IsEmpty());
     for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
       (*it)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }
-    Thread::Current()->EndAssertNoThreadSuspension(old);
+    self->EndAssertNoThreadSuspension(old);
   }
 
   // Note that image_top_ is left at end of used space

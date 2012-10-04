@@ -35,6 +35,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "runtime_support.h"
+#include "sirt_ref.h"
 #include "stack.h"
 #include "utils.h"
 #include "well_known_classes.h"
@@ -54,7 +55,7 @@ Object* Object::Clone() {
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
   Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Object> copy(heap->AllocObject(c, num_bytes));
+  SirtRef<Object> copy(Thread::Current(), heap->AllocObject(c, num_bytes));
   if (copy.get() == NULL) {
     return NULL;
   }
@@ -696,7 +697,7 @@ void Class::SetStatus(Status new_status) {
 
     // stash current exception
     Thread* self = Thread::Current();
-    SirtRef<Throwable> exception(self->GetException());
+    SirtRef<Throwable> exception(self, self->GetException());
     CHECK(exception.get() != NULL);
 
     // clear exception to call FindSystemClass
@@ -1447,7 +1448,7 @@ String* String::AllocFromModifiedUtf8(int32_t utf16_length,
 }
 
 String* String::Alloc(Class* java_lang_String, int32_t utf16_length) {
-  SirtRef<CharArray> array(CharArray::Alloc(utf16_length));
+  SirtRef<CharArray> array(Thread::Current(), CharArray::Alloc(utf16_length));
   if (array.get() == NULL) {
     return NULL;
   }
@@ -1455,7 +1456,8 @@ String* String::Alloc(Class* java_lang_String, int32_t utf16_length) {
 }
 
 String* String::Alloc(Class* java_lang_String, CharArray* array) {
-  SirtRef<CharArray> array_ref(array);  // hold reference in case AllocObject causes GC
+  // Hold reference in case AllocObject causes GC.
+  SirtRef<CharArray> array_ref(Thread::Current(), array);
   String* string = down_cast<String*>(java_lang_String->AllocObject());
   if (string == NULL) {
     return NULL;

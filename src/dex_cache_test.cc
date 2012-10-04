@@ -19,6 +19,7 @@
 #include "dex_cache.h"
 #include "heap.h"
 #include "object.h"
+#include "sirt_ref.h"
 
 #include <stdio.h>
 
@@ -28,7 +29,7 @@ class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<DexCache> dex_cache(class_linker_->AllocDexCache(*java_lang_dex_file_));
+  SirtRef<DexCache> dex_cache(soa.Self(), class_linker_->AllocDexCache(*java_lang_dex_file_));
   ASSERT_TRUE(dex_cache.get() != NULL);
 
   EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());

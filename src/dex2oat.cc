@@ -35,6 +35,7 @@
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "stl_util.h"
 #include "stringpiece.h"
 #include "timing_logger.h"
@@ -148,6 +149,7 @@ class Dex2Oat {
 
     // Load all the classes specified in the file
     ClassLinker* class_linker = runtime_->GetClassLinker();
+    Thread* self = Thread::Current();
     while (image_classes_file->good()) {
       std::string dot;
       std::getline(*image_classes_file.get(), dot);
@@ -155,7 +157,7 @@ class Dex2Oat {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
-      SirtRef<Class> klass(class_linker->FindSystemClass(descriptor.c_str()));
+      SirtRef<Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
       if (klass.get() == NULL) {
         LOG(WARNING) << "Failed to find class " << descriptor;
         Thread::Current()->ClearException();
@@ -167,7 +169,8 @@ class Dex2Oat {
     // exceptions are resolved by the verifier when there is a catch block in an interested method.
     // Do this here so that exception classes appear to have been specified image classes.
     std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
-    SirtRef<Class> java_lang_Throwable(class_linker->FindSystemClass("Ljava/lang/Throwable;"));
+    SirtRef<Class> java_lang_Throwable(self,
+                                       class_linker->FindSystemClass("Ljava/lang/Throwable;"));
     do {
       unresolved_exception_types.clear();
       class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
@@ -180,8 +183,8 @@ class Dex2Oat {
         const DexFile* dex_file = it->second;
         DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
         ClassLoader* class_loader = NULL;
-        SirtRef<Class> klass(class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
-                                                       class_loader));
+        SirtRef<Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
+                                                             dex_cache, class_loader));
         if (klass.get() == NULL) {
           const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
           const char* descriptor = dex_file->GetTypeDescriptor(type_id);

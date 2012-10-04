@@ -1271,8 +1271,9 @@ static void InitializeClassWithoutClinit(const CompilationContext* context,
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(context->GetClassLoader());
   const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
   Class* klass = context->GetClassLinker()->FindClass(descriptor, class_loader);
+  Thread* self = Thread::Current();
   if (klass != NULL) {
-    ObjectLock lock(klass);
+    ObjectLock lock(self, klass);
     if (klass->IsVerified()) {
       // Only try to initialize classes that were successfully verified.
       bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
@@ -1295,8 +1296,8 @@ static void InitializeClassWithoutClinit(const CompilationContext* context,
       DCHECK_EQ(status, compiled_class->GetStatus());
     }
   }
-  // clear any class not found or verification exceptions
-  Thread::Current()->ClearException();
+  // Clear any class not found or verification exceptions.
+  self->ClearException();
 }
 
 void Compiler::InitializeClassesWithoutClinit(jobject jni_class_loader, const DexFile& dex_file,

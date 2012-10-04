@@ -17,6 +17,7 @@
 #include "object.h"
 #include "common_test.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "utils.h"
 
 namespace art {
@@ -88,10 +89,10 @@ TEST_F(UtilsTest, PrettyTypeOf) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
-  SirtRef<String> s(String::AllocFromModifiedUtf8(""));
+  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(""));
   EXPECT_EQ("java.lang.String", PrettyTypeOf(s.get()));
 
-  SirtRef<ShortArray> a(ShortArray::Alloc(2));
+  SirtRef<ShortArray> a(soa.Self(), ShortArray::Alloc(2));
   EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
 
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
