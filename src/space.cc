@@ -29,10 +29,12 @@
 namespace art {
 
 #ifndef NDEBUG
-#define DEBUG_SPACES 1
+static const bool kDebugSpaces = true;
 #else
-#define DEBUG_SPACES 0
+static const bool kDebugSpaces = false;
 #endif
+// Magic padding value that we use to check for buffer overruns.
+static const word kPaddingValue = 0xBAC0BAC0;
 
 // TODO: Remove define macro
 #define CHECK_MEMORY_CALL(call, args, what) \
@@ -189,10 +191,17 @@ void AllocSpace::SwapBitmaps() {
 }
 
 Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
+  if (kDebugSpaces) {
+    num_bytes += sizeof(word);
+  }
+
   Object* result = reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
-  if (DEBUG_SPACES && result != NULL) {
+  if (kDebugSpaces && result != NULL) {
     CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
         << ") not in bounds of allocation space " << *this;
+    // Put a magic pattern before and after the allocation.
+    *reinterpret_cast<word*>(reinterpret_cast<byte*>(result) + AllocationSize(result)
+        - sizeof(word) - kChunkOverhead) = kPaddingValue;
   }
   num_bytes_allocated_ += AllocationSize(result);
   ++num_objects_allocated_;
@@ -216,7 +225,7 @@ Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
   mspace_set_footprint_limit(mspace_, footprint);
   // Return the new allocation or NULL.
   Object* result = reinterpret_cast<Object*>(ptr);
-  CHECK(!DEBUG_SPACES || result == NULL || Contains(result));
+  CHECK(!kDebugSpaces || result == NULL || Contains(result));
   return result;
 }
 
@@ -277,9 +286,12 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
 
 void AllocSpace::Free(Object* ptr) {
   MutexLock mu(lock_);
-  if (DEBUG_SPACES) {
+  if (kDebugSpaces) {
     CHECK(ptr != NULL);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
+    CHECK_EQ(
+        *reinterpret_cast<word*>(reinterpret_cast<byte*>(ptr) + AllocationSize(ptr) -
+            sizeof(word) - kChunkOverhead), kPaddingValue);
   }
   num_bytes_allocated_ -= AllocationSize(ptr);
   --num_objects_allocated_;
@@ -288,7 +300,7 @@ void AllocSpace::Free(Object* ptr) {
 
 void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
   MutexLock mu(lock_);
-  if (DEBUG_SPACES) {
+  if (kDebugSpaces) {
     CHECK(ptrs != NULL);
     size_t num_broken_ptrs = 0;
     for (size_t i = 0; i < num_ptrs; i++) {
@@ -609,9 +621,10 @@ bool LargeObjectMapSpace::Contains(const Object* obj) const {
   return mem_maps_.find(const_cast<Object*>(obj)) != mem_maps_.end();
 }
 
-FreeListSpace* FreeListSpace::Create(const std::string& name, size_t size) {
+FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
   CHECK(size % kAlignment == 0);
-  MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), NULL, size, PROT_READ | PROT_WRITE);
+  MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
+                                         PROT_READ | PROT_WRITE);
   CHECK(mem_map != NULL) << "Failed to allocate large object space mem map";
   return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
 }

@@ -490,7 +490,7 @@ private:
 class FreeListSpace : public LargeObjectSpace {
  public:
   virtual ~FreeListSpace();
-  static FreeListSpace* Create(const std::string& name, size_t capacity);
+  static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
   virtual size_t AllocationSize(const Object* obj);
   virtual Object* Alloc(size_t num_bytes);

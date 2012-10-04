@@ -199,6 +199,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
     }
   }
 
+  // Allocate the large object space (placed after the alloc space).
+  large_object_space_.reset(FreeListSpace::Create("large object space", requested_begin + capacity,
+                                                  capacity));
+  live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
+  mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
+
   UniquePtr<AllocSpace> alloc_space(AllocSpace::Create("alloc space", initial_size, growth_limit,
                                                        capacity, requested_begin));
   alloc_space_ = alloc_space.release();
@@ -221,11 +227,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       image_space->RecordImageAllocations(image_space->GetLiveBitmap());
     }
   }
-
-  // Allocate the large object space.
-  large_object_space_.reset(FreeListSpace::Create("large object space", 64 * MB));
-  live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
-  mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
   // Allocate the card table.
   card_table_.reset(CardTable::Create(heap_begin, heap_capacity));
