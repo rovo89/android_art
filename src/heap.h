@@ -77,7 +77,7 @@ enum GcCause {
 };
 std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 
-class LOCKABLE Heap {
+class Heap {
  public:
   static const size_t kInitialSize = 2 * MB;
 
@@ -95,7 +95,7 @@ class LOCKABLE Heap {
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  Object* AllocObject(Class* klass, size_t num_bytes)
+  Object* AllocObject(Thread* self, Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Check sanity of given reference. Requires the heap lock.
@@ -296,12 +296,12 @@ class LOCKABLE Heap {
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
   // large object space.
-  Object* Allocate(AllocSpace* space, size_t num_bytes)
+  Object* Allocate(Thread* self, AllocSpace* space, size_t num_bytes)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs.
-  Object* TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow)
+  Object* TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -89,15 +89,15 @@ TEST_F(UtilsTest, PrettyTypeOf) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
-  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(""));
+  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
   EXPECT_EQ("java.lang.String", PrettyTypeOf(s.get()));
 
-  SirtRef<ShortArray> a(soa.Self(), ShortArray::Alloc(2));
+  SirtRef<ShortArray> a(soa.Self(), ShortArray::Alloc(soa.Self(), 2));
   EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
 
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(c, 0);
+  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.String[]", PrettyTypeOf(o));
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyTypeOf(o->GetClass()));
 }
@@ -107,7 +107,7 @@ TEST_F(UtilsTest, PrettyClass) {
   EXPECT_EQ("null", PrettyClass(NULL));
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(c, 0);
+  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
 }
 
@@ -116,7 +116,7 @@ TEST_F(UtilsTest, PrettyClassAndClassLoader) {
   EXPECT_EQ("null", PrettyClassAndClassLoader(NULL));
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(c, 0);
+  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[],null>", PrettyClassAndClassLoader(o->GetClass()));
 }
 

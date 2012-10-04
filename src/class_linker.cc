@@ -235,47 +235,48 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // java_lang_Class comes first, it's needed for AllocClass
   Thread* self = Thread::Current();
   Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Class> java_lang_Class(self, down_cast<Class*>(heap->AllocObject(NULL, sizeof(ClassClass))));
+  SirtRef<Class>
+      java_lang_Class(self, down_cast<Class*>(heap->AllocObject(self, NULL, sizeof(ClassClass))));
   CHECK(java_lang_Class.get() != NULL);
   java_lang_Class->SetClass(java_lang_Class.get());
   java_lang_Class->SetClassSize(sizeof(ClassClass));
   // AllocClass(Class*) can now be used
 
   // Class[] is used for reflection support.
-  SirtRef<Class> class_array_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> class_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   class_array_class->SetComponentType(java_lang_Class.get());
 
   // java_lang_Object comes next so that object_array_class can be created.
-  SirtRef<Class> java_lang_Object(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> java_lang_Object(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   CHECK(java_lang_Object.get() != NULL);
   // backfill Object as the super class of Class.
   java_lang_Class->SetSuperClass(java_lang_Object.get());
   java_lang_Object->SetStatus(Class::kStatusLoaded);
 
   // Object[] next to hold class roots.
-  SirtRef<Class> object_array_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> object_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_class->SetComponentType(java_lang_Object.get());
 
   // Object[][] needed for iftables.
-  SirtRef<Class> object_array_array_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> object_array_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_array_class->SetComponentType(object_array_class.get());
 
   // Setup the char class to be used for char[].
-  SirtRef<Class> char_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> char_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
 
   // Setup the char[] class to be used for String.
-  SirtRef<Class> char_array_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> char_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   char_array_class->SetComponentType(char_class.get());
   CharArray::SetArrayClass(char_array_class.get());
 
   // Setup String.
-  SirtRef<Class> java_lang_String(self, AllocClass(java_lang_Class.get(), sizeof(StringClass)));
+  SirtRef<Class> java_lang_String(self, AllocClass(self, java_lang_Class.get(), sizeof(StringClass)));
   String::SetClass(java_lang_String.get());
   java_lang_String->SetObjectSize(sizeof(String));
   java_lang_String->SetStatus(Class::kStatusResolved);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
-  class_roots_ = ObjectArray<Class>::Alloc(object_array_class.get(), kClassRootsMax);
+  class_roots_ = ObjectArray<Class>::Alloc(self, object_array_class.get(), kClassRootsMax);
   CHECK(class_roots_ != NULL);
   SetClassRoot(kJavaLangClass, java_lang_Class.get());
   SetClassRoot(kJavaLangObject, java_lang_Object.get());
@@ -286,20 +287,20 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kJavaLangString, java_lang_String.get());
 
   // Setup the primitive type classes.
-  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass(Primitive::kPrimBoolean));
-  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass(Primitive::kPrimByte));
-  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass(Primitive::kPrimShort));
-  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass(Primitive::kPrimInt));
-  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass(Primitive::kPrimLong));
-  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass(Primitive::kPrimFloat));
-  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass(Primitive::kPrimDouble));
-  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(Primitive::kPrimVoid));
+  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass(self, Primitive::kPrimBoolean));
+  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass(self, Primitive::kPrimByte));
+  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass(self, Primitive::kPrimShort));
+  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass(self, Primitive::kPrimInt));
+  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass(self, Primitive::kPrimLong));
+  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass(self, Primitive::kPrimFloat));
+  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass(self, Primitive::kPrimDouble));
+  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(self, Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes.
-  array_iftable_ = AllocIfTable(2);
+  array_iftable_ = AllocIfTable(self, 2);
 
   // Create int array type for AllocDexCache (done in AppendToBootClassPath).
-  SirtRef<Class> int_array_class(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> int_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   int_array_class->SetComponentType(GetClassRoot(kPrimitiveInt));
   IntArray::SetArrayClass(int_array_class.get());
   SetClassRoot(kIntArrayClass, int_array_class.get());
@@ -307,34 +308,37 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
   // Setup DexCache. This can not be done later since AppendToBootClassPath calls AllocDexCache.
-  SirtRef<Class> java_lang_DexCache(self, AllocClass(java_lang_Class.get(), sizeof(DexCacheClass)));
+  SirtRef<Class>
+      java_lang_DexCache(self, AllocClass(self, java_lang_Class.get(), sizeof(DexCacheClass)));
   SetClassRoot(kJavaLangDexCache, java_lang_DexCache.get());
   java_lang_DexCache->SetObjectSize(sizeof(DexCacheClass));
   java_lang_DexCache->SetStatus(Class::kStatusResolved);
 
   // Constructor, Field, Method, and AbstractMethod are necessary so that FindClass can link members.
-  SirtRef<Class> java_lang_reflect_Constructor(self, AllocClass(java_lang_Class.get(),
-                                                          sizeof(MethodClass)));
+  SirtRef<Class> java_lang_reflect_Constructor(self, AllocClass(self, java_lang_Class.get(),
+                                                                sizeof(MethodClass)));
   CHECK(java_lang_reflect_Constructor.get() != NULL);
   java_lang_reflect_Constructor->SetObjectSize(sizeof(Constructor));
   SetClassRoot(kJavaLangReflectConstructor, java_lang_reflect_Constructor.get());
   java_lang_reflect_Constructor->SetStatus(Class::kStatusResolved);
 
-  SirtRef<Class> java_lang_reflect_Field(self, AllocClass(java_lang_Class.get(), sizeof(FieldClass)));
+  SirtRef<Class> java_lang_reflect_Field(self, AllocClass(self, java_lang_Class.get(),
+                                                          sizeof(FieldClass)));
   CHECK(java_lang_reflect_Field.get() != NULL);
   java_lang_reflect_Field->SetObjectSize(sizeof(Field));
   SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field.get());
   java_lang_reflect_Field->SetStatus(Class::kStatusResolved);
   Field::SetClass(java_lang_reflect_Field.get());
 
-  SirtRef<Class> java_lang_reflect_Method(self, AllocClass(java_lang_Class.get(), sizeof(MethodClass)));
+  SirtRef<Class> java_lang_reflect_Method(self, AllocClass(self, java_lang_Class.get(),
+                                                           sizeof(MethodClass)));
   CHECK(java_lang_reflect_Method.get() != NULL);
   java_lang_reflect_Method->SetObjectSize(sizeof(Method));
   SetClassRoot(kJavaLangReflectMethod, java_lang_reflect_Method.get());
   java_lang_reflect_Method->SetStatus(Class::kStatusResolved);
 
-  SirtRef<Class> java_lang_reflect_AbstractMethod(self, AllocClass(java_lang_Class.get(),
-                                                             sizeof(MethodClass)));
+  SirtRef<Class> java_lang_reflect_AbstractMethod(self, AllocClass(self, java_lang_Class.get(),
+                                                                   sizeof(MethodClass)));
   CHECK(java_lang_reflect_AbstractMethod.get() != NULL);
   java_lang_reflect_AbstractMethod->SetObjectSize(sizeof(AbstractMethod));
   SetClassRoot(kJavaLangReflectAbstractMethod, java_lang_reflect_AbstractMethod.get());
@@ -342,15 +346,15 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   AbstractMethod::SetClasses(java_lang_reflect_Constructor.get(), java_lang_reflect_Method.get());
 
   // Set up array classes for string, field, method
-  SirtRef<Class> object_array_string(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> object_array_string(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_string->SetComponentType(java_lang_String.get());
   SetClassRoot(kJavaLangStringArrayClass, object_array_string.get());
 
-  SirtRef<Class> object_array_field(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> object_array_field(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_field->SetComponentType(java_lang_reflect_Field.get());
   SetClassRoot(kJavaLangReflectFieldArrayClass, object_array_field.get());
 
-  SirtRef<Class> object_array_abstract_method(self, AllocClass(java_lang_Class.get(), sizeof(Class)));
+  SirtRef<Class> object_array_abstract_method(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_abstract_method->SetComponentType(java_lang_reflect_AbstractMethod.get());
   SetClassRoot(kJavaLangReflectAbstractMethodArrayClass, object_array_abstract_method.get());
 
@@ -426,8 +430,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK(java_io_Serializable != NULL);
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
-  array_iftable_->Set(0, AllocInterfaceEntry(java_lang_Cloneable));
-  array_iftable_->Set(1, AllocInterfaceEntry(java_io_Serializable));
+  array_iftable_->Set(0, AllocInterfaceEntry(self, java_lang_Cloneable));
+  array_iftable_->Set(1, AllocInterfaceEntry(self, java_io_Serializable));
 
   // Sanity check Class[] and Object[]'s interfaces.
   ClassHelper kh(class_array_class.get(), this);
@@ -667,17 +671,17 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 }
 
 void ClassLinker::RegisterOatFile(const OatFile& oat_file) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   RegisterOatFileLocked(oat_file);
 }
 
 void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
-  dex_lock_.AssertHeld();
+  dex_lock_.AssertHeld(Thread::Current());
   oat_files_.push_back(&oat_file);
 }
 
 OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   const Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = space->GetImageHeader();
   // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
@@ -708,7 +712,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   return FindOpenedOatFileFromDexLocation(dex_file.GetLocation());
 }
 
@@ -750,7 +754,7 @@ static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
 
 const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string& dex_location,
                                                               const std::string& oat_location) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_location);
 }
 
@@ -855,7 +859,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const OatFile* oat_f
 }
 
 const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::string& dex_location) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
 
   const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location);
   if (open_oat_file != NULL) {
@@ -922,7 +926,7 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   return FindOatFileFromOatLocationLocked(oat_location);
 }
 
@@ -980,7 +984,7 @@ void ClassLinker::InitFromImage() {
 
   // reinit clases_ table
   {
-    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
     heap->GetLiveBitmap()->Walk(InitFromImageCallback, this);
   }
@@ -1037,16 +1041,16 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
 // mapped image.
 void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   visitor(class_roots_, arg);
-
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(dex_lock_);
+    MutexLock mu(self, dex_lock_);
     for (size_t i = 0; i < dex_caches_.size(); i++) {
       visitor(dex_caches_[i], arg);
     }
   }
 
   {
-    MutexLock mu(*Locks::classlinker_classes_lock_);
+    MutexLock mu(self, *Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -1060,7 +1064,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
     if (!visitor(it->second, arg)) {
@@ -1110,13 +1114,12 @@ ClassLinker::~ClassLinker() {
   STLDeleteElements(&oat_files_);
 }
 
-DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
+DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_file) {
   Heap* heap = Runtime::Current()->GetHeap();
   Class* dex_cache_class = GetClassRoot(kJavaLangDexCache);
-  Thread* self = Thread::Current();
-  SirtRef<DexCache> dex_cache(
-      self,
-      down_cast<DexCache*>(heap->AllocObject(dex_cache_class, dex_cache_class->GetObjectSize())));
+  SirtRef<DexCache> dex_cache(self,
+                              down_cast<DexCache*>(heap->AllocObject(self, dex_cache_class,
+                              dex_cache_class->GetObjectSize())));
   if (dex_cache.get() == NULL) {
     return NULL;
   }
@@ -1124,24 +1127,26 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
   if (location.get() == NULL) {
     return NULL;
   }
-  SirtRef<ObjectArray<String> > strings(self, AllocStringArray(dex_file.NumStringIds()));
+  SirtRef<ObjectArray<String> > strings(self, AllocStringArray(self, dex_file.NumStringIds()));
   if (strings.get() == NULL) {
     return NULL;
   }
-  SirtRef<ObjectArray<Class> > types(self, AllocClassArray(dex_file.NumTypeIds()));
+  SirtRef<ObjectArray<Class> > types(self, AllocClassArray(self, dex_file.NumTypeIds()));
   if (types.get() == NULL) {
     return NULL;
   }
-  SirtRef<ObjectArray<AbstractMethod> > methods(self, AllocMethodArray(dex_file.NumMethodIds()));
+  SirtRef<ObjectArray<AbstractMethod> >
+      methods(self, AllocMethodArray(self, dex_file.NumMethodIds()));
   if (methods.get() == NULL) {
     return NULL;
   }
-  SirtRef<ObjectArray<Field> > fields(self, AllocFieldArray(dex_file.NumFieldIds()));
+  SirtRef<ObjectArray<Field> > fields(self, AllocFieldArray(self, dex_file.NumFieldIds()));
   if (fields.get() == NULL) {
     return NULL;
   }
   SirtRef<ObjectArray<StaticStorageBase> >
-      initialized_static_storage(self, AllocObjectArray<StaticStorageBase>(dex_file.NumTypeIds()));
+      initialized_static_storage(self,
+                                 AllocObjectArray<StaticStorageBase>(self, dex_file.NumTypeIds()));
   if (initialized_static_storage.get() == NULL) {
     return NULL;
   }
@@ -1156,52 +1161,51 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
   return dex_cache.get();
 }
 
-InterfaceEntry* ClassLinker::AllocInterfaceEntry(Class* interface) {
+InterfaceEntry* ClassLinker::AllocInterfaceEntry(Thread* self, Class* interface) {
   DCHECK(interface->IsInterface());
-  Thread* self = Thread::Current();
-  SirtRef<ObjectArray<Object> > array(self, AllocObjectArray<Object>(InterfaceEntry::LengthAsArray()));
+  SirtRef<ObjectArray<Object> > array(self, AllocObjectArray<Object>(self, InterfaceEntry::LengthAsArray()));
   SirtRef<InterfaceEntry> interface_entry(self, down_cast<InterfaceEntry*>(array.get()));
   interface_entry->SetInterface(interface);
   return interface_entry.get();
 }
 
-Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
+Class* ClassLinker::AllocClass(Thread* self, Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
   Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Class> klass(Thread::Current(),
-                       heap->AllocObject(java_lang_Class, class_size)->AsClass());
+  SirtRef<Class> klass(self,
+                       heap->AllocObject(self, java_lang_Class, class_size)->AsClass());
   klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
   klass->SetClassSize(class_size);
   return klass.get();
 }
 
-Class* ClassLinker::AllocClass(size_t class_size) {
-  return AllocClass(GetClassRoot(kJavaLangClass), class_size);
+Class* ClassLinker::AllocClass(Thread* self, size_t class_size) {
+  return AllocClass(self, GetClassRoot(kJavaLangClass), class_size);
 }
 
-Field* ClassLinker::AllocField() {
-  return down_cast<Field*>(GetClassRoot(kJavaLangReflectField)->AllocObject());
+Field* ClassLinker::AllocField(Thread* self) {
+  return down_cast<Field*>(GetClassRoot(kJavaLangReflectField)->AllocObject(self));
 }
 
-Method* ClassLinker::AllocMethod() {
-  return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->AllocObject());
+Method* ClassLinker::AllocMethod(Thread* self) {
+  return down_cast<Method*>(GetClassRoot(kJavaLangReflectMethod)->AllocObject(self));
 }
 
-Constructor* ClassLinker::AllocConstructor() {
-  return down_cast<Constructor*>(GetClassRoot(kJavaLangReflectConstructor)->AllocObject());
+Constructor* ClassLinker::AllocConstructor(Thread* self) {
+  return down_cast<Constructor*>(GetClassRoot(kJavaLangReflectConstructor)->AllocObject(self));
 }
 
-ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t length) {
-  return ObjectArray<StackTraceElement>::Alloc(
-      GetClassRoot(kJavaLangStackTraceElementArrayClass),
-      length);
+ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(Thread* self,
+                                                                         size_t length) {
+  return ObjectArray<StackTraceElement>::Alloc(self,
+                                               GetClassRoot(kJavaLangStackTraceElementArrayClass),
+                                               length);
 }
 
-static Class* EnsureResolved(Class* klass)
+static Class* EnsureResolved(Thread* self, Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(klass != NULL);
   // Wait for the class if it has not already been linked.
-  Thread* self = Thread::Current();
   if (!klass->IsResolved() && !klass->IsErroneous()) {
     ObjectLock lock(self, klass);
     // Check for circular dependencies between classes.
@@ -1245,7 +1249,7 @@ Class* ClassLinker::FindClass(const char* descriptor, ClassLoader* class_loader)
   // Find the class in the loaded classes table.
   Class* klass = LookupClass(descriptor, class_loader);
   if (klass != NULL) {
-    return EnsureResolved(klass);
+    return EnsureResolved(self, klass);
   }
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
@@ -1341,10 +1345,10 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
     } else if (descriptor == "Ljava/lang/reflect/Method;") {
       klass.reset(GetClassRoot(kJavaLangReflectMethod));
     } else {
-      klass.reset(AllocClass(SizeOfClass(dex_file, dex_class_def)));
+      klass.reset(AllocClass(self, SizeOfClass(dex_file, dex_class_def)));
     }
   } else {
-    klass.reset(AllocClass(SizeOfClass(dex_file, dex_class_def)));
+    klass.reset(AllocClass(self, SizeOfClass(dex_file, dex_class_def)));
   }
   klass->SetDexCache(FindDexCache(dex_file));
   LoadClass(dex_file, dex_class_def, klass, class_loader);
@@ -1359,7 +1363,7 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   SirtRef<Class> existing(self, InsertClass(descriptor, klass.get(), false));
   if (existing.get() != NULL) {
     // We failed to insert because we raced with another thread.
-    return EnsureResolved(existing.get());
+    return EnsureResolved(self, existing.get());
   }
   // Finish loading (if necessary) by finding parents
   CHECK(!klass->IsLoaded());
@@ -1588,20 +1592,20 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     return;  // no fields or methods - for example a marker interface
   }
   ClassDataItemIterator it(dex_file, class_data);
+  Thread* self = Thread::Current();
   if (it.NumStaticFields() != 0) {
-    klass->SetSFields(AllocObjectArray<Field>(it.NumStaticFields()));
+    klass->SetSFields(AllocObjectArray<Field>(self, it.NumStaticFields()));
   }
   if (it.NumInstanceFields() != 0) {
-    klass->SetIFields(AllocObjectArray<Field>(it.NumInstanceFields()));
+    klass->SetIFields(AllocObjectArray<Field>(self, it.NumInstanceFields()));
   }
-  Thread* self = Thread::Current();
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
-    SirtRef<Field> sfield(self, AllocField());
+    SirtRef<Field> sfield(self, AllocField(self));
     klass->SetStaticField(i, sfield.get());
     LoadField(dex_file, it, klass, sfield);
   }
   for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
-    SirtRef<Field> ifield(self, AllocField());
+    SirtRef<Field> ifield(self, AllocField(self));
     klass->SetInstanceField(i, ifield.get());
     LoadField(dex_file, it, klass, ifield);
   }
@@ -1614,15 +1618,15 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetDirectMethods(AllocObjectArray<AbstractMethod>(it.NumDirectMethods()));
+    klass->SetDirectMethods(AllocObjectArray<AbstractMethod>(self, it.NumDirectMethods()));
   }
   if (it.NumVirtualMethods() != 0) {
     // TODO: append direct methods to class object
-    klass->SetVirtualMethods(AllocObjectArray<AbstractMethod>(it.NumVirtualMethods()));
+    klass->SetVirtualMethods(AllocObjectArray<AbstractMethod>(self, it.NumVirtualMethods()));
   }
   size_t class_def_method_index = 0;
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
-    SirtRef<AbstractMethod> method(self, LoadMethod(dex_file, it, klass));
+    SirtRef<AbstractMethod> method(self, LoadMethod(self, dex_file, it, klass));
     klass->SetDirectMethod(i, method.get());
     if (oat_class.get() != NULL) {
       LinkCode(method, oat_class.get(), class_def_method_index);
@@ -1631,7 +1635,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     class_def_method_index++;
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
-    SirtRef<AbstractMethod> method(self, LoadMethod(dex_file, it, klass));
+    SirtRef<AbstractMethod> method(self, LoadMethod(self, dex_file, it, klass));
     klass->SetVirtualMethod(i, method.get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
     if (oat_class.get() != NULL) {
@@ -1650,21 +1654,22 @@ void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIter
   dst->SetAccessFlags(it.GetMemberAccessFlags());
 }
 
-AbstractMethod* ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& it,
-                             SirtRef<Class>& klass) {
+AbstractMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file,
+                                        const ClassDataItemIterator& it,
+                                        SirtRef<Class>& klass) {
   uint32_t dex_method_idx = it.GetMemberIndex();
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   StringPiece method_name(dex_file.GetMethodName(method_id));
 
   AbstractMethod* dst = NULL;
   if (method_name == "<init>") {
-    dst = AllocConstructor();
+    dst = AllocConstructor(self);
   } else {
-    dst = AllocMethod();
+    dst = AllocMethod(self);
   }
   DCHECK(dst->IsMethod()) << PrettyDescriptor(dst->GetClass());
 
-  const char* old_cause = Thread::Current()->StartAssertNoThreadSuspension("LoadMethod");
+  const char* old_cause = self->StartAssertNoThreadSuspension("LoadMethod");
   dst->SetDexMethodIndex(dex_method_idx);
   dst->SetDeclaringClass(klass.get());
 
@@ -1708,12 +1713,13 @@ AbstractMethod* ClassLinker::LoadMethod(const DexFile& dex_file, const ClassData
 
   CHECK(dst->IsMethod());
 
-  Thread::Current()->EndAssertNoThreadSuspension(old_cause);
+  self->EndAssertNoThreadSuspension(old_cause);
   return dst;
 }
 
 void ClassLinker::AppendToBootClassPath(const DexFile& dex_file) {
-  SirtRef<DexCache> dex_cache(Thread::Current(), AllocDexCache(dex_file));
+  Thread* self = Thread::Current();
+  SirtRef<DexCache> dex_cache(self, AllocDexCache(self, dex_file));
   AppendToBootClassPath(dex_file, dex_cache);
 }
 
@@ -1724,7 +1730,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCach
 }
 
 bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
-  dex_lock_.AssertHeld();
+  dex_lock_.AssertHeld(Thread::Current());
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i]->GetDexFile() == &dex_file) {
       return true;
@@ -1734,12 +1740,12 @@ bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
 }
 
 bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   return IsDexFileRegisteredLocked(dex_file);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache) {
-  dex_lock_.AssertHeld();
+  dex_lock_.AssertHeld(Thread::Current());
   CHECK(dex_cache.get() != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_caches_.push_back(dex_cache.get());
@@ -1757,7 +1763,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
   // Don't alloc while holding the lock, since allocation may need to
   // suspend all threads and another thread may need the dex_lock_ to
   // get to a suspend point.
-  SirtRef<DexCache> dex_cache(self, AllocDexCache(dex_file));
+  SirtRef<DexCache> dex_cache(self, AllocDexCache(self, dex_file));
   {
     MutexLock mu(self, dex_lock_);
     if (IsDexFileRegisteredLocked(dex_file)) {
@@ -1768,7 +1774,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file, SirtRef<DexCache>& dex_cache) {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   RegisterDexFileLocked(dex_file, dex_cache);
 }
 
@@ -1783,7 +1789,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
 }
 
 DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     DexCache* dex_cache = dex_caches_[i];
     if (dex_cache->GetDexFile() == &dex_file) {
@@ -1795,7 +1801,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
 }
 
 void ClassLinker::FixupDexCaches(AbstractMethod* resolution_method) const {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     dex_caches_[i]->Fixup(resolution_method);
   }
@@ -1891,7 +1897,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, ClassLoader*
     }
   }
   if (new_class.get() == NULL) {
-    new_class.reset(AllocClass(sizeof(Class)));
+    new_class.reset(AllocClass(self, sizeof(Class)));
     if (new_class.get() == NULL) {
       return NULL;
     }
@@ -1986,7 +1992,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
   Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
@@ -2003,7 +2009,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
 
 bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
@@ -2028,7 +2034,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
 
 Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
   Class* klass = LookupClassLocked(descriptor, class_loader, hash, classes_);
   if (klass != NULL) {
@@ -2063,7 +2069,7 @@ Class* ClassLinker::LookupClassLocked(const char* descriptor, const ClassLoader*
 void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& classes) {
   classes.clear();
   size_t hash = Hash(descriptor);
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
@@ -2295,7 +2301,8 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
                                      ClassLoader* loader, ObjectArray<AbstractMethod>* methods,
                                      ObjectArray<ObjectArray<Class> >* throws) {
   Thread* self = Thread::Current();
-  SirtRef<Class> klass(self, AllocClass(GetClassRoot(kJavaLangClass), sizeof(SynthesizedProxyClass)));
+  SirtRef<Class> klass(self, AllocClass(self, GetClassRoot(kJavaLangClass),
+                                        sizeof(SynthesizedProxyClass)));
   CHECK(klass.get() != NULL);
   DCHECK(klass->GetClass() != NULL);
   klass->SetObjectSize(sizeof(Proxy));
@@ -2311,31 +2318,31 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
 
   // Instance fields are inherited, but we add a couple of static fields...
-  klass->SetSFields(AllocObjectArray<Field>(2));
+  klass->SetSFields(AllocObjectArray<Field>(self, 2));
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
-  SirtRef<Field> interfaces_sfield(self, AllocField());
+  SirtRef<Field> interfaces_sfield(self, AllocField(self));
   klass->SetStaticField(0, interfaces_sfield.get());
   interfaces_sfield->SetDexFieldIndex(0);
   interfaces_sfield->SetDeclaringClass(klass.get());
   interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
-  SirtRef<Field> throws_sfield(self, AllocField());
+  SirtRef<Field> throws_sfield(self, AllocField(self));
   klass->SetStaticField(1, throws_sfield.get());
   throws_sfield->SetDexFieldIndex(1);
   throws_sfield->SetDeclaringClass(klass.get());
   throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
-  klass->SetDirectMethods(AllocObjectArray<AbstractMethod>(1));
-  klass->SetDirectMethod(0, CreateProxyConstructor(klass, proxy_class));
+  klass->SetDirectMethods(AllocObjectArray<AbstractMethod>(self, 1));
+  klass->SetDirectMethod(0, CreateProxyConstructor(self, klass, proxy_class));
 
   // Create virtual method using specified prototypes
   size_t num_virtual_methods = methods->GetLength();
-  klass->SetVirtualMethods(AllocObjectArray<AbstractMethod>(num_virtual_methods));
+  klass->SetVirtualMethods(AllocObjectArray<AbstractMethod>(self, num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
     SirtRef<AbstractMethod> prototype(self, methods->Get(i));
-    klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype));
+    klass->SetVirtualMethod(i, CreateProxyMethod(self, klass, prototype));
   }
 
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
@@ -2392,7 +2399,7 @@ AbstractMethod* ClassLinker::FindMethodForProxy(const Class* proxy_class, const 
   DexCache* dex_cache = NULL;
   {
     ObjectArray<Class>* resolved_types = proxy_method->GetDexCacheResolvedTypes();
-    MutexLock mu(dex_lock_);
+    MutexLock mu(Thread::Current(), dex_lock_);
     for (size_t i = 0; i != dex_caches_.size(); ++i) {
       if (dex_caches_[i]->GetResolvedTypes() == resolved_types) {
         dex_cache = dex_caches_[i];
@@ -2408,14 +2415,14 @@ AbstractMethod* ClassLinker::FindMethodForProxy(const Class* proxy_class, const 
 }
 
 
-AbstractMethod* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class) {
+AbstractMethod* ClassLinker::CreateProxyConstructor(Thread* self, SirtRef<Class>& klass, Class* proxy_class) {
   // Create constructor for Proxy that must initialize h
   ObjectArray<AbstractMethod>* proxy_direct_methods = proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 15);
   AbstractMethod* proxy_constructor = proxy_direct_methods->Get(2);
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
-  AbstractMethod* constructor = down_cast<AbstractMethod*>(proxy_constructor->Clone());
+  AbstractMethod* constructor = down_cast<AbstractMethod*>(proxy_constructor->Clone(self));
   // Make this constructor public and fix the class to be our Proxy version
   constructor->SetAccessFlags((constructor->GetAccessFlags() & ~kAccProtected) | kAccPublic);
   constructor->SetDeclaringClass(klass.get());
@@ -2431,14 +2438,15 @@ static void CheckProxyConstructor(AbstractMethod* constructor)
   DCHECK(constructor->IsPublic());
 }
 
-AbstractMethod* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<AbstractMethod>& prototype) {
+AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<Class>& klass,
+                                               SirtRef<AbstractMethod>& prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
   prototype->GetDeclaringClass()->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
                                                                    prototype.get());
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
-  AbstractMethod* method = down_cast<AbstractMethod*>(prototype->Clone());
+  AbstractMethod* method = down_cast<AbstractMethod*>(prototype->Clone(self));
 
   // Set class to be the concrete proxy class and clear the abstract flag, modify exceptions to
   // the intersection of throw exceptions as defined in Proxy
@@ -2980,7 +2988,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     CHECK_LE(actual_count, max_count);
     // TODO: do not assign to the vtable field until it is fully constructed.
     SirtRef<ObjectArray<AbstractMethod> >
-        vtable(self, klass->GetSuperClass()->GetVTable()->CopyOf(max_count));
+      vtable(self, klass->GetSuperClass()->GetVTable()->CopyOf(self, max_count));
     // See if any of our virtual methods override the superclass.
     MethodHelper local_mh(NULL, this);
     MethodHelper super_mh(NULL, this);
@@ -3023,7 +3031,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
     // Shrink vtable if possible
     CHECK_LE(actual_count, max_count);
     if (actual_count < max_count) {
-      vtable.reset(vtable->CopyOf(actual_count));
+      vtable.reset(vtable->CopyOf(self, actual_count));
     }
     klass->SetVTable(vtable.get());
   } else {
@@ -3034,7 +3042,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
       return false;
     }
     SirtRef<ObjectArray<AbstractMethod> >
-        vtable(self, AllocObjectArray<AbstractMethod>(num_virtual_methods));
+        vtable(self, AllocObjectArray<AbstractMethod>(self, num_virtual_methods));
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       AbstractMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
       vtable->Set(i, virtual_method);
@@ -3067,12 +3075,12 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     return true;
   }
   Thread* self = Thread::Current();
-  SirtRef<ObjectArray<InterfaceEntry> > iftable(self, AllocIfTable(ifcount));
+  SirtRef<ObjectArray<InterfaceEntry> > iftable(self, AllocIfTable(self, ifcount));
   if (super_ifcount != 0) {
     ObjectArray<InterfaceEntry>* super_iftable = klass->GetSuperClass()->GetIfTable();
     for (size_t i = 0; i < super_ifcount; i++) {
       Class* super_interface = super_iftable->Get(i)->GetInterface();
-      iftable->Set(i, AllocInterfaceEntry(super_interface));
+      iftable->Set(i, AllocInterfaceEntry(self, super_interface));
     }
   }
   // Flatten the interface inheritance hierarchy.
@@ -3099,7 +3107,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     }
     if (!duplicate) {
       // Add this non-duplicate interface.
-      iftable->Set(idx++, AllocInterfaceEntry(interface));
+      iftable->Set(idx++, AllocInterfaceEntry(self, interface));
       // Add this interface's non-duplicate super-interfaces.
       for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
         Class* super_interface = interface->GetIfTable()->Get(j)->GetInterface();
@@ -3112,14 +3120,14 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
           }
         }
         if (!super_duplicate) {
-          iftable->Set(idx++, AllocInterfaceEntry(super_interface));
+          iftable->Set(idx++, AllocInterfaceEntry(self, super_interface));
         }
       }
     }
   }
   // Shrink iftable in case duplicates were found
   if (idx < ifcount) {
-    iftable.reset(iftable->CopyOf(idx));
+    iftable.reset(iftable->CopyOf(self, idx));
     ifcount = idx;
   } else {
     CHECK_EQ(idx, ifcount);
@@ -3136,7 +3144,8 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
   for (size_t i = 0; i < ifcount; ++i) {
     InterfaceEntry* interface_entry = iftable->Get(i);
     Class* interface = interface_entry->GetInterface();
-    ObjectArray<AbstractMethod>* method_array = AllocObjectArray<AbstractMethod>(interface->NumVirtualMethods());
+    ObjectArray<AbstractMethod>* method_array =
+        AllocObjectArray<AbstractMethod>(self, interface->NumVirtualMethods());
     interface_entry->SetMethodArray(method_array);
     ObjectArray<AbstractMethod>* vtable = klass->GetVTableDuringLinking();
     for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
@@ -3176,7 +3185,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
         }
         if (miranda_method.get() == NULL) {
           // point the interface table at a phantom slot
-          miranda_method.reset(down_cast<AbstractMethod*>(interface_method->Clone()));
+          miranda_method.reset(down_cast<AbstractMethod*>(interface_method->Clone(self)));
           miranda_list.push_back(miranda_method.get());
         }
         method_array->Set(j, miranda_method.get());
@@ -3187,14 +3196,14 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     int old_method_count = klass->NumVirtualMethods();
     int new_method_count = old_method_count + miranda_list.size();
     klass->SetVirtualMethods((old_method_count == 0)
-                             ? AllocObjectArray<AbstractMethod>(new_method_count)
-                             : klass->GetVirtualMethods()->CopyOf(new_method_count));
+                             ? AllocObjectArray<AbstractMethod>(self, new_method_count)
+                             : klass->GetVirtualMethods()->CopyOf(self, new_method_count));
 
     SirtRef<ObjectArray<AbstractMethod> > vtable(self, klass->GetVTableDuringLinking());
     CHECK(vtable.get() != NULL);
     int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_list.size();
-    vtable.reset(vtable->CopyOf(new_vtable_count));
+    vtable.reset(vtable->CopyOf(self, new_vtable_count));
     for (size_t i = 0; i < miranda_list.size(); ++i) {
       AbstractMethod* method = miranda_list[i];
       // Leave the declaring class alone as type indices are relative to it
@@ -3730,7 +3739,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
   // lock held, because it might need to resolve a field's type, which would try to take the lock.
   std::vector<Class*> all_classes;
   {
-    MutexLock mu(*Locks::classlinker_classes_lock_);
+    MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
@@ -3746,13 +3755,13 @@ void ClassLinker::DumpAllClasses(int flags) const {
 }
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) const {
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   os << "Loaded classes: " << image_classes_.size() << " image classes; "
      << classes_.size() << " allocated classes\n";
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(*Locks::classlinker_classes_lock_);
+  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   return classes_.size() + image_classes_.size();
 }
 
@@ -3776,7 +3785,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {
 }
 
 void ClassLinker::RelocateExecutable() {
-  MutexLock mu(dex_lock_);
+  MutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); ++i) {
     const_cast<OatFile*>(oat_files_[i])->RelocateExecutable();
   }

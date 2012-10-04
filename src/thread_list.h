@@ -105,7 +105,7 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 
-  void AssertThreadsAreSuspended(Thread* ignore1, Thread* ignore2 = NULL)
+  void AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2 = NULL)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 

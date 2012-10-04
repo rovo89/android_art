@@ -47,7 +47,7 @@ JdwpNetStateBase::JdwpNetStateBase() : socket_lock_("JdwpNetStateBase lock") {
  * Write a packet. Grabs a mutex to assure atomicity.
  */
 ssize_t JdwpNetStateBase::writePacket(ExpandBuf* pReply) {
-  MutexLock mu(socket_lock_);
+  MutexLock mu(Thread::Current(), socket_lock_);
   return write(clientSock, expandBufGetBuffer(pReply), expandBufGetLength(pReply));
 }
 
@@ -55,7 +55,7 @@ ssize_t JdwpNetStateBase::writePacket(ExpandBuf* pReply) {
  * Write a buffered packet. Grabs a mutex to assure atomicity.
  */
 ssize_t JdwpNetStateBase::writeBufferedPacket(const iovec* iov, int iov_count) {
-  MutexLock mu(socket_lock_);
+  MutexLock mu(Thread::Current(), socket_lock_);
   return writev(clientSock, iov, iov_count);
 }
 
@@ -72,7 +72,7 @@ bool JdwpState::SendRequest(ExpandBuf* pReq) {
  * packets to the debugger.
  */
 uint32_t JdwpState::NextRequestSerial() {
-  MutexLock mu(serial_lock_);
+  MutexLock mu(Thread::Current(), serial_lock_);
   return request_serial_++;
 }
 
@@ -81,7 +81,7 @@ uint32_t JdwpState::NextRequestSerial() {
  * message type EventRequest.Set.
  */
 uint32_t JdwpState::NextEventSerial() {
-  MutexLock mu(serial_lock_);
+  MutexLock mu(Thread::Current(), serial_lock_);
   return event_serial_++;
 }
 
@@ -145,7 +145,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * won't signal the cond var before we're waiting.
    */
   {
-    MutexLock thread_start_locker(state->thread_start_lock_);
+    MutexLock thread_start_locker(self, state->thread_start_lock_);
     const bool should_suspend = options->suspend;
     if (!should_suspend) {
       /*
@@ -161,7 +161,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
       state->thread_start_cond_.Wait(self, state->thread_start_lock_);
     } else {
       {
-        MutexLock attach_locker(state->attach_lock_);
+        MutexLock attach_locker(self, state->attach_lock_);
         /*
          * We have bound to a port, or are trying to connect outbound to a
          * debugger.  Create the JDWP thread and let it continue the mission.
@@ -217,7 +217,7 @@ void JdwpState::ResetState() {
 
   UnregisterAll();
   {
-    MutexLock mu(event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     CHECK(event_list_ == NULL);
   }
 
@@ -302,11 +302,8 @@ void JdwpState::Run() {
   }
 
   /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
-  {
-    MutexLock mu(thread_, *Locks::thread_suspend_count_lock_);
-    CHECK_EQ(thread_->GetState(), kNative);
-    thread_->SetState(kWaitingInMainDebuggerLoop);
-  }
+  CHECK_EQ(thread_->GetState(), kNative);
+  thread_->SetState(kWaitingInMainDebuggerLoop);
 
   /*
    * Loop forever if we're in server mode, processing connections.  In
@@ -334,7 +331,7 @@ void JdwpState::Run() {
        */
       if (!(*transport_->establish)(this, options_)) {
         /* wake anybody who was waiting for us to succeed */
-        MutexLock mu(attach_lock_);
+        MutexLock mu(thread_, attach_lock_);
         attach_cond_.Broadcast();
         break;
       }

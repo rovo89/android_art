@@ -199,7 +199,8 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
     AbstractMethod* m = c->GetVirtualMethod(i);
     mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
-      if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
+      // TODO: the use of GetParameterTypes creates an unused array here.
+      if (mh.GetReturnType() == NULL || mh.GetParameterTypes(soa.Self()) == NULL) {
         DCHECK(env->ExceptionOccurred());
         return NULL;
       }
@@ -213,7 +214,8 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
     AbstractMethod* m = c->GetDirectMethod(i);
     mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
-      if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
+      // TODO: the use of GetParameterTypes creates an unused array here.
+      if (mh.GetReturnType() == NULL || mh.GetParameterTypes(soa.Self()) == NULL) {
         DCHECK(env->ExceptionOccurred());
         return NULL;
       }
@@ -349,7 +351,7 @@ static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
   SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
-  return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone());
+  return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
 }
 
 static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
@@ -412,7 +414,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
     return NULL;
   }
 
-  Object* new_obj = c->AllocObject();
+  Object* new_obj = c->AllocObject(soa.Self());
   if (new_obj == NULL) {
     DCHECK(soa.Self()->IsExceptionPending());
     return NULL;

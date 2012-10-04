@@ -49,13 +49,13 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   Class* c = class_linker_->FindSystemClass("Ljava/lang/Object;");
   ASSERT_TRUE(c != NULL);
-  Object* obj0 = c->AllocObject();
+  Object* obj0 = c->AllocObject(soa.Self());
   ASSERT_TRUE(obj0 != NULL);
-  Object* obj1 = c->AllocObject();
+  Object* obj1 = c->AllocObject(soa.Self());
   ASSERT_TRUE(obj1 != NULL);
-  Object* obj2 = c->AllocObject();
+  Object* obj2 = c->AllocObject(soa.Self());
   ASSERT_TRUE(obj2 != NULL);
-  Object* obj3 = c->AllocObject();
+  Object* obj3 = c->AllocObject(soa.Self());
   ASSERT_TRUE(obj3 != NULL);
 
   const uint32_t cookie = IRT_FIRST_SEGMENT;

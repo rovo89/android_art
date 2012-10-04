@@ -277,7 +277,7 @@ struct SpaceSorter {
 };
 
 void Heap::AddSpace(ContinuousSpace* space) {
-  WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   DCHECK(space != NULL);
   DCHECK(space->GetLiveBitmap() != NULL);
   live_bitmap_->AddSpaceBitmap(space->GetLiveBitmap());
@@ -357,7 +357,7 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
   }
 }
 
-Object* Heap::AllocObject(Class* c, size_t byte_count) {
+Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
          strlen(ClassHelper(c).GetDescriptor()) == 0);
@@ -372,7 +372,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
   // range. This also means that we rely on SetClass not dirtying the object's card.
   if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
     size = RoundUp(byte_count, kPageSize);
-    obj = Allocate(NULL, size);
+    obj = Allocate(self, NULL, size);
 
     if (obj != NULL) {
       // Make sure that our large object didn't get placed anywhere within the space interval or else
@@ -381,7 +381,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
              reinterpret_cast<byte*>(obj) >= spaces_.back()->End());
     }
   } else {
-    obj = Allocate(alloc_space_, byte_count);
+    obj = Allocate(self, alloc_space_, byte_count);
     size = alloc_space_->AllocationSize(obj);
 
     if (obj != NULL) {
@@ -405,7 +405,6 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
       // concurrent_start_bytes_.
       concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
-      Thread* self = Thread::Current();
       SirtRef<Object> ref(self, obj);
       RequestConcurrentGC(self);
     }
@@ -424,7 +423,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
 
   std::string msg(StringPrintf("Failed to allocate a %zd-byte %s (%lld total bytes free; largest possible contiguous allocation %zd bytes)",
                                byte_count, PrettyDescriptor(c).c_str(), total_bytes_free, max_contiguous_allocation));
-  Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+  self->ThrowOutOfMemoryError(msg.c_str());
   return NULL;
 }
 
@@ -483,7 +482,7 @@ void Heap::VerifyObjectBody(const Object* obj) {
     if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
         std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
             allocation_stack_->End()) {
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
       if (large_object_space_->GetLiveObjects()->Test(obj)) {
         DumpSpaces();
         LOG(FATAL) << "Object is dead: " << obj;
@@ -520,7 +519,7 @@ void Heap::VerificationCallback(Object* obj, void* arg) {
 }
 
 void Heap::VerifyHeap() {
-  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
@@ -561,44 +560,38 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-Object* Heap::TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow) {
+Object* Heap::TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow) {
   // Should we try to use a CAS here and fix up num_bytes_allocated_ later with AllocationSize?
   if (num_bytes_allocated_ + alloc_size > growth_limit_) {
     return NULL;
   }
 
   if (UNLIKELY(space == NULL)) {
-    return large_object_space_->Alloc(alloc_size);
+    return large_object_space_->Alloc(self, alloc_size);
   } else if (grow) {
-    return space->AllocWithGrowth(alloc_size);
+    return space->AllocWithGrowth(self, alloc_size);
   } else {
-    return space->AllocWithoutGrowth(alloc_size);
+    return space->AllocWithoutGrowth(self, alloc_size);
   }
 }
 
-Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
+Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
-#ifndef NDEBUG
-  Thread* self = Thread::Current();
   DCHECK_EQ(self->GetState(), kRunnable);
   self->AssertThreadSuspensionIsAllowable();
-#endif
 
-  Object* ptr = TryToAllocate(space, alloc_size, false);
+  Object* ptr = TryToAllocate(self, space, alloc_size, false);
   if (ptr != NULL) {
     return ptr;
   }
 
   // The allocation failed. If the GC is running, block until it completes, and then retry the
   // allocation.
-#ifdef NDEBUG
-  Thread* self = Thread::Current();
-#endif
   GcType last_gc = WaitForConcurrentGcToComplete(self);
   if (last_gc != kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    ptr = TryToAllocate(space, alloc_size, false);
+    ptr = TryToAllocate(self, space, alloc_size, false);
     if (ptr != NULL) {
       return ptr;
     }
@@ -635,7 +628,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
       self->TransitionFromSuspendedToRunnable();
 
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = TryToAllocate(space, alloc_size, false);
+      ptr = TryToAllocate(self, space, alloc_size, false);
       if (ptr != NULL) {
         return ptr;
       }
@@ -644,7 +637,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
 
   // Allocations have failed after GCs;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
-  ptr = TryToAllocate(space, alloc_size, true);
+  ptr = TryToAllocate(self, space, alloc_size, true);
   if (ptr != NULL) {
     if (space != NULL) {
       size_t new_footprint = space->GetFootprintLimit();
@@ -669,7 +662,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
   CollectGarbageInternal(kGcTypeFull, kGcCauseForAlloc, true);
   self->TransitionFromSuspendedToRunnable();
-  return TryToAllocate(space, alloc_size, true);
+  return TryToAllocate(self, space, alloc_size, true);
 }
 
 int64_t Heap::GetMaxMemory() {
@@ -721,7 +714,7 @@ class InstanceCounter {
 };
 
 int64_t Heap::CountInstances(Class* c, bool count_assignable) {
-  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   InstanceCounter counter(c, count_assignable);
   GetLiveBitmap()->Walk(InstanceCounter::Callback, &counter);
   return counter.GetCount();
@@ -1620,12 +1613,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
     {
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
       if (gc_type != kGcTypeSticky) {
-        WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+        WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
         mark_sweep.SweepLargeObjects(swap);
         timings.AddSplit("SweepLargeObjects");
         mark_sweep.Sweep(gc_type == kGcTypePartial, swap);
       } else {
-        WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+        WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
         mark_sweep.SweepArray(timings, live_stack_.get(), swap);
         timings.AddSplit("SweepArray");
       }

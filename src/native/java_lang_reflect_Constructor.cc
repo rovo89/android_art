@@ -45,7 +45,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return NULL;
   }
 
-  Object* receiver = c->AllocObject();
+  Object* receiver = c->AllocObject(soa.Self());
   if (receiver == NULL) {
     return NULL;
   }

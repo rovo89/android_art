@@ -21,6 +21,7 @@
 
 #include "asm_support.h"
 #include "macros.h"
+#include "thread.h"
 #include "thread_list.h"
 
 #if defined(__APPLE__)
@@ -41,7 +42,7 @@ namespace art {
 
 void Thread::InitCpu() {
   static Mutex modify_ldt_lock("modify_ldt lock");
-  MutexLock mu(modify_ldt_lock);
+  MutexLock mu(Thread::Current(), modify_ldt_lock);
 
   const uintptr_t base = reinterpret_cast<uintptr_t>(this);
   const size_t limit = kPageSize;

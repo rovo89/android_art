@@ -234,11 +234,10 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     LOG(FATAL) << static_cast<int>(src_class);
   }
 
-  if (kIsDebugBuild) {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(Thread::Current()->GetState(), kRunnable);
-  }
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  if (kIsDebugBuild) {
+    CHECK_EQ(soa.Self()->GetState(), kRunnable);
+  }
   JValue args[1] = { value };
   soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &value);
 }

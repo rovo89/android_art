@@ -85,12 +85,12 @@ SignalCatcher::~SignalCatcher() {
 }
 
 void SignalCatcher::SetHaltFlag(bool new_value) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   halt_ = new_value;
 }
 
 bool SignalCatcher::ShouldHalt() {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   return halt_;
 }
 

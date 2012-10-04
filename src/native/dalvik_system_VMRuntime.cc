@@ -54,11 +54,11 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
 
   Class* element_class = soa.Decode<Class*>(javaElementClass);
   if (element_class == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
+    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
     return NULL;
   }
   if (length < 0) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
 
@@ -67,7 +67,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   descriptor += "[";
   descriptor += ClassHelper(element_class).GetDescriptor();
   Class* array_class = class_linker->FindClass(descriptor.c_str(), NULL);
-  Array* result = Array::Alloc(array_class, length);
+  Array* result = Array::Alloc(soa.Self(), array_class, length);
   if (result == NULL) {
     return NULL;
   }
@@ -81,7 +81,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   ScopedObjectAccess soa(env);
   Array* array = soa.Decode<Array*>(javaArray);
   if (!array->IsArrayInstance()) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
+    soa.Self()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
     return 0;
   }
   // TODO: we should also check that this is a non-movable array.
@@ -127,7 +127,7 @@ static void DisableCheckJniCallback(Thread* t, void*) {
 }
 #endif
 
-static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersion) {
+static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
@@ -138,7 +138,8 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 #if !defined(ART_USE_LLVM_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
-      MutexLock mu(*Locks::thread_list_lock_);
+      Thread* self = static_cast<JNIEnvExt*>(env)->self;
+      MutexLock mu(self, *Locks::thread_list_lock_);
       vm->SetCheckJniEnabled(false);
       runtime->GetThreadList()->ForEach(DisableCheckJniCallback, NULL);
     }
@@ -148,6 +149,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 
     vm->work_around_app_jni_bugs = true;
 #else
+    UNUSED(env);
     LOG(WARNING) << "LLVM does not work-around app jni bugs.";
     vm->work_around_app_jni_bugs = false;
 #endif

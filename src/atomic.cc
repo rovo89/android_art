@@ -22,6 +22,7 @@
 #include "mutex.h"
 #include "stl_util.h"
 #include "stringprintf.h"
+#include "thread.h"
 
 #if defined(__APPLE__)
 #include <libkern/OSAtomic.h>
@@ -172,7 +173,7 @@ static inline Mutex& GetSwapLock(const volatile int64_t* addr) {
 }
 
 int64_t QuasiAtomic::Swap64(int64_t value, volatile int64_t* addr) {
-  MutexLock mu(GetSwapLock(addr));
+  MutexLock mu(Thread::Current(), GetSwapLock(addr));
   int64_t old_value = *addr;
   *addr = value;
   return old_value;
@@ -184,7 +185,7 @@ int64_t QuasiAtomic::Swap64Sync(int64_t value, volatile int64_t* addr) {
 }
 
 int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-  MutexLock mu(GetSwapLock(addr));
+  MutexLock mu(Thread::Current(), GetSwapLock(addr));
   if (*addr == old_value) {
     *addr  = new_value;
     return 0;
@@ -193,7 +194,7 @@ int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* a
 }
 
 int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
-  MutexLock mu(GetSwapLock(addr));
+  MutexLock mu(Thread::Current(), GetSwapLock(addr));
   return *addr;
 }
 

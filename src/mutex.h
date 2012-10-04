@@ -25,8 +25,8 @@
 
 #include "globals.h"
 #include "locks.h"
+#include "logging.h"
 #include "macros.h"
-#include "thread.h"
 
 #if defined(__APPLE__)
 #define ART_USE_FUTEXES 0
@@ -42,6 +42,8 @@
 #endif
 
 namespace art {
+
+class Thread;
 
 const bool kDebugLocking = kIsDebugBuild;
 
@@ -110,7 +112,6 @@ class LOCKABLE Mutex : public BaseMutex {
     }
   }
   void AssertHeld(const Thread* self) { AssertExclusiveHeld(self); }
-  void AssertHeld() { AssertExclusiveHeld(Thread::Current()); }
 
   // Assert that the Mutex is not held by the current thread.
   void AssertNotHeldExclusive(const Thread* self) {
@@ -275,10 +276,6 @@ class SCOPED_LOCKABLE MutexLock {
     mu_.ExclusiveLock(self_);
   }
 
-  explicit MutexLock(Mutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : self_(Thread::Current()), mu_(mu) {
-    mu_.ExclusiveLock(self_);
-  }
-
   ~MutexLock() UNLOCK_FUNCTION() {
     mu_.ExclusiveUnlock(self_);
   }
@@ -297,11 +294,6 @@ class SCOPED_LOCKABLE ReaderMutexLock {
  public:
   explicit ReaderMutexLock(Thread* self, ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
       self_(self), mu_(mu) {
-    mu_.SharedLock(self_);
-  }
-
-  explicit ReaderMutexLock(ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
-      self_(Thread::Current()), mu_(mu) {
     mu_.SharedLock(self_);
   }
 
@@ -327,17 +319,12 @@ class SCOPED_LOCKABLE WriterMutexLock {
     mu_.ExclusiveLock(self_);
   }
 
-  explicit WriterMutexLock(ReaderWriterMutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) :
-      self_(Thread::Current()), mu_(mu) {
-    mu_.ExclusiveLock(self_);
-  }
-
   ~WriterMutexLock() UNLOCK_FUNCTION() {
     mu_.ExclusiveUnlock(self_);
   }
 
  private:
-  Thread* self_;
+  Thread* const self_;
   ReaderWriterMutex& mu_;
   DISALLOW_COPY_AND_ASSIGN(WriterMutexLock);
 };

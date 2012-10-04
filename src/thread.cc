@@ -110,7 +110,9 @@ void* Thread::CreateCallback(void* arg) {
     return NULL;
   }
   {
-    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    // TODO: pass self to MutexLock - requires self to equal Thread::Current(), which is only true
+    //       after self->Init().
+    MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
     // Check that if we got here we cannot be shutting down (as shutdown should never have started
     // while threads are being born).
     CHECK(!runtime->IsShuttingDown());
@@ -719,7 +721,6 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     if (is_daemon) {
       os << " daemon";
     }
-    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
     os << " prio=" << priority
        << " tid=" << thread->GetThinLockId()
        << " " << thread->GetState() << "\n";
@@ -874,7 +875,7 @@ void Thread::ThreadExitCallback(void* arg) {
 
 void Thread::Startup() {
   {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);  // Keep GCC happy.
+    MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);  // Keep GCC happy.
     resume_cond_ = new ConditionVariable("Thread resumption condition variable");
   }
 
@@ -1166,7 +1167,7 @@ Object* Thread::DecodeJObject(jobject obj) {
 
 // Implements java.lang.Thread.interrupted.
 bool Thread::Interrupted() {
-  MutexLock mu(*wait_mutex_);
+  MutexLock mu(Thread::Current(), *wait_mutex_);
   bool interrupted = interrupted_;
   interrupted_ = false;
   return interrupted;
@@ -1174,12 +1175,12 @@ bool Thread::Interrupted() {
 
 // Implements java.lang.Thread.isInterrupted.
 bool Thread::IsInterrupted() {
-  MutexLock mu(*wait_mutex_);
+  MutexLock mu(Thread::Current(), *wait_mutex_);
   return interrupted_;
 }
 
 void Thread::Interrupt() {
-  MutexLock mu(*wait_mutex_);
+  MutexLock mu(Thread::Current(), *wait_mutex_);
   if (interrupted_) {
     return;
   }
@@ -1188,7 +1189,7 @@ void Thread::Interrupt() {
 }
 
 void Thread::Notify() {
-  MutexLock mu(*wait_mutex_);
+  MutexLock mu(Thread::Current(), *wait_mutex_);
   NotifyLocked();
 }
 
@@ -1252,11 +1253,12 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     // Allocate method trace with an extra slot that will hold the PC trace
     SirtRef<ObjectArray<Object> >
         method_trace(self_,
-                     Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
+                     Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(self_,
+                                                                                    depth + 1));
     if (method_trace.get() == NULL) {
       return false;
     }
-    IntArray* dex_pc_trace = IntArray::Alloc(depth);
+    IntArray* dex_pc_trace = IntArray::Alloc(self_, depth);
     if (dex_pc_trace == NULL) {
       return false;
     }
@@ -1350,7 +1352,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     depth = std::min(depth, java_traces->GetLength());
   } else {
     // Create java_trace array and place in local reference table
-    java_traces = class_linker->AllocStackTraceElementArray(depth);
+    java_traces = class_linker->AllocStackTraceElementArray(soa.Self(), depth);
     if (java_traces == NULL) {
       return NULL;
     }
@@ -1374,19 +1376,23 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     CHECK(descriptor != NULL);
     std::string class_name(PrettyDescriptor(descriptor));
     SirtRef<String> class_name_object(soa.Self(),
-                                      String::AllocFromModifiedUtf8(class_name.c_str()));
+                                      String::AllocFromModifiedUtf8(soa.Self(),
+                                                                    class_name.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
     const char* method_name = mh.GetName();
     CHECK(method_name != NULL);
-    SirtRef<String> method_name_object(soa.Self(), String::AllocFromModifiedUtf8(method_name));
+    SirtRef<String> method_name_object(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                 method_name));
     if (method_name_object.get() == NULL) {
       return NULL;
     }
     const char* source_file = mh.GetDeclaringClassSourceFile();
-    SirtRef<String> source_name_object(soa.Self(), String::AllocFromModifiedUtf8(source_file));
-    StackTraceElement* obj = StackTraceElement::Alloc(class_name_object.get(),
+    SirtRef<String> source_name_object(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                 source_file));
+    StackTraceElement* obj = StackTraceElement::Alloc(soa.Self(),
+                                                      class_name_object.get(),
                                                       method_name_object.get(),
                                                       source_name_object.get(),
                                                       line_number);
@@ -1450,7 +1456,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, co
     if (exception.get() != NULL) {
       ScopedObjectAccessUnchecked soa(env);
       Throwable* t = reinterpret_cast<Throwable*>(soa.Self()->DecodeJObject(exception.get()));
-      t->SetDetailMessage(String::AllocFromModifiedUtf8(msg));
+      t->SetDetailMessage(String::AllocFromModifiedUtf8(soa.Self(), msg));
       soa.Self()->SetException(t);
     } else {
       LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "

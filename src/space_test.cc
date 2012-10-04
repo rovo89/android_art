@@ -80,106 +80,108 @@ TEST_F(SpaceTest, ZygoteSpace) {
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     Runtime::Current()->GetHeap()->AddSpace(space);
+    Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
-    Object* ptr1 = space->AllocWithoutGrowth(1 * MB);
+    Object* ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr2 = space->AllocWithoutGrowth(8 * MB);
+    Object* ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    Object* ptr3 = space->AllocWithGrowth(8 * MB);
+    Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr3 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr4 = space->AllocWithoutGrowth(8 * MB);
+    Object* ptr4 = space->AllocWithoutGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr4 == NULL);
 
     // Also fails, requires a higher allowed footprint.
-    Object* ptr5 = space->AllocWithGrowth(8 * MB);
+    Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr5 == NULL);
 
     // Release some memory.
     size_t free3 = space->AllocationSize(ptr3);
-    space->Free(ptr3);
+    space->Free(self, ptr3);
     EXPECT_LE(8U * MB, free3);
 
     // Succeeds, now that memory has been freed.
-    void* ptr6 = space->AllocWithGrowth(9 * MB);
+    void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
     EXPECT_TRUE(ptr6 != NULL);
 
     // Final clean up.
     size_t free1 = space->AllocationSize(ptr1);
-    space->Free(ptr1);
+    space->Free(self, ptr1);
     EXPECT_LE(1U * MB, free1);
 
     // Make sure that the zygote space isn't directly at the start of the space.
-    space->AllocWithoutGrowth(1U * MB);
+    space->AllocWithoutGrowth(self, 1U * MB);
     space = space->CreateZygoteSpace();
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     Runtime::Current()->GetHeap()->AddSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.
-    ptr1 = space->AllocWithoutGrowth(1 * MB);
+    ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    ptr2 = space->AllocWithoutGrowth(8 * MB);
+    ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    ptr3 = space->AllocWithGrowth(2 * MB);
+    ptr3 = space->AllocWithGrowth(self, 2 * MB);
     EXPECT_TRUE(ptr3 != NULL);
-    space->Free(ptr3);
+    space->Free(self, ptr3);
 
     // Final clean up.
     free1 = space->AllocationSize(ptr1);
-    space->Free(ptr1);
+    space->Free(self, ptr1);
     EXPECT_LE(1U * MB, free1);
 }
 
 TEST_F(SpaceTest, AllocAndFree) {
   AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
+  Thread* self = Thread::Current();
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
   Runtime::Current()->GetHeap()->AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  Object* ptr1 = space->AllocWithoutGrowth(1 * MB);
+  Object* ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
   EXPECT_TRUE(ptr1 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr2 = space->AllocWithoutGrowth(8 * MB);
+  Object* ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr2 == NULL);
 
   // Succeeds, adjusts the footprint.
-  Object* ptr3 = space->AllocWithGrowth(8 * MB);
+  Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr3 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr4 = space->AllocWithoutGrowth(8 * MB);
+  Object* ptr4 = space->AllocWithoutGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr4 == NULL);
 
   // Also fails, requires a higher allowed footprint.
-  Object* ptr5 = space->AllocWithGrowth(8 * MB);
+  Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
   size_t free3 = space->AllocationSize(ptr3);
-  space->Free(ptr3);
+  space->Free(self, ptr3);
   EXPECT_LE(8U * MB, free3);
 
   // Succeeds, now that memory has been freed.
-  void* ptr6 = space->AllocWithGrowth(9 * MB);
+  void* ptr6 = space->AllocWithGrowth(self, 9 * MB);
   EXPECT_TRUE(ptr6 != NULL);
 
   // Final clean up.
   size_t free1 = space->AllocationSize(ptr1);
-  space->Free(ptr1);
+  space->Free(self, ptr1);
   EXPECT_LE(1U * MB, free1);
 }
 
@@ -189,28 +191,29 @@ TEST_F(SpaceTest, AllocAndFreeList) {
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
   Runtime::Current()->GetHeap()->AddSpace(space);
+  Thread* self = Thread::Current();
 
   // Succeeds, fits without adjusting the max allowed footprint.
   Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->AllocWithoutGrowth(16);
+    lots_of_objects[i] = space->AllocWithoutGrowth(self, 16);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
   // Release memory and check pointers are NULL
-  space->FreeList(arraysize(lots_of_objects), lots_of_objects);
+  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == NULL);
   }
 
   // Succeeds, fits by adjusting the max allowed footprint.
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->AllocWithGrowth(1024);
+    lots_of_objects[i] = space->AllocWithGrowth(self, 1024);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
   // Release memory and check pointers are NULL
-  space->FreeList(arraysize(lots_of_objects), lots_of_objects);
+  space->FreeList(self, arraysize(lots_of_objects), lots_of_objects);
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == NULL);
   }
@@ -252,6 +255,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
   UniquePtr<Object*[]> lots_of_objects(new Object*[max_objects]);
   size_t last_object = 0;  // last object for which allocation succeeded
   size_t amount_allocated = 0;  // amount of space allocated
+  Thread* self = Thread::Current();
   for (size_t i = 0; i < max_objects; i++) {
     size_t alloc_fails = 0;  // number of failed allocations
     size_t max_fails = 30;  // number of times we fail allocation before giving up
@@ -267,9 +271,9 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
       }
       Object* object;
       if (round <= 1) {
-        object = space->AllocWithoutGrowth(alloc_size);
+        object = space->AllocWithoutGrowth(self, alloc_size);
       } else {
-        object = space->AllocWithGrowth(alloc_size);
+        object = space->AllocWithGrowth(self, alloc_size);
       }
       footprint = mspace_footprint(mspace);
       EXPECT_GE(space->Size(), footprint);  // invariant
@@ -332,7 +336,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
       } else {
         EXPECT_GE(allocation_size, 8u);
       }
-      space->Free(object);
+      space->Free(self, object);
       lots_of_objects.get()[i] = NULL;
       amount_allocated -= allocation_size;
       footprint = mspace_footprint(mspace);
@@ -346,9 +350,9 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
   Object* large_object;
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
   if (round <= 1) {
-    large_object = space->AllocWithoutGrowth(three_quarters_space);
+    large_object = space->AllocWithoutGrowth(self, three_quarters_space);
   } else {
-    large_object = space->AllocWithGrowth(three_quarters_space);
+    large_object = space->AllocWithGrowth(self, three_quarters_space);
   }
   EXPECT_TRUE(large_object != NULL);
 
@@ -359,7 +363,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
   EXPECT_LE(space->Size(), growth_limit);
 
   // Clean up
-  space->Free(large_object);
+  space->Free(self, large_object);
 
   // Sanity check footprint
   footprint = mspace_footprint(mspace);

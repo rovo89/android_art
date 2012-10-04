@@ -284,7 +284,7 @@ void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owne
   {
     // TODO: isn't this too late to prevent threads from disappearing?
     // Acquire thread list lock so threads won't disappear from under us.
-    MutexLock mu(*Locks::thread_list_lock_);
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
     // Re-read owner now that we hold lock.
     current_owner = (monitor != NULL) ? monitor->owner_ : NULL;
     // Get short descriptions of the threads involved.
@@ -427,7 +427,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
     return;
   }
-  monitor_lock_.AssertHeld();
+  monitor_lock_.AssertHeld(self);
   WaitWithLock(self, ms, ns, interruptShouldThrow);
 }
 
@@ -476,7 +476,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
   bool wasInterrupted = false;
   {
     // Pseudo-atomically wait on self's wait_cond_ and release the monitor lock.
-    MutexLock mu(*self->wait_mutex_);
+    MutexLock mu(self, *self->wait_mutex_);
 
     // Set wait_monitor_ to the monitor object we will be waiting on. When wait_monitor_ is
     // non-NULL a notifying or interrupting thread must signal the thread's wait_cond_ to wake it
@@ -538,7 +538,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
      * cleared when this exception is thrown."
      */
     {
-      MutexLock mu(*self->wait_mutex_);
+      MutexLock mu(self, *self->wait_mutex_);
       self->interrupted_ = false;
     }
     if (interruptShouldThrow) {
@@ -554,11 +554,11 @@ void Monitor::Notify(Thread* self) {
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before notify()");
     return;
   }
-  monitor_lock_.AssertHeld();
-  NotifyWithLock();
+  monitor_lock_.AssertHeld(self);
+  NotifyWithLock(self);
 }
 
-void Monitor::NotifyWithLock() {
+void Monitor::NotifyWithLock(Thread* self) {
   // Signal the first waiting thread in the wait set.
   while (wait_set_ != NULL) {
     Thread* thread = wait_set_;
@@ -566,7 +566,7 @@ void Monitor::NotifyWithLock() {
     thread->wait_next_ = NULL;
 
     // Check to see if the thread is still waiting.
-    MutexLock mu(*thread->wait_mutex_);
+    MutexLock mu(self, *thread->wait_mutex_);
     if (thread->wait_monitor_ != NULL) {
       thread->wait_cond_->Signal();
       return;
@@ -581,7 +581,7 @@ void Monitor::NotifyAll(Thread* self) {
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before notifyAll()");
     return;
   }
-  monitor_lock_.AssertHeld();
+  monitor_lock_.AssertHeld(self);
   NotifyAllWithLock();
 }
 
@@ -872,10 +872,7 @@ static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
 
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   ThreadState state;
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    state = thread->GetState();
-  }
+  state = thread->GetState();
 
   Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
@@ -883,7 +880,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     os << "  - waiting on ";
     Monitor* monitor;
     {
-      MutexLock mu(*thread->wait_mutex_);
+      MutexLock mu(Thread::Current(), *thread->wait_mutex_);
       monitor = thread->wait_monitor_;
     }
     if (monitor != NULL) {
@@ -1002,17 +999,17 @@ MonitorList::MonitorList() : monitor_list_lock_("MonitorList lock") {
 }
 
 MonitorList::~MonitorList() {
-  MutexLock mu(monitor_list_lock_);
+  MutexLock mu(Thread::Current(), monitor_list_lock_);
   STLDeleteElements(&list_);
 }
 
 void MonitorList::Add(Monitor* m) {
-  MutexLock mu(monitor_list_lock_);
+  MutexLock mu(Thread::Current(), monitor_list_lock_);
   list_.push_front(m);
 }
 
 void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
-  MutexLock mu(monitor_list_lock_);
+  MutexLock mu(Thread::Current(), monitor_list_lock_);
   typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
   It it = list_.begin();
   while (it != list_.end()) {

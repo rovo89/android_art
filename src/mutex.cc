@@ -196,7 +196,7 @@ Mutex::~Mutex() {
   if (rc != 0) {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
     bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
@@ -329,7 +329,7 @@ ReaderWriterMutex::~ReaderWriterMutex() {
   if (rc != 0) {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
-    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
     bool shutting_down = runtime == NULL || runtime->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_rwlock_destroy failed for " << name_;
@@ -586,7 +586,7 @@ ConditionVariable::~ConditionVariable() {
   int rc = pthread_cond_destroy(&cond_);
   if (rc != 0) {
     errno = rc;
-    MutexLock mu(*Locks::runtime_shutdown_lock_);
+    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
     bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_cond_destroy failed for " << name_;

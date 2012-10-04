@@ -407,12 +407,13 @@ class Hprof {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
     Runtime::Current()->VisitRoots(RootVisitor, this);
+    Thread* self = Thread::Current();
     {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       Runtime::Current()->GetHeap()->FlushAllocStack();
     }
     {
-      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
     }
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
@@ -444,22 +445,27 @@ class Hprof {
       if (fd_ >= 0) {
         out_fd = dup(fd_);
         if (out_fd < 0) {
-          Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
+          self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
+                                   "Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
           return;
         }
       } else {
         out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
         if (out_fd < 0) {
-          Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(), strerror(errno));
+          self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
+                                   "Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
+                                   strerror(errno));
           return;
         }
       }
 
       UniquePtr<File> file(OS::FileFromFd(filename_.c_str(), out_fd));
-      okay = file->WriteFully(header_data_ptr_, header_data_size_) && file->WriteFully(body_data_ptr_, body_data_size_);
+      okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
+          file->WriteFully(body_data_ptr_, body_data_size_);
       if (!okay) {
-        std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s", filename_.c_str(), strerror(errno)));
-        Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;", msg.c_str());
+        std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
+                                     filename_.c_str(), strerror(errno)));
+        self->ThrowNewException("Ljava/lang/RuntimeException;", msg.c_str());
         LOG(ERROR) << msg;
       }
       close(out_fd);
@@ -468,7 +474,9 @@ class Hprof {
     // Throw out a log message for the benefit of "runhat".
     if (okay) {
       uint64_t duration = NanoTime() - start_ns_;
-      LOG(INFO) << "hprof: heap dump completed (" << PrettySize(header_data_size_ + body_data_size_ + 1023) << ") in " << PrettyDuration(duration);
+      LOG(INFO) << "hprof: heap dump completed ("
+          << PrettySize(header_data_size_ + body_data_size_ + 1023)
+          << ") in " << PrettyDuration(duration);
     }
   }
 

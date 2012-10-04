@@ -230,17 +230,17 @@ Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
 Object* art_alloc_array_from_code(uint32_t type_idx,
                                   AbstractMethod* referrer,
                                   uint32_t length,
-                                  Thread* /*thread*/)
+                                  Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return AllocArrayFromCode(type_idx, referrer, length, false);
+  return AllocArrayFromCode(type_idx, referrer, length, self, false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                     AbstractMethod* referrer,
                                                     uint32_t length,
-                                                    Thread* /*thread*/)
+                                                    Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return AllocArrayFromCode(type_idx, referrer, length, true);
+  return AllocArrayFromCode(type_idx, referrer, length, self, true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
@@ -748,12 +748,12 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
   va_start(ap, proxy_method);
 
   Object* receiver = va_arg(ap, Object*);
-  Thread* thread = va_arg(ap, Thread*);
+  Thread* self = va_arg(ap, Thread*);
   MethodHelper proxy_mh(proxy_method);
   const size_t num_params = proxy_mh.NumArgs();
 
   // Start new JNI local reference state
-  JNIEnvExt* env = thread->GetJniEnv();
+  JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);
   ScopedJniEnvLocalRefState env_state(env);
 
@@ -773,9 +773,9 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
   args_jobj[2].l = NULL;
   ObjectArray<Object>* args = NULL;
   if ((num_params - 1) > 0) {
-    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
+    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(self, num_params - 1);
     if (args == NULL) {
-      CHECK(thread->IsExceptionPending());
+      CHECK(self->IsExceptionPending());
       return;
     }
     args_jobj[2].l = soa.AddLocalReference<jobjectArray>(args);
@@ -783,9 +783,9 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
 
   // Get parameter types.
   const char* shorty = proxy_mh.GetShorty();
-  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
+  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes(self);
   if (param_types == NULL) {
-    CHECK(thread->IsExceptionPending());
+    CHECK(self->IsExceptionPending());
     return;
   }
 
@@ -822,7 +822,7 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
     Class* param_type = param_types->Get(i);
     if (param_type->IsPrimitive()) {
       BoxPrimitive(param_type->GetPrimitiveType(), val);
-      if (thread->IsExceptionPending()) {
+      if (self->IsExceptionPending()) {
         return;
       }
     }
@@ -836,19 +836,19 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
   jobject result = env->CallObjectMethodA(inv_hand, WellKnownClasses::java_lang_reflect_InvocationHandler_invoke, args_jobj);
 
   // Place result in stack args
-  if (!thread->IsExceptionPending()) {
+  if (!self->IsExceptionPending()) {
     if (shorty[0] == 'V') {
       return;
     }
-    Object* result_ref = thread->DecodeJObject(result);
+    Object* result_ref = self->DecodeJObject(result);
     JValue* result_unboxed = va_arg(ap, JValue*);
     if (result_ref == NULL) {
       result_unboxed->SetL(NULL);
     } else {
       bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(), *result_unboxed);
       if (!unboxed_okay) {
-        thread->ClearException();
-        thread->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+        self->ClearException();
+        self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
                                  "Couldn't convert result of type %s to %s",
                                  PrettyTypeOf(result_ref).c_str(),
                                  PrettyDescriptor(proxy_mh.GetReturnType()).c_str());
@@ -858,7 +858,7 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
   } else {
     // In the case of checked exceptions that aren't declared, the exception must be wrapped by
     // a UndeclaredThrowableException.
-    Throwable* exception = thread->GetException();
+    Throwable* exception = self->GetException();
     if (exception->IsCheckedException()) {
       SynthesizedProxyClass* proxy_class =
           down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
@@ -879,7 +879,7 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
       if (!declares_exception) {
-        thread->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
+        self->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
       }
     }
   }

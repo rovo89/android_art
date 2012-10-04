@@ -29,7 +29,7 @@ static Array* CreateMultiArray(Thread* self, Class* array_class, int current_dim
                                IntArray* dimensions)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension++);
-  SirtRef<Array> new_array(self, Array::Alloc(array_class, array_length));
+  SirtRef<Array> new_array(self, Array::Alloc(self, array_class, array_length));
   if (new_array.get() == NULL) {
     CHECK(self->IsExceptionPending());
     return NULL;
@@ -139,7 +139,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
-  Array* new_array = Array::Alloc(array_class, length);
+  Array* new_array = Array::Alloc(soa.Self(), array_class, length);
   if (new_array == NULL) {
     CHECK(soa.Self()->IsExceptionPending());
     return NULL;

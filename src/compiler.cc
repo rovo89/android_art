@@ -34,6 +34,7 @@
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "stl_util.h"
+#include "thread.h"
 #include "timing_logger.h"
 #include "verifier/method_verifier.h"
 
@@ -110,9 +111,9 @@ class AOTCompilationStats {
     }
   }
 
-// Allow lossy statistics in non-debug builds
+// Allow lossy statistics in non-debug builds.
 #ifndef NDEBUG
-#define STATS_LOCK() MutexLock mu(stats_lock_)
+#define STATS_LOCK() MutexLock mu(Thread::Current(), stats_lock_)
 #else
 #define STATS_LOCK()
 #endif
@@ -359,30 +360,31 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
 }
 
 Compiler::~Compiler() {
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(compiled_classes_lock_);
+    MutexLock mu(self, compiled_classes_lock_);
     STLDeleteValues(&compiled_classes_);
   }
   {
-    MutexLock mu(compiled_methods_lock_);
+    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteValues(&compiled_methods_);
   }
   {
-    MutexLock mu(compiled_invoke_stubs_lock_);
+    MutexLock mu(self, compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
   }
 #if defined(ART_USE_LLVM_COMPILER)
   {
-    MutexLock mu(compiled_proxy_stubs_lock_);
+    MutexLock mu(self, compiled_proxy_stubs_lock_);
     STLDeleteValues(&compiled_proxy_stubs_);
   }
 #endif
   {
-    MutexLock mu(compiled_methods_lock_);
+    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&code_to_patch_);
   }
   {
-    MutexLock mu(compiled_methods_lock_);
+    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&methods_to_patch_);
   }
 #if defined(ART_USE_LLVM_COMPILER)
@@ -554,7 +556,7 @@ bool Compiler::IsImageClass(const std::string& descriptor) const {
 }
 
 void Compiler::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
-  MutexLock mu(Compiler::compiled_classes_lock_);
+  MutexLock mu(Thread::Current(), Compiler::compiled_classes_lock_);
   compiled_classes_.Put(ref, compiled_class);
 }
 
@@ -929,7 +931,7 @@ void Compiler::AddCodePatch(const DexFile* dex_file,
                             uint32_t target_method_idx,
                             InvokeType target_invoke_type,
                             size_t literal_offset) {
-  MutexLock mu(compiled_methods_lock_);
+  MutexLock mu(Thread::Current(), compiled_methods_lock_);
   code_to_patch_.push_back(new PatchInformation(dex_file,
                                                 referrer_method_idx,
                                                 referrer_invoke_type,
@@ -943,7 +945,7 @@ void Compiler::AddMethodPatch(const DexFile* dex_file,
                               uint32_t target_method_idx,
                               InvokeType target_invoke_type,
                               size_t literal_offset) {
-  MutexLock mu(compiled_methods_lock_);
+  MutexLock mu(Thread::Current(), compiled_methods_lock_);
   methods_to_patch_.push_back(new PatchInformation(dex_file,
                                                    referrer_method_idx,
                                                    referrer_invoke_type,
@@ -1068,10 +1070,7 @@ static void ForAll(CompilationContext* context, size_t begin, size_t end, Callba
 
   // Ensure we're suspended while we're blocked waiting for the other threads to finish (worker
   // thread destructor's called below perform join).
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_NE(self->GetState(), kRunnable);
-  }
+  CHECK_NE(self->GetState(), kRunnable);
   STLDeleteElements(&threads);
 }
 
@@ -1427,11 +1426,12 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
                  << " took " << PrettyDuration(duration_ns);
   }
 
+  Thread* self = Thread::Current();
   if (compiled_method != NULL) {
     MethodReference ref(&dex_file, method_idx);
     CHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
     {
-      MutexLock mu(compiled_methods_lock_);
+      MutexLock mu(self, compiled_methods_lock_);
       compiled_methods_.Put(ref, compiled_method);
     }
     DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
@@ -1459,10 +1459,10 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   }
 #endif
 
-  if (Thread::Current()->IsExceptionPending()) {
-    ScopedObjectAccess soa(Thread::Current());
+  if (self->IsExceptionPending()) {
+    ScopedObjectAccess soa(self);
     LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
-        << Thread::Current()->GetException()->Dump();
+        << self->GetException()->Dump();
   }
 }
 
@@ -1472,7 +1472,7 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* s
 }
 
 const CompiledInvokeStub* Compiler::FindInvokeStub(const std::string& key) const {
-  MutexLock mu(compiled_invoke_stubs_lock_);
+  MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
     return NULL;
@@ -1484,7 +1484,7 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(const std::string& key) const
 
 void Compiler::InsertInvokeStub(const std::string& key,
                                 const CompiledInvokeStub* compiled_invoke_stub) {
-  MutexLock mu(compiled_invoke_stubs_lock_);
+  MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::iterator it = compiled_invoke_stubs_.find(key);
   if (it != compiled_invoke_stubs_.end()) {
     // Someone else won the race.
@@ -1496,7 +1496,7 @@ void Compiler::InsertInvokeStub(const std::string& key,
 
 #if defined(ART_USE_LLVM_COMPILER)
 const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
-  MutexLock mu(compiled_proxy_stubs_lock_);
+  MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
   if (it == compiled_proxy_stubs_.end()) {
     return NULL;
@@ -1508,7 +1508,7 @@ const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
 
 void Compiler::InsertProxyStub(const char* shorty,
                                const CompiledInvokeStub* compiled_proxy_stub) {
-  MutexLock mu(compiled_proxy_stubs_lock_);
+  MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   InvokeStubTable::iterator it = compiled_proxy_stubs_.find(shorty);
   if (it != compiled_proxy_stubs_.end()) {
     // Someone else won the race.
@@ -1520,7 +1520,7 @@ void Compiler::InsertProxyStub(const char* shorty,
 #endif
 
 CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
-  MutexLock mu(compiled_classes_lock_);
+  MutexLock mu(Thread::Current(), compiled_classes_lock_);
   ClassTable::const_iterator it = compiled_classes_.find(ref);
   if (it == compiled_classes_.end()) {
     return NULL;
@@ -1530,7 +1530,7 @@ CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
 }
 
 CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
-  MutexLock mu(compiled_methods_lock_);
+  MutexLock mu(Thread::Current(), compiled_methods_lock_);
   MethodTable::const_iterator it = compiled_methods_.find(ref);
   if (it == compiled_methods_.end()) {
     return NULL;

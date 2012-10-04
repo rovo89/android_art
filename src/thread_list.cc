@@ -66,7 +66,7 @@ pid_t ThreadList::GetLockOwner() {
 
 void ThreadList::DumpForSigQuit(std::ostream& os) {
   {
-    MutexLock mu(*Locks::thread_list_lock_);
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
     DumpLocked(os);
   }
   DumpUnattachedThreads(os);
@@ -91,13 +91,14 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
 
   dirent de;
   dirent* e;
+  Thread* self = Thread::Current();
   while (!readdir_r(d, &de, &e) && e != NULL) {
     char* end;
     pid_t tid = strtol(de.d_name, &end, 10);
     if (!*end) {
       bool contains;
       {
-        MutexLock mu(*Locks::thread_list_lock_);
+        MutexLock mu(self, *Locks::thread_list_lock_);
         contains = Contains(tid);
       }
       if (!contains) {
@@ -109,7 +110,7 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
 }
 
 void ThreadList::DumpLocked(std::ostream& os) {
-  Locks::thread_list_lock_->AssertHeld();
+  Locks::thread_list_lock_->AssertHeld(Thread::Current());
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
@@ -117,9 +118,9 @@ void ThreadList::DumpLocked(std::ostream& os) {
   }
 }
 
-void ThreadList::AssertThreadsAreSuspended(Thread* ignore1, Thread* ignore2) {
-  MutexLock mu(*Locks::thread_list_lock_);
-  MutexLock mu2(*Locks::thread_suspend_count_lock_);
+void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2) {
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
     if (thread != ignore1 || thread == ignore2) {
@@ -194,7 +195,7 @@ void ThreadList::SuspendAll() {
 #endif
 
   // Debug check that all threads are suspended.
-  AssertThreadsAreSuspended(self);
+  AssertThreadsAreSuspended(self, self);
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
@@ -205,7 +206,7 @@ void ThreadList::ResumeAll() {
   VLOG(threads) << *self << " ResumeAll starting";
 
   // Debug check that all threads are suspended.
-  AssertThreadsAreSuspended(self);
+  AssertThreadsAreSuspended(self, self);
 
   Locks::mutator_lock_->ExclusiveUnlock(self);
   {
@@ -297,7 +298,7 @@ void ThreadList::SuspendAllForDebugger() {
   Locks::mutator_lock_->ExclusiveLock(self);
   Locks::mutator_lock_->ExclusiveUnlock(self);
 #endif
-  AssertThreadsAreSuspended(self, debug_thread);
+  AssertThreadsAreSuspended(self, self, debug_thread);
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
@@ -422,7 +423,6 @@ void ThreadList::SuspendAllDaemonThreads() {
     bool all_suspended = true;
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
       if (thread != self && thread->GetState() == kRunnable) {
         if (!have_complained) {
           LOG(WARNING) << "daemon thread not yet suspended: " << *thread;

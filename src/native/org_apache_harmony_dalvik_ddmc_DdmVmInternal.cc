@@ -39,7 +39,7 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
   return Dbg::IsAllocTrackingEnabled();
 }
 
-static jobject FindThreadByThinLockId(JNIEnv*, uint32_t thin_lock_id) {
+static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
   struct ThreadFinder {
     explicit ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
     }
@@ -56,7 +56,8 @@ static jobject FindThreadByThinLockId(JNIEnv*, uint32_t thin_lock_id) {
   };
   ThreadFinder finder(thin_lock_id);
   {
-    MutexLock mu(*Locks::thread_list_lock_);
+    Thread* self = static_cast<JNIEnvExt*>(env)->self;
+    MutexLock mu(self, *Locks::thread_list_lock_);
     Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
   }
   if (finder.thread != NULL) {
@@ -133,10 +134,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 
   std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
   JDWP::Append4BE(bytes, t->GetThinLockId());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    JDWP::Append1BE(bytes, t->GetState());
-  }
+  JDWP::Append1BE(bytes, t->GetState());
   JDWP::Append4BE(bytes, t->GetTid());
   JDWP::Append4BE(bytes, utime);
   JDWP::Append4BE(bytes, stime);
@@ -145,8 +143,9 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 
 static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   std::vector<uint8_t> bytes;
+  Thread* self = static_cast<JNIEnvExt*>(env)->self;
   {
-    MutexLock mu(*Locks::thread_list_lock_);
+    MutexLock mu(self, *Locks::thread_list_lock_);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
     uint16_t thread_count = 0;

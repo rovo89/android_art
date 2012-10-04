@@ -44,7 +44,7 @@ static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   }
   CHECK_NE(throws_index, -1);
   ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
-  return soa.AddLocalReference<jobject>(declared_exceptions->Clone());
+  return soa.AddLocalReference<jobject>(declared_exceptions->Clone(soa.Self()));
 }
 
 static jobject Method_findOverriddenMethodNative(JNIEnv* env, jobject javaMethod) {

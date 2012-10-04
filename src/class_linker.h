@@ -313,38 +313,38 @@ class ClassLinker {
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
-  ObjectArray<T>* AllocObjectArray(size_t length)
+  ObjectArray<T>* AllocObjectArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
+    return ObjectArray<T>::Alloc(self, GetClassRoot(kObjectArrayClass), length);
   }
 
-  ObjectArray<Class>* AllocClassArray(size_t length)
+  ObjectArray<Class>* AllocClassArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<Class>::Alloc(GetClassRoot(kClassArrayClass), length);
+    return ObjectArray<Class>::Alloc(self, GetClassRoot(kClassArrayClass), length);
   }
 
-  ObjectArray<String>* AllocStringArray(size_t length)
+  ObjectArray<String>* AllocStringArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<String>::Alloc(GetClassRoot(kJavaLangStringArrayClass), length);
+    return ObjectArray<String>::Alloc(self, GetClassRoot(kJavaLangStringArrayClass), length);
   }
 
-  ObjectArray<AbstractMethod>* AllocMethodArray(size_t length)
+  ObjectArray<AbstractMethod>* AllocMethodArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<AbstractMethod>::Alloc(
+    return ObjectArray<AbstractMethod>::Alloc(self,
         GetClassRoot(kJavaLangReflectAbstractMethodArrayClass), length);
   }
 
-  ObjectArray<InterfaceEntry>* AllocIfTable(size_t length)
+  ObjectArray<InterfaceEntry>* AllocIfTable(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<InterfaceEntry>::Alloc(GetClassRoot(kObjectArrayArrayClass), length);
+    return ObjectArray<InterfaceEntry>::Alloc(self, GetClassRoot(kObjectArrayArrayClass), length);
   }
 
-  ObjectArray<Field>* AllocFieldArray(size_t length)
+  ObjectArray<Field>* AllocFieldArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<Field>::Alloc(GetClassRoot(kJavaLangReflectFieldArrayClass), length);
+    return ObjectArray<Field>::Alloc(self, GetClassRoot(kJavaLangReflectFieldArrayClass), length);
   }
 
-  ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length)
+  ObjectArray<StackTraceElement>* AllocStackTraceElementArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VerifyClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -396,25 +396,25 @@ class ClassLinker {
   void FinishInit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For early bootstrapping by Init
-  Class* AllocClass(Class* java_lang_Class, size_t class_size)
+  Class* AllocClass(Thread* self, Class* java_lang_Class, size_t class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Alloc* convenience functions to avoid needing to pass in Class*
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
-  Class* AllocClass(size_t class_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  DexCache* AllocDexCache(const DexFile& dex_file)
+  Class* AllocClass(Thread* self, size_t class_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  DexCache* AllocDexCache(Thread* self, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Field* AllocField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Method* AllocMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Constructor* AllocConstructor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Field* AllocField(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Method* AllocMethod(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Constructor* AllocConstructor(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  InterfaceEntry* AllocInterfaceEntry(Class* interface)
+  InterfaceEntry* AllocInterfaceEntry(Thread* self, Class* interface)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Class* CreatePrimitiveClass(Primitive::Type type)
+  Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return InitializePrimitiveClass(AllocClass(sizeof(Class)), type);
+    return InitializePrimitiveClass(AllocClass(self, sizeof(Class)), type);
   }
   Class* InitializePrimitiveClass(Class* primitive_class, Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -444,8 +444,9 @@ class ClassLinker {
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
-                  SirtRef<Class>& klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  AbstractMethod* LoadMethod(Thread* self, const DexFile& dex_file,
+                             const ClassDataItemIterator& dex_method,
+                             SirtRef<Class>& klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -538,9 +539,10 @@ class ClassLinker {
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class)
+  AbstractMethod* CreateProxyConstructor(Thread* self, SirtRef<Class>& klass, Class* proxy_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  AbstractMethod* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<AbstractMethod>& prototype)
+  AbstractMethod* CreateProxyMethod(Thread* self, SirtRef<Class>& klass,
+                                    SirtRef<AbstractMethod>& prototype)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;

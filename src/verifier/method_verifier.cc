@@ -3229,7 +3229,7 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
 
 void MethodVerifier::SetDexGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   {
-    MutexLock mu(*dex_gc_maps_lock_);
+    MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
     DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
     if (it != dex_gc_maps_->end()) {
       delete it->second;
@@ -3241,7 +3241,7 @@ void MethodVerifier::SetDexGcMap(Compiler::MethodReference ref, const std::vecto
 }
 
 const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(Compiler::MethodReference ref) {
-  MutexLock mu(*dex_gc_maps_lock_);
+  MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
     return NULL;
@@ -3263,29 +3263,31 @@ MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_catego
 
 void MethodVerifier::Init() {
   dex_gc_maps_lock_ = new Mutex("verifier GC maps lock");
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(*dex_gc_maps_lock_);
+    MutexLock mu(self, *dex_gc_maps_lock_);
     dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
   }
 
   rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
   {
-    MutexLock mu(*rejected_classes_lock_);
+    MutexLock mu(self, *rejected_classes_lock_);
     rejected_classes_ = new MethodVerifier::RejectedClassesTable;
   }
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
   {
-    MutexLock mu(*inferred_reg_category_maps_lock_);
+    MutexLock mu(self, *inferred_reg_category_maps_lock_);
     inferred_reg_category_maps_ = new MethodVerifier::InferredRegCategoryMapTable;
   }
 #endif
 }
 
 void MethodVerifier::Shutdown() {
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(*dex_gc_maps_lock_);
+    MutexLock mu(self, *dex_gc_maps_lock_);
     STLDeleteValues(dex_gc_maps_);
     delete dex_gc_maps_;
     dex_gc_maps_ = NULL;
@@ -3294,7 +3296,7 @@ void MethodVerifier::Shutdown() {
   dex_gc_maps_lock_ = NULL;
 
   {
-    MutexLock mu(*rejected_classes_lock_);
+    MutexLock mu(self, *rejected_classes_lock_);
     delete rejected_classes_;
     rejected_classes_ = NULL;
   }
@@ -3303,7 +3305,7 @@ void MethodVerifier::Shutdown() {
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   {
-    MutexLock mu(*inferred_reg_category_maps_lock_);
+    MutexLock mu(self, *inferred_reg_category_maps_lock_);
     STLDeleteValues(inferred_reg_category_maps_);
     delete inferred_reg_category_maps_;
     inferred_reg_category_maps_ = NULL;
@@ -3315,14 +3317,14 @@ void MethodVerifier::Shutdown() {
 
 void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
   {
-    MutexLock mu(*rejected_classes_lock_);
+    MutexLock mu(Thread::Current(), *rejected_classes_lock_);
     rejected_classes_->insert(ref);
   }
   CHECK(IsClassRejected(ref));
 }
 
 bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
-  MutexLock mu(*rejected_classes_lock_);
+  MutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }
 
@@ -3374,7 +3376,7 @@ const greenland::InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCate
 void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
                                           const InferredRegCategoryMap& inferred_reg_category_map) {
   {
-    MutexLock mu(*inferred_reg_category_maps_lock_);
+    MutexLock mu(Thread::Current(), *inferred_reg_category_maps_lock_);
     InferredRegCategoryMapTable::iterator it = inferred_reg_category_maps_->find(ref);
     if (it == inferred_reg_category_maps_->end()) {
       inferred_reg_category_maps_->Put(ref, &inferred_reg_category_map);
@@ -3388,7 +3390,7 @@ void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
 
 const greenland::InferredRegCategoryMap*
 MethodVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
-  MutexLock mu(*inferred_reg_category_maps_lock_);
+  MutexLock mu(Thread::Current(), *inferred_reg_category_maps_lock_);
 
   InferredRegCategoryMapTable::const_iterator it =
       inferred_reg_category_maps_->find(ref);

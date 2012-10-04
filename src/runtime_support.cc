@@ -100,19 +100,19 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
-      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(self->IsExceptionPending());
       return NULL;  // Failure
     }
   }
   if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-                                            "Bad filled array request for type %s",
-                                            PrettyDescriptor(klass).c_str());
+      self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
+                               "Bad filled array request for type %s",
+                                PrettyDescriptor(klass).c_str());
     } else {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/InternalError;",
-                                            "Found type %s; filled-new-array not implemented for anything but \'int\'",
-                                            PrettyDescriptor(klass).c_str());
+      self->ThrowNewExceptionF("Ljava/lang/InternalError;",
+                               "Found type %s; filled-new-array not implemented for anything but \'int\'",
+                               PrettyDescriptor(klass).c_str());
     }
     return NULL;  // Failure
   } else {
@@ -124,7 +124,7 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int
       }
     }
     DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
-    return Array::Alloc(klass, component_count);
+    return Array::Alloc(self, klass, component_count);
   }
 }
 

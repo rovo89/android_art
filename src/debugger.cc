@@ -55,19 +55,19 @@ class ObjectRegistry {
       return 0;
     }
     JDWP::ObjectId id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(o));
-    MutexLock mu(lock_);
+    MutexLock mu(Thread::Current(), lock_);
     map_.Overwrite(id, o);
     return id;
   }
 
   void Clear() {
-    MutexLock mu(lock_);
+    MutexLock mu(Thread::Current(), lock_);
     LOG(DEBUG) << "Debugger has detached; object registry had " << map_.size() << " entries";
     map_.clear();
   }
 
   bool Contains(JDWP::ObjectId id) {
-    MutexLock mu(lock_);
+    MutexLock mu(Thread::Current(), lock_);
     return map_.find(id) != map_.end();
   }
 
@@ -76,14 +76,14 @@ class ObjectRegistry {
       return NULL;
     }
 
-    MutexLock mu(lock_);
+    MutexLock mu(Thread::Current(), lock_);
     typedef SafeMap<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
     It it = map_.find(id);
     return (it != map_.end()) ? reinterpret_cast<T>(it->second) : reinterpret_cast<T>(kInvalidId);
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
-    MutexLock mu(lock_);
+    MutexLock mu(Thread::Current(), lock_);
     typedef SafeMap<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
     for (It it = map_.begin(); it != map_.end(); ++it) {
       visitor(it->second, arg);
@@ -184,7 +184,7 @@ static SingleStepControl gSingleStepControl GUARDED_BY(gBreakpointsLock);
 
 static bool IsBreakpoint(AbstractMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(Thread::Current(), gBreakpointsLock);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == dex_pc) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
@@ -492,7 +492,7 @@ static void SetDebuggerUpdatesEnabledCallback(Thread* t, void* user_data) {
 }
 
 static void SetDebuggerUpdatesEnabled(bool enabled) {
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
 }
 
@@ -508,7 +508,7 @@ void Dbg::GoActive() {
 
   {
     // TODO: dalvik only warned if there were breakpoints left over. clear in Dbg::Disconnected?
-    MutexLock mu(gBreakpointsLock);
+    MutexLock mu(Thread::Current(), gBreakpointsLock);
     CHECK_EQ(gBreakpoints.size(), 0U);
   }
 
@@ -884,7 +884,7 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int co
 }
 
 JDWP::ObjectId Dbg::CreateString(const std::string& str) {
-  return gRegistry->Add(String::AllocFromModifiedUtf8(str.c_str()));
+  return gRegistry->Add(String::AllocFromModifiedUtf8(Thread::Current(), str.c_str()));
 }
 
 JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object) {
@@ -893,7 +893,7 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_o
   if (c == NULL) {
     return status;
   }
-  new_object = gRegistry->Add(c->AllocObject());
+  new_object = gRegistry->Add(c->AllocObject(Thread::Current()));
   return JDWP::ERR_NONE;
 }
 
@@ -907,7 +907,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId arrayClassId, uint32_t le
   if (c == NULL) {
     return status;
   }
-  new_array = gRegistry->Add(Array::Alloc(c, length));
+  new_array = gRegistry->Add(Array::Alloc(Thread::Current(), c, length));
   return JDWP::ERR_NONE;
 }
 
@@ -1331,8 +1331,9 @@ std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
 }
 
 bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
-  MutexLock mu(*Locks::thread_list_lock_);
-  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  ScopedObjectAccessUnchecked soa(self);
   Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return false;
@@ -1349,7 +1350,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pR
   }
 
   // Okay, so it's an object, but is it actually a thread?
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   if (DecodeThread(soa, threadId) == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
@@ -1408,13 +1409,13 @@ JDWP::ObjectId Dbg::GetMainThreadGroupId() {
 bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
   ScopedObjectAccess soa(Thread::Current());
 
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return false;
   }
 
-  MutexLock mu2(*Locks::thread_suspend_count_lock_);
+  MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
 
   // TODO: if we're in Thread.sleep(long), we should return TS_SLEEPING,
   // even if it's implemented using Object.wait(long).
@@ -1448,28 +1449,28 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
 JDWP::JdwpError Dbg::GetThreadDebugSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
   ScopedObjectAccess soa(Thread::Current());
 
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
-  MutexLock mu2(*Locks::thread_suspend_count_lock_);
+  MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
   expandBufAdd4BE(pReply, thread->GetDebugSuspendCount());
   return JDWP::ERR_NONE;
 }
 
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
   ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   return DecodeThread(soa, threadId) != NULL;
 }
 
 bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
   ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   CHECK(thread != NULL);
-  MutexLock mu2(*Locks::thread_suspend_count_lock_);
+  MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
   return thread->IsSuspended();
 }
 
@@ -1513,7 +1514,7 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* thread_group = gRegistry->Get<Object*>(thread_group_id);
   ThreadListVisitor tlv(soa, thread_group, thread_ids);
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
 }
 
@@ -1554,7 +1555,7 @@ static int GetStackDepth(Thread* thread)
   };
 
   if (kIsDebugBuild) {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
+    MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
     CHECK(thread->IsSuspended());
   }
   CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
@@ -1652,7 +1653,7 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId threadId, bool request_suspens
 void Dbg::ResumeThread(JDWP::ObjectId threadId) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* peer = gRegistry->Get<Object*>(threadId);
-  MutexLock mu(*Locks::thread_list_lock_);
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, peer);
   if (thread == NULL) {
     LOG(WARNING) << "No such thread for resume: " << peer;
@@ -1660,7 +1661,7 @@ void Dbg::ResumeThread(JDWP::ObjectId threadId) {
   }
   bool needs_resume;
   {
-    MutexLock mu2(*Locks::thread_suspend_count_lock_);
+    MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
     needs_resume = thread->GetSuspendCount() > 0;
   }
   if (needs_resume) {
@@ -1716,12 +1717,12 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Thread* thread;
   {
-    MutexLock mu(*Locks::thread_list_lock_);
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
     thread = DecodeThread(soa, thread_id);
     if (thread == NULL) {
       return JDWP::ERR_INVALID_THREAD;
     }
-    MutexLock mu2(*Locks::thread_suspend_count_lock_);
+    MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
     if (!thread->IsSuspended()) {
       return JDWP::ERR_THREAD_NOT_SUSPENDED;
     }
@@ -2020,7 +2021,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
 
   // If the debugger is single-stepping one of our threads, check to
   // see if we're that thread and we've reached a step point.
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(Thread::Current(), gBreakpointsLock);
   if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
     CHECK(!m->IsNative());
     if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
@@ -2104,14 +2105,14 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
 }
 
 void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(Thread::Current(), gBreakpointsLock);
   AbstractMethod* m = FromMethodId(location->method_id);
   gBreakpoints.push_back(Breakpoint(m, location->dex_pc));
   VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
 void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(Thread::Current(), gBreakpointsLock);
   AbstractMethod* m = FromMethodId(location->method_id);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->dex_pc) {
@@ -2130,7 +2131,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     return JDWP::ERR_INVALID_THREAD;
   }
 
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(soa.Self(), gBreakpointsLock);
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
   if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
@@ -2149,7 +2150,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
         EXCLUSIVE_LOCKS_REQUIRED(gBreakpointsLock)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, trace_stack, NULL) {
-      gBreakpointsLock.AssertHeld();
+      gBreakpointsLock.AssertHeld(Thread::Current());
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
@@ -2157,7 +2158,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-      gBreakpointsLock.AssertHeld();
+      gBreakpointsLock.AssertHeld(Thread::Current());
       const AbstractMethod* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
@@ -2188,7 +2189,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     }
 
     static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
-      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
+      MutexLock mu(Thread::Current(), gBreakpointsLock); // Keep GCC happy.
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
       if (static_cast<int32_t>(line_number) == gSingleStepControl.line_number) {
         if (!context->last_pc_valid) {
@@ -2209,7 +2210,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     }
 
     ~DebugCallbackContext() {
-      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
+      MutexLock mu(Thread::Current(), gBreakpointsLock); // Keep GCC happy.
       // If the line number was the last in the position table...
       if (last_pc_valid) {
         size_t end = MethodHelper(gSingleStepControl.method).GetCodeItem()->insns_size_in_code_units_;
@@ -2259,7 +2260,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 }
 
 void Dbg::UnconfigureStep(JDWP::ObjectId /*threadId*/) {
-  MutexLock mu(gBreakpointsLock);
+  MutexLock mu(Thread::Current(), gBreakpointsLock);
 
   gSingleStepControl.is_active = false;
   gSingleStepControl.thread = NULL;
@@ -2307,7 +2308,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
   Thread* self = Thread::Current();
   {
     ScopedObjectAccessUnchecked soa(self);
-    MutexLock mu(*Locks::thread_list_lock_);
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
     targetThread = DecodeThread(soa, threadId);
     if (targetThread == NULL) {
       LOG(ERROR) << "InvokeMethod request for non-existent thread " << threadId;
@@ -2335,7 +2336,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
      */
     int suspend_count;
     {
-      MutexLock mu2(*Locks::thread_suspend_count_lock_);
+      MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
       suspend_count = targetThread->GetSuspendCount();
     }
     if (suspend_count > 1) {
@@ -2411,7 +2412,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 
     VLOG(jdwp) << "    Transferring control to event thread";
     {
-      MutexLock mu(req->lock_);
+      MutexLock mu(self, req->lock_);
 
       if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
         VLOG(jdwp) << "      Resuming all threads";
@@ -2631,12 +2632,9 @@ void Dbg::DdmBroadcast(bool connect) {
   VLOG(jdwp) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    if (self->GetState() != kRunnable) {
-      LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
-      /* try anyway? */
-    }
+  if (self->GetState() != kRunnable) {
+    LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
+    /* try anyway? */
   }
 
   JNIEnv* env = self->GetJniEnv();
@@ -2699,12 +2697,13 @@ void Dbg::DdmSetThreadNotification(bool enable) {
     // notification.
     SuspendVM();
     std::list<Thread*> threads;
+    Thread* self = Thread::Current();
     {
-      MutexLock mu(*Locks::thread_list_lock_);
+      MutexLock mu(self, *Locks::thread_list_lock_);
       threads = Runtime::Current()->GetThreadList()->GetList();
     }
     {
-      ScopedObjectAccess soa(Thread::Current());
+      ScopedObjectAccess soa(self);
       typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
       for (It it = threads.begin(), end = threads.end(); it != end; ++it) {
         Dbg::DdmSendThreadNotification(*it, CHUNK_TYPE("THCR"));
@@ -3096,9 +3095,10 @@ void Dbg::DdmSendHeapSegments(bool native) {
   } else {
     Heap* heap = Runtime::Current()->GetHeap();
     const Spaces& spaces = heap->GetSpaces();
+    Thread* self = Thread::Current();
     for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       if ((*cur)->IsAllocSpace()) {
-        ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }
@@ -3111,7 +3111,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
 }
 
 void Dbg::SetAllocTrackingEnabled(bool enabled) {
-  MutexLock mu(gAllocTrackerLock);
+  MutexLock mu(Thread::Current(), gAllocTrackerLock);
   if (enabled) {
     if (recent_allocation_records_ == NULL) {
       LOG(INFO) << "Enabling alloc tracker (" << kNumAllocRecords << " entries, "
@@ -3164,7 +3164,7 @@ void Dbg::RecordAllocation(Class* type, size_t byte_count) {
   Thread* self = Thread::Current();
   CHECK(self != NULL);
 
-  MutexLock mu(gAllocTrackerLock);
+  MutexLock mu(self, gAllocTrackerLock);
   if (recent_allocation_records_ == NULL) {
     return;
   }
@@ -3203,7 +3203,7 @@ static inline int HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(gAllocTrackerLock) {
 
 void Dbg::DumpRecentAllocations() {
   ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(gAllocTrackerLock);
+  MutexLock mu(soa.Self(), gAllocTrackerLock);
   if (recent_allocation_records_ == NULL) {
     LOG(INFO) << "Not recording tracked allocations";
     return;
@@ -3323,7 +3323,8 @@ jbyteArray Dbg::GetRecentAllocations() {
     DumpRecentAllocations();
   }
 
-  MutexLock mu(gAllocTrackerLock);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, gAllocTrackerLock);
 
   //
   // Part 1: generate string tables.
@@ -3428,7 +3429,7 @@ jbyteArray Dbg::GetRecentAllocations() {
   method_names.WriteTo(bytes);
   filenames.WriteTo(bytes);
 
-  JNIEnv* env = Thread::Current()->GetJniEnv();
+  JNIEnv* env = self->GetJniEnv();
   jbyteArray result = env->NewByteArray(bytes.size());
   if (result != NULL) {
     env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte*>(&bytes[0]));

@@ -112,7 +112,8 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> resolution_trampoline(Thread::Current(), ByteArray::Alloc(cs));
+  Thread* self = Thread::Current();
+  SirtRef<ByteArray> resolution_trampoline(self, ByteArray::Alloc(self, cs));
   CHECK(resolution_trampoline.get() != NULL);
   MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
   assembler->FinalizeInstructions(code);
@@ -157,7 +158,8 @@ ByteArray* CreateAbstractMethodErrorStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> abstract_stub(Thread::Current(), ByteArray::Alloc(cs));
+  Thread* self = Thread::Current();
+  SirtRef<ByteArray> abstract_stub(self, ByteArray::Alloc(self, cs));
   CHECK(abstract_stub.get() != NULL);
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
@@ -197,7 +199,8 @@ ByteArray* CreateJniDlsymLookupStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> jni_stub(Thread::Current(), ByteArray::Alloc(cs));
+  Thread* self = Thread::Current();
+  SirtRef<ByteArray> jni_stub(self, ByteArray::Alloc(self, cs));
   CHECK(jni_stub.get() != NULL);
   MemoryRegion code(jni_stub->GetData(), jni_stub->GetLength());
   assembler->FinalizeInstructions(code);

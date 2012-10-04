@@ -241,15 +241,15 @@ class AllocSpace : public MemMapSpace {
                             size_t capacity, byte* requested_begin);
 
   // Allocate num_bytes without allowing the underlying mspace to grow.
-  virtual Object* AllocWithGrowth(size_t num_bytes);
+  virtual Object* AllocWithGrowth(Thread* self, size_t num_bytes);
 
   // Allocate num_bytes allowing the underlying mspace to grow.
-  virtual Object* AllocWithoutGrowth(size_t num_bytes);
+  virtual Object* AllocWithoutGrowth(Thread* self, size_t num_bytes);
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const Object* obj);
-  virtual void Free(Object* ptr);
-  virtual void FreeList(size_t num_ptrs, Object** ptrs);
+  virtual void Free(Thread* self, Object* ptr);
+  virtual void FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
 
   void* MoreCore(intptr_t increment);
 
@@ -435,8 +435,8 @@ class LargeObjectSpace : public DiscontinuousSpace {
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const Object* obj) = 0;
-  virtual Object* Alloc(size_t num_bytes) = 0;
-  virtual void Free(Object* ptr) = 0;
+  virtual Object* Alloc(Thread* self, size_t num_bytes) = 0;
+  virtual void Free(Thread* self, Object* ptr) = 0;
   virtual void Walk(AllocSpace::WalkCallback, void* arg) = 0;
 
   virtual ~LargeObjectSpace() {}
@@ -472,8 +472,8 @@ class LargeObjectMapSpace : public LargeObjectSpace {
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const Object* obj);
-  virtual Object* Alloc(size_t num_bytes);
-  virtual void Free(Object* ptr);
+  virtual Object* Alloc(Thread* self, size_t num_bytes);
+  virtual void Free(Thread* self, Object* ptr);
   virtual void Walk(AllocSpace::WalkCallback, void* arg);
   virtual bool Contains(const Object* obj) const;
 private:
@@ -481,7 +481,7 @@ private:
   virtual ~LargeObjectMapSpace() {}
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
-  Mutex lock_;
+  mutable Mutex lock_;
   std::vector<Object*> large_objects_;
   typedef SafeMap<Object*, MemMap*> MemMaps;
   MemMaps mem_maps_;
@@ -493,9 +493,9 @@ class FreeListSpace : public LargeObjectSpace {
   static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
   virtual size_t AllocationSize(const Object* obj);
-  virtual Object* Alloc(size_t num_bytes);
-  virtual void Free(Object* obj);
-  virtual void FreeList(size_t num_ptrs, Object** ptrs);
+  virtual Object* Alloc(Thread* self, size_t num_bytes);
+  virtual void Free(Thread* self, Object* obj);
+  virtual void FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
   virtual bool Contains(const Object* obj) const;
   virtual void Walk(AllocSpace::WalkCallback callback, void* arg);
 

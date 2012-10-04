@@ -78,7 +78,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* met
     DCHECK(self->IsExceptionPending());
     return NULL;  // Failure
   }
-  return klass->AllocObject();
+  return klass->AllocObject(self);
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
@@ -86,11 +86,10 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* met
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 static inline Array* AllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
-                                        bool access_check)
+                                        Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
-                                          component_count);
+    self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
   }
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
@@ -109,7 +108,7 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, AbstractMethod* metho
       return NULL;  // Failure
     }
   }
-  return Array::Alloc(klass, component_count);
+  return Array::Alloc(self, klass, component_count);
 }
 
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,

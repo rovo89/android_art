@@ -29,7 +29,7 @@ TEST_F(InternTableTest, Intern) {
   InternTable intern_table;
   SirtRef<String> foo_1(soa.Self(), intern_table.InternStrong(3, "foo"));
   SirtRef<String> foo_2(soa.Self(), intern_table.InternStrong(3, "foo"));
-  SirtRef<String> foo_3(soa.Self(), String::AllocFromModifiedUtf8("foo"));
+  SirtRef<String> foo_3(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
   SirtRef<String> bar(soa.Self(), intern_table.InternStrong(3, "bar"));
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
@@ -47,7 +47,7 @@ TEST_F(InternTableTest, Size) {
   InternTable t;
   EXPECT_EQ(0U, t.Size());
   t.InternStrong(3, "foo");
-  SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8("foo"));
+  SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
   t.InternWeak(foo.get());
   EXPECT_EQ(1U, t.Size());
   t.InternStrong(3, "bar");
@@ -91,8 +91,8 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   InternTable t;
   t.InternStrong(3, "foo");
   t.InternStrong(3, "bar");
-  SirtRef<String> hello(soa.Self(), String::AllocFromModifiedUtf8("hello"));
-  SirtRef<String> world(soa.Self(), String::AllocFromModifiedUtf8("world"));
+  SirtRef<String> hello(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "hello"));
+  SirtRef<String> world(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "world"));
   SirtRef<String> s0(soa.Self(), t.InternWeak(hello.get()));
   SirtRef<String> s1(soa.Self(), t.InternWeak(world.get()));
 
@@ -110,7 +110,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   EXPECT_EQ(2U, t.Size());
 
   // Just check that we didn't corrupt the map.
-  SirtRef<String> still_here(soa.Self(), String::AllocFromModifiedUtf8("still here"));
+  SirtRef<String> still_here(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "still here"));
   t.InternWeak(still_here.get());
   EXPECT_EQ(3U, t.Size());
 }
@@ -130,8 +130,8 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Weaks are always weak.
     InternTable t;
-    SirtRef<String> foo_1(soa.Self(), String::AllocFromModifiedUtf8("foo"));
-    SirtRef<String> foo_2(soa.Self(), String::AllocFromModifiedUtf8("foo"));
+    SirtRef<String> foo_1(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+    SirtRef<String> foo_2(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
     EXPECT_NE(foo_1.get(), foo_2.get());
     SirtRef<String> interned_foo_1(soa.Self(), t.InternWeak(foo_1.get()));
     SirtRef<String> interned_foo_2(soa.Self(), t.InternWeak(foo_2.get()));
@@ -142,7 +142,7 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // A weak can be promoted to a strong.
     InternTable t;
-    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8("foo"));
+    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
     SirtRef<String> interned_foo_1(soa.Self(), t.InternWeak(foo.get()));
     EXPECT_TRUE(t.ContainsWeak(interned_foo_1.get()));
     SirtRef<String> interned_foo_2(soa.Self(), t.InternStrong(3, "foo"));
@@ -155,7 +155,7 @@ TEST_F(InternTableTest, ContainsWeak) {
     InternTable t;
     SirtRef<String> interned_foo_1(soa.Self(), t.InternStrong(3, "foo"));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_1.get()));
-    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8("foo"));
+    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
     SirtRef<String> interned_foo_2(soa.Self(), t.InternWeak(foo.get()));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_2.get()));
     EXPECT_EQ(interned_foo_1.get(), interned_foo_2.get());

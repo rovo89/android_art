@@ -208,13 +208,13 @@ Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
   return result;
 }
 
-Object* AllocSpace::AllocWithoutGrowth(size_t num_bytes) {
-  MutexLock mu(lock_);
+Object* AllocSpace::AllocWithoutGrowth(Thread* self, size_t num_bytes) {
+  MutexLock mu(self, lock_);
   return AllocWithoutGrowthLocked(num_bytes);
 }
 
-Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
-  MutexLock mu(lock_);
+Object* AllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes) {
+  MutexLock mu(self, lock_);
   // Grow as much as possible within the mspace.
   size_t max_allowed = Capacity();
   mspace_set_footprint_limit(mspace_, max_allowed);
@@ -284,8 +284,8 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   return alloc_space;
 }
 
-void AllocSpace::Free(Object* ptr) {
-  MutexLock mu(lock_);
+void AllocSpace::Free(Thread* self, Object* ptr) {
+  MutexLock mu(self, lock_);
   if (kDebugSpaces) {
     CHECK(ptr != NULL);
     CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
@@ -298,8 +298,8 @@ void AllocSpace::Free(Object* ptr) {
   mspace_free(mspace_, ptr);
 }
 
-void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
-  MutexLock mu(lock_);
+void AllocSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
+  MutexLock mu(self, lock_);
   if (kDebugSpaces) {
     CHECK(ptrs != NULL);
     size_t num_broken_ptrs = 0;
@@ -329,7 +329,7 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
 }
 
 void* AllocSpace::MoreCore(intptr_t increment) {
-  lock_.AssertHeld();
+  lock_.AssertHeld(Thread::Current());
   byte* original_end = end_;
   if (increment != 0) {
     VLOG(heap) << "AllocSpace::MoreCore " << PrettySize(increment);
@@ -382,7 +382,7 @@ void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* a
 }
 
 void AllocSpace::Trim() {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   // Trim to release memory at the end of the space.
   mspace_trim(mspace_, 0);
   // Visit space looking for page-sized holes to advise the kernel we don't need.
@@ -391,18 +391,18 @@ void AllocSpace::Trim() {
 
 void AllocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                       void* arg) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   mspace_inspect_all(mspace_, callback, arg);
   callback(NULL, NULL, 0, arg);  // Indicate end of a space.
 }
 
 size_t AllocSpace::GetFootprintLimit() {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   return mspace_footprint_limit(mspace_);
 }
 
 void AllocSpace::SetFootprintLimit(size_t new_size) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   VLOG(heap) << "AllocSpace::SetFootprintLimit " << PrettySize(new_size);
   // Compare against the actual footprint, rather than the Size(), because the heap may not have
   // grown all the way to the allowed size yet.
@@ -575,12 +575,12 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
   return new LargeObjectMapSpace(name);
 }
 
-Object* LargeObjectMapSpace::Alloc(size_t num_bytes) {
-  MutexLock mu(lock_);
+Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
   MemMap* mem_map = MemMap::MapAnonymous("allocation", NULL, num_bytes, PROT_READ | PROT_WRITE);
   if (mem_map == NULL) {
     return NULL;
   }
+  MutexLock mu(self, lock_);
   Object* obj = reinterpret_cast<Object*>(mem_map->Begin());
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
@@ -589,8 +589,8 @@ Object* LargeObjectMapSpace::Alloc(size_t num_bytes) {
   return obj;
 }
 
-void LargeObjectMapSpace::Free(Object* ptr) {
-  MutexLock mu(lock_);
+void LargeObjectMapSpace::Free(Thread* self, Object* ptr) {
+  MutexLock mu(self, lock_);
   MemMaps::iterator found = mem_maps_.find(ptr);
   CHECK(found != mem_maps_.end()) << "Attempted to free large object which was not live";
   DCHECK_GE(num_bytes_allocated_, found->second->Size());
@@ -601,14 +601,14 @@ void LargeObjectMapSpace::Free(Object* ptr) {
 }
 
 size_t LargeObjectMapSpace::AllocationSize(const Object* obj) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   MemMaps::iterator found = mem_maps_.find(const_cast<Object*>(obj));
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
   return found->second->Size();
 }
 
 void LargeObjectMapSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   for (MemMaps::iterator it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
     MemMap* mem_map = it->second;
     callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
@@ -617,7 +617,7 @@ void LargeObjectMapSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
 }
 
 bool LargeObjectMapSpace::Contains(const Object* obj) const {
-  MutexLock mu(const_cast<Mutex&>(lock_));
+  MutexLock mu(Thread::Current(), lock_);
   return mem_maps_.find(const_cast<Object*>(obj)) != mem_maps_.end();
 }
 
@@ -679,7 +679,7 @@ void FreeListSpace::RemoveFreeChunk(Chunk* chunk) {
 }
 
 void FreeListSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
-  MutexLock mu(lock_);
+  MutexLock mu(Thread::Current(), lock_);
   for (Chunk* chunk = &chunks_.front(); chunk < &chunks_.back(); ) {
     if (!chunk->IsFree()) {
       size_t size = chunk->GetSize();
@@ -692,8 +692,8 @@ void FreeListSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
   }
 }
 
-void FreeListSpace::Free(Object* obj) {
-  MutexLock mu(lock_);
+void FreeListSpace::Free(Thread* self, Object* obj) {
+  MutexLock mu(self, lock_);
   CHECK(Contains(obj));
   // Check adjacent chunks to see if we need to combine.
   Chunk* chunk = ChunkFromAddr(obj);
@@ -734,8 +734,8 @@ size_t FreeListSpace::AllocationSize(const Object* obj) {
   return chunk->GetSize();
 }
 
-Object* FreeListSpace::Alloc(size_t num_bytes) {
-  MutexLock mu(lock_);
+Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
+  MutexLock mu(self, lock_);
   num_bytes = RoundUp(num_bytes, kAlignment);
   Chunk temp;
   temp.SetSize(num_bytes);
@@ -762,9 +762,9 @@ Object* FreeListSpace::Alloc(size_t num_bytes) {
   return reinterpret_cast<Object*>(addr);
 }
 
-void FreeListSpace::FreeList(size_t num_ptrs, Object** ptrs) {
+void FreeListSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
   for (size_t i = 0; i < num_ptrs; ++i) {
-    Free(ptrs[i]);
+    Free(self, ptrs[i]);
   }
 }
 

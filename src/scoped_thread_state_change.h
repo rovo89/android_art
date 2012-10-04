@@ -35,7 +35,7 @@ class ScopedThreadStateChange {
     if (self_ == NULL) {
       // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
       old_thread_state_ = kTerminated;
-      MutexLock mu(*Locks::runtime_shutdown_lock_);
+      MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
       Runtime* runtime = Runtime::Current();
       CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown());
     } else {
@@ -63,7 +63,7 @@ class ScopedThreadStateChange {
   ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) {
     if (self_ == NULL) {
       if (!expected_has_no_thread_) {
-        MutexLock mu(*Locks::runtime_shutdown_lock_);
+        MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
         Runtime* runtime = Runtime::Current();
         bool shutting_down = (runtime == NULL) || runtime->IsShuttingDown();
         CHECK(shutting_down);

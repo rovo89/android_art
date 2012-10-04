@@ -773,7 +773,7 @@ TEST_F(ClassLinkerTest, LibCore) {
 TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
   Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
-  ObjectArray<String>* array = ObjectArray<String>::Alloc(array_class, 0);
+  ObjectArray<String>* array = ObjectArray<String>::Alloc(soa.Self(), array_class, 0);
   uint32_t array_offset = reinterpret_cast<uint32_t>(array);
   uint32_t data_offset =
       array_offset + ObjectArray<String>::DataOffset(sizeof(String*)).Uint32Value();
@@ -786,27 +786,27 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<LongArray> long_array(soa.Self(), LongArray::Alloc(0));
+  SirtRef<LongArray> long_array(soa.Self(), LongArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[J"), long_array->GetClass());
   uintptr_t data_offset = reinterpret_cast<uintptr_t>(long_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Longs require 8 byte alignment
 
-  SirtRef<DoubleArray> double_array(soa.Self(), DoubleArray::Alloc(0));
+  SirtRef<DoubleArray> double_array(soa.Self(), DoubleArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[D"), double_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(double_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Doubles require 8 byte alignment
 
-  SirtRef<IntArray> int_array(soa.Self(), IntArray::Alloc(0));
+  SirtRef<IntArray> int_array(soa.Self(), IntArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[I"), int_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(int_array->GetData());
   EXPECT_TRUE(IsAligned<4>(data_offset));  // Ints require 4 byte alignment
 
-  SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(0));
+  SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[C"), char_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(char_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Chars require 2 byte alignment
 
-  SirtRef<ShortArray> short_array(soa.Self(), ShortArray::Alloc(0));
+  SirtRef<ShortArray> short_array(soa.Self(), ShortArray::Alloc(soa.Self(), 0));
   EXPECT_EQ(class_linker_->FindSystemClass("[S"), short_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(short_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Shorts require 2 byte alignment
@@ -923,7 +923,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   fh.ChangeField(s8);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
-  s8->SetObject(NULL, String::AllocFromModifiedUtf8("robot"));
+  s8->SetObject(NULL, String::AllocFromModifiedUtf8(soa.Self(), "robot"));
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322

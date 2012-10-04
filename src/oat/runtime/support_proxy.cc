@@ -104,7 +104,7 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
   args_jobj[2].l = NULL;
   ObjectArray<Object>* args = NULL;
   if ((num_params - 1) > 0) {
-    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
+    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(self, num_params - 1);
     if (args == NULL) {
       CHECK(self->IsExceptionPending());
       return;
@@ -120,7 +120,7 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver
   param_index = 0;
-  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
+  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes(self);
   if (param_types == NULL) {
     CHECK(self->IsExceptionPending());
     return;

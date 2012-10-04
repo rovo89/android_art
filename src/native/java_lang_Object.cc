@@ -23,7 +23,7 @@ namespace art {
 static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
   Object* o = soa.Decode<Object*>(javaThis);
-  return soa.AddLocalReference<jobject>(o->Clone());
+  return soa.AddLocalReference<jobject>(o->Clone(soa.Self()));
 }
 
 static void Object_notify(JNIEnv* env, jobject javaThis) {

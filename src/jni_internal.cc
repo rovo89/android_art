@@ -195,7 +195,7 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   }
   JavaVMExt* vm = soa.Vm();
   IndirectReferenceTable& weak_globals = vm->weak_globals;
-  MutexLock mu(vm->weak_globals_lock);
+  MutexLock mu(soa.Self(), vm->weak_globals_lock);
   IndirectRef ref = weak_globals.Add(IRT_FIRST_SEGMENT, obj);
   return reinterpret_cast<jweak>(ref);
 }
@@ -203,15 +203,27 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
 static void CheckMethodArguments(AbstractMethod* m, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
-  ObjectArray<Class>* parameter_types = mh.GetParameterTypes();
-  CHECK(parameter_types != NULL);
+  const DexFile::TypeList* params = mh.GetParameterTypeList();
+  if (params == NULL) {
+    return;  // No arguments so nothing to check.
+  }
+  uint32_t num_params = params->Size();
   size_t error_count = 0;
-  for (int i = 0; i < parameter_types->GetLength(); ++i) {
-    Class* parameter_type = parameter_types->Get(i);
-    // TODO: check primitives are in range.
-    if (!parameter_type->IsPrimitive()) {
+  for (uint32_t i = 0; i < num_params; i++) {
+    uint16_t type_idx = params->GetTypeItem(i).type_idx_;
+    Class* param_type = mh.GetClassFromTypeIdx(type_idx);
+    if (param_type == NULL) {
+      Thread* self = Thread::Current();
+      CHECK(self->IsExceptionPending());
+      LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
+          << mh.GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
+          << self->GetException()->Dump();
+      self->ClearException();
+      ++error_count;
+    } else if (!param_type->IsPrimitive()) {
+      // TODO: check primitives are in range.
       Object* argument = args[i].GetL();
-      if (argument != NULL && !argument->InstanceOf(parameter_type)) {
+      if (argument != NULL && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
                    << PrettyTypeOf(argument) << " as argument " << (i + 1) << " to " << PrettyMethod(m);
         ++error_count;
@@ -382,14 +394,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
 static void PinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
-  MutexLock mu(vm->pins_lock);
+  MutexLock mu(soa.Self(), vm->pins_lock);
   vm->pin_table.Add(array);
 }
 
 static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
-  MutexLock mu(vm->pins_lock);
+  MutexLock mu(soa.Self(), vm->pins_lock);
   vm->pin_table.Remove(array);
 }
 
@@ -521,7 +533,7 @@ class SharedLibrary {
     self->TransitionFromRunnableToSuspended(kWaitingForJniOnLoad);
     bool okay;
     {
-      MutexLock mu(jni_on_load_lock_);
+      MutexLock mu(self, jni_on_load_lock_);
 
       if (jni_on_load_thread_id_ == self->GetThinLockId()) {
         // Check this so we don't end up waiting for ourselves.  We need to return "true" so the
@@ -544,7 +556,7 @@ class SharedLibrary {
   }
 
   void SetResult(bool result) LOCKS_EXCLUDED(jni_on_load_lock_) {
-    MutexLock mu(jni_on_load_lock_);
+    MutexLock mu(Thread::Current(), jni_on_load_lock_);
 
     jni_on_load_result_ = result ? kOkay : kFailed;
     jni_on_load_thread_id_ = 0;
@@ -836,7 +848,7 @@ class JNI {
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& globals = vm->globals;
     Object* decoded_obj = soa.Decode<Object*>(obj);
-    MutexLock mu(vm->globals_lock);
+    MutexLock mu(soa.Self(), vm->globals_lock);
     IndirectRef ref = globals.Add(IRT_FIRST_SEGMENT, decoded_obj);
     return reinterpret_cast<jobject>(ref);
   }
@@ -848,7 +860,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& globals = vm->globals;
-    MutexLock mu(vm->globals_lock);
+    MutexLock mu(soa.Self(), vm->globals_lock);
 
     if (!globals.Remove(IRT_FIRST_SEGMENT, obj)) {
       LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
@@ -868,7 +880,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& weak_globals = vm->weak_globals;
-    MutexLock mu(vm->weak_globals_lock);
+    MutexLock mu(soa.Self(), vm->weak_globals_lock);
 
     if (!weak_globals.Remove(IRT_FIRST_SEGMENT, obj)) {
       LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
@@ -918,7 +930,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
-    return soa.AddLocalReference<jobject>(c->AllocObject());
+    return soa.AddLocalReference<jobject>(c->AllocObject(soa.Self()));
   }
 
   static jobject NewObject(JNIEnv* env, jclass c, jmethodID mid, ...) {
@@ -935,7 +947,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
-    Object* result = c->AllocObject();
+    Object* result = c->AllocObject(soa.Self());
     if (result == NULL) {
       return NULL;
     }
@@ -954,7 +966,7 @@ class JNI {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
-    Object* result = c->AllocObject();
+    Object* result = c->AllocObject(soa.Self());
     if (result == NULL) {
       return NULL;
     }
@@ -1754,7 +1766,7 @@ class JNI {
 
   static jstring NewString(JNIEnv* env, const jchar* chars, jsize char_count) {
     ScopedObjectAccess soa(env);
-    String* result = String::AllocFromUtf16(char_count, chars);
+    String* result = String::AllocFromUtf16(soa.Self(), char_count, chars);
     return soa.AddLocalReference<jstring>(result);
   }
 
@@ -1763,7 +1775,7 @@ class JNI {
       return NULL;
     }
     ScopedObjectAccess soa(env);
-    String* result = String::AllocFromModifiedUtf8(utf);
+    String* result = String::AllocFromModifiedUtf8(soa.Self(), utf);
     return soa.AddLocalReference<jstring>(result);
   }
 
@@ -1923,7 +1935,7 @@ class JNI {
 
     // Allocate and initialize if necessary.
     Class* array_class = soa.Decode<Class*>(java_array_class.get());
-    ObjectArray<Object>* result = ObjectArray<Object>::Alloc(array_class, length);
+    ObjectArray<Object>* result = ObjectArray<Object>::Alloc(soa.Self(), array_class, length);
     if (initial_element != NULL) {
       Object* initial_object = soa.Decode<Object*>(initial_element);
       for (jsize i = 0; i < length; ++i) {
@@ -2297,7 +2309,7 @@ class JNI {
   static JniT NewPrimitiveArray(const ScopedObjectAccess& soa, jsize length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_GE(length, 0); // TODO: ReportJniError
-    ArtT* result = ArtT::Alloc(length);
+    ArtT* result = ArtT::Alloc(soa.Self(), length);
     return soa.AddLocalReference<JniT>(result);
   }
 
@@ -2762,16 +2774,17 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
     os << " (with forcecopy)";
   }
   os << "; workarounds are " << (work_around_app_jni_bugs ? "on" : "off");
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(pins_lock);
+    MutexLock mu(self, pins_lock);
     os << "; pins=" << pin_table.Size();
   }
   {
-    MutexLock mu(globals_lock);
+    MutexLock mu(self, globals_lock);
     os << "; globals=" << globals.Capacity();
   }
   {
-    MutexLock mu(weak_globals_lock);
+    MutexLock mu(self, weak_globals_lock);
     if (weak_globals.Capacity() > 0) {
       os << " (plus " << weak_globals.Capacity() << " weak)";
     }
@@ -2779,22 +2792,23 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   os << '\n';
 
   {
-    MutexLock mu(libraries_lock);
+    MutexLock mu(self, libraries_lock);
     os << "Libraries: " << Dumpable<Libraries>(*libraries) << " (" << libraries->size() << ")\n";
   }
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(globals_lock);
+    MutexLock mu(self, globals_lock);
     globals.Dump(os);
   }
   {
-    MutexLock mu(weak_globals_lock);
+    MutexLock mu(self, weak_globals_lock);
     weak_globals.Dump(os);
   }
   {
-    MutexLock mu(pins_lock);
+    MutexLock mu(self, pins_lock);
     pin_table.Dump(os);
   }
 }
@@ -2808,9 +2822,10 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   // TODO: for better results we should canonicalize the pathname (or even compare
   // inodes). This implementation is fine if everybody is using System.loadLibrary.
   SharedLibrary* library;
+  Thread* self = Thread::Current();
   {
     // TODO: move the locking (and more of this logic) into Libraries.
-    MutexLock mu(libraries_lock);
+    MutexLock mu(self, libraries_lock);
     library = libraries->Get(path);
   }
   if (library != NULL) {
@@ -2847,7 +2862,6 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
   // This can execute slowly for a large library on a busy system, so we
   // want to switch from kRunnable while it executes.  This allows the GC to ignore us.
-  Thread* self = Thread::Current();
   self->TransitionFromRunnableToSuspended(kWaitingForJniOnLoad);
   void* handle = dlopen(path.empty() ? NULL : path.c_str(), RTLD_LAZY);
   self->TransitionFromSuspendedToRunnable();
@@ -2864,7 +2878,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   // TODO: move the locking (and more of this logic) into Libraries.
   bool created_library = false;
   {
-    MutexLock mu(libraries_lock);
+    MutexLock mu(self, libraries_lock);
     library = libraries->Get(path);
     if (library == NULL) {  // We won race to get libraries_lock
       library = new SharedLibrary(path, handle, class_loader);
@@ -2942,24 +2956,26 @@ void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
 
   std::string detail;
   void* native_method;
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(libraries_lock);
+    MutexLock mu(self, libraries_lock);
     native_method = libraries->FindNativeMethod(m, detail);
   }
   // throwing can cause libraries_lock to be reacquired
   if (native_method == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
+    self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
 }
 
 void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  Thread* self = Thread::Current();
   {
-    MutexLock mu(globals_lock);
+    MutexLock mu(self, globals_lock);
     globals.VisitRoots(visitor, arg);
   }
   {
-    MutexLock mu(pins_lock);
+    MutexLock mu(self, pins_lock);
     pin_table.VisitRoots(visitor, arg);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).

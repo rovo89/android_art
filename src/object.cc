@@ -47,7 +47,7 @@ String* Object::AsString() {
   return down_cast<String*>(this);
 }
 
-Object* Object::Clone() {
+Object* Object::Clone(Thread* self) {
   Class* c = GetClass();
   DCHECK(!c->IsClassClass());
 
@@ -55,7 +55,7 @@ Object* Object::Clone() {
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
   Heap* heap = Runtime::Current()->GetHeap();
-  SirtRef<Object> copy(Thread::Current(), heap->AllocObject(c, num_bytes));
+  SirtRef<Object> copy(self, heap->AllocObject(self, c, num_bytes));
   if (copy.get() == NULL) {
     return NULL;
   }
@@ -727,13 +727,13 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache, false);
 }
 
-Object* Class::AllocObject() {
+Object* Class::AllocObject(Thread* self) {
   DCHECK(!IsArrayClass()) << PrettyClass(this);
   DCHECK(IsInstantiable()) << PrettyClass(this);
   // TODO: decide whether we want this check. It currently fails during bootstrap.
   // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
-  return Runtime::Current()->GetHeap()->AllocObject(this, this->object_size_);
+  return Runtime::Current()->GetHeap()->AllocObject(self, this, this->object_size_);
 }
 
 void Class::SetClassSize(size_t new_class_size) {
@@ -768,7 +768,7 @@ String* Class::ComputeName() {
     default:
       LOG(FATAL) << "Unknown primitive type: " << PrintableChar(descriptor[0]);
     }
-    name = String::AllocFromModifiedUtf8(c_name);
+    name = String::AllocFromModifiedUtf8(Thread::Current(), c_name);
   } else {
     // Convert the UTF-8 name to a java.lang.String. The name must use '.' to separate package
     // components.
@@ -777,7 +777,7 @@ String* Class::ComputeName() {
       descriptor.erase(descriptor.size() - 1);
     }
     std::replace(descriptor.begin(), descriptor.end(), '/', '.');
-    name = String::AllocFromModifiedUtf8(descriptor.c_str());
+    name = String::AllocFromModifiedUtf8(Thread::Current(), descriptor.c_str());
   }
   SetName(name);
   return name;
@@ -1288,7 +1288,8 @@ Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
   return NULL;
 }
 
-Array* Array::Alloc(Class* array_class, int32_t component_count, size_t component_size) {
+Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
+                    size_t component_size) {
   DCHECK(array_class != NULL);
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
@@ -1300,14 +1301,14 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   // Check for overflow and throw OutOfMemoryError if this was an unreasonable request.
   size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
   if (data_size >> component_shift != size_t(component_count) || size < data_size) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
+    self->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
         "%s of length %d would overflow",
         PrettyDescriptor(array_class).c_str(), component_count);
     return NULL;
   }
 
   Heap* heap = Runtime::Current()->GetHeap();
-  Array* array = down_cast<Array*>(heap->AllocObject(array_class, size));
+  Array* array = down_cast<Array*>(heap->AllocObject(self, array_class, size));
   if (array != NULL) {
     DCHECK(array->IsArrayInstance());
     array->SetLength(component_count);
@@ -1315,9 +1316,9 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   return array;
 }
 
-Array* Array::Alloc(Class* array_class, int32_t component_count) {
+Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
   DCHECK(array_class->IsArrayClass());
-  return Alloc(array_class, component_count, array_class->GetComponentSize());
+  return Alloc(self, array_class, component_count, array_class->GetComponentSize());
 }
 
 bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
@@ -1334,9 +1335,9 @@ bool Array::ThrowArrayStoreException(Object* object) const {
 }
 
 template<typename T>
-PrimitiveArray<T>* PrimitiveArray<T>::Alloc(size_t length) {
+PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
   DCHECK(array_class_ != NULL);
-  Array* raw_array = Array::Alloc(array_class_, length, sizeof(T));
+  Array* raw_array = Array::Alloc(self, array_class_, length, sizeof(T));
   return down_cast<PrimitiveArray<T>*>(raw_array);
 }
 
@@ -1402,11 +1403,12 @@ uint16_t String::CharAt(int32_t index) const {
   return GetCharArray()->Get(index + GetOffset());
 }
 
-String* String::AllocFromUtf16(int32_t utf16_length,
+String* String::AllocFromUtf16(Thread* self,
+                               int32_t utf16_length,
                                const uint16_t* utf16_data_in,
                                int32_t hash_code) {
   CHECK(utf16_data_in != NULL || utf16_length == 0);
-  String* string = Alloc(GetJavaLangString(), utf16_length);
+  String* string = Alloc(self, GetJavaLangString(), utf16_length);
   if (string == NULL) {
     return NULL;
   }
@@ -1426,17 +1428,17 @@ String* String::AllocFromUtf16(int32_t utf16_length,
   return string;
 }
 
-String* String::AllocFromModifiedUtf8(const char* utf) {
+  String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
   if (utf == NULL) {
     return NULL;
   }
   size_t char_count = CountModifiedUtf8Chars(utf);
-  return AllocFromModifiedUtf8(char_count, utf);
+  return AllocFromModifiedUtf8(self, char_count, utf);
 }
 
-String* String::AllocFromModifiedUtf8(int32_t utf16_length,
+String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                       const char* utf8_data_in) {
-  String* string = Alloc(GetJavaLangString(), utf16_length);
+  String* string = Alloc(self, GetJavaLangString(), utf16_length);
   if (string == NULL) {
     return NULL;
   }
@@ -1447,18 +1449,18 @@ String* String::AllocFromModifiedUtf8(int32_t utf16_length,
   return string;
 }
 
-String* String::Alloc(Class* java_lang_String, int32_t utf16_length) {
-  SirtRef<CharArray> array(Thread::Current(), CharArray::Alloc(utf16_length));
+String* String::Alloc(Thread* self, Class* java_lang_String, int32_t utf16_length) {
+  SirtRef<CharArray> array(self, CharArray::Alloc(self, utf16_length));
   if (array.get() == NULL) {
     return NULL;
   }
-  return Alloc(java_lang_String, array.get());
+  return Alloc(self, java_lang_String, array.get());
 }
 
-String* String::Alloc(Class* java_lang_String, CharArray* array) {
+String* String::Alloc(Thread* self, Class* java_lang_String, CharArray* array) {
   // Hold reference in case AllocObject causes GC.
-  SirtRef<CharArray> array_ref(Thread::Current(), array);
-  String* string = down_cast<String*>(java_lang_String->AllocObject());
+  SirtRef<CharArray> array_ref(self, array);
+  String* string = down_cast<String*>(java_lang_String->AllocObject(self));
   if (string == NULL) {
     return NULL;
   }
@@ -1610,12 +1612,13 @@ void StackTraceElement::ResetClass() {
   java_lang_StackTraceElement_ = NULL;
 }
 
-StackTraceElement* StackTraceElement::Alloc(String* declaring_class,
+StackTraceElement* StackTraceElement::Alloc(Thread* self,
+                                            String* declaring_class,
                                             String* method_name,
                                             String* file_name,
                                             int32_t line_number) {
   StackTraceElement* trace =
-      down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject());
+      down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
   trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_),
                         const_cast<String*>(declaring_class), false);
   trace->SetFieldObject(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_),

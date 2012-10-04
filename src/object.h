@@ -177,7 +177,7 @@ class MANAGED Object {
 
   size_t SizeOf() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* Clone() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* Clone(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t IdentityHashCode() const {
   #ifdef MOVING_GARBAGE_COLLECTOR
@@ -1054,10 +1054,11 @@ class MANAGED Array : public Object {
  public:
   // A convenience for code that doesn't know the component size,
   // and doesn't want to have to work it out itself.
-  static Array* Alloc(Class* array_class, int32_t component_count)
+  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Array* Alloc(Class* array_class, int32_t component_count, size_t component_size)
+  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
+                      size_t component_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t SizeOf() const;
@@ -1121,7 +1122,7 @@ class MANAGED Array : public Object {
 template<class T>
 class MANAGED ObjectArray : public Array {
  public:
-  static ObjectArray<T>* Alloc(Class* object_array_class, int32_t length)
+  static ObjectArray<T>* Alloc(Thread* self, Class* object_array_class, int32_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   T* Get(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -1139,7 +1140,7 @@ class MANAGED ObjectArray : public Array {
                    size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<T>* CopyOf(int32_t new_length)
+  ObjectArray<T>* CopyOf(Thread* self, int32_t new_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
@@ -1147,8 +1148,8 @@ class MANAGED ObjectArray : public Array {
 };
 
 template<class T>
-ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length) {
-  Array* array = Array::Alloc(object_array_class, length, sizeof(Object*));
+ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_class, int32_t length) {
+  Array* array = Array::Alloc(self, object_array_class, length, sizeof(Object*));
   if (UNLIKELY(array == NULL)) {
     return NULL;
   } else {
@@ -1166,8 +1167,8 @@ inline T* ObjectArray<T>::Get(int32_t i) const {
 }
 
 template<class T>
-ObjectArray<T>* ObjectArray<T>::CopyOf(int32_t new_length) {
-  ObjectArray<T>* new_array = Alloc(GetClass(), new_length);
+ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) {
+  ObjectArray<T>* new_array = Alloc(self, GetClass(), new_length);
   Copy(this, 0, new_array, 0, std::min(GetLength(), new_length));
   return new_array;
 }
@@ -1450,7 +1451,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Creates a raw object instance but does not invoke the default constructor.
-  Object* AllocObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVariableSize() const {
     // Classes and arrays vary in size, and so the object_size_ field cannot
@@ -2282,7 +2283,7 @@ class MANAGED PrimitiveArray : public Array {
  public:
   typedef T ElementType;
 
-  static PrimitiveArray<T>* Alloc(size_t length)
+  static PrimitiveArray<T>* Alloc(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const T* GetData() const {
@@ -2370,22 +2371,23 @@ class MANAGED String : public Object {
 
   String* Intern() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* AllocFromUtf16(int32_t utf16_length,
+  static String* AllocFromUtf16(Thread* self,
+                                int32_t utf16_length,
                                 const uint16_t* utf16_data_in,
                                 int32_t hash_code = 0)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* AllocFromModifiedUtf8(const char* utf)
+  static String* AllocFromModifiedUtf8(Thread* self, const char* utf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* AllocFromModifiedUtf8(int32_t utf16_length,
+  static String* AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                        const char* utf8_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* Alloc(Class* java_lang_String, int32_t utf16_length)
+  static String* Alloc(Thread* self, Class* java_lang_String, int32_t utf16_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static String* Alloc(Class* java_lang_String, CharArray* array)
+  static String* Alloc(Thread* self, Class* java_lang_String, CharArray* array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool Equals(const char* modified_utf8) const
@@ -2617,7 +2619,8 @@ class MANAGED StackTraceElement : public Object {
         OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_), false);
   }
 
-  static StackTraceElement* Alloc(String* declaring_class,
+  static StackTraceElement* Alloc(Thread* self,
+                                  String* declaring_class,
                                   String* method_name,
                                   String* file_name,
                                   int32_t line_number)

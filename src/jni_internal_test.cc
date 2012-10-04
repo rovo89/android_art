@@ -93,7 +93,7 @@ class JniInternalTest : public CommonTest {
                        : c->FindVirtualMethod(method_name, method_signature);
     CHECK(method != NULL);
 
-    receiver = (is_static ? NULL : c->AllocObject());
+    receiver = (is_static ? NULL : c->AllocObject(self));
 
     AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
     CHECK(stub != NULL);

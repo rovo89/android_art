@@ -24,6 +24,7 @@
 #include "monitor.h"
 #include "object.h"
 #include "runtime.h"
+#include "sirt_ref.h"
 #include "UniquePtr.h"
 
 #include <string>
@@ -486,12 +487,15 @@ class MethodHelper {
     return GetDexFile().GetProtoParameters(proto);
   }
 
-  ObjectArray<Class>* GetParameterTypes()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectArray<Class>* GetParameterTypes(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* params = GetParameterTypeList();
-    Class* array_class = GetClassLinker()->FindSystemClass("[Ljava/lang/Class;");
     uint32_t num_params = params == NULL ? 0 : params->Size();
-    ObjectArray<Class>* result = ObjectArray<Class>::Alloc(array_class, num_params);
+    SirtRef<ObjectArray<Class> > result(self, GetClassLinker()->AllocClassArray(self, num_params));
+    if (UNLIKELY(result.get() == NULL)) {
+      CHECK(self->IsExceptionPending());
+      return NULL;
+    }
     for (uint32_t i = 0; i < num_params; i++) {
       Class* param_type = GetClassFromTypeIdx(params->GetTypeItem(i).type_idx_);
       if (param_type == NULL) {
@@ -500,7 +504,7 @@ class MethodHelper {
       }
       result->Set(i, param_type);
     }
-    return result;
+    return result.get();
   }
 
   Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

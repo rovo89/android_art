@@ -115,7 +115,7 @@ class Monitor {
   bool Unlock(Thread* thread, bool for_wait) UNLOCK_FUNCTION(monitor_lock_);
 
   void Notify(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
-  void NotifyWithLock()
+  void NotifyWithLock(Thread* self)
       EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -192,7 +192,7 @@ void ImageWriter::ComputeEagerResolvedStrings()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: Check image spaces only?
   Heap* heap = Runtime::Current()->GetHeap();
-  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
@@ -276,12 +276,13 @@ void ImageWriter::CheckNonImageClassesRemoved()
   }
 
   Heap* heap = Runtime::Current()->GetHeap();
+  Thread* self = Thread::Current();
   {
-    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
   }
 
-  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   heap->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
@@ -340,9 +341,10 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   Class* object_array_class = class_linker->FindSystemClass("[Ljava/lang/Object;");
+  Thread* self = Thread::Current();
 
   // build an Object[] of all the DexCaches used in the source_space_
-  ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(object_array_class,
+  ObjectArray<Object>* dex_caches = ObjectArray<Object>::Alloc(self, object_array_class,
                                                                dex_caches_.size());
   int i = 0;
   typedef Set::const_iterator It;  // TODO: C++0x auto
@@ -352,8 +354,9 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
 
   // build an Object[] of the roots needed to restore the runtime
   SirtRef<ObjectArray<Object> >
-      image_roots(Thread::Current(),
-                  ObjectArray<Object>::Alloc(object_array_class, ImageHeader::kImageRootsMax));
+      image_roots(self,
+                  ObjectArray<Object>::Alloc(self, object_array_class,
+                                             ImageHeader::kImageRootsMax));
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
@@ -369,7 +372,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   image_roots->Set(ImageHeader::kRefsAndArgsSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
   image_roots->Set(ImageHeader::kOatLocation,
-                   String::AllocFromModifiedUtf8(oat_file_->GetLocation().c_str()));
+                   String::AllocFromModifiedUtf8(self, oat_file_->GetLocation().c_str()));
   image_roots->Set(ImageHeader::kDexCaches,
                    dex_caches);
   image_roots->Set(ImageHeader::kClassRoots,
@@ -425,15 +428,16 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
 void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const char* old_cause = Thread::Current()->StartAssertNoThreadSuspension("ImageWriter");
+  Thread* self = Thread::Current();
+  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
   Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
-  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
-  Thread::Current()->EndAssertNoThreadSuspension(old_cause);
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {

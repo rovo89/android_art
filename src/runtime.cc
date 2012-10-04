@@ -187,7 +187,7 @@ struct AbortState {
 void Runtime::Abort() {
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
-  MutexLock mu(*Locks::abort_lock_);
+  MutexLock mu(Thread::Current(), *Locks::abort_lock_);
 
   // Get any pending output out of the way.
   fflush(NULL);
@@ -661,10 +661,7 @@ void Runtime::StartDaemonThreads() {
   Thread* self = Thread::Current();
 
   // Must be in the kNative state for calling native methods.
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(self->GetState(), kNative);
-  }
+  CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_start);
@@ -762,10 +759,7 @@ void Runtime::InitNativeMethods() {
   JNIEnv* env = self->GetJniEnv();
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    CHECK_EQ(self->GetState(), kNative);
-  }
+  CHECK_EQ(self->GetState(), kNative);
 
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.
@@ -984,8 +978,8 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
 
 AbstractMethod* Runtime::CreateResolutionMethod() {
   Class* method_class = AbstractMethod::GetMethodClass();
-  SirtRef<AbstractMethod> method(Thread::Current(),
-                                 down_cast<AbstractMethod*>(method_class->AllocObject()));
+  Thread* self = Thread::Current();
+  SirtRef<AbstractMethod> method(self, down_cast<AbstractMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -998,8 +992,8 @@ AbstractMethod* Runtime::CreateResolutionMethod() {
 AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
                                                 CalleeSaveType type) {
   Class* method_class = AbstractMethod::GetMethodClass();
-  SirtRef<AbstractMethod>
-      method(Thread::Current(), down_cast<AbstractMethod*>(method_class->AllocObject()));
+  Thread* self = Thread::Current();
+  SirtRef<AbstractMethod> method(self, down_cast<AbstractMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);

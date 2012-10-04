@@ -23,6 +23,7 @@
 #include "logging.h"
 #include "mutex.h"
 #include "stringprintf.h"
+#include "thread.h"
 #include "utils.h"
 
 namespace art {
@@ -227,7 +228,7 @@ struct UContext {
 };
 
 static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
-  MutexLock mu(*Locks::unexpected_signal_lock_);
+  MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
                       signal_number == SIGFPE || signal_number == SIGSEGV);

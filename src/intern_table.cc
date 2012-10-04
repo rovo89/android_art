@@ -25,19 +25,19 @@ InternTable::InternTable() : intern_table_lock_("InternTable lock") {
 }
 
 size_t InternTable::Size() const {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   return strong_interns_.size() + weak_interns_.size();
 }
 
 void InternTable::DumpForSigQuit(std::ostream& os) const {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   os << "Intern table: " << strong_interns_.size() << " strong; "
      << weak_interns_.size() << " weak; "
      << image_strong_interns_.size() << " image strong\n";
 }
 
 void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
     visitor(it->second, arg);
@@ -46,7 +46,7 @@ void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 String* InternTable::Lookup(Table& table, String* s, uint32_t hash_code) {
-  intern_table_lock_.AssertHeld();
+  intern_table_lock_.AssertHeld(Thread::Current());
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     String* existing_string = it->second;
@@ -58,18 +58,18 @@ String* InternTable::Lookup(Table& table, String* s, uint32_t hash_code) {
 }
 
 String* InternTable::Insert(Table& table, String* s, uint32_t hash_code) {
-  intern_table_lock_.AssertHeld();
+  intern_table_lock_.AssertHeld(Thread::Current());
   table.insert(std::make_pair(hash_code, s));
   return s;
 }
 
 void InternTable::RegisterStrong(String* s) {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   Insert(image_strong_interns_, s, s->GetHashCode());
 }
 
 void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
-  intern_table_lock_.AssertHeld();
+  intern_table_lock_.AssertHeld(Thread::Current());
   typedef Table::iterator It; // TODO: C++0x auto
   for (It it = table.find(hash_code), end = table.end(); it != end; ++it) {
     if (it->second == s) {
@@ -80,7 +80,7 @@ void InternTable::Remove(Table& table, const String* s, uint32_t hash_code) {
 }
 
 String* InternTable::Insert(String* s, bool is_strong) {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
 
   DCHECK(s != NULL);
   uint32_t hash_code = s->GetHashCode();
@@ -129,11 +129,11 @@ String* InternTable::Insert(String* s, bool is_strong) {
 }
 
 String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
-  return InternStrong(String::AllocFromModifiedUtf8(utf16_length, utf8_data));
+  return InternStrong(String::AllocFromModifiedUtf8(Thread::Current(), utf16_length, utf8_data));
 }
 
 String* InternTable::InternStrong(const char* utf8_data) {
-  return InternStrong(String::AllocFromModifiedUtf8(utf8_data));
+  return InternStrong(String::AllocFromModifiedUtf8(Thread::Current(), utf8_data));
 }
 
 String* InternTable::InternStrong(String* s) {
@@ -151,13 +151,13 @@ String* InternTable::InternWeak(String* s) {
 }
 
 bool InternTable::ContainsWeak(String* s) {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   const String* found = Lookup(weak_interns_, s, s->GetHashCode());
   return found == s;
 }
 
 void InternTable::SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg) {
-  MutexLock mu(intern_table_lock_);
+  MutexLock mu(Thread::Current(), intern_table_lock_);
   typedef Table::iterator It; // TODO: C++0x auto
   for (It it = weak_interns_.begin(), end = weak_interns_.end(); it != end;) {
     Object* object = it->second;

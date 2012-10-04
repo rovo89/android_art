@@ -115,11 +115,8 @@ int gJava_MyClassNatives_foo_calls = 0;
 void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-    Locks::mutator_lock_->AssertNotHeld(Thread::Current());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  Locks::mutator_lock_->AssertNotHeld(Thread::Current());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -169,10 +166,7 @@ int gJava_MyClassNatives_fooI_calls = 0;
 jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -197,10 +191,7 @@ int gJava_MyClassNatives_fooII_calls = 0;
 jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -226,10 +217,7 @@ int gJava_MyClassNatives_fooJJ_calls = 0;
 jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -256,10 +244,7 @@ int gJava_MyClassNatives_fooDD_calls = 0;
 jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -287,10 +272,7 @@ int gJava_MyClassNatives_fooJJ_synchronized_calls = 0;
 jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -315,10 +297,7 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
                             jobject z) {
   // 3 = this + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -368,10 +347,7 @@ int gJava_MyClassNatives_fooSII_calls = 0;
 jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   // 1 = klass
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -393,10 +369,7 @@ int gJava_MyClassNatives_fooSDD_calls = 0;
 jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble y) {
   // 1 = klass
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -424,10 +397,7 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
                              jobject z) {
   // 3 = klass + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -478,10 +448,7 @@ int gJava_MyClassNatives_fooSSIOO_calls = 0;
 jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y, jobject z) {
   // 3 = klass + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
-  {
-    MutexLock mu(*Locks::thread_suspend_count_lock_);
-    EXPECT_EQ(kNative, Thread::Current()->GetState());
-  }
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));

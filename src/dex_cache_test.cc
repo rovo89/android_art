@@ -29,7 +29,8 @@ class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<DexCache> dex_cache(soa.Self(), class_linker_->AllocDexCache(*java_lang_dex_file_));
+  SirtRef<DexCache> dex_cache(soa.Self(), class_linker_->AllocDexCache(soa.Self(),
+                                                                       *java_lang_dex_file_));
   ASSERT_TRUE(dex_cache.get() != NULL);
 
   EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());

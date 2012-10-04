@@ -575,11 +575,12 @@ class ImageDumper {
     // Loop through all the image spaces and dump their objects.
     Heap* heap = Runtime::Current()->GetHeap();
     const Spaces& spaces = heap->GetSpaces();
+    Thread* self = Thread::Current();
     {
-      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       heap->FlushAllocStack();
     }
-    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // TODO: C++0x auto
     for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
       Space* space = *it;

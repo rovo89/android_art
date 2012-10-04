@@ -378,7 +378,7 @@ void MarkSweep::SweepJniWeakGlobals(bool swap_bitmaps) {
   }
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-  MutexLock mu(vm->weak_globals_lock);
+  MutexLock mu(Thread::Current(), vm->weak_globals_lock);
   IndirectReferenceTable* table = &vm->weak_globals;
   typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
   for (It it = table->begin(), end = table->end(); it != end; ++it) {
@@ -428,7 +428,7 @@ void MarkSweep::VerifySystemWeaks() {
   runtime->GetMonitorList()->SweepMonitorList(VerifyIsLiveCallback, this);
 
   JavaVMExt* vm = runtime->GetJavaVM();
-  MutexLock mu(vm->weak_globals_lock);
+  MutexLock mu(Thread::Current(), vm->weak_globals_lock);
   IndirectReferenceTable* table = &vm->weak_globals;
   typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
   for (It it = table->begin(), end = table->end(); it != end; ++it) {
@@ -440,17 +440,18 @@ void MarkSweep::VerifySystemWeaks() {
 struct SweepCallbackContext {
   MarkSweep* mark_sweep;
   AllocSpace* space;
+  Thread* self;
 };
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
-
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
   MarkSweep* mark_sweep = context->mark_sweep;
   Heap* heap = mark_sweep->GetHeap();
   AllocSpace* space = context->space;
+  Thread* self = context->self;
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(self);
   // Use a bulk free, that merges consecutive objects before freeing or free per object?
   // Documentation suggests better free performance with merging, but this may be at the expensive
   // of allocation.
@@ -462,12 +463,12 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
       freed_bytes += space->AllocationSize(obj);
     }
     // AllocSpace::FreeList clears the value in ptrs, so perform after clearing the live bit
-    space->FreeList(num_ptrs, ptrs);
+    space->FreeList(self, num_ptrs, ptrs);
   } else {
     for (size_t i = 0; i < num_ptrs; ++i) {
       Object* obj = static_cast<Object*>(ptrs[i]);
       freed_bytes += space->AllocationSize(obj);
-      space->Free(obj);
+      space->Free(self, obj);
     }
   }
 
@@ -477,9 +478,8 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
-
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld(context->self);
   Heap* heap = context->mark_sweep->GetHeap();
   // We don't free any actual memory to avoid dirtying the shared zygote pages.
   for (size_t i = 0; i < num_ptrs; ++i) {
@@ -516,6 +516,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
   Object** out = objects;
 
   // Empty the allocation stack.
+  Thread* self = Thread::Current();
   for (size_t i = 0;i < count;++i) {
     Object* obj = objects[i];
     // There should only be objects in the AllocSpace/LargeObjectSpace in the allocation stack.
@@ -530,7 +531,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
       ++freed_large_objects;
       size_t size = large_object_space->AllocationSize(obj);
       freed_bytes += size;
-      large_object_space->Free(obj);
+      large_object_space->Free(self, obj);
     }
   }
   logger.AddSplit("Process allocation stack");
@@ -538,7 +539,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
   size_t freed_objects = out - objects;
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
-  space->FreeList(freed_objects, objects);
+  space->FreeList(self, freed_objects, objects);
   heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
   freed_objects_ += freed_objects;
   freed_bytes_ += freed_bytes;
@@ -557,6 +558,7 @@ void MarkSweep::Sweep(bool partial, bool swap_bitmaps) {
   const Spaces& spaces = heap_->GetSpaces();
   SweepCallbackContext scc;
   scc.mark_sweep = this;
+  scc.self = Thread::Current();
   // TODO: C++0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
     ContinuousSpace* space = *it;
@@ -598,10 +600,11 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   size_t freed_objects = 0;
   size_t freed_bytes = 0;
   // TODO: C++0x
+  Thread* self = Thread::Current();
   for (SpaceSetMap::Objects::iterator it = live_objects.begin(); it != live_objects.end(); ++it) {
     if (!large_mark_objects->Test(*it)) {
       freed_bytes += large_object_space->AllocationSize(*it);
-      large_object_space->Free(const_cast<Object*>(*it));
+      large_object_space->Free(self, const_cast<Object*>(*it));
       ++freed_objects;
     }
   }

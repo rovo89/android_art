@@ -105,7 +105,7 @@ LogMessage::~LogMessage() {
 
   // Do the actual logging with the lock held.
   {
-    MutexLock mu(*Locks::logging_lock_);
+    MutexLock mu(Thread::Current(), *Locks::logging_lock_);
     if (msg.find('\n') == std::string::npos) {
       LogLine(msg.c_str());
     } else {

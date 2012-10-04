@@ -25,7 +25,7 @@ class ReferenceTableTest : public CommonTest {
 
 TEST_F(ReferenceTableTest, Basics) {
   ScopedObjectAccess soa(Thread::Current());
-  Object* o1 = String::AllocFromModifiedUtf8("hello");
+  Object* o1 = String::AllocFromModifiedUtf8(soa.Self(), "hello");
 
   ReferenceTable rt("test", 0, 11);
 
@@ -56,7 +56,7 @@ TEST_F(ReferenceTableTest, Basics) {
   }
 
   // Add a second object 10 times and check dumping is sane.
-  Object* o2 = ShortArray::Alloc(0);
+  Object* o2 = ShortArray::Alloc(soa.Self(), 0);
   for (size_t i = 0; i < 10; ++i) {
     rt.Add(o2);
     EXPECT_EQ(i + 2, rt.Size());

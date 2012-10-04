@@ -141,7 +141,7 @@ static void dumpEvent(const JdwpEvent* pEvent) {
  * not be added to the list, and an appropriate error will be returned.
  */
 JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
-  MutexLock mu(event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
 
   CHECK(pEvent != NULL);
   CHECK(pEvent->prev == NULL);
@@ -234,7 +234,7 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
  * explicitly remove one-off single-step events.)
  */
 void JdwpState::UnregisterEventById(uint32_t requestId) {
-  MutexLock mu(event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
 
   JdwpEvent* pEvent = event_list_;
   while (pEvent != NULL) {
@@ -254,7 +254,7 @@ void JdwpState::UnregisterEventById(uint32_t requestId) {
  * Remove all entries from the event list.
  */
 void JdwpState::UnregisterAll() {
-  MutexLock mu(event_list_lock_);
+  MutexLock mu(Thread::Current(), event_list_lock_);
 
   JdwpEvent* pEvent = event_list_;
   while (pEvent != NULL) {
@@ -537,7 +537,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     pReq->invoke_needed_ = false;
 
     VLOG(jdwp) << "invoke complete, signaling and self-suspending";
-    MutexLock mu(pReq->lock_);
+    MutexLock mu(Thread::Current(), pReq->lock_);
     pReq->cond_.Signal();
   }
 }
@@ -615,7 +615,7 @@ void JdwpState::ClearWaitForEventThread() {
    * function is called by dvmSuspendSelf(), and the transition back
    * to RUNNING would confuse it.
    */
-  MutexLock mu(event_thread_lock_);
+  MutexLock mu(Thread::Current(), event_thread_lock_);
 
   CHECK_NE(event_thread_id_, 0U);
   VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", event_thread_id_);
@@ -676,7 +676,7 @@ bool JdwpState::PostVMStart() {
 
   ExpandBuf* pReq = eventPrep();
   {
-    MutexLock mu(event_list_lock_); // probably don't need this here
+    MutexLock mu(Thread::Current(), event_list_lock_); // probably don't need this here
 
     VLOG(jdwp) << "EVENT: " << EK_VM_START;
     VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
@@ -757,7 +757,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
   JdwpSuspendPolicy suspend_policy = SP_NONE;
 
   {
-    MutexLock mu(event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     match_list = AllocMatchList(event_list_size_);
     if ((eventFlags & Dbg::kBreakpoint) != 0) {
       FindMatchingEvents(EK_BREAKPOINT, &basket, match_list, &match_count);
@@ -828,7 +828,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
   int match_count = 0;
   {
     // Don't allow the list to be updated while we scan it.
-    MutexLock mu(event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     JdwpEvent** match_list = AllocMatchList(event_list_size_);
 
     if (start) {
@@ -917,7 +917,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspend_policy = SP_NONE;
   {
-    MutexLock mu(event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     match_list = AllocMatchList(event_list_size_);
     FindMatchingEvents(EK_EXCEPTION, &basket, match_list, &match_count);
     if (match_count != 0) {
@@ -987,7 +987,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
   JdwpSuspendPolicy suspend_policy = SP_NONE;
   int match_count = 0;
   {
-    MutexLock mu(event_list_lock_);
+    MutexLock mu(Thread::Current(), event_list_lock_);
     JdwpEvent** match_list = AllocMatchList(event_list_size_);
     FindMatchingEvents(EK_CLASS_PREPARE, &basket, match_list, &match_count);
     if (match_count != 0) {
