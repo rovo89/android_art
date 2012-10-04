@@ -46,6 +46,7 @@
 #include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "sirt_ref.h"
 #include "space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
@@ -119,7 +120,7 @@ void* Thread::CreateCallback(void* arg) {
   {
     ScopedObjectAccess soa(self);
     {
-      SirtRef<String> thread_name(self->GetThreadName(soa));
+      SirtRef<String> thread_name(self, self->GetThreadName(soa));
       self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
     }
     Dbg::PostThreadStart(self);
@@ -378,7 +379,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
                         reinterpret_cast<jint>(self));
 
   ScopedObjectAccess soa(self);
-  SirtRef<String> peer_thread_name(GetThreadName(soa));
+  SirtRef<String> peer_thread_name(soa.Self(), GetThreadName(soa));
   if (peer_thread_name.get() == NULL) {
     Object* native_peer = soa.Decode<Object*>(peer.get());
     // The Thread constructor should have set the Thread.name to a
@@ -1240,17 +1241,18 @@ class CountStackDepthVisitor : public StackVisitor {
 
 class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
-  explicit BuildInternalStackTraceVisitor(const ManagedStack* stack,
+  explicit BuildInternalStackTraceVisitor(Thread* self, const ManagedStack* stack,
                                           const std::vector<TraceStackFrame>* trace_stack,
                                           int skip_depth)
-      : StackVisitor(stack, trace_stack, NULL),
+      : StackVisitor(stack, trace_stack, NULL), self_(self),
         skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL), method_trace_(NULL) {}
 
-  bool Init(int depth, const ScopedObjectAccess& soa)
+  bool Init(int depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Allocate method trace with an extra slot that will hold the PC trace
     SirtRef<ObjectArray<Object> >
-      method_trace(Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
+        method_trace(self_,
+                     Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
     if (method_trace.get() == NULL) {
       return false;
     }
@@ -1263,7 +1265,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     method_trace->Set(depth, dex_pc_trace);
     // Set the Object*s and assert that no thread suspension is now possible.
     const char* last_no_suspend_cause =
-        soa.Self()->StartAssertNoThreadSuspension("Building internal stack trace");
+        self_->StartAssertNoThreadSuspension("Building internal stack trace");
     CHECK(last_no_suspend_cause == NULL) << last_no_suspend_cause;
     method_trace_ = method_trace.get();
     dex_pc_trace_ = dex_pc_trace;
@@ -1272,7 +1274,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
 
   virtual ~BuildInternalStackTraceVisitor() {
     if (method_trace_ != NULL) {
-      Thread::Current()->EndAssertNoThreadSuspension(NULL);
+      self_->EndAssertNoThreadSuspension(NULL);
     }
   }
 
@@ -1299,6 +1301,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   }
 
  private:
+  Thread* const self_;
   // How many more frames to skip.
   int32_t skip_depth_;
   // Current position down stack trace.
@@ -1309,18 +1312,6 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   ObjectArray<Object>* method_trace_;
 };
 
-void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
-  sirt->SetLink(top_sirt_);
-  top_sirt_ = sirt;
-}
-
-StackIndirectReferenceTable* Thread::PopSirt() {
-  CHECK(top_sirt_ != NULL);
-  StackIndirectReferenceTable* sirt = top_sirt_;
-  top_sirt_ = top_sirt_->GetLink();
-  return sirt;
-}
-
 jobject Thread::CreateInternalStackTrace(const ScopedObjectAccess& soa) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor(GetManagedStack(), GetTraceStack());
@@ -1328,11 +1319,11 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccess& soa) const {
   int32_t depth = count_visitor.GetDepth();
   int32_t skip_depth = count_visitor.GetSkipDepth();
 
-  // Build internal stack trace
-  BuildInternalStackTraceVisitor build_trace_visitor(GetManagedStack(), GetTraceStack(),
+  // Build internal stack trace.
+  BuildInternalStackTraceVisitor build_trace_visitor(soa.Self(), GetManagedStack(), GetTraceStack(),
                                                      skip_depth);
-  if (!build_trace_visitor.Init(depth, soa)) {
-    return NULL;  // Allocation failed
+  if (!build_trace_visitor.Init(depth)) {
+    return NULL;  // Allocation failed.
   }
   build_trace_visitor.WalkStack();
   return soa.AddLocalReference<jobjectArray>(build_trace_visitor.GetInternalStackTrace());
@@ -1382,18 +1373,19 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     const char* descriptor = mh.GetDeclaringClassDescriptor();
     CHECK(descriptor != NULL);
     std::string class_name(PrettyDescriptor(descriptor));
-    SirtRef<String> class_name_object(String::AllocFromModifiedUtf8(class_name.c_str()));
+    SirtRef<String> class_name_object(soa.Self(),
+                                      String::AllocFromModifiedUtf8(class_name.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
     const char* method_name = mh.GetName();
     CHECK(method_name != NULL);
-    SirtRef<String> method_name_object(String::AllocFromModifiedUtf8(method_name));
+    SirtRef<String> method_name_object(soa.Self(), String::AllocFromModifiedUtf8(method_name));
     if (method_name_object.get() == NULL) {
       return NULL;
     }
     const char* source_file = mh.GetDeclaringClassSourceFile();
-    SirtRef<String> source_name_object(String::AllocFromModifiedUtf8(source_file));
+    SirtRef<String> source_name_object(soa.Self(), String::AllocFromModifiedUtf8(source_file));
     StackTraceElement* obj = StackTraceElement::Alloc(class_name_object.get(),
                                                       method_name_object.get(),
                                                       source_name_object.get(),

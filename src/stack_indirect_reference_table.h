@@ -17,30 +17,24 @@
 #ifndef ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 #define ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 
-#include "casts.h"
 #include "logging.h"
 #include "macros.h"
-#include "thread.h"
 
 namespace art {
 
 class Object;
+class Thread;
 
 // Stack allocated indirect reference table. It can allocated within
 // the bridge frame between managed and native code backed by stack
 // storage or manually allocated by SirtRef to hold one reference.
 class StackIndirectReferenceTable {
  public:
-  explicit StackIndirectReferenceTable(Object* object) {
-    number_of_references_ = 1;
+  explicit StackIndirectReferenceTable(Object* object) : number_of_references_(1), link_(NULL) {
     references_[0] = object;
-    Thread::Current()->PushSirt(this);
   }
 
-  ~StackIndirectReferenceTable() {
-    StackIndirectReferenceTable* sirt = Thread::Current()->PopSirt();
-    CHECK_EQ(this, sirt);
-  }
+  ~StackIndirectReferenceTable() {}
 
   // Number of references contained within this SIRT
   size_t NumberOfReferences() const {
@@ -96,28 +90,6 @@ class StackIndirectReferenceTable {
   Object* references_[1];
 
   DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
-};
-
-template<class T>
-class SirtRef {
- public:
-  explicit SirtRef(T* object) : sirt_(object) {}
-  ~SirtRef() {}
-
-  T& operator*() const { return *get(); }
-  T* operator->() const { return get(); }
-  T* get() const {
-    return down_cast<T*>(sirt_.GetReference(0));
-  }
-
-  void reset(T* object = NULL) {
-    sirt_.SetReference(0, object);
-  }
-
- private:
-  StackIndirectReferenceTable sirt_;
-
-  DISALLOW_COPY_AND_ASSIGN(SirtRef);
 };
 
 }  // namespace art

@@ -20,6 +20,7 @@
 
 #include "common_test.h"
 #include "ScopedLocalRef.h"
+#include "sirt_ref.h"
 
 namespace art {
 
@@ -73,7 +74,10 @@ class JniInternalTest : public CommonTest {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
-    SirtRef<ClassLoader> class_loader(ScopedObjectAccessUnchecked(Thread::Current()).Decode<ClassLoader*>(jclass_loader));
+    Thread* self = Thread::Current();
+    SirtRef<ClassLoader>
+        class_loader(self,
+                     ScopedObjectAccessUnchecked(self).Decode<ClassLoader*>(jclass_loader));
     if (is_static) {
       CompileDirectMethod(class_loader.get(), class_name, method_name, method_signature);
     } else {
@@ -1382,7 +1386,7 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 TEST_F(JniInternalTest, StaticMainMethod) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
   CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
 
   Class* klass = class_linker_->FindClass("LMain;", class_loader.get());

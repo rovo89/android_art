@@ -20,6 +20,7 @@
 #include "oat/utils/x86/assembler_x86.h"
 #include "object.h"
 #include "stack_indirect_reference_table.h"
+#include "sirt_ref.h"
 
 #define __ assembler->
 
@@ -91,7 +92,7 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> resolution_trampoline(ByteArray::Alloc(cs));
+  SirtRef<ByteArray> resolution_trampoline(Thread::Current(), ByteArray::Alloc(cs));
   CHECK(resolution_trampoline.get() != NULL);
   MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
   assembler->FinalizeInstructions(code);
@@ -145,7 +146,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> abstract_stub(ByteArray::Alloc(cs));
+  SirtRef<ByteArray> abstract_stub(Thread::Current(),ByteArray::Alloc(cs));
   CHECK(abstract_stub.get() != NULL);
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
@@ -178,7 +179,7 @@ ByteArray* CreateJniDlsymLookupStub() {
   assembler->EmitSlowPaths();
 
   size_t cs = assembler->CodeSize();
-  SirtRef<ByteArray> jni_stub(ByteArray::Alloc(cs));
+  SirtRef<ByteArray> jni_stub(Thread::Current(), ByteArray::Alloc(cs));
   CHECK(jni_stub.get() != NULL);
   MemoryRegion code(jni_stub->GetData(), jni_stub->GetLength());
   assembler->FinalizeInstructions(code);

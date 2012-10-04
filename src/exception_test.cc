@@ -20,6 +20,7 @@
 #include "gtest/gtest.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "sirt_ref.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -31,7 +32,8 @@ class ExceptionTest : public CommonTest {
     CommonTest::SetUp();
 
     ScopedObjectAccess soa(Thread::Current());
-    SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("ExceptionHandle")));
+    SirtRef<ClassLoader> class_loader(soa.Self(),
+                                      soa.Decode<ClassLoader*>(LoadDex("ExceptionHandle")));
     my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
     class_linker_->EnsureInitialized(my_klass_, false, true);

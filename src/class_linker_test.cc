@@ -24,6 +24,7 @@
 #include "dex_file.h"
 #include "heap.h"
 #include "runtime_support.h"
+#include "sirt_ref.h"
 
 namespace art {
 
@@ -654,7 +655,7 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
 
 TEST_F(ClassLinkerTest, FindClassNested) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Nested")));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Nested")));
 
   Class* outer = class_linker_->FindClass("LNested;", class_loader.get());
   ASSERT_TRUE(outer != NULL);
@@ -718,7 +719,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, kh.NumDirectInterfaces());
 
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
   AssertNonExistentClass("LMyClass;");
   Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader.get());
   kh.ChangeClass(MyClass);
@@ -785,27 +786,27 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<LongArray> long_array(LongArray::Alloc(0));
+  SirtRef<LongArray> long_array(soa.Self(), LongArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[J"), long_array->GetClass());
   uintptr_t data_offset = reinterpret_cast<uintptr_t>(long_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Longs require 8 byte alignment
 
-  SirtRef<DoubleArray> double_array(DoubleArray::Alloc(0));
+  SirtRef<DoubleArray> double_array(soa.Self(), DoubleArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[D"), double_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(double_array->GetData());
   EXPECT_TRUE(IsAligned<8>(data_offset));  // Doubles require 8 byte alignment
 
-  SirtRef<IntArray> int_array(IntArray::Alloc(0));
+  SirtRef<IntArray> int_array(soa.Self(), IntArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[I"), int_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(int_array->GetData());
   EXPECT_TRUE(IsAligned<4>(data_offset));  // Ints require 4 byte alignment
 
-  SirtRef<CharArray> char_array(CharArray::Alloc(0));
+  SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[C"), char_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(char_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Chars require 2 byte alignment
 
-  SirtRef<ShortArray> short_array(ShortArray::Alloc(0));
+  SirtRef<ShortArray> short_array(soa.Self(), ShortArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[S"), short_array->GetClass());
   data_offset = reinterpret_cast<uintptr_t>(short_array->GetData());
   EXPECT_TRUE(IsAligned<2>(data_offset));  // Shorts require 2 byte alignment
@@ -846,8 +847,8 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader_1(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
-  SirtRef<ClassLoader> class_loader_2(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<ClassLoader> class_loader_1(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<ClassLoader> class_loader_2(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("MyClass")));
   Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1.get());
   Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2.get());
   EXPECT_TRUE(MyClass_1 != NULL);
@@ -857,7 +858,7 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 
 TEST_F(ClassLinkerTest, StaticFields) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Statics")));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Statics")));
   Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
   class_linker_->EnsureInitialized(statics, true, true);
 
@@ -939,7 +940,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
 TEST_F(ClassLinkerTest, Interfaces) {
   ScopedObjectAccess soa(Thread::Current());
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Interfaces")));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(LoadDex("Interfaces")));
   Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader.get());
   Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader.get());
   Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader.get());
@@ -999,7 +1000,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
 
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("StaticsFromCode");
-  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
+  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
   const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(jclass_loader)[0];
   CHECK(dex_file != NULL);
 

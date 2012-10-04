@@ -301,7 +301,7 @@ class LOCKABLE Heap {
   void EnqueueClearedReferences(Object** cleared_references);
 
   void RequestHeapTrim();
-  void RequestConcurrentGC();
+  void RequestConcurrentGC(Thread* self);
 
   // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
   void SwapBitmaps(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
