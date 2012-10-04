@@ -30,6 +30,7 @@
 #include "instruction_set.h"
 #include "jobject_comparator.h"
 #include "macros.h"
+#include "locks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 #include "stringpiece.h"
@@ -119,9 +120,19 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
-  bool IsShuttingDown() const {
+  bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
     return shutting_down_;
   }
+
+  size_t NumberOfThreadsBeingBorn() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+    return threads_being_born_;
+  }
+
+  void StartThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
+    threads_being_born_++;
+  }
+
+  void EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
 
   bool IsStarted() const {
     return started_;
@@ -149,7 +160,7 @@ class Runtime {
   jobject GetSystemThreadGroup() const;
 
   // Attaches the calling native thread to the runtime.
-  void AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group);
+  bool AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group);
 
   void CallExitHook(jint status);
 
@@ -405,7 +416,19 @@ class Runtime {
   // As returned by ClassLoader.getSystemClassLoader()
   ClassLoader* system_class_loader_;
 
-  bool shutting_down_;
+  // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
+  // the shutdown lock so that threads aren't born while we're shutting down.
+  size_t threads_being_born_ GUARDED_BY(Locks::runtime_shutdown_lock_);
+
+  // Waited upon until no threads are being born.
+  UniquePtr<ConditionVariable> shutdown_cond_ GUARDED_BY(Locks::runtime_shutdown_lock_);
+
+  // Set when runtime shutdown is past the point that new threads may attach.
+  bool shutting_down_ GUARDED_BY(Locks::runtime_shutdown_lock_);
+
+  // The runtime is starting to shutdown but is blocked waiting on shutdown_cond_.
+  bool shutting_down_started_ GUARDED_BY(Locks::runtime_shutdown_lock_);
+
   bool started_;
 
   // New flag added which tells us if the runtime has finished starting. If

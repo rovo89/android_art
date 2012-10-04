@@ -119,23 +119,14 @@ void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
   ThreadList* thread_list = runtime->GetThreadList();
 
+  // Grab exclusively the mutator lock, set state to Runnable without checking for a pending
+  // suspend request as we're going to suspend soon anyway. We set the state to Runnable to avoid
+  // giving away the mutator lock.
   thread_list->SuspendAll();
-
-  // We should exclusively hold the mutator lock, set state to Runnable without a pending
-  // suspension to avoid giving away or trying to re-acquire the mutator lock.
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-  ThreadState old_state;
-  int suspend_count;
-  {
-    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    suspend_count = self->GetSuspendCount();
-    if (suspend_count != 0) {
-      CHECK_EQ(suspend_count, 1);
-      self->ModifySuspendCount(self, -1, false);
-    }
-    old_state = self->SetStateUnsafe(kRunnable);
-  }
+  const char* old_cause = self->StartAssertNoThreadSuspension("Handling sigquit");
+  ThreadState old_state = self->SetStateUnsafe(kRunnable);
 
   std::ostringstream os;
   os << "\n"
@@ -153,15 +144,10 @@ void SignalCatcher::HandleSigQuit() {
       os << "/proc/self/maps:\n" << maps;
     }
   }
-
   os << "----- end " << getpid() << " -----\n";
-  {
-    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    self->SetState(old_state);
-    if (suspend_count != 0) {
-      self->ModifySuspendCount(self, +1, false);
-    }
-  }
+
+  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
+  self->EndAssertNoThreadSuspension(old_cause);
   thread_list->ResumeAll();
 
   Output(os.str());
@@ -197,7 +183,7 @@ void* SignalCatcher::Run(void* arg) {
   CHECK(signal_catcher != NULL);
 
   Runtime* runtime = Runtime::Current();
-  runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup());
+  CHECK(runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup()));
 
   Thread* self = Thread::Current();
 

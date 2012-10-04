@@ -869,6 +869,10 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   Locks::mutator_lock_->AssertNotHeld(self);
   DCHECK_EQ(self->GetState(), kWaitingPerformingGc);
 
+  if (self->IsHandlingStackOverflow()) {
+    LOG(WARNING) << "Performing GC on a thread that is handling a stack overflow.";
+  }
+
   // Ensure there is only one GC at a time.
   bool start_collect = false;
   while (!start_collect) {
@@ -975,7 +979,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, bool clear_
       }
     }
 
-    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     if (gc_type == kGcTypePartial) {
       // Copy the mark bits over from the live bits, do this as early as possible or else we can
       // accidentally un-mark roots.
@@ -1921,13 +1925,24 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
 
 void Heap::RequestConcurrentGC() {
   // Make sure that we can do a concurrent GC.
-  if (requesting_gc_ || !Runtime::Current()->IsFinishedStarting() ||
-      Runtime::Current()->IsShuttingDown() || !Runtime::Current()->IsConcurrentGcEnabled()) {
+  Runtime* runtime = Runtime::Current();
+  if (requesting_gc_ || runtime == NULL || !runtime->IsFinishedStarting() ||
+      !runtime->IsConcurrentGcEnabled()) {
+    return;
+  }
+  Thread* self = Thread::Current();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    if (runtime->IsShuttingDown()) {
+      return;
+    }
+  }
+  if (self->IsHandlingStackOverflow()) {
     return;
   }
 
   requesting_gc_ = true;
-  JNIEnv* env = Thread::Current()->GetJniEnv();
+  JNIEnv* env = self->GetJniEnv();
   DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
   DCHECK(WellKnownClasses::java_lang_Daemons_requestGC != NULL);
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
@@ -1937,8 +1952,11 @@ void Heap::RequestConcurrentGC() {
 }
 
 void Heap::ConcurrentGC(Thread* self) {
-  if (Runtime::Current()->IsShuttingDown() || !concurrent_gc_) {
-    return;
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    if (Runtime::Current()->IsShuttingDown() || !concurrent_gc_) {
+      return;
+    }
   }
 
   // TODO: We shouldn't need a WaitForConcurrentGcToComplete here since only
@@ -1976,13 +1994,20 @@ void Heap::RequestHeapTrim() {
       return;
     }
   }
-  if (!Runtime::Current()->IsFinishedStarting() || Runtime::Current()->IsShuttingDown()) {
-    // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
-    // Also: we do not wish to start a heap trim if the runtime is shutting down.
-    return;
+
+  Thread* self = Thread::Current();
+  {
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+    Runtime* runtime = Runtime::Current();
+    if (runtime == NULL || !runtime->IsFinishedStarting() || runtime->IsShuttingDown()) {
+      // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
+      // Also: we do not wish to start a heap trim if the runtime is shutting down (a racy check
+      // as we don't hold the lock while requesting the trim).
+      return;
+    }
   }
   last_trim_time_ = ms_time;
-  JNIEnv* env = Thread::Current()->GetJniEnv();
+  JNIEnv* env = self->GetJniEnv();
   DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
   DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,

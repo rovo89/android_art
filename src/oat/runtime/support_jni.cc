@@ -47,6 +47,7 @@ extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_)
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
 extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(GlobalSynchronizatio::mutator_lock_) {
   JNIEnvExt* env = self->GetJniEnv();
+  DCHECK(env != NULL);
   uint32_t saved_local_ref_cookie = env->local_ref_cookie;
   env->local_ref_cookie = env->locals.GetSegmentState();
   self->TransitionFromRunnableToSuspended(kNative);

@@ -1492,8 +1492,14 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
-      if (thread_group_ == NULL || t->GetThreadGroup(soa_) == thread_group_) {
-        thread_ids_.push_back(gRegistry->Add(soa_.Decode<Object*>(t->GetPeer())));
+      bool should_add = (thread_group_ == NULL);
+      Object* peer = soa_.Decode<Object*>(t->GetPeer());
+      if (!should_add) {
+        Object* group = soa_.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer);
+        should_add = (group == thread_group_);
+      }
+      if (should_add) {
+        thread_ids_.push_back(gRegistry->Add(peer));
       }
     }
 

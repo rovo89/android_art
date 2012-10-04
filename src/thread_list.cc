@@ -374,10 +374,16 @@ void ThreadList::UndoDebuggerSuspensions() {
 void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
-  MutexLock mu(self, *Locks::thread_list_lock_);
   bool all_threads_are_daemons;
   do {
+    {
+      // No more threads can be born after we start to shutdown.
+      MutexLock mu(self, *Locks::runtime_shutdown_lock_);
+      CHECK(Runtime::Current()->IsShuttingDown());
+      CHECK_EQ(Runtime::Current()->NumberOfThreadsBeingBorn(), 0U);
+    }
     all_threads_are_daemons = true;
+    MutexLock mu(self, *Locks::thread_list_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       // TODO: there's a race here with thread exit that's being worked around by checking if the
       // thread has a peer.

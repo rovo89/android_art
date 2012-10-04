@@ -49,6 +49,7 @@ class ClassLoader;
 class Context;
 struct DebugInvokeReq;
 class DexFile;
+struct JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
 class Object;
@@ -284,9 +285,6 @@ class PACKED Thread {
     return peer_ != NULL;
   }
 
-  Object* GetThreadGroup(const ScopedObjectAccessUnchecked& ts) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   RuntimeStats* GetStats() {
     return &stats_;
   }
@@ -359,8 +357,7 @@ class PACKED Thread {
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
   // Only the GC should call this.
-  void ThrowOutOfMemoryError(const char* msg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowOutOfMemoryError(const char* msg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
 
@@ -454,6 +451,10 @@ class PACKED Thread {
     // Our stacks grow down, so we want stack_end_ to be near there, but reserving enough room
     // to throw a StackOverflowError.
     stack_end_ = stack_begin_ + kStackOverflowReservedBytes;
+  }
+
+  bool IsHandlingStackOverflow() const {
+    return stack_end_ == stack_begin_;
   }
 
   static ThreadOffset StackEndOffset() {
@@ -590,12 +591,10 @@ class PACKED Thread {
 
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions(const ScopedObjectAccess& soa)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RemoveFromThreadGroup(const ScopedObjectAccess& soa)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void HandleUncaughtExceptions();
+  void RemoveFromThreadGroup();
 
-  void Init();
+  void Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
   void InitCpu();
   void InitFunctionPointers();
