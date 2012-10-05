@@ -17,8 +17,8 @@
 #ifndef ART_SRC_MARK_SWEEP_H_
 #define ART_SRC_MARK_SWEEP_H_
 
+#include "atomic_stack.h"
 #include "macros.h"
-#include "mark_stack.h"
 #include "heap_bitmap.h"
 #include "object.h"
 #include "offsets.h"
@@ -37,7 +37,7 @@ class TimingLogger;
 
 class MarkSweep {
  public:
-  explicit MarkSweep(MarkStack* mark_stack);
+  explicit MarkSweep(ObjectStack* mark_stack);
 
   ~MarkSweep();
 
@@ -51,10 +51,6 @@ class MarkSweep {
 
   // Verify that image roots point to only marked objects within the alloc space.
   void VerifyImageRoots() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  bool IsMarkStackEmpty() const {
-    return mark_stack_->IsEmpty();
-  }
 
   // Builds a mark stack and recursively mark until it empties.
   void RecursiveMark(bool partial, TimingLogger& timings)
@@ -103,7 +99,7 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Sweep only pointers within an array. WARNING: Trashes objects.
-  void SweepArray(TimingLogger& logger, MarkStack* allocation_stack_, bool swap_bitmaps)
+  void SweepArray(TimingLogger& logger, ObjectStack* allocation_stack_, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   Object* GetClearedReferences() {
@@ -373,7 +369,7 @@ class MarkSweep {
   // Current space, we check this space first to avoid searching for the appropriate space for an object.
   SpaceBitmap* current_mark_bitmap_;
 
-  MarkStack* mark_stack_;
+  ObjectStack* mark_stack_;
 
   Heap* heap_;
 

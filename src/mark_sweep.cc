@@ -28,7 +28,6 @@
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
-#include "mark_stack.h"
 #include "monitor.h"
 #include "mutex.h"
 #include "object.h"
@@ -37,7 +36,7 @@
 #include "timing_logger.h"
 #include "thread.h"
 
-#define MARK_STACK_PREFETCH 1
+static const bool kUseMarkStackPrefetch = true;
 
 namespace art {
 
@@ -55,7 +54,7 @@ class SetFingerVisitor {
   MarkSweep* const mark_sweep_;
 };
 
-MarkSweep::MarkSweep(MarkStack* mark_stack)
+MarkSweep::MarkSweep(ObjectStack* mark_stack)
     : current_mark_bitmap_(NULL),
       mark_stack_(mark_stack),
       heap_(NULL),
@@ -123,8 +122,17 @@ inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
   if (!current_mark_bitmap_->Test(obj)) {
     current_mark_bitmap_->Set(obj);
     if (check_finger && obj < finger_) {
+      // Do we need to expand the mark stack?
+      if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
+        std::vector<Object*> temp;
+        temp.insert(temp.begin(), mark_stack_->Begin(), mark_stack_->End());
+        mark_stack_->Resize(mark_stack_->Capacity() * 2);
+        for (size_t i = 0; i < temp.size(); ++i) {
+          mark_stack_->PushBack(temp[i]);
+        }
+      }
       // The object must be pushed on to the mark stack.
-      mark_stack_->Push(obj);
+      mark_stack_->PushBack(const_cast<Object*>(obj));
     }
   }
 }
@@ -489,7 +497,7 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   }
 }
 
-void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool swap_bitmaps) {
+void MarkSweep::SweepArray(TimingLogger& logger, ObjectStack* allocations, bool swap_bitmaps) {
   size_t freed_bytes = 0;
   AllocSpace* space = heap_->GetAllocSpace();
 
@@ -512,7 +520,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
 
   size_t freed_large_objects = 0;
   size_t count = allocations->Size();
-  Object** objects = allocations->Begin();
+  Object** objects = const_cast<Object**>(allocations->Begin());
   Object** out = objects;
 
   // Empty the allocation stack.
@@ -796,44 +804,44 @@ void MarkSweep::ScanObject(const Object* obj) {
 
 // Scan anything that's on the mark stack.
 void MarkSweep::ProcessMarkStack() {
-#if MARK_STACK_PREFETCH
-  const size_t fifo_size = 4;
-  const size_t fifo_mask = fifo_size - 1;
-  const Object* fifo[fifo_size];
-  for (size_t i = 0;i < fifo_size;++i) {
-    fifo[i] = NULL;
-  }
-  size_t fifo_pos = 0;
-  size_t fifo_count = 0;
-  for (;;) {
-    const Object* obj = fifo[fifo_pos & fifo_mask];
-    if (obj != NULL) {
-      ScanObject(obj);
-      fifo[fifo_pos & fifo_mask] = NULL;
-      --fifo_count;
+  if (kUseMarkStackPrefetch) {
+    const size_t fifo_size = 4;
+    const size_t fifo_mask = fifo_size - 1;
+    const Object* fifo[fifo_size];
+    for (size_t i = 0;i < fifo_size;++i) {
+      fifo[i] = NULL;
     }
+    size_t fifo_pos = 0;
+    size_t fifo_count = 0;
+    for (;;) {
+      const Object* obj = fifo[fifo_pos & fifo_mask];
+      if (obj != NULL) {
+        ScanObject(obj);
+        fifo[fifo_pos & fifo_mask] = NULL;
+        --fifo_count;
+      }
 
-    if (!mark_stack_->IsEmpty()) {
-      const Object* obj = mark_stack_->Pop();
+      if (!mark_stack_->IsEmpty()) {
+        const Object* obj = mark_stack_->PopBack();
+        DCHECK(obj != NULL);
+        fifo[fifo_pos & fifo_mask] = obj;
+        __builtin_prefetch(obj);
+        fifo_count++;
+      }
+      fifo_pos++;
+
+      if (!fifo_count) {
+        CHECK(mark_stack_->IsEmpty()) << mark_stack_->Size();
+        break;
+      }
+    }
+  } else {
+    while (!mark_stack_->IsEmpty()) {
+      const Object* obj = mark_stack_->PopBack();
       DCHECK(obj != NULL);
-      fifo[fifo_pos & fifo_mask] = obj;
-      __builtin_prefetch(obj);
-      fifo_count++;
-    }
-    fifo_pos++;
-
-    if (!fifo_count) {
-      CHECK(mark_stack_->IsEmpty()) << mark_stack_->Size();
-      break;
+      ScanObject(obj);
     }
   }
-#else
-  while (!mark_stack_->IsEmpty()) {
-    const Object* obj = mark_stack_->Pop();
-    DCHECK(obj != NULL);
-    ScanObject(obj);
-  }
-#endif
 }
 
 // Walks the reference list marking any references subject to the

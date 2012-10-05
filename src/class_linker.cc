@@ -702,6 +702,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
+  runtime->GetHeap()->UnReserveOatFileAddressRange();
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename,
                                     image_header.GetOatBegin(),
                                     OatFile::kRelocNone);

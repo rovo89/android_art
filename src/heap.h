@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "atomic_stack.h"
 #include "atomic_integer.h"
 #include "card_table.h"
 #include "globals.h"
@@ -44,7 +45,6 @@ class ConditionVariable;
 class HeapBitmap;
 class ImageSpace;
 class LargeObjectSpace;
-class MarkStack;
 class ModUnionTable;
 class Mutex;
 class Object;
@@ -53,6 +53,7 @@ class SpaceTest;
 class Thread;
 class TimingLogger;
 
+typedef AtomicStack<Object*> ObjectStack;
 typedef std::vector<ContinuousSpace*> Spaces;
 
 // The ordering of the enum matters, it is used to determine which GCs are run first.
@@ -273,11 +274,11 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
-  void MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack)
+  void MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Unmark all the objects in the allocation stack in the specified bitmap.
-  void UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack)
+  void UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Update and mark mod union table based on gc type.
@@ -292,6 +293,9 @@ class Heap {
     return large_object_space_.get();
   }
   void DumpSpaces();
+
+  // UnReserve the address range where the oat file will be placed.
+  void UnReserveOatFileAddressRange();
 
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
@@ -314,8 +318,9 @@ class Heap {
   // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
   void SwapBitmaps(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  void RecordAllocation(size_t size, const Object* object)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
+  void RecordAllocation(size_t size, Object* object)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
   // which type of Gc was actually ran.
@@ -354,6 +359,9 @@ class Heap {
   void SwapStacks();
 
   Spaces spaces_;
+
+  // A map that we use to temporarily reserve address range for the oat file.
+  UniquePtr<MemMap> oat_file_map_;
 
   // The alloc space which we are currently allocating into.
   AllocSpace* alloc_space_;
@@ -447,14 +455,15 @@ class Heap {
   volatile bool requesting_gc_;
 
   // Mark stack that we reuse to avoid re-allocating the mark stack.
-  UniquePtr<MarkStack> mark_stack_;
+  UniquePtr<ObjectStack> mark_stack_;
 
   // Allocation stack, new allocations go here so that we can do sticky mark bits. This enables us
   // to use the live bitmap as the old mark bitmap.
-  UniquePtr<MarkStack> allocation_stack_;
+  const size_t max_allocation_stack_size_;
+  UniquePtr<ObjectStack> allocation_stack_;
 
   // Second allocation stack so that we can process allocation with the heap unlocked.
-  UniquePtr<MarkStack> live_stack_;
+  UniquePtr<ObjectStack> live_stack_;
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;

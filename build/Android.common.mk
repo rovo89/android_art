@@ -198,7 +198,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/jobject_comparator.cc \
 	src/locks.cc \
 	src/logging.cc \
-	src/mark_stack.cc \
 	src/mark_sweep.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \

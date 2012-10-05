@@ -22,6 +22,7 @@
 #include <limits>
 #include <vector>
 
+#include "atomic_stack.h"
 #include "card_table.h"
 #include "debugger.h"
 #include "heap_bitmap.h"
@@ -121,6 +122,10 @@ static bool GenerateImage(const std::string& image_file_name) {
   return true;
 }
 
+void Heap::UnReserveOatFileAddressRange() {
+  oat_file_map_.reset(NULL);
+}
+
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
            const std::string& original_image_file_name, bool concurrent_gc)
     : alloc_space_(NULL),
@@ -149,6 +154,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       last_trim_time_(0),
       try_running_gc_(false),
       requesting_gc_(false),
+      max_allocation_stack_size_(MB),
       reference_referent_offset_(0),
       reference_queue_offset_(0),
       reference_queueNext_offset_(0),
@@ -187,21 +193,29 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
         image_space = ImageSpace::Create(image_file_name);
       }
     }
+
     CHECK(image_space != NULL) << "Failed to create space from " << image_file_name;
     AddSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
-    byte* oat_end_addr = GetImageSpace()->GetImageHeader().GetOatEnd();
-    CHECK_GT(oat_end_addr, GetImageSpace()->End());
+    byte* oat_end_addr = image_space->GetImageHeader().GetOatEnd();
+    CHECK_GT(oat_end_addr, image_space->End());
+
+    // Reserve address range from image_space->End() to image_space->GetImageHeader().GetOatEnd()
+    uintptr_t reserve_begin = RoundUp(reinterpret_cast<uintptr_t>(image_space->End()), kPageSize);
+    uintptr_t reserve_end = RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr), kPageSize);
+    oat_file_map_.reset(MemMap::MapAnonymous("oat file reserve",
+                                             reinterpret_cast<byte*>(reserve_begin),
+                                             reserve_end - reserve_begin, PROT_READ));
+
     if (oat_end_addr > requested_begin) {
       requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),
                                                           kPageSize));
     }
   }
 
-  // Allocate the large object space (placed after the alloc space).
-  large_object_space_.reset(FreeListSpace::Create("large object space", requested_begin + capacity,
-                                                  capacity));
+  // Allocate the large object space.
+  large_object_space_.reset(FreeListSpace::Create("large object space", NULL, capacity));
   live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
   mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
@@ -242,12 +256,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   num_bytes_allocated_ = 0;
 
   // Max stack size in bytes.
-  static const size_t max_stack_size = capacity / SpaceBitmap::kAlignment * kWordSize;
-
-  // TODO: Rename MarkStack to a more generic name?
-  mark_stack_.reset(MarkStack::Create("dalvik-mark-stack", max_stack_size));
-  allocation_stack_.reset(MarkStack::Create("dalvik-allocation-stack", max_stack_size));
-  live_stack_.reset(MarkStack::Create("dalvik-live-stack", max_stack_size));
+  static const size_t default_mark_stack_size = 64 * KB;
+  mark_stack_.reset(ObjectStack::Create("dalvik-mark-stack", default_mark_stack_size));
+  allocation_stack_.reset(ObjectStack::Create("dalvik-allocation-stack",
+                                            max_allocation_stack_size_));
+  live_stack_.reset(ObjectStack::Create("dalvik-live-stack",
+                                      max_allocation_stack_size_));
 
   // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
@@ -523,7 +537,7 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-void Heap::RecordAllocation(size_t size, const Object* obj) {
+void Heap::RecordAllocation(size_t size, Object* obj) {
   DCHECK(obj != NULL);
   DCHECK_GT(size, 0u);
   num_bytes_allocated_ += size;
@@ -539,7 +553,15 @@ void Heap::RecordAllocation(size_t size, const Object* obj) {
     global_stats->allocated_bytes += size;
   }
 
-  allocation_stack_->AtomicPush(obj);
+  // This is safe to do since the GC will never free objects which are neither in the allocation
+  // stack or the live bitmap.
+  while (!allocation_stack_->AtomicPushBack(obj)) {
+    Thread* self = Thread::Current();
+    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
+    // If we actually ran a different type of Gc than requested, we can skip the index forwards.
+    CollectGarbageInternal(kGcTypeSticky, kGcCauseForAlloc, false);
+    self->TransitionFromSuspendedToRunnable();
+  }
 }
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
@@ -784,10 +806,10 @@ size_t Heap::GetUsedMemorySize() const {
   return num_bytes_allocated_;
 }
 
-void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack) {
-  const size_t count = stack->Size();
-  for (size_t i = 0; i < count; ++i) {
-    const Object* obj = stack->Get(i);
+void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack) {
+  Object** limit = stack->End();
+  for (Object** it = stack->Begin(); it != limit; ++it) {
+    const Object* obj = *it;
     DCHECK(obj != NULL);
     if (LIKELY(bitmap->HasAddress(obj))) {
       bitmap->Set(obj);
@@ -797,10 +819,10 @@ void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkS
   }
 }
 
-void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack) {
-  size_t count = stack->Size();
-  for (size_t i = 0; i < count; ++i) {
-    const Object* obj = stack->Get(i);
+void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack) {
+  Object** limit = stack->End();
+  for (Object** it = stack->Begin(); it != limit; ++it) {
+    const Object* obj = *it;
     DCHECK(obj != NULL);
     if (LIKELY(bitmap->HasAddress(obj))) {
       bitmap->Clear(obj);
@@ -970,7 +992,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     timings.AddSplit("MarkRoots");
 
     // Roots are marked on the bitmap and the mark_stack is empty.
-    DCHECK(mark_sweep.IsMarkStackEmpty());
+    DCHECK(mark_stack_->IsEmpty());
 
     UpdateAndMarkModUnion(timings, gc_type);
 
@@ -1121,8 +1143,8 @@ class VerifyReferenceVisitor {
     // Verify that the reference is live.
     if (ref != NULL && !IsLive(ref)) {
       CardTable* card_table = heap_->GetCardTable();
-      MarkStack* alloc_stack = heap_->allocation_stack_.get();
-      MarkStack* live_stack = heap_->live_stack_.get();
+      ObjectStack* alloc_stack = heap_->allocation_stack_.get();
+      ObjectStack* live_stack = heap_->live_stack_.get();
 
       byte* card_addr = card_table->CardFromAddr(obj);
       LOG(ERROR) << "Object " << obj << " references dead object " << ref << " on IsDirty = "
@@ -1161,7 +1183,7 @@ class VerifyReferenceVisitor {
           IdentityFunctor());
 
       // Try and see if a mark sweep collector scans the reference.
-      MarkStack* mark_stack = heap_->mark_stack_.get();
+      ObjectStack* mark_stack = heap_->mark_stack_.get();
       MarkSweep ms(mark_stack);
       ms.Init();
       mark_stack->Reset();
@@ -1198,7 +1220,7 @@ class VerifyReferenceVisitor {
       heap_->DumpSpaces();
       LOG(ERROR) << "Object " << obj << " not found in any spaces";
     }
-    MarkStack* alloc_stack = heap_->allocation_stack_.get();
+    ObjectStack* alloc_stack = heap_->allocation_stack_.get();
     // At this point we need to search the allocation since things in the live stack may get swept.
     if (std::binary_search(alloc_stack->Begin(), alloc_stack->End(), const_cast<Object*>(obj))) {
       return true;
@@ -1271,7 +1293,7 @@ class VerifyReferenceCardVisitor {
       // If the object is not dirty and it is referencing something in the live stack other than
       // class, then it must be on a dirty card.
       if (!card_table->IsDirty(obj)) {
-        MarkStack* live_stack = heap_->live_stack_.get();
+        ObjectStack* live_stack = heap_->live_stack_.get();
         if (std::binary_search(live_stack->Begin(), live_stack->End(), ref) && !ref->IsClass()) {
           if (std::binary_search(live_stack->Begin(), live_stack->End(), obj)) {
             LOG(ERROR) << "Object " << obj << " found in live stack";
@@ -1379,7 +1401,7 @@ void Heap::SwapBitmaps(Thread* self) {
 }
 
 void Heap::SwapStacks() {
-  MarkStack* temp = allocation_stack_.release();
+  ObjectStack* temp = allocation_stack_.release();
   allocation_stack_.reset(live_stack_.release());
   live_stack_.reset(temp);
 
@@ -1464,7 +1486,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
 
       for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-        CHECK(!GetLiveBitmap()->Test(*it));
+        DCHECK(!GetLiveBitmap()->Test(*it));
       }
 
       if (gc_type == kGcTypePartial) {
@@ -1507,7 +1529,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
     }
 
     // Roots are marked on the bitmap and the mark_stack is empty.
-    DCHECK(mark_sweep.IsMarkStackEmpty());
+    DCHECK(mark_stack_->IsEmpty());
 
     // Allow mutators to go again, acquire share on mutator_lock_ to continue.
     thread_list->ResumeAll();

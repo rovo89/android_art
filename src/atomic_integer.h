@@ -25,8 +25,14 @@ class AtomicInteger {
  public:
   AtomicInteger(int32_t value) : value_(value) { }
 
+  // Unsafe = operator for non atomic operations on the integer.
+  AtomicInteger& operator = (int32_t new_value) {
+    value_ = new_value;
+    return *this;
+  }
+
   operator int32_t () const {
-    return get();
+    return value_;
   }
 
   int32_t get() const {
@@ -49,11 +55,11 @@ class AtomicInteger {
     return android_atomic_and(-value, &value_);
   }
 
-  int32_t operator ++ () {
+  int32_t operator ++ (int32_t) {
     return android_atomic_inc(&value_);
   }
 
-  int32_t operator -- () {
+  int32_t operator -- (int32_t) {
     return android_atomic_dec(&value_);
   }
  private:
