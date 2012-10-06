@@ -654,8 +654,7 @@ class MethodHelper {
     const DexFile* result = dex_file_;
     if (result == NULL) {
       const DexCache* dex_cache = GetDexCache();
-      result = &GetClassLinker()->FindDexFile(dex_cache);
-      dex_file_ = result;
+      result = dex_file_ = dex_cache->GetDexFile();
     }
     return *result;
   }

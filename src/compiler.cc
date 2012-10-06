@@ -510,7 +510,7 @@ void Compiler::CompileOne(const AbstractMethod* method) {
     class_loader = soa.Env()->NewGlobalRef(local_class_loader.get());
     // Find the dex_file
     dex_cache = method->GetDeclaringClass()->GetDexCache();
-    dex_file = &Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+    dex_file = dex_cache->GetDexFile();
   }
   self->TransitionFromRunnableToSuspended(kNative);
 
@@ -708,7 +708,7 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* 
         // The referring class can't access the resolved field, this may occur as a result of a
         // protected field being made public by a sub-class. Resort to the dex file to determine
         // the correct class for the access check.
-        const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
+        const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
         Class* dex_fields_class = mUnit->class_linker_->ResolveType(dex_file,
                                                          dex_file.GetFieldId(field_idx).class_idx_,
                                                          referrer_class);
@@ -764,7 +764,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
           // protected field being made public by a sub-class. Resort to the dex file to determine
           // the correct class for the access check. Don't change the field's class as that is
           // used to identify the SSB.
-          const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
+          const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
           Class* dex_fields_class =
               mUnit->class_linker_->ResolveType(dex_file,
                                                 dex_file.GetFieldId(field_idx).class_idx_,
@@ -878,7 +878,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
         // protected method being made public by implementing an interface that re-declares the
         // method public. Resort to the dex file to determine the correct class for the access
         // check.
-        const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
+        const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
         methods_class =
             mUnit->class_linker_->ResolveType(dex_file,
                                               dex_file.GetMethodId(method_idx).class_idx_,

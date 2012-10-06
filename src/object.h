@@ -1536,10 +1536,10 @@ class MANAGED Class : public StaticStorageBase {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(src != NULL);
     if (this == src) {
-      // Can always assign to things of the same type
+      // Can always assign to things of the same type.
       return true;
     } else if (IsObjectClass()) {
-      // Can assign any reference to java.lang.Object
+      // Can assign any reference to java.lang.Object.
       return !src->IsPrimitive();
     } else if (IsInterface()) {
       return src->Implements(this);

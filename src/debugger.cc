@@ -2167,7 +2167,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
           gSingleStepControl.method = m;
           gSingleStepControl.line_number = -1;
           if (dex_cache != NULL) {
-            const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+            const DexFile& dex_file = *dex_cache->GetDexFile();
             gSingleStepControl.line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
           }
         }

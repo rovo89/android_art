@@ -229,7 +229,7 @@ class CommonTest : public testing::Test {
 
     if (!method->IsAbstract()) {
       const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-      const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       const CompiledMethod* compiled_method =
           compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
                                                                  method->GetDexMethodIndex()));

@@ -61,7 +61,7 @@ void ThrowNullPointerExceptionForFieldAccess(Field* field, bool is_read) {
 void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t method_idx,
                                               InvokeType type) {
   DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
-  const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+  const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
       << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";
@@ -133,8 +133,7 @@ void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t d
     default: {
       // TODO: We should have covered all the cases where we expect a NPE above, this
       //       message/logging is so we can improve any cases we've missed in the future.
-      const DexFile& dex_file = Runtime::Current()->GetClassLinker()
-          ->FindDexFile(throw_method->GetDeclaringClass()->GetDexCache());
+      const DexFile& dex_file = *throw_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
       std::string message("Null pointer exception during instruction '");
       message += instr->DumpString(&dex_file);
       message += "'";
@@ -243,7 +242,7 @@ void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
 
 void ThrowNoSuchMethodError(uint32_t method_idx, const AbstractMethod* referrer) {
   DexCache* dex_cache = referrer->GetDeclaringClass()->GetDexCache();
-  const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+  const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
   msg << "No method '" << PrettyMethod(method_idx, dex_file, true) << "'";
   AddReferrerLocation(msg, referrer);

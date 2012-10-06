@@ -172,11 +172,10 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   String* string = obj->AsString();
   std::string utf8_string(string->ToModifiedUtf8());
   ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = writer->dex_caches_.begin(), end = writer->dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
-    const DexFile& dex_file = linker->FindDexFile(dex_cache);
+    const DexFile& dex_file = *dex_cache->GetDexFile();
     const DexFile::StringId* string_id = dex_file.FindStringId(utf8_string);
     if (string_id != NULL) {
       // This string occurs in this dex file, assign the dex cache entry.

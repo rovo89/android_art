@@ -162,7 +162,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thr
       // The referring class can't access the resolved field, this may occur as a result of a
       // protected field being made public by a sub-class. Resort to the dex file to determine
       // the correct class for the access check.
-      const DexFile& dex_file = class_linker->FindDexFile(referring_class->GetDexCache());
+      const DexFile& dex_file = *referring_class->GetDexCache()->GetDexFile();
       fields_class = class_linker->ResolveType(dex_file,
                                                dex_file.GetFieldId(field_idx).class_idx_,
                                                referring_class);
@@ -256,7 +256,7 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, con
         // The referring class can't access the resolved method, this may occur as a result of a
         // protected method being made public by implementing an interface that re-declares the
         // method public. Resort to the dex file to determine the correct class for the access check
-        const DexFile& dex_file = class_linker->FindDexFile(referring_class->GetDexCache());
+        const DexFile& dex_file = *referring_class->GetDexCache()->GetDexFile();
         methods_class = class_linker->ResolveType(dex_file,
                                                   dex_file.GetMethodId(method_idx).class_idx_,
                                                   referring_class);

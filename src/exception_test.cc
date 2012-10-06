@@ -38,7 +38,7 @@ class ExceptionTest : public CommonTest {
     ASSERT_TRUE(my_klass_ != NULL);
     class_linker_->EnsureInitialized(my_klass_, false, true);
 
-    dex_ = &Runtime::Current()->GetClassLinker()->FindDexFile(my_klass_->GetDexCache());
+    dex_ = my_klass_->GetDexCache()->GetDexFile();
 
     uint32_t code_size = 12;
     fake_code_.push_back((code_size >> 24) & 0xFF);

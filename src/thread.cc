@@ -802,11 +802,10 @@ struct StackDumpVisitor : public StackVisitor {
     }
     const int kMaxRepetition = 3;
     Class* c = m->GetDeclaringClass();
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexCache* dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != NULL) {  // be tolerant of bad input
-      const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
     }
     if (line_number == last_line_number && last_method == m) {
@@ -1701,9 +1700,7 @@ class CatchBlockStackVisitor : public StackVisitor {
       if (catch_method == NULL) {
         LOG(INFO) << "Handler is upcall";
       } else {
-        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-        const DexFile& dex_file =
-            class_linker->FindDexFile(catch_method->GetDeclaringClass()->GetDexCache());
+        const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
         LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
       }

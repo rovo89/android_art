@@ -104,7 +104,7 @@ class ClassLinker {
     if (UNLIKELY(resolved_string == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
-      const DexFile& dex_file = FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       resolved_string = ResolveString(dex_file, string_idx, dex_cache);
     }
     return resolved_string;
@@ -136,7 +136,7 @@ class ClassLinker {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
       ClassLoader* class_loader = declaring_class->GetClassLoader();
-      const DexFile& dex_file = FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     }
     return resolved_type;
@@ -149,7 +149,7 @@ class ClassLinker {
     Class* resolved_type = dex_cache->GetResolvedType(type_idx);
     if (UNLIKELY(resolved_type == NULL)) {
       ClassLoader* class_loader = declaring_class->GetClassLoader();
-      const DexFile& dex_file = FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     }
     return resolved_type;
@@ -185,7 +185,7 @@ class ClassLinker {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
       ClassLoader* class_loader = declaring_class->GetClassLoader();
-      const DexFile& dex_file = FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
     }
     return resolved_method;
@@ -199,7 +199,7 @@ class ClassLinker {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
       ClassLoader* class_loader = declaring_class->GetClassLoader();
-      const DexFile& dex_file = FindDexFile(dex_cache);
+      const DexFile& dex_file = *dex_cache->GetDexFile();
       resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
     }
     return resolved_field;
@@ -265,9 +265,6 @@ class ClassLinker {
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
-  const DexFile& FindDexFile(const DexCache* dex_cache) const
-      LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   DexCache* FindDexCache(const DexFile& dex_file) const
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -328,10 +325,16 @@ class ClassLinker {
     return ObjectArray<String>::Alloc(self, GetClassRoot(kJavaLangStringArrayClass), length);
   }
 
-  ObjectArray<AbstractMethod>* AllocMethodArray(Thread* self, size_t length)
+  ObjectArray<AbstractMethod>* AllocAbstractMethodArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ObjectArray<AbstractMethod>::Alloc(self,
         GetClassRoot(kJavaLangReflectAbstractMethodArrayClass), length);
+  }
+
+  ObjectArray<AbstractMethod>* AllocMethodArray(Thread* self, size_t length)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return ObjectArray<AbstractMethod>::Alloc(self,
+        GetClassRoot(kJavaLangReflectMethodArrayClass), length);
   }
 
   ObjectArray<InterfaceEntry>* AllocIfTable(Thread* self, size_t length)
@@ -581,8 +584,9 @@ class ClassLinker {
     kJavaLangReflectMethod,
     kJavaLangReflectProxy,
     kJavaLangStringArrayClass,
-    kJavaLangReflectFieldArrayClass,
     kJavaLangReflectAbstractMethodArrayClass,
+    kJavaLangReflectFieldArrayClass,
+    kJavaLangReflectMethodArrayClass,
     kJavaLangClassLoader,
     kJavaLangThrowable,
     kJavaLangClassNotFoundException,
