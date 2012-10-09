@@ -28,6 +28,17 @@ namespace arm {
 DisassemblerArm::DisassemblerArm() {
 }
 
+size_t DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin) {
+  if ((reinterpret_cast<intptr_t>(begin) & 1) == 0) {
+    DumpArm(os, begin);
+    return 4;
+  } else {
+    // remove thumb specifier bits
+    begin = reinterpret_cast<const uint8_t*>(reinterpret_cast<uintptr_t>(begin) & ~1);
+    return DumpThumb16(os, begin);
+  }
+}
+
 void DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) {
   if ((reinterpret_cast<intptr_t>(begin) & 1) == 0) {
     for (const uint8_t* cur = begin; cur < end; cur += 4) {

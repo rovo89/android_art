@@ -293,38 +293,40 @@ class OatDumper {
     os << StringPrintf("\t%d: %s (dex_method_idx=%d)\n",
                        class_method_index, PrettyMethod(dex_method_idx, dex_file, true).c_str(),
                        dex_method_idx);
-    os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
-                       oat_method.GetFrameSizeInBytes());
-    os << StringPrintf("\t\tcore_spill_mask: 0x%08x",
-                       oat_method.GetCoreSpillMask());
+    os << StringPrintf("\t\tframe_size_in_bytes: %zd\n", oat_method.GetFrameSizeInBytes());
+    os << StringPrintf("\t\tcore_spill_mask: 0x%08x\n", oat_method.GetCoreSpillMask());
     DumpSpillMask(os, oat_method.GetCoreSpillMask(), false);
-    os << StringPrintf("\n\t\tfp_spill_mask: 0x%08x",
-                       oat_method.GetFpSpillMask());
+    os << StringPrintf("\n\t\tfp_spill_mask: 0x%08x\n", oat_method.GetFpSpillMask());
     DumpSpillMask(os, oat_method.GetFpSpillMask(), true);
-    os << StringPrintf("\n\t\tmapping_table: %p (offset=0x%08x)\n",
-                       oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
-    DumpMappingTable(os, oat_method);
     os << StringPrintf("\t\tvmap_table: %p (offset=0x%08x)\n",
                        oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
-    DumpVmap(os, oat_method.GetVmapTable(), oat_method.GetCoreSpillMask(),
-             oat_method.GetFpSpillMask());
-    os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
-                       oat_method.GetNativeGcMap(), oat_method.GetNativeGcMapOffset());
-    DumpGcMap(os, oat_method.GetCode(), oat_method.GetNativeGcMap());
+    DumpVmap(os, oat_method);
+    const bool kDumpRawMappingTable = false;
+    if (kDumpRawMappingTable) {
+      os << StringPrintf("\t\tmapping_table: %p (offset=0x%08x)\n",
+                         oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
+      DumpMappingTable(os, oat_method);
+    }
+    const bool kDumpRawGcMap = false;
+    if (kDumpRawGcMap) {
+      os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
+                         oat_method.GetNativeGcMap(), oat_method.GetNativeGcMapOffset());
+      DumpGcMap(os, oat_method, code_item);
+    }
+    os << "\t\tDEX CODE:\n";
+    DumpDexCode(os, dex_file, code_item);
     os << StringPrintf("\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
                        oat_method.GetCode(),
                        oat_method.GetCodeOffset(),
                        oat_method.GetCodeSize(),
                        oat_method.GetCode() != NULL ? "..." : "");
-    DumpCode(os, oat_method.GetCode(), oat_method.GetCodeSize(), oat_method.GetMappingTable(),
-             dex_file, code_item);
+    DumpCode(os, oat_method, code_item);
     os << StringPrintf("\t\tINVOKE STUB: %p (offset=0x%08x size=%d)%s\n",
                        oat_method.GetInvokeStub(),
                        oat_method.GetInvokeStubOffset(),
                        oat_method.GetInvokeStubSize(),
                        oat_method.GetInvokeStub() != NULL ? "..." : "");
-    DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()),
-             oat_method.GetInvokeStubSize(), NULL, dex_file, NULL);
+    DumpInvokeStub(os, oat_method);
   }
 
   void DumpSpillMask(std::ostream& os, uint32_t spill_mask, bool is_float) {
@@ -350,8 +352,8 @@ class OatDumper {
     os << ")";
   }
 
-  void DumpVmap(std::ostream& os, const uint16_t* raw_table, uint32_t core_spill_mask,
-                uint32_t fp_spill_mask) {
+  void DumpVmap(std::ostream& os, const OatFile::OatMethod& oat_method) {
+    const uint16_t* raw_table = oat_method.GetVmapTable();
     if (raw_table == NULL) {
       return;
     }
@@ -362,12 +364,12 @@ class OatDumper {
       uint16_t dex_reg = vmap_table[i];
       size_t matches = 0;
       size_t spill_shifts = 0;
-      uint32_t spill_mask = core_spill_mask;
+      uint32_t spill_mask = oat_method.GetCoreSpillMask();
       bool processing_fp = false;
       while (matches != (i + 1)) {
         if (spill_mask == 0) {
           CHECK(!processing_fp);
-          spill_mask = fp_spill_mask;
+          spill_mask = oat_method.GetFpSpillMask();
           processing_fp = true;
         }
         matches += spill_mask & 1;  // Add 1 if the low bit is set
@@ -388,11 +390,43 @@ class OatDumper {
     os << "\n";
   }
 
-  void DumpGcMap(std::ostream& os, const void* code, const uint8_t* gc_map_raw) {
+  void DescribeVReg(std::ostream& os, const OatFile::OatMethod& oat_method,
+                    const DexFile::CodeItem* code_item, size_t reg) {
+    const uint16_t* raw_table = oat_method.GetVmapTable();
+    if (raw_table != NULL) {
+      const VmapTable vmap_table(raw_table);
+      uint32_t vmap_offset;
+      if (vmap_table.IsInContext(reg, vmap_offset)) {
+        // Compute the register we need to load from the context
+        uint32_t spill_mask = oat_method.GetCoreSpillMask();
+        CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
+        uint32_t matches = 0;
+        uint32_t spill_shifts = 0;
+        while (matches != (vmap_offset + 1)) {
+          DCHECK_NE(spill_mask, 0u);
+          matches += spill_mask & 1;  // Add 1 if the low bit is set
+          spill_mask >>= 1;
+          spill_shifts++;
+        }
+        spill_shifts--;  // wind back one as we want the last match
+        os << "r" << spill_shifts;
+      } else {
+        uint32_t offset = StackVisitor::GetVRegOffset(code_item, oat_method.GetCoreSpillMask(),
+                                                      oat_method.GetFpSpillMask(),
+                                                      oat_method.GetFrameSizeInBytes(), reg);
+        os << "[sp + #" << offset << "]";
+      }
+    }
+  }
+
+  void DumpGcMap(std::ostream& os, const OatFile::OatMethod& oat_method,
+                 const DexFile::CodeItem* code_item) {
+    const uint8_t* gc_map_raw = oat_method.GetNativeGcMap();
     if (gc_map_raw == NULL) {
       return;
     }
     NativePcOffsetToReferenceMap map(gc_map_raw);
+    const void* code = oat_method.GetCode();
     for (size_t entry = 0; entry < map.NumEntries(); entry++) {
       const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) +
                                  map.GetNativePcOffset(entry);
@@ -403,10 +437,14 @@ class OatDumper {
       for (size_t reg = 0; reg < num_regs; reg++) {
         if (((reg_bitmap[reg / 8] >> (reg % 8)) & 0x01) != 0) {
           if (first) {
-            os << "  v" << reg;
+            os << "  v" << reg << " (";
+            DescribeVReg(os, oat_method, code_item, reg);
+            os << ")";
             first = false;
           } else {
-            os << ", v" << reg;
+            os << ", v" << reg << " (";
+            DescribeVReg(os, oat_method, code_item, reg);
+            os << ")";
           }
         }
       }
@@ -427,67 +465,115 @@ class OatDumper {
     uint32_t pc_to_dex_entries = *raw_table;
     ++raw_table;
 
-    os << "\t\t{";
+    os << "\t\tsuspend point mappings {";
     for (size_t i = 0; i < length; i += 2) {
       const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
       uint32_t dex_pc = raw_table[i + 1];
       os << StringPrintf("%p -> 0x%04x", native_pc, dex_pc);
       if (i + 2 == pc_to_dex_entries) {
         // Separate the pc -> dex from dex -> pc sections
-        os << "}\n\t\t{";
+        os << "}\n\t\tcatch entry mappings {";
       } else if (i + 2 < length) {
         os << ", ";
       }
     }
-    os << "}\n" << std::flush;
+    os << "}\n";
   }
 
-  void DumpCode(std::ostream& os, const void* code, int code_size,
-                const uint32_t* raw_mapping_table,
-                const DexFile& dex_file, const DexFile::CodeItem* code_item) {
-    if (code == NULL || code_size == 0) {
-      return;
-    }
-
-    const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
-    const uint8_t* end_native_pc = native_pc + code_size;
-
-    /*
-     * TODO: the mapping table is no longer useful for identifying Dalvik opcodes.  This was
-     * a nice feature, so we ought to come up with another mechanism (at least when debugging).
-     * Keeping the old Dalvik disassembly code for reference.
-     */
-    disassembler_->Dump(os, native_pc, end_native_pc);
-    (void)raw_mapping_table;
-    (void)dex_file;
-    (void)code_item;
-
-#if 0
-    if (raw_mapping_table == NULL) {
-      // code but no mapping table is most likely caused by code created by the JNI compiler
-      disassembler_->Dump(os, native_pc, end_native_pc);
-      return;
-    }
-
-    uint32_t length = *raw_mapping_table;
-    ++raw_mapping_table;
-
-    for (size_t i = 0; i < length; i += 2) {
-      uint32_t dex_pc = raw_mapping_table[i + 1];
-      const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
-      os << StringPrintf("\t\t0x%04x: %s\n", dex_pc, instruction->DumpString(&dex_file).c_str());
-
-      const uint8_t* cur_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i];
-      const uint8_t* cur_pc_end = NULL;
-      if (i + 2 < length) {
-        cur_pc_end = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i + 2];
+  void DumpMappingAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method, size_t offset,
+                           bool suspend_point_mapping) {
+    const uint32_t* raw_table = oat_method.GetMappingTable();
+    if (raw_table != NULL) {
+      ++raw_table;
+      uint32_t length = *raw_table;
+      ++raw_table;
+      uint32_t pc_to_dex_entries = *raw_table;
+      ++raw_table;
+      size_t start, end;
+      if (suspend_point_mapping) {
+        start = 0;
+        end = pc_to_dex_entries;
       } else {
-        cur_pc_end = end_native_pc;
+        start = pc_to_dex_entries;
+        end = length;
       }
-      CHECK(cur_pc < cur_pc_end);
-      disassembler_->Dump(os, cur_pc, cur_pc_end);
+      for (size_t i = start; i < end; i += 2) {
+        if (offset == raw_table[i]) {
+          if (suspend_point_mapping) {
+            os << "\t\t\tsuspend point dex PC: ";
+          } else {
+            os << "\t\t\tcatch entry dex PC: ";
+          }
+          os << raw_table[i + 1] << "\n";
+          return;
+        }
+      }
     }
-#endif
+  }
+
+  void DumpGcMapAtOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
+                         const DexFile::CodeItem* code_item, size_t offset) {
+    const uint8_t* gc_map_raw = oat_method.GetNativeGcMap();
+    if (gc_map_raw != NULL) {
+      NativePcOffsetToReferenceMap map(gc_map_raw);
+      if (map.HasEntry(offset)) {
+        size_t num_regs = map.RegWidth() * 8;
+        const uint8_t* reg_bitmap = map.FindBitMap(offset);
+        bool first = true;
+        for (size_t reg = 0; reg < num_regs; reg++) {
+          if (((reg_bitmap[reg / 8] >> (reg % 8)) & 0x01) != 0) {
+            if (first) {
+              os << "\t\t\tGC map objects:  v" << reg << " (";
+              DescribeVReg(os, oat_method, code_item, reg);
+              os << ")";
+              first = false;
+            } else {
+              os << ", v" << reg << " (";
+              DescribeVReg(os, oat_method, code_item, reg);
+              os << ")";
+            }
+          }
+        }
+        if (!first) {
+          os << "\n";
+        }
+      }
+    }
+  }
+
+  void DumpDexCode(std::ostream& os, const DexFile& dex_file, const DexFile::CodeItem* code_item) {
+    if (code_item != NULL) {
+      size_t i = 0;
+      while (i < code_item->insns_size_in_code_units_) {
+        const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
+        os << StringPrintf("\t\t\t0x%04x: %s\n", i, instruction->DumpString(&dex_file).c_str());
+        i += instruction->SizeInCodeUnits();
+      }
+    }
+  }
+
+  void DumpCode(std::ostream& os, const OatFile::OatMethod& oat_method,
+                const DexFile::CodeItem* code_item) {
+    const void* code = oat_method.GetCode();
+    size_t code_size = oat_method.GetCodeSize();
+    if (code == NULL || code_size == 0) {
+      os << "\t\t\tNO CODE!\n";
+      return;
+    }
+    const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
+    size_t offset = 0;
+    while (offset < code_size) {
+      DumpMappingAtOffset(os, oat_method, offset, false);
+      offset += disassembler_->Dump(os, native_pc + offset);
+      DumpMappingAtOffset(os, oat_method, offset, true);
+      DumpGcMapAtOffset(os, oat_method, code_item, offset);
+    }
+  }
+
+  void DumpInvokeStub(std::ostream& os, const OatFile::OatMethod& oat_method) {
+    const uint8_t* begin = reinterpret_cast<const uint8_t*>(oat_method.GetInvokeStub());
+    const uint8_t* end = begin + oat_method.GetInvokeStubSize();
+    disassembler_->Dump(os, begin, end);
   }
 
   const std::string host_prefix_;

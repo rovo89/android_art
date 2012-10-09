@@ -260,6 +260,11 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
 DisassemblerMips::DisassemblerMips() {
 }
 
+size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* begin) {
+  DumpMips(os, begin);
+  return 4;
+}
+
 void DisassemblerMips::Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) {
   for (const uint8_t* cur = begin; cur < end; cur += 4) {
     DumpMips(os, cur);

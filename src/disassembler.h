@@ -31,6 +31,9 @@ class Disassembler {
   static Disassembler* Create(InstructionSet instruction_set);
   virtual ~Disassembler() {}
 
+  // Dump a single instruction returning the length of that instruction.
+  virtual size_t Dump(std::ostream& os, const uint8_t* begin) = 0;
+  // Dump instructions within a range.
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) = 0;
 
  protected:
