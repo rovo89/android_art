@@ -82,6 +82,10 @@ void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t d
     case Instruction::INVOKE_VIRTUAL_RANGE:
       ThrowNullPointerExceptionForMethodAccess(throw_method, dec_insn.vB, kVirtual);
       break;
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      ThrowNullPointerExceptionForMethodAccess(throw_method, dec_insn.vB, kInterface);
+      break;
     case Instruction::IGET:
     case Instruction::IGET_WIDE:
     case Instruction::IGET_OBJECT:

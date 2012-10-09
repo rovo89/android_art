@@ -83,8 +83,11 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
                                        directMethod)
     && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
+    if (fastPath) {
+      pNullCk = &nullCk;
+    }
     nextCallInsn = fastPath ? nextInterfaceCallInsn
-        : nextInterfaceCallInsnWithAccessCheck;
+                            : nextInterfaceCallInsnWithAccessCheck;
     skipThis = false;
   } else if (info->type == kDirect) {
     if (fastPath) {

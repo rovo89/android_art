@@ -650,38 +650,35 @@ void installLiteralPools(CompilationUnit* cUnit)
   }
   // Push code and method literals, record offsets for the compiler to patch.
   dataLIR = cUnit->codeLiteralList;
-  if (dataLIR != NULL) {
-    while (dataLIR != NULL) {
-      uint32_t target = dataLIR->operands[0];
-      cUnit->compiler->AddCodePatch(cUnit->dex_file,
+  while (dataLIR != NULL) {
+    uint32_t target = dataLIR->operands[0];
+    cUnit->compiler->AddCodePatch(cUnit->dex_file,
+                                  cUnit->method_idx,
+                                  cUnit->invoke_type,
+                                  target,
+                                  static_cast<InvokeType>(dataLIR->operands[1]),
+                                  cUnit->codeBuffer.size());
+    const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
+    // unique based on target to ensure code deduplication works
+    uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
+    pushWord(cUnit->codeBuffer, unique_patch_value);
+    dataLIR = NEXT_LIR(dataLIR);
+  }
+  dataLIR = cUnit->methodLiteralList;
+  while (dataLIR != NULL) {
+    uint32_t target = dataLIR->operands[0];
+    cUnit->compiler->AddMethodPatch(cUnit->dex_file,
                                     cUnit->method_idx,
                                     cUnit->invoke_type,
                                     target,
                                     static_cast<InvokeType>(dataLIR->operands[1]),
                                     cUnit->codeBuffer.size());
-      const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
-      // unique based on target to ensure code deduplication works
-      uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-      pushWord(cUnit->codeBuffer, unique_patch_value);
-      dataLIR = NEXT_LIR(dataLIR);
-    }
-    dataLIR = cUnit->methodLiteralList;
-    while (dataLIR != NULL) {
-      uint32_t target = dataLIR->operands[0];
-      cUnit->compiler->AddMethodPatch(cUnit->dex_file,
-                                      cUnit->method_idx,
-                                      cUnit->invoke_type,
-                                      target,
-                                      static_cast<InvokeType>(dataLIR->operands[1]),
-                                      cUnit->codeBuffer.size());
-      const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
-      // unique based on target to ensure code deduplication works
-      uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-      pushWord(cUnit->codeBuffer, unique_patch_value);
-      dataLIR = NEXT_LIR(dataLIR);
-    }
+    const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
+    // unique based on target to ensure code deduplication works
+    uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
+    pushWord(cUnit->codeBuffer, unique_patch_value);
+    dataLIR = NEXT_LIR(dataLIR);
   }
-
 }
 
 /* Write the switch tables to the output stream */

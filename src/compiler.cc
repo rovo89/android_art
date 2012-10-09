@@ -820,9 +820,13 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
 
 void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, AbstractMethod* method,
                                              uintptr_t& direct_code, uintptr_t& direct_method) {
+  // For direct and static methods compute possible direct_code and direct_method values, ie
+  // an address for the Method* being invoked and an address of the code for that Method*.
+  // For interface calls compute a value for direct_method that is the interface method being
+  // invoked, so this can be passed to the out-of-line runtime support code.
   direct_code = 0;
   direct_method = 0;
-  if (sharp_type != kStatic && sharp_type != kDirect) {
+  if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
     return;
   }
   bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
@@ -885,8 +889,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
                                               referrer_class);
       }
       if (referrer_class->CanAccess(methods_class) &&
-          referrer_class->CanAccessMember(methods_class,
-                                          resolved_method->GetAccessFlags())) {
+          referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
         const bool kEnableSharpening = true;
         // Sharpen a virtual call into a direct call when the target is known.

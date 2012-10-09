@@ -1006,7 +1006,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         ThumbRegister Rt(instr, 8);
         uint16_t imm8 = instr & 0xFF;
         opcode << (opB == 0 ? "str" : "ldr");
-        args << Rt << ", [ sp, #" << (imm8 << 2) << "]";
+        args << Rt << ", [sp, #" << (imm8 << 2) << "]";
       } else {
         uint16_t imm5 = (instr >> 6) & 0x1F;
         uint16_t opB = (instr >> 11) & 1;

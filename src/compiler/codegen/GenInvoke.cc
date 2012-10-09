@@ -188,7 +188,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
   } else {
     switch (state) {
     case 0:  // Get the current Method* [sets rARG0]
-      // TUNING: we can save a reg copy if Method* has been promoted
+      // TUNING: we can save a reg copy if Method* has been promoted.
       loadCurrMethodDirect(cUnit, rARG0);
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
@@ -247,16 +247,16 @@ int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
                   int state, uint32_t dexIdx, uint32_t methodIdx,
                   uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
-  RegLocation rlArg;
   /*
    * This is the fast path in which the target virtual method is
    * fully resolved at compile time.
    */
   switch (state) {
-    case 0:  // Get "this" [set rARG1]
-      rlArg = info->args[0];
+    case 0: {  // Get "this" [set rARG1]
+      RegLocation  rlArg = info->args[0];
       loadValueDirectFixed(cUnit, rlArg, rARG1);
       break;
+    }
     case 1: // Is "this" null? [use rARG1]
       genNullCheck(cUnit, info->args[0].sRegLow, rARG1, info->optFlags);
       // get this->klass_ [use rARG1, set rINVOKE_TGT]
@@ -279,6 +279,76 @@ int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
 #endif
     default:
       return -1;
+  }
+  return state + 1;
+}
+
+/*
+ * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
+ * which will locate the target and continue on via a tail call.
+ */
+int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
+                          uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
+                          uintptr_t directMethod, InvokeType unused4)
+{
+#if !defined(TARGET_ARM)
+  directMethod = 0;
+#endif
+#if !defined(TARGET_X86)
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
+#endif
+
+  if (directMethod != 0) {
+    switch (state) {
+      case 0:  // Load the trampoline target [sets rINVOKE_TGT].
+#if !defined(TARGET_X86)
+        loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+#endif
+        // Get the interface Method* [sets rARG0]
+        if (directMethod != (uintptr_t)-1) {
+          loadConstant(cUnit, rARG0, directMethod);
+        } else {
+          LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
+          if (dataTarget == NULL) {
+            dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
+            dataTarget->operands[1] = kInterface;
+          }
+#if defined(TARGET_ARM)
+          LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                  kThumb2LdrPcRel12, rARG0, 0, 0, 0, 0,
+                                  dataTarget);
+          oatAppendLIR(cUnit, loadPcRel);
+#else
+          UNIMPLEMENTED(FATAL) << (void*)dataTarget;
+#endif
+        }
+        break;
+      default:
+        return -1;
+    }
+  } else {
+    switch (state) {
+      case 0:
+        // Get the current Method* [sets rARG0] - TUNING: remove copy of method if it is promoted.
+        loadCurrMethodDirect(cUnit, rARG0);
+        // Load the trampoline target [sets rINVOKE_TGT].
+#if !defined(TARGET_X86)
+        loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+#endif
+        break;
+    case 1:  // Get method->dex_cache_resolved_methods_ [set/use rARG0]
+      loadWordDisp(cUnit, rARG0,
+                   AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                   rARG0);
+      break;
+    case 2:  // Grab target method* [set/use rARG0]
+      loadWordDisp(cUnit, rARG0,
+                   Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
+                   rARG0);
+      break;
+    default:
+      return -1;
+    }
   }
   return state + 1;
 }
@@ -332,18 +402,6 @@ int nextVCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
                     uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
-}
-
-/*
- * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
- * which will locate the target and continue on via a tail call.
- */
-int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
-                          uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
-                          uintptr_t unused3, InvokeType unused4)
-{
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
   return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
