@@ -73,8 +73,8 @@ size_t AllocSpace::bitmap_index_ = 0;
 AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin,
                        byte* end, size_t growth_limit)
     : MemMapSpace(name, mem_map, end - begin, kGcRetentionPolicyAlwaysCollect),
-      num_bytes_allocated_(0), num_objects_allocated_(0),
-      lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
+      num_bytes_allocated_(0), num_objects_allocated_(0), total_bytes_allocated_(0),
+      total_objects_allocated_(0), lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
       growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
@@ -202,7 +202,10 @@ Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
     *reinterpret_cast<word*>(reinterpret_cast<byte*>(result) + AllocationSize(result)
         - sizeof(word) - kChunkOverhead) = kPaddingValue;
   }
-  num_bytes_allocated_ += AllocationSize(result);
+  size_t allocation_size = AllocationSize(result);
+  num_bytes_allocated_ += allocation_size;
+  total_bytes_allocated_ += allocation_size;
+  ++total_objects_allocated_;
   ++num_objects_allocated_;
   return result;
 }
@@ -552,8 +555,8 @@ DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
 
 LargeObjectSpace::LargeObjectSpace(const std::string& name)
     : DiscontinuousSpace(name, kGcRetentionPolicyAlwaysCollect),
-      num_bytes_allocated_(0),
-      num_objects_allocated_(0) {
+      num_bytes_allocated_(0), num_objects_allocated_(0), total_bytes_allocated_(0),
+      total_objects_allocated_(0) {
   live_objects_.reset(new SpaceSetMap("large live objects"));
   mark_objects_.reset(new SpaceSetMap("large marked objects"));
 }
@@ -583,8 +586,11 @@ Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
   Object* obj = reinterpret_cast<Object*>(mem_map->Begin());
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
-  num_bytes_allocated_ += mem_map->Size();
+  size_t allocation_size = mem_map->Size();
+  num_bytes_allocated_ += allocation_size;
+  total_bytes_allocated_ += allocation_size;
   ++num_objects_allocated_;
+  ++total_objects_allocated_;
   return obj;
 }
 
@@ -757,7 +763,9 @@ Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
   }
 
   num_objects_allocated_++;
+  total_objects_allocated_++;
   num_bytes_allocated_ += num_bytes;
+  total_bytes_allocated_ += num_bytes;
   return reinterpret_cast<Object*>(addr);
 }
 

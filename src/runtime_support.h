@@ -74,7 +74,8 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* met
       return NULL;  // Failure
     }
   }
-  if (!runtime->GetClassLinker()->EnsureInitialized(klass, true, true)) {
+  if (!klass->IsInitialized() &&
+      !runtime->GetClassLinker()->EnsureInitialized(klass, true, true)) {
     DCHECK(self->IsExceptionPending());
     return NULL;  // Failure
   }

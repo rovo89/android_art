@@ -139,8 +139,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
-      concurrent_gc_start_rate_(3 * MB / 2),
       sticky_gc_count_(0),
+      total_bytes_freed_(0),
+      total_objects_freed_(0),
       large_object_threshold_(3 * kPageSize),
       num_bytes_allocated_(0),
       verify_missing_card_marks_(false),
@@ -152,7 +153,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       min_alloc_space_size_for_sticky_gc_(2 * MB),
       min_remaining_space_for_sticky_gc_(1 * MB),
       last_trim_time_(0),
-      try_running_gc_(false),
       requesting_gc_(false),
       max_allocation_stack_size_(MB),
       reference_referent_offset_(0),
@@ -161,6 +161,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       reference_pendingNext_offset_(0),
       finalizer_reference_zombie_offset_(0),
       target_utilization_(0.5),
+      total_paused_time_(0),
+      total_wait_time_(0),
+      measure_allocation_time_(false),
+      total_allocation_time_(0),
       verify_objects_(false) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
@@ -320,6 +324,39 @@ void Heap::AddSpace(ContinuousSpace* space) {
   }
 }
 
+void Heap::DumpGcPerformanceInfo() {
+  // Dump cumulative timings.
+  LOG(INFO) << "Dumping cumulative Gc timings";
+  uint64_t total_duration = 0;
+  for (CumulativeTimings::iterator it = cumulative_timings_.begin();
+      it != cumulative_timings_.end(); ++it) {
+    CumulativeLogger* logger = it->second;
+    if (logger->GetTotalNs() != 0) {
+      logger->Dump();
+      total_duration += logger->GetTotalNs();
+    }
+  }
+  uint64_t allocation_time = static_cast<uint64_t>(total_allocation_time_) * kTimeAdjust;
+  size_t total_objects_allocated = GetTotalObjectsAllocated();
+  size_t total_bytes_allocated = GetTotalBytesAllocated();
+  if (total_duration != 0) {
+    const double total_seconds = double(total_duration / 1000) / 1000000.0;
+    LOG(INFO) << "Total time spent in GC: " << PrettyDuration(total_duration);
+    LOG(INFO) << "Mean GC size throughput: "
+              << PrettySize(GetTotalBytesFreed() / total_seconds) << "/s";
+    LOG(INFO) << "Mean GC object throughput: " << GetTotalObjectsFreed() / total_seconds << "/s";
+  }
+  LOG(INFO) << "Total number of allocations: " << total_objects_allocated;
+  LOG(INFO) << "Total bytes allocated " << PrettySize(total_bytes_allocated);
+  if (measure_allocation_time_) {
+    LOG(INFO) << "Total time spent allocating: " << PrettyDuration(allocation_time);
+    LOG(INFO) << "Mean allocation time: "
+              << PrettyDuration(allocation_time / total_objects_allocated);
+  }
+  LOG(INFO) << "Total mutator paused time: " << PrettyDuration(total_paused_time_);
+  LOG(INFO) << "Total waiting for Gc to complete time: " << PrettyDuration(total_wait_time_);
+}
+
 Heap::~Heap() {
   // If we don't reset then the mark stack complains in it's destructor.
   allocation_stack_->Reset();
@@ -377,6 +414,10 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
 
   Object* obj = NULL;
   size_t size = 0;
+  uint64_t allocation_start = 0;
+  if (measure_allocation_time_) {
+    allocation_start = NanoTime();
+  }
 
   // We need to have a zygote space or else our newly allocated large object can end up in the
   // Zygote resulting in it being prematurely freed.
@@ -385,21 +426,17 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
   if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
     size = RoundUp(byte_count, kPageSize);
     obj = Allocate(self, NULL, size);
-
-    if (obj != NULL) {
-      // Make sure that our large object didn't get placed anywhere within the space interval or else
-      // it breaks the immune range.
-      DCHECK(reinterpret_cast<byte*>(obj) < spaces_.front()->Begin() ||
-             reinterpret_cast<byte*>(obj) >= spaces_.back()->End());
-    }
+    // Make sure that our large object didn't get placed anywhere within the space interval or else
+    // it breaks the immune range.
+    DCHECK(obj == NULL ||
+           reinterpret_cast<byte*>(obj) < spaces_.front()->Begin() ||
+           reinterpret_cast<byte*>(obj) >= spaces_.back()->End());
   } else {
     obj = Allocate(self, alloc_space_, byte_count);
-    size = alloc_space_->AllocationSize(obj);
 
-    if (obj != NULL) {
-      // Additional verification to ensure that we did not allocate into a zygote space.
-      DCHECK(!have_zygote_space_ || !FindSpaceFromObject(obj)->IsZygoteSpace());
-    }
+    // Ensure that we did not allocate into a zygote space.
+    DCHECK(obj == NULL || !have_zygote_space_ || !FindSpaceFromObject(obj)->IsZygoteSpace());
+    size = alloc_space_->AllocationSize(obj);
   }
 
   if (LIKELY(obj != NULL)) {
@@ -421,6 +458,10 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
       RequestConcurrentGC(self);
     }
     VerifyObject(obj);
+
+    if (measure_allocation_time_) {
+      total_allocation_time_ += (NanoTime() - allocation_start) / kTimeAdjust;
+    }
 
     return obj;
   }
@@ -566,8 +607,6 @@ void Heap::RecordAllocation(size_t size, Object* obj) {
 }
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
-  COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
-                 int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
   DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
   num_bytes_allocated_ -= freed_bytes;
 
@@ -688,16 +727,56 @@ Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
   return TryToAllocate(self, space, alloc_size, true);
 }
 
-int64_t Heap::GetMaxMemory() {
+float Heap::GetTargetHeapUtilization() const {
+  return target_utilization_;
+}
+
+void Heap::SetTargetHeapUtilization(float target) {
+  DCHECK_GT(target, 0.0f);  // asserted in Java code
+  DCHECK_LT(target, 1.0f);
+  target_utilization_ = target;
+}
+
+int64_t Heap::GetMaxMemory() const {
   return growth_limit_;
 }
 
-int64_t Heap::GetTotalMemory() {
+int64_t Heap::GetTotalMemory() const {
   return GetMaxMemory();
 }
 
-int64_t Heap::GetFreeMemory() {
+int64_t Heap::GetFreeMemory() const {
   return GetMaxMemory() - num_bytes_allocated_;
+}
+
+size_t Heap::GetTotalBytesFreed() const {
+  return total_bytes_freed_;
+}
+
+size_t Heap::GetTotalObjectsFreed() const {
+  return total_objects_freed_;
+}
+
+size_t Heap::GetTotalObjectsAllocated() const {
+  size_t total = large_object_space_->GetTotalObjectsAllocated();
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
+    if (space->IsAllocSpace()) {
+      total += space->AsAllocSpace()->GetTotalObjectsAllocated();
+    }
+  }
+  return total;
+}
+
+size_t Heap::GetTotalBytesAllocated() const {
+  size_t total = large_object_space_->GetTotalBytesAllocated();
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
+    if (space->IsAllocSpace()) {
+      total += space->AsAllocSpace()->GetTotalBytesAllocated();
+    }
+  }
+  return total;
 }
 
 class InstanceCounter {
@@ -1027,6 +1106,8 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
 
     cleared_references = mark_sweep.GetClearedReferences();
     bytes_freed = mark_sweep.GetFreedBytes();
+    total_bytes_freed_ += bytes_freed;
+    total_objects_freed_ += mark_sweep.GetFreedObjects();
   }
 
   if (verify_post_gc_heap_) {
@@ -1049,6 +1130,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
 
   // If the GC was slow, then print timings in the log.
   uint64_t duration = (NanoTime() - start_time) / 1000 * 1000;
+  total_paused_time_ += duration / kTimeAdjust;
   if (duration > MsToNs(50)) {
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
@@ -1586,15 +1668,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
         // Make sure everything in the live stack isn't something we unmarked.
         std::sort(allocation_stack_->Begin(), allocation_stack_->End());
         for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-          if (std::binary_search(allocation_stack_->Begin(), allocation_stack_->End(), *it)) {
-            LOG(FATAL) << "Unmarked object " << *it << " in the live stack";
-          }
+          DCHECK(!std::binary_search(allocation_stack_->Begin(), allocation_stack_->End(), *it))
+              << "Unmarked object " << *it << " in the live stack";
         }
       } else {
         for (Object** it = allocation_stack_->Begin(); it != allocation_stack_->End(); ++it) {
-          if (GetLiveBitmap()->Test(*it)) {
-            LOG(FATAL) << "Object " << *it << " is marked as live";
-          }
+          DCHECK(!GetLiveBitmap()->Test(*it)) << "Object " << *it << " is marked as live";
         }
       }
 #endif
@@ -1662,12 +1741,16 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
 
     cleared_references = mark_sweep.GetClearedReferences();
     bytes_freed = mark_sweep.GetFreedBytes();
+    total_bytes_freed_ += bytes_freed;
+    total_objects_freed_ += mark_sweep.GetFreedObjects();
   }
 
   GrowForUtilization();
   timings.AddSplit("GrowForUtilization");
 
   EnqueueClearedReferences(&cleared_references);
+  timings.AddSplit("EnqueueClearedReferences");
+
   RequestHeapTrim();
   timings.AddSplit("Finish");
 
@@ -1675,6 +1758,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
   uint64_t pause_roots = (root_end - root_begin) / 1000 * 1000;
   uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
   uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
+  total_paused_time_ += (pause_roots + pause_dirty) / kTimeAdjust;
   if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
@@ -1706,6 +1790,7 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
       do_wait = is_gc_running_;
     }
     if (do_wait) {
+      uint64_t wait_time;
       // We must wait, change thread state then sleep on gc_complete_cond_;
       ScopedThreadStateChange tsc(Thread::Current(), kWaitingForGcToComplete);
       {
@@ -1714,8 +1799,9 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
           gc_complete_cond_->Wait(self, *gc_complete_lock_);
         }
         last_gc_type = last_gc_type_;
+        wait_time = NanoTime() - wait_start;;
+        total_wait_time_ += wait_time;
       }
-      uint64_t wait_time = NanoTime() - wait_start;
       if (wait_time > MsToNs(5)) {
         LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
       }
@@ -1727,12 +1813,7 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
 void Heap::DumpForSigQuit(std::ostream& os) {
   os << "Heap: " << GetPercentFree() << "% free, " << PrettySize(GetUsedMemorySize()) << "/"
      << PrettySize(GetTotalMemory()) << "; " << GetObjectsAllocated() << " objects\n";
-  // Dump cumulative timings.
-  LOG(INFO) << "Dumping cumulative Gc timings";
-  for (CumulativeTimings::iterator it = cumulative_timings_.begin();
-      it != cumulative_timings_.end(); ++it) {
-    it->second->Dump();
-  }
+  DumpGcPerformanceInfo();
 }
 
 size_t Heap::GetPercentFree() {

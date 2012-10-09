@@ -170,7 +170,7 @@ class CumulativeLogger {
          << FormatDuration(std_dev * kAdjust, tu) << " " << labels_[i] << "\n";
     }
     uint64_t total_mean_x2 = total_time_squared_;
-    uint64_t mean_total_ns = GetTotalNs();
+    uint64_t mean_total_ns = GetTotalTime();
     if (iterations_ != 0) {
       total_mean_x2 /= iterations_;
       mean_total_ns /= iterations_;
@@ -183,6 +183,12 @@ class CumulativeLogger {
   }
 
   uint64_t GetTotalNs() const {
+    return GetTotalTime() * kAdjust;
+  }
+
+ private:
+
+  uint64_t GetTotalTime() const {
     uint64_t total = 0;
     for (size_t i = 0; i < times_.size(); ++i) {
       total += times_[i];
@@ -190,7 +196,6 @@ class CumulativeLogger {
     return total;
   }
 
- private:
   static const uint64_t kAdjust = 1000;
   std::string name_;
   bool precise_;

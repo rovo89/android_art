@@ -314,6 +314,14 @@ class AllocSpace : public MemMapSpace {
     return num_objects_allocated_;
   }
 
+  size_t GetTotalBytesAllocated() const {
+    return total_bytes_allocated_;
+  }
+
+  size_t GetTotalObjectsAllocated() const {
+    return total_objects_allocated_;
+  }
+
  private:
   Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
@@ -324,6 +332,8 @@ class AllocSpace : public MemMapSpace {
   // Approximate number of bytes which have been allocated into the space.
   size_t num_bytes_allocated_;
   size_t num_objects_allocated_;
+  size_t total_bytes_allocated_;
+  size_t total_objects_allocated_;
 
   static size_t bitmap_index_;
 
@@ -453,6 +463,14 @@ class LargeObjectSpace : public DiscontinuousSpace {
     return num_objects_allocated_;
   }
 
+  size_t GetTotalBytesAllocated() const {
+    return total_bytes_allocated_;
+  }
+
+  size_t GetTotalObjectsAllocated() const {
+    return total_objects_allocated_;
+  }
+
  protected:
 
   LargeObjectSpace(const std::string& name);
@@ -460,6 +478,8 @@ class LargeObjectSpace : public DiscontinuousSpace {
   // Approximate number of bytes which have been allocated into the space.
   size_t num_bytes_allocated_;
   size_t num_objects_allocated_;
+  size_t total_bytes_allocated_;
+  size_t total_objects_allocated_;
 
   UniquePtr<SpaceSetMap> live_objects_;
   UniquePtr<SpaceSetMap> mark_objects_;

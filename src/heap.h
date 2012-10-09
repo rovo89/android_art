@@ -82,8 +82,9 @@ std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 class Heap {
  public:
   static const size_t kInitialSize = 2 * MB;
-
   static const size_t kMaximumSize = 32 * MB;
+  // Used so that we don't overflow the allocation time atomic integer.
+  static const size_t kTimeAdjust = 1024;
 
   typedef void (RootVisitor)(const Object* root, void* arg);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
@@ -136,11 +137,11 @@ class Heap {
   void ConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
   // Implements java.lang.Runtime.maxMemory.
-  int64_t GetMaxMemory();
+  int64_t GetMaxMemory() const;
   // Implements java.lang.Runtime.totalMemory.
-  int64_t GetTotalMemory();
+  int64_t GetTotalMemory() const;
   // Implements java.lang.Runtime.freeMemory.
-  int64_t GetFreeMemory();
+  int64_t GetFreeMemory() const;
 
   // Implements VMDebug.countInstancesOfClass.
   int64_t CountInstances(Class* c, bool count_assignable)
@@ -153,16 +154,11 @@ class Heap {
 
   // Target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.getTargetHeapUtilization.
-  float GetTargetHeapUtilization() {
-    return target_utilization_;
-  }
+  float GetTargetHeapUtilization() const;
+
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.
-  void SetTargetHeapUtilization(float target) {
-    DCHECK_GT(target, 0.0f);  // asserted in Java code
-    DCHECK_LT(target, 1.0f);
-    target_utilization_ = target;
-  }
+  void SetTargetHeapUtilization(float target);
 
   // For the alloc space, sets the maximum number of bytes that the heap is allowed to allocate
   // from the system. Doesn't allow the space to exceed its growth limit.
@@ -252,6 +248,18 @@ class Heap {
   size_t GetConcurrentMinFree() const;
   size_t GetUsedMemorySize() const;
 
+  // Returns the total number of objects allocated since the heap was created.
+  size_t GetTotalObjectsAllocated() const;
+
+  // Returns the total number of bytes allocated since the heap was created.
+  size_t GetTotalBytesAllocated() const;
+
+  // Returns the total number of objects freed since the heap was created.
+  size_t GetTotalObjectsFreed() const;
+
+  // Returns the total number of bytes freed since the heap was created.
+  size_t GetTotalBytesFreed() const;
+
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .
   ContinuousSpace* FindSpaceFromObject(const Object*) const;
@@ -297,6 +305,9 @@ class Heap {
 
   // UnReserve the address range where the oat file will be placed.
   void UnReserveOatFileAddressRange();
+
+  // GC performance measuring
+  void DumpGcPerformanceInfo();
 
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
@@ -413,9 +424,10 @@ class Heap {
   size_t concurrent_min_free_;
   // Number of bytes allocated since the last Gc, we use this to help determine when to schedule concurrent GCs.
   size_t bytes_since_last_gc_;
-  // Start a concurrent GC if we have allocated concurrent_gc_start_rate_ bytes and not done a GCs.
-  size_t concurrent_gc_start_rate_;
   size_t sticky_gc_count_;
+
+  size_t total_bytes_freed_;
+  size_t total_objects_freed_;
 
   // Primitive objects larger than this size are put in the large object space.
   size_t large_object_threshold_;
@@ -450,11 +462,6 @@ class Heap {
   UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
   UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
 
-  // True while the garbage collector is trying to signal the GC daemon thread.
-  // This flag is needed to prevent recursion from occurring when the JNI calls
-  // allocate memory and request another GC.
-  bool try_running_gc_;
-
   // Used to ensure that we don't ever recursively request GC.
   volatile bool requesting_gc_;
 
@@ -486,6 +493,14 @@ class Heap {
 
   // Target ideal heap utilization ratio
   float target_utilization_;
+
+  // Total time which mutators are paused or waiting for GC to complete.
+  uint64_t total_paused_time_;
+  uint64_t total_wait_time_;
+
+  // Total number of objects allocated in microseconds.
+  const bool measure_allocation_time_;
+  AtomicInteger total_allocation_time_;
 
   bool verify_objects_;
 

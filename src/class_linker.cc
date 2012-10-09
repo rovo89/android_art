@@ -2784,7 +2784,7 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit, bool c
 }
 
 bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit, bool can_init_fields) {
-  CHECK(c != NULL);
+  DCHECK(c != NULL);
   if (c->IsInitialized()) {
     return true;
   }
