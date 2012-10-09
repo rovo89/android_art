@@ -16,7 +16,7 @@
 
 #include "runtime_support_builder.h"
 
-#include "card_table.h"
+#include "gc/card_table.h"
 #include "ir_builder.h"
 #include "monitor.h"
 #include "object.h"
@@ -234,9 +234,9 @@ void RuntimeSupportBuilder::EmitMarkGCCard(llvm::Value* value, llvm::Value* targ
                                                irb_.getInt8Ty()->getPointerTo(),
                                                kTBAAConstJObject);
   Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
-  Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
+  Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(CardTable::kCardShift));
   Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
-  irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry, kTBAARuntimeInfo);
+  irb_.CreateStore(irb_.getInt8(CardTable::kCardDirty), card_table_entry, kTBAARuntimeInfo);
   irb_.CreateBr(bb_cont);
 
   irb_.SetInsertPoint(bb_cont);
