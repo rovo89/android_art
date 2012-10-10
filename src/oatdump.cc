@@ -500,11 +500,11 @@ class OatDumper {
       for (size_t i = start; i < end; i += 2) {
         if (offset == raw_table[i]) {
           if (suspend_point_mapping) {
-            os << "\t\t\tsuspend point dex PC: ";
+            os << "\t\t\tsuspend point dex PC: 0x";
           } else {
-            os << "\t\t\tcatch entry dex PC: ";
+            os << "\t\t\tcatch entry dex PC: 0x";
           }
-          os << raw_table[i + 1] << "\n";
+          os << std::hex << raw_table[i + 1] << "\n";
           return;
         }
       }
@@ -546,7 +546,7 @@ class OatDumper {
       size_t i = 0;
       while (i < code_item->insns_size_in_code_units_) {
         const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
-        os << StringPrintf("\t\t\t0x%04x: %s\n", i, instruction->DumpString(&dex_file).c_str());
+        os << StringPrintf("\t\t\t0x%04zx: %s\n", i, instruction->DumpString(&dex_file).c_str());
         i += instruction->SizeInCodeUnits();
       }
     }
