@@ -26,6 +26,7 @@ class DisassemblerX86 : public Disassembler {
  public:
   DisassemblerX86();
 
+  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
  private:
   size_t DumpInstruction(std::ostream& os, const uint8_t* instr);

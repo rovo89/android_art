@@ -51,6 +51,16 @@ class NativePcOffsetToReferenceMap {
     return result;
   }
 
+  // Does the given offset have an entry?
+  bool HasEntry(uintptr_t native_pc_offset) {
+    for (size_t i = 0; i < NumEntries(); ++i) {
+      if (GetNativePcOffset(i) == native_pc_offset) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Finds the bitmap associated with the native pc offset.
   const uint8_t* FindBitMap(uintptr_t native_pc_offset) {
     size_t num_entries = NumEntries();

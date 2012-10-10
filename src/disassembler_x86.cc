@@ -28,6 +28,10 @@ namespace x86 {
 DisassemblerX86::DisassemblerX86() {
 }
 
+size_t DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin) {
+  return DumpInstruction(os, begin);
+}
+
 void DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) {
   size_t length = 0;
   for (const uint8_t* cur = begin; cur < end; cur += length) {

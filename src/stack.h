@@ -347,8 +347,8 @@ class StackVisitor {
    *     +========================+
    */
   static int GetVRegOffset(const DexFile::CodeItem* code_item,
-                    uint32_t core_spills, uint32_t fp_spills,
-                    size_t frame_size, int reg) {
+                           uint32_t core_spills, uint32_t fp_spills,
+                           size_t frame_size, int reg) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
     int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1; // Filler.
     int num_ins = code_item->ins_size_;

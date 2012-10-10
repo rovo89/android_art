@@ -27,6 +27,7 @@ namespace mips {
 class DisassemblerMips : public Disassembler {
  public:
   DisassemblerMips();
+  virtual size_t Dump(std::ostream& os, const uint8_t* begin);
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
 
  private:
