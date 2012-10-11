@@ -837,7 +837,9 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   if (has_clinit_trampoline) {
     return;
   }
-  stats_->DirectCallsToBoot(type);
+  if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
+    stats_->DirectCallsToBoot(type);
+  }
   stats_->DirectMethodsToBoot(type);
   bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
   if (compiling_boot) {
