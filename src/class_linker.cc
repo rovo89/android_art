@@ -308,7 +308,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
 
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
-  // Setup DexCache. This can not be done later since AppendToBootClassPath calls AllocDexCache.
+  // Set up DexCache. This cannot be done later since AppendToBootClassPath calls AllocDexCache.
   SirtRef<Class>
       java_lang_DexCache(self, AllocClass(self, java_lang_Class.get(), sizeof(DexCacheClass)));
   SetClassRoot(kJavaLangDexCache, java_lang_DexCache.get());
