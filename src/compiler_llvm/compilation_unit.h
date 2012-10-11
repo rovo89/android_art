@@ -91,8 +91,8 @@ class CompilationUnit {
   }
 
 #if defined(ART_USE_QUICK_COMPILER)
-  QuickCompiler* GetQuickContext() const {
-    return quick_ctx_.get();
+  LLVMInfo* GetQuickContext() const {
+    return llvm_info_.get();
   }
   void SetCompiler(Compiler* compiler) {
     compiler_ = compiler;
@@ -125,7 +125,7 @@ class CompilationUnit {
   greenland::DexLang::Context* dex_lang_ctx_;
 #endif
 #if defined(ART_USE_QUICK_COMPILER)
-  UniquePtr<QuickCompiler> quick_ctx_;
+  UniquePtr<LLVMInfo> llvm_info_;
   Compiler* compiler_;
   OatCompilationUnit* oat_compilation_unit_;
 #endif

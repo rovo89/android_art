@@ -21,10 +21,24 @@
 #include "object.h"
 #include "runtime.h"
 
+#if defined(ART_USE_QUICK_COMPILER)
+#include <llvm/Support/Threading.h>
+
+namespace {
+  pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
+  void InitializeLLVMForQuick() {
+    llvm::llvm_start_multithreaded();
+  }
+}
+#endif
+
 namespace art {
 
 #if defined(ART_USE_QUICK_COMPILER)
-QuickCompiler::QuickCompiler() {
+LLVMInfo::LLVMInfo() {
+#if !defined(ART_USE_LLVM_COMPILER)
+  pthread_once(&llvm_multi_init, InitializeLLVMForQuick);
+#endif
   // Create context, module, intrinsic helper & ir builder
   llvm_context_.reset(new llvm::LLVMContext());
   llvm_module_ = new llvm::Module("art", *llvm_context_);
@@ -33,17 +47,17 @@ QuickCompiler::QuickCompiler() {
   ir_builder_.reset(new greenland::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
 }
 
-QuickCompiler::~QuickCompiler() {
+LLVMInfo::~LLVMInfo() {
 }
 
 extern "C" void ArtInitQuickCompilerContext(art::Compiler& compiler) {
   CHECK(compiler.GetCompilerContext() == NULL);
-  QuickCompiler* quickCompiler = new QuickCompiler();
-  compiler.SetCompilerContext(quickCompiler);
+  LLVMInfo* llvmInfo = new LLVMInfo();
+  compiler.SetCompilerContext(llvmInfo);
 }
 
 extern "C" void ArtUnInitQuickCompilerContext(art::Compiler& compiler) {
-  delete reinterpret_cast<QuickCompiler*>(compiler.GetCompilerContext());
+  delete reinterpret_cast<LLVMInfo*>(compiler.GetCompilerContext());
   compiler.SetCompilerContext(NULL);
 }
 #endif
@@ -777,7 +791,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
                               uint32_t method_idx, jobject class_loader,
                               const DexFile& dex_file
 #if defined(ART_USE_QUICK_COMPILER)
-                              , QuickCompiler* quick_compiler,
+                              , LLVMInfo* llvm_info,
                               bool gbcOnly
 #endif
                              )
@@ -812,14 +826,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
   DCHECK((cUnit->instructionSet == kThumb2) ||
          (cUnit->instructionSet == kX86) ||
          (cUnit->instructionSet == kMips));
-  if (gbcOnly) {
-    cUnit->quick_compiler = quick_compiler;
-  } else {
-    // TODO: We need one LLVMContext per thread.
-    cUnit->quick_compiler =
-        reinterpret_cast<QuickCompiler*>(compiler.GetCompilerContext());
-  }
-  DCHECK(cUnit->quick_compiler != NULL);
+  cUnit->llvm_info = llvm_info;
   if (cUnit->instructionSet == kThumb2) {
     // TODO: remove this once x86 is tested
     cUnit->genBitcode = true;
@@ -1257,10 +1264,10 @@ void oatCompileMethodToGBC(Compiler& compiler,
                            uint32_t access_flags, InvokeType invoke_type,
                            uint32_t method_idx, jobject class_loader,
                            const DexFile& dex_file,
-                           QuickCompiler* quick_compiler)
+                           LLVMInfo* llvm_info)
 {
   compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                dex_file, quick_compiler, true);
+                dex_file, llvm_info, true);
 }
 #else
 CompiledMethod* oatCompileMethod(Compiler& compiler,

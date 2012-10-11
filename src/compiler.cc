@@ -322,6 +322,8 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   }
   VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
 
+  CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
+
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   // Initialize compiler_context_
   typedef void (*InitCompilerContextFn)(Compiler&);
@@ -429,6 +431,16 @@ Compiler::~Compiler() {
     dlclose(compiler_library_);
 #endif
   }
+}
+
+CompilerTls* Compiler::GetTls() {
+  // Lazily create thread-local storage
+  CompilerTls* res = static_cast<CompilerTls*>(pthread_getspecific(tls_key_));
+  if (res == NULL) {
+    res = new CompilerTls();
+    CHECK_PTHREAD_CALL(pthread_setspecific, (tls_key_, res), "compiler tls");
+  }
+  return res;
 }
 
 ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,

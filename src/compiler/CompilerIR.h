@@ -549,7 +549,7 @@ struct CompilationUnit {
   Checkstats* checkstats;
 #if defined(ART_USE_QUICK_COMPILER)
   bool genBitcode;
-  QuickCompiler* quick_compiler;
+  LLVMInfo* llvm_info;
   llvm::LLVMContext* context;
   llvm::Module* module;
   llvm::Function* func;

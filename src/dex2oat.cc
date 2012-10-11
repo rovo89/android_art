@@ -493,11 +493,7 @@ static int dex2oat(int argc, char** argv) {
   uintptr_t image_base = 0;
   UniquePtr<std::string> host_prefix;
   std::vector<const char*> runtime_args;
-#if defined(ART_USE_QUICK_COMPILER) || defined(__APPLE__)
-  int thread_count = 1;
-#else
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
-#endif
   bool support_debugging = false;
 #if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
