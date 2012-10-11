@@ -40,12 +40,12 @@ class RegTypeCache {
     return *result;
   }
 
-  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor)
+  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromClass(Class* klass)
+  const RegType& FromClass(Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromCat1Const(int32_t value);
-  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor)
+  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromType(RegType::Type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -77,17 +77,24 @@ class RegTypeCache {
     return FromType(RegType::kRegTypeDoubleLo);
   }
 
-  const RegType& JavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Class;");
+  const RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return From(precise ? RegType::kRegTypeReference
+                        : RegType::kRegTypePreciseReference,
+                NULL, "Ljava/lang/Class;", precise);
   }
-  const RegType& JavaLangObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Object;");
+  const RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return From(precise ? RegType::kRegTypeReference
+                        : RegType::kRegTypePreciseReference,
+                NULL, "Ljava/lang/Object;", precise);
   }
   const RegType& JavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;");
+    // String is final and therefore always precise.
+    return From(RegType::kRegTypePreciseReference, NULL, "Ljava/lang/String;", true);
   }
-  const RegType& JavaLangThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Throwable;");
+  const RegType& JavaLangThrowable(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return From(precise ? RegType::kRegTypeReference
+                        : RegType::kRegTypePreciseReference,
+                NULL, "Ljava/lang/Throwable;", precise);
   }
 
   const RegType& Undefined() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -117,6 +124,8 @@ class RegTypeCache {
 
   const RegType& GetComponentType(const RegType& array, ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // The allocated entries

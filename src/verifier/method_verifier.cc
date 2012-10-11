@@ -1054,7 +1054,8 @@ void MethodVerifier::Dump(std::ostream& os) {
     os << "Native method\n";
     return;
   }
-  DCHECK(code_item_ != NULL);
+  reg_types_.Dump(os);
+  os << "Dumping instructions and register lines:\n";
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits()) {
@@ -1128,7 +1129,7 @@ bool MethodVerifier::SetTypesFromSignature() {
         // it's effectively considered initialized the instant we reach here (in the sense that we
         // can return without doing anything or call virtual methods).
         {
-          const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+          const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
           reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
         }
         break;
@@ -1527,7 +1528,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB);
       // Register holds class, ie its type is class, on error it will hold Conflict.
       work_line_->SetRegisterType(dec_insn.vA,
-                                  res_type.IsConflict() ? res_type : reg_types_.JavaLangClass());
+                                  res_type.IsConflict() ? res_type
+                                                        : reg_types_.JavaLangClass(true));
       break;
     }
     case Instruction::MONITOR_ENTER:
@@ -1667,7 +1669,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(dec_insn.vA);
-      if (!reg_types_.JavaLangThrowable().IsAssignableFrom(res_type)) {
+      if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "thrown class " << res_type << " not instanceof Throwable";
       }
       break;
@@ -1785,7 +1787,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyAGet(dec_insn, reg_types_.Long(), true);
       break;
     case Instruction::AGET_OBJECT:
-      VerifyAGet(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyAGet(dec_insn, reg_types_.JavaLangObject(false), false);
       break;
 
     case Instruction::APUT_BOOLEAN:
@@ -1807,7 +1809,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyAPut(dec_insn, reg_types_.Long(), true);
       break;
     case Instruction::APUT_OBJECT:
-      VerifyAPut(dec_insn, reg_types_.JavaLangObject(), false);
+      VerifyAPut(dec_insn, reg_types_.JavaLangObject(false), false);
       break;
 
     case Instruction::IGET_BOOLEAN:
@@ -1829,7 +1831,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISGet(dec_insn, reg_types_.Long(), true, false);
       break;
     case Instruction::IGET_OBJECT:
-      VerifyISGet(dec_insn, reg_types_.JavaLangObject(), false, false);
+      VerifyISGet(dec_insn, reg_types_.JavaLangObject(false), false, false);
       break;
 
     case Instruction::IPUT_BOOLEAN:
@@ -1851,7 +1853,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISPut(dec_insn, reg_types_.Long(), true, false);
       break;
     case Instruction::IPUT_OBJECT:
-      VerifyISPut(dec_insn, reg_types_.JavaLangObject(), false, false);
+      VerifyISPut(dec_insn, reg_types_.JavaLangObject(false), false, false);
       break;
 
     case Instruction::SGET_BOOLEAN:
@@ -1873,7 +1875,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISGet(dec_insn, reg_types_.Long(), true, true);
       break;
     case Instruction::SGET_OBJECT:
-      VerifyISGet(dec_insn, reg_types_.JavaLangObject(), false, true);
+      VerifyISGet(dec_insn, reg_types_.JavaLangObject(false), false, true);
       break;
 
     case Instruction::SPUT_BOOLEAN:
@@ -1895,7 +1897,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISPut(dec_insn, reg_types_.Long(), true, true);
       break;
     case Instruction::SPUT_OBJECT:
-      VerifyISPut(dec_insn, reg_types_.JavaLangObject(), false, true);
+      VerifyISPut(dec_insn, reg_types_.JavaLangObject(false), false, true);
       break;
 
     case Instruction::INVOKE_VIRTUAL:
@@ -1916,7 +1918,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
       work_line_->SetResultRegisterType(return_type);
       just_set_result = true;
       break;
@@ -1977,7 +1979,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          */
         work_line_->MarkRefsAsInitialized(this_type);
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, return_type_descriptor);
+      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, return_type_descriptor,
+                                                             false);
       work_line_->SetResultRegisterType(return_type);
       just_set_result = true;
       break;
@@ -1995,7 +1998,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         } else {
           descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         }
-        const RegType& return_type =  reg_types_.FromDescriptor(class_loader_, descriptor);
+        const RegType& return_type =  reg_types_.FromDescriptor(class_loader_, descriptor, false);
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -2045,7 +2048,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
       work_line_->SetResultRegisterType(return_type);
       work_line_->SetResultRegisterType(return_type);
       just_set_result = true;
@@ -2466,8 +2469,8 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const RegType& referrer = GetDeclaringClass();
   Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType& result =
-      klass != NULL ? reg_types_.FromClass(klass)
-                    : reg_types_.FromDescriptor(class_loader_, descriptor);
+      klass != NULL ? reg_types_.FromClass(klass, klass->IsFinal())
+                    : reg_types_.FromDescriptor(class_loader_, descriptor, false);
   if (result.IsConflict()) {
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
         << "' in " << referrer;
@@ -2495,14 +2498,14 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
       for (; iterator.HasNext(); iterator.Next()) {
         if (iterator.GetHandlerAddress() == (uint32_t) work_insn_idx_) {
           if (iterator.GetHandlerTypeIndex() == DexFile::kDexNoIndex16) {
-            common_super = &reg_types_.JavaLangThrowable();
+            common_super = &reg_types_.JavaLangThrowable(false);
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
             if (common_super == NULL) {
               // Unconditionally assign for the first handler. We don't assert this is a Throwable
               // as that is caught at runtime
               common_super = &exception;
-            } else if (!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
+            } else if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
               // We don't know enough about the type and the common path merge will result in
               // Conflict. Fail here knowing the correct thing can be done at runtime.
               Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
@@ -2511,7 +2514,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
               // odd case, but nothing to do
             } else {
               common_super = &common_super->Merge(exception, &reg_types_);
-              CHECK(reg_types_.JavaLangThrowable().IsAssignableFrom(*common_super));
+              CHECK(reg_types_.JavaLangThrowable(false).IsAssignableFrom(*common_super));
             }
           }
         }
@@ -2677,7 +2680,8 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
       return NULL;
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
-      const RegType& res_method_class = reg_types_.FromClass(res_method->GetDeclaringClass());
+      Class* klass = res_method->GetDeclaringClass();
+      const RegType& res_method_class = reg_types_.FromClass(klass, klass->IsFinal());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
             << "' not instance of '" << res_method_class << "'";
@@ -2707,7 +2711,7 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
           << " missing signature component";
       return NULL;
     }
-    const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+    const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
     uint32_t get_reg = is_range ? dec_insn.vC + actual_args : dec_insn.arg[actual_args];
     if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
       return res_method;
@@ -2904,7 +2908,8 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
   } else {
-    const RegType& field_klass = reg_types_.FromClass(field->GetDeclaringClass());
+    Class* klass = field->GetDeclaringClass();
+    const RegType& field_klass = reg_types_.FromClass(klass, klass->IsFinal());
     if (obj_type.IsUninitializedTypes() &&
         (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
             !field_klass.Equals(GetDeclaringClass()))) {
@@ -2947,7 +2952,7 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
     descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
     loader = class_loader_;
   }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
+  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
   if (is_primitive) {
     if (field_type.Equals(insn_type) ||
         (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
@@ -2996,7 +3001,7 @@ void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
     descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
     loader = class_loader_;
   }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
+  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
   if (field != NULL) {
     if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
       Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
@@ -3104,16 +3109,17 @@ const RegType& MethodVerifier::GetMethodReturnType() {
   const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
   uint16_t return_type_idx = proto_id.return_type_idx_;
   const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
-  return reg_types_.FromDescriptor(class_loader_, descriptor);
+  return reg_types_.FromDescriptor(class_loader_, descriptor, false);
 }
 
 const RegType& MethodVerifier::GetDeclaringClass() {
   if (foo_method_ != NULL) {
-    return reg_types_.FromClass(foo_method_->GetDeclaringClass());
+    Class* klass = foo_method_->GetDeclaringClass();
+    return reg_types_.FromClass(klass, klass->IsFinal());
   } else {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
     const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
-    return reg_types_.FromDescriptor(class_loader_, descriptor);
+    return reg_types_.FromDescriptor(class_loader_, descriptor, false);
   }
 }
 

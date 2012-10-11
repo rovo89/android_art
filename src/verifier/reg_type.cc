@@ -46,11 +46,12 @@ static const char* type_strings[] = {
     "Unresolved Merged References",
     "Unresolved Super Class",
     "Reference",
+    "Precise Reference",
 };
 
 std::string RegType::Dump(const RegTypeCache* reg_types) const {
-  DCHECK(type_ >=  kRegTypeUndefined && type_ <= kRegTypeReference);
-  DCHECK(arraysize(type_strings) == (kRegTypeReference + 1));
+  DCHECK(type_ >=  kRegTypeUndefined && type_ <= kRegTypePreciseReference);
+  DCHECK(arraysize(type_strings) == (kRegTypePreciseReference + 1));
   std::string result;
   if (IsUnresolvedMergedReference()) {
     if (reg_types == NULL) {
@@ -142,7 +143,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   if (!IsUnresolvedTypes()) {
     Class* super_klass = GetClass()->GetSuperClass();
     if (super_klass != NULL) {
-      return cache->FromClass(super_klass);
+      return cache->FromClass(super_klass, IsPreciseReference());
     } else {
       return cache->Zero();
     }
@@ -150,7 +151,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
     if (!IsUnresolvedMergedReference() && !IsUnresolvedSuperClass() &&
         GetDescriptor()->CharAt(0) == '[') {
       // Super class of all arrays is Object.
-      return cache->JavaLangObject();
+      return cache->JavaLangObject(true);
     } else {
       return cache->FromUnresolvedSuperClass(*this);
     }
@@ -301,7 +302,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
     if (IsZero() || incoming_type.IsZero()) {
       return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
     } else if (IsJavaLangObject() || incoming_type.IsJavaLangObject()) {
-      return reg_types->JavaLangObject();  // Object MERGE ref => Object
+      return reg_types->JavaLangObject(false);  // Object MERGE ref => Object
     } else if (IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
       // We know how to merge an unresolved type with itself, 0 or Object. In this case we
       // have two sub-classes and don't know how to merge. Create a new string-based unresolved
@@ -319,12 +320,12 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       DCHECK(c1 != NULL && !c1->IsPrimitive());
       DCHECK(c2 != NULL && !c2->IsPrimitive());
       Class* join_class = ClassJoin(c1, c2);
-      if (c1 == join_class) {
+      if (c1 == join_class && !IsPreciseReference()) {
         return *this;
-      } else if (c2 == join_class) {
+      } else if (c2 == join_class && !incoming_type.IsPreciseReference()) {
         return incoming_type;
       } else {
-        return reg_types->FromClass(join_class);
+        return reg_types->FromClass(join_class, false);
       }
     }
   } else {

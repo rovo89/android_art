@@ -65,6 +65,7 @@ class RegType {
     kRegTypeUnresolvedMergedReference,  // Tree of merged references (at least 1 is unresolved).
     kRegTypeUnresolvedSuperClass,       // Super class of an unresolved type.
     kRegTypeReference,                  // Reference type.
+    kRegTypePreciseReference,           // Precisely the given type.
   };
 
   Type GetType() const {
@@ -93,6 +94,8 @@ class RegType {
   bool IsUnresolvedMergedReference() const {  return type_ == kRegTypeUnresolvedMergedReference; }
   bool IsUnresolvedSuperClass() const {  return type_ == kRegTypeUnresolvedSuperClass; }
   bool IsReference() const { return type_ == kRegTypeReference; }
+  bool IsPreciseReference() const { return type_ == kRegTypePreciseReference; }
+
   bool IsUninitializedTypes() const {
     return IsUninitializedReference() || IsUninitializedThisReference() ||
         IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
@@ -154,7 +157,7 @@ class RegType {
   }
 
   bool IsNonZeroReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() ||
+    return IsReference() || IsPreciseReference() || IsUnresolvedReference() ||
         IsUninitializedReference() || IsUninitializedThisReference() ||
         IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference() ||
         IsUnresolvedMergedReference() || IsUnresolvedSuperClass();
@@ -198,6 +201,10 @@ class RegType {
     return allocation_pc_or_constant_or_merged_types_;
   }
 
+  bool HasClass() const {
+    return IsReference() || IsPreciseReference();
+  }
+
   Class* GetClass() const {
     DCHECK(!IsUnresolvedReference());
     DCHECK(klass_or_descriptor_ != NULL);
@@ -212,7 +219,7 @@ class RegType {
   bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       return GetDescriptor()->CharAt(0) == '[';
-    } else if (IsReference()) {
+    } else if (HasClass()) {
       return GetClass()->IsArrayClass();
     } else {
       return false;
@@ -224,7 +231,7 @@ class RegType {
       // Primitive arrays will always resolve
       DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
       return GetDescriptor()->CharAt(0) == '[';
-    } else if (IsReference()) {
+    } else if (HasClass()) {
       Class* type = GetClass();
       return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
     } else {
@@ -256,7 +263,7 @@ class RegType {
   }
 
   bool IsJavaLangObjectArray() const {
-    if (IsReference()) {
+    if (HasClass()) {
       Class* type = GetClass();
       return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
     }
