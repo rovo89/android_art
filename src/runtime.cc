@@ -175,11 +175,22 @@ struct AbortState {
       //       which may block indefinitely if there's a misbehaving thread holding it exclusively.
       //       The code below should be made robust to this.
       ScopedObjectAccess soa(self);
+      os << "Aborting thread:\n";
       self->Dump(os);
       if (self->IsExceptionPending()) {
         os << "Pending " << PrettyTypeOf(self->GetException()) << " on thread:\n"
            << self->GetException()->Dump();
       }
+    }
+    DumpAllThreads(os, self);
+  }
+
+  void DumpAllThreads(std::ostream& os, Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+    bool tll_already_held = Locks::thread_list_lock_->IsExclusiveHeld(self);
+    bool ml_already_held = Locks::mutator_lock_->IsSharedHeld(self);
+    if (tll_already_held && ml_already_held) {
+      os << "All threads:\n";
+      Runtime::Current()->GetThreadList()->DumpLocked(os);
     }
   }
 };
