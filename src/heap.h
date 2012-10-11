@@ -108,7 +108,7 @@ class Heap {
 #endif
 
   // Check sanity of all live references. Requires the heap lock.
-  void VerifyHeap();
+  void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   static void RootMatchesObjectVisitor(const Object* root, void* arg);
   bool VerifyHeapReferences()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -133,7 +133,7 @@ class Heap {
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
-  void ConcurrentGC(Thread* self);
+  void ConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
   // Implements java.lang.Runtime.maxMemory.
   int64_t GetMaxMemory();
@@ -170,7 +170,7 @@ class Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns
   // true if we waited for the GC to complete.
-  GcType WaitForConcurrentGcToComplete(Thread* self);
+  GcType WaitForConcurrentGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
   const Spaces& GetSpaces() {
     return spaces_;
@@ -268,7 +268,7 @@ class Heap {
     return mark_bitmap_.get();
   }
 
-  void PreZygoteFork();
+  void PreZygoteFork() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Mark and empty stack.
   void FlushAllocStack()
@@ -313,12 +313,12 @@ class Heap {
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(Object** cleared_references);
 
-  void RequestHeapTrim();
-  void RequestConcurrentGC(Thread* self);
+  void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
   // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
-  void SwapBitmaps(Thread* self, GcType gc_type);
-  void SwapLargeObjects(Thread* self);
+  void SwapBitmaps(GcType gc_type) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void SwapLargeObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void RecordAllocation(size_t size, Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
@@ -351,8 +351,7 @@ class Heap {
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
-  void VerifyObjectBody(const Object *obj)
-      NO_THREAD_SAFETY_ANALYSIS;
+  void VerifyObjectBody(const Object *obj) NO_THREAD_SAFETY_ANALYSIS;
 
   static void VerificationCallback(Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);

@@ -491,12 +491,13 @@ void Heap::VerifyObjectBody(const Object* obj) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   }
 
+  // TODO: the bitmap tests below are racy if VerifyObjectBody is called without the
+  //       heap_bitmap_lock_.
   if (!GetLiveBitmap()->Test(obj)) {
     // Check the allocation stack / live stack.
     if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
         std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
             allocation_stack_->End()) {
-      ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
       if (large_object_space_->GetLiveObjects()->Test(obj)) {
         DumpSpaces();
         LOG(FATAL) << "Object is dead: " << obj;
@@ -1013,9 +1014,9 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     const bool swap = true;
     if (swap) {
       if (gc_type == kGcTypeSticky) {
-        SwapLargeObjects(self);
+        SwapLargeObjects();
       } else {
-        SwapBitmaps(self, gc_type);
+        SwapBitmaps(gc_type);
       }
     }
 
@@ -1358,30 +1359,25 @@ bool Heap::VerifyMissingCardMarks() {
   return true;
 }
 
-void Heap::SwapBitmaps(Thread* self, GcType gc_type) {
+void Heap::SwapBitmaps(GcType gc_type) {
   // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
   // these bitmaps. The bitmap swapping is an optimization so that we do not need to clear the live
   // bits of dead objects in the live bitmap.
-  {
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-      ContinuousSpace* space = *it;
-      // We never allocate into zygote spaces.
-      if (space->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect ||
-          (gc_type == kGcTypeFull &&
-              space->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect)) {
-        live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
-        mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
-        space->AsAllocSpace()->SwapBitmaps();
-      }
+  for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    ContinuousSpace* space = *it;
+    // We never allocate into zygote spaces.
+    if (space->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect ||
+        (gc_type == kGcTypeFull &&
+            space->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect)) {
+      live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
+      mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
+      space->AsAllocSpace()->SwapBitmaps();
     }
   }
-
-  SwapLargeObjects(self);
+  SwapLargeObjects();
 }
 
-void Heap::SwapLargeObjects(Thread* self) {
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+void Heap::SwapLargeObjects() {
   large_object_space_->SwapBitmaps();
   live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
   mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
@@ -1612,14 +1608,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
     }
 
     if (verify_post_gc_heap_) {
-      SwapBitmaps(self, gc_type);
-      {
-        WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-        if (!VerifyHeapReferences()) {
-          LOG(FATAL) << "Post " << gc_type_str.str() << "Gc verification failed";
-        }
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+      SwapBitmaps(gc_type);
+      if (!VerifyHeapReferences()) {
+        LOG(FATAL) << "Post " << gc_type_str.str() << "Gc verification failed";
       }
-      SwapBitmaps(self, gc_type);
+      SwapBitmaps(gc_type);
       timings.AddSplit("VerifyHeapReferencesPostGC");
     }
 
@@ -1647,16 +1641,16 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // Unbind the live and mark bitmaps.
       mark_sweep.UnBindBitmaps();
-    }
 
-    // Swap the live and mark bitmaps for each space which we modified space. This is an
-    // optimization that enables us to not clear live bits inside of the sweep.
-    const bool swap = true;
-    if (swap) {
-      if (gc_type == kGcTypeSticky) {
-        SwapLargeObjects(self);
-      } else {
-        SwapBitmaps(self, gc_type);
+      // Swap the live and mark bitmaps for each space which we modified space. This is an
+      // optimization that enables us to not clear live bits inside of the sweep.
+      const bool swap = true;
+      if (swap) {
+        if (gc_type == kGcTypeSticky) {
+          SwapLargeObjects();
+        } else {
+          SwapBitmaps(gc_type);
+        }
       }
     }
 

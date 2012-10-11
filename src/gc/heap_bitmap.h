@@ -25,8 +25,7 @@ namespace art {
 
   class HeapBitmap {
    public:
-    bool Test(const Object* obj)
-        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    bool Test(const Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       if (LIKELY(bitmap != NULL)) {
         return bitmap->Test(obj);
