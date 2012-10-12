@@ -45,7 +45,7 @@ void oatCompileMethodToGBC(Compiler& compiler,
                            uint32_t access_flags, InvokeType invoke_type,
                            uint32_t method_idx, jobject class_loader,
                            const DexFile& dex_file,
-                           QuickCompiler* quick_compiler);
+                           LLVMInfo* llvm_info);
 }
 #endif
 

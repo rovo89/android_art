@@ -40,6 +40,22 @@ class CompilationContext;
 class OatCompilationUnit;
 class TimingLogger;
 
+// Thread-local storage compiler worker threads
+class CompilerTls {
+#if defined(ART_USE_QUICK_COMPILER)
+  public:
+    CompilerTls() : llvm_info_(NULL) {}
+    ~CompilerTls() {}
+
+    void* GetLLVMInfo() { return llvm_info_; }
+
+    void SetLLVMInfo(void* llvm_info) { llvm_info_ = llvm_info; }
+
+  private:
+    void* llvm_info_;
+#endif
+};
+
 class Compiler {
  public:
   // Create a compiler targeting the requested "instruction_set".
@@ -71,6 +87,8 @@ class Compiler {
   bool IsImage() const {
     return image_;
   }
+
+  CompilerTls* GetTls();
 
   // Stub to throw AbstractMethodError
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
@@ -346,6 +364,8 @@ class Compiler {
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
   CreateInvokeStubFn create_invoke_stub_;
+
+  pthread_key_t tls_key_;
 
 #if defined(ART_USE_LLVM_COMPILER)
   typedef CompiledInvokeStub* (*CreateProxyStubFn)

@@ -172,9 +172,9 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 #else
   compiler_ = NULL;
   oat_compilation_unit_ = NULL;
-  quick_ctx_.reset(new QuickCompiler());
-  context_.reset(quick_ctx_->GetLLVMContext());
-  module_ = quick_ctx_->GetLLVMModule();
+  llvm_info_.reset(new LLVMInfo());
+  context_.reset(llvm_info_->GetLLVMContext());
+  module_ = llvm_info_->GetLLVMModule();
 #endif
 
   // Include the runtime function declaration
@@ -211,7 +211,7 @@ CompilationUnit::~CompilationUnit() {
 #if defined(ART_USE_DEXLANG_FRONTEND)
   delete dex_lang_ctx_;
 #elif defined(ART_USE_QUICK_COMPILER)
-  llvm::LLVMContext* llvm_context = context_.release(); // Managed by quick_ctx_
+  llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
   CHECK(llvm_context != NULL);
 #endif
 }
@@ -331,7 +331,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
 #elif defined(ART_USE_QUICK_COMPILER)
-    fpm.add(CreateGBCExpanderPass(*quick_ctx_->GetIntrinsicHelper(), *irb_.get(),
+    fpm.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                   compiler_, oat_compilation_unit_));
 #endif
     fpm.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
@@ -341,7 +341,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
 #elif defined(ART_USE_QUICK_COMPILER)
-    fpm2.add(CreateGBCExpanderPass(*quick_ctx_->GetIntrinsicHelper(), *irb_.get(),
+    fpm2.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                    compiler_, oat_compilation_unit_));
 #endif
     fpm2.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));

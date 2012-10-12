@@ -178,10 +178,10 @@ enum DataFlowAnalysisMode {
 };
 
 #if defined(ART_USE_QUICK_COMPILER)
-class QuickCompiler {
+class LLVMInfo {
   public:
-    QuickCompiler();
-    ~QuickCompiler();
+    LLVMInfo();
+    ~LLVMInfo();
 
     llvm::LLVMContext* GetLLVMContext() {
       return llvm_context_.get();

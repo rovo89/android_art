@@ -170,11 +170,20 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
 }
 void initIR(CompilationUnit* cUnit)
 {
-  QuickCompiler* quick = cUnit->quick_compiler;
-  cUnit->context = quick->GetLLVMContext();
-  cUnit->module = quick->GetLLVMModule();
-  cUnit->intrinsic_helper = quick->GetIntrinsicHelper();
-  cUnit->irb = quick->GetIRBuilder();
+  LLVMInfo* llvmInfo = cUnit->llvm_info;
+  if (llvmInfo == NULL) {
+    CompilerTls* tls = cUnit->compiler->GetTls();
+    CHECK(tls != NULL);
+    llvmInfo = static_cast<LLVMInfo*>(tls->GetLLVMInfo());
+    if (llvmInfo == NULL) {
+      llvmInfo = new LLVMInfo();
+      tls->SetLLVMInfo(llvmInfo);
+    }
+  }
+  cUnit->context = llvmInfo->GetLLVMContext();
+  cUnit->module = llvmInfo->GetLLVMModule();
+  cUnit->intrinsic_helper = llvmInfo->GetIntrinsicHelper();
+  cUnit->irb = llvmInfo->GetIRBuilder();
 }
 
 const char* llvmSSAName(CompilationUnit* cUnit, int ssaReg) {
