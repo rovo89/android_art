@@ -389,6 +389,7 @@ Compiler::~Compiler() {
     MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&methods_to_patch_);
   }
+  CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
 #if defined(ART_USE_LLVM_COMPILER)
   // Uninitialize compiler_context_
   typedef void (*UninitCompilerContextFn)(Compiler&);
