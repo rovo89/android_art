@@ -297,7 +297,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case CONST_CLASS:
         case NEW_INSTANCE:
           if (file != NULL) {
-            os << opcode << " " << PrettyType(insn.vB, *file) << " // type@" << insn.vB;
+            os << opcode << " v" << insn.vA << ", " << PrettyType(insn.vB, *file)
+               << " // type@" << insn.vB;
             break;
           }  // else fall-through
         case SGET:
@@ -308,7 +309,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_CHAR:
         case SGET_SHORT:
           if (file != NULL) {
-            os << opcode << " " << PrettyField(insn.vB, *file, true) << " // field@" << insn.vB;
+            os << opcode << "  v" << insn.vA << ", " << PrettyField(insn.vB, *file, true)
+               << " // field@" << insn.vB;
             break;
           }  // else fall-through
         case SPUT:
@@ -319,7 +321,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_CHAR:
         case SPUT_SHORT:
           if (file != NULL) {
-            os << opcode << " " << PrettyField(insn.vB, *file, true) << " // field@" << insn.vB;
+            os << opcode << " v" << insn.vA << ", " << PrettyField(insn.vB, *file, true)
+               << " // field@" << insn.vB;
             break;
           }  // else fall-through
         default:
@@ -342,7 +345,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IGET_CHAR:
         case IGET_SHORT:
           if (file != NULL) {
-            os << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
+            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
+               << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
             break;
           }  // else fall-through
         case IPUT:
@@ -353,17 +357,20 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IPUT_CHAR:
         case IPUT_SHORT:
           if (file != NULL) {
-            os << opcode << " " << PrettyField(insn.vC, *file, true) << " // field@" << insn.vB;
+            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
+               << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
             break;
           }  // else fall-through
         case INSTANCE_OF:
           if (file != NULL) {
-            os << opcode << " " << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
+            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
+               << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
             break;
           }
         case NEW_ARRAY:
           if (file != NULL) {
-            os << opcode << " " << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
+            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
+               << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
             break;
           }  // else fall-through
         default:
