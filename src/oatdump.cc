@@ -504,7 +504,7 @@ class OatDumper {
           } else {
             os << "\t\t\tcatch entry dex PC: 0x";
           }
-          os << std::hex << raw_table[i + 1] << "\n";
+          os << std::hex << raw_table[i + 1] << std::dec << "\n";
           return;
         }
       }
