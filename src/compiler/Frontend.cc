@@ -25,7 +25,9 @@
 #include <llvm/Support/Threading.h>
 
 namespace {
+#if !defined(ART_USE_LLVM_COMPILER)
   pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
+#endif
   void InitializeLLVMForQuick() {
     llvm::llvm_start_multithreaded();
   }
