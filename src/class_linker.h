@@ -337,9 +337,9 @@ class ClassLinker {
         GetClassRoot(kJavaLangReflectMethodArrayClass), length);
   }
 
-  ObjectArray<InterfaceEntry>* AllocIfTable(Thread* self, size_t length)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return ObjectArray<InterfaceEntry>::Alloc(self, GetClassRoot(kObjectArrayArrayClass), length);
+  IfTable* AllocIfTable(Thread* self, size_t ifcount) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return down_cast<IfTable*>(
+        IfTable::Alloc(self, GetClassRoot(kObjectArrayClass), ifcount * IfTable::kMax));
   }
 
   ObjectArray<Field>* AllocFieldArray(Thread* self, size_t length)
@@ -411,9 +411,6 @@ class ClassLinker {
   Field* AllocField(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Method* AllocMethod(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Constructor* AllocConstructor(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  InterfaceEntry* AllocInterfaceEntry(Thread* self, Class* interface)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -574,7 +571,6 @@ class ClassLinker {
     kJavaLangObject,
     kClassArrayClass,
     kObjectArrayClass,
-    kObjectArrayArrayClass,
     kJavaLangString,
     kJavaLangDexCache,
     kJavaLangRefReference,
@@ -637,7 +633,7 @@ class ClassLinker {
     return descriptor;
   }
 
-  ObjectArray<InterfaceEntry>* array_iftable_;
+  IfTable* array_iftable_;
 
   bool init_done_;
 

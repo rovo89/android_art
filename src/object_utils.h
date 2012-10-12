@@ -169,7 +169,7 @@ class ClassHelper {
         return GetClassLinker()->FindSystemClass("Ljava/io/Serializable;");
       }
     } else if (klass_->IsProxyClass()) {
-      return klass_->GetIfTable()->Get(idx)->GetInterface();
+      return klass_->GetIfTable()->GetInterface(idx);
     } else {
       uint16_t type_idx = GetDirectInterfaceTypeIdx(idx);
       Class* interface = GetDexCache()->GetResolvedType(type_idx);

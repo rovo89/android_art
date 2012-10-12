@@ -127,7 +127,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(2U, kh.NumDirectInterfaces());
     EXPECT_TRUE(array->GetVTable() != NULL);
     EXPECT_EQ(2, array->GetIfTableCount());
-    ObjectArray<InterfaceEntry>* iftable = array->GetIfTable();
+    IfTable* iftable = array->GetIfTable();
     ASSERT_TRUE(iftable != NULL);
     kh.ChangeClass(kh.GetDirectInterface(0));
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/lang/Cloneable;");
@@ -202,17 +202,14 @@ class ClassLinkerTest : public CommonTest {
       }
     }
     EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
+    const IfTable* iftable = klass->GetIfTable();
     for (int i = 0; i < klass->GetIfTableCount(); i++) {
-      const InterfaceEntry* interface_entry = klass->GetIfTable()->Get(i);
-      ASSERT_TRUE(interface_entry != NULL);
-      Class* interface = interface_entry->GetInterface();
+      Class* interface = iftable->GetInterface(i);
       ASSERT_TRUE(interface != NULL);
-      EXPECT_TRUE(interface_entry->GetInterface() != NULL);
       if (klass->IsInterface()) {
-        EXPECT_EQ(0U, interface_entry->GetMethodArrayCount());
+        EXPECT_EQ(0U, iftable->GetMethodArrayCount(i));
       } else {
-        CHECK_EQ(interface->NumVirtualMethods(), interface_entry->GetMethodArrayCount());
-        EXPECT_EQ(interface->NumVirtualMethods(), interface_entry->GetMethodArrayCount());
+        EXPECT_EQ(interface->NumVirtualMethods(), iftable->GetMethodArrayCount(i));
       }
     }
     if (klass->IsAbstract()) {

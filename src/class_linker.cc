@@ -166,7 +166,6 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/Object;",
   "[Ljava/lang/Class;",
   "[Ljava/lang/Object;",
-  "[[Ljava/lang/Object;",
   "Ljava/lang/String;",
   "Ljava/lang/DexCache;",
   "Ljava/lang/ref/Reference;",
@@ -258,10 +257,6 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SirtRef<Class> object_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
   object_array_class->SetComponentType(java_lang_Object.get());
 
-  // Object[][] needed for iftables.
-  SirtRef<Class> object_array_array_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
-  object_array_array_class->SetComponentType(object_array_class.get());
-
   // Setup the char class to be used for char[].
   SirtRef<Class> char_class(self, AllocClass(self, java_lang_Class.get(), sizeof(Class)));
 
@@ -283,7 +278,6 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kJavaLangObject, java_lang_Object.get());
   SetClassRoot(kClassArrayClass, class_array_class.get());
   SetClassRoot(kObjectArrayClass, object_array_class.get());
-  SetClassRoot(kObjectArrayArrayClass, object_array_array_class.get());
   SetClassRoot(kCharArrayClass, char_array_class.get());
   SetClassRoot(kJavaLangString, java_lang_String.get());
 
@@ -428,9 +422,6 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   Class* found_object_array_class = FindSystemClass("[Ljava/lang/Object;");
   CHECK_EQ(object_array_class.get(), found_object_array_class);
 
-  Class* found_object_array_array_class = FindSystemClass("[[Ljava/lang/Object;");
-  CHECK_EQ(object_array_array_class.get(), found_object_array_array_class);
-
   // Setup the single, global copy of "iftable".
   Class* java_lang_Cloneable = FindSystemClass("Ljava/lang/Cloneable;");
   CHECK(java_lang_Cloneable != NULL);
@@ -438,8 +429,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK(java_io_Serializable != NULL);
   // We assume that Cloneable/Serializable don't have superinterfaces -- normally we'd have to
   // crawl up and explicitly list all of the supers as well.
-  array_iftable_->Set(0, AllocInterfaceEntry(self, java_lang_Cloneable));
-  array_iftable_->Set(1, AllocInterfaceEntry(self, java_io_Serializable));
+  array_iftable_->SetInterface(0, java_lang_Cloneable);
+  array_iftable_->SetInterface(1, java_io_Serializable);
 
   // Sanity check Class[] and Object[]'s interfaces.
   ClassHelper kh(class_array_class.get(), this);
@@ -1174,14 +1165,6 @@ DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_file) {
   return dex_cache.get();
 }
 
-InterfaceEntry* ClassLinker::AllocInterfaceEntry(Thread* self, Class* interface) {
-  DCHECK(interface->IsInterface());
-  SirtRef<ObjectArray<Object> > array(self, AllocObjectArray<Object>(self, InterfaceEntry::LengthAsArray()));
-  SirtRef<InterfaceEntry> interface_entry(self, down_cast<InterfaceEntry*>(array.get()));
-  interface_entry->SetInterface(interface);
-  return interface_entry.get();
-}
-
 Class* ClassLinker::AllocClass(Thread* self, Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
   Heap* heap = Runtime::Current()->GetHeap();
@@ -1885,8 +1868,6 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, ClassLoader*
       new_class.reset(GetClassRoot(kClassArrayClass));
     } else if (descriptor == "[Ljava/lang/Object;") {
       new_class.reset(GetClassRoot(kObjectArrayClass));
-    } else if (descriptor == "[[Ljava/lang/Object;") {
-      new_class.reset(GetClassRoot(kObjectArrayArrayClass));
     } else if (descriptor == class_roots_descriptors_[kJavaLangStringArrayClass]) {
       new_class.reset(GetClassRoot(kJavaLangStringArrayClass));
     } else if (descriptor == class_roots_descriptors_[kJavaLangReflectAbstractMethodArrayClass]) {
@@ -2683,12 +2664,12 @@ bool ClassLinker::ValidateSuperClassDescriptors(const Class* klass) {
       }
     }
   }
+  IfTable* iftable = klass->GetIfTable();
   for (int32_t i = 0; i < klass->GetIfTableCount(); ++i) {
-    InterfaceEntry* interface_entry = klass->GetIfTable()->Get(i);
-    Class* interface = interface_entry->GetInterface();
+    Class* interface = iftable->GetInterface(i);
     if (klass->GetClassLoader() != interface->GetClassLoader()) {
       for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        const AbstractMethod* method = interface_entry->GetMethodArray()->Get(j);
+        const AbstractMethod* method = iftable->GetMethodArray(i)->Get(j);
         if (!IsSameMethodSignatureInDifferentClassContexts(method, interface,
                                                            method->GetDeclaringClass())) {
           ThrowLinkageError("Class %s method %s resolves differently in interface %s",
@@ -3074,18 +3055,34 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     ifcount += interface->GetIfTableCount();
   }
   if (ifcount == 0) {
-    // TODO: enable these asserts with klass status validation
-    // DCHECK_EQ(klass->GetIfTableCount(), 0);
-    // DCHECK(klass->GetIfTable() == NULL);
+    // Class implements no interfaces.
+    DCHECK_EQ(klass->GetIfTableCount(), 0);
+    DCHECK(klass->GetIfTable() == NULL);
     return true;
   }
+  if (ifcount == super_ifcount) {
+    // Class implements same interfaces as parent, are any of these not marker interfaces?
+    bool has_non_marker_interface = false;
+    IfTable* super_iftable = klass->GetSuperClass()->GetIfTable();
+    for (size_t i = 0; i < ifcount; ++i) {
+      if (super_iftable->GetMethodArrayCount(i) > 0) {
+        has_non_marker_interface = true;
+        break;
+      }
+    }
+    if (!has_non_marker_interface) {
+      // Class just inherits marker interfaces from parent so recycle parent's iftable.
+      klass->SetIfTable(super_iftable);
+      return true;
+    }
+  }
   Thread* self = Thread::Current();
-  SirtRef<ObjectArray<InterfaceEntry> > iftable(self, AllocIfTable(self, ifcount));
+  SirtRef<IfTable> iftable(self, AllocIfTable(self, ifcount));
   if (super_ifcount != 0) {
-    ObjectArray<InterfaceEntry>* super_iftable = klass->GetSuperClass()->GetIfTable();
+    IfTable* super_iftable = klass->GetSuperClass()->GetIfTable();
     for (size_t i = 0; i < super_ifcount; i++) {
-      Class* super_interface = super_iftable->Get(i)->GetInterface();
-      iftable->Set(i, AllocInterfaceEntry(self, super_interface));
+      Class* super_interface = super_iftable->GetInterface(i);
+      iftable->SetInterface(i, super_interface);
     }
   }
   // Flatten the interface inheritance hierarchy.
@@ -3104,7 +3101,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     // Check if interface is already in iftable
     bool duplicate = false;
     for (size_t j = 0; j < idx; j++) {
-      Class* existing_interface = iftable->Get(j)->GetInterface();
+      Class* existing_interface = iftable->GetInterface(j);
       if (existing_interface == interface) {
         duplicate = true;
         break;
@@ -3112,27 +3109,27 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
     }
     if (!duplicate) {
       // Add this non-duplicate interface.
-      iftable->Set(idx++, AllocInterfaceEntry(self, interface));
+      iftable->SetInterface(idx++, interface);
       // Add this interface's non-duplicate super-interfaces.
       for (int32_t j = 0; j < interface->GetIfTableCount(); j++) {
-        Class* super_interface = interface->GetIfTable()->Get(j)->GetInterface();
+        Class* super_interface = interface->GetIfTable()->GetInterface(j);
         bool super_duplicate = false;
         for (size_t k = 0; k < idx; k++) {
-          Class* existing_interface = iftable->Get(k)->GetInterface();
+          Class* existing_interface = iftable->GetInterface(k);
           if (existing_interface == super_interface) {
             super_duplicate = true;
             break;
           }
         }
         if (!super_duplicate) {
-          iftable->Set(idx++, AllocInterfaceEntry(self, super_interface));
+          iftable->SetInterface(idx++, super_interface);
         }
       }
     }
   }
   // Shrink iftable in case duplicates were found
   if (idx < ifcount) {
-    iftable.reset(iftable->CopyOf(self, idx));
+    iftable.reset(down_cast<IfTable*>(iftable->CopyOf(self, idx * IfTable::kMax)));
     ifcount = idx;
   } else {
     CHECK_EQ(idx, ifcount);
@@ -3140,60 +3137,62 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
   klass->SetIfTable(iftable.get());
 
   // If we're an interface, we don't need the vtable pointers, so we're done.
-  if (klass->IsInterface() /*|| super_ifcount == ifcount*/) {
+  if (klass->IsInterface()) {
     return true;
   }
   std::vector<AbstractMethod*> miranda_list;
   MethodHelper vtable_mh(NULL, this);
   MethodHelper interface_mh(NULL, this);
   for (size_t i = 0; i < ifcount; ++i) {
-    InterfaceEntry* interface_entry = iftable->Get(i);
-    Class* interface = interface_entry->GetInterface();
-    ObjectArray<AbstractMethod>* method_array =
-        AllocMethodArray(self, interface->NumVirtualMethods());
-    interface_entry->SetMethodArray(method_array);
-    ObjectArray<AbstractMethod>* vtable = klass->GetVTableDuringLinking();
-    for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-      AbstractMethod* interface_method = interface->GetVirtualMethod(j);
-      interface_mh.ChangeMethod(interface_method);
-      int32_t k;
-      // For each method listed in the interface's method list, find the
-      // matching method in our class's method list.  We want to favor the
-      // subclass over the superclass, which just requires walking
-      // back from the end of the vtable.  (This only matters if the
-      // superclass defines a private method and this class redefines
-      // it -- otherwise it would use the same vtable slot.  In .dex files
-      // those don't end up in the virtual method table, so it shouldn't
-      // matter which direction we go.  We walk it backward anyway.)
-      for (k = vtable->GetLength() - 1; k >= 0; --k) {
-        AbstractMethod* vtable_method = vtable->Get(k);
-        vtable_mh.ChangeMethod(vtable_method);
-        if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-          if (!vtable_method->IsPublic()) {
-            Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                "Implementation not public: %s", PrettyMethod(vtable_method).c_str());
-            return false;
-          }
-          method_array->Set(j, vtable_method);
-          break;
-        }
-      }
-      if (k < 0) {
-        SirtRef<AbstractMethod> miranda_method(self, NULL);
-        for (size_t mir = 0; mir < miranda_list.size(); mir++) {
-          AbstractMethod* mir_method = miranda_list[mir];
-          vtable_mh.ChangeMethod(mir_method);
+    Class* interface = iftable->GetInterface(i);
+    size_t num_methods = interface->NumVirtualMethods();
+    if (num_methods > 0) {
+      ObjectArray<AbstractMethod>* method_array = AllocMethodArray(self, num_methods);
+      iftable->SetMethodArray(i, method_array);
+      ObjectArray<AbstractMethod>* vtable = klass->GetVTableDuringLinking();
+      for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
+        AbstractMethod* interface_method = interface->GetVirtualMethod(j);
+        interface_mh.ChangeMethod(interface_method);
+        int32_t k;
+        // For each method listed in the interface's method list, find the
+        // matching method in our class's method list.  We want to favor the
+        // subclass over the superclass, which just requires walking
+        // back from the end of the vtable.  (This only matters if the
+        // superclass defines a private method and this class redefines
+        // it -- otherwise it would use the same vtable slot.  In .dex files
+        // those don't end up in the virtual method table, so it shouldn't
+        // matter which direction we go.  We walk it backward anyway.)
+        for (k = vtable->GetLength() - 1; k >= 0; --k) {
+          AbstractMethod* vtable_method = vtable->Get(k);
+          vtable_mh.ChangeMethod(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-            miranda_method.reset(miranda_list[mir]);
+            if (!vtable_method->IsPublic()) {
+              self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+                                       "Implementation not public: %s",
+                                       PrettyMethod(vtable_method).c_str());
+              return false;
+            }
+            method_array->Set(j, vtable_method);
             break;
           }
         }
-        if (miranda_method.get() == NULL) {
-          // point the interface table at a phantom slot
-          miranda_method.reset(down_cast<AbstractMethod*>(interface_method->Clone(self)));
-          miranda_list.push_back(miranda_method.get());
+        if (k < 0) {
+          SirtRef<AbstractMethod> miranda_method(self, NULL);
+          for (size_t mir = 0; mir < miranda_list.size(); mir++) {
+            AbstractMethod* mir_method = miranda_list[mir];
+            vtable_mh.ChangeMethod(mir_method);
+            if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
+              miranda_method.reset(miranda_list[mir]);
+              break;
+            }
+          }
+          if (miranda_method.get() == NULL) {
+            // point the interface table at a phantom slot
+            miranda_method.reset(down_cast<AbstractMethod*>(interface_method->Clone(self)));
+            miranda_list.push_back(miranda_method.get());
+          }
+          method_array->Set(j, miranda_method.get());
         }
-        method_array->Set(j, miranda_method.get());
       }
     }
   }

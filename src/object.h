@@ -44,7 +44,7 @@ class ClassLoader;
 class CodeAndDirectMethods;
 class DexCache;
 class Field;
-class InterfaceEntry;
+class IfTable;
 class Monitor;
 class Member;
 class AbstractMethod;
@@ -1173,6 +1173,57 @@ ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) {
   return new_array;
 }
 
+class MANAGED IfTable : public ObjectArray<Object> {
+ public:
+  Class* GetInterface(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Class* interface = Get((i * kMax) + kInterface)->AsClass();
+    DCHECK(interface != NULL);
+    return interface;
+  }
+
+  void SetInterface(int32_t i, Class* interface) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ObjectArray<AbstractMethod>* GetMethodArray(int32_t i) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ObjectArray<AbstractMethod>* method_array =
+        down_cast<ObjectArray<AbstractMethod>*>(Get((i * kMax) + kMethodArray));
+    DCHECK(method_array != NULL);
+    return method_array;
+  }
+
+  size_t GetMethodArrayCount(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ObjectArray<AbstractMethod>* method_array =
+        down_cast<ObjectArray<AbstractMethod>*>(Get((i * kMax) + kMethodArray));
+    if (method_array == NULL) {
+      return 0;
+    }
+    return method_array->GetLength();
+  }
+
+  void SetMethodArray(int32_t i, ObjectArray<AbstractMethod>* new_ma)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(new_ma != NULL);
+    DCHECK(Get((i * kMax) + kMethodArray) == NULL);
+    Set((i * kMax) + kMethodArray, new_ma);
+  }
+
+  size_t Count() const {
+    return GetLength() / kMax;
+  }
+
+  enum {
+    // Points to the interface class.
+    kInterface   = 0,
+    // Method pointers into the vtable, allow fast map from interface method index to concrete
+    // instance method.
+    kMethodArray = 1,
+    kMax         = 2,
+  };
+
+ private:
+  DISALLOW_IMPLICIT_CONSTRUCTORS(IfTable);
+};
+
 // Type for the InitializedStaticStorage table. Currently the Class
 // provides the static storage. However, this might change to an Array
 // to improve image sharing, so we use this type to avoid assumptions
@@ -1746,20 +1797,18 @@ class MANAGED Class : public StaticStorageBase {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetIfTableCount() const {
-    ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+    IfTable* iftable = GetIfTable();
     if (iftable == NULL) {
       return 0;
     }
-    return iftable->GetLength();
+    return iftable->Count();
   }
 
-  ObjectArray<InterfaceEntry>* GetIfTable() const {
-    DCHECK(IsResolved() || IsErroneous());
-    return GetFieldObject<ObjectArray<InterfaceEntry>*>(
-        OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
+  IfTable* GetIfTable() const {
+    return GetFieldObject<IfTable*>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), false);
   }
 
-  void SetIfTable(ObjectArray<InterfaceEntry>* new_iftable)
+  void SetIfTable(IfTable* new_iftable)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable, false);
   }
@@ -1970,20 +2019,18 @@ class MANAGED Class : public StaticStorageBase {
   // specifies the number of reference fields.
   ObjectArray<Field>* ifields_;
 
-  // Interface table (iftable_), one entry per interface supported by
-  // this class.  That means one entry for each interface we support
-  // directly, indirectly via superclass, or indirectly via
-  // superinterface.  This will be null if neither we nor our
-  // superclass implement any interfaces.
+  // The interface table (iftable_) contains pairs of a interface class and an array of the
+  // interface methods. There is one pair per interface supported by this class.  That means one
+  // pair for each interface we support directly, indirectly via superclass, or indirectly via a
+  // superinterface.  This will be null if neither we nor our superclass implement any interfaces.
   //
-  // Why we need this: given "class Foo implements Face", declare
-  // "Face faceObj = new Foo()".  Invoke faceObj.blah(), where "blah"
-  // is part of the Face interface.  We can't easily use a single
-  // vtable.
+  // Why we need this: given "class Foo implements Face", declare "Face faceObj = new Foo()".
+  // Invoke faceObj.blah(), where "blah" is part of the Face interface.  We can't easily use a
+  // single vtable.
   //
-  // For every interface a concrete class implements, we create an array
-  // of the concrete vtable_ methods for the methods in the interface.
-  ObjectArray<InterfaceEntry>* iftable_;
+  // For every interface a concrete class implements, we create an array of the concrete vtable_
+  // methods for the methods in the interface.
+  IfTable* iftable_;
 
   // descriptor for the class such as "java.lang.Class" or "[C". Lazily initialized by ComputeName
   String* name_;
@@ -2244,6 +2291,13 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
     }
     heap->WriteBarrierArray(dst, dst_pos, length);
   }
+}
+
+inline void IfTable::SetInterface(int32_t i, Class* interface) {
+  DCHECK(interface != NULL);
+  DCHECK(interface->IsInterface());
+  DCHECK(Get((i * kMax) + kInterface) == NULL);
+  Set((i * kMax) + kInterface, interface);
 }
 
 class MANAGED ClassClass : public Class {
@@ -2646,60 +2700,6 @@ class MANAGED StackTraceElement : public Object {
 
   friend struct StackTraceElementOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(StackTraceElement);
-};
-
-class MANAGED InterfaceEntry : public ObjectArray<Object> {
- public:
-  Class* GetInterface() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* interface = Get(kInterface)->AsClass();
-    DCHECK(interface != NULL);
-    return interface;
-  }
-
-  void SetInterface(Class* interface) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(interface != NULL);
-    DCHECK(interface->IsInterface());
-    DCHECK(Get(kInterface) == NULL);
-    Set(kInterface, interface);
-  }
-
-  size_t GetMethodArrayCount() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<AbstractMethod>* method_array = down_cast<ObjectArray<AbstractMethod>*>(Get(kMethodArray));
-    if (method_array == NULL) {
-      return 0;
-    }
-    return method_array->GetLength();
-  }
-
-  ObjectArray<AbstractMethod>* GetMethodArray() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ObjectArray<AbstractMethod>* method_array = down_cast<ObjectArray<AbstractMethod>*>(Get(kMethodArray));
-    DCHECK(method_array != NULL);
-    return method_array;
-  }
-
-  void SetMethodArray(ObjectArray<AbstractMethod>* new_ma)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(new_ma != NULL);
-    DCHECK(Get(kMethodArray) == NULL);
-    Set(kMethodArray, new_ma);
-  }
-
-  static size_t LengthAsArray() {
-    return kMax;
-  }
-
- private:
-  enum {
-    // Points to the interface class.
-    kInterface   = 0,
-    // Method pointers into the vtable, allow fast map from interface
-    // method index to concrete instance method.
-    kMethodArray = 1,
-    kMax         = 2,
-  };
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(InterfaceEntry);
 };
 
 class MANAGED SynthesizedProxyClass : public Class {

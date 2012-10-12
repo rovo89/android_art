@@ -474,10 +474,9 @@ AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
     } else {
       MethodHelper mh(this);
       MethodHelper interface_mh;
-      ObjectArray<InterfaceEntry>* iftable = GetDeclaringClass()->GetIfTable();
-      for (int32_t i = 0; i < iftable->GetLength() && result == NULL; i++) {
-        InterfaceEntry* entry = iftable->Get(i);
-        Class* interface = entry->GetInterface();
+      IfTable* iftable = GetDeclaringClass()->GetIfTable();
+      for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
+        Class* interface = iftable->GetInterface(i);
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
           AbstractMethod* interface_method = interface->GetVirtualMethod(j);
           interface_mh.ChangeMethod(interface_method);
@@ -881,9 +880,9 @@ bool Class::Implements(const Class* klass) const {
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
   int32_t iftable_count = GetIfTableCount();
-  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    if (iftable->Get(i)->GetInterface() == klass) {
+    if (iftable->GetInterface(i) == klass) {
       return true;
     }
   }
@@ -1007,11 +1006,10 @@ AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* method) {
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
   // TODO cache to improve lookup speed
   int32_t iftable_count = GetIfTableCount();
-  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    InterfaceEntry* interface_entry = iftable->Get(i);
-    if (interface_entry->GetInterface() == declaring_class) {
-      return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
+    if (iftable->GetInterface(i) == declaring_class) {
+      return iftable->GetMethodArray(i)->Get(method->GetMethodIndex());
     }
   }
   return NULL;
@@ -1025,9 +1023,9 @@ AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name,  const Strin
   }
 
   int32_t iftable_count = GetIfTableCount();
-  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    method = iftable->Get(i)->GetInterface()->FindVirtualMethod(name, signature);
+    method = iftable->GetInterface(i)->FindVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -1043,9 +1041,9 @@ AbstractMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t d
   }
 
   int32_t iftable_count = GetIfTableCount();
-  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    method = iftable->Get(i)->GetInterface()->FindVirtualMethod(dex_cache, dex_method_idx);
+    method = iftable->GetInterface(i)->FindVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
