@@ -110,7 +110,6 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
 }
 
 void ThreadList::DumpLocked(std::ostream& os) {
-  Locks::thread_list_lock_->AssertHeld(Thread::Current());
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
