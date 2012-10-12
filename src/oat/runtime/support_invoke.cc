@@ -27,6 +27,12 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(AbstractMethod* interface_metho
   AbstractMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex16)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
+    if (UNLIKELY(method == NULL)) {
+      FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+      ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(interface_method, this_object,
+                                                                 caller_method);
+      return 0;  // Failure.
+    }
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
     DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
@@ -86,7 +92,7 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(AbstractMethod* interface_metho
                                                 false, kInterface);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
-      return 0;  // failure
+      return 0;  // Failure.
     }
   }
   const void* code = method->GetCode();
