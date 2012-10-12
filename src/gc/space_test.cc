@@ -27,7 +27,7 @@ namespace art {
 
 class SpaceTest : public CommonTest {
  public:
-  void SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t object_size,
+  void SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr_t object_size,
                                            int round, size_t growth_limit);
   void SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size);
 };
@@ -35,37 +35,37 @@ class SpaceTest : public CommonTest {
 TEST_F(SpaceTest, Init) {
   {
     // Init < max == growth
-    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 32 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 32 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init == max == growth
-    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init > max == growth
-    UniquePtr<Space> space(AllocSpace::Create("test", 32 * MB, 16 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 32 * MB, 16 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Growth == init < max
-    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Growth < init < max
-    UniquePtr<Space> space(AllocSpace::Create("test", 16 * MB, 8 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 16 * MB, 8 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
   {
     // Init < growth < max
-    UniquePtr<Space> space(AllocSpace::Create("test", 8 * MB, 16 * MB, 32 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 8 * MB, 16 * MB, 32 * MB, NULL));
     EXPECT_TRUE(space.get() != NULL);
   }
   {
     // Init < max < growth
-    UniquePtr<Space> space(AllocSpace::Create("test", 8 * MB, 32 * MB, 16 * MB, NULL));
+    UniquePtr<Space> space(DlMallocSpace::Create("test", 8 * MB, 32 * MB, 16 * MB, NULL));
     EXPECT_TRUE(space.get() == NULL);
   }
 }
@@ -75,7 +75,7 @@ TEST_F(SpaceTest, Init) {
 // allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
 // the GC works with the ZygoteSpace.
 TEST_F(SpaceTest, ZygoteSpace) {
-    AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+    DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
     ASSERT_TRUE(space != NULL);
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -83,11 +83,11 @@ TEST_F(SpaceTest, ZygoteSpace) {
     Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
-    Object* ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
+    Object* ptr1 = space->Alloc(self, 1 * MB);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
+    Object* ptr2 = space->Alloc(self, 8 * MB);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
@@ -95,7 +95,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
     EXPECT_TRUE(ptr3 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr4 = space->AllocWithoutGrowth(self, 8 * MB);
+    Object* ptr4 = space->Alloc(self, 8 * MB);
     EXPECT_TRUE(ptr4 == NULL);
 
     // Also fails, requires a higher allowed footprint.
@@ -104,7 +104,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
 
     // Release some memory.
     size_t free3 = space->AllocationSize(ptr3);
-    space->Free(self, ptr3);
+    EXPECT_EQ(free3, space->Free(self, ptr3));
     EXPECT_LE(8U * MB, free3);
 
     // Succeeds, now that memory has been freed.
@@ -117,18 +117,18 @@ TEST_F(SpaceTest, ZygoteSpace) {
     EXPECT_LE(1U * MB, free1);
 
     // Make sure that the zygote space isn't directly at the start of the space.
-    space->AllocWithoutGrowth(self, 1U * MB);
+    space->Alloc(self, 1U * MB);
     space = space->CreateZygoteSpace();
 
     // Make space findable to the heap, will also delete space when runtime is cleaned up
     Runtime::Current()->GetHeap()->AddSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.
-    ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
+    ptr1 = space->Alloc(self, 1 * MB);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
+    ptr2 = space->Alloc(self, 8 * MB);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
@@ -143,7 +143,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
 }
 
 TEST_F(SpaceTest, AllocAndFree) {
-  AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
   Thread* self = Thread::Current();
 
@@ -151,11 +151,11 @@ TEST_F(SpaceTest, AllocAndFree) {
   Runtime::Current()->GetHeap()->AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  Object* ptr1 = space->AllocWithoutGrowth(self, 1 * MB);
+  Object* ptr1 = space->Alloc(self, 1 * MB);
   EXPECT_TRUE(ptr1 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr2 = space->AllocWithoutGrowth(self, 8 * MB);
+  Object* ptr2 = space->Alloc(self, 8 * MB);
   EXPECT_TRUE(ptr2 == NULL);
 
   // Succeeds, adjusts the footprint.
@@ -163,7 +163,7 @@ TEST_F(SpaceTest, AllocAndFree) {
   EXPECT_TRUE(ptr3 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr4 = space->AllocWithoutGrowth(self, 8 * MB);
+  Object* ptr4 = space->Alloc(self, 8 * MB);
   EXPECT_TRUE(ptr4 == NULL);
 
   // Also fails, requires a higher allowed footprint.
@@ -186,7 +186,7 @@ TEST_F(SpaceTest, AllocAndFree) {
 }
 
 TEST_F(SpaceTest, AllocAndFreeList) {
-  AllocSpace* space(AllocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+  DlMallocSpace* space(DlMallocSpace::Create("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
@@ -196,7 +196,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   // Succeeds, fits without adjusting the max allowed footprint.
   Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
-    lots_of_objects[i] = space->AllocWithoutGrowth(self, 16);
+    lots_of_objects[i] = space->Alloc(self, 16);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
@@ -224,7 +224,7 @@ static size_t test_rand() {
   return rand();
 }
 
-void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t object_size,
+void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr_t object_size,
                                                     int round, size_t growth_limit) {
   if (((object_size > 0 && object_size >= static_cast<intptr_t>(growth_limit))) ||
       ((object_size < 0 && -object_size >= static_cast<intptr_t>(growth_limit)))) {
@@ -271,7 +271,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
       }
       Object* object;
       if (round <= 1) {
-        object = space->AllocWithoutGrowth(self, alloc_size);
+        object = space->Alloc(self, alloc_size);
       } else {
         object = space->AllocWithGrowth(self, alloc_size);
       }
@@ -350,7 +350,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
   Object* large_object;
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
   if (round <= 1) {
-    large_object = space->AllocWithoutGrowth(self, three_quarters_space);
+    large_object = space->Alloc(self, three_quarters_space);
   } else {
     large_object = space->AllocWithGrowth(self, three_quarters_space);
   }
@@ -376,7 +376,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
   size_t initial_size = 4 * MB;
   size_t growth_limit = 8 * MB;
   size_t capacity = 16 * MB;
-  AllocSpace* space(AllocSpace::Create("test", initial_size, growth_limit, capacity, NULL));
+  DlMallocSpace* space(DlMallocSpace::Create("test", initial_size, growth_limit, capacity, NULL));
   ASSERT_TRUE(space != NULL);
 
   // Basic sanity

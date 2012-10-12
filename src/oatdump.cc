@@ -26,6 +26,8 @@
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "file.h"
+#include "gc/large_object_space.h"
+#include "gc/space.h"
 #include "image.h"
 #include "oat/runtime/context.h"  // For VmapTable
 #include "object_utils.h"
@@ -33,7 +35,6 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "stringpiece.h"
 #include "gc_map.h"
 

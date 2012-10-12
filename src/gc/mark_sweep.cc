@@ -26,6 +26,7 @@
 #include "indirect_reference_table.h"
 #include "intern_table.h"
 #include "jni_internal.h"
+#include "large_object_space.h"
 #include "logging.h"
 #include "macros.h"
 #include "monitor.h"
@@ -208,7 +209,7 @@ void MarkSweep::CopyMarkBits(ContinuousSpace* space) {
 
 void MarkSweep::BindLiveToMarkBitmap(ContinuousSpace* space) {
   CHECK(space->IsAllocSpace());
-  AllocSpace* alloc_space = space->AsAllocSpace();
+  DlMallocSpace* alloc_space = space->AsAllocSpace();
   SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   SpaceBitmap* mark_bitmap = alloc_space->mark_bitmap_.release();
   GetHeap()->GetMarkBitmap()->ReplaceBitmap(mark_bitmap, live_bitmap);
@@ -499,17 +500,12 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   // TODO: investigate performance
   static const bool kUseFreeList = true;
   if (kUseFreeList) {
-    for (size_t i = 0; i < num_ptrs; ++i) {
-      Object* obj = static_cast<Object*>(ptrs[i]);
-      freed_bytes += space->AllocationSize(obj);
-    }
     // AllocSpace::FreeList clears the value in ptrs, so perform after clearing the live bit
-    space->FreeList(self, num_ptrs, ptrs);
+    freed_bytes += space->FreeList(self, num_ptrs, ptrs);
   } else {
     for (size_t i = 0; i < num_ptrs; ++i) {
       Object* obj = static_cast<Object*>(ptrs[i]);
-      freed_bytes += space->AllocationSize(obj);
-      space->Free(self, obj);
+      freed_bytes += space->Free(self, obj);
     }
   }
 
@@ -532,7 +528,7 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 
 void MarkSweep::SweepArray(TimingLogger& logger, ObjectStack* allocations, bool swap_bitmaps) {
   size_t freed_bytes = 0;
-  AllocSpace* space = heap_->GetAllocSpace();
+  DlMallocSpace* space = heap_->GetAllocSpace();
 
   // If we don't swap bitmaps then newly allocated Weaks go into the live bitmap but not mark
   // bitmap, resulting in occasional frees of Weaks which are still in use.
@@ -566,22 +562,18 @@ void MarkSweep::SweepArray(TimingLogger& logger, ObjectStack* allocations, bool 
       if (!mark_bitmap->Test(obj)) {
         // Don't bother un-marking since we clear the mark bitmap anyways.
         *(out++) = obj;
-        size_t size = space->AllocationSize(obj);
-        freed_bytes += size;
       }
     } else if (!large_mark_objects->Test(obj)) {
       ++freed_large_objects;
-      size_t size = large_object_space->AllocationSize(obj);
-      freed_bytes += size;
-      large_object_space->Free(self, obj);
+      freed_bytes += large_object_space->Free(self, obj);
     }
   }
   logger.AddSplit("Process allocation stack");
 
   size_t freed_objects = out - objects;
+  freed_bytes += space->FreeList(self, freed_objects, objects);
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
-  space->FreeList(self, freed_objects, objects);
   heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
   freed_objects_ += freed_objects;
   freed_bytes_ += freed_bytes;
@@ -645,8 +637,7 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   Thread* self = Thread::Current();
   for (SpaceSetMap::Objects::iterator it = live_objects.begin(); it != live_objects.end(); ++it) {
     if (!large_mark_objects->Test(*it)) {
-      freed_bytes += large_object_space->AllocationSize(*it);
-      large_object_space->Free(self, const_cast<Object*>(*it));
+      freed_bytes += large_object_space->Free(self, const_cast<Object*>(*it));
       ++freed_objects;
     }
   }
@@ -1017,7 +1008,7 @@ void MarkSweep::UnBindBitmaps() {
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
     Space* space = *it;
     if (space->IsAllocSpace()) {
-      AllocSpace* alloc_space = space->AsAllocSpace();
+      DlMallocSpace* alloc_space = space->AsAllocSpace();
       if (alloc_space->temp_bitmap_.get() != NULL) {
         // At this point, the temp_bitmap holds our old mark bitmap.
         SpaceBitmap* new_bitmap = alloc_space->temp_bitmap_.release();

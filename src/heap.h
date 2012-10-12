@@ -42,6 +42,7 @@ namespace art {
 class AllocSpace;
 class Class;
 class ConditionVariable;
+class DlMallocSpace;
 class HeapBitmap;
 class ImageSpace;
 class LargeObjectSpace;
@@ -297,7 +298,7 @@ class Heap {
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
   ImageSpace* GetImageSpace();
-  AllocSpace* GetAllocSpace();
+  DlMallocSpace* GetAllocSpace();
   LargeObjectSpace* GetLargeObjectsSpace() {
     return large_object_space_.get();
   }
@@ -379,7 +380,7 @@ class Heap {
   UniquePtr<MemMap> oat_file_map_;
 
   // The alloc space which we are currently allocating into.
-  AllocSpace* alloc_space_;
+  DlMallocSpace* alloc_space_;
 
   // One cumulative logger for each type of Gc.
   typedef SafeMap<GcType, CumulativeLogger*> CumulativeTimings;
@@ -415,13 +416,19 @@ class Heap {
   // Last Gc type we ran. Used by WaitForConcurrentGc to know which Gc was waited on.
   volatile GcType last_gc_type_ GUARDED_BY(gc_complete_lock_);
 
+  // If enabled, causes Gc for alloc when heap size reaches the current footprint limit before the
+  // Gc updates it.
+  const bool enforce_heap_growth_rate_;
+
   // Maximum size that the heap can reach.
   size_t growth_limit_;
+  size_t max_allowed_footprint_;
 
   // Bytes until concurrent GC starts.
   volatile size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
+
   // Number of bytes allocated since the last Gc, we use this to help determine when to schedule concurrent GCs.
   size_t bytes_since_last_gc_;
   size_t sticky_gc_count_;
