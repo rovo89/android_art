@@ -54,7 +54,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
   AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
-  uintptr_t caller_pc = regs[10];
+  uint32_t pc_offset = 10;
+  uintptr_t caller_pc = regs[pc_offset];
 #elif defined(__i386__)
   // On entry the stack pointed by sp is:
   // | argN        |  |
@@ -74,6 +75,26 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 32);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
   uintptr_t caller_pc = regs[7];
+#elif defined(__mips__)
+  // On entry the stack pointed by sp is:
+  // | argN       |  |
+  // | ...        |  |
+  // | arg4       |  |
+  // | arg3 spill |  |  Caller's frame
+  // | arg2 spill |  |
+  // | arg1 spill |  |
+  // | Method*    | ---
+  // | RA         |
+  // | ...        |    callee saves
+  // | A3         |    arg3
+  // | A2         |    arg2
+  // | A1         |    arg1
+  // | A0/Method* |  <- sp
+  DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
+  uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
+  uint32_t pc_offset = 11;
+  uintptr_t caller_pc = regs[pc_offset];
 #else
   UNIMPLEMENTED(FATAL);
   AbstractMethod** caller_sp = NULL;
@@ -173,7 +194,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
   // Place into local references incoming arguments from the caller's stack arguments
-  cur_arg += 11;  // skip LR, Method* and spills for R1 to R3 and callee saves
+  cur_arg += pc_offset + 1;  // skip LR/RA, Method* and spills for R1-R3/A1-A3 and callee saves
   while (shorty_index < shorty_len) {
     char c = shorty[shorty_index];
     shorty_index++;

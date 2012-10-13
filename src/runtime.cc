@@ -1014,8 +1014,8 @@ AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
                           (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);
     uint32_t arg_spills = (1 << art::arm::R1) | (1 << art::arm::R2) | (1 << art::arm::R3);
     uint32_t all_spills = (1 << art::arm::R4) | (1 << art::arm::R9);
-    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills :0) |
-                           (type == kSaveAll ? all_spills :0) | (1 << art::arm::LR);
+    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
+                           (type == kSaveAll ? all_spills : 0) | (1 << art::arm::LR);
     uint32_t fp_all_spills = (1 << art::arm::S0)  | (1 << art::arm::S1)  | (1 << art::arm::S2) |
                              (1 << art::arm::S3)  | (1 << art::arm::S4)  | (1 << art::arm::S5) |
                              (1 << art::arm::S6)  | (1 << art::arm::S7)  | (1 << art::arm::S8) |
@@ -1039,9 +1039,11 @@ AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
                           (1 << art::mips::S5) | (1 << art::mips::S6) | (1 << art::mips::S7) |
                           (1 << art::mips::FP);
     uint32_t arg_spills = (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
+    uint32_t all_spills = (1 << art::mips::S0) | (1 << art::mips::S1);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
-                           (1 << art::mips::RA);
+                           (type == kSaveAll ? all_spills : 0) | (1 << art::mips::RA);
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 (type == kRefsAndArgs ? 0 : 3) /* always reserve arg space */ +
                                  1 /* Method* */) * kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);

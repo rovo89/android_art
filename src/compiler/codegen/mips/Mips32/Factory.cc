@@ -31,7 +31,7 @@ static int coreRegs[] = {r_ZERO, r_AT, r_V0, r_V1, r_A0, r_A1, r_A2, r_A3,
 static int reservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP,
                              r_RA};
 static int coreTemps[] = {r_V0, r_V1, r_A0, r_A1, r_A2, r_A3, r_T0, r_T1, r_T2,
-                          r_T3, r_T4, r_T5, r_T6, r_T7, r_T8, r_T9};
+                          r_T3, r_T4, r_T5, r_T6, r_T7, r_T8};
 #ifdef __mips_hard_float
 static int fpRegs[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                        r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
@@ -607,8 +607,8 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
       oatFreeTemp(cUnit, rTmp);
     } else {
       int rTmp = (rBase == rDest) ? oatAllocFreeTemp(cUnit) : rDest;
-      res = loadConstant(cUnit, rTmp, displacement);
-      load = newLIR3(cUnit, opcode, rDest, rBase, rTmp);
+      res = opRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
+      load = newLIR3(cUnit, opcode, rDest, 0, rTmp);
       if (rTmp != rDest)
         oatFreeTemp(cUnit, rTmp);
     }

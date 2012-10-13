@@ -107,9 +107,8 @@ void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
  */
 int loadHelper(CompilationUnit* cUnit, int offset)
 {
-  int tReg = oatAllocTemp(cUnit);
-  loadWordDisp(cUnit, rSELF, offset, tReg);
-  return tReg;
+  loadWordDisp(cUnit, rSELF, offset, r_T9);
+  return r_T9;
 }
 
 void spillCoreRegs(CompilationUnit* cUnit)
