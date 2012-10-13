@@ -79,6 +79,9 @@ class Runtime {
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
+    size_t heap_min_free_;
+    size_t heap_max_free_;
+    double heap_target_utilization_;
     size_t stack_size_;
     size_t jni_globals_max_;
     size_t lock_profiling_threshold_;

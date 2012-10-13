@@ -347,8 +347,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
   parsed->check_jni_ = kIsDebugBuild;
 
-  parsed->heap_initial_size_ = Heap::kInitialSize;
-  parsed->heap_maximum_size_ = Heap::kMaximumSize;
+  parsed->heap_initial_size_ = Heap::kDefaultInitialSize;
+  parsed->heap_maximum_size_ = Heap::kDefaultMaximumSize;
+  parsed->heap_min_free_ = Heap::kDefaultMinFree;
+  parsed->heap_max_free_ = Heap::kDefaultMaxFree;
+  parsed->heap_target_utilization_ = Heap::kDefaultTargetUtilization;
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
   parsed->stack_size_ = 0; // 0 means default.
 
@@ -443,6 +446,42 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_growth_limit_ = size;
+    } else if (StartsWith(option, "-XX:HeapMinFree=")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapMinFree=")).c_str(), 1024);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO: usage
+        LOG(FATAL) << "Failed to parse " << option;
+        return NULL;
+      }
+      parsed->heap_min_free_ = size;
+    } else if (StartsWith(option, "-XX:HeapMaxFree=")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapMaxFree=")).c_str(), 1024);
+      if (size == 0) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        // TODO: usage
+        LOG(FATAL) << "Failed to parse " << option;
+        return NULL;
+      }
+      parsed->heap_max_free_ = size;
+    } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
+      std::istringstream iss(option.substr(strlen("-XX:HeapTargetUtilization=")));
+      double value;
+      iss >> value;
+      // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
+      const bool sane_val = iss.good() && (value >= 0.1) && (value <= 0.9);
+      if (!sane_val) {
+        if (ignore_unrecognized) {
+          continue;
+        }
+        LOG(FATAL) << "Invalid option '" << option << "'";
+        return NULL;
+      }
+      parsed->heap_target_utilization_ = value;
     } else if (StartsWith(option, "-Xss")) {
       size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
@@ -720,6 +759,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,
+                   options->heap_min_free_,
+                   options->heap_max_free_,
+                   options->heap_target_utilization_,
                    options->heap_maximum_size_,
                    options->image_,
                    options->is_concurrent_gc_enabled_);

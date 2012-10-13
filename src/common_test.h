@@ -322,8 +322,8 @@ class CommonTest : public testing::Test {
     java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
     boot_class_path_.push_back(java_lang_dex_file_);
 
-    std::string min_heap_string(StringPrintf("-Xms%zdm", Heap::kInitialSize / MB));
-    std::string max_heap_string(StringPrintf("-Xmx%zdm", Heap::kMaximumSize / MB));
+    std::string min_heap_string(StringPrintf("-Xms%zdm", Heap::kDefaultInitialSize / MB));
+    std::string max_heap_string(StringPrintf("-Xmx%zdm", Heap::kDefaultMaximumSize / MB));
 
     Runtime::Options options;
     options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));

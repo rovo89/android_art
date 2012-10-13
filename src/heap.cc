@@ -45,6 +45,8 @@
 
 namespace art {
 
+const double Heap::kDefaultTargetUtilization = 0.5;
+
 static bool GenerateImage(const std::string& image_file_name) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
@@ -127,7 +129,8 @@ void Heap::UnReserveOatFileAddressRange() {
   oat_file_map_.reset(NULL);
 }
 
-Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
+Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
+           double target_utilization, size_t capacity,
            const std::string& original_image_file_name, bool concurrent_gc)
     : alloc_space_(NULL),
       card_table_(NULL),
@@ -138,10 +141,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       last_gc_type_(kGcTypeNone),
       enforce_heap_growth_rate_(false),
       growth_limit_(growth_limit),
-      max_allowed_footprint_(kInitialSize),
-      concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
+      max_allowed_footprint_(initial_size),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
+      concurrent_start_bytes_(initial_size - concurrent_start_size_),
       sticky_gc_count_(0),
       total_bytes_freed_(0),
       total_objects_freed_(0),
@@ -163,7 +166,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       reference_queueNext_offset_(0),
       reference_pendingNext_offset_(0),
       finalizer_reference_zombie_offset_(0),
-      target_utilization_(0.5),
+      min_free_(min_free),
+      max_free_(max_free),
+      target_utilization_(target_utilization),
       total_paused_time_(0),
       total_wait_time_(0),
       measure_allocation_time_(false),
@@ -728,10 +733,6 @@ Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
   CollectGarbageInternal(kGcTypeFull, kGcCauseForAlloc, true);
   self->TransitionFromSuspendedToRunnable();
   return TryToAllocate(self, space, alloc_size, true);
-}
-
-float Heap::GetTargetHeapUtilization() const {
-  return target_utilization_;
 }
 
 void Heap::SetTargetHeapUtilization(float target) {
@@ -1763,7 +1764,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
   uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
   uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
   total_paused_time_ += (pause_roots + pause_dirty) / kTimeAdjust;
-  if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
+  if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5) ||
+      (gc_cause == kGcCauseForAlloc && duration > MsToNs(20))) {
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
     const size_t total_memory = GetTotalMemory();
@@ -1833,20 +1835,14 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   max_allowed_footprint_ = max_allowed_footprint;
 }
 
-// kHeapIdealFree is the ideal maximum free size, when we grow the heap for utilization.
-static const size_t kHeapIdealFree = 2 * MB;
-// kHeapMinFree guarantees that you always have at least 512 KB free, when you grow for utilization,
-// regardless of target utilization ratio.
-static const size_t kHeapMinFree = kHeapIdealFree / 4;
-
 void Heap::GrowForUtilization() {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
   size_t target_size = num_bytes_allocated_ / Heap::GetTargetHeapUtilization();
-  if (target_size > num_bytes_allocated_ + kHeapIdealFree) {
-    target_size = num_bytes_allocated_ + kHeapIdealFree;
-  } else if (target_size < num_bytes_allocated_ + kHeapMinFree) {
-    target_size = num_bytes_allocated_ + kHeapMinFree;
+  if (target_size > num_bytes_allocated_ + max_free_) {
+    target_size = num_bytes_allocated_ + max_free_;
+  } else if (target_size < num_bytes_allocated_ + min_free_) {
+    target_size = num_bytes_allocated_ + min_free_;
   }
 
   // Calculate when to perform the next ConcurrentGC.

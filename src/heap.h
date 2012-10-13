@@ -82,8 +82,14 @@ std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 
 class Heap {
  public:
-  static const size_t kInitialSize = 2 * MB;
-  static const size_t kMaximumSize = 32 * MB;
+  static const size_t kDefaultInitialSize = 2 * MB;
+  static const size_t kDefaultMaximumSize = 32 * MB;
+  static const size_t kDefaultMaxFree = 2 * MB;
+  static const size_t kDefaultMinFree = kDefaultMaxFree / 4;
+
+  // Default target utilization.
+  static const double kDefaultTargetUtilization;
+
   // Used so that we don't overflow the allocation time atomic integer.
   static const size_t kTimeAdjust = 1024;
 
@@ -93,8 +99,9 @@ class Heap {
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
-  explicit Heap(size_t starting_size, size_t growth_limit, size_t capacity,
-                const std::string& image_file_name, bool concurrent_gc);
+  explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
+                size_t max_free, double target_utilization, size_t capacity,
+                const std::string& original_image_file_name, bool concurrent_gc);
 
   ~Heap();
 
@@ -155,7 +162,9 @@ class Heap {
 
   // Target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.getTargetHeapUtilization.
-  float GetTargetHeapUtilization() const;
+  double GetTargetHeapUtilization() const {
+    return target_utilization_;
+  }
 
   // Set target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.setTargetHeapUtilization.
@@ -425,9 +434,9 @@ class Heap {
   size_t max_allowed_footprint_;
 
   // Bytes until concurrent GC starts.
-  volatile size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
+  size_t concurrent_start_bytes_;
 
   // Number of bytes allocated since the last Gc, we use this to help determine when to schedule concurrent GCs.
   size_t bytes_since_last_gc_;
@@ -498,8 +507,15 @@ class Heap {
   // offset of java.lang.ref.FinalizerReference.zombie
   MemberOffset finalizer_reference_zombie_offset_;
 
+  // Minimum free guarantees that you always have at least min_free_ free bytes after growing for
+  // utilization, regardless of target utilization ratio.
+  size_t min_free_;
+
+  // The ideal maximum free size, when we grow the heap for utilization.
+  size_t max_free_;
+
   // Target ideal heap utilization ratio
-  float target_utilization_;
+  double target_utilization_;
 
   // Total time which mutators are paused or waiting for GC to complete.
   uint64_t total_paused_time_;
