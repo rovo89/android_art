@@ -1202,7 +1202,7 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
 #if !defined(TARGET_X86)
     int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pResolveStringFromCode));
 #endif
-    loadWordDisp(cUnit, rRET0, offset_of_string, rARG0);
+    loadWordDisp(cUnit, rARG0, offset_of_string, rRET0);
     loadConstant(cUnit, rARG1, string_idx);
 #if defined(TARGET_ARM)
     opRegImm(cUnit, kOpCmp, rRET0, 0);  // Is resolved?

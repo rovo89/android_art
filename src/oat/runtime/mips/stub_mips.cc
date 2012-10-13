@@ -30,28 +30,27 @@ namespace mips {
 ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 #if !defined(ART_USE_LLVM_COMPILER)
-  // | Out args |
-  // | Method*  | <- SP on entry
-  // | RA       |    return address into caller
-  // | ...      |    callee saves
-  // | A3       |    possible argument
-  // | A2       |    possible argument
-  // | A1       |    possible argument
-  // | A0       |    junk on call to UnresolvedDirectMethodTrampolineFromCode, holds result Method*
-  // | Method*  |    Callee save Method* set up by UnresolvedDirectMethodTrampolineFromCode
+  // | Out args   |
+  // | Method*    | <- SP on entry
+  // | RA         |    return address into caller
+  // | ...        |    callee saves
+  // | A3         |    possible argument
+  // | A2         |    possible argument
+  // | A1         |    possible argument
+  // | A0/Method* |    Callee save Method* set up by UnresolvedDirectMethodTrampolineFromCode
   // Save callee saves and ready frame for exception delivery
-  __ AddConstant(SP, SP, -64);
-  __ StoreToOffset(kStoreWord, RA, SP, 60);
-  __ StoreToOffset(kStoreWord, FP, SP, 56);
-  __ StoreToOffset(kStoreWord, S7, SP, 52);
-  __ StoreToOffset(kStoreWord, S6, SP, 48);
-  __ StoreToOffset(kStoreWord, S5, SP, 44);
-  __ StoreToOffset(kStoreWord, S4, SP, 40);
-  __ StoreToOffset(kStoreWord, S3, SP, 36);
-  __ StoreToOffset(kStoreWord, S2, SP, 32);
-  __ StoreToOffset(kStoreWord, A3, SP, 28);
-  __ StoreToOffset(kStoreWord, A2, SP, 24);
-  __ StoreToOffset(kStoreWord, A1, SP, 20);
+  __ AddConstant(SP, SP, -48);
+  __ StoreToOffset(kStoreWord, RA, SP, 44);
+  __ StoreToOffset(kStoreWord, FP, SP, 40);
+  __ StoreToOffset(kStoreWord, S7, SP, 36);
+  __ StoreToOffset(kStoreWord, S6, SP, 32);
+  __ StoreToOffset(kStoreWord, S5, SP, 28);
+  __ StoreToOffset(kStoreWord, S4, SP, 24);
+  __ StoreToOffset(kStoreWord, S3, SP, 20);
+  __ StoreToOffset(kStoreWord, S2, SP, 16);
+  __ StoreToOffset(kStoreWord, A3, SP, 12);
+  __ StoreToOffset(kStoreWord, A2, SP, 8);
+  __ StoreToOffset(kStoreWord, A1, SP, 4);
 
   __ LoadFromOffset(kLoadWord, T9, S1,
                     ENTRYPOINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode));
@@ -61,20 +60,20 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ Jalr(T9); // Call to unresolved direct method trampoline (method_idx, sp, Thread*, is_static)
 
   // Restore registers which may have been modified by GC
-  __ LoadFromOffset(kLoadWord, A1, SP, 20);
-  __ LoadFromOffset(kLoadWord, A2, SP, 24);
-  __ LoadFromOffset(kLoadWord, A3, SP, 28);
-  __ LoadFromOffset(kLoadWord, S2, SP, 32);
-  __ LoadFromOffset(kLoadWord, S3, SP, 36);
-  __ LoadFromOffset(kLoadWord, S4, SP, 40);
-  __ LoadFromOffset(kLoadWord, S5, SP, 44);
-  __ LoadFromOffset(kLoadWord, S6, SP, 48);
-  __ LoadFromOffset(kLoadWord, S7, SP, 52);
-  __ LoadFromOffset(kLoadWord, FP, SP, 56);
-  __ LoadFromOffset(kLoadWord, RA, SP, 60);
-  __ AddConstant(SP, SP, 64);
+  __ LoadFromOffset(kLoadWord, A0, SP, 0);
+  __ LoadFromOffset(kLoadWord, A1, SP, 4);
+  __ LoadFromOffset(kLoadWord, A2, SP, 8);
+  __ LoadFromOffset(kLoadWord, A3, SP, 12);
+  __ LoadFromOffset(kLoadWord, S2, SP, 16);
+  __ LoadFromOffset(kLoadWord, S3, SP, 20);
+  __ LoadFromOffset(kLoadWord, S4, SP, 24);
+  __ LoadFromOffset(kLoadWord, S5, SP, 28);
+  __ LoadFromOffset(kLoadWord, S6, SP, 32);
+  __ LoadFromOffset(kLoadWord, S7, SP, 36);
+  __ LoadFromOffset(kLoadWord, FP, SP, 40);
+  __ LoadFromOffset(kLoadWord, RA, SP, 44);
+  __ AddConstant(SP, SP, 48);
 
-  __ Move(A0, V0); // Put returned Method* into A0
   __ Jr(V0);  // Leaf call to method's code
 
   __ Break();

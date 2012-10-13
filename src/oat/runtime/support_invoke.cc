@@ -74,6 +74,24 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(AbstractMethod* interface_metho
     DCHECK_EQ(32U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
     uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
     uintptr_t caller_pc = regs[7];
+#elif defined(__mips__)
+    // On entry the stack pointed by sp is:
+    // | argN       |  |
+    // | ...        |  |
+    // | arg4       |  |
+    // | arg3 spill |  |  Caller's frame
+    // | arg2 spill |  |
+    // | arg1 spill |  |
+    // | Method*    | ---
+    // | RA         |
+    // | ...        |    callee saves
+    // | A3         |    arg3
+    // | A2         |    arg2
+    // | A1         |    arg1
+    // | A0/Method* |  <- sp
+    DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+    uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
+    uintptr_t caller_pc = regs[11];
 #else
     UNIMPLEMENTED(FATAL);
     uintptr_t caller_pc = 0;
