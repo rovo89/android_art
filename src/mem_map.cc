@@ -91,7 +91,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
                 << ", " << prot << ", " << flags << ", " << fd.get() << ", 0) failed for " << name;
     return NULL;
   }
-  return new MemMap(actual, byte_count, actual, page_aligned_byte_count, prot);
+  return new MemMap(name, actual, byte_count, actual, page_aligned_byte_count, prot);
 }
 
 MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start) {
@@ -113,7 +113,8 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
     PLOG(ERROR) << "mmap failed";
     return NULL;
   }
-  return new MemMap(actual + page_offset, byte_count, actual, page_aligned_byte_count, prot);
+  return new MemMap("file", actual + page_offset, byte_count, actual, page_aligned_byte_count,
+                    prot);
 }
 
 MemMap::~MemMap() {
@@ -126,8 +127,10 @@ MemMap::~MemMap() {
   }
 }
 
-MemMap::MemMap(byte* begin, size_t size, void* base_begin, size_t base_size, int prot)
-    : begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size), prot_(prot) {
+MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_begin,
+               size_t base_size, int prot)
+    : name_(name), begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size),
+      prot_(prot) {
   CHECK(begin_ != NULL);
   CHECK_NE(size_, 0U);
   CHECK(base_begin_ != NULL);

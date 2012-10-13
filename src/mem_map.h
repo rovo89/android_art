@@ -17,6 +17,8 @@
 #ifndef ART_SRC_MEM_MAP_H_
 #define ART_SRC_MEM_MAP_H_
 
+#include <string>
+
 #include <stddef.h>
 #include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/types.h>
@@ -83,8 +85,10 @@ class MemMap {
   void UnMapAtEnd(byte* new_end);
 
  private:
-  MemMap(byte* begin, size_t size, void* base_begin, size_t base_size, int prot);
+  MemMap(const std::string& name, byte* begin, size_t size, void* base_begin, size_t base_size,
+         int prot);
 
+  std::string name_;
   byte* const begin_;  // Start of data.
   size_t size_;  // Length of data.
 

@@ -23,6 +23,8 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_instruction.h"
+#include "gc/large_object_space.h"
+#include "gc/space.h"
 #if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/context.h"  // For VmapTable
 #endif
@@ -32,7 +34,6 @@
 #include "ScopedPrimitiveArray.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "well_known_classes.h"

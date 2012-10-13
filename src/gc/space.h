@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SPACE_H_
-#define ART_SRC_SPACE_H_
+#ifndef ART_SRC_GC_SPACE_H_
+#define ART_SRC_GC_SPACE_H_
 
 #include <string>
 
@@ -29,7 +29,13 @@
 
 namespace art {
 
-class AllocSpace;
+#ifndef NDEBUG
+static const bool kDebugSpaces = true;
+#else
+static const bool kDebugSpaces = false;
+#endif
+
+class DlMallocSpace;
 class ImageSpace;
 class LargeObjectSpace;
 class Object;
@@ -57,38 +63,13 @@ class Space {
   virtual bool IsCompactible() const = 0;
   virtual bool Contains(const Object* obj) const = 0;
   virtual SpaceType GetType() const = 0;
+  virtual GcRetentionPolicy GetGcRetentionPolicy() const = 0;
+  virtual std::string GetName() const = 0;
 
-  const std::string& GetName() const {
-    return name_;
-  }
-
-  GcRetentionPolicy GetGcRetentionPolicy() const {
-    return gc_retention_policy_;
-  }
-
-  void SetGcRetentionPolicy(GcRetentionPolicy gc_retention_policy) {
-    gc_retention_policy_ = gc_retention_policy;
-  }
-
-  ImageSpace* AsImageSpace() {
-    DCHECK_EQ(GetType(), kSpaceTypeImageSpace);
-    return down_cast<ImageSpace*>(this);
-  }
-
-  AllocSpace* AsAllocSpace() {
-    DCHECK_EQ(GetType(), kSpaceTypeAllocSpace);
-    return down_cast<AllocSpace*>(this);
-  }
-
-  AllocSpace* AsZygoteSpace() {
-    DCHECK_EQ(GetType(), kSpaceTypeZygoteSpace);
-    return down_cast<AllocSpace*>(this);
-  }
-
-  LargeObjectSpace* AsLargeObjectSpace() {
-    DCHECK_EQ(GetType(), kSpaceTypeLargeObjectSpace);
-    return down_cast<LargeObjectSpace*>(this);
-  }
+  ImageSpace* AsImageSpace();
+  DlMallocSpace* AsAllocSpace();
+  DlMallocSpace* AsZygoteSpace();
+  LargeObjectSpace* AsLargeObjectSpace();
 
   bool IsImageSpace() const {
     return GetType() == kSpaceTypeImageSpace;
@@ -111,16 +92,43 @@ class Space {
   virtual ~Space() {}
 
  protected:
-  Space(const std::string& name, GcRetentionPolicy gc_retention_policy);
-
-  // Name of the space.
-  std::string name_;
-
-  // Garbage collection retention policy, used to figure out when we should sweep over this space.
-  GcRetentionPolicy gc_retention_policy_;
+  Space() { }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Space);
+};
+
+// AllocSpace interface.
+class AllocSpace {
+ public:
+  virtual bool CanAllocateInto() const {
+    return true;
+  }
+
+  // General statistics
+  virtual uint64_t GetNumBytesAllocated() const = 0;
+  virtual uint64_t GetNumObjectsAllocated() const = 0;
+  virtual uint64_t GetTotalBytesAllocated() const = 0;
+  virtual uint64_t GetTotalObjectsAllocated() const = 0;
+
+  // Allocate num_bytes without allowing growth.
+  virtual Object* Alloc(Thread* self, size_t num_bytes) = 0;
+
+  // Return the storage space required by obj.
+  virtual size_t AllocationSize(const Object* obj) = 0;
+
+  // Returns how many bytes were freed.
+  virtual size_t Free(Thread* self, Object* ptr) = 0;
+
+  // Returns how many bytes were freed.
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, Object** ptrs) = 0;
+
+ protected:
+  AllocSpace() {}
+  virtual ~AllocSpace() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AllocSpace);
 };
 
 // Continuous spaces have bitmaps, and an address range.
@@ -156,9 +164,20 @@ class ContinuousSpace : public Space {
 
   virtual ~ContinuousSpace() {}
 
+  virtual std::string GetName() const {
+    return name_;
+  }
+
+  virtual GcRetentionPolicy GetGcRetentionPolicy() const {
+    return gc_retention_policy_;
+  }
+
  protected:
   ContinuousSpace(const std::string& name, byte* begin, byte* end,
                   GcRetentionPolicy gc_retention_policy);
+
+  std::string name_;
+  GcRetentionPolicy gc_retention_policy_;
 
   // The beginning of the storage for fast access.
   byte* begin_;
@@ -170,15 +189,26 @@ class ContinuousSpace : public Space {
   DISALLOW_COPY_AND_ASSIGN(ContinuousSpace);
 };
 
-class DiscontinuousSpace : public Space {
+class DiscontinuousSpace : public virtual Space {
  public:
   // Is object within this space?
   virtual bool Contains(const Object* obj) const = 0;
+
+  virtual std::string GetName() const {
+    return name_;
+  }
+
+  virtual GcRetentionPolicy GetGcRetentionPolicy() const {
+    return gc_retention_policy_;
+  }
 
 protected:
   DiscontinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy);
 
 private:
+  std::string name_;
+  GcRetentionPolicy gc_retention_policy_;
+
   DISALLOW_COPY_AND_ASSIGN(DiscontinuousSpace);
 };
 
@@ -217,7 +247,7 @@ class MemMapSpace : public ContinuousSpace {
 };
 
 // An alloc space is a space where objects may be allocated and garbage collected.
-class AllocSpace : public MemMapSpace {
+class DlMallocSpace : public MemMapSpace, public AllocSpace {
  public:
   typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
 
@@ -237,19 +267,19 @@ class AllocSpace : public MemMapSpace {
   // base address is not guaranteed to be granted, if it is required,
   // the caller should call Begin on the returned space to confirm
   // the request was granted.
-  static AllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
+  static DlMallocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
                             size_t capacity, byte* requested_begin);
 
   // Allocate num_bytes without allowing the underlying mspace to grow.
   virtual Object* AllocWithGrowth(Thread* self, size_t num_bytes);
 
   // Allocate num_bytes allowing the underlying mspace to grow.
-  virtual Object* AllocWithoutGrowth(Thread* self, size_t num_bytes);
+  virtual Object* Alloc(Thread* self, size_t num_bytes);
 
   // Return the storage space required by obj.
   virtual size_t AllocationSize(const Object* obj);
-  virtual void Free(Thread* self, Object* ptr);
-  virtual void FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
+  virtual size_t Free(Thread* self, Object* ptr);
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
 
   void* MoreCore(intptr_t increment);
 
@@ -304,21 +334,25 @@ class AllocSpace : public MemMapSpace {
   virtual void SwapBitmaps();
 
   // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
-  AllocSpace* CreateZygoteSpace();
+  DlMallocSpace* CreateZygoteSpace();
 
-  size_t GetNumBytesAllocated() const {
+  void SetGcRetentionPolicy(GcRetentionPolicy gc_retention_policy) {
+    gc_retention_policy_ = gc_retention_policy;
+  }
+
+  virtual uint64_t GetNumBytesAllocated() const {
     return num_bytes_allocated_;
   }
 
-  size_t GetNumObjectsAllocated() const {
+  virtual uint64_t GetNumObjectsAllocated() const {
     return num_objects_allocated_;
   }
 
-  size_t GetTotalBytesAllocated() const {
+  virtual uint64_t GetTotalBytesAllocated() const {
     return total_bytes_allocated_;
   }
 
-  size_t GetTotalObjectsAllocated() const {
+  virtual uint64_t GetTotalObjectsAllocated() const {
     return total_objects_allocated_;
   }
 
@@ -337,7 +371,7 @@ class AllocSpace : public MemMapSpace {
 
   static size_t bitmap_index_;
 
-  AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
+  DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
              size_t growth_limit);
 
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
@@ -364,7 +398,7 @@ class AllocSpace : public MemMapSpace {
 
   friend class MarkSweep;
 
-  DISALLOW_COPY_AND_ASSIGN(AllocSpace);
+  DISALLOW_COPY_AND_ASSIGN(DlMallocSpace);
 };
 
 // An image space is a space backed with a memory mapped image
@@ -390,7 +424,7 @@ class ImageSpace : public MemMapSpace {
     return *reinterpret_cast<ImageHeader*>(Begin());
   }
 
-  const std::string& GetImageFilename() const {
+  const std::string GetImageFilename() const {
     return GetName();
   }
 
@@ -421,181 +455,10 @@ class ImageSpace : public MemMapSpace {
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
 
-class LargeObjectSpace : public DiscontinuousSpace {
- public:
-  virtual bool CanAllocateInto() const {
-    return true;
-  }
-
-  virtual bool IsCompactible() const {
-    return true;
-  }
-
-  virtual SpaceType GetType() const {
-    return kSpaceTypeLargeObjectSpace;
-  }
-
-  virtual SpaceSetMap* GetLiveObjects() const {
-    return live_objects_.get();
-  }
-
-  virtual SpaceSetMap* GetMarkObjects() const {
-    return mark_objects_.get();
-  }
-
-  virtual void SwapBitmaps();
-  virtual void CopyLiveToMarked();
-
-  // Return the storage space required by obj.
-  virtual size_t AllocationSize(const Object* obj) = 0;
-  virtual Object* Alloc(Thread* self, size_t num_bytes) = 0;
-  virtual void Free(Thread* self, Object* ptr) = 0;
-  virtual void Walk(AllocSpace::WalkCallback, void* arg) = 0;
-
-  virtual ~LargeObjectSpace() {}
-
-
-  size_t GetNumBytesAllocated() const {
-    return num_bytes_allocated_;
-  }
-
-  size_t GetNumObjectsAllocated() const {
-    return num_objects_allocated_;
-  }
-
-  size_t GetTotalBytesAllocated() const {
-    return total_bytes_allocated_;
-  }
-
-  size_t GetTotalObjectsAllocated() const {
-    return total_objects_allocated_;
-  }
-
- protected:
-
-  LargeObjectSpace(const std::string& name);
-
-  // Approximate number of bytes which have been allocated into the space.
-  size_t num_bytes_allocated_;
-  size_t num_objects_allocated_;
-  size_t total_bytes_allocated_;
-  size_t total_objects_allocated_;
-
-  UniquePtr<SpaceSetMap> live_objects_;
-  UniquePtr<SpaceSetMap> mark_objects_;
-
-  friend class Space;
-};
-
-class LargeObjectMapSpace : public LargeObjectSpace {
- public:
-
-  // Creates a large object space. Allocations into the large object space use memory maps instead
-  // of malloc.
-  static LargeObjectMapSpace* Create(const std::string& name);
-
-  // Return the storage space required by obj.
-  virtual size_t AllocationSize(const Object* obj);
-  virtual Object* Alloc(Thread* self, size_t num_bytes);
-  virtual void Free(Thread* self, Object* ptr);
-  virtual void Walk(AllocSpace::WalkCallback, void* arg);
-  virtual bool Contains(const Object* obj) const;
-private:
-  LargeObjectMapSpace(const std::string& name);
-  virtual ~LargeObjectMapSpace() {}
-
-  // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
-  mutable Mutex lock_;
-  std::vector<Object*> large_objects_;
-  typedef SafeMap<Object*, MemMap*> MemMaps;
-  MemMaps mem_maps_;
-};
-
-class FreeListSpace : public LargeObjectSpace {
- public:
-  virtual ~FreeListSpace();
-  static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
-
-  virtual size_t AllocationSize(const Object* obj);
-  virtual Object* Alloc(Thread* self, size_t num_bytes);
-  virtual void Free(Thread* self, Object* obj);
-  virtual void FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
-  virtual bool Contains(const Object* obj) const;
-  virtual void Walk(AllocSpace::WalkCallback callback, void* arg);
-
-  // Address at which the space begins
-  byte* Begin() const {
-    return begin_;
-  }
-
-  // Address at which the space ends, which may vary as the space is filled.
-  byte* End() const {
-    return end_;
-  }
-
-  // Current size of space
-  size_t Size() const {
-    return End() - Begin();
-  }
- private:
-  static const size_t kAlignment = kPageSize;
-
-  class Chunk {
-   public:
-    static const size_t kFreeFlag = 0x80000000;
-
-    struct SortBySize {
-      bool operator()(const Chunk* a, const Chunk* b) const {
-        return a->GetSize() < b->GetSize();
-      }
-    };
-
-    bool IsFree() const {
-      return (m_size & kFreeFlag) != 0;
-    }
-
-    void SetSize(size_t size, bool is_free = false) {
-      m_size = size | (is_free ? kFreeFlag : 0);
-    }
-
-    size_t GetSize() const {
-      return m_size & (kFreeFlag - 1);
-    }
-
-    Chunk* GetPrevious() {
-      return m_previous;
-    }
-
-    void SetPrevious(Chunk* previous) {
-      m_previous = previous;
-      DCHECK(m_previous == NULL ||
-            (m_previous != NULL && m_previous + m_previous->GetSize() / kAlignment == this));
-    }
-   private:
-    size_t m_size;
-    Chunk* m_previous;
-  };
-
-  FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end);
-  void AddFreeChunk(void* address, size_t size, Chunk* previous);
-  Chunk* ChunkFromAddr(void* address);
-  void* AddrFromChunk(Chunk* chunk);
-  void RemoveFreeChunk(Chunk* chunk);
-  Chunk* GetNextChunk(Chunk* chunk);
-
-  typedef std::multiset<Chunk*, Chunk::SortBySize> FreeChunks;
-  byte* begin_;
-  byte* end_;
-  UniquePtr<MemMap> mem_map_;
-  Mutex lock_;
-  std::vector<Chunk> chunks_;
-  FreeChunks free_chunks_;
-};
-
 // Callback for dlmalloc_inspect_all or mspace_inspect_all that will madvise(2) unused
 // pages back to the kernel.
 void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /*arg*/);
 
 }  // namespace art
 
-#endif  // ART_SRC_SPACE_H_
+#endif  // ART_SRC_GC_SPACE_H_

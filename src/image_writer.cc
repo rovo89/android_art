@@ -26,6 +26,8 @@
 #include "compiler.h"
 #include "dex_cache.h"
 #include "file.h"
+#include "gc/large_object_space.h"
+#include "gc/space.h"
 #include "globals.h"
 #include "heap.h"
 #include "image.h"
@@ -37,7 +39,6 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "UniquePtr.h"
 #include "utils.h"
 

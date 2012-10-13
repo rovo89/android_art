@@ -26,6 +26,7 @@
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
 #include "gc/heap_bitmap.h"
+#include "gc/large_object_space.h"
 #include "gc/mark_sweep.h"
 #include "gc/mod_union_table.h"
 #include "gc/space.h"
@@ -135,7 +136,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       card_marking_disabled_(false),
       is_gc_running_(false),
       last_gc_type_(kGcTypeNone),
+      enforce_heap_growth_rate_(false),
       growth_limit_(growth_limit),
+      max_allowed_footprint_(kInitialSize),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
@@ -221,9 +224,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
   mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
-  UniquePtr<AllocSpace> alloc_space(AllocSpace::Create("alloc space", initial_size, growth_limit,
-                                                       capacity, requested_begin));
+  UniquePtr<DlMallocSpace> alloc_space(DlMallocSpace::Create("alloc space", initial_size,
+                                                             growth_limit, capacity,
+                                                             requested_begin));
   alloc_space_ = alloc_space.release();
+  alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   AddSpace(alloc_space_);
 
@@ -393,7 +398,7 @@ ImageSpace* Heap::GetImageSpace() {
   return NULL;
 }
 
-AllocSpace* Heap::GetAllocSpace() {
+DlMallocSpace* Heap::GetAllocSpace() {
   return alloc_space_;
 }
 
@@ -425,7 +430,7 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
   // range. This also means that we rely on SetClass not dirtying the object's card.
   if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
     size = RoundUp(byte_count, kPageSize);
-    obj = Allocate(self, NULL, size);
+    obj = Allocate(self, large_object_space_.get(), size);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
     // it breaks the immune range.
     DCHECK(obj == NULL ||
@@ -624,17 +629,23 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
 
 Object* Heap::TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow) {
   // Should we try to use a CAS here and fix up num_bytes_allocated_ later with AllocationSize?
+  if (enforce_heap_growth_rate_ && num_bytes_allocated_ + alloc_size > max_allowed_footprint_) {
+    if (grow) {
+      // Grow the heap by alloc_size extra bytes.
+      max_allowed_footprint_ = std::min(max_allowed_footprint_ + alloc_size, growth_limit_);
+      VLOG(gc) << "Grow heap to " << PrettySize(max_allowed_footprint_)
+               << " for a " << PrettySize(alloc_size) << " allocation";
+    } else {
+      return NULL;
+    }
+  }
+
   if (num_bytes_allocated_ + alloc_size > growth_limit_) {
+    // Completely out of memory.
     return NULL;
   }
 
-  if (UNLIKELY(space == NULL)) {
-    return large_object_space_->Alloc(self, alloc_size);
-  } else if (grow) {
-    return space->AllocWithGrowth(self, alloc_size);
-  } else {
-    return space->AllocWithoutGrowth(self, alloc_size);
-  }
+  return space->Alloc(self, alloc_size);
 }
 
 Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
@@ -701,14 +712,6 @@ Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
   // Try harder, growing the heap if necessary.
   ptr = TryToAllocate(self, space, alloc_size, true);
   if (ptr != NULL) {
-    if (space != NULL) {
-      size_t new_footprint = space->GetFootprintLimit();
-      // OLD-TODO: may want to grow a little bit more so that the amount of
-      //       free space is equal to the old free space + the
-      //       utilization slop for the new allocation.
-      VLOG(gc) << "Grow alloc space (frag case) to " << PrettySize(new_footprint)
-               << " for a " << PrettySize(alloc_size) << " allocation";
-    }
     return ptr;
   }
 
@@ -846,11 +849,12 @@ void Heap::PreZygoteFork() {
   // TODO: C++0x auto
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     if ((*it)->IsAllocSpace()) {
-      AllocSpace* zygote_space = (*it)->AsAllocSpace();
+      DlMallocSpace* zygote_space = (*it)->AsAllocSpace();
 
       // Turns the current alloc space into a Zygote space and obtain the new alloc space composed
       // of the remaining available heap memory.
       alloc_space_ = zygote_space->CreateZygoteSpace();
+      alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
 
       // Change the GC retention policy of the zygote space to only collect when full.
       zygote_space->SetGcRetentionPolicy(kGcRetentionPolicyFullCollect);
@@ -1821,23 +1825,12 @@ size_t Heap::GetPercentFree() {
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
-  AllocSpace* alloc_space = alloc_space_;
   if (max_allowed_footprint > GetMaxMemory()) {
     VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint) << " to "
              << PrettySize(GetMaxMemory());
     max_allowed_footprint = GetMaxMemory();
   }
-  // We want to update the footprint for just the alloc space.
-  max_allowed_footprint -= large_object_space_->GetNumBytesAllocated();
-  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    if ((*it)->IsAllocSpace()) {
-      AllocSpace* alloc_space = (*it)->AsAllocSpace();
-      if (alloc_space != alloc_space_) {
-        max_allowed_footprint -= alloc_space->GetNumBytesAllocated();
-      }
-    }
-  }
-  alloc_space->SetFootprintLimit(max_allowed_footprint);
+  max_allowed_footprint_ = max_allowed_footprint;
 }
 
 // kHeapIdealFree is the ideal maximum free size, when we grow the heap for utilization.

@@ -183,6 +183,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/file_linux.cc \
 	src/gc/card_table.cc \
 	src/gc/heap_bitmap.cc \
+	src/gc/large_object_space.cc \
 	src/gc/mark_sweep.cc \
 	src/gc/mod_union_table.cc \
 	src/gc/space.cc \
