@@ -615,7 +615,7 @@ class PACKED Thread {
   void InitPthreadKeySelf();
   void InitStackHwm();
 
-  void NotifyLocked() EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
+  void NotifyLocked(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
 
   bool ReadFlag(ThreadFlag flag) const {
     return (state_and_flags_.as_struct.flags & flag) != 0;
@@ -632,8 +632,7 @@ class PACKED Thread {
 
   // Used to notify threads that they should attempt to resume, they will suspend again if
   // their suspend count is > 0.
-  static ConditionVariable* resume_cond_
-      GUARDED_BY(Locks::thread_suspend_count_lock_);
+  static ConditionVariable* resume_cond_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   // --- Frequently accessed fields first for short offsets ---
 

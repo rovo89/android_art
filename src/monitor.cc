@@ -16,14 +16,6 @@
 
 #include "monitor.h"
 
-#include <errno.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <sys/time.h>
-#include <time.h>
-#include <unistd.h>
-
 #include <vector>
 
 #include "class_linker.h"
@@ -364,38 +356,6 @@ bool Monitor::Unlock(Thread* self, bool for_wait) {
   return true;
 }
 
-// Converts the given waiting time (relative to "now") into an absolute time in 'ts'.
-static void ToAbsoluteTime(int64_t ms, int32_t ns, timespec* ts)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  int64_t endSec;
-
-#ifdef HAVE_TIMEDWAIT_MONOTONIC
-  clock_gettime(CLOCK_MONOTONIC, ts);
-#else
-  {
-    timeval tv;
-    gettimeofday(&tv, NULL);
-    ts->tv_sec = tv.tv_sec;
-    ts->tv_nsec = tv.tv_usec * 1000;
-  }
-#endif
-  endSec = ts->tv_sec + ms / 1000;
-  if (endSec >= 0x7fffffff) {
-    std::ostringstream ss;
-    Thread::Current()->Dump(ss);
-    LOG(INFO) << "Note: end time exceeds epoch: " << ss.str();
-    endSec = 0x7ffffffe;
-  }
-  ts->tv_sec = endSec;
-  ts->tv_nsec = (ts->tv_nsec + (ms % 1000) * 1000000) + ns;
-
-  // Catch rollover.
-  if (ts->tv_nsec >= 1000000000L) {
-    ts->tv_sec++;
-    ts->tv_nsec -= 1000000000L;
-  }
-}
-
 /*
  * Wait on a monitor until timeout, interrupt, or notification.  Used for
  * Object.wait() and (somewhat indirectly) Thread.sleep() and Thread.join().
@@ -439,14 +399,6 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
     return;
   }
 
-  // Compute absolute wakeup time, if necessary.
-  timespec ts;
-  bool timed = false;
-  if (ms != 0 || ns != 0) {
-    ToAbsoluteTime(ms, ns, &ts);
-    timed = true;
-  }
-
   /*
    * Add ourselves to the set of threads waiting on this monitor, and
    * release our hold.  We need to let it go even if we're a few levels
@@ -471,6 +423,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
    * that we won't touch any references in this state, and we'll check
    * our suspend mode before we transition out.
    */
+  bool timed = (ms != 0 || ns != 0);
   self->TransitionFromRunnableToSuspended(timed ? kTimedWaiting : kWaiting);
 
   bool wasInterrupted = false;
@@ -496,9 +449,9 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
     } else {
       // Wait for a notification or a timeout to occur.
       if (!timed) {
-        self->wait_cond_->Wait(self, *self->wait_mutex_);
+        self->wait_cond_->Wait(self);
       } else {
-        self->wait_cond_->TimedWait(self, *self->wait_mutex_, ts);
+        self->wait_cond_->TimedWait(self, ms, ns);
       }
       if (self->interrupted_) {
         wasInterrupted = true;
@@ -568,7 +521,7 @@ void Monitor::NotifyWithLock(Thread* self) {
     // Check to see if the thread is still waiting.
     MutexLock mu(self, *thread->wait_mutex_);
     if (thread->wait_monitor_ != NULL) {
-      thread->wait_cond_->Signal();
+      thread->wait_cond_->Signal(self);
       return;
     }
   }

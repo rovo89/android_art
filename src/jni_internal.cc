@@ -509,7 +509,7 @@ class SharedLibrary {
         handle_(handle),
         class_loader_(class_loader),
         jni_on_load_lock_("JNI_OnLoad lock"),
-        jni_on_load_cond_("JNI_OnLoad condition variable"),
+        jni_on_load_cond_("JNI_OnLoad condition variable", jni_on_load_lock_),
         jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
         jni_on_load_result_(kPending) {
   }
@@ -543,7 +543,7 @@ class SharedLibrary {
       } else {
         while (jni_on_load_result_ == kPending) {
           VLOG(jni) << "[" << *self << " waiting for \"" << path_ << "\" " << "JNI_OnLoad...]";
-          jni_on_load_cond_.Wait(self, jni_on_load_lock_);
+          jni_on_load_cond_.Wait(self);
         }
 
         okay = (jni_on_load_result_ == kOkay);
@@ -556,13 +556,14 @@ class SharedLibrary {
   }
 
   void SetResult(bool result) LOCKS_EXCLUDED(jni_on_load_lock_) {
-    MutexLock mu(Thread::Current(), jni_on_load_lock_);
+    Thread* self = Thread::Current();
+    MutexLock mu(self, jni_on_load_lock_);
 
     jni_on_load_result_ = result ? kOkay : kFailed;
     jni_on_load_thread_id_ = 0;
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
-    jni_on_load_cond_.Broadcast();
+    jni_on_load_cond_.Broadcast(self);
   }
 
   void* FindSymbol(const std::string& symbol_name) {
@@ -588,7 +589,7 @@ class SharedLibrary {
   // Guards remaining items.
   Mutex jni_on_load_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   // Wait for JNI_OnLoad in other thread.
-  ConditionVariable jni_on_load_cond_;
+  ConditionVariable jni_on_load_cond_ GUARDED_BY(jni_on_load_lock_);
   // Recursive invocation guard.
   uint32_t jni_on_load_thread_id_ GUARDED_BY(jni_on_load_lock_);
   // Result of earlier JNI_OnLoad call.

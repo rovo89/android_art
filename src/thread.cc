@@ -591,7 +591,7 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
       DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
         // Re-check when Thread::resume_cond_ is notified.
-        Thread::resume_cond_->Wait(this, *Locks::thread_suspend_count_lock_);
+        Thread::resume_cond_->Wait(this);
         old_state_and_flags = state_and_flags_;
         DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       }
@@ -875,7 +875,8 @@ void Thread::ThreadExitCallback(void* arg) {
 void Thread::Startup() {
   {
     MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);  // Keep GCC happy.
-    resume_cond_ = new ConditionVariable("Thread resumption condition variable");
+    resume_cond_ = new ConditionVariable("Thread resumption condition variable",
+                                         *Locks::thread_suspend_count_lock_);
   }
 
   // Allocate a TLS slot.
@@ -916,7 +917,7 @@ Thread::Thread(bool daemon)
       thin_lock_id_(0),
       tid_(0),
       wait_mutex_(new Mutex("a thread wait mutex")),
-      wait_cond_(new ConditionVariable("a thread wait condition variable")),
+      wait_cond_(new ConditionVariable("a thread wait condition variable", *wait_mutex_)),
       wait_monitor_(NULL),
       interrupted_(false),
       wait_next_(NULL),
@@ -1179,22 +1180,24 @@ bool Thread::IsInterrupted() {
 }
 
 void Thread::Interrupt() {
-  MutexLock mu(Thread::Current(), *wait_mutex_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *wait_mutex_);
   if (interrupted_) {
     return;
   }
   interrupted_ = true;
-  NotifyLocked();
+  NotifyLocked(self);
 }
 
 void Thread::Notify() {
-  MutexLock mu(Thread::Current(), *wait_mutex_);
-  NotifyLocked();
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *wait_mutex_);
+  NotifyLocked(self);
 }
 
-void Thread::NotifyLocked() {
+void Thread::NotifyLocked(Thread* self) {
   if (wait_monitor_ != NULL) {
-    wait_cond_->Signal();
+    wait_cond_->Signal(self);
   }
 }
 

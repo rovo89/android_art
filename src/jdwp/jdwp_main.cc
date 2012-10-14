@@ -88,7 +88,7 @@ uint32_t JdwpState::NextEventSerial() {
 JdwpState::JdwpState(const JdwpOptions* options)
     : options_(options),
       thread_start_lock_("JDWP thread start lock"),
-      thread_start_cond_("JDWP thread start condition variable"),
+      thread_start_cond_("JDWP thread start condition variable", thread_start_lock_),
       pthread_(0),
       thread_(NULL),
       debug_thread_started_(false),
@@ -97,7 +97,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       transport_(NULL),
       netState(NULL),
       attach_lock_("JDWP attach lock"),
-      attach_cond_("JDWP attach condition variable"),
+      attach_cond_("JDWP attach condition variable", attach_lock_),
       last_activity_time_ms_(0),
       serial_lock_("JDWP serial lock", kJdwpSerialLock),
       request_serial_(0x10000000),
@@ -106,7 +106,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       event_list_(NULL),
       event_list_size_(0),
       event_thread_lock_("JDWP event thread lock"),
-      event_thread_cond_("JDWP event thread condition variable"),
+      event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
       event_thread_id_(0),
       ddm_is_active_(false) {
 }
@@ -158,7 +158,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
        * Wait until the thread finishes basic initialization.
        * TODO: cond vars should be waited upon in a loop
        */
-      state->thread_start_cond_.Wait(self, state->thread_start_lock_);
+      state->thread_start_cond_.Wait(self);
     } else {
       {
         MutexLock attach_locker(self, state->attach_lock_);
@@ -172,7 +172,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
          * Wait until the thread finishes basic initialization.
          * TODO: cond vars should be waited upon in a loop
          */
-        state->thread_start_cond_.Wait(self, state->thread_start_lock_);
+        state->thread_start_cond_.Wait(self);
 
         /*
          * For suspend=y, wait for the debugger to connect to us or for us to
@@ -184,7 +184,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
          */
         {
           ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
-          state->attach_cond_.Wait(self, state->attach_lock_);
+          state->attach_cond_.Wait(self);
         }
       }
       if (!state->IsActive()) {
@@ -298,7 +298,7 @@ void JdwpState::Run() {
   {
     MutexLock locker(thread_, thread_start_lock_);
     debug_thread_started_ = true;
-    thread_start_cond_.Broadcast();
+    thread_start_cond_.Broadcast(thread_);
   }
 
   /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
@@ -332,7 +332,7 @@ void JdwpState::Run() {
       if (!(*transport_->establish)(this, options_)) {
         /* wake anybody who was waiting for us to succeed */
         MutexLock mu(thread_, attach_lock_);
-        attach_cond_.Broadcast();
+        attach_cond_.Broadcast(thread_);
         break;
       }
     }
@@ -366,7 +366,7 @@ void JdwpState::Run() {
 
         /* wake anybody who's waiting for us */
         MutexLock mu(thread_, attach_lock_);
-        attach_cond_.Broadcast();
+        attach_cond_.Broadcast(thread_);
       }
     }
 

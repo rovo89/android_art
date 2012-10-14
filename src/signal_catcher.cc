@@ -62,7 +62,7 @@ static void DumpCmdLine(std::ostream& os) {
 SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
     : stack_trace_file_(stack_trace_file),
       lock_("SignalCatcher lock"),
-      cond_("SignalCatcher::cond_"),
+      cond_("SignalCatcher::cond_", lock_),
       thread_(NULL) {
   SetHaltFlag(false);
 
@@ -72,7 +72,7 @@ SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
   while (thread_ == NULL) {
-    cond_.Wait(self, lock_);
+    cond_.Wait(self);
   }
 }
 
@@ -190,7 +190,7 @@ void* SignalCatcher::Run(void* arg) {
   {
     MutexLock mu(self, signal_catcher->lock_);
     signal_catcher->thread_ = self;
-    signal_catcher->cond_.Broadcast();
+    signal_catcher->cond_.Broadcast(self);
   }
 
   // Set up mask with signals we want to handle.

@@ -279,7 +279,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
   gc_complete_lock_ = new Mutex("GC complete lock");
-  gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable"));
+  gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
+                                                *gc_complete_lock_));
 
   // Set up the cumulative timing loggers.
   for (size_t i = static_cast<size_t>(kGcTypeSticky); i < static_cast<size_t>(kGcTypeMax);
@@ -963,7 +964,7 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
     is_gc_running_ = false;
     last_gc_type_ = gc_type;
     // Wake anyone who may have been waiting for the GC to complete.
-    gc_complete_cond_->Broadcast();
+    gc_complete_cond_->Broadcast(self);
   }
   // Inform DDMS that a GC completed.
   Dbg::GcDidFinish();
@@ -1803,7 +1804,7 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
       {
         MutexLock mu(self, *gc_complete_lock_);
         while (is_gc_running_) {
-          gc_complete_cond_->Wait(self, *gc_complete_lock_);
+          gc_complete_cond_->Wait(self);
         }
         last_gc_type = last_gc_type_;
         wait_time = NanoTime() - wait_start;;

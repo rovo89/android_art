@@ -132,7 +132,16 @@ class LOCKABLE Mutex : public BaseMutex {
   std::string Dump() const;
 
  private:
+#if ART_USE_FUTEXES
+  // 0 is unheld, 1 is held.
+  volatile int32_t state_;
+  // Exclusive owner.
+  volatile uint64_t exclusive_owner_;
+  // Number of waiting contenders.
+  volatile int32_t num_contenders_;
+#else
   pthread_mutex_t mutex_;
+#endif
   const bool recursive_;  // Can the lock be recursively held?
   unsigned int recursion_count_;
   friend class ConditionVariable;
@@ -175,7 +184,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Block until ReaderWriterMutex is free and acquire exclusive access. Returns true on success
   // or false if timeout is reached.
 #if HAVE_TIMED_RWLOCK
-  bool ExclusiveLockWithTimeout(Thread* self, const timespec& abs_timeout)
+  bool ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32_t ns)
       EXCLUSIVE_TRYLOCK_FUNCTION(true);
 #endif
 
@@ -254,17 +263,35 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 // (Signal) or all at once (Broadcast).
 class ConditionVariable {
  public:
-  explicit ConditionVariable(const std::string& name);
+  explicit ConditionVariable(const std::string& name, Mutex& mutex);
   ~ConditionVariable();
 
-  void Broadcast();
-  void Signal();
-  void Wait(Thread* self, Mutex& mutex);
-  void TimedWait(Thread* self, Mutex& mutex, const timespec& ts);
+  void Broadcast(Thread* self);
+  void Signal(Thread* self);
+  // TODO: No thread safety analysis on Wait and TimedWait as they call mutex operations via their
+  //       pointer copy, thereby defeating annotalysis.
+  void Wait(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
+  void TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  pthread_cond_t cond_;
   std::string name_;
+  // The Mutex being used by waiters. It is an error to mix condition variables between different
+  // Mutexes.
+  Mutex& guard_;
+#if ART_USE_FUTEXES
+  // A counter that is modified by signals and broadcasts. This ensures that when a waiter gives up
+  // their Mutex and another thread takes it and signals, the waiting thread observes that state_
+  // changed and doesn't enter the wait.
+  volatile int32_t state_;
+  // Number of threads that have come into to wait, not the length of the waiters on the futex as
+  // waiters may have been requeued onto guard_. A non-zero value indicates that signal and
+  // broadcast should do something. Guarded by guard_.
+  volatile int32_t num_waiters_;
+  // Number of threads that have been awoken out of the pool of waiters.
+  volatile int32_t num_awoken_;
+#else
+  pthread_cond_t cond_;
+#endif
   DISALLOW_COPY_AND_ASSIGN(ConditionVariable);
 };
 

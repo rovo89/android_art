@@ -97,13 +97,13 @@ TEST_F(MutexTest, RecursiveTryLockUnlock) {
 
 struct RecursiveLockWait {
   explicit RecursiveLockWait()
-      : mu("test mutex", kDefaultMutexLevel, true), cv("test condition variable") {
+      : mu("test mutex", kDefaultMutexLevel, true), cv("test condition variable", mu) {
   }
 
   static void* Callback(void* arg) {
     RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
     state->mu.Lock(Thread::Current());
-    state->cv.Signal();
+    state->cv.Signal(Thread::Current());
     state->mu.Unlock(Thread::Current());
     return NULL;
   }
@@ -122,7 +122,7 @@ static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
   int pthread_create_result = pthread_create(&pthread, NULL, RecursiveLockWait::Callback, &state);
   ASSERT_EQ(0, pthread_create_result);
 
-  state.cv.Wait(Thread::Current(), state.mu);
+  state.cv.Wait(Thread::Current());
 
   state.mu.Unlock(Thread::Current());
   state.mu.Unlock(Thread::Current());

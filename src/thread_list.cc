@@ -30,7 +30,7 @@ namespace art {
 ThreadList::ThreadList()
     : allocated_ids_lock_("allocated thread ids lock"),
       suspend_all_count_(0), debug_suspend_all_count_(0),
-      thread_exit_cond_("thread exit condition variable") {
+      thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_) {
 }
 
 ThreadList::~ThreadList() {
@@ -184,10 +184,7 @@ void ThreadList::SuspendAll() {
   // Block on the mutator lock until all Runnable threads release their share of access.
 #if HAVE_TIMED_RWLOCK
   // Timeout if we wait more than 30 seconds.
-  timespec timeout;
-  clock_gettime(CLOCK_REALTIME, &timeout);
-  timeout.tv_sec += 30;
-  if (UNLIKELY(!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, timeout))) {
+  if (UNLIKELY(!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, 30 * 1000, 0))) {
     UnsafeLogFatalForThreadSuspendAllTimeout(self);
   }
 #else
@@ -226,7 +223,7 @@ void ThreadList::ResumeAll() {
     // Broadcast a notification to all suspended threads, some or all of
     // which may choose to wake up.  No need to wait for them.
     VLOG(threads) << *self << " ResumeAll waking others";
-    Thread::resume_cond_->Broadcast();
+    Thread::resume_cond_->Broadcast(self);
   }
   VLOG(threads) << *self << " ResumeAll complete";
 }
@@ -251,7 +248,7 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   {
     VLOG(threads) << "Resume(" << *thread << ") waking others";
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    Thread::resume_cond_->Broadcast();
+    Thread::resume_cond_->Broadcast(self);
   }
 
   VLOG(threads) << "Resume(" << *thread << ") complete";
@@ -286,10 +283,7 @@ void ThreadList::SuspendAllForDebugger() {
   // immediately unlock again.
 #if HAVE_TIMED_RWLOCK
   // Timeout if we wait more than 30 seconds.
-  timespec timeout;
-  clock_gettime(CLOCK_REALTIME, &timeout);
-  timeout.tv_sec += 30;
-  if (!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, timeout)) {
+  if (!Locks::mutator_lock_->ExclusiveLockWithTimeout(self, 30 * 1000, 0)) {
     UnsafeLogFatalForThreadSuspendAllTimeout(self);
   } else {
     Locks::mutator_lock_->ExclusiveUnlock(self);
@@ -328,7 +322,7 @@ void ThreadList::SuspendSelfForDebugger() {
   Dbg::ClearWaitForEventThread();
 
   while (self->suspend_count_ != 0) {
-    Thread::resume_cond_->Wait(self, *Locks::thread_suspend_count_lock_);
+    Thread::resume_cond_->Wait(self);
     if (self->suspend_count_ != 0) {
       // The condition was signaled but we're still suspended. This
       // can happen if the debugger lets go while a SIGQUIT thread
@@ -366,7 +360,7 @@ void ThreadList::UndoDebuggerSuspensions() {
 
   {
     MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-    Thread::resume_cond_->Broadcast();
+    Thread::resume_cond_->Broadcast(self);
   }
 
   VLOG(threads) << "UndoDebuggerSuspensions(" << *self << ") complete";
@@ -396,7 +390,7 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
     }
     if (!all_threads_are_daemons) {
       // Wait for another thread to exit before re-checking.
-      thread_exit_cond_.Wait(self, *Locks::thread_list_lock_);
+      thread_exit_cond_.Wait(self);
     }
   } while(!all_threads_are_daemons);
 }
@@ -486,7 +480,7 @@ void ThreadList::Unregister(Thread* self) {
 
   // Signal that a thread just detached.
   MutexLock mu(NULL, *Locks::thread_list_lock_);
-  thread_exit_cond_.Signal();
+  thread_exit_cond_.Signal(NULL);
 }
 
 void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {

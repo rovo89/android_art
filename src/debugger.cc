@@ -2425,7 +2425,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 
       // Wait for the request to finish executing.
       while (req->invoke_needed_) {
-        req->cond_.Wait(self, req->lock_);
+        req->cond_.Wait(self);
       }
     }
     VLOG(jdwp) << "    Control has returned from event thread";

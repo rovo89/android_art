@@ -537,8 +537,9 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     pReq->invoke_needed_ = false;
 
     VLOG(jdwp) << "invoke complete, signaling and self-suspending";
-    MutexLock mu(Thread::Current(), pReq->lock_);
-    pReq->cond_.Signal();
+    Thread* self = Thread::Current();
+    MutexLock mu(self, pReq->lock_);
+    pReq->cond_.Signal(self);
   }
 }
 
@@ -595,7 +596,7 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
   while (event_thread_id_ != 0) {
     VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", event_thread_id_, threadId);
     waited = true;
-    event_thread_cond_.Wait(self, event_thread_lock_);
+    event_thread_cond_.Wait(self);
   }
 
   if (waited || threadId != 0) {
@@ -615,14 +616,15 @@ void JdwpState::ClearWaitForEventThread() {
    * function is called by dvmSuspendSelf(), and the transition back
    * to RUNNING would confuse it.
    */
-  MutexLock mu(Thread::Current(), event_thread_lock_);
+  Thread* self = Thread::Current();
+  MutexLock mu(self, event_thread_lock_);
 
   CHECK_NE(event_thread_id_, 0U);
   VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", event_thread_id_);
 
   event_thread_id_ = 0;
 
-  event_thread_cond_.Signal();
+  event_thread_cond_.Signal(self);
 }
 
 

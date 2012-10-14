@@ -51,8 +51,8 @@ class SignalCatcher {
 
   std::string stack_trace_file_;
 
-  mutable Mutex lock_;
-  ConditionVariable cond_;
+  mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable cond_ GUARDED_BY(lock_);
   bool halt_ GUARDED_BY(lock_);
   pthread_t pthread_ GUARDED_BY(lock_);
   Thread* thread_ GUARDED_BY(lock_);

@@ -43,7 +43,7 @@ struct DebugInvokeReq {
         arg_count_(0), arg_values_(NULL), options_(0), error(JDWP::ERR_NONE),
         result_tag(JDWP::JT_VOID), exception(0),
         lock_("a DebugInvokeReq lock"),
-        cond_("a DebugInvokeReq condition variable") {
+        cond_("a DebugInvokeReq condition variable", lock_) {
   }
 
   /* boolean; only set when we're in the tail end of an event handler */
@@ -68,8 +68,8 @@ struct DebugInvokeReq {
   JDWP::ObjectId exception;
 
   /* condition variable to wait on while the method executes */
-  Mutex lock_;
-  ConditionVariable cond_;
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable cond_ GUARDED_BY(lock_);
 };
 
 class Dbg {

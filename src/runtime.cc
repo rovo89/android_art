@@ -77,7 +77,7 @@ Runtime::Runtime()
       resolution_method_(NULL),
       system_class_loader_(NULL),
       threads_being_born_(0),
-      shutdown_cond_(new ConditionVariable("Runtime shutdown")),
+      shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
       shutting_down_started_(false),
       started_(false),
@@ -120,7 +120,7 @@ Runtime::~Runtime() {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     shutting_down_started_ = true;
     while (threads_being_born_ > 0) {
-      shutdown_cond_->Wait(self, *Locks::runtime_shutdown_lock_);
+      shutdown_cond_->Wait(self);
     }
     shutting_down_ = true;
   }
@@ -685,7 +685,7 @@ void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_
   DCHECK_GT(threads_being_born_, 0U);
   threads_being_born_--;
   if (shutting_down_started_ && threads_being_born_ == 0) {
-    shutdown_cond_->Broadcast();
+    shutdown_cond_->Broadcast(Thread::Current());
   }
 }
 
