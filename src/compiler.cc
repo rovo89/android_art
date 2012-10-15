@@ -839,9 +839,15 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   // invoked, so this can be passed to the out-of-line runtime support code.
   direct_code = 0;
   direct_method = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
     return;
   }
+#else
+  if (sharp_type != kStatic && sharp_type != kDirect) {
+    return;
+  }
+#endif
   bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
   if (!method_code_in_boot) {
     return;
