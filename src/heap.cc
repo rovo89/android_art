@@ -504,8 +504,9 @@ bool Heap::IsHeapAddress(const Object* obj) {
       return true;
     }
   }
-  // TODO: Find a way to check large object space without using a lock.
-  return true;
+  // Note: Doing this only works for the free list version of the large object space since the
+  // multiple memory map version uses a lock to do the contains check.
+  return large_object_space_->Contains(obj);
 }
 
 bool Heap::IsLiveObjectLocked(const Object* obj) {
