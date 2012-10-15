@@ -104,7 +104,15 @@ static void InitTimeSpec(Thread* self, bool absolute, int clock, int64_t ms, int
   int64_t endSec;
 
   if (absolute) {
+#if !defined(__APPLE__)
     clock_gettime(clock, ts);
+#else
+    UNUSED(clock);
+    timeval tv;
+    gettimeofday(&tv, NULL);
+    ts->tv_sec = tv.tv_sec;
+    ts->tv_nsec = tv.tv_usec * 1000;
+#endif
   } else {
     ts->tv_sec = 0;
     ts->tv_nsec = 0;
