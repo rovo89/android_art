@@ -1807,12 +1807,14 @@ bool Thread::HoldsLock(Object* object) {
   return object->GetThinLockId() == thin_lock_id_;
 }
 
+// Visitor parameters are: (const Object* obj, size_t vreg, const AbstractMethod* method).
+template <typename Visitor>
 class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
-                      Context* context, Heap::RootVisitor* root_visitor, void* arg)
+                      Context* context, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, trace_stack, context), root_visitor_(root_visitor), arg_(arg) {}
+      : StackVisitor(stack, trace_stack, context), visitor_(visitor) {}
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (false) {
@@ -1821,7 +1823,8 @@ class ReferenceMapVisitor : public StackVisitor {
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
     if (shadow_frame != NULL) {
-      shadow_frame->VisitRoots(root_visitor_, arg_);
+      WrapperVisitor wrapperVisitor(visitor_, shadow_frame->GetMethod());
+      shadow_frame->VisitRoots(wrapperVisitor);
     } else {
       AbstractMethod* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
@@ -1863,15 +1866,13 @@ class ReferenceMapVisitor : public StackVisitor {
                 }
                 spill_shifts--;  // wind back one as we want the last match
                 ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
-                if (ref != NULL) {
-                  root_visitor_(ref, arg_);
-                }
               } else {
                 ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
                                                         fp_spills, frame_size, reg));
-                if (ref != NULL) {
-                  root_visitor_(ref, arg_);
-                }
+              }
+
+              if (ref != NULL) {
+                visitor_(ref, reg, m);
               }
             }
           }
@@ -1882,17 +1883,103 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
  private:
-  bool TestBitmap(int reg, const uint8_t* reg_vector) {
+
+  class WrapperVisitor {
+   public:
+    WrapperVisitor(const Visitor& visitor, AbstractMethod* method)
+        : visitor_(visitor),
+          method_(method) {
+
+    }
+
+    void operator()(const Object* obj, size_t offset) const {
+      visitor_(obj, offset, method_);
+    }
+
+   private:
+    const Visitor& visitor_;
+    AbstractMethod* method_;
+  };
+
+  static bool TestBitmap(int reg, const uint8_t* reg_vector) {
     return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
   }
 
-  // Call-back when we visit a root.
-  Heap::RootVisitor* root_visitor_;
-  // Argument to call-back.
-  void* arg_;
+  // Visitor for when we visit a root.
+  const Visitor& visitor_;
+
   // A method helper we keep around to avoid dex file/cache re-computations.
   MethodHelper mh_;
 };
+
+class RootCallbackVisitor {
+ public:
+  RootCallbackVisitor(Heap::RootVisitor* visitor, void* arg) : visitor_(visitor), arg_(arg) {
+
+  }
+
+  void operator()(const Object* obj, size_t, const AbstractMethod*) const {
+    visitor_(obj, arg_);
+  }
+
+ private:
+  Heap::RootVisitor* visitor_;
+  void* arg_;
+};
+
+class VerifyCallbackVisitor {
+ public:
+  VerifyCallbackVisitor(Heap::VerifyRootVisitor* visitor, void* arg)
+      : visitor_(visitor),
+        arg_(arg) {
+
+  }
+
+  void operator()(const Object* obj, size_t vreg, const AbstractMethod* method) const  {
+    visitor_(obj, arg_, vreg, method);
+  }
+
+ private:
+  Heap::VerifyRootVisitor* visitor_;
+  void* arg_;
+};
+
+struct VerifyRootWrapperArg {
+  Heap::VerifyRootVisitor* visitor;
+  void* arg;
+};
+
+static void VerifyRootWrapperCallback(const Object* root, void* arg) {
+  VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
+  wrapperArg->visitor(root, wrapperArg->arg, 0, NULL);
+}
+
+void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
+  // We need to map from a RootVisitor to VerifyRootVisitor, so pass in nulls for arguments we
+  // don't have.
+  VerifyRootWrapperArg wrapperArg;
+  wrapperArg.arg = arg;
+  wrapperArg.visitor = visitor;
+
+  if (exception_ != NULL) {
+    VerifyRootWrapperCallback(exception_, &wrapperArg);
+  }
+  if (class_loader_override_ != NULL) {
+    VerifyRootWrapperCallback(class_loader_override_, &wrapperArg);
+  }
+  jni_env_->locals.VisitRoots(VerifyRootWrapperCallback, &wrapperArg);
+  jni_env_->monitors.VisitRoots(VerifyRootWrapperCallback, &wrapperArg);
+
+  SirtVisitRoots(VerifyRootWrapperCallback, &wrapperArg);
+
+  // Visit roots on this thread's stack
+  Context* context = GetLongJumpContext();
+  VerifyCallbackVisitor visitorToCallback(visitor, arg);
+  ReferenceMapVisitor<VerifyCallbackVisitor> mapper(GetManagedStack(), GetTraceStack(), context,
+                                                  visitorToCallback);
+  mapper.WalkStack();
+  ReleaseLongJumpContext(context);
+}
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {
@@ -1908,7 +1995,9 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
-  ReferenceMapVisitor mapper(GetManagedStack(), GetTraceStack(), context, visitor, arg);
+  RootCallbackVisitor visitorToCallback(visitor, arg);
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetTraceStack(), context,
+                                                  visitorToCallback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
 }
@@ -1921,8 +2010,9 @@ static void VerifyObject(const Object* obj, void* arg) {
 
 void Thread::VerifyStack() {
   UniquePtr<Context> context(Context::Create());
-  ReferenceMapVisitor mapper(GetManagedStack(), GetTraceStack(), context.get(), VerifyObject,
-                             Runtime::Current()->GetHeap());
+  RootCallbackVisitor visitorToCallback(visitor, arg);
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetTraceStack(), context.get(),
+                                                  VerifyObject, Runtime::Current()->GetHeap());
   mapper.WalkStack();
 }
 #endif

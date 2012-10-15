@@ -502,6 +502,13 @@ void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 }
 
+void ThreadList::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) const {
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    (*it)->VerifyRoots(visitor, arg);
+  }
+}
+
 uint32_t ThreadList::AllocThreadId() {
   MutexLock mu(Thread::Current(), allocated_ids_lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {

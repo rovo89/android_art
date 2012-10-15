@@ -90,12 +90,13 @@ class ShadowFrame {
             (shadow_frame_entry <= (&references_[number_of_references_ - 1])));
   }
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  template <typename Visitor>
+  void VisitRoots(const Visitor& visitor) {
     size_t num_refs = NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
       Object* object = GetReference(j);
       if (object != NULL) {
-        visitor(object, arg);
+        visitor(object, j);
       }
     }
   }

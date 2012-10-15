@@ -94,6 +94,8 @@ class Heap {
   static const size_t kTimeAdjust = 1024;
 
   typedef void (RootVisitor)(const Object* root, void* arg);
+  typedef void (VerifyRootVisitor)(const Object* root, void* arg, size_t vreg,
+      const AbstractMethod* method);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
 
   // Create a heap with the requested sizes. The possible empty

@@ -35,6 +35,7 @@
 #include "space.h"
 #include "timing_logger.h"
 #include "thread.h"
+#include "thread_list.h"
 
 static const bool kUseMarkStackPrefetch = true;
 
@@ -111,8 +112,12 @@ inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
       LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
       SpaceSetMap* large_objects = large_object_space->GetMarkObjects();
       if (!large_objects->Test(obj)) {
-        CHECK(large_object_space->Contains(obj)) << "Attempting to mark object " << obj
-                                                  << " not in large object space";
+        if (!large_object_space->Contains(obj)) {
+          LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
+          LOG(ERROR) << "Attempting see if it's a bad root";
+          VerifyRoots();
+          LOG(FATAL) << "Can't mark bad root";
+        }
         large_objects->Set(obj);
         // Don't need to check finger since large objects never have any object references.
       }
@@ -163,6 +168,29 @@ void MarkSweep::ReMarkObjectVisitor(const Object* root, void* arg) {
   DCHECK(arg != NULL);
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
   mark_sweep->MarkObject0(root, true);
+}
+
+void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
+                                   const AbstractMethod* method) {
+  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, method);
+}
+
+void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const AbstractMethod* method) {
+  // See if the root is on any space bitmap.
+  if (heap_->FindSpaceFromObject(root) == NULL) {
+    LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
+    if (large_object_space->Contains(root)) {
+      LOG(ERROR) << "Found invalid root: " << root;
+      LOG(ERROR) << "VReg / Shadow frame offset: " << vreg;
+      if (method != NULL) {
+        LOG(ERROR) << "In method " << PrettyMethod(method, true);
+      }
+    }
+  }
+}
+
+void MarkSweep::VerifyRoots() {
+  Runtime::Current()->GetThreadList()->VerifyRoots(VerifyRootCallback, this);
 }
 
 // Marks all objects in the root set.

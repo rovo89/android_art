@@ -81,6 +81,9 @@ class ThreadList {
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Return a copy of the thread list.
   std::list<Thread*> GetList() EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_) {
     return list_;

@@ -409,6 +409,9 @@ class PACKED Thread {
   void VisitRoots(Heap::RootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 #if VERIFY_OBJECT_ENABLED
   void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 #else

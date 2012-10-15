@@ -1135,7 +1135,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
 
   // If the GC was slow, then print timings in the log.
   uint64_t duration = (NanoTime() - start_time) / 1000 * 1000;
-  total_paused_time_ += duration / kTimeAdjust;
+  total_paused_time_ += duration;
   if (duration > MsToNs(50)) {
     const size_t percent_free = GetPercentFree();
     const size_t current_heap_size = GetUsedMemorySize();
@@ -1763,7 +1763,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
   uint64_t pause_roots = (root_end - root_begin) / 1000 * 1000;
   uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
   uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
-  total_paused_time_ += (pause_roots + pause_dirty) / kTimeAdjust;
+  total_paused_time_ += pause_roots + pause_dirty;
   if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5) ||
       (gc_cause == kGcCauseForAlloc && duration > MsToNs(20))) {
     const size_t percent_free = GetPercentFree();

@@ -234,6 +234,17 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Verify the roots of the heap and print out information related to any invalid roots.
+  // Called in MarkObject, so may we may not hold the mutator lock.
+  void VerifyRoots()
+      NO_THREAD_SAFETY_ANALYSIS;
+
+  static void VerifyRootCallback(const Object* root, void* arg, size_t vreg,
+                                 const AbstractMethod* method);
+
+  void VerifyRoot(const Object* root, size_t vreg, const AbstractMethod* method)
+      NO_THREAD_SAFETY_ANALYSIS;
+
   template <typename Visitor>
   static void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
