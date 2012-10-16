@@ -993,10 +993,17 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+void Runtime::VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
+  if (intern_table_->IsDirty()) {
+    intern_table_->VisitRoots(visitor, arg);
+  }
+  if (class_linker_->IsDirty()) {
+    class_linker_->VisitRoots(visitor, arg);
+  }
+}
+
+void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
   Dbg::VisitRoots(visitor, arg);
-  class_linker_->VisitRoots(visitor, arg);
-  intern_table_->VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   thread_list_->VisitRoots(visitor, arg);
   if (pre_allocated_OutOfMemoryError_ != NULL) {
@@ -1011,6 +1018,16 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_methods_[i], arg);
   }
+}
+
+void Runtime::DirtyRoots() {
+  intern_table_->Dirty();
+  class_linker_->Dirty();
+}
+
+void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  VisitConcurrentRoots(visitor, arg);
+  VisitNonConcurrentRoots(visitor, arg);
 }
 
 void Runtime::SetJniDlsymLookupStub(ByteArray* jni_stub_array) {

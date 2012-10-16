@@ -222,6 +222,7 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       class_roots_(NULL),
       array_iftable_(NULL),
       init_done_(false),
+      is_dirty_(false),
       intern_table_(intern_table) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
 }
@@ -1043,7 +1044,7 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   visitor(class_roots_, arg);
   Thread* self = Thread::Current();
   {
@@ -1065,6 +1066,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 
   visitor(array_iftable_, arg);
+  is_dirty_ = false;
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
@@ -1746,6 +1748,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCach
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_caches_.push_back(dex_cache.get());
   dex_cache->SetDexFile(&dex_file);
+  Dirty();
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
@@ -1990,6 +1993,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
     return existing;
   }
   classes.insert(std::make_pair(hash, klass));
+  Dirty();
   return NULL;
 }
 

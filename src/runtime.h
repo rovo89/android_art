@@ -224,8 +224,19 @@ class Runtime {
     return "2.0.0";
   }
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
+  // Force all the roots which can be marked concurrently to be dirty.
+  void DirtyRoots();
+
+  // Visit all the roots.
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Visit all of the roots we can do safely do concurrently.
+  void VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg);
+
+  // Visit all other roots which must be done with mutators suspended.
+  void VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasJniDlsymLookupStub() const {
     return jni_stub_array_ != NULL;

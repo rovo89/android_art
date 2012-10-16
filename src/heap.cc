@@ -1045,6 +1045,7 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     mark_sweep.FindDefaultMarkBitmap();
 
     mark_sweep.MarkRoots();
+    mark_sweep.MarkConcurrentRoots();
     timings.AddSplit("MarkRoots");
 
     // Roots are marked on the bitmap and the mark_stack is empty.
@@ -1614,6 +1615,10 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       ReaderMutexLock reader_lock(self, *Locks::mutator_lock_);
       root_end = NanoTime();
       timings.AddSplit("RootEnd");
+
+      // Mark the roots which we can do concurrently.
+      mark_sweep.MarkConcurrentRoots();
+      timings.AddSplit("MarkConcurrentRoots");
 
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       UpdateAndMarkModUnion(&mark_sweep, timings, gc_type);

@@ -79,6 +79,8 @@ void MarkSweep::Init() {
   FindDefaultMarkBitmap();
   // TODO: if concurrent, enable card marking in compiler
   // TODO: check that the mark bitmap is entirely clear.
+  // Mark any concurrent roots as dirty since we need to scan them at least once during this GC.
+  Runtime::Current()->DirtyRoots();
 }
 
 void MarkSweep::FindDefaultMarkBitmap() {
@@ -195,7 +197,11 @@ void MarkSweep::VerifyRoots() {
 
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
-  Runtime::Current()->VisitRoots(MarkObjectVisitor, this);
+  Runtime::Current()->VisitNonConcurrentRoots(MarkObjectVisitor, this);
+}
+
+void MarkSweep::MarkConcurrentRoots() {
+  Runtime::Current()->VisitConcurrentRoots(MarkObjectVisitor, this);
 }
 
 class CheckObjectVisitor {

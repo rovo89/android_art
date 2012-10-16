@@ -21,7 +21,7 @@
 
 namespace art {
 
-InternTable::InternTable() : intern_table_lock_("InternTable lock") {
+InternTable::InternTable() : intern_table_lock_("InternTable lock"), is_dirty_(false) {
 }
 
 size_t InternTable::Size() const {
@@ -36,12 +36,13 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
      << image_strong_interns_.size() << " image strong\n";
 }
 
-void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+void InternTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
     visitor(it->second, arg);
   }
+  is_dirty_ = false;
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 
@@ -96,6 +97,9 @@ String* InternTable::Insert(String* s, bool is_strong) {
     if (image != NULL) {
       return image;
     }
+
+    // Mark as dirty so that we rescan the roots.
+    Dirty();
 
     // There is no match in the strong table, check the weak table.
     String* weak = Lookup(weak_interns_, s, hash_code);

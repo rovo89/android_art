@@ -262,7 +262,7 @@ class ClassLinker {
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   DexCache* FindDexCache(const DexFile& dex_file) const
@@ -377,6 +377,14 @@ class ClassLinker {
 
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.
+
+  bool IsDirty() const {
+    return is_dirty_;
+  }
+
+  void Dirty() {
+    is_dirty_ = true;
+  }
 
  private:
   explicit ClassLinker(InternTable*);
@@ -636,6 +644,7 @@ class ClassLinker {
   IfTable* array_iftable_;
 
   bool init_done_;
+  bool is_dirty_;
 
   InternTable* intern_table_;
 
