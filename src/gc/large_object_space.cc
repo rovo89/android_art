@@ -267,4 +267,10 @@ Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
   return reinterpret_cast<Object*>(addr);
 }
 
+void FreeListSpace::Dump(std::ostream& os) const{
+  os << GetName() << " -"
+     << " begin: " << reinterpret_cast<void*>(Begin())
+     << " end: " << reinterpret_cast<void*>(End());
+}
+
 }

@@ -131,6 +131,9 @@ class FreeListSpace : public LargeObjectSpace {
   size_t Size() const {
     return End() - Begin();
   }
+
+  virtual void Dump(std::ostream& os) const;
+
  private:
   static const size_t kAlignment = kPageSize;
 

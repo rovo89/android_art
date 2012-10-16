@@ -179,7 +179,7 @@ void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
 
 void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const AbstractMethod* method) {
   // See if the root is on any space bitmap.
-  if (heap_->FindSpaceFromObject(root) == NULL) {
+  if (GetHeap()->GetLiveBitmap()->GetSpaceBitmap(root) == NULL) {
     LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (large_object_space->Contains(root)) {
       LOG(ERROR) << "Found invalid root: " << root;

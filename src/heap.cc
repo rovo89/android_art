@@ -536,7 +536,9 @@ void Heap::DumpSpaces() {
               << live_bitmap << " " << *live_bitmap << "\n"
               << mark_bitmap << " " << *mark_bitmap;
   }
-  // TODO: Dump large object space?
+  if (large_object_space_.get() != NULL) {
+    large_object_space_->Dump(LOG(INFO));
+  }
 }
 
 void Heap::VerifyObjectBody(const Object* obj) {
@@ -1459,9 +1461,13 @@ void Heap::SwapBitmaps(GcType gc_type) {
     if (space->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect ||
         (gc_type == kGcTypeFull &&
             space->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect)) {
-      live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
-      mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
-      space->AsAllocSpace()->SwapBitmaps();
+      SpaceBitmap* live_bitmap = space->GetLiveBitmap();
+      SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+      if (live_bitmap != mark_bitmap) {
+        live_bitmap_->ReplaceBitmap(live_bitmap, mark_bitmap);
+        mark_bitmap_->ReplaceBitmap(mark_bitmap, live_bitmap);
+        space->AsAllocSpace()->SwapBitmaps();
+      }
     }
   }
   SwapLargeObjects();
@@ -1700,11 +1706,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
 
     if (verify_post_gc_heap_) {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      SwapBitmaps(gc_type);
+      // Swapping bound bitmaps does nothing.
+      SwapBitmaps(kGcTypeFull);
       if (!VerifyHeapReferences()) {
         LOG(FATAL) << "Post " << gc_type_str.str() << "Gc verification failed";
       }
-      SwapBitmaps(gc_type);
+      SwapBitmaps(kGcTypeFull);
       timings.AddSplit("VerifyHeapReferencesPostGC");
     }
 

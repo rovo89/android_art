@@ -434,7 +434,6 @@ void DlMallocSpace::SetFootprintLimit(size_t new_size) {
     new_size = current_space_size;
   }
   mspace_set_footprint_limit(mspace_, new_size);
-  LOG(INFO) << "Setting footprint limit to " << new_size;
 }
 
 size_t ImageSpace::bitmap_index_ = 0;
