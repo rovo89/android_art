@@ -69,7 +69,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL),
     shadow_frame_(NULL), old_shadow_frame_(NULL),
-    already_pushed_shadow_frame_(NULL), shadow_frame_size_(0) {
+    already_pushed_shadow_frame_(NULL), num_shadow_frame_refs_(0) {
 }
 
 
@@ -268,7 +268,7 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   irb_.SetInsertPoint(basic_block_alloca_);
 
   // Allocate the shadow frame now!
-  shadow_frame_size_ = 0;
+  num_shadow_frame_refs_ = 0;
   uint16_t arg_reg_start = code_item_->registers_size_ - code_item_->ins_size_;
   if (method_info_.need_shadow_frame_entry) {
     for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
@@ -279,12 +279,12 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
       }
 
       if (IsRegCanBeObject(i)) {
-        reg_to_shadow_frame_index_[i] = shadow_frame_size_++;
+        reg_to_shadow_frame_index_[i] = num_shadow_frame_refs_++;
       }
     }
   }
 
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(shadow_frame_size_);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(num_shadow_frame_refs_);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Alloca a pointer to old shadow frame
@@ -3819,11 +3819,11 @@ void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   llvm::Value* result;
   if (is_inline) {
     result = irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr,
-                                                shadow_frame_size_);
+                                                num_shadow_frame_refs_, 0);
   } else {
-    DCHECK(shadow_frame_size_ == 0);
+    DCHECK(num_shadow_frame_refs_ == 0);
     result = irb_.Runtime().EmitPushShadowFrameNoInline(shadow_frame_upcast, method_object_addr,
-                                                        shadow_frame_size_);
+                                                        num_shadow_frame_refs_);
   }
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 }

@@ -26,7 +26,8 @@ namespace art {
 //----------------------------------------------------------------------------
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
-                                             AbstractMethod* method, uint32_t size);
+                                             AbstractMethod* method, uint16_t num_refs,
+                                             uint16_t num_vregs);
 
 void art_pop_shadow_frame_from_code(void*);
 

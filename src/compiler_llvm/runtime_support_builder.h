@@ -51,7 +51,7 @@ class RuntimeSupportBuilder {
 
   /* ShadowFrame */
   virtual llvm::Value* EmitPushShadowFrame(llvm::Value* new_shadow_frame,
-                                       llvm::Value* method, uint32_t size);
+                                       llvm::Value* method, uint16_t num_refs, uint16_t num_vregs);
   virtual llvm::Value* EmitPushShadowFrameNoInline(llvm::Value* new_shadow_frame,
                                                llvm::Value* method, uint32_t size);
   virtual void EmitPopShadowFrame(llvm::Value* old_shadow_frame);

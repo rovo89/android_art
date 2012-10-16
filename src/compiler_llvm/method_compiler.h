@@ -475,7 +475,7 @@ class MethodCompiler {
   llvm::Value* old_shadow_frame_;
 
   llvm::Value* already_pushed_shadow_frame_;
-  uint32_t shadow_frame_size_;
+  uint16_t num_shadow_frame_refs_;
 
   uint16_t elf_func_idx_;
 };

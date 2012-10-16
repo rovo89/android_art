@@ -86,7 +86,8 @@ llvm::Value* RuntimeSupportBuilder::EmitSetCurrentThread(llvm::Value* thread) {
 /* ShadowFrame */
 
 llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_frame,
-                                                        llvm::Value* method, uint32_t size) {
+                                                        llvm::Value* method, uint16_t num_refs,
+                                                        uint16_t num_vregs) {
   Value* old_shadow_frame = EmitLoadFromThreadOffset(Thread::TopShadowFrameOffset().Int32Value(),
                                                      irb_.getArtFrameTy()->getPointerTo(),
                                                      kTBAARuntimeInfo);
@@ -100,10 +101,16 @@ llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_
                            method,
                            kTBAAShadowFrame);
 
-  // Store the number of the pointer slots
+  // Store the number of the reference slots
   irb_.StoreToObjectOffset(new_shadow_frame,
                            ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getInt32(size),
+                           irb_.getInt16(num_refs),
+                           kTBAAShadowFrame);
+
+  // Store the number of vregs
+  irb_.StoreToObjectOffset(new_shadow_frame,
+                           ShadowFrame::NumberOfVRegsOffset(),
+                           irb_.getInt16(num_vregs),
                            kTBAAShadowFrame);
 
   // Store the link to previous shadow frame

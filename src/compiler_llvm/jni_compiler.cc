@@ -113,7 +113,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   llvm::Value* old_shadow_frame =
-      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size);
+      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size, 0);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =

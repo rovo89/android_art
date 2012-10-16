@@ -37,16 +37,18 @@ class Thread;
 
 class ShadowFrame {
  public:
-  // Number of references contained within this shadow frame
   uint32_t NumberOfReferences() const {
     return number_of_references_;
   }
 
-  void SetNumberOfReferences(uint32_t number_of_references) {
+  void SetNumberOfReferences(uint16_t number_of_references) {
     number_of_references_ = number_of_references;
   }
 
-  // Caller dex pc
+  void SetNumberOfVRegs(uint16_t number_of_vregs) {
+    number_of_vregs_ = number_of_vregs;
+  }
+
   uint32_t GetDexPC() const {
     return dex_pc_;
   }
@@ -55,7 +57,6 @@ class ShadowFrame {
     dex_pc_ = dex_pc;
   }
 
-  // Link to previous shadow frame or NULL
   ShadowFrame* GetLink() const {
     return link_;
   }
@@ -101,29 +102,32 @@ class ShadowFrame {
     }
   }
 
-  // Offset of link within shadow frame
   static size_t LinkOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, link_);
   }
 
-  // Offset of method within shadow frame
   static size_t MethodOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, method_);
   }
 
-  // Offset of dex pc within shadow frame
   static size_t DexPCOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, dex_pc_);
   }
 
-  // Offset of length within shadow frame
   static size_t NumberOfReferencesOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, number_of_references_);
   }
 
-  // Offset of references within shadow frame
+  static size_t NumberOfVRegsOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, number_of_vregs_);
+  }
+
   static size_t ReferencesOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, references_);
+  }
+
+  size_t VRegsOffset() {
+    return ReferencesOffset() + (sizeof(Object*) * NumberOfReferences());
   }
 
  private:
@@ -131,7 +135,9 @@ class ShadowFrame {
   // We should not create new shadow stack in the runtime support function.
   ~ShadowFrame() {}
 
-  uint32_t number_of_references_;
+  uint16_t number_of_references_;
+  uint16_t number_of_vregs_;
+  // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
   AbstractMethod* method_;
   uint32_t dex_pc_;
