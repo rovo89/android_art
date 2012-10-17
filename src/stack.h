@@ -37,6 +37,14 @@ class Thread;
 
 class ShadowFrame {
  public:
+  static ShadowFrame* Create(uint16_t num_refs, uint16_t num_vregs, ShadowFrame* link,
+                             AbstractMethod* method, uint32_t dex_pc) {
+    size_t sz = sizeof(ShadowFrame) + (sizeof(Object*) * num_refs) + (sizeof(uint32_t) * num_vregs);
+    uint8_t* memory = new uint8_t[sz];
+    return new (memory) ShadowFrame(num_refs, num_vregs, link, method, dex_pc);
+  }
+  ~ShadowFrame() {}
+
   uint32_t NumberOfReferences() const {
     return number_of_references_;
   }
@@ -74,6 +82,59 @@ class ShadowFrame {
   void SetReference(size_t i, Object* object) {
     DCHECK_LT(i, number_of_references_);
     references_[i] = object;
+  }
+
+  int32_t GetVReg(size_t i) const {
+    DCHECK_LT(i, number_of_vregs_);
+    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
+    return reinterpret_cast<const int32_t*>(vregs)[i];
+  }
+
+  float GetVRegFloat(size_t i) const {
+    DCHECK_LT(i, number_of_vregs_);
+    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
+    return reinterpret_cast<const float*>(vregs)[i];
+  }
+
+  int64_t GetVRegLong(size_t i) const {
+    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
+    const int32_t* low_half = &reinterpret_cast<const int32_t*>(vregs)[i];
+    return *reinterpret_cast<const int64_t*>(low_half);
+  }
+
+  double GetVRegDouble(size_t i) const {
+    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
+    const int32_t* low_half = &reinterpret_cast<const int32_t*>(vregs)[i];
+    return *reinterpret_cast<const double*>(low_half);
+  }
+
+  void SetVReg(size_t i, int32_t val) {
+    DCHECK_LT(i, number_of_vregs_);
+    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
+    reinterpret_cast<int32_t*>(vregs)[i] = val;
+  }
+
+  void SetVRegFloat(size_t i, float val) {
+    DCHECK_LT(i, number_of_vregs_);
+    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
+    reinterpret_cast<float*>(vregs)[i] = val;
+  }
+
+  void SetVRegLong(size_t i, int64_t val) {
+    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
+    int32_t* low_half = &reinterpret_cast<int32_t*>(vregs)[i];
+    *reinterpret_cast<int64_t*>(low_half) = val;
+  }
+
+  void SetVRegDouble(size_t i, double val) {
+    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
+    int32_t* low_half = &reinterpret_cast<int32_t*>(vregs)[i];
+    *reinterpret_cast<double*>(low_half) = val;
+  }
+
+  void SetReferenceAndVReg(size_t i, Object* val) {
+    SetReference(i, val);
+    SetVReg(i, reinterpret_cast<int32_t>(val));
   }
 
   AbstractMethod* GetMethod() const {
@@ -126,22 +187,31 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, references_);
   }
 
-  size_t VRegsOffset() {
+  size_t VRegsOffset() const {
     return ReferencesOffset() + (sizeof(Object*) * NumberOfReferences());
   }
 
  private:
-  // ShadowFrame should be allocated by the generated code directly.
-  // We should not create new shadow stack in the runtime support function.
-  ~ShadowFrame() {}
+  ShadowFrame(uint16_t num_refs, uint16_t num_vregs, ShadowFrame* link, AbstractMethod* method,
+              uint32_t dex_pc)
+      : number_of_references_ (num_refs), number_of_vregs_(num_vregs), link_(link),
+        method_(method), dex_pc_(dex_pc) {
+    for (size_t i = 0; i < num_refs; ++i) {
+      SetReference(i, NULL);
+    }
+    for (size_t i = 0; i < num_vregs; ++i) {
+      SetVReg(i, 0);
+    }
+  }
 
+  // TODO: make the majority of these fields const.
   uint16_t number_of_references_;
   uint16_t number_of_vregs_;
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
   AbstractMethod* method_;
   uint32_t dex_pc_;
-  Object* references_[];
+  Object* references_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
 };

@@ -367,13 +367,13 @@ int32_t art_set32_static_from_code(uint32_t field_idx, AbstractMethod* referrer,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(NULL, new_value);
+    field->Set32(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(NULL, new_value);
+    field->Set32(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -383,13 +383,13 @@ int32_t art_set64_static_from_code(uint32_t field_idx, AbstractMethod* referrer,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(NULL, new_value);
+    field->Set64(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(NULL, new_value);
+    field->Set64(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -399,13 +399,13 @@ int32_t art_set_obj_static_from_code(uint32_t field_idx, AbstractMethod* referre
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    field->SetObj(NULL, new_value);
+    field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    field->SetObj(NULL, new_value);
+    field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;
   }
   return -1;
@@ -415,12 +415,12 @@ int32_t art_get32_static_from_code(uint32_t field_idx, AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    return field->Get32(NULL);
+    return field->Get32(field->GetDeclaringClass());
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
-    return field->Get32(NULL);
+    return field->Get32(field->GetDeclaringClass());
   }
   return 0;
 }
@@ -429,12 +429,12 @@ int64_t art_get64_static_from_code(uint32_t field_idx, AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    return field->Get64(NULL);
+    return field->Get64(field->GetDeclaringClass());
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
-    return field->Get64(NULL);
+    return field->Get64(field->GetDeclaringClass());
   }
   return 0;
 }
@@ -443,12 +443,12 @@ Object* art_get_obj_static_from_code(uint32_t field_idx, AbstractMethod* referre
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    return field->GetObj(NULL);
+    return field->GetObj(field->GetDeclaringClass());
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    return field->GetObj(NULL);
+    return field->GetObj(field->GetDeclaringClass());
   }
   return 0;
 }

@@ -52,7 +52,6 @@ void* FindNativeMethod(Thread* thread);
 void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
                            size_t method_count);
 
-size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, AbstractMethod* m, JValue* args)

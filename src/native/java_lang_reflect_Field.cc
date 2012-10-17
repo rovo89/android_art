@@ -76,7 +76,7 @@ static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, Field*
                           Object*& o)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (f->IsStatic()) {
-    o = NULL;
+    o = f->GetDeclaringClass();
     return true;
   }
 

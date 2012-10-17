@@ -306,6 +306,7 @@ class CommonTest : public testing::Test {
 #error unsupported OS
 #endif
       setenv("ANDROID_ROOT", root.c_str(), 1);
+      setenv("LD_LIBRARY_PATH", ":", 0);  // Required by java.lang.System.<clinit>.
     }
 
     // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of art-cache

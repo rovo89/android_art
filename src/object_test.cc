@@ -238,15 +238,15 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   Field* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
                                    sizeof(Object*));
-  Object* s0 = field->GetObj(NULL);
+  Object* s0 = field->GetObj(klass);
   EXPECT_EQ(NULL, s0);
 
   SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
-  field->SetObj(NULL, char_array.get());
-  EXPECT_EQ(char_array.get(), field->GetObj(NULL));
+  field->SetObj(field->GetDeclaringClass(), char_array.get());
+  EXPECT_EQ(char_array.get(), field->GetObj(klass));
 
-  field->SetObj(NULL, NULL);
-  EXPECT_EQ(NULL, field->GetObj(NULL));
+  field->SetObj(field->GetDeclaringClass(), NULL);
+  EXPECT_EQ(NULL, field->GetObj(klass));
 
   // TODO: more exhaustive tests of all 6 cases of Field::*FromCode
 }

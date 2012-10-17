@@ -871,68 +871,68 @@ TEST_F(ClassLinkerTest, StaticFields) {
   FieldHelper fh(s0);
   EXPECT_STREQ(ClassHelper(s0->GetClass()).GetDescriptor(), "Ljava/lang/reflect/Field;");
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimBoolean);
-  EXPECT_EQ(true, s0->GetBoolean(NULL));
-  s0->SetBoolean(NULL, false);
+  EXPECT_EQ(true, s0->GetBoolean(statics));
+  s0->SetBoolean(statics, false);
 
   Field* s1 = statics->FindStaticField("s1", "B");
   fh.ChangeField(s1);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimByte);
-  EXPECT_EQ(5, s1->GetByte(NULL));
-  s1->SetByte(NULL, 6);
+  EXPECT_EQ(5, s1->GetByte(statics));
+  s1->SetByte(statics, 6);
 
   Field* s2 = statics->FindStaticField("s2", "C");
   fh.ChangeField(s2);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimChar);
-  EXPECT_EQ('a', s2->GetChar(NULL));
-  s2->SetChar(NULL, 'b');
+  EXPECT_EQ('a', s2->GetChar(statics));
+  s2->SetChar(statics, 'b');
 
   Field* s3 = statics->FindStaticField("s3", "S");
   fh.ChangeField(s3);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimShort);
-  EXPECT_EQ(-536, s3->GetShort(NULL));
-  s3->SetShort(NULL, -535);
+  EXPECT_EQ(-536, s3->GetShort(statics));
+  s3->SetShort(statics, -535);
 
   Field* s4 = statics->FindStaticField("s4", "I");
   fh.ChangeField(s4);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimInt);
-  EXPECT_EQ(2000000000, s4->GetInt(NULL));
-  s4->SetInt(NULL, 2000000001);
+  EXPECT_EQ(2000000000, s4->GetInt(statics));
+  s4->SetInt(statics, 2000000001);
 
   Field* s5 = statics->FindStaticField("s5", "J");
   fh.ChangeField(s5);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimLong);
-  EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(NULL));
-  s5->SetLong(NULL, 0x34567890abcdef12LL);
+  EXPECT_EQ(0x1234567890abcdefLL, s5->GetLong(statics));
+  s5->SetLong(statics, 0x34567890abcdef12LL);
 
   Field* s6 = statics->FindStaticField("s6", "F");
   fh.ChangeField(s6);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimFloat);
-  EXPECT_EQ(0.5, s6->GetFloat(NULL));
-  s6->SetFloat(NULL, 0.75);
+  EXPECT_EQ(0.5, s6->GetFloat(statics));
+  s6->SetFloat(statics, 0.75);
 
   Field* s7 = statics->FindStaticField("s7", "D");
   fh.ChangeField(s7);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimDouble);
-  EXPECT_EQ(16777217, s7->GetDouble(NULL));
-  s7->SetDouble(NULL, 16777219);
+  EXPECT_EQ(16777217, s7->GetDouble(statics));
+  s7->SetDouble(statics, 16777219);
 
   Field* s8 = statics->FindStaticField("s8", "Ljava/lang/String;");
   fh.ChangeField(s8);
   EXPECT_TRUE(fh.GetTypeAsPrimitiveType() == Primitive::kPrimNot);
-  EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("android"));
-  s8->SetObject(NULL, String::AllocFromModifiedUtf8(soa.Self(), "robot"));
+  EXPECT_TRUE(s8->GetObject(statics)->AsString()->Equals("android"));
+  s8->SetObject(s8->GetDeclaringClass(), String::AllocFromModifiedUtf8(soa.Self(), "robot"));
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322
-  EXPECT_FALSE(                   s0->GetBoolean(NULL));
-  EXPECT_EQ(6,                    s1->GetByte(NULL));
-  EXPECT_EQ('b',                  s2->GetChar(NULL));
-  EXPECT_EQ(-535,                 s3->GetShort(NULL));
-  EXPECT_EQ(2000000001,           s4->GetInt(NULL));
-  EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(NULL));
-  EXPECT_EQ(0.75,                 s6->GetFloat(NULL));
-  EXPECT_EQ(16777219,             s7->GetDouble(NULL));
-  EXPECT_TRUE(s8->GetObject(NULL)->AsString()->Equals("robot"));
+  EXPECT_FALSE(                   s0->GetBoolean(statics));
+  EXPECT_EQ(6,                    s1->GetByte(statics));
+  EXPECT_EQ('b',                  s2->GetChar(statics));
+  EXPECT_EQ(-535,                 s3->GetShort(statics));
+  EXPECT_EQ(2000000001,           s4->GetInt(statics));
+  EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(statics));
+  EXPECT_EQ(0.75,                 s6->GetFloat(statics));
+  EXPECT_EQ(16777219,             s7->GetDouble(statics));
+  EXPECT_TRUE(s8->GetObject(statics)->AsString()->Equals("robot"));
 }
 
 TEST_F(ClassLinkerTest, Interfaces) {

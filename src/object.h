@@ -247,7 +247,16 @@ class MANAGED Object {
     return down_cast<const Array*>(this);
   }
 
+  BooleanArray* AsBooleanArray();
+  ByteArray* AsByteArray();
+  CharArray* AsCharArray();
+  ShortArray* AsShortArray();
+  IntArray* AsIntArray();
+  LongArray* AsLongArray();
+
   String* AsString();
+
+  Throwable* AsThrowable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsMethod() const;
 
@@ -668,7 +677,7 @@ class MANAGED AbstractMethod : public Object {
   // Find the method that this method overrides
   AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const
+  void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {
@@ -1749,6 +1758,14 @@ class MANAGED Class : public StaticStorageBase {
     return GetVTable()->Get(method->GetMethodIndex());
   }
 
+  // Given a method implemented by this class' super class, return the specific implementation
+  // method for this class.
+  AbstractMethod* FindVirtualMethodForSuper(AbstractMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(!method->GetDeclaringClass()->IsInterface());
+    return GetSuperClass()->GetVTable()->Get(method->GetMethodIndex());
+  }
+
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
@@ -2358,7 +2375,6 @@ class MANAGED PrimitiveArray : public Array {
   }
 
   void Set(int32_t i, T value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // TODO: ArrayStoreException
     if (IsValidIndex(i)) {
       GetData()[i] = value;
     }
@@ -2397,10 +2413,7 @@ class MANAGED String : public Object {
   }
 
   const CharArray* GetCharArray() const {
-    const CharArray* result = GetFieldObject<const CharArray*>(
-        ValueOffset(), false);
-    DCHECK(result != NULL);
-    return result;
+    return GetFieldObject<const CharArray*>(ValueOffset(), false);
   }
 
   int32_t GetOffset() const {

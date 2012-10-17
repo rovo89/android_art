@@ -1172,7 +1172,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId methodId, bool wit
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
   std::string shorty(mh.GetShorty());
-  expandBufAdd4BE(pReply, m->NumArgRegisters(shorty));
+  expandBufAdd4BE(pReply, AbstractMethod::NumArgRegisters(shorty));
 
   // We don't know the total number of variables yet, so leave a blank and update it later.
   size_t variable_count_offset = expandBufGetLength(pReply);

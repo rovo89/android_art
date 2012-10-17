@@ -26,12 +26,12 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const AbstractMet
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    return field->Get32(NULL);
+    return field->Get32(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    return field->Get32(NULL);
+    return field->Get32(field->GetDeclaringClass());
   }
   return 0;  // Will throw exception by checking with Thread::Current
 }
@@ -41,12 +41,12 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const AbstractMet
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    return field->Get64(NULL);
+    return field->Get64(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    return field->Get64(NULL);
+    return field->Get64(field->GetDeclaringClass());
   }
   return 0;  // Will throw exception by checking with Thread::Current
 }
@@ -56,12 +56,12 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const AbstractMet
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    return field->GetObj(NULL);
+    return field->GetObj(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    return field->GetObj(NULL);
+    return field->GetObj(field->GetDeclaringClass());
   }
   return NULL;  // Will throw exception by checking with Thread::Current
 }
@@ -132,13 +132,13 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(NULL, new_value);
+    field->Set32(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    field->Set32(NULL, new_value);
+    field->Set32(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure
@@ -149,13 +149,13 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const AbstractMethod* 
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(NULL, new_value);
+    field->Set64(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    field->Set64(NULL, new_value);
+    field->Set64(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure
@@ -168,14 +168,14 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
-      field->SetObj(NULL, new_value);
+      field->SetObj(field->GetDeclaringClass(), new_value);
       return 0;  // success
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    field->SetObj(NULL, new_value);
+    field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;  // success
   }
   return -1;  // failure

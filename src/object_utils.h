@@ -647,7 +647,7 @@ class MethodHelper {
 
   Class* GetDexCacheResolvedType(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetDexCache()->GetResolvedType(type_idx);
+    return method_->GetDexCacheResolvedTypes()->Get(type_idx);
   }
 
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -669,11 +669,26 @@ class MethodHelper {
     return result;
   }
 
+  String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    String* s = method_->GetDexCacheStrings()->Get(string_idx);
+    if (UNLIKELY(s == NULL)) {
+      s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, GetDexCache());
+    }
+    return s;
+  }
+
+  Class* ResolveClass(uint16_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Class* c = GetDexCacheResolvedType(type_idx);
+    if (UNLIKELY(c == NULL)) {
+      c = GetClassLinker()->ResolveType(GetDexFile(), type_idx, GetDexCache(), GetClassLoader());
+    }
+    return c;
+  }
+
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
-  void SetMethod(const AbstractMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetMethod(const AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
       Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {

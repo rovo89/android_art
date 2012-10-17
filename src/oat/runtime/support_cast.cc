@@ -37,7 +37,7 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self
     return 0;  // Success
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+    self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
         "%s cannot be cast to %s",
         PrettyDescriptor(a).c_str(),
         PrettyDescriptor(b).c_str());
@@ -58,7 +58,7 @@ extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class*
     return 0;  // Success
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+    self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "%s cannot be stored in an array of type %s",
         PrettyDescriptor(element_class).c_str(),
         PrettyDescriptor(array_class).c_str());

@@ -1501,15 +1501,23 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
 
     case Instruction::CONST_4:
+      /* could be boolean, int, float, or a null reference */
+      work_line_->SetRegisterType(dec_insn.vA,
+                                  reg_types_.FromCat1Const((dec_insn.vB << 28) >> 28));
+      break;
     case Instruction::CONST_16:
+      /* could be boolean, int, float, or a null reference */
+      work_line_->SetRegisterType(dec_insn.vA,
+                                  reg_types_.FromCat1Const(static_cast<int16_t>(dec_insn.vB)));
+      break;
     case Instruction::CONST:
       /* could be boolean, int, float, or a null reference */
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.FromCat1Const((int32_t) dec_insn.vB));
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.FromCat1Const(dec_insn.vB));
       break;
     case Instruction::CONST_HIGH16:
       /* could be boolean, int, float, or a null reference */
       work_line_->SetRegisterType(dec_insn.vA,
-                                  reg_types_.FromCat1Const((int32_t) dec_insn.vB << 16));
+                                  reg_types_.FromCat1Const(dec_insn.vB << 16));
       break;
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:

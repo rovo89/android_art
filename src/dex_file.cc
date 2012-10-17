@@ -978,18 +978,18 @@ void EncodedStaticFieldValueIterator::Next() {
 
 void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
   switch (type_) {
-    case kBoolean: field->SetBoolean(NULL, jval_.z); break;
-    case kByte:    field->SetByte(NULL, jval_.b); break;
-    case kShort:   field->SetShort(NULL, jval_.s); break;
-    case kChar:    field->SetChar(NULL, jval_.c); break;
-    case kInt:     field->SetInt(NULL, jval_.i); break;
-    case kLong:    field->SetLong(NULL, jval_.j); break;
-    case kFloat:   field->SetFloat(NULL, jval_.f); break;
-    case kDouble:  field->SetDouble(NULL, jval_.d); break;
-    case kNull:    field->SetObject(NULL, NULL); break;
+    case kBoolean: field->SetBoolean(field->GetDeclaringClass(), jval_.z); break;
+    case kByte:    field->SetByte(field->GetDeclaringClass(), jval_.b); break;
+    case kShort:   field->SetShort(field->GetDeclaringClass(), jval_.s); break;
+    case kChar:    field->SetChar(field->GetDeclaringClass(), jval_.c); break;
+    case kInt:     field->SetInt(field->GetDeclaringClass(), jval_.i); break;
+    case kLong:    field->SetLong(field->GetDeclaringClass(), jval_.j); break;
+    case kFloat:   field->SetFloat(field->GetDeclaringClass(), jval_.f); break;
+    case kDouble:  field->SetDouble(field->GetDeclaringClass(), jval_.d); break;
+    case kNull:    field->SetObject(field->GetDeclaringClass(), NULL); break;
     case kString: {
       String* resolved = linker_->ResolveString(dex_file_, jval_.i, dex_cache_);
-      field->SetObject(NULL, resolved);
+      field->SetObject(field->GetDeclaringClass(), resolved);
       break;
     }
     case kType: {

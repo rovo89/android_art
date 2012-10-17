@@ -21,6 +21,7 @@
 #include "asm_support.h"
 #include "compiled_method.h"
 #include "compiler.h"
+#include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "oat/utils/mips/assembler_mips.h"
 #include "oat/utils/assembler.h"

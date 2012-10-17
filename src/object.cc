@@ -29,6 +29,7 @@
 #include "dex_file.h"
 #include "globals.h"
 #include "heap.h"
+#include "interpreter/interpreter.h"
 #include "intern_table.h"
 #include "logging.h"
 #include "monitor.h"
@@ -42,9 +43,50 @@
 
 namespace art {
 
+BooleanArray* Object::AsBooleanArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveBoolean());
+  return down_cast<BooleanArray*>(this);
+}
+
+ByteArray* Object::AsByteArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveByte());
+  return down_cast<ByteArray*>(this);
+}
+
+CharArray* Object::AsCharArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveChar());
+  return down_cast<CharArray*>(this);
+}
+
+ShortArray* Object::AsShortArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveShort());
+  return down_cast<ShortArray*>(this);
+}
+
+IntArray* Object::AsIntArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveInt());
+  return down_cast<IntArray*>(this);
+}
+
+LongArray* Object::AsLongArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveLong());
+  return down_cast<LongArray*>(this);
+}
+
 String* Object::AsString() {
   DCHECK(GetClass()->IsStringClass());
   return down_cast<String*>(this);
+}
+
+Throwable* Object::AsThrowable() {
+  DCHECK(GetClass()->IsThrowableClass());
+  return down_cast<Throwable*>(this);
 }
 
 Object* Object::Clone(Thread* self) {
@@ -188,50 +230,38 @@ void Field::SetOffset(MemberOffset num_bytes) {
 }
 
 uint32_t Field::Get32(const Object* object) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField32(GetOffset(), IsVolatile());
 }
 
 void Field::Set32(Object* object, uint32_t new_value) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField32(GetOffset(), new_value, IsVolatile());
 }
 
 uint64_t Field::Get64(const Object* object) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField64(GetOffset(), IsVolatile());
 }
 
 void Field::Set64(Object* object, uint64_t new_value) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField64(GetOffset(), new_value, IsVolatile());
 }
 
 Object* Field::GetObj(const Object* object) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetFieldObject<Object*>(GetOffset(), IsVolatile());
 }
 
 void Field::SetObj(Object* object, const Object* new_value) const {
-  CHECK((object == NULL) == IsStatic()) << PrettyField(this);
-  if (IsStatic()) {
-    object = declaring_class_;
-  }
+  DCHECK(object != NULL) << PrettyField(this);
+  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetFieldObject(GetOffset(), new_value, IsVolatile());
 }
 
@@ -603,7 +633,7 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) 
   return DexFile::kDexNoIndex;
 }
 
-void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
+void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
@@ -617,25 +647,34 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
   // Pass everything as arguments.
   AbstractMethod::InvokeStub* stub = GetInvokeStub();
 
-  bool have_executable_code = (GetCode() != NULL);
 
-  if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
-    bool log = false;
-    if (log) {
-      LOG(INFO) << StringPrintf("invoking %s code=%p stub=%p",
-                                PrettyMethod(this).c_str(), GetCode(), stub);
-    }
-    (*stub)(this, receiver, self, args, result);
-    if (log) {
-      LOG(INFO) << StringPrintf("returned %s code=%p stub=%p",
-                                PrettyMethod(this).c_str(), GetCode(), stub);
-    }
-  } else {
-    LOG(INFO) << StringPrintf("not invoking %s code=%p stub=%p started=%s",
-                              PrettyMethod(this).c_str(), GetCode(), stub,
-                              Runtime::Current()->IsStarted() ? "true" : "false");
+  if (UNLIKELY(!Runtime::Current()->IsStarted())){
+    LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started.";
     if (result != NULL) {
       result->SetJ(0);
+    }
+  } else {
+    if (GetCode() != NULL && stub != NULL) {
+      bool log = false;
+      if (log) {
+        LOG(INFO) << StringPrintf("invoking %s code=%p stub=%p",
+                                  PrettyMethod(this).c_str(), GetCode(), stub);
+      }
+      (*stub)(this, receiver, self, args, result);
+      if (log) {
+        LOG(INFO) << StringPrintf("returned %s code=%p stub=%p",
+                                  PrettyMethod(this).c_str(), GetCode(), stub);
+      }
+    } else {
+      LOG(INFO) << "Not invoking " << PrettyMethod(this)
+          << " code=" << reinterpret_cast<const void*>(GetCode())
+          << " stub=" << reinterpret_cast<void*>(stub);
+      const bool kInterpretMethodsWithNoCode = false;
+      if (kInterpretMethodsWithNoCode) {
+        art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args, result);
+      } else if (result != NULL) {
+          result->SetJ(0);
+      }
     }
   }
 

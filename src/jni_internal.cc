@@ -24,6 +24,7 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "invoke_arg_array_builder.h"
 #include "jni.h"
 #include "logging.h"
 #include "mutex.h"
@@ -73,120 +74,6 @@ void SetJniGlobalsMax(size_t max) {
     gGlobalsInitial = std::min(gGlobalsInitial, gGlobalsMax);
   }
 }
-
-size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len) {
-  size_t num_bytes = 0;
-  for (size_t i = 1; i < shorty_len; ++i) {
-    char ch = shorty[i];
-    if (ch == 'D' || ch == 'J') {
-      num_bytes += 8;
-    } else if (ch == 'L') {
-      // Argument is a reference or an array.  The shorty descriptor
-      // does not distinguish between these types.
-      num_bytes += sizeof(Object*);
-    } else {
-      num_bytes += 4;
-    }
-  }
-  return num_bytes;
-}
-
-class ArgArray {
- public:
-  explicit ArgArray(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    MethodHelper mh(method);
-    shorty_ = mh.GetShorty();
-    shorty_len_ = mh.GetShortyLength();
-    if (shorty_len_ - 1 < kSmallArgArraySize) {
-      arg_array_ = small_arg_array_;
-    } else {
-      large_arg_array_.reset(new JValue[shorty_len_ - 1]);
-      arg_array_ = large_arg_array_.get();
-    }
-  }
-
-  JValue* get() {
-    return arg_array_;
-  }
-
-  void BuildArgArray(const ScopedObjectAccess& soa, va_list ap)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
-      switch (shorty_[i]) {
-        case 'Z':
-          arg_array_[offset].SetZ(va_arg(ap, jint));
-          break;
-        case 'B':
-          arg_array_[offset].SetB(va_arg(ap, jint));
-          break;
-        case 'C':
-          arg_array_[offset].SetC(va_arg(ap, jint));
-          break;
-        case 'S':
-          arg_array_[offset].SetS(va_arg(ap, jint));
-          break;
-        case 'I':
-          arg_array_[offset].SetI(va_arg(ap, jint));
-          break;
-        case 'F':
-          arg_array_[offset].SetF(va_arg(ap, jdouble));
-          break;
-        case 'L':
-          arg_array_[offset].SetL(soa.Decode<Object*>(va_arg(ap, jobject)));
-          break;
-        case 'D':
-          arg_array_[offset].SetD(va_arg(ap, jdouble));
-          break;
-        case 'J':
-          arg_array_[offset].SetJ(va_arg(ap, jlong));
-          break;
-      }
-    }
-  }
-
-  void BuildArgArray(const ScopedObjectAccess& soa, jvalue* args)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
-      switch (shorty_[i]) {
-        case 'Z':
-          arg_array_[offset].SetZ(args[offset].z);
-          break;
-        case 'B':
-          arg_array_[offset].SetB(args[offset].b);
-          break;
-        case 'C':
-          arg_array_[offset].SetC(args[offset].c);
-          break;
-        case 'S':
-          arg_array_[offset].SetS(args[offset].s);
-          break;
-        case 'I':
-          arg_array_[offset].SetI(args[offset].i);
-          break;
-        case 'F':
-          arg_array_[offset].SetF(args[offset].f);
-          break;
-        case 'L':
-          arg_array_[offset].SetL(soa.Decode<Object*>(args[offset].l));
-          break;
-        case 'D':
-          arg_array_[offset].SetD(args[offset].d);
-          break;
-        case 'J':
-          arg_array_[offset].SetJ(args[offset].j);
-          break;
-      }
-    }
-  }
-
- private:
-  enum { kSmallArgArraySize = 16 };
-  const char* shorty_;
-  uint32_t shorty_len_;
-  JValue* arg_array_;
-  JValue small_arg_array_[kSmallArgArraySize];
-  UniquePtr<JValue[]> large_arg_array_;
-};
 
 static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -253,7 +140,8 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
-  ArgArray arg_array(method);
+  MethodHelper mh(method);
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
@@ -268,7 +156,8 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
-  ArgArray arg_array(method);
+  MethodHelper mh(method);
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
@@ -278,7 +167,8 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
-  ArgArray arg_array(method);
+  MethodHelper mh(method);
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
@@ -670,7 +560,8 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
                          jvalue* args) {
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
-  ArgArray arg_array(method);
+  MethodHelper mh(method);
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, args);
   return InvokeWithArgArray(soa, receiver, method, arg_array.get());
 }
@@ -1415,7 +1306,7 @@ class JNI {
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
     ScopedObjectAccess soa(env);
     Field* f = soa.DecodeField(fid);
-    return soa.AddLocalReference<jobject>(f->GetObject(NULL));
+    return soa.AddLocalReference<jobject>(f->GetObject(f->GetDeclaringClass()));
   }
 
   static void SetObjectField(JNIEnv* env, jobject java_object, jfieldID fid, jobject java_value) {
@@ -1430,7 +1321,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     Object* v = soa.Decode<Object*>(java_value);
     Field* f = soa.DecodeField(fid);
-    f->SetObject(NULL, v);
+    f->SetObject(f->GetDeclaringClass(), v);
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
@@ -1439,11 +1330,21 @@ class JNI {
   Field* f = soa.DecodeField(fid); \
   return f->fn(o)
 
+#define GET_STATIC_PRIMITIVE_FIELD(fn) \
+  ScopedObjectAccess soa(env); \
+  Field* f = soa.DecodeField(fid); \
+  return f->fn(f->GetDeclaringClass())
+
 #define SET_PRIMITIVE_FIELD(fn, instance, value) \
   ScopedObjectAccess soa(env); \
   Object* o = soa.Decode<Object*>(instance); \
   Field* f = soa.DecodeField(fid); \
   f->fn(o, value)
+
+#define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
+  ScopedObjectAccess soa(env); \
+  Field* f = soa.DecodeField(fid); \
+  f->fn(f->GetDeclaringClass(), value)
 
   static jboolean GetBooleanField(JNIEnv* env, jobject obj, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetBoolean, obj);
@@ -1478,35 +1379,35 @@ class JNI {
   }
 
   static jboolean GetStaticBooleanField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetBoolean, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetBoolean);
   }
 
   static jbyte GetStaticByteField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetByte, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetByte);
   }
 
   static jchar GetStaticCharField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetChar, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetChar);
   }
 
   static jshort GetStaticShortField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetShort, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetShort);
   }
 
   static jint GetStaticIntField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetInt, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetInt);
   }
 
   static jlong GetStaticLongField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetLong, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetLong);
   }
 
   static jfloat GetStaticFloatField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetFloat, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetFloat);
   }
 
   static jdouble GetStaticDoubleField(JNIEnv* env, jclass, jfieldID fid) {
-    GET_PRIMITIVE_FIELD(GetDouble, NULL);
+    GET_STATIC_PRIMITIVE_FIELD(GetDouble);
   }
 
   static void SetBooleanField(JNIEnv* env, jobject obj, jfieldID fid, jboolean v) {
@@ -1542,35 +1443,35 @@ class JNI {
   }
 
   static void SetStaticBooleanField(JNIEnv* env, jclass, jfieldID fid, jboolean v) {
-    SET_PRIMITIVE_FIELD(SetBoolean, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetBoolean, v);
   }
 
   static void SetStaticByteField(JNIEnv* env, jclass, jfieldID fid, jbyte v) {
-    SET_PRIMITIVE_FIELD(SetByte, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetByte, v);
   }
 
   static void SetStaticCharField(JNIEnv* env, jclass, jfieldID fid, jchar v) {
-    SET_PRIMITIVE_FIELD(SetChar, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetChar, v);
   }
 
   static void SetStaticFloatField(JNIEnv* env, jclass, jfieldID fid, jfloat v) {
-    SET_PRIMITIVE_FIELD(SetFloat, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetFloat, v);
   }
 
   static void SetStaticDoubleField(JNIEnv* env, jclass, jfieldID fid, jdouble v) {
-    SET_PRIMITIVE_FIELD(SetDouble, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetDouble, v);
   }
 
   static void SetStaticIntField(JNIEnv* env, jclass, jfieldID fid, jint v) {
-    SET_PRIMITIVE_FIELD(SetInt, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetInt, v);
   }
 
   static void SetStaticLongField(JNIEnv* env, jclass, jfieldID fid, jlong v) {
-    SET_PRIMITIVE_FIELD(SetLong, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetLong, v);
   }
 
   static void SetStaticShortField(JNIEnv* env, jclass, jfieldID fid, jshort v) {
-    SET_PRIMITIVE_FIELD(SetShort, NULL, v);
+    SET_STATIC_PRIMITIVE_FIELD(SetShort, v);
   }
 
   static jobject CallStaticObjectMethod(JNIEnv* env, jclass, jmethodID mid, ...) {

@@ -253,6 +253,11 @@ class Instruction {
              kVerifySwitchTargets | kVerifyVarArg | kVerifyVarArgRange | kVerifyError));
   }
 
+  // Get the dex PC of this instruction as a offset in code units from the beginning of insns.
+  uint32_t GetDexPc(const uint16_t* insns) const {
+    return (reinterpret_cast<const uint16_t*>(this) - insns);
+  }
+
   // Dump decoded version of instruction
   std::string DumpString(const DexFile*) const;
 

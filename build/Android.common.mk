@@ -154,6 +154,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
 	src/intern_table.cc \
+	src/interpreter/interpreter.cc \
 	src/jdwp/jdwp_event.cc \
 	src/jdwp/jdwp_expand_buf.cc \
 	src/jdwp/jdwp_handler.cc \

@@ -2355,8 +2355,8 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
   }
   {
     ObjectLock lock(self, klass.get());  // Must hold lock on object when initializing.
-    interfaces_sfield->SetObject(NULL, interfaces);
-    throws_sfield->SetObject(NULL, throws);
+    interfaces_sfield->SetObject(klass.get(), interfaces);
+    throws_sfield->SetObject(klass.get(), throws);
     klass->SetStatus(Class::kStatusInitialized);
   }
 

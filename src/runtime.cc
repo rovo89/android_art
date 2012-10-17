@@ -191,7 +191,8 @@ struct AbortState {
     if (!tll_already_held || !ml_already_held) {
       os << "Dumping all threads without appropriate locks held:"
           << (!tll_already_held ? " thread list lock" : "")
-          << (!ml_already_held ? " mutator lock" : "");
+          << (!ml_already_held ? " mutator lock" : "")
+          << "\n";
     }
     os << "All threads:\n";
     Runtime::Current()->GetThreadList()->DumpLocked(os);
@@ -717,8 +718,12 @@ void Runtime::StartDaemonThreads() {
   CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_start);
-  CHECK(!env->ExceptionCheck());
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
+                            WellKnownClasses::java_lang_Daemons_start);
+  if (env->ExceptionCheck()) {
+    env->ExceptionDescribe();
+    LOG(FATAL) << "Error starting java.lang.Daemons";
+  }
 
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
