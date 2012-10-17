@@ -373,6 +373,7 @@ endif # HOST_ARCH != x86
 
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	src/dex_file.h \
 	src/dex_instruction.h \
 	src/gc/space.h \
 	src/heap.h \

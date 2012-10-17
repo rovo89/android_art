@@ -901,10 +901,11 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right
 
 EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(const DexFile& dex_file,
                                                                  DexCache* dex_cache,
+                                                                 ClassLoader* class_loader,
                                                                  ClassLinker* linker,
                                                                  const DexFile::ClassDef& class_def)
-    : dex_file_(dex_file), dex_cache_(dex_cache), linker_(linker), array_size_(), pos_(-1),
-      type_(0) {
+    : dex_file_(dex_file), dex_cache_(dex_cache), class_loader_(class_loader), linker_(linker),
+      array_size_(), pos_(-1), type_(kByte) {
   ptr_ = dex_file.GetEncodedStaticFieldValuesArray(class_def);
   if (ptr_ == NULL) {
     array_size_ = 0;
@@ -924,7 +925,7 @@ void EncodedStaticFieldValueIterator::Next() {
   byte value_type = *ptr_++;
   byte value_arg = value_type >> kEncodedValueArgShift;
   size_t width = value_arg + 1;  // assume and correct later
-  type_ = value_type & kEncodedValueTypeMask;
+  type_ = static_cast<ValueType>(value_type & kEncodedValueTypeMask);
   switch (type_) {
   case kBoolean:
     jval_.i = (value_arg != 0) ? 1 : 0;
@@ -956,11 +957,11 @@ void EncodedStaticFieldValueIterator::Next() {
     break;
   case kString:
   case kType:
-  case kMethod:
-  case kEnum:
     jval_.i = ReadUnsignedInt(ptr_, value_arg, false);
     break;
   case kField:
+  case kMethod:
+  case kEnum:
   case kArray:
   case kAnnotation:
     UNIMPLEMENTED(FATAL) << ": type " << type_;
@@ -988,6 +989,11 @@ void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
     case kNull:    field->SetObject(NULL, NULL); break;
     case kString: {
       String* resolved = linker_->ResolveString(dex_file_, jval_.i, dex_cache_);
+      field->SetObject(NULL, resolved);
+      break;
+    }
+    case kType: {
+      Class* resolved = linker_->ResolveType(dex_file_, jval_.i, dex_cache_, class_loader_);
       field->SetObject(NULL, resolved);
       break;
     }

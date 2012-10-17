@@ -2807,7 +2807,8 @@ bool ClassLinker::InitializeStaticFields(Class* klass) {
   const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
   CHECK(dex_class_def != NULL);
   const DexFile& dex_file = kh.GetDexFile();
-  EncodedStaticFieldValueIterator it(dex_file, dex_cache, this, *dex_class_def);
+  EncodedStaticFieldValueIterator it(dex_file, dex_cache, klass->GetClassLoader(),
+                                     this, *dex_class_def);
 
   if (it.HasNext()) {
     // We reordered the fields, so we need to be able to map the field indexes to the right fields.

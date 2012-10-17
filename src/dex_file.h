@@ -1115,12 +1115,13 @@ class ClassDataItemIterator {
 };
 
 class ClassLinker;
+class ClassLoader;
 class DexCache;
 class Field;
 
 class EncodedStaticFieldValueIterator {
  public:
-  EncodedStaticFieldValueIterator(const DexFile& dex_file, DexCache* dex_cache,
+  EncodedStaticFieldValueIterator(const DexFile& dex_file, DexCache* dex_cache, ClassLoader* class_loader,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -1131,7 +1132,6 @@ class EncodedStaticFieldValueIterator {
 
   void Next();
 
- private:
   enum ValueType {
     kByte = 0x00,
     kShort = 0x02,
@@ -1151,19 +1151,22 @@ class EncodedStaticFieldValueIterator {
     kBoolean = 0x1f
   };
 
+ private:
   static const byte kEncodedValueTypeMask = 0x1f;  // 0b11111
   static const byte kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
   DexCache* dex_cache_;  // dex cache to resolve literal objects
+  ClassLoader* class_loader_;  // ClassLoader to resolve types
   ClassLinker* linker_;  // linker to resolve literal objects
   size_t array_size_;  // size of array
   size_t pos_;  // current position
   const byte* ptr_;  // pointer into encoded data array
-  byte type_;  // type of current encoded value
+  ValueType type_;  // type of current encoded value
   jvalue jval_;  // value of current encoded value
   DISALLOW_IMPLICIT_CONSTRUCTORS(EncodedStaticFieldValueIterator);
 };
+std::ostream& operator<<(std::ostream& os, const EncodedStaticFieldValueIterator::ValueType& code);
 
 class CatchHandlerIterator {
   public:
