@@ -3823,7 +3823,7 @@ void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   } else {
     DCHECK(num_shadow_frame_refs_ == 0);
     result = irb_.Runtime().EmitPushShadowFrameNoInline(shadow_frame_upcast, method_object_addr,
-                                                        num_shadow_frame_refs_);
+                                                        num_shadow_frame_refs_, 0);
   }
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 }

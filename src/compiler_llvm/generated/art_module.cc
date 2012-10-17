@@ -93,7 +93,8 @@ std::vector<Type*>FuncTy_7_args;
 FuncTy_7_args.push_back(PointerTy_1);
 FuncTy_7_args.push_back(PointerTy_2);
 FuncTy_7_args.push_back(PointerTy_1);
-FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 32));
+FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 16));
+FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 16));
 FunctionType* FuncTy_7 = FunctionType::get(
  /*Result=*/PointerTy_2,
  /*Params=*/FuncTy_7_args,

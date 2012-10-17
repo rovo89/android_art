@@ -124,10 +124,16 @@ llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_
 
 llvm::Value*
 RuntimeSupportBuilder::EmitPushShadowFrameNoInline(llvm::Value* new_shadow_frame,
-                                                   llvm::Value* method, uint32_t size) {
+                                                   llvm::Value* method, uint16_t num_refs,
+                                                   uint16_t num_vregs) {
   Function* func = GetRuntimeSupportFunction(runtime_support::PushShadowFrame);
   llvm::CallInst* call_inst =
-      irb_.CreateCall4(func, EmitGetCurrentThread(), new_shadow_frame, method, irb_.getInt32(size));
+      irb_.CreateCall5(func,
+                       EmitGetCurrentThread(),
+                       new_shadow_frame,
+                       method,
+                       irb_.getInt16(num_refs),
+                       irb_.getInt16(num_vregs));
   irb_.SetTBAA(call_inst, kTBAARuntimeInfo);
   return call_inst;
 }
