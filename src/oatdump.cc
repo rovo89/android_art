@@ -48,7 +48,7 @@ static void usage() {
           "\n");
   fprintf(stderr,
           "  --oat-file=<file.oat>: specifies an input oat filename.\n"
-          "      Example: --image=/system/framework/boot.oat\n"
+          "      Example: --oat-file=/system/framework/boot.oat\n"
           "\n");
   fprintf(stderr,
           "  --image=<file.art>: specifies an input image filename.\n"
