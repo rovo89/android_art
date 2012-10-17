@@ -1321,6 +1321,10 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
     }
   }
   /* rARG0 is ref, rARG2 is class. If ref==null, use directly as bool result */
+  RegLocation rlResult = oatGetReturn(cUnit, false);
+#if defined(TARGET_MIPS)
+  opRegCopy(cUnit, rlResult.lowReg, r_ZERO);    // store false result for if branch is taken
+#endif
   LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
   /* load object->klass_ */
   DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
@@ -1339,7 +1343,7 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
   oatFreeTemp(cUnit, rTgt);
 #else
   /* Uses branchovers */
-  loadConstant(cUnit, rARG0, 1);     // assume true
+  loadConstant(cUnit, rlResult.lowReg, 1);     // assume true
   LIR* branchover = opCmpBranch(cUnit, kCondEq, rARG1, rARG2, NULL);
 #if !defined(TARGET_X86)
   int rTgt = loadHelper(cUnit,
@@ -1356,7 +1360,6 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
   oatClobberCalleeSave(cUnit);
   /* branch targets here */
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  RegLocation rlResult = oatGetReturn(cUnit, false);
   storeValue(cUnit, rlDest, rlResult);
   branch1->target = target;
 #if !defined(TARGET_ARM)
@@ -1884,9 +1887,10 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
     storeValue(cUnit, rlDest, rlResult);
   } else {
 #if defined(TARGET_MIPS)
+    rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
     if (checkZero) {
-        genNullCheck(cUnit, rlSrc2.sRegLow, rlSrc2.lowReg, 0);
+        genImmedCheck(cUnit, kCondEq, rlSrc2.lowReg, 0, kThrowDivZero);
     }
     newLIR4(cUnit, kMipsDiv, r_HI, r_LO, rlSrc1.lowReg, rlSrc2.lowReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -1918,8 +1922,8 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
       rlResult = oatGetReturn(cUnit, false);
     else
       rlResult = oatGetReturnAlt(cUnit);
-    storeValue(cUnit, rlDest, rlResult);
 #endif
+    storeValue(cUnit, rlDest, rlResult);
   }
   return false;
 }

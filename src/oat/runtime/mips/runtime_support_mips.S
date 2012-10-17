@@ -53,30 +53,30 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
      * Does not include rSUSPEND or rSELF
-     * callee-save: $s2-$s8 + $ra, 8 total + 4 words
+     * callee-save: $s2-$s8 + $ra, 8 total + 4 words + extra args
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    addiu  $sp, $sp, -48
-    sw     $ra, 44($sp)
-    sw     $s8, 40($sp)
-    sw     $s7, 36($sp)
-    sw     $s6, 32($sp)
-    sw     $s5, 28($sp)
-    sw     $s4, 24($sp)
-    sw     $s3, 20($sp)
-    sw     $s2, 16($sp)
-    # 4 open words for args $a0-$a3, bottom will hold Method*
+    addiu  $sp, $sp, -64
+    sw     $ra, 60($sp)
+    sw     $s8, 56($sp)
+    sw     $s7, 52($sp)
+    sw     $s6, 48($sp)
+    sw     $s5, 44($sp)
+    sw     $s4, 40($sp)
+    sw     $s3, 36($sp)
+    sw     $s2, 32($sp)
+    # 4 word for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    lw     $ra, 44($sp)
-    addiu  $sp, $sp, 48
+    lw     $ra, 60($sp)
+    addiu  $sp, $sp, 64
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    lw     $ra, 44($sp)
+    lw     $ra, 60($sp)
     jr     $ra
-    addiu  $sp, $sp, 48
+    addiu  $sp, $sp, 64
 .endm
 
     /*
@@ -531,7 +531,7 @@ art_initialize_type_and_verify_access_from_code:
 art_get32_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a1, 48($sp)                  # pass referrer's Method*
+    lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
     jal    artGet32StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
@@ -546,7 +546,7 @@ art_get32_static_from_code:
 art_get64_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a1, 48($sp)                  # pass referrer's Method*
+    lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
     jal    artGet64StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
@@ -561,7 +561,7 @@ art_get64_static_from_code:
 art_get_obj_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a1, 48($sp)                  # pass referrer's Method*
+    lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
     jal    artGetObjStaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
@@ -576,13 +576,10 @@ art_get_obj_static_from_code:
 art_get32_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a2, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
     jal    artGet32InstanceFromCode      # (field_idx, Object*, referrer, Thread*, $sp)
-    sw     $t0, 16($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get64_instance_from_code
@@ -594,13 +591,10 @@ art_get32_instance_from_code:
 art_get64_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a2, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
     jal    artGet64InstanceFromCode      # (field_idx, Object*, referrer, Thread*, $sp)
-    sw     $t0, 16($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get_obj_instance_from_code
@@ -612,13 +606,10 @@ art_get64_instance_from_code:
 art_get_obj_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a2, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
     jal    artGetObjInstanceFromCode     # (field_idx, Object*, referrer, Thread*, $sp)
-    sw     $t0, 16($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_set32_static_from_code
@@ -630,13 +621,10 @@ art_get_obj_instance_from_code:
 art_set32_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a2, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
     jal    artSet32StaticFromCode        # (field_idx, new_val, referrer, Thread*, $sp)
-    sw     $t0, 16($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_set64_static_from_code
@@ -648,13 +636,10 @@ art_set32_static_from_code:
 art_set64_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a1, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a1, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*, $sp)
-    sw     $t0, 20($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_set_obj_static_from_code
@@ -666,13 +651,10 @@ art_set64_static_from_code:
 art_set_obj_static_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a2, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
     jal    artSetObjStaticFromCode       # (field_idx, new_val, referrer, Thread*, $sp)
-    sw     $t0, 16($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_set32_instance_from_code
@@ -684,13 +666,10 @@ art_set_obj_static_from_code:
 art_set32_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a3, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a3, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSet32InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*, $sp)
-    sw     $t0, 20($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_set64_instance_from_code
@@ -702,12 +681,9 @@ art_set32_instance_from_code:
 art_set64_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, Thread*, $sp)
-    sw     $t0, 20($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_set_obj_instance_from_code
@@ -719,13 +695,10 @@ art_set64_instance_from_code:
 art_set_obj_instance_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
-    lw     $a3, 48($sp)                  # pass referrer's Method*
-    move   $t0, $sp                      # save $sp
-    addiu  $sp, $sp, -16                 # make space for extra args
+    lw     $a3, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSetObjInstanceFromCode     # (field_idx, Object*, new_val, referrer, Thread*, $sp)
-    sw     $t0, 20($sp)                  # pass $sp
-    addiu  $sp, $sp, 16                  # release out args
+    sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_resolve_string_from_code
@@ -785,12 +758,9 @@ art_alloc_array_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
-    move    $t0, $sp                  # save $sp
-    addiu   $sp, $sp, -16             # make space for extra args
     # artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, $sp)
     jal     artAllocArrayFromCode
-    sw      $t0, 16($sp)              # pass $sp
-    addiu   $sp, $sp, 16              # release out args
+    sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
 
     .global art_alloc_array_from_code_with_access_check
@@ -804,12 +774,9 @@ art_alloc_array_from_code_with_access_check:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
-    move    $t0, $sp                  # save $sp
-    addiu   $sp, $sp, -16             # make space for extra args
     # artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, $sp)
     jal     artAllocArrayFromCodeWithAccessCheck
-    sw      $t0, 16($sp)              # pass $sp
-    addiu   $sp, $sp, 16              # release out args
+    sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
 
     .global art_check_and_alloc_array_from_code
@@ -822,12 +789,9 @@ art_check_and_alloc_array_from_code:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
-    move    $t0, $sp                  # save $sp
-    addiu   $sp, $sp, -16             # make space for extra args
     # artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , $sp)
     jal     artCheckAndAllocArrayFromCode
-    sw      $t0, 16($sp)              # pass $sp
-    addiu   $sp, $sp, 16              # release out args
+    sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
 
     .global art_check_and_alloc_array_from_code_with_access_check
@@ -840,12 +804,9 @@ art_check_and_alloc_array_from_code_with_access_check:
     .cpload $25
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
-    move    $t0, $sp                  # save $sp
-    addiu   $sp, $sp, -16             # make space for extra args
     # artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , $sp)
     jal     artCheckAndAllocArrayFromCodeWithAccessCheck
-    sw      $t0, 16($sp)              # pass $sp
-    addiu   $sp, $sp, 16              # release out args
+    sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
 
     .global art_test_suspend

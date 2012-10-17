@@ -126,15 +126,17 @@ ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 #if !defined(ART_USE_LLVM_COMPILER)
   // Save callee saves and ready frame for exception delivery
-  __ AddConstant(SP, SP, -48);
-  __ StoreToOffset(kStoreWord, RA, SP, 44);
-  __ StoreToOffset(kStoreWord, FP, SP, 40);
-  __ StoreToOffset(kStoreWord, S7, SP, 36);
-  __ StoreToOffset(kStoreWord, S6, SP, 32);
-  __ StoreToOffset(kStoreWord, S5, SP, 28);
-  __ StoreToOffset(kStoreWord, S4, SP, 24);
-  __ StoreToOffset(kStoreWord, S3, SP, 20);
-  __ StoreToOffset(kStoreWord, S2, SP, 16);
+  __ AddConstant(SP, SP, -64);
+  __ StoreToOffset(kStoreWord, RA, SP, 60);
+  __ StoreToOffset(kStoreWord, FP, SP, 56);
+  __ StoreToOffset(kStoreWord, S7, SP, 52);
+  __ StoreToOffset(kStoreWord, S6, SP, 48);
+  __ StoreToOffset(kStoreWord, S5, SP, 44);
+  __ StoreToOffset(kStoreWord, S4, SP, 40);
+  __ StoreToOffset(kStoreWord, S3, SP, 36);
+  __ StoreToOffset(kStoreWord, S2, SP, 32);
+  __ StoreToOffset(kStoreWord, S1, SP, 28);
+  __ StoreToOffset(kStoreWord, S0, SP, 24);
 
   // A0 is the Method* already
   __ Move(A1, S1);  // Pass Thread::Current() in A1

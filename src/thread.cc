@@ -2013,9 +2013,9 @@ static void VerifyObject(const Object* obj, void* arg) {
 
 void Thread::VerifyStack() {
   UniquePtr<Context> context(Context::Create());
-  RootCallbackVisitor visitorToCallback(visitor, arg);
+  RootCallbackVisitor visitorToCallback(VerifyObject, Runtime::Current()->GetHeap());
   ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetTraceStack(), context.get(),
-                                                  VerifyObject, Runtime::Current()->GetHeap());
+                                                  visitorToCallback);
   mapper.WalkStack();
 }
 #endif

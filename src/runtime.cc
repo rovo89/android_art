@@ -1105,7 +1105,7 @@ AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
                            (type == kSaveAll ? all_spills : 0) | (1 << art::mips::RA);
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
-                                 (type == kRefsAndArgs ? 0 : 3) /* always reserve arg space */ +
+                                 (type == kRefsAndArgs ? 0 : 5) /* reserve arg space */ +
                                  1 /* Method* */) * kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
