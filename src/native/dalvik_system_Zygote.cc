@@ -36,9 +36,7 @@
 #include <sys/prctl.h>
 #endif
 
-#if defined(HAVE_SELINUX)
 #include <selinux/android.h>
-#endif
 
 #if defined(__linux__)
 #include <sys/personality.h>
@@ -416,17 +414,17 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 
     SetSchedulerPolicy();
 
-#if defined(HAVE_SELINUX) && defined(HAVE_ANDROID_OS)
+#if defined(HAVE_ANDROID_OS)
     {
       ScopedUtfChars se_info(env, java_se_info);
-      CHECK(se_info != NULL);
+      CHECK(se_info.c_str() != NULL);
       ScopedUtfChars se_name(env, java_se_name);
-      CHECK(se_name != NULL);
-      rc = selinux_android_setcontext(uid, is_system_server, se_info, se_name);
+      CHECK(se_name.c_str() != NULL);
+      rc = selinux_android_setcontext(uid, is_system_server, se_info.c_str(), se_name.c_str());
       if (rc == -1) {
         PLOG(FATAL) << "selinux_android_setcontext(" << uid << ", "
                     << (is_system_server ? "true" : "false") << ", "
-                    << "\"" << se_info << "\", \"" << se_name << "\") failed";
+                    << "\"" << se_info.c_str() << "\", \"" << se_name.c_str() << "\") failed";
       }
     }
 #else
