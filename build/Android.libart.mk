@@ -17,17 +17,9 @@
 LIBART_CFLAGS :=
 ifeq ($(ART_USE_LLVM_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_LLVM_COMPILER=1
-  ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
-    LIBART_CFLAGS += -DART_USE_DEXLANG_FRONTEND=1
-  endif
 endif
-
-ifeq ($(ART_USE_GREENLAND_COMPILER),true)
-  LIBART_CFLAGS += -DART_USE_GREENLAND_COMPILER=1
-endif
-
-ifeq ($(ART_USE_QUICK_COMPILER),true)
-  LIBART_CFLAGS += -DART_USE_QUICK_COMPILER=1
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 # $(1): target or host
@@ -115,17 +107,12 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
       LOCAL_LDLIBS += -lrt
     endif
   endif
+  include $(LLVM_GEN_INTRINSICS_MK)
   ifeq ($$(art_target_or_host),target)
-    ifeq ($(ART_REQUIRE_LLVM),true)
-      include $(LLVM_GEN_INTRINSICS_MK)
-      include $(LLVM_DEVICE_BUILD_MK)
-    endif
+    include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    ifeq ($(ART_REQUIRE_LLVM),true)
-      include $(LLVM_GEN_INTRINSICS_MK)
-      include $(LLVM_HOST_BUILD_MK)
-    endif
+    include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

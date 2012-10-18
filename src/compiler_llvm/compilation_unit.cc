@@ -154,7 +154,7 @@ namespace compiler_llvm {
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper,
                       IRBuilder& irb);
-#elif defined(ART_USE_QUICK_COMPILER)
+#elif defined(ART_USE_PORTABLE_COMPILER)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
@@ -166,7 +166,7 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
                                  size_t cunit_idx)
 : compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
-#if !defined(ART_USE_QUICK_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   context_.reset(new llvm::LLVMContext());
   module_ = new llvm::Module("art", *context_);
 #else
@@ -210,7 +210,7 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 CompilationUnit::~CompilationUnit() {
 #if defined(ART_USE_DEXLANG_FRONTEND)
   delete dex_lang_ctx_;
-#elif defined(ART_USE_QUICK_COMPILER)
+#elif defined(ART_USE_PORTABLE_COMPILER)
   llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
   CHECK(llvm_context != NULL);
 #endif
@@ -330,7 +330,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
     // regular FunctionPass.
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
-#elif defined(ART_USE_QUICK_COMPILER)
+#elif defined(ART_USE_PORTABLE_COMPILER)
     fpm.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                   compiler_, oat_compilation_unit_));
 #endif
@@ -340,7 +340,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
     llvm::FunctionPassManager fpm2(module_);
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
-#elif defined(ART_USE_QUICK_COMPILER)
+#elif defined(ART_USE_PORTABLE_COMPILER)
     fpm2.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                    compiler_, oat_compilation_unit_));
 #endif

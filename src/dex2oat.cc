@@ -83,11 +83,9 @@ static void Usage(const char* fmt, ...) {
   UsageError("      to the file descriptor specified by --oat-fd.");
   UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
   UsageError("");
-#if defined(ART_USE_LLVM_COMPILER)
   UsageError("  --bitcode=<file.bc>: specifies the optional bitcode filename.");
   UsageError("      Example: --bitcode=/system/framework/boot.bc");
   UsageError("");
-#endif
   UsageError("  --image=<file.art>: specifies the output image filename.");
   UsageError("      Example: --image=/system/framework/boot.art");
   UsageError("");
@@ -111,6 +109,10 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --instruction-set=x86");
   UsageError("      Default: arm");
   UsageError("");
+  UsageError("  --compiler-backend=(Quick|QuickGBC|Portable): select compiler backend");
+  UsageError("      set.");
+  UsageError("      Example: --instruction-set=Portable");
+  UsageError("      Default: Quick");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -122,14 +124,15 @@ static void Usage(const char* fmt, ...) {
 
 class Dex2Oat {
  public:
-  static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, InstructionSet instruction_set,
-                         size_t thread_count, bool support_debugging)
+  static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, CompilerBackend compiler_backend,
+                     InstructionSet instruction_set, size_t thread_count, bool support_debugging)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
-    *p_dex2oat = new Dex2Oat(Runtime::Current(), instruction_set, thread_count, support_debugging);
+    *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count,
+                             support_debugging);
     return true;
   }
 
@@ -209,9 +212,7 @@ class Dex2Oat {
                                 const std::string* host_prefix,
                                 const std::vector<const DexFile*>& dex_files,
                                 File* oat_file,
-#if defined(ART_USE_LLVM_COMPILER)
                                 const std::string& bitcode_filename,
-#endif
                                 bool image,
                                 const std::set<std::string>* image_classes,
                                 bool dump_stats,
@@ -234,7 +235,8 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<Compiler> compiler(new Compiler(instruction_set_,
+    UniquePtr<Compiler> compiler(new Compiler(compiler_backend_,
+                                              instruction_set_,
                                               image,
                                               thread_count_,
                                               support_debugging_,
@@ -242,9 +244,9 @@ class Dex2Oat {
                                               dump_stats,
                                               dump_timings));
 
-#if defined(ART_USE_LLVM_COMPILER)
-    compiler->SetBitcodeFileName(bitcode_filename);
-#endif
+    if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+      compiler->SetBitcodeFileName(bitcode_filename);
+    }
 
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
@@ -295,9 +297,10 @@ class Dex2Oat {
   }
 
  private:
-  explicit Dex2Oat(Runtime* runtime, InstructionSet instruction_set, size_t thread_count,
-                   bool support_debugging)
-      : instruction_set_(instruction_set),
+  explicit Dex2Oat(Runtime* runtime, CompilerBackend compiler_backend, InstructionSet instruction_set,
+                   size_t thread_count, bool support_debugging)
+      : compiler_backend_(compiler_backend),
+        instruction_set_(instruction_set),
         runtime_(runtime),
         thread_count_(thread_count),
         support_debugging_(support_debugging),
@@ -431,6 +434,8 @@ class Dex2Oat {
     return false;
   }
 
+  const CompilerBackend compiler_backend_;
+
   const InstructionSet instruction_set_;
 
   Runtime* runtime_;
@@ -487,9 +492,7 @@ static int dex2oat(int argc, char** argv) {
   std::string oat_filename;
   std::string oat_location;
   int oat_fd = -1;
-#if defined(ART_USE_LLVM_COMPILER)
   std::string bitcode_filename;
-#endif
   const char* image_classes_filename = NULL;
   std::string image_filename;
   std::string boot_image_filename;
@@ -498,6 +501,13 @@ static int dex2oat(int argc, char** argv) {
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
   bool support_debugging = false;
+#if defined(ART_USE_PORTABLE_COMPILER)
+  CompilerBackend compiler_backend = kPortable;
+#elif defined(ART_USE_LLVM_COMPILER)
+  CompilerBackend compiler_backend = kIceland;
+#else
+  CompilerBackend compiler_backend = kQuick;
+#endif
 #if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
 #elif defined(__i386__)
@@ -543,10 +553,8 @@ static int dex2oat(int argc, char** argv) {
       }
     } else if (option.starts_with("--oat-location=")) {
       oat_location = option.substr(strlen("--oat-location=")).data();
-#if defined(ART_USE_LLVM_COMPILER)
     } else if (option.starts_with("--bitcode=")) {
       bitcode_filename = option.substr(strlen("--bitcode=")).data();
-#endif
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--image-classes=")) {
@@ -570,6 +578,18 @@ static int dex2oat(int argc, char** argv) {
         instruction_set = kMips;
       } else if (instruction_set_str == "x86") {
         instruction_set = kX86;
+      }
+    } else if (option.starts_with("--compiler-backend=")) {
+      StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
+      if (backend_str == "Quick") {
+        compiler_backend = kQuick;
+      } else if (backend_str == "QuickGBC") {
+        compiler_backend = kQuickGBC;
+      } else if (backend_str == "Iceland") {
+        // TODO: remove this when Portable/Iceland merge complete
+        compiler_backend = kIceland;
+      } else if (backend_str == "Portable") {
+        compiler_backend = kPortable;
       }
     } else if (option == "--runtime-arg") {
       if (++i >= argc) {
@@ -704,7 +724,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, instruction_set, thread_count, support_debugging)) {
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, support_debugging)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
@@ -755,9 +775,7 @@ static int dex2oat(int argc, char** argv) {
                                                             host_prefix.get(),
                                                             dex_files,
                                                             oat_file.get(),
-#if defined(ART_USE_LLVM_COMPILER)
                                                             bitcode_filename,
-#endif
                                                             image,
                                                             image_classes.get(),
                                                             dump_stats,

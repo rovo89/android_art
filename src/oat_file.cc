@@ -70,11 +70,7 @@ OatFile::~OatFile() {
 
 bool OatFile::Map(File& file,
                   byte* requested_base,
-#if defined(ART_USE_LLVM_COMPILER)
-                  RelocationBehavior reloc,
-#else
                   RelocationBehavior /*UNUSED*/,
-#endif
                   bool writable) {
   OatHeader oat_header;
   bool success = file.ReadFully(&oat_header, sizeof(oat_header));

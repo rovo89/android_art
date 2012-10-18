@@ -38,14 +38,15 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 namespace art {
-void oatCompileMethodToGBC(Compiler& compiler,
-                           const DexFile::CodeItem* code_item,
-                           uint32_t access_flags, InvokeType invoke_type,
-                           uint32_t method_idx, jobject class_loader,
-                           const DexFile& dex_file,
-                           LLVMInfo* llvm_info);
+void oatCompileMethod(Compiler& compiler,
+                      const CompilerBackend compilerBackend,
+                      const DexFile::CodeItem* code_item,
+                      uint32_t access_flags, InvokeType invoke_type,
+                      uint32_t method_idx, jobject class_loader,
+                      const DexFile& dex_file,
+                      LLVMInfo* llvm_info);
 }
 #endif
 
@@ -152,7 +153,7 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
   return new CompiledMethod(cunit->GetInstructionSet(),
                             cunit->GetCompiledCode());
-#elif defined(ART_USE_QUICK_COMPILER)
+#elif defined(ART_USE_PORTABLE_COMPILER)
   std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
                                       *oat_compilation_unit->GetDexFile()));
   if (insn_set_ == kX86) {
@@ -162,16 +163,17 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
     return method_compiler->Compile();
   } else {
-    // Use quick
-    oatCompileMethodToGBC(*compiler_,
-                          oat_compilation_unit->GetCodeItem(),
-                          oat_compilation_unit->access_flags_,
-                          invoke_type,
-                          oat_compilation_unit->GetDexMethodIndex(),
-                          oat_compilation_unit->GetClassLoader(),
-                          *oat_compilation_unit->GetDexFile(),
-                          cunit->GetQuickContext()
-                          );
+    // TODO: consolidate ArtCompileMethods
+    oatCompileMethod(*compiler_,
+                     kPortable,
+                     oat_compilation_unit->GetCodeItem(),
+                     oat_compilation_unit->access_flags_,
+                     invoke_type,
+                     oat_compilation_unit->GetDexMethodIndex(),
+                     oat_compilation_unit->GetClassLoader(),
+                     *oat_compilation_unit->GetDexFile(),
+                     cunit->GetQuickContext()
+                     );
 
     cunit->SetCompiler(compiler_);
     cunit->SetOatCompilationUnit(oat_compilation_unit);

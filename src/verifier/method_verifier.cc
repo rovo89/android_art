@@ -32,7 +32,7 @@
 #include "runtime.h"
 #include "stringpiece.h"
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
 #include "greenland/backend_types.h"
 #include "greenland/inferred_reg_category_map.h"
 #endif
@@ -962,7 +962,7 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   return true;
 }
 
-#if !defined(ART_USE_LLVM_COMPILER) && !defined(ART_USE_GREENLAND_COMPILER)
+#if !defined(ART_USE_LLVM_COMPILER)
 static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vector<uint8_t>& gc_map) {
   std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
   length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
@@ -1012,7 +1012,7 @@ bool MethodVerifier::VerifyCodeFlow() {
 
   Compiler::MethodReference ref(dex_file_, method_idx_);
 
-#if !defined(ART_USE_LLVM_COMPILER) && !defined(ART_USE_GREENLAND_COMPILER)
+#if !defined(ART_USE_LLVM_COMPILER)
 
   /* Generate a register map and add it to the method. */
   UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
@@ -1026,7 +1026,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
-#else  // defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#else  // defined(ART_USE_LLVM_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
   const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
   verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
@@ -3262,7 +3262,7 @@ MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
 Mutex* MethodVerifier::inferred_reg_category_maps_lock_ = NULL;
 MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_category_maps_ = NULL;
 #endif
@@ -3281,7 +3281,7 @@ void MethodVerifier::Init() {
     rejected_classes_ = new MethodVerifier::RejectedClassesTable;
   }
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
   inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
   {
     MutexLock mu(self, *inferred_reg_category_maps_lock_);
@@ -3309,7 +3309,7 @@ void MethodVerifier::Shutdown() {
   delete rejected_classes_lock_;
   rejected_classes_lock_ = NULL;
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
   {
     MutexLock mu(self, *inferred_reg_category_maps_lock_);
     STLDeleteValues(inferred_reg_category_maps_);
@@ -3334,7 +3334,7 @@ bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
 const greenland::InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   uint16_t regs_size = code_item_->registers_size_;

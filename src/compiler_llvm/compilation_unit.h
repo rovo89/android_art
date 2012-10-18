@@ -28,7 +28,7 @@
 #include "runtime_support_func.h"
 #include "safe_map.h"
 
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 # include "compiler/Dalvik.h"
 # include "compiler.h"
 # include "oat_compilation_unit.h"
@@ -90,7 +90,7 @@ class CompilationUnit {
     bitcode_filename_ = bitcode_filename;
   }
 
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   LLVMInfo* GetQuickContext() const {
     return llvm_info_.get();
   }
@@ -124,7 +124,7 @@ class CompilationUnit {
 #if defined(ART_USE_DEXLANG_FRONTEND)
   greenland::DexLang::Context* dex_lang_ctx_;
 #endif
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   UniquePtr<LLVMInfo> llvm_info_;
   Compiler* compiler_;
   OatCompilationUnit* oat_compilation_unit_;

@@ -24,7 +24,6 @@ $(info Enabling ART_USE_PORTABLE_COMPILER because WITH_ART_USE_PORTABLE_COMPILER
 ART_USE_PORTABLE_COMPILER := true
 endif
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-WITH_ART_USE_QUICK_COMPILER := true
 WITH_ART_USE_LLVM_COMPILER := true
 endif
 
@@ -39,48 +38,8 @@ $(info Enabling ART_USE_LLVM_COMPILER because WITH_ART_USE_LLVM_COMPILER=true)
 ART_USE_LLVM_COMPILER := true
 endif
 
-ART_USE_DEXLANG_FRONTEND := false
-ifeq ($(ART_USE_LLVM_COMPILER),true)
-  ifneq ($(wildcard art/USE_DEXLANG_FRONTEND),)
-  $(info Enabling ART_USE_DEXLANG_FRONTEND because of existence of art/USE_DEXLANG_FRONTEND)
-  ART_USE_DEXLANG_FRONTEND := true
-  endif
-  ifeq ($(WITH_ART_USE_DEXLANG_FRONTEND),true)
-  $(info Enabling ART_USE_DEXLANG_FRONTEND because WITH_ART_USE_DEXLANG_FRONTEND=true)
-  ART_USE_DEXLANG_FRONTEND := true
-  endif
-endif
-
-ART_USE_GREENLAND_COMPILER := false
-ifneq ($(wildcard art/USE_GREENLAND_COMPILER),)
-$(info Enabling ART_USE_GREENLAND_COMPILER because of existence of art/USE_GREENLAND_COMPILER)
-ART_USE_GREENLAND_COMPILER := true
-endif
-ifeq ($(WITH_ART_USE_GREENLAND_COMPILER),true)
-$(info Enabling ART_USE_GREENLAND_COMPILER because WITH_ART_USE_GREENLAND_COMPILER=true)
-ART_USE_GREENLAND_COMPILER := true
-endif
-
-ART_USE_QUICK_COMPILER := false
-ifneq ($(wildcard art/USE_QUICK_COMPILER),)
-ART_USE_QUICK_COMPILER := true
-$(info Enabling ART_USE_QUICK_COMPILER because of existence of art/USE_QUICK_COMPILER)
-endif
-ifeq ($(WITH_ART_USE_QUICK_COMPILER),true)
-ART_USE_QUICK_COMPILER := true
-$(info Enabling ART_USE_QUICK_COMPILER because WITH_ART_USE_QUICK_COMPILER=true)
-endif
-
-ifeq ($(words $(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER))),0)
-ART_REQUIRE_LLVM := false
-else #!0
-ART_REQUIRE_LLVM := true
-endif #!0
-
-ifeq ($(ART_REQUIRE_LLVM),true)
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
-endif
 
 # directory used for gtests on device
 ART_NATIVETEST_DIR := /data/nativetest/art
@@ -273,18 +232,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/greenland/inferred_reg_category_map.cc \
 	src/compiler_llvm/procedure_linkage_table.cc \
 	src/compiler_llvm/runtime_support_llvm.cc
-endif
-
-ifeq ($(ART_USE_GREENLAND_COMPILER),true)
-LIBART_COMMON_SRC_FILES += \
-	src/greenland/inferred_reg_category_map.cc \
-	src/greenland/runtime_entry_points.cc \
-	src/greenland/runtime/support_alloc.cc \
-	src/greenland/runtime/support_cast.cc \
-	src/greenland/runtime/support_dexcache.cc \
-	src/greenland/runtime/support_exception.cc \
-	src/greenland/runtime/support_field.cc \
-	src/greenland/runtime/support_thread.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \

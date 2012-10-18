@@ -35,9 +35,6 @@
 #include "stack_indirect_reference_table.h"
 #include "trace.h"
 #include "UniquePtr.h"
-#ifdef ART_USE_GREENLAND_COMPILER
-#include "greenland/runtime_entry_points.h"
-#endif
 
 namespace art {
 
@@ -782,9 +779,6 @@ class PACKED Thread {
   // Runtime support function pointers
   // TODO: move this near the top, since changing its offset requires all oats to be recompiled!
   EntryPoints entrypoints_;
-#ifdef ART_USE_GREENLAND_COMPILER
-  RuntimeEntryPoints runtime_entry_points_;
-#endif
 
  private:
   // How many times has our pthread key's destructor been called?

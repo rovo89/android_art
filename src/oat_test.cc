@@ -65,7 +65,15 @@ TEST_F(OatTest, WriteRead) {
 
   jobject class_loader = NULL;
   if (compile) {
-    compiler_.reset(new Compiler(kThumb2, false, 2, false, NULL, true, true));
+    // TODO: make selectable
+#if defined(ART_USE_PORTABLE_COMPILER)
+    CompilerBackend compiler_backend = kPortable;
+#elif defined(ART_USE_LLVM_COMPILER)
+    CompilerBackend compiler_backend = kIceland; // TODO: remove
+#else
+    CompilerBackend compiler_backend = kQuick;
+#endif
+    compiler_.reset(new Compiler(compiler_backend, kThumb2, false, 2, false, NULL, true, true));
     compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
 

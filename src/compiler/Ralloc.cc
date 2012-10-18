@@ -485,19 +485,12 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
       }
   }
 
-#if defined(ART_USE_QUICK_COMPILER)
   if (!cUnit->genBitcode) {
     /* Remap names */
     oatDataFlowAnalysisDispatcher(cUnit, remapNames,
                                   kPreOrderDFSTraversal,
                                   false /* isIterative */);
   }
-#else
-  /* Remap names */
-  oatDataFlowAnalysisDispatcher(cUnit, remapNames,
-                                kPreOrderDFSTraversal,
-                                false /* isIterative */);
-#endif
 
   /* Do type & size inference pass */
   oatDataFlowAnalysisDispatcher(cUnit, inferTypeAndSize,

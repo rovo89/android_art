@@ -40,9 +40,15 @@ class CompilationContext;
 class OatCompilationUnit;
 class TimingLogger;
 
+enum CompilerBackend {
+  kQuick,
+  kQuickGBC,
+  kPortable,
+  kIceland  // Temporary - remove soon
+};
+
 // Thread-local storage compiler worker threads
 class CompilerTls {
-#if defined(ART_USE_QUICK_COMPILER)
   public:
     CompilerTls() : llvm_info_(NULL) {}
     ~CompilerTls() {}
@@ -53,7 +59,6 @@ class CompilerTls {
 
   private:
     void* llvm_info_;
-#endif
 };
 
 class Compiler {
@@ -63,9 +68,9 @@ class Compiler {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                    bool support_debugging, const std::set<std::string>* image_classes,
-                    bool dump_stats, bool dump_timings);
+  explicit Compiler(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
+                    size_t thread_count, bool support_debugging,
+                    const std::set<std::string>* image_classes, bool dump_stats, bool dump_timings);
 
   ~Compiler();
 
@@ -82,6 +87,10 @@ class Compiler {
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
+  }
+
+  CompilerBackend GetCompilerBackend() const {
+    return compiler_backend_;
   }
 
   bool IsImage() const {
@@ -119,9 +128,7 @@ class Compiler {
   const CompiledInvokeStub* FindInvokeStub(const std::string& key) const
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
 
-#if defined(ART_USE_LLVM_COMPILER)
   const CompiledInvokeStub* FindProxyStub(const char* shorty) const;
-#endif
 
   // Callbacks from compiler to see what runtime checks must be generated.
 
@@ -175,9 +182,7 @@ class Compiler {
                       size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_QUICK_COMPILER)
   void SetBitcodeFileName(std::string const& filename);
-#endif
 
   void SetCompilerContext(void* compiler_context) {
     compiler_context_ = compiler_context;
@@ -298,12 +303,12 @@ class Compiler {
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub)
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
 
-#if defined(ART_USE_LLVM_COMPILER)
   void InsertProxyStub(const char* shorty, const CompiledInvokeStub* compiled_proxy_stub);
-#endif
 
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
+
+  CompilerBackend compiler_backend_;
 
   InstructionSet instruction_set_;
 
@@ -322,12 +327,10 @@ class Compiler {
   mutable Mutex compiled_invoke_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   InvokeStubTable compiled_invoke_stubs_ GUARDED_BY(compiled_invoke_stubs_lock_);
 
-#if defined(ART_USE_LLVM_COMPILER)
   typedef SafeMap<std::string, const CompiledInvokeStub*> ProxyStubTable;
   // Proxy stubs created for proxy invocation delegation
   mutable Mutex compiled_proxy_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ProxyStubTable compiled_proxy_stubs_ GUARDED_BY(compiled_proxy_stubs_lock_);
-#endif
 
   bool image_;
   size_t thread_count_;
@@ -341,10 +344,8 @@ class Compiler {
 
   const std::set<std::string>* image_classes_;
 
-#if defined(ART_USE_LLVM_COMPILER)
   typedef void (*CompilerCallbackFn)(Compiler& compiler);
   typedef MutexLock* (*CompilerMutexLockFn)(Compiler& compiler);
-#endif
 
   void* compiler_library_;
 
@@ -367,7 +368,6 @@ class Compiler {
 
   pthread_key_t tls_key_;
 
-#if defined(ART_USE_LLVM_COMPILER)
   typedef CompiledInvokeStub* (*CreateProxyStubFn)
       (Compiler& compiler, const char* shorty, uint32_t shorty_len);
   CreateProxyStubFn create_proxy_stub_;
@@ -382,7 +382,6 @@ class Compiler {
   typedef const AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
       (const Compiler& compiler, const CompiledInvokeStub* cm, const AbstractMethod* method);
   CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
-#endif
 
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

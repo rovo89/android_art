@@ -231,7 +231,7 @@ class AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
-static std::string MakeCompilerSoName(InstructionSet instruction_set) {
+static std::string MakeCompilerSoName(CompilerBackend compiler_backend, InstructionSet instruction_set) {
   // TODO: is the ARM/Thumb2 instruction set distinction really buying us anything,
   // or just causing hassle like this?
   if (instruction_set == kThumb2) {
@@ -249,13 +249,12 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
   const char* suffix = (kIsDebugBuild ? "d" : "");
 
   // Work out the filename for the compiler library.
-#if defined(ART_USE_LLVM_COMPILER)
-  std::string library_name(StringPrintf("art%s-compiler-llvm", suffix));
-#elif defined(ART_USE_GREENLAND_COMPILER)
-  std::string library_name(StringPrintf("art%s-compiler-greenland", suffix));
-#else
-  std::string library_name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
-#endif
+  std::string library_name;
+  if ((compiler_backend == kPortable) || (compiler_backend == kIceland)) {
+    library_name = StringPrintf("art%s-compiler-llvm", suffix);
+  } else {
+    library_name = StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str());
+  }
   std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
 
 #if defined(__APPLE__)
@@ -291,16 +290,15 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
   return fn;
 }
 
-Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                   bool support_debugging, const std::set<std::string>* image_classes,
+Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
+                   size_t thread_count, bool support_debugging, const std::set<std::string>* image_classes,
                    bool dump_stats, bool dump_timings)
-    : instruction_set_(instruction_set),
+    : compiler_backend_(compiler_backend),
+      instruction_set_(instruction_set),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
-#if defined(ART_USE_LLVM_COMPILER)
       compiled_proxy_stubs_lock_("compiled proxy stubs lock"),
-#endif
       image_(image),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
@@ -315,7 +313,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       jni_compiler_(NULL),
       create_invoke_stub_(NULL)
 {
-  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
+  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_, instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
     LOG(FATAL) << "Couldn't find compiler library " << compiler_so_name << ": " << dlerror();
@@ -324,36 +322,29 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
 
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  // Initialize compiler_context_
+  // TODO: more work needed to combine initializations and allow per-method backend selection
   typedef void (*InitCompilerContextFn)(Compiler&);
-
-  InitCompilerContextFn init_compiler_context =
-    FindFunction<void (*)(Compiler&)>(compiler_so_name,
-                                      compiler_library_,
-                                      "ArtInitCompilerContext");
+  InitCompilerContextFn init_compiler_context;
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+    // Initialize compiler_context_
+    init_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                                  compiler_library_, "ArtInitCompilerContext");
+    compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
+  } else {
+    init_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                                  compiler_library_, "ArtInitQuickCompilerContext");
+    compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtQuickCompileMethod");
+  }
 
   init_compiler_context(*this);
-#elif defined(ART_USE_QUICK_COMPILER)
-  // Initialize compiler_context_
-  typedef void (*InitCompilerContextFn)(Compiler&);
 
-  InitCompilerContextFn init_compiler_context =
-    FindFunction<void (*)(Compiler&)>(compiler_so_name,
-                                      compiler_library_,
-                                      "ArtInitQuickCompilerContext");
-
-  init_compiler_context(*this);
-#endif
-
-  compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
   jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
   create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
 
-#if defined(ART_USE_LLVM_COMPILER)
-  create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
-      compiler_so_name, compiler_library_, "ArtCreateProxyStub");
-#endif
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+    create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
+        compiler_so_name, compiler_library_, "ArtCreateProxyStub");
+  }
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -375,12 +366,10 @@ Compiler::~Compiler() {
     MutexLock mu(self, compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
   }
-#if defined(ART_USE_LLVM_COMPILER)
   {
     MutexLock mu(self, compiled_proxy_stubs_lock_);
     STLDeleteValues(&compiled_proxy_stubs_);
   }
-#endif
   {
     MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&code_to_patch_);
@@ -390,34 +379,21 @@ Compiler::~Compiler() {
     STLDeleteElements(&methods_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
-#if defined(ART_USE_LLVM_COMPILER)
-  // Uninitialize compiler_context_
   typedef void (*UninitCompilerContextFn)(Compiler&);
-
-  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
-
-  UninitCompilerContextFn uninit_compiler_context =
-    FindFunction<void (*)(Compiler&)>(compiler_so_name,
-                                      compiler_library_,
-                                      "ArtUnInitCompilerContext");
-
-  uninit_compiler_context(*this);
-#elif defined(ART_USE_QUICK_COMPILER)
+  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_, instruction_set_));
+  UninitCompilerContextFn uninit_compiler_context;
   // Uninitialize compiler_context_
-  typedef void (*UninitCompilerContextFn)(Compiler&);
-
-  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
-
-  UninitCompilerContextFn uninit_compiler_context =
-    FindFunction<void (*)(Compiler&)>(compiler_so_name,
-                                      compiler_library_,
-                                      "ArtUnInitQuickCompilerContext");
-
+  // TODO: rework to combine initialization/uninitialization
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+    uninit_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                                    compiler_library_, "ArtUnInitCompilerContext");
+  } else {
+    uninit_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                                    compiler_library_, "ArtUnInitQuickCompilerContext");
+  }
   uninit_compiler_context(*this);
-#endif
   if (compiler_library_ != NULL) {
     VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
-#if !defined(ART_USE_QUICK_COMPILER)
     /*
      * FIXME: Temporary workaround
      * Apparently, llvm is adding dctors to atexit, but if we unload
@@ -430,7 +406,6 @@ Compiler::~Compiler() {
      * What's the right thing to do here?
      */
     dlclose(compiler_library_);
-#endif
   }
 }
 
@@ -839,15 +814,15 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   // invoked, so this can be passed to the out-of-line runtime support code.
   direct_code = 0;
   direct_method = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
-    return;
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+    if (sharp_type != kStatic && sharp_type != kDirect) {
+      return;
+    }
+  } else {
+    if (sharp_type != kStatic && sharp_type != kDirect && sharp_type != kInterface) {
+      return;
+    }
   }
-#else
-  if (sharp_type != kStatic && sharp_type != kDirect) {
-    return;
-  }
-#endif
   bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
   if (!method_code_in_boot) {
     return;
@@ -1472,8 +1447,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     InsertInvokeStub(key, compiled_invoke_stub);
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
-  if (!is_static) {
+  if (((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) && !is_static) {
     const CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
     if (compiled_proxy_stub == NULL) {
       compiled_proxy_stub = (*create_proxy_stub_)(*this, shorty, shorty_len);
@@ -1481,7 +1455,6 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
       InsertProxyStub(shorty, compiled_proxy_stub);
     }
   }
-#endif
 
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
@@ -1518,7 +1491,6 @@ void Compiler::InsertInvokeStub(const std::string& key,
   }
 }
 
-#if defined(ART_USE_LLVM_COMPILER)
 const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
   MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
@@ -1541,7 +1513,6 @@ void Compiler::InsertProxyStub(const char* shorty,
     compiled_proxy_stubs_.Put(shorty, compiled_proxy_stub);
   }
 }
-#endif
 
 CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
   MutexLock mu(Thread::Current(), compiled_classes_lock_);
@@ -1563,17 +1534,15 @@ CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
   return it->second;
 }
 
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_QUICK_COMPILER)
 void Compiler::SetBitcodeFileName(std::string const& filename) {
   typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
 
   SetBitcodeFileNameFn set_bitcode_file_name =
-    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(instruction_set_),
+    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(compiler_backend_, instruction_set_),
                                        compiler_library_,
                                        "compilerLLVMSetBitcodeFileName");
 
   set_bitcode_file_name(*this, filename);
 }
-#endif
 
 }  // namespace art

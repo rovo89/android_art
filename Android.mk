@@ -87,9 +87,6 @@ include $(build_path)/Android.libart-compiler.mk
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 include $(build_path)/Android.libart-compiler-llvm.mk
 endif
-ifeq ($(ART_USE_GREENLAND_COMPILER),true)
-include $(build_path)/Android.libart-compiler-greenland.mk
-endif
 include $(build_path)/Android.executable.mk
 include $(build_path)/Android.oat.mk
 

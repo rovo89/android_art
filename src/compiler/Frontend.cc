@@ -21,7 +21,6 @@
 #include "object.h"
 #include "runtime.h"
 
-#if defined(ART_USE_QUICK_COMPILER)
 #include <llvm/Support/Threading.h>
 
 namespace {
@@ -32,11 +31,9 @@ namespace {
     llvm::llvm_start_multithreaded();
   }
 }
-#endif
 
 namespace art {
 
-#if defined(ART_USE_QUICK_COMPILER)
 LLVMInfo::LLVMInfo() {
 #if !defined(ART_USE_LLVM_COMPILER)
   pthread_once(&llvm_multi_init, InitializeLLVMForQuick);
@@ -62,7 +59,6 @@ extern "C" void ArtUnInitQuickCompilerContext(art::Compiler& compiler) {
   delete reinterpret_cast<LLVMInfo*>(compiler.GetCompilerContext());
   compiler.SetCompilerContext(NULL);
 }
-#endif
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 | // Disable specific optimizations
@@ -94,10 +90,8 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugShowNops) |
   //(1 << kDebugCountOpcodes) |
   //(1 << kDebugDumpCheckStats) |
-#if defined(ART_USE_QUICK_COMPILER)
   //(1 << kDebugDumpBitcodeFile) |
   //(1 << kDebugVerifyBitcode) |
-#endif
   0;
 
 inline bool contentIsInsn(const u2* codePtr) {
@@ -788,14 +782,12 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
 }
 
 CompiledMethod* compileMethod(Compiler& compiler,
+                              const CompilerBackend compilerBackend,
                               const DexFile::CodeItem* code_item,
                               uint32_t access_flags, InvokeType invoke_type,
                               uint32_t method_idx, jobject class_loader,
-                              const DexFile& dex_file
-#if defined(ART_USE_QUICK_COMPILER)
-                              , LLVMInfo* llvm_info,
-                              bool gbcOnly
-#endif
+                              const DexFile& dex_file,
+                              LLVMInfo* llvm_info
                              )
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
@@ -824,16 +816,18 @@ CompiledMethod* compileMethod(Compiler& compiler,
   cUnit->numIns = code_item->ins_size_;
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
-#if defined(ART_USE_QUICK_COMPILER)
   DCHECK((cUnit->instructionSet == kThumb2) ||
          (cUnit->instructionSet == kX86) ||
          (cUnit->instructionSet == kMips));
-  cUnit->llvm_info = llvm_info;
-  if (cUnit->instructionSet == kThumb2) {
-    // TODO: remove this once x86 is tested
+  if ((compilerBackend == kQuickGBC) || (compilerBackend == kPortable)) {
     cUnit->genBitcode = true;
   }
-#endif
+  DCHECK_NE(compilerBackend, kIceland);  // TODO: remove when Portable/Iceland merge complete
+  // TODO: remove this once x86 is tested
+  if (cUnit->genBitcode && (cUnit->instructionSet != kThumb2)) {
+    UNIMPLEMENTED(WARNING) << "GBC generation untested for non-Thumb targets";
+  }
+  cUnit->llvm_info = llvm_info;
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
   // TODO: set this from command line
@@ -848,13 +842,9 @@ CompiledMethod* compileMethod(Compiler& compiler,
     cUnit->printMe = VLOG_IS_ON(compiler) ||
         (cUnit->enableDebug & (1 << kDebugVerbose));
   }
-#if defined(ART_USE_QUICK_COMPILER)
-  if (cUnit->genBitcode) {
 #ifndef NDEBUG
+  if (cUnit->genBitcode) {
     cUnit->enableDebug |= (1 << kDebugVerifyBitcode);
-#endif
-    //cUnit->printMe = true;
-    //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
   }
 #endif
 
@@ -1098,21 +1088,14 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
   }
 
   if (cUnit->qdMode) {
-#if !defined(ART_USE_QUICK_COMPILER)
     // Bitcode generation requires full dataflow analysis
-    cUnit->disableDataflow = true;
-#endif
+    cUnit->disableDataflow = !cUnit->genBitcode;
     // Disable optimization which require dataflow/ssa
-    cUnit->disableOpt |=
-#if !defined(ART_USE_QUICK_COMPILER)
-        (1 << kNullCheckElimination) |
-#endif
-        (1 << kBBOpt) |
-        (1 << kPromoteRegs);
+    cUnit->disableOpt |= (1 << kBBOpt) | (1 << kPromoteRegs) | (1 << kNullCheckElimination);
     if (cUnit->printMe) {
         LOG(INFO) << "QD mode enabled: "
                   << PrettyMethod(method_idx, dex_file)
-                  << " too big: " << cUnit->numBlocks;
+                  << " num blocks: " << cUnit->numBlocks;
     }
   }
 
@@ -1168,12 +1151,11 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
   /* Allocate Registers using simple local allocation scheme */
   oatSimpleRegAlloc(cUnit.get());
 
-#if defined(ART_USE_QUICK_COMPILER)
   /* Go the LLVM path? */
   if (cUnit->genBitcode) {
     // MIR->Bitcode
     oatMethodMIR2Bitcode(cUnit.get());
-    if (gbcOnly) {
+    if (compilerBackend == kPortable) {
       // all done
       oatArenaReset(cUnit.get());
       return NULL;
@@ -1181,7 +1163,6 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
     // Bitcode->LIR
     oatMethodBitcode2LIR(cUnit.get());
   } else {
-#endif
     if (specialCase != kNoHandler) {
       /*
        * Custom codegen for special cases.  If for any reason the
@@ -1195,9 +1176,7 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
     if (cUnit->firstLIRInsn == NULL) {
       oatMethodMIR2LIR(cUnit.get());
     }
-#if defined(ART_USE_QUICK_COMPILER)
   }
-#endif
 
   // Debugging only
   if (cUnit->enableDebug & (1 << kDebugDumpCFG)) {
@@ -1268,55 +1247,30 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
   return result;
 }
 
-#if defined(ART_USE_QUICK_COMPILER)
 CompiledMethod* oatCompileMethod(Compiler& compiler,
+                                 const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, InvokeType invoke_type,
                                  uint32_t method_idx, jobject class_loader,
-                                 const DexFile& dex_file)
+                                 const DexFile& dex_file,
+                                 LLVMInfo* llvmInfo)
 {
-  return compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                       dex_file, NULL, false);
+  return compileMethod(compiler, backend, code_item, access_flags, invoke_type, method_idx, class_loader,
+                       dex_file, llvmInfo);
 }
-
-/*
- * Given existing llvm module, context, intrinsic_helper and IRBuilder,
- * add the bitcode for the method described by code_item to the module.
- */
-void oatCompileMethodToGBC(Compiler& compiler,
-                           const DexFile::CodeItem* code_item,
-                           uint32_t access_flags, InvokeType invoke_type,
-                           uint32_t method_idx, jobject class_loader,
-                           const DexFile& dex_file,
-                           LLVMInfo* llvm_info)
-{
-  compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                dex_file, llvm_info, true);
-}
-#else
-CompiledMethod* oatCompileMethod(Compiler& compiler,
-                                 const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, InvokeType invoke_type,
-                                 uint32_t method_idx, jobject class_loader,
-                                 const DexFile& dex_file)
-{
-  return compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                       dex_file);
-}
-#endif
 
 }  // namespace art
 
-#if !defined(ART_USE_LLVM_COMPILER)
 extern "C" art::CompiledMethod*
-    ArtCompileMethod(art::Compiler& compiler,
-                     const art::DexFile::CodeItem* code_item,
-                     uint32_t access_flags, art::InvokeType invoke_type,
-                     uint32_t method_idx, jobject class_loader,
-                     const art::DexFile& dex_file)
+    ArtQuickCompileMethod(art::Compiler& compiler,
+                          const art::DexFile::CodeItem* code_item,
+                          uint32_t access_flags, art::InvokeType invoke_type,
+                          uint32_t method_idx, jobject class_loader,
+                          const art::DexFile& dex_file)
 {
   CHECK_EQ(compiler.GetInstructionSet(), art::oatInstructionSet());
-  return art::oatCompileMethod(compiler, code_item, access_flags, invoke_type,
-                               method_idx, class_loader, dex_file);
+  // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use build default
+  art::CompilerBackend backend = compiler.GetCompilerBackend();
+  return art::oatCompileMethod(compiler, backend, code_item, access_flags, invoke_type,
+                               method_idx, class_loader, dex_file, NULL /* use thread llvmInfo */);
 }
-#endif

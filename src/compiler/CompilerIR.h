@@ -23,10 +23,8 @@
 #include "CompilerUtility.h"
 #include "oat_compilation_unit.h"
 #include "safe_map.h"
-#if defined(ART_USE_QUICK_COMPILER)
 #include "greenland/ir_builder.h"
 #include "llvm/Module.h"
-#endif
 
 namespace art {
 
@@ -262,9 +260,7 @@ struct BasicBlock {
   bool catchEntry;
   bool explicitThrow;
   bool conditionalBranch;
-#if defined(ART_USE_QUICK_COMPILER)
   bool hasReturn;
-#endif
   uint16_t startOffset;
   uint16_t nestingDepth;
   BBType blockType;
@@ -384,7 +380,6 @@ struct CompilationUnit {
       numArenaBlocks(0),
       mstats(NULL),
       checkstats(NULL),
-#if defined(ART_USE_QUICK_COMPILER)
       genBitcode(false),
       context(NULL),
       module(NULL),
@@ -397,7 +392,6 @@ struct CompilationUnit {
       tempName(0),
       numShadowFrameEntries(0),
       shadowMap(NULL),
-#endif
 #ifndef NDEBUG
       liveSReg(0),
 #endif
@@ -547,7 +541,6 @@ struct CompilationUnit {
   int numArenaBlocks;
   Memstats* mstats;
   Checkstats* checkstats;
-#if defined(ART_USE_QUICK_COMPILER)
   bool genBitcode;
   LLVMInfo* llvm_info;
   llvm::LLVMContext* context;
@@ -567,7 +560,6 @@ struct CompilationUnit {
   int numShadowFrameEntries;
   int* shadowMap;
   std::set<llvm::BasicBlock*> llvmBlocks;
-#endif
 #ifndef NDEBUG
   /*
    * Sanity checking for the register temp tracking.  The same ssa

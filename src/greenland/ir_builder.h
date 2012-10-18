@@ -33,7 +33,6 @@ namespace llvm {
 namespace art {
 namespace greenland {
 
-#if defined(ART_USE_QUICK_COMPILER)
 class InserterWithDexOffset
    : public llvm::IRBuilderDefaultInserter<true> {
   public:
@@ -54,9 +53,6 @@ class InserterWithDexOffset
 };
 
 typedef llvm::IRBuilder<true, llvm::NoFolder, InserterWithDexOffset> LLVMIRBuilder;
-#else
-typedef llvm::IRBuilder<true> LLVMIRBuilder;
-#endif
 
 class IRBuilder : public LLVMIRBuilder {
  public:
