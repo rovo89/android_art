@@ -347,7 +347,8 @@ class DexFile {
 
   // Opens .dex file, backed by existing memory
   static const DexFile* Open(const uint8_t* base, size_t size,
-                             const std::string& location, uint32_t location_checksum) {
+                             const std::string& location,
+                             uint32_t location_checksum) {
     return OpenMemory(base, size, location, location_checksum, NULL);
   }
 
@@ -826,7 +827,8 @@ class DexFile {
                                    MemMap* mem_map);
 
   DexFile(const byte* base, size_t size,
-          const std::string& location, uint32_t location_checksum,
+          const std::string& location,
+          uint32_t location_checksum,
           MemMap* mem_map)
       : begin_(base),
         size_(size),

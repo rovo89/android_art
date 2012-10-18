@@ -21,7 +21,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '2', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '0', '3', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -29,7 +29,8 @@ OatHeader::OatHeader() {
 
 OatHeader::OatHeader(InstructionSet instruction_set,
                      const std::vector<const DexFile*>* dex_files,
-                     uint32_t image_file_location_checksum,
+                     uint32_t image_file_location_oat_checksum,
+                     uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
@@ -42,8 +43,12 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
 
-  image_file_location_checksum_ = image_file_location_checksum;
-  UpdateChecksum(&image_file_location_checksum_, sizeof(image_file_location_checksum_));
+  image_file_location_oat_checksum_ = image_file_location_oat_checksum;
+  UpdateChecksum(&image_file_location_oat_checksum_, sizeof(image_file_location_oat_checksum_));
+
+  CHECK(IsAligned<kPageSize>(image_file_location_oat_begin));
+  image_file_location_oat_begin_ = image_file_location_oat_begin;
+  UpdateChecksum(&image_file_location_oat_begin_, sizeof(image_file_location_oat_begin_));
 
   image_file_location_size_ = image_file_location.size();
   UpdateChecksum(&image_file_location_size_, sizeof(image_file_location_size_));
@@ -95,9 +100,14 @@ uint32_t OatHeader::GetExecutableOffset() const {
   return executable_offset_;
 }
 
-uint32_t OatHeader::GetImageFileLocationChecksum() const {
+uint32_t OatHeader::GetImageFileLocationOatChecksum() const {
   CHECK(IsValid());
-  return image_file_location_checksum_;
+  return image_file_location_oat_checksum_;
+}
+
+uint32_t OatHeader::GetImageFileLocationOatBegin() const {
+  CHECK(IsValid());
+  return image_file_location_oat_begin_;
 }
 
 uint32_t OatHeader::GetImageFileLocationSize() const {

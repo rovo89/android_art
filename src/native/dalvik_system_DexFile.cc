@@ -244,10 +244,18 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     if ((*cur)->IsImageSpace()) {
       // TODO: Ensure this works with multiple image spaces.
       const ImageHeader& image_header = (*cur)->AsImageSpace()->GetImageHeader();
-      if (oat_file->GetOatHeader().GetImageFileLocationChecksum() != image_header.GetOatChecksum()) {
+      if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
         ScopedObjectAccess soa(env);
         LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-                  << " has out-of-date checksum compared to "
+                  << " has out-of-date oat checksum compared to "
+                  << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+        return JNI_TRUE;
+      }
+      if (oat_file->GetOatHeader().GetImageFileLocationOatBegin()
+          != reinterpret_cast<uint32_t>(image_header.GetOatBegin())) {
+        ScopedObjectAccess soa(env);
+        LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+                  << " has out-of-date oat begin compared to "
                   << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
         return JNI_TRUE;
       }

@@ -253,11 +253,13 @@ class Dex2Oat {
     Thread::Current()->TransitionFromSuspendedToRunnable();
 
     std::string image_file_location;
-    uint32_t image_file_location_checksum = 0;
+    uint32_t image_file_location_oat_checksum = 0;
+    uint32_t image_file_location_oat_begin = 0;
     Heap* heap = Runtime::Current()->GetHeap();
     if (heap->GetSpaces().size() > 1) {
       ImageSpace* image_space = heap->GetImageSpace();
-      image_file_location_checksum = image_space->GetImageHeader().GetOatChecksum();
+      image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
+      image_file_location_oat_begin = reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatBegin());
       image_file_location = image_space->GetImageFilename();
       if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
         image_file_location = image_file_location.substr(host_prefix->size());
@@ -267,7 +269,8 @@ class Dex2Oat {
     if (!OatWriter::Create(oat_file,
                            class_loader,
                            dex_files,
-                           image_file_location_checksum,
+                           image_file_location_oat_checksum,
+                           image_file_location_oat_begin,
                            image_file_location,
                            *compiler.get())) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->name();

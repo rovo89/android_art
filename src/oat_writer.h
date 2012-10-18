@@ -66,14 +66,16 @@ class OatWriter {
   static bool Create(File* file,
                      jobject class_loader,
                      const std::vector<const DexFile*>& dex_files,
-                     uint32_t image_file_location_checksum,
+                     uint32_t image_file_location_oat_checksum,
+                     uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
                      const Compiler& compiler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   OatWriter(const std::vector<const DexFile*>& dex_files,
-            uint32_t image_file_location_checksum,
+            uint32_t image_file_location_oat_checksum,
+            uint32_t image_file_location_oat_begin,
             const std::string& image_file_location,
             jobject class_loader,
             const Compiler& compiler) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -156,8 +158,9 @@ class OatWriter {
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
 
-  // dependency on the image
-  uint32_t image_file_location_checksum_;
+  // dependencies on the image.
+  uint32_t image_file_location_oat_checksum_;
+  uint32_t image_file_location_oat_begin_;
   std::string image_file_location_;
 
   // data to write

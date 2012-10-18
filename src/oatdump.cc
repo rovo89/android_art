@@ -113,8 +113,11 @@ class OatDumper {
     os << "EXECUTABLE OFFSET:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
 
-    os << "IMAGE FILE LOCATION CHECKSUM:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationChecksum());
+    os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
+    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
+
+    os << "IMAGE FILE LOCATION OAT BEGIN:\n";
+    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatBegin());
 
     os << "IMAGE FILE LOCATION:\n";
     const std::string image_file_location(oat_header.GetImageFileLocation());

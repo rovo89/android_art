@@ -230,7 +230,8 @@ OatFile::OatDexFile::~OatDexFile() {}
 
 const DexFile* OatFile::OatDexFile::OpenDexFile() const {
   size_t length = reinterpret_cast<const DexFile::Header*>(dex_file_pointer_)->file_size_;
-  return DexFile::Open(dex_file_pointer_, length, dex_file_location_, dex_file_location_checksum_);
+  return DexFile::Open(dex_file_pointer_, length, dex_file_location_,
+                       dex_file_location_checksum_);
 }
 
 const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_index) const {

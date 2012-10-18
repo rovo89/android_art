@@ -75,6 +75,7 @@ TEST_F(OatTest, WriteRead) {
                                    class_loader,
                                    class_linker->GetBootClassPath(),
                                    42U,
+                                   4096U,
                                    "lue.art",
                                    *compiler_.get());
   ASSERT_TRUE(success);
@@ -89,7 +90,8 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
-  ASSERT_EQ(42U, oat_header.GetImageFileLocationChecksum());
+  ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
+  ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatBegin());
   ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
 
   const DexFile* dex_file = java_lang_dex_file_;
@@ -124,7 +126,7 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(32U, sizeof(OatHeader));
+  EXPECT_EQ(36U, sizeof(OatHeader));
 #if !defined(ART_USE_LLVM_COMPILER)
   EXPECT_EQ(32U, sizeof(OatMethodOffsets));
 #else

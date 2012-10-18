@@ -302,7 +302,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-  // Returns true if oat file contains the dex file with the given location and checksum
+  // Returns true if oat file contains the dex file with the given location and checksum.
   static bool VerifyOatFileChecksums(const OatFile* oat_file,
                                      const std::string& dex_location,
                                      uint32_t dex_location_checksum)

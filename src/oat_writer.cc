@@ -33,11 +33,13 @@ namespace art {
 bool OatWriter::Create(File* file,
                        jobject class_loader,
                        const std::vector<const DexFile*>& dex_files,
-                       uint32_t image_file_location_checksum,
+                       uint32_t image_file_location_oat_checksum,
+                       uint32_t image_file_location_oat_begin,
                        const std::string& image_file_location,
                        const Compiler& compiler) {
   OatWriter oat_writer(dex_files,
-                       image_file_location_checksum,
+                       image_file_location_oat_checksum,
+                       image_file_location_oat_begin,
                        image_file_location,
                        class_loader,
                        compiler);
@@ -45,13 +47,15 @@ bool OatWriter::Create(File* file,
 }
 
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
-                     uint32_t image_file_location_checksum,
+                     uint32_t image_file_location_oat_checksum,
+                     uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
                      jobject class_loader,
                      const Compiler& compiler) {
   compiler_ = &compiler;
   class_loader_ = class_loader;
-  image_file_location_checksum_ = image_file_location_checksum;
+  image_file_location_oat_checksum_ = image_file_location_oat_checksum;
+  image_file_location_oat_begin_ = image_file_location_oat_begin;
   image_file_location_ = image_file_location;
   dex_files_ = &dex_files;
   oat_header_ = NULL;
@@ -77,7 +81,8 @@ size_t OatWriter::InitOatHeader() {
   // create the OatHeader
   oat_header_ = new OatHeader(compiler_->GetInstructionSet(),
                               dex_files_,
-                              image_file_location_checksum_,
+                              image_file_location_oat_checksum_,
+                              image_file_location_oat_begin_,
                               image_file_location_);
   size_t offset = sizeof(*oat_header_);
   offset += image_file_location_.size();
