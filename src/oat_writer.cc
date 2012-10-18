@@ -353,7 +353,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   }
 
 #if defined(ART_USE_LLVM_COMPILER)
-  if (type == kStatic) {
+  if (type != kStatic) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
@@ -733,7 +733,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
   }
 
 #if defined(ART_USE_LLVM_COMPILER)
-  if (is_static) {
+  if (!is_static) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
