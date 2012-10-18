@@ -151,6 +151,79 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAF
 }
 #endif
 
+size_t ThreadList::RunCheckpoint(Thread::CheckpointFunction* checkpoint_function) {
+  Thread* self = Thread::Current();
+  if (kIsDebugBuild) {
+    Locks::mutator_lock_->AssertNotHeld(self);
+    Locks::thread_list_lock_->AssertNotHeld(self);
+    Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+    CHECK_NE(self->GetState(), kRunnable);
+  }
+
+  std::vector<Thread*> suspended_count_modified_threads;
+  size_t count = 0;
+  {
+    // Call a checkpoint function for each thread, threads which are suspend get their checkpoint
+    // manually called.
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    // TODO: C++0x auto.
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      Thread* thread = *it;
+      if (thread != self) {
+        for (;;) {
+          if (thread->RequestCheckpoint(checkpoint_function)) {
+            // This thread will run it's checkpoint some time in the near future.
+            count++;
+            break;
+          } else {
+            // We are probably suspended, try to make sure that we stay suspended.
+            MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+            // The thread switched back to runnable.
+            if (thread->GetState() == kRunnable) {
+              continue;
+            }
+            thread->ModifySuspendCount(self, +1, false);
+            suspended_count_modified_threads.push_back(thread);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Run the checkpoint on ourself while we wait for threads to suspend.
+  checkpoint_function->Run(self);
+
+  // Run the checkpoint on the suspended threads.
+  for (size_t i = 0; i < suspended_count_modified_threads.size(); ++i) {
+    Thread* thread = suspended_count_modified_threads[i];
+    if (!thread->IsSuspended()) {
+      // Wait until the thread is suspended.
+      uint64_t start = NanoTime();
+      do {
+        // Sleep for 100us.
+        usleep(100);
+      } while (!thread->IsSuspended());
+      uint64_t end = NanoTime();
+      // Shouldn't need to wait for longer than 1 millisecond.
+      const uint64_t threshold = 1;
+      if (NsToMs(end - start) > threshold) {
+        LOG(INFO) << "Warning: waited longer than " << threshold << " ms for thrad suspend"
+                  << std::endl;
+      }
+    }
+    // We know for sure that the thread is suspended at this point.
+    thread->RunCheckpointFunction();
+    {
+      MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+      thread->ModifySuspendCount(self, -1, false);
+    }
+  }
+
+  // Add one for self.
+  return count + suspended_count_modified_threads.size() + 1;
+}
+
 void ThreadList::SuspendAll() {
   Thread* self = Thread::Current();
 

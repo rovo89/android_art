@@ -101,10 +101,17 @@ enum ThreadFlag {
   kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0.
   kExceptionPending = 2,  // If set implies that exception_ != NULL.
   kEnterInterpreter = 4,  // Instruct managed code it should enter the interpreter.
+  kCheckpointRequest = 8, // Request that the thread do some set of work.
 };
 
 class PACKED Thread {
  public:
+  class CheckpointFunction {
+   public:
+    virtual ~CheckpointFunction() { }
+    virtual void Run(Thread* self) = 0;
+  };
+
   // Space to throw a StackOverflowError in.
 #if !defined(ART_USE_LLVM_COMPILER)
   static const size_t kStackOverflowReservedBytes = 4 * KB;
@@ -167,12 +174,16 @@ class PACKED Thread {
     return debug_suspend_count_;
   }
 
-  bool IsSuspended() const EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_) {
-    return GetState() != kRunnable && ReadFlag(kSuspendRequest);
+  bool IsSuspended() const {
+    union StateAndFlags state_and_flags = state_and_flags_;
+    return state_and_flags.as_struct.state != kRunnable &&
+        (state_and_flags.as_struct.flags & kSuspendRequest) != 0;
   }
 
   void ModifySuspendCount(Thread* self, int delta, bool for_debugger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
+
+  bool RequestCheckpoint(CheckpointFunction* function);
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
@@ -570,6 +581,19 @@ class PACKED Thread {
     held_mutexes_[level] = mutex;
   }
 
+  void RunCheckpointFunction() {
+    CHECK(checkpoint_function_ != NULL);
+    checkpoint_function_->Run(this);
+  }
+
+  bool ReadFlag(ThreadFlag flag) const {
+    return (state_and_flags_.as_struct.flags & flag) != 0;
+  }
+
+  void AtomicSetFlag(ThreadFlag flag);
+
+  void AtomicClearFlag(ThreadFlag flag);
+
  private:
   // We have no control over the size of 'bool', but want our boolean fields
   // to be 4-byte quantities.
@@ -616,14 +640,6 @@ class PACKED Thread {
   void InitStackHwm();
 
   void NotifyLocked(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
-
-  bool ReadFlag(ThreadFlag flag) const {
-    return (state_and_flags_.as_struct.flags & flag) != 0;
-  }
-
-  void AtomicSetFlag(ThreadFlag flag);
-
-  void AtomicClearFlag(ThreadFlag flag);
 
   static void ThreadExitCallback(void* arg);
 
@@ -758,6 +774,9 @@ class PACKED Thread {
 
   // Cause for last suspension.
   const char* last_no_thread_suspension_cause_;
+
+  // Pending checkpoint functions.
+  CheckpointFunction* checkpoint_function_;
 
  public:
   // Runtime support function pointers

@@ -145,8 +145,11 @@ void SignalCatcher::HandleSigQuit() {
     }
   }
   os << "----- end " << getpid() << " -----\n";
-
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
+  if (self->ReadFlag(kCheckpointRequest)) {
+    self->RunCheckpointFunction();
+    self->AtomicClearFlag(kCheckpointRequest);
+  }
   self->EndAssertNoThreadSuspension(old_cause);
   thread_list->ResumeAll();
 
@@ -186,7 +189,7 @@ void* SignalCatcher::Run(void* arg) {
   CHECK(runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup()));
 
   Thread* self = Thread::Current();
-
+  DCHECK_NE(self->GetState(), kRunnable);
   {
     MutexLock mu(self, signal_catcher->lock_);
     signal_catcher->thread_ = self;

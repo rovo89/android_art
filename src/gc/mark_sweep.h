@@ -25,6 +25,7 @@
 
 namespace art {
 
+class Barrier;
 class CheckObjectVisitor;
 class Class;
 class Heap;
@@ -52,8 +53,14 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void MarkNonThreadRoots()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
   void MarkConcurrentRoots();
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void MarkRootsCheckpoint();
+       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Verify that image roots point to only marked objects within the alloc space.
   void VerifyImageRoots() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -183,6 +190,11 @@ class MarkSweep {
     }
   }
 
+  static void MarkObjectVisitor(const Object* root, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  Barrier& GetBarrier();
+
  private:
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const Object* object) const;
@@ -192,9 +204,6 @@ class MarkSweep {
 
   static bool IsMarkedArrayCallback(const Object* object, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
-  static void MarkObjectVisitor(const Object* root, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void ReMarkObjectVisitor(const Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -416,6 +425,8 @@ class MarkSweep {
   size_t class_count_;
   size_t array_count_;
   size_t other_count_;
+
+  UniquePtr<Barrier> gc_barrier_;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
   friend class CheckBitmapVisitor;

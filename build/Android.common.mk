@@ -181,6 +181,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/dlmalloc.cc \
 	src/file.cc \
 	src/file_linux.cc \
+	src/gc/barrier.cc \
 	src/gc/card_table.cc \
 	src/gc/heap_bitmap.cc \
 	src/gc/large_object_space.cc \

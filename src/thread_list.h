@@ -55,6 +55,12 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 
+  // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
+  // of the suspend check. Returns how many checkpoints we should expect to run.
+  size_t RunCheckpoint(Thread::CheckpointFunction* checkpoint_function);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
   // Suspends all threads
   void SuspendAllForDebugger()
       LOCKS_EXCLUDED(Locks::mutator_lock_,

@@ -1509,16 +1509,12 @@ void Heap::ClearCards(TimingLogger& timings) {
 void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_cause,
                                                  bool clear_soft_references) {
   TimingLogger timings("ConcurrentCollectGarbageInternal", true);
-  uint64_t root_begin = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
+  uint64_t gc_begin = NanoTime(), root_begin = 0, root_end = 0, dirty_begin = 0, dirty_end = 0;
   std::stringstream gc_type_str;
   gc_type_str << gc_type << " ";
 
-  // Suspend all threads are get exclusive access to the heap.
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  thread_list->SuspendAll();
-  timings.AddSplit("SuspendAll");
-  Locks::mutator_lock_->AssertExclusiveHeld(self);
-
+  std::vector<byte*> dirty_cards;
   size_t bytes_freed = 0;
   Object* cleared_references = NULL;
   {
@@ -1528,47 +1524,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
     mark_sweep.Init();
     timings.AddSplit("Init");
 
-    if (verify_pre_gc_heap_) {
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      if (!VerifyHeapReferences()) {
-        LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
-      }
-      timings.AddSplit("VerifyHeapReferencesPreGC");
-    }
-
-    // Swap the stacks, this is safe since all the mutators are suspended at this point.
-    SwapStacks();
-
-    // Check that all objects which reference things in the live stack are on dirty cards.
-    if (verify_missing_card_marks_) {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      // Sort the live stack so that we can quickly binary search it later.
-      std::sort(live_stack_->Begin(), live_stack_->End());
-      if (!VerifyMissingCardMarks()) {
-        LOG(FATAL) << "Pre GC verification of missing card marks failed";
-      }
-    }
-
-    // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
-    // TODO: Investigate using a mark stack instead of a vector.
-    std::vector<byte*> dirty_cards;
-    if (gc_type == kGcTypeSticky) {
-      dirty_cards.reserve(4 * KB);
-      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-        card_table_->GetDirtyCards(*it, dirty_cards);
-      }
-      timings.AddSplit("GetDirtyCards");
-    }
-
-    // Clear image space cards and keep track of cards we cleared in the mod-union table.
-    ClearCards(timings);
-
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-
-      for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-        DCHECK(!GetLiveBitmap()->Test(*it));
-      }
 
       if (gc_type == kGcTypePartial) {
         // Copy the mark bits over from the live bits, do this as early as possible or else we can
@@ -1595,24 +1552,64 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
                                   reinterpret_cast<Object*>(alloc_space_->Begin()));
       }
       mark_sweep.FindDefaultMarkBitmap();
+    }
 
-      // Marking roots is not necessary for sticky mark bits since we only actually require the
-      // remarking of roots.
-      if (gc_type != kGcTypeSticky) {
-        mark_sweep.MarkRoots();
-        timings.AddSplit("MarkRoots");
+    mark_sweep.MarkRootsCheckpoint();
+    timings.AddSplit("MarkRootsCheckpoint");
+
+    {
+      root_begin = NanoTime();
+
+      // Suspend all threads are get exclusive access to the heap.
+      thread_list->SuspendAll();
+      timings.AddSplit("SuspendAll");
+      Locks::mutator_lock_->AssertExclusiveHeld(self);
+
+      if (verify_pre_gc_heap_) {
+        WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+        if (!VerifyHeapReferences()) {
+          LOG(FATAL) << "Pre " << gc_type_str.str() << "Gc verification failed";
+        }
+        timings.AddSplit("VerifyHeapReferencesPreGC");
       }
 
-      if (verify_mod_union_table_) {
-        zygote_mod_union_table_->Update();
-        zygote_mod_union_table_->Verify();
-        mod_union_table_->Update();
-        mod_union_table_->Verify();
+      // Swap the stacks, this is safe since all the mutators are suspended at this point.
+      SwapStacks();
+
+      // Check that all objects which reference things in the live stack are on dirty cards.
+      if (verify_missing_card_marks_) {
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+        // Sort the live stack so that we can quickly binary search it later.
+        std::sort(live_stack_->Begin(), live_stack_->End());
+        if (!VerifyMissingCardMarks()) {
+          LOG(FATAL) << "Pre GC verification of missing card marks failed";
+        }
       }
+
+      // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
+      // TODO: Investigate using a mark stack instead of a vector.
+      if (gc_type == kGcTypeSticky) {
+        dirty_cards.reserve(4 * KB);
+        for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+          card_table_->GetDirtyCards(*it, dirty_cards);
+        }
+        timings.AddSplit("GetDirtyCards");
+      }
+
+      // Clear image space cards and keep track of cards we cleared in the mod-union table.
+      ClearCards(timings);
     }
 
     // Roots are marked on the bitmap and the mark_stack is empty.
     DCHECK(mark_stack_->IsEmpty());
+
+    if (verify_mod_union_table_) {
+      ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
+      zygote_mod_union_table_->Update();
+      zygote_mod_union_table_->Verify();
+      mod_union_table_->Update();
+      mod_union_table_->Verify();
+    }
 
     // Allow mutators to go again, acquire share on mutator_lock_ to continue.
     thread_list->ResumeAll();
@@ -1622,11 +1619,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       timings.AddSplit("RootEnd");
 
       // Mark the roots which we can do concurrently.
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
       mark_sweep.MarkConcurrentRoots();
       timings.AddSplit("MarkConcurrentRoots");
-
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      UpdateAndMarkModUnion(&mark_sweep, timings, gc_type);
+      mark_sweep.MarkNonThreadRoots();
+      timings.AddSplit("MarkNonThreadRoots");
 
       if (gc_type != kGcTypeSticky) {
         // Mark everything allocated since the last as GC live so that we can sweep concurrently,
@@ -1635,6 +1632,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
                        live_stack_.get());
         timings.AddSplit("MarkStackAsLive");
       }
+
+      UpdateAndMarkModUnion(&mark_sweep, timings, gc_type);
 
       if (gc_type != kGcTypeSticky) {
         // Recursively mark all the non-image bits set in the mark bitmap.
@@ -1775,7 +1774,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
   // If the GC was slow, then print timings in the log.
   uint64_t pause_roots = (root_end - root_begin) / 1000 * 1000;
   uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
-  uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
+  uint64_t duration = (NanoTime() - gc_begin) / 1000 * 1000;
   total_paused_time_ += pause_roots + pause_dirty;
   if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5) ||
       (gc_cause == kGcCauseForAlloc && duration > MsToNs(20))) {

@@ -555,6 +555,19 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   }
 }
 
+bool Thread::RequestCheckpoint(CheckpointFunction* function) {
+  CHECK(!ReadFlag(kCheckpointRequest)) << "Already have a pending checkpoint request";
+  checkpoint_function_ = function;
+  union StateAndFlags old_state_and_flags = state_and_flags_;
+  // We must be runnable to request a checkpoint.
+  old_state_and_flags.as_struct.state = kRunnable;
+  union StateAndFlags new_state_and_flags = old_state_and_flags;
+  new_state_and_flags.as_struct.flags |= kCheckpointRequest;
+  int succeeded = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
+                                         &state_and_flags_.as_int);
+  return succeeded == 0;
+}
+
 void Thread::FullSuspendCheck() {
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
@@ -570,7 +583,20 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   DCHECK_EQ(this, Thread::Current());
   // Change to non-runnable state, thereby appearing suspended to the system.
   DCHECK_EQ(GetState(), kRunnable);
-  state_and_flags_.as_struct.state = new_state;
+  union StateAndFlags old_state_and_flags;
+  union StateAndFlags new_state_and_flags;
+  do {
+    old_state_and_flags = state_and_flags_;
+    // Copy over flags and try to clear the checkpoint bit if it is set.
+    new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags & ~kCheckpointRequest;
+    new_state_and_flags.as_struct.state = new_state;
+  } while (android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
+                                  &state_and_flags_.as_int) != 0);
+  // If we toggled the checkpoint flag we must have cleared it.
+  uint16_t flag_change = new_state_and_flags.as_struct.flags ^ old_state_and_flags.as_struct.flags;
+  if ((flag_change & kCheckpointRequest) != 0) {
+    RunCheckpointFunction();
+  }
   // Release share on mutator_lock_.
   Locks::mutator_lock_->SharedUnlock(this);
 }
@@ -935,6 +961,7 @@ Thread::Thread(bool daemon)
       pthread_self_(0),
       no_thread_suspension_(0),
       last_no_thread_suspension_cause_(NULL),
+      checkpoint_function_(0),
       thread_exit_check_count_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   state_and_flags_.as_struct.flags = 0;

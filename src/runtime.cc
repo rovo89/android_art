@@ -1002,10 +1002,9 @@ void Runtime::VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
+void Runtime::VisitNonThreadRoots(Heap::RootVisitor* visitor, void* arg) {
   Dbg::VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
-  thread_list_->VisitRoots(visitor, arg);
   if (pre_allocated_OutOfMemoryError_ != NULL) {
     visitor(pre_allocated_OutOfMemoryError_, arg);
   }
@@ -1018,6 +1017,11 @@ void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_methods_[i], arg);
   }
+}
+
+void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
+  thread_list_->VisitRoots(visitor, arg);
+  VisitNonThreadRoots(visitor, arg);
 }
 
 void Runtime::DirtyRoots() {

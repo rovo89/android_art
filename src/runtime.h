@@ -234,6 +234,9 @@ class Runtime {
   // Visit all of the roots we can do safely do concurrently.
   void VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg);
 
+  // Visit all of the non thread roots, we can do this with mutators unpaused.
+  void VisitNonThreadRoots(Heap::RootVisitor* visitor, void* arg);
+
   // Visit all other roots which must be done with mutators suspended.
   void VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

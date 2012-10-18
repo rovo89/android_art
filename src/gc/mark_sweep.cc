@@ -19,6 +19,7 @@
 #include <climits>
 #include <vector>
 
+#include "barrier.h"
 #include "card_table.h"
 #include "class_loader.h"
 #include "dex_cache.h"
@@ -37,9 +38,9 @@
 #include "thread.h"
 #include "thread_list.h"
 
-static const bool kUseMarkStackPrefetch = true;
-
 namespace art {
+
+static const bool kUseMarkStackPrefetch = true;
 
 class SetFingerVisitor {
  public:
@@ -68,7 +69,8 @@ MarkSweep::MarkSweep(ObjectStack* mark_stack)
       phantom_reference_list_(NULL),
       cleared_reference_list_(NULL),
       freed_bytes_(0), freed_objects_(0),
-      class_count_(0), array_count_(0), other_count_(0) {
+      class_count_(0), array_count_(0), other_count_(0),
+      gc_barrier_(new Barrier) {
   DCHECK(mark_stack_ != NULL);
 }
 
@@ -198,6 +200,10 @@ void MarkSweep::VerifyRoots() {
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
   Runtime::Current()->VisitNonConcurrentRoots(MarkObjectVisitor, this);
+}
+
+void MarkSweep::MarkNonThreadRoots() {
+  Runtime::Current()->VisitNonThreadRoots(MarkObjectVisitor, this);
 }
 
 void MarkSweep::MarkConcurrentRoots() {
@@ -519,6 +525,38 @@ struct SweepCallbackContext {
   Thread* self;
 };
 
+class CheckpointMarkThreadRoots : public Thread::CheckpointFunction {
+ public:
+  CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
+
+  }
+
+  virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
+    // Note: self is not necessarily equal to thread since thread may be suspended.
+    Thread* self = Thread::Current();
+    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    thread->VisitRoots(MarkSweep::MarkObjectVisitor, mark_sweep_);
+    mark_sweep_->GetBarrier().Pass(self);
+  }
+
+ private:
+  MarkSweep* mark_sweep_;
+};
+
+Barrier& MarkSweep::GetBarrier() {
+  return *gc_barrier_;
+}
+
+void MarkSweep::MarkRootsCheckpoint() {
+  UniquePtr<CheckpointMarkThreadRoots> check_point(new CheckpointMarkThreadRoots(this));
+  ThreadList* thread_list = Runtime::Current()->GetThreadList();
+  // Increment the count of the barrier. If all of the checkpoints have already been finished then
+  // will hit 0 and continue. Otherwise we are still waiting for some checkpoints, so the counter
+  // will go positive and we will unblock when it hits zero.
+  gc_barrier_->Increment(Thread::Current(), thread_list->RunCheckpoint(check_point.get()));
+}
+
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
@@ -538,8 +576,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
     freed_bytes += space->FreeList(self, num_ptrs, ptrs);
   } else {
     for (size_t i = 0; i < num_ptrs; ++i) {
-      Object* obj = static_cast<Object*>(ptrs[i]);
-      freed_bytes += space->Free(self, obj);
+      freed_bytes += space->Free(self, ptrs[i]);
     }
   }
 

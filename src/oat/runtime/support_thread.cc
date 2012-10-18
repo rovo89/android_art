@@ -20,18 +20,32 @@
 
 namespace art {
 
+static void CheckSuspend(Thread* thread)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  for (;;) {
+    if (thread->ReadFlag(kCheckpointRequest)) {
+      thread->RunCheckpointFunction();
+      thread->AtomicClearFlag(kCheckpointRequest);
+    } else if (thread->ReadFlag(kSuspendRequest)) {
+      thread->FullSuspendCheck();
+    } else {
+      break;
+    }
+  }
+}
+
 void CheckSuspendFromCode(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when thread->suspend_count_ != 0 on JNI return. JNI method acts as callee-save frame.
   thread->VerifyStack();
-  thread->FullSuspendCheck();
+  CheckSuspend(thread);
 }
 
 extern "C" void artTestSuspendFromCode(Thread* thread, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when suspend count check value is 0 and thread->suspend_count_ != 0
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
-  thread->FullSuspendCheck();
+  CheckSuspend(thread);
 }
 
 }  // namespace art

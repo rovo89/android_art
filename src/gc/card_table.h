@@ -160,4 +160,4 @@ class CardTable {
 };
 
 }  // namespace art
-#endif  // DALVIK_ALLOC_CARDTABLE_H_
+#endif  // ART_SRC_GC_CARDTABLE_H_

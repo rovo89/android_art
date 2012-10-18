@@ -49,6 +49,7 @@ class ScopedThreadStateChange {
         // A suspended transition to another effectively suspended transition, ok to use Unsafe.
         self_->SetState(new_thread_state);
       }
+
       if (runnable_transition && old_thread_state_ != new_thread_state) {
         if (new_thread_state == kRunnable) {
           self_->TransitionFromSuspendedToRunnable();
