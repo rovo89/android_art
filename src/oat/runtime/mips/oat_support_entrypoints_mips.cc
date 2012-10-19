@@ -84,6 +84,9 @@ extern int32_t CmpgDouble(double a, double b);
 extern int32_t CmplDouble(double a, double b);
 extern int32_t CmpgFloat(float a, float b);
 extern int32_t CmplFloat(float a, float b);
+extern "C" int64_t artLmulFromCode(int64_t a, int64_t b);
+extern "C" int64_t artLdivFromCode(int64_t a, int64_t b);
+extern "C" int64_t artLdivmodFromCode(int64_t a, int64_t b);
 
 // Math conversions.
 extern "C" float __floatsisf(int op1);        // INT_TO_FLOAT
@@ -233,9 +236,9 @@ void InitEntryPoints(EntryPoints* points) {
   points->pIdivmod = NULL;
   points->pD2l = art_d2l;
   points->pF2l = art_f2l;
-  points->pLdiv = NULL;
-  points->pLdivmod = NULL;
-  points->pLmul = NULL;
+  points->pLdiv = artLdivFromCode;
+  points->pLdivmod = artLdivmodFromCode;
+  points->pLmul = artLmulFromCode;
   points->pShlLong = art_shl_long;
   points->pShrLong = art_shr_long;
   points->pUshrLong = art_ushr_long;

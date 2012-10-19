@@ -141,6 +141,8 @@ namespace art {
 /* These are the same for both big and little endian. */
 #define r_FARG0 r_F12
 #define r_FARG1 r_F13
+#define r_FARG2 r_F14
+#define r_FARG3 r_F15
 #define r_FRESULT0 r_F0
 #define r_FRESULT1 r_F1
 

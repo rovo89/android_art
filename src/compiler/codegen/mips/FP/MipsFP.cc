@@ -197,11 +197,11 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);
   if (wide) {
-    loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
-    loadValueDirectWideFixed(cUnit, rlSrc2, rARG2, rARG3);
+    loadValueDirectWideFixed(cUnit, rlSrc1, r_FARG0, r_FARG1);
+    loadValueDirectWideFixed(cUnit, rlSrc2, r_FARG2, r_FARG3);
   } else {
-    loadValueDirectFixed(cUnit, rlSrc1, rARG0);
-    loadValueDirectFixed(cUnit, rlSrc2, rARG1);
+    loadValueDirectFixed(cUnit, rlSrc1, r_FARG0);
+    loadValueDirectFixed(cUnit, rlSrc2, r_FARG2);
   }
   int rTgt = loadHelper(cUnit, offset);
   // NOTE: not a safepoint

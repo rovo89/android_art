@@ -53,7 +53,7 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
      * Does not include rSUSPEND or rSELF
-     * callee-save: $s2-$s8 + $ra, 8 total + 4 words + extra args
+     * callee-save: $s2-$s8 + $ra, 8 total + 4 words + extra args + gp
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
@@ -65,10 +65,12 @@
     sw     $s4, 40($sp)
     sw     $s3, 36($sp)
     sw     $s2, 32($sp)
-    # 4 word for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
+    sw     $gp, 28($sp)
+    # 3 words for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    lw     $gp, 28($sp)
     lw     $ra, 60($sp)
     addiu  $sp, $sp, 64
 .endm
@@ -304,9 +306,9 @@ art_throw_array_bounds_from_code:
 art_throw_stack_overflow_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a1, rSELF                    # pass Thread::Current
-    jal artThrowStackOverflowFromCode  # artThrowStackOverflowFromCode(method, Thread*, $sp)
-    move $a2, $sp                      # pass $sp
+    move $a0, rSELF                    # pass Thread::Current
+    jal artThrowStackOverflowFromCode  # artThrowStackOverflowFromCode(Thread*, $sp)
+    move $a1, $sp                      # pass $sp
 
     .global art_throw_no_such_method_from_code
     .extern artThrowNoSuchMethodFromCode
@@ -409,13 +411,7 @@ art_handle_fill_data_from_code:
     move    $a2, rSELF                         # pass Thread::Current
     jal     artHandleFillArrayDataFromCode     # (Array*, const DexFile::Payload*, Thread*, $sp)
     move    $a3, $sp                           # pass $sp
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bnez    $v0, 1f                            # success?
-    nop
-    jr      $ra                                # return on success
-    nop
-1:
-    DELIVER_PENDING_EXCEPTION
+    RETURN_IF_ZERO
 
     .global art_lock_object_from_code
     .extern artLockObjectFromCode
@@ -816,6 +812,7 @@ art_check_and_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_test_suspend:
+    .cpload $25
     lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
     addi  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
@@ -919,7 +916,7 @@ art_shl_long:
     andi    $a2, 0x20                        #  shift< shift & 0x20
     movn    $v1, $v0, $a2                    #  rhi<- rlo (if shift&0x20)
     jr      $ra
-    movn    $v0, $zero, $a2                   #  rlo<- 0  (if shift&0x20)
+    movn    $v0, $zero, $a2                  #  rlo<- 0  (if shift&0x20)
 
     .global art_shr_long
     /*
@@ -960,9 +957,8 @@ art_shr_long:
     /* ushr-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
 art_ushr_long:
-    sra     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
+    srl     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
     srl     $v0, $a0, $a2                    #  rlo<- alo >> (shift&31)
-    sra     $a3, $a1, 31                     #  $a3<- sign(ah)
     not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
     sll     $a1, 1
     sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
@@ -970,7 +966,7 @@ art_ushr_long:
     andi    $a2, 0x20                        #  shift & 0x20
     movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
     jr      $ra
-    movn    $v1, $a3, $a2                    #  rhi<- sign(ahi) (if shift&0x20)
+    movn    $v1, $zero, $a2                  #  rhi<- 0 (if shift&0x20)
 
     .global art_indexof
     ALIGN_FUNCTION_ENTRY
