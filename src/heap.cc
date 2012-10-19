@@ -2040,8 +2040,7 @@ void Heap::ConcurrentGC(Thread* self) {
   }
 }
 
-void Heap::Trim(Thread* self) {
-  WaitForConcurrentGcToComplete(self);
+void Heap::Trim() {
   alloc_space_->Trim();
 }
 

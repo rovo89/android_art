@@ -156,15 +156,14 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
   }
 }
 
-static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
+static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
   uint64_t start_ns = NanoTime();
   DlMallocSpace* alloc_space = heap->GetAllocSpace();
   size_t alloc_space_size = alloc_space->Size();
   float utilization = static_cast<float>(alloc_space->GetNumBytesAllocated()) / alloc_space_size;
-  Thread* self = static_cast<JNIEnvExt*>(env)->self;
-  heap->Trim(self);
+  heap->Trim();
   // Trim the native heap.
   dlmalloc_trim(0);
   dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
