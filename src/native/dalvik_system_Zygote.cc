@@ -338,6 +338,9 @@ static void MountExternalStorage(uid_t uid, jint mount_external) {
 
 #if defined(__linux__)
 static bool NeedsNoRandomizeWorkaround() {
+#if !defined(__arm__)
+    return false;
+#else
     int major;
     int minor;
     struct utsname uts;
@@ -351,6 +354,7 @@ static bool NeedsNoRandomizeWorkaround() {
 
     // Kernels before 3.4.* need the workaround.
     return (major < 3) || ((major == 3) && (minor < 4));
+#endif
 }
 #endif
 
