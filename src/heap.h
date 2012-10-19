@@ -278,7 +278,7 @@ class Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  void Trim(Thread* self);
+  void Trim();
 
   HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return live_bitmap_.get();
