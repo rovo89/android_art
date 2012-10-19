@@ -37,6 +37,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
 
   adler32_checksum_ = adler32(0L, Z_NULL, 0);
 
+  CHECK_NE(instruction_set, kNone);
   instruction_set_ = instruction_set;
   UpdateChecksum(&instruction_set_, sizeof(instruction_set_));
 
@@ -58,10 +59,10 @@ OatHeader::OatHeader(InstructionSet instruction_set,
 }
 
 bool OatHeader::IsValid() const {
-  if (memcmp(magic_, kOatMagic, sizeof(kOatMagic) != 0)) {
+  if (memcmp(magic_, kOatMagic, sizeof(kOatMagic)) != 0) {
     return false;
   }
-  if (memcmp(version_, kOatVersion, sizeof(kOatVersion) != 0)) {
+  if (memcmp(version_, kOatVersion, sizeof(kOatVersion)) != 0) {
     return false;
   }
   return true;

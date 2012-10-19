@@ -89,6 +89,7 @@ TEST_F(OatTest, WriteRead) {
                                             OatFile::kRelocNone));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
+  ASSERT_TRUE(oat_header.IsValid());
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
   ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
   ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatBegin());
@@ -133,6 +134,26 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   // ART-LLVM has a extra 4 bytes field: proxy_stub_offset_
   EXPECT_EQ(36U, sizeof(OatMethodOffsets));
 #endif
+}
+
+TEST_F(OatTest, OatHeaderIsValid) {
+    InstructionSet instruction_set = kX86;
+    std::vector<const DexFile*> dex_files;
+    uint32_t image_file_location_oat_checksum = 0;
+    uint32_t image_file_location_oat_begin = 0;
+    const std::string image_file_location;
+    OatHeader oat_header(instruction_set,
+                         &dex_files,
+                         image_file_location_oat_checksum,
+                         image_file_location_oat_begin,
+                         image_file_location);
+    ASSERT_TRUE(oat_header.IsValid());
+
+    char* magic = const_cast<char*>(oat_header.GetMagic());
+    strcpy(magic, "");  // bad magic
+    ASSERT_FALSE(oat_header.IsValid());
+    strcpy(magic, "oat\n000"); // bad version
+    ASSERT_FALSE(oat_header.IsValid());
 }
 
 }  // namespace art
