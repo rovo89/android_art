@@ -676,6 +676,10 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
     AbstractMethod* target = GetTargetMethod(patch);
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
   }
+
+  // Update the image header with the new checksum after patching
+  ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
+  image_header->SetOatChecksum(oat_file_->GetOatHeader().GetChecksum());
 }
 
 void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value) {
@@ -683,6 +687,7 @@ void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint
   AbstractMethod* method = GetReferrerMethod(patch);
   // Goodbye const, we are about to modify some code.
   void* code = const_cast<void*>(class_linker->GetOatCodeFor(method));
+  OatHeader& oat_header = const_cast<OatHeader&>(oat_file_->GetOatHeader());
   // TODO: make this Thumb2 specific
   uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(code) & ~0x1);
   uint32_t* patch_location = reinterpret_cast<uint32_t*>(base + patch->GetLiteralOffset());
@@ -696,6 +701,7 @@ void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint
     << "value=" << value;
 #endif
   *patch_location = value;
+  oat_header.UpdateChecksum(patch_location, sizeof(value));
 }
 
 }  // namespace art

@@ -71,6 +71,10 @@ class PACKED ImageHeader {
     return oat_checksum_;
   }
 
+  void SetOatChecksum(uint32_t oat_checksum) {
+    oat_checksum_ = oat_checksum;
+  }
+
   byte* GetOatBegin() const {
     return reinterpret_cast<byte*>(oat_begin_);
   }

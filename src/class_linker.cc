@@ -707,7 +707,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   uint32_t image_oat_checksum = image_header.GetOatChecksum();
   if (oat_checksum != image_oat_checksum) {
     LOG(ERROR) << "Failed to match oat file checksum " << std::hex << oat_checksum
-               << " to expected oat checksum " << std::hex << oat_checksum
+               << " to expected oat checksum " << std::hex << image_oat_checksum
                << " in image";
     return NULL;
   }
