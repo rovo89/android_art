@@ -45,7 +45,7 @@ static void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Object, internalClone, "(Ljava/lang/Cloneable;)Ljava/lang/Object;"),
+  NATIVE_METHOD(Object, internalClone, "()Ljava/lang/Object;"),
   NATIVE_METHOD(Object, notify, "()V"),
   NATIVE_METHOD(Object, notifyAll, "()V"),
   NATIVE_METHOD(Object, wait, "(JI)V"),
