@@ -193,7 +193,8 @@ ByteArray* CreateJniDlsymLookupStub() {
 
   Label no_native_code_found;
   __ EmitBranch(V0, ZERO, &no_native_code_found, true);
-  __ Jr(V0); // If V0 != 0 tail call method's code
+  __ Move(T9, V0); // Move result into T9
+  __ Jr(T9); // If result != 0, tail call method's code
   __ Bind(&no_native_code_found, false);
   __ Jr(RA); // Return to caller to handle exception
 
