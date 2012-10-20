@@ -30,7 +30,7 @@
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
 // No clocks to specify on OS/X, fake value to pass to routines that require a clock.
-#define CLOCK_REALTIME 0xEBADFOOD
+#define CLOCK_REALTIME 0xebadf00d
 #endif
 
 #define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
