@@ -403,7 +403,7 @@ void ThreadList::SuspendAllDaemonThreads() {
       Thread* thread = *it;
       // This is only run after all non-daemon threads have exited, so the remainder should all be
       // daemons.
-      CHECK(thread->IsDaemon());
+      CHECK(thread->IsDaemon()) << *thread;
       if (thread != self) {
         thread->ModifySuspendCount(self, +1, false);
       }
