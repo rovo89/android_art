@@ -353,11 +353,11 @@ art_throw_no_such_method_from_code:
     sw    $t0, 16($sp)                    # pass $sp
     addiu $sp, $sp, 16                    # release out args
     move  $a0, $v0                        # save target Method*
-    move  $t0, $v1                        # save $v0->code_
+    move  $t9, $v1                        # save $v0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     beqz  $v0, 1f
     nop
-    jr    $t0
+    jr    $t9
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -389,13 +389,13 @@ art_work_around_app_jni_bugs:
     move     $a0, rSELF       # pass Thread::Current
     jal      artWorkAroundAppJniBugs  # (Thread*, $sp)
     move     $a1, $sp         # pass $sp
-    move     $t0, $v0         # save target address
+    move     $t9, $v0         # save target address
     lw       $a0, 12($sp)
     lw       $a1, 16($sp)
     lw       $a2, 20($sp)
     lw       $a3, 24($sp)
     lw       $ra, 28($sp)
-    jr       $t0              # tail call into JNI routine
+    jr       $t9              # tail call into JNI routine
     addiu    $sp, $sp, 32
 
     .global art_handle_fill_data_from_code

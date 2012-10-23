@@ -238,6 +238,10 @@ enum NativeRegisterPool {
 #define rARG1 rCX
 #define rARG2 rDX
 #define rARG3 rBX
+#define rFARG0 rAX
+#define rFARG1 rCX
+#define rFARG2 rDX
+#define rFARG3 rBX
 #define rRET0 rAX
 #define rRET1 rDX
 #define rINVOKE_TGT rAX
