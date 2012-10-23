@@ -77,7 +77,7 @@ define build-art-test
   LOCAL_CFLAGS := $(ART_TEST_CFLAGS)
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
+    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
     include $(BUILD_EXECUTABLE)
@@ -86,6 +86,7 @@ define build-art-test
   else # host
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
+    LOCAL_STATIC_LIBRARIES += libcutils
     ifeq ($(HOST_OS),darwin)
       # Mac OS complains about unresolved symbols if you don't include this.
       LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host

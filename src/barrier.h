@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_BARRIER_H_
-#define ART_SRC_GC_BARRIER_H_
+#ifndef ART_SRC_BARRIER_H_
+#define ART_SRC_BARRIER_H_
 
-#include "../mutex.h"
+#include "../src/mutex.h"
 #include "locks.h"
 #include "UniquePtr.h"
 

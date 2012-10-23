@@ -164,6 +164,7 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
+	src/barrier.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/common_throws.cc \
@@ -181,7 +182,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/dlmalloc.cc \
 	src/file.cc \
 	src/file_linux.cc \
-	src/gc/barrier.cc \
 	src/gc/card_table.cc \
 	src/gc/heap_bitmap.cc \
 	src/gc/large_object_space.cc \
@@ -257,6 +257,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/stringprintf.cc \
 	src/thread.cc \
 	src/thread_list.cc \
+	src/thread_pool.cc \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
@@ -394,6 +395,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
 	test/ReferenceMap/stack_walk_refmap_jni.cc
 
 TEST_COMMON_SRC_FILES := \
+	src/barrier_test.cc \
 	src/class_linker_test.cc \
 	src/compiler_test.cc \
 	src/dex_cache_test.cc \
@@ -418,6 +420,7 @@ TEST_COMMON_SRC_FILES := \
 	src/reference_table_test.cc \
 	src/runtime_support_test.cc \
 	src/runtime_test.cc \
+	src/thread_pool_test.cc \
 	src/utils_test.cc \
 	src/zip_archive_test.cc \
 	src/verifier/method_verifier_test.cc \

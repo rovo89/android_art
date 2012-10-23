@@ -151,7 +151,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAF
 }
 #endif
 
-size_t ThreadList::RunCheckpoint(Thread::CheckpointFunction* checkpoint_function) {
+size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Thread* self = Thread::Current();
   if (kIsDebugBuild) {
     Locks::mutator_lock_->AssertNotHeld(self);

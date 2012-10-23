@@ -32,6 +32,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "safe_map.h"
+#include "thread_pool.h"
 
 namespace art {
 
@@ -364,6 +365,8 @@ class Compiler {
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
   CreateInvokeStubFn create_invoke_stub_;
+
+  UniquePtr<ThreadPool> thread_pool_;
 
   pthread_key_t tls_key_;
 

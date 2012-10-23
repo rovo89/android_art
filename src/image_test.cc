@@ -72,6 +72,9 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
   }
 
+  // Need to delete the compiler since it has worker threads which are attached to runtime.
+  delete compiler_.release();
+
   // tear down old runtime before making a new one, clearing out misc state
   delete runtime_.release();
   java_lang_dex_file_ = NULL;
