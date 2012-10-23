@@ -216,18 +216,26 @@ void callRuntimeHelperRegLocationRegLocation(CompilationUnit* cUnit, int helperO
   int rTgt = loadHelper(cUnit, helperOffset);
 #endif
   if (arg0.wide == 0) {
-    loadValueDirectFixed(cUnit, arg0, rARG0);
+    loadValueDirectFixed(cUnit, arg0, arg0.fp ? rFARG0 : rARG0);
     if (arg1.wide == 0) {
+#if defined(TARGET_MIPS)
+      loadValueDirectFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG1);
+#else
       loadValueDirectFixed(cUnit, arg1, rARG1);
+#endif
     } else {
+#if defined(TARGET_MIPS)
+      loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG1, arg1.fp ? rFARG3 : rARG2);
+#else
       loadValueDirectWideFixed(cUnit, arg1, rARG1, rARG2);
+#endif
     }
   } else {
-    loadValueDirectWideFixed(cUnit, arg0, rARG0, rARG1);
+    loadValueDirectWideFixed(cUnit, arg0, arg0.fp ? rFARG0 : rARG0, arg0.fp ? rFARG1 : rARG1);
     if (arg1.wide == 0) {
-      loadValueDirectFixed(cUnit, arg1, rARG2);
+      loadValueDirectFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG2);
     } else {
-      loadValueDirectWideFixed(cUnit, arg1, rARG2, rARG3);
+      loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG2, arg1.fp ? rFARG3 : rARG3);
     }
   }
   oatClobberCalleeSave(cUnit);
@@ -1400,7 +1408,7 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
       // InitializeTypeFromCode(idx, method)
       callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, rARG1,
                               true);
-      opRegCopy(cUnit, classReg, rARG0); // Align usage with fast path
+      opRegCopy(cUnit, classReg, rRET0); // Align usage with fast path
       // Rejoin code paths
       LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
       hopBranch->target = (LIR*)hopTarget;
@@ -2363,9 +2371,9 @@ bool genConversionCall(CompilationUnit* cUnit, int funcOffset,
    */
   oatFlushAllRegs(cUnit);   /* Send everything to home location */
   if (rlSrc.wide) {
-    loadValueDirectWideFixed(cUnit, rlSrc, rARG0, rARG1);
+    loadValueDirectWideFixed(cUnit, rlSrc, rlSrc.fp ? rFARG0 : rARG0, rlSrc.fp ? rFARG1 : rARG1);
   } else {
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);
+    loadValueDirectFixed(cUnit, rlSrc, rlSrc.fp ? rFARG0 : rARG0);
   }
   callRuntimeHelperRegLocation(cUnit, funcOffset, rlSrc, false);
   if (rlDest.wide) {
