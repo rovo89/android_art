@@ -857,6 +857,28 @@ CompiledMethod* compileMethod(Compiler& compiler,
     //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
   }
 #endif
+
+#if 1
+// *** Temporary ****
+// For use in debugging issue 7250540.  Disable optimization in problem method
+// to see if monkey results change.  Should be removed after monkey runs
+// complete.
+if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboard.Key.<init>(android.content.res.Resources, com.android.inputmethod.keyboard.Keyboard$Params, com.android.inputmethod.keyboard.Keyboard$Builder$Row, org.xmlpull.v1.XmlPullParser)") != std::string::npos) {
+    cUnit->disableOpt |= (
+        (1 << kLoadStoreElimination) |
+        (1 << kLoadHoisting) |
+        (1 << kSuppressLoads) |
+        (1 << kNullCheckElimination) |
+        (1 << kPromoteRegs) |
+        (1 << kTrackLiveTemps) |
+        (1 << kSkipLargeMethodOptimization) |
+        (1 << kSafeOptimizations) |
+        (1 << kBBOpt) |
+        (1 << kMatch) |
+        (1 << kPromoteCompilerTemps));
+}
+#endif
+
   if (cUnit->instructionSet == kMips) {
     // Disable some optimizations for mips for now
     cUnit->disableOpt |= (
