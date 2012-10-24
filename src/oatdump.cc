@@ -660,6 +660,15 @@ class ImageDumper {
 
     oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file));
 
+    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
+    for (size_t i = 0; i < oat_dex_files.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+      CHECK(oat_dex_file != NULL);
+      std::pair<std::string, size_t> entry(oat_dex_file->GetDexFileLocation(),
+                                           oat_dex_file->FileSize());
+      stats_.oat_dex_file_sizes.push_back(entry);
+    }
+
     os_ << "OBJECTS:\n" << std::flush;
 
     // Loop through all the image spaces and dump their objects.
@@ -1002,6 +1011,7 @@ class ImageDumper {
     std::vector<AbstractMethod*> method_outlier;
     std::vector<size_t> method_outlier_size;
     std::vector<double> method_outlier_expansion;
+    std::vector<std::pair<std::string, size_t> > oat_dex_file_sizes;
 
     explicit Stats()
         : oat_file_bytes(0),
@@ -1187,12 +1197,14 @@ class ImageDumper {
       os << "\n" << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);
 
-      os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
+      os << StringPrintf("\toat_file_bytes               = %8zd\n"
+                         "\tmanaged_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tmanaged_to_native_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tnative_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n\n"
                          "\tclass_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tlarge_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tlarge_method_code_bytes      = %8zd (%2.0f%% of oat file bytes)\n\n",
+                         oat_file_bytes,
                          managed_code_bytes, PercentOfOatBytes(managed_code_bytes),
                          managed_to_native_code_bytes, PercentOfOatBytes(managed_to_native_code_bytes),
                          native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes),
@@ -1201,12 +1213,21 @@ class ImageDumper {
                          large_method_code_bytes, PercentOfOatBytes(large_method_code_bytes))
          << std::flush;
 
-      os << StringPrintf("\tgc_map_bytes           = %7zd (%2.0f%% of oat file_bytes)\n"
-                         "\tpc_mapping_table_bytes = %7zd (%2.0f%% of oat file_bytes)\n"
-                         "\tvmap_table_bytes       = %7zd (%2.0f%% of oat file_bytes)\n\n",
-                         gc_map_bytes, PercentOfOatBytes(gc_map_bytes),
-                         pc_mapping_table_bytes, PercentOfOatBytes(pc_mapping_table_bytes),
-                         vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
+      os << "\tDexFile sizes:\n";
+      typedef std::vector<std::pair<std::string, size_t> >::const_iterator It2;
+      for (It2 it = oat_dex_file_sizes.begin(); it != oat_dex_file_sizes.end();
+          ++it) {
+        os << StringPrintf("\t%s = %zd (%2.0f%% of oat file bytes)\n",
+                           it->first.c_str(), it->second,
+                           PercentOfOatBytes(it->second));
+      }
+
+      os << "\n" << StringPrintf("\tgc_map_bytes           = %7zd (%2.0f%% of oat file bytes)\n"
+                                 "\tpc_mapping_table_bytes = %7zd (%2.0f%% of oat file bytes)\n"
+                                 "\tvmap_table_bytes       = %7zd (%2.0f%% of oat file bytes)\n\n",
+                                 gc_map_bytes, PercentOfOatBytes(gc_map_bytes),
+                                 pc_mapping_table_bytes, PercentOfOatBytes(pc_mapping_table_bytes),
+                                 vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
          << std::flush;
 
       os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes)
