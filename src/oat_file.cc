@@ -234,9 +234,12 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
 
 OatFile::OatDexFile::~OatDexFile() {}
 
+size_t OatFile::OatDexFile::FileSize() const {
+  return reinterpret_cast<const DexFile::Header*>(dex_file_pointer_)->file_size_;
+}
+
 const DexFile* OatFile::OatDexFile::OpenDexFile() const {
-  size_t length = reinterpret_cast<const DexFile::Header*>(dex_file_pointer_)->file_size_;
-  return DexFile::Open(dex_file_pointer_, length, dex_file_location_,
+  return DexFile::Open(dex_file_pointer_, FileSize(), dex_file_location_,
                        dex_file_location_checksum_);
 }
 

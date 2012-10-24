@@ -186,6 +186,7 @@ class OatFile {
    public:
     const DexFile* OpenDexFile() const;
     const OatClass* GetOatClass(uint32_t class_def_index) const;
+    size_t FileSize() const;
 
     const std::string& GetDexFileLocation() const {
       return dex_file_location_;
