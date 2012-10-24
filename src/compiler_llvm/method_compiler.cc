@@ -4344,7 +4344,7 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::SGET_CHAR:
     case Instruction::SGET_SHORT:
       {
-        if (insn->Opcode() == Instruction::AGET_OBJECT) {
+        if (insn->Opcode() == Instruction::SGET_OBJECT) {
           set_to_another_object[dec_insn.vA] = true;
         }
         uint32_t field_idx = dec_insn.vB;
