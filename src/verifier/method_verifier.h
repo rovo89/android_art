@@ -162,6 +162,9 @@ class MethodVerifier {
                                  std::string& error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static void VerifyMethodAndDump(AbstractMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint8_t EncodePcToReferenceMapData() const;
 
   uint32_t DexFileVersion() const {
@@ -235,8 +238,6 @@ class MethodVerifier {
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       AbstractMethod* method, uint32_t method_access_flags)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void VerifyMethodAndDump(AbstractMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run verification on the method. Returns true if verification completes and false if the input
   // has an irrecoverable corruption.
@@ -653,8 +654,6 @@ class MethodVerifier {
   // The number of occurrences of specific opcodes.
   size_t new_instance_count_;
   size_t monitor_enter_count_;
-
-  friend struct art::ReferenceMap2Visitor; // for VerifyMethodAndDump
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 

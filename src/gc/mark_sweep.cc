@@ -37,6 +37,7 @@
 #include "timing_logger.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -185,9 +186,10 @@ void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const AbstractMethod
     LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (!large_object_space->Contains(root)) {
       LOG(ERROR) << "Found invalid root: " << root;
-      LOG(ERROR) << "VReg / Shadow frame offset: " << vreg;
+      LOG(ERROR) << "VReg: " << vreg;
       if (method != NULL) {
-        LOG(ERROR) << "In method " << PrettyMethod(method, true);
+        LOG(ERROR) << "In method " << PrettyMethod(method, true) << "\nVerifier output:\n";
+        verifier::MethodVerifier::VerifyMethodAndDump(const_cast<AbstractMethod*>(method));
       }
     }
   }
