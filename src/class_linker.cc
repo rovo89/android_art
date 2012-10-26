@@ -240,6 +240,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SirtRef<Class>
       java_lang_Class(self, down_cast<Class*>(heap->AllocObject(self, NULL, sizeof(ClassClass))));
   CHECK(java_lang_Class.get() != NULL);
+  Class::SetClassClass(java_lang_Class.get());
   java_lang_Class->SetClass(java_lang_Class.get());
   java_lang_Class->SetClassSize(sizeof(ClassClass));
   // AllocClass(Class*) can now be used
@@ -972,11 +973,12 @@ void ClassLinker::InitFromImage() {
   Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
 
+  ObjectArray<Class>* class_roots =
+      space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->AsObjectArray<Class>();
+
   // Special case of setting up the String class early so that we can test arbitrary objects
   // as being Strings or not
-  Class* java_lang_String = space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
-      ->AsObjectArray<Class>()->Get(kJavaLangString);
-  String::SetClass(java_lang_String);
+  String::SetClass(class_roots->Get(kJavaLangString));
 
   CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
            static_cast<uint32_t>(dex_caches->GetLength()));
@@ -1004,9 +1006,8 @@ void ClassLinker::InitFromImage() {
   }
 
   // reinit class_roots_
-  Object* class_roots_object =
-      heap->GetImageSpace()->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
-  class_roots_ = class_roots_object->AsObjectArray<Class>();
+  Class::SetClassClass(class_roots->Get(kJavaLangClass));
+  class_roots_ = class_roots;
 
   // reinit array_iftable_ from any array class instance, they should be ==
   array_iftable_ = GetClassRoot(kObjectArrayClass)->GetIfTable();
@@ -1112,6 +1113,7 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* ar
 
 
 ClassLinker::~ClassLinker() {
+  Class::ResetClass();
   String::ResetClass();
   Field::ResetClass();
   AbstractMethod::ResetClasses();

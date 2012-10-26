@@ -35,6 +35,7 @@ class ModUnionVisitor;
 class ModUnionTableBitmap;
 class Object;
 class TimingLogger;
+class MarkStackChunk;
 
 class MarkSweep {
  public:
@@ -80,9 +81,8 @@ class MarkSweep {
   void UnBindBitmaps()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Builds a mark stack with objects on dirty cards and recursively mark
-  // until it empties.
-  void RecursiveMarkDirtyObjects(bool update_finger)
+  // Builds a mark stack with objects on dirty cards and recursively mark until it empties.
+  void RecursiveMarkDirtyObjects()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -111,7 +111,7 @@ class MarkSweep {
   }
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep(bool partial, bool swap_bitmaps)
+  void Sweep(TimingLogger& timings, bool partial, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
@@ -135,6 +135,41 @@ class MarkSweep {
   void ScanObject(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  template <typename MarkVisitor>
+  void ScanObjectVisit(const Object* obj, const MarkVisitor& visitor)
+      NO_THREAD_SAFETY_ANALYSIS {
+    DCHECK(obj != NULL);
+    if (kIsDebugBuild && !IsMarked(obj)) {
+      heap_->DumpSpaces();
+      LOG(FATAL) << "Scanning unmarked object " << obj;
+    }
+    Class* klass = obj->GetClass();
+    DCHECK(klass != NULL);
+    if (klass == java_lang_Class_) {
+      DCHECK_EQ(klass->GetClass(), java_lang_Class_);
+      if (kCountScannedTypes) {
+        ++class_count_;
+      }
+      VisitClassReferences(klass, obj, visitor);
+    } else if (klass->IsArrayClass()) {
+      if (kCountScannedTypes) {
+        ++array_count_;
+      }
+      visitor(obj, klass, Object::ClassOffset(), false);
+      if (klass->IsObjectArrayClass()) {
+        VisitObjectArrayReferences(obj->AsObjectArray<Object>(), visitor);
+      }
+    } else {
+      if (kCountScannedTypes) {
+        ++other_count_;
+      }
+      VisitOtherReferences(klass, obj, visitor);
+      if (klass->IsReferenceClass()) {
+        DelayReferenceReferent(const_cast<Object*>(obj));
+      }
+    }
+  }
 
   void SetFinger(Object* new_finger) {
     finger_ = new_finger;
@@ -181,16 +216,29 @@ class MarkSweep {
                             Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     DCHECK(obj->GetClass() != NULL);
-    if (obj->IsClass()) {
-      VisitClassReferences(obj, visitor);
-    } else if (obj->IsArrayInstance()) {
-      VisitArrayReferences(obj, visitor);
+
+    Class* klass = obj->GetClass();
+    DCHECK(klass != NULL);
+    if (klass == Class::GetJavaLangClass()) {
+      DCHECK_EQ(klass->GetClass(), Class::GetJavaLangClass());
+      VisitClassReferences(klass, obj, visitor);
     } else {
-      VisitOtherReferences(obj, visitor);
+      if (klass->IsArrayClass()) {
+        visitor(obj, klass, Object::ClassOffset(), false);
+        if (klass->IsObjectArrayClass()) {
+          VisitObjectArrayReferences(obj->AsObjectArray<Object>(), visitor);
+        }
+      } else {
+        VisitOtherReferences(klass, obj, visitor);
+      }
     }
   }
 
-  static void MarkObjectVisitor(const Object* root, void* arg)
+  static void MarkObjectCallback(const Object* root, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Marks an object.
+  void MarkObject(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   Barrier& GetBarrier();
@@ -216,13 +264,14 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Marks an object.
-  void MarkObject(const Object* obj)
+  void MarkObjectNonNull(const Object* obj, bool check_finger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  // Yuck.
-  void MarkObject0(const Object* obj, bool check_finger)
+  bool MarkLargeObject(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Returns true if we need to add obj to a mark stack.
+  bool MarkObjectParallel(const Object* obj) NO_THREAD_SAFETY_ANALYSIS;
 
   static void ScanBitmapCallback(Object* obj, void* finger, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
@@ -241,11 +290,6 @@ class MarkSweep {
   void CheckObject(const Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  // Grays references in instance fields.
-  void ScanInstanceFields(const Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Verify the roots of the heap and print out information related to any invalid roots.
   // Called in MarkObject, so may we may not hold the mutator lock.
   void VerifyRoots()
@@ -258,31 +302,22 @@ class MarkSweep {
       NO_THREAD_SAFETY_ANALYSIS;
 
   template <typename Visitor>
-  static void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor)
+  static void VisitInstanceFieldsReferences(const Class* klass, const Object* obj,
+                                            const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     DCHECK(obj != NULL);
-    Class* klass = obj->GetClass();
     DCHECK(klass != NULL);
     VisitFieldsReferences(obj, klass->GetReferenceInstanceOffsets(), false, visitor);
   }
 
-  // Blackens a class object.
-  void ScanClass(const Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-
+  // Visit the header, static field references, and interface pointers of a class object.
   template <typename Visitor>
-  static void VisitClassReferences(const Object* obj, const Visitor& visitor)
+  static void VisitClassReferences(const Class* klass, const Object* obj,
+                                   const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    VisitInstanceFieldsReferences(obj, visitor);
+    VisitInstanceFieldsReferences(klass, obj, visitor);
     VisitStaticFieldsReferences(obj->AsClass(), visitor);
   }
-
-  // Grays references in static fields.
-  void ScanStaticFields(const Class* klass)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <typename Visitor>
   static void VisitStaticFieldsReferences(const Class* klass, const Visitor& visitor)
@@ -290,11 +325,6 @@ class MarkSweep {
     DCHECK(klass != NULL);
     VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets(), true, visitor);
   }
-
-  // Used by ScanInstanceFields and ScanStaticFields
-  void ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <typename Visitor>
   static void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static,
@@ -333,37 +363,30 @@ class MarkSweep {
     }
   }
 
-  // Grays references in an array.
-  void ScanArray(const Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
+  // Visit all of the references in an object array.
   template <typename Visitor>
-  static void VisitArrayReferences(const Object* obj, const Visitor& visitor)
+  static void VisitObjectArrayReferences(const ObjectArray<Object>* array,
+                                         const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    visitor(obj, obj->GetClass(), Object::ClassOffset(), false);
-    if (obj->IsObjectArray()) {
-      const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
-      for (int32_t i = 0; i < array->GetLength(); ++i) {
-        const Object* element = array->GetWithoutChecks(i);
-        size_t width = sizeof(Object*);
-        visitor(obj, element, MemberOffset(i * width + Array::DataOffset(width).Int32Value()), false);
-      }
+    const int32_t length = array->GetLength();
+    for (int32_t i = 0; i < length; ++i) {
+      const Object* element = array->GetWithoutChecks(i);
+      const size_t width = sizeof(Object*);
+      MemberOffset offset = MemberOffset(i * width + Array::DataOffset(width).Int32Value());
+      visitor(array, element, offset, false);
     }
   }
 
-  void ScanOther(const Object* obj)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
+  // Visits the header and field references of a data object.
   template <typename Visitor>
-  static void VisitOtherReferences(const Object* obj, const Visitor& visitor)
+  static void VisitOtherReferences(const Class* klass, const Object* obj,
+                                   const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    return VisitInstanceFieldsReferences(obj, visitor);
+    return VisitInstanceFieldsReferences(klass, obj, visitor);
   }
 
   // Blackens objects grayed during a garbage collection.
-  void ScanGrayObjects(bool update_finger)
+  void ScanGrayObjects()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Schedules an unmarked object for reference processing.
@@ -372,6 +395,10 @@ class MarkSweep {
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void ProcessMarkStackParallel()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -396,8 +423,14 @@ class MarkSweep {
   void SweepJniWeakGlobals(Heap::IsMarkedTester is_marked, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Whether or not we count how many of each type of object were scanned.
+  static const bool kCountScannedTypes = false;
+
   // Current space, we check this space first to avoid searching for the appropriate space for an object.
   SpaceBitmap* current_mark_bitmap_;
+
+  // Cache java.lang.Class for optimization.
+  Class* java_lang_Class_;
 
   ObjectStack* mark_stack_;
 
@@ -410,23 +443,25 @@ class MarkSweep {
   Object* immune_end_;
 
   Object* soft_reference_list_;
-
   Object* weak_reference_list_;
-
   Object* finalizer_reference_list_;
-
   Object* phantom_reference_list_;
-
   Object* cleared_reference_list_;
 
-  size_t freed_bytes_;
-  size_t freed_objects_;
-
-  size_t class_count_;
-  size_t array_count_;
-  size_t other_count_;
+  AtomicInteger freed_bytes_;
+  AtomicInteger freed_objects_;
+  AtomicInteger class_count_;
+  AtomicInteger array_count_;
+  AtomicInteger other_count_;
+  AtomicInteger large_object_test_;
+  AtomicInteger large_object_mark_;
+  AtomicInteger classes_marked_;
+  AtomicInteger overhead_time_;
+  AtomicInteger work_chunks_created_;
+  AtomicInteger work_chunks_deleted_;
 
   UniquePtr<Barrier> gc_barrier_;
+  Mutex large_object_lock_;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
   friend class CheckBitmapVisitor;
@@ -443,6 +478,8 @@ class MarkSweep {
   friend class ModUnionScanImageRootVisitor;
   friend class ScanBitmapVisitor;
   friend class ScanImageRootVisitor;
+  friend class MarkStackChunk;
+  friend class FifoMarkStackChunk;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

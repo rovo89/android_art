@@ -45,6 +45,7 @@
 
 namespace art {
 
+static const bool kDumpGcPerformanceOnShutdown = false;
 const double Heap::kDefaultTargetUtilization = 0.5;
 
 static bool GenerateImage(const std::string& image_file_name) {
@@ -282,6 +283,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
 
+  // Create the reference queue lock, this is required so for parrallel object scanning in the GC.
+  reference_queue_lock_.reset(new Mutex("reference queue lock"));
+
+  CHECK(max_allowed_footprint_ != 0);
+
   // Set up the cumulative timing loggers.
   for (size_t i = static_cast<size_t>(kGcTypeSticky); i < static_cast<size_t>(kGcTypeMax);
        ++i) {
@@ -294,6 +300,17 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
   }
+}
+
+void Heap::CreateThreadPool() {
+  // TODO: Make sysconf(_SC_NPROCESSORS_CONF) be a helper function?
+  // Use the number of processors - 1 since the thread doing the GC does work while its waiting for
+  // workers to complete.
+  thread_pool_.reset(new ThreadPool(sysconf(_SC_NPROCESSORS_CONF) - 1));
+}
+
+void Heap::DeleteThreadPool() {
+  thread_pool_.reset(NULL);
 }
 
 // Sort spaces based on begin address
@@ -369,6 +386,10 @@ void Heap::DumpGcPerformanceInfo() {
 }
 
 Heap::~Heap() {
+  if (kDumpGcPerformanceOnShutdown) {
+    DumpGcPerformanceInfo();
+  }
+
   // If we don't reset then the mark stack complains in it's destructor.
   allocation_stack_->Reset();
   live_stack_->Reset();
@@ -947,12 +968,11 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
   // We need to do partial GCs every now and then to avoid the heap growing too much and
   // fragmenting.
   if (gc_type == kGcTypeSticky && ++sticky_gc_count_ > partial_gc_frequency_) {
-    gc_type = kGcTypePartial;
+    gc_type = have_zygote_space_ ? kGcTypePartial : kGcTypeFull;
   }
   if (gc_type != kGcTypeSticky) {
     sticky_gc_count_ = 0;
   }
-
   if (concurrent_gc_) {
     CollectGarbageConcurrentMarkSweepPlan(self, gc_type, gc_cause, clear_soft_references);
   } else {
@@ -1049,9 +1069,6 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     mark_sweep.MarkConcurrentRoots();
     timings.AddSplit("MarkRoots");
 
-    // Roots are marked on the bitmap and the mark_stack is empty.
-    DCHECK(mark_stack_->IsEmpty());
-
     UpdateAndMarkModUnion(&mark_sweep, timings, gc_type);
 
     if (gc_type != kGcTypeSticky) {
@@ -1079,15 +1096,14 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
 
-#ifndef NDEBUG
-    // Verify that we only reach marked objects from the image space
-    mark_sweep.VerifyImageRoots();
-    timings.AddSplit("VerifyImageRoots");
-#endif
+    if (kIsDebugBuild) {
+      // Verify that we only reach marked objects from the image space
+      mark_sweep.VerifyImageRoots();
+      timings.AddSplit("VerifyImageRoots");
+    }
 
     if (gc_type != kGcTypeSticky) {
-      mark_sweep.Sweep(gc_type == kGcTypePartial, false);
-      timings.AddSplit("Sweep");
+      mark_sweep.Sweep(timings, gc_type == kGcTypePartial, false);
       mark_sweep.SweepLargeObjects(false);
       timings.AddSplit("SweepLargeObjects");
     } else {
@@ -1098,15 +1114,12 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
 
     // Unbind the live and mark bitmaps.
     mark_sweep.UnBindBitmaps();
-
-    const bool swap = true;
-    if (swap) {
-      if (gc_type == kGcTypeSticky) {
-        SwapLargeObjects();
-      } else {
-        SwapBitmaps(gc_type);
-      }
+    if (gc_type == kGcTypeSticky) {
+      SwapLargeObjects();
+    } else {
+      SwapBitmaps(gc_type);
     }
+    timings.AddSplit("SwapBitmaps");
 
     if (verify_system_weaks_) {
       mark_sweep.VerifySystemWeaks();
@@ -1600,9 +1613,6 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       ClearCards(timings);
     }
 
-    // Roots are marked on the bitmap and the mark_stack is empty.
-    DCHECK(mark_stack_->IsEmpty());
-
     if (verify_mod_union_table_) {
       ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
       zygote_mod_union_table_->Update();
@@ -1657,7 +1667,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       timings.AddSplit("ReMarkRoots");
 
       // Scan dirty objects, this is only required if we are not doing concurrent GC.
-      mark_sweep.RecursiveMarkDirtyObjects(false);
+      mark_sweep.RecursiveMarkDirtyObjects();
       timings.AddSplit("RecursiveMarkDirtyObjects");
     }
 
@@ -1721,8 +1731,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
       if (gc_type != kGcTypeSticky) {
         WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-        mark_sweep.Sweep(gc_type == kGcTypePartial, false);
-        timings.AddSplit("Sweep");
+        mark_sweep.Sweep(timings, gc_type == kGcTypePartial, false);
         mark_sweep.SweepLargeObjects(false);
         timings.AddSplit("SweepLargeObjects");
       } else {
@@ -1740,14 +1749,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
 
       // Swap the live and mark bitmaps for each space which we modified space. This is an
       // optimization that enables us to not clear live bits inside of the sweep.
-      const bool swap = true;
-      if (swap) {
-        if (gc_type == kGcTypeSticky) {
-          SwapLargeObjects();
-        } else {
-          SwapBitmaps(gc_type);
-        }
+      if (gc_type == kGcTypeSticky) {
+        SwapLargeObjects();
+      } else {
+        SwapBitmaps(gc_type);
       }
+      timings.AddSplit("SwapBitmaps");
     }
 
     if (verify_system_weaks_) {
@@ -1850,7 +1857,7 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
 void Heap::GrowForUtilization() {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
-  size_t target_size = num_bytes_allocated_ / Heap::GetTargetHeapUtilization();
+  size_t target_size = num_bytes_allocated_ / GetTargetHeapUtilization();
   if (target_size > num_bytes_allocated_ + max_free_) {
     target_size = num_bytes_allocated_ + max_free_;
   } else if (target_size < num_bytes_allocated_ + min_free_) {
@@ -1870,7 +1877,6 @@ void Heap::GrowForUtilization() {
 }
 
 void Heap::ClearGrowthLimit() {
-  WaitForConcurrentGcToComplete(Thread::Current());
   alloc_space_->ClearGrowthLimit();
 }
 
@@ -1922,6 +1928,8 @@ void Heap::EnqueuePendingReference(Object* ref, Object** list) {
   DCHECK(ref != NULL);
   DCHECK(list != NULL);
 
+  // TODO: Remove this lock, use atomic stacks for storing references.
+  MutexLock mu(Thread::Current(), *reference_queue_lock_);
   if (*list == NULL) {
     ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
     *list = ref;
@@ -1937,6 +1945,9 @@ Object* Heap::DequeuePendingReference(Object** list) {
   DCHECK(*list != NULL);
   Object* head = (*list)->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
   Object* ref;
+
+  // TODO: Remove this lock, use atomic stacks for storing references.
+  MutexLock mu(Thread::Current(), *reference_queue_lock_);
   if (*list == head) {
     ref = *list;
     *list = NULL;

@@ -20,13 +20,19 @@
 #include <deque>
 #include <vector>
 
+#include "closure.h"
 #include "locks.h"
 #include "../src/mutex.h"
 
 namespace art {
 
-class Closure;
 class ThreadPool;
+
+class Task : public Closure {
+public:
+  // Called when references reaches 0.
+  virtual void Finalize() { }
+};
 
 class ThreadPoolWorker {
  public:
@@ -38,10 +44,10 @@ class ThreadPoolWorker {
 
   virtual ~ThreadPoolWorker();
 
- private:
+ protected:
   ThreadPoolWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
   static void* Callback(void* arg) LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void Run();
+  virtual void Run();
 
   ThreadPool* thread_pool_;
   const std::string name_;
@@ -67,20 +73,33 @@ class ThreadPool {
 
   // Add a new task, the first available started worker will process it. Does not delete the task
   // after running it, it is the caller's responsibility.
-  void AddTask(Thread* self, Closure* task);
+  void AddTask(Thread* self, Task* task);
 
   ThreadPool(size_t num_threads);
   virtual ~ThreadPool();
 
   // Wait for all tasks currently on queue to get completed.
-  void Wait(Thread* self);
+  void Wait(Thread* self, bool do_work = true);
 
- private:
-  // Add a new task.
-  void AddThread(size_t stack_size);
+  size_t GetTaskCount(Thread* self);
 
+  // Returns the total amount of workers waited for tasks.
+  uint64_t GetWaitTime() const {
+    return total_wait_time_;
+  }
+
+ protected:
   // Get a task to run, blocks if there are no tasks left
-  Closure* GetTask(Thread* self);
+  virtual Task* GetTask(Thread* self);
+
+  // Try to get a task, returning NULL if there is none available.
+  Task* TryGetTask(Thread* self);
+  Task* TryGetTaskLocked(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(task_queue_lock_);
+
+  // Are we shutting down?
+  bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(task_queue_lock_) {
+    return shutting_down_;
+  }
 
   Mutex task_queue_lock_;
   ConditionVariable task_queue_condition_ GUARDED_BY(task_queue_lock_);
@@ -89,12 +108,69 @@ class ThreadPool {
   volatile bool shutting_down_ GUARDED_BY(task_queue_lock_);
   // How many worker threads are waiting on the condition.
   volatile size_t waiting_count_ GUARDED_BY(task_queue_lock_);
-  std::deque<Closure*> tasks_ GUARDED_BY(task_queue_lock_);
+  std::deque<Task*> tasks_ GUARDED_BY(task_queue_lock_);
   // TODO: make this immutable/const?
   std::vector<ThreadPoolWorker*> threads_;
+  // Work balance detection.
+  uint64_t start_time_ GUARDED_BY(task_queue_lock_);
+  uint64_t total_wait_time_;
 
   friend class ThreadPoolWorker;
+  friend class WorkStealingWorker;
   DISALLOW_COPY_AND_ASSIGN(ThreadPool);
+};
+
+class WorkStealingTask : public Task {
+ public:
+  WorkStealingTask() : ref_count_(0) {
+
+  }
+
+  size_t GetRefCount() const {
+    return ref_count_;
+  }
+
+  virtual void StealFrom(Thread* self, WorkStealingTask* source) = 0;
+
+ private:
+  // How many people are referencing this task.
+  size_t ref_count_;
+
+  friend class WorkStealingWorker;
+};
+
+class WorkStealingWorker : public ThreadPoolWorker {
+ public:
+  virtual ~WorkStealingWorker();
+
+  bool IsRunningTask() const {
+    return task_ != NULL;
+  }
+
+ protected:
+  WorkStealingTask* task_;
+
+  WorkStealingWorker(ThreadPool* thread_pool, const std::string& name, size_t stack_size);
+  virtual void Run();
+
+  friend class WorkStealingThreadPool;
+  DISALLOW_COPY_AND_ASSIGN(WorkStealingWorker);
+};
+
+class WorkStealingThreadPool : public ThreadPool {
+ public:
+  WorkStealingThreadPool(size_t num_threads);
+  virtual ~WorkStealingThreadPool();
+
+ private:
+  Mutex work_steal_lock_;
+  // Which thread we are stealing from (round robin).
+  size_t steal_index_;
+
+  // Find a task to steal from
+  WorkStealingTask* FindTaskToStealFrom(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(work_steal_lock_);
+
+  friend class WorkStealingWorker;
 };
 
 }  // namespace art

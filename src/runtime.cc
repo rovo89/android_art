@@ -115,6 +115,8 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  heap_->DeleteThreadPool();
+
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
@@ -696,6 +698,9 @@ void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_
 void Runtime::DidForkFromZygote() {
   is_zygote_ = false;
 
+  // Create the thread pool.
+  heap_->CreateThreadPool();
+
   StartSignalCatcher();
 
   // Start the JDWP thread. If the command-line debugger flags specified "suspend=y",
@@ -1030,7 +1035,9 @@ void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
 }
 
 void Runtime::DirtyRoots() {
+  CHECK(intern_table_ != NULL);
   intern_table_->Dirty();
+  CHECK(class_linker_ != NULL);
   class_linker_->Dirty();
 }
 

@@ -24,9 +24,9 @@
 #include "UniquePtr.h"
 
 namespace art {
-class CheckWaitClosure : public Closure {
+class CheckWaitTask : public Task {
  public:
-  CheckWaitClosure(Barrier* barrier, AtomicInteger* count1, AtomicInteger* count2,
+  CheckWaitTask(Barrier* barrier, AtomicInteger* count1, AtomicInteger* count2,
                    AtomicInteger* count3)
       : barrier_(barrier),
         count1_(count1),
@@ -44,6 +44,9 @@ class CheckWaitClosure : public Closure {
     barrier_->Wait(self);
     ++*count3_;
     LOG(INFO) << "After barrier 2 " << self;
+  }
+
+  virtual void Finalize() {
     delete this;
   }
  private:
@@ -69,7 +72,7 @@ TEST_F(BarrierTest, CheckWait) {
   AtomicInteger count2 = 0;
   AtomicInteger count3 = 0;
   for (int32_t i = 0; i < num_threads; ++i) {
-    thread_pool.AddTask(self, new CheckWaitClosure(&barrier, &count1, &count2, &count3));
+    thread_pool.AddTask(self, new CheckWaitTask(&barrier, &count1, &count2, &count3));
   }
   thread_pool.StartWorkers(self);
   barrier.Increment(self, num_threads);
@@ -91,9 +94,9 @@ TEST_F(BarrierTest, CheckWait) {
   EXPECT_EQ(num_threads, count3);
 }
 
-class CheckPassClosure : public Closure {
+class CheckPassTask : public Task {
  public:
-  CheckPassClosure(Barrier* barrier, AtomicInteger* count, size_t subtasks)
+  CheckPassTask(Barrier* barrier, AtomicInteger* count, size_t subtasks)
       : barrier_(barrier),
         count_(count),
         subtasks_(subtasks) {
@@ -106,6 +109,9 @@ class CheckPassClosure : public Closure {
       // Pass through to next subtask.
       barrier_->Pass(self);
     }
+  }
+
+  void Finalize() {
     delete this;
   }
  private:
@@ -123,7 +129,7 @@ TEST_F(BarrierTest, CheckPass) {
   const int32_t num_tasks = num_threads * 4;
   const int32_t num_sub_tasks = 128;
   for (int32_t i = 0; i < num_tasks; ++i) {
-    thread_pool.AddTask(self, new CheckPassClosure(&barrier, &count, num_sub_tasks));
+    thread_pool.AddTask(self, new CheckPassTask(&barrier, &count, num_sub_tasks));
   }
   thread_pool.StartWorkers(self);
   const int32_t expected_total_tasks = num_sub_tasks * num_tasks;

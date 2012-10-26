@@ -993,7 +993,7 @@ class CompilationContext {
     self->AssertNoPendingException();
     CHECK_GT(work_units, 0U);
 
-    std::vector<Closure*> closures(work_units);
+    std::vector<ForAllClosure*> closures(work_units);
     for (size_t i = 0; i < work_units; ++i) {
       closures[i] = new ForAllClosure(this, begin + i, end, callback, work_units);
       thread_pool_->AddTask(self, closures[i]);
@@ -1006,13 +1006,11 @@ class CompilationContext {
 
     // Wait for all the worker threads to finish.
     thread_pool_->Wait(self);
-
-    STLDeleteElements(&closures);
   }
 
  private:
 
-  class ForAllClosure : public Closure {
+  class ForAllClosure : public Task {
    public:
     ForAllClosure(CompilationContext* context, size_t begin, size_t end, Callback* callback,
                   size_t stripe)
@@ -1030,6 +1028,10 @@ class CompilationContext {
         callback_(context_, i);
         self->AssertNoPendingException();
       }
+    }
+
+    virtual void Finalize() {
+      delete this;
     }
    private:
     CompilationContext* const context_;
