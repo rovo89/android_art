@@ -881,6 +881,12 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
     return;
   }
 
+  // Proxy methods should not be synchronized.
+  if (m->IsProxyMethod()) {
+    CHECK(!m->IsSynchronized());
+    return;
+  }
+
   // <clinit> is another special case. The runtime holds the class lock while calling <clinit>.
   MethodHelper mh(m);
   if (mh.IsClassInitializer()) {

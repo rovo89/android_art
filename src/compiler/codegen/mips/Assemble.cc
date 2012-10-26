@@ -548,7 +548,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
         int offset2 = tabRec ? tabRec->offset : lir->target->offset;
         int delta = offset2 - offset1;
-        if ((delta & 0xffff) == delta) {
+        if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
           // Fits
           lir->operands[1] = delta;
         } else {
@@ -563,6 +563,10 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
           oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
+          LIR *newAddu =
+              rawLIR(cUnit, lir->dalvikOffset, kMipsAddu,
+                     lir->operands[0], lir->operands[0], r_RA);
+          oatInsertLIRBefore((LIR*)lir, (LIR*)newAddu);
           lir->flags.isNop = true;
           res = kRetryAll;
         }
