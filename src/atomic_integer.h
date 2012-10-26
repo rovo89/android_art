@@ -17,7 +17,8 @@
 #ifndef ART_SRC_ATOMIC_INTEGER_H_
 #define ART_SRC_ATOMIC_INTEGER_H_
 
-#include "atomic.h"
+#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
 
 namespace art {
 
@@ -61,6 +62,14 @@ class AtomicInteger {
 
   int32_t operator -- (int32_t) {
     return android_atomic_dec(&value_);
+  }
+
+  int32_t operator ++ () {
+    return android_atomic_inc(&value_) + 1;
+  }
+
+  int32_t operator -- () {
+    return android_atomic_dec(&value_) - 1;
   }
  private:
   int32_t value_;

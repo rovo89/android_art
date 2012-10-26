@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "closure.h"
 #include "globals.h"
 #include "macros.h"
 #include "oat/runtime/oat_support_entrypoints.h"
@@ -103,12 +104,6 @@ enum ThreadFlag {
 
 class PACKED Thread {
  public:
-  class CheckpointFunction {
-   public:
-    virtual ~CheckpointFunction() { }
-    virtual void Run(Thread* self) = 0;
-  };
-
   // Space to throw a StackOverflowError in.
 #if !defined(ART_USE_LLVM_COMPILER)
   static const size_t kStackOverflowReservedBytes = 4 * KB;
@@ -180,7 +175,7 @@ class PACKED Thread {
   void ModifySuspendCount(Thread* self, int delta, bool for_debugger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
 
-  bool RequestCheckpoint(CheckpointFunction* function);
+  bool RequestCheckpoint(Closure* function);
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
@@ -773,7 +768,7 @@ class PACKED Thread {
   const char* last_no_thread_suspension_cause_;
 
   // Pending checkpoint functions.
-  CheckpointFunction* checkpoint_function_;
+  Closure* checkpoint_function_;
 
  public:
   // Runtime support function pointers

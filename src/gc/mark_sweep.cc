@@ -527,7 +527,7 @@ struct SweepCallbackContext {
   Thread* self;
 };
 
-class CheckpointMarkThreadRoots : public Thread::CheckpointFunction {
+class CheckpointMarkThreadRoots : public Closure {
  public:
   CheckpointMarkThreadRoots(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {
 
@@ -536,7 +536,8 @@ class CheckpointMarkThreadRoots : public Thread::CheckpointFunction {
   virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
-    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc);
+    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+        << thread->GetState();
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     thread->VisitRoots(MarkSweep::MarkObjectVisitor, mark_sweep_);
     mark_sweep_->GetBarrier().Pass(self);

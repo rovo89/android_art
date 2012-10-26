@@ -552,7 +552,7 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   }
 }
 
-bool Thread::RequestCheckpoint(CheckpointFunction* function) {
+bool Thread::RequestCheckpoint(Closure* function) {
   CHECK(!ReadFlag(kCheckpointRequest)) << "Already have a pending checkpoint request";
   checkpoint_function_ = function;
   union StateAndFlags old_state_and_flags = state_and_flags_;

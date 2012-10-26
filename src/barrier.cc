@@ -1,5 +1,5 @@
 #include "barrier.h"
-#include "../mutex.h"
+#include "../src/mutex.h"
 #include "thread.h"
 
 namespace art {
