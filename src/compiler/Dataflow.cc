@@ -1854,12 +1854,10 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
       case Instruction::CMPG_FLOAT:
       case Instruction::CMPG_DOUBLE:
       case Instruction::CMP_LONG:
-#if defined(ART_USE_QUICK_COMPILER)
         if (cUnit->genBitcode) {
           // Bitcode doesn't allow this optimization.
           break;
         }
-#endif
         if (mir->next != NULL) {
           MIR* mirNext = mir->next;
           Instruction::Code brOpcode = mirNext->dalvikInsn.opcode;

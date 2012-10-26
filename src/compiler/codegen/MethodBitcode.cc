@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#if defined(ART_USE_QUICK_COMPILER)
 #include "object_utils.h"
 
 #include <llvm/Support/ToolOutputFile.h>
@@ -3537,5 +3536,3 @@ void oatMethodBitcode2LIR(CompilationUnit* cUnit)
 
 
 }  // namespace art
-
-#endif  // ART_USE_QUICK_COMPILER

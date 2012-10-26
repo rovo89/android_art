@@ -16,11 +16,8 @@
 
 
 LIBART_COMPILER_LLVM_CFLAGS := -DART_USE_LLVM_COMPILER
-ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
-  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_DEXLANG_FRONTEND
-endif
-ifeq ($(ART_USE_QUICK_COMPILER),true)
-  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_QUICK_COMPILER
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 LIBART_COMPILER_LLVM_SRC_FILES += \
@@ -38,37 +35,28 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/stub_compiler.cc \
 	src/greenland/inferred_reg_category_map.cc
 
-ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \
+    src/compiler/Dataflow.cc \
+    src/compiler/Frontend.cc \
+    src/compiler/IntermediateRep.cc \
+    src/compiler/Ralloc.cc \
+    src/compiler/SSATransformation.cc \
+    src/compiler/Utility.cc \
+    src/compiler/codegen/RallocUtil.cc \
+    src/compiler/codegen/arm/ArchUtility.cc \
+    src/compiler/codegen/arm/ArmRallocUtil.cc \
+    src/compiler/codegen/arm/Assemble.cc \
+    src/compiler/codegen/arm/armv7-a/Codegen.cc \
+    src/compiler_llvm/dalvik_reg.cc \
     src/compiler_llvm/gbc_expander.cc \
-    src/greenland/dalvik_reg.cc \
-    src/greenland/dex_lang.cc \
+    src/compiler_llvm/method_compiler.cc \
     src/greenland/intrinsic_helper.cc \
     src/greenland/ir_builder.cc
 else
-  ifeq ($(ART_USE_QUICK_COMPILER),true)
-    LIBART_COMPILER_LLVM_SRC_FILES += \
-      src/compiler/Dataflow.cc \
-      src/compiler/Frontend.cc \
-      src/compiler/IntermediateRep.cc \
-      src/compiler/Ralloc.cc \
-      src/compiler/SSATransformation.cc \
-      src/compiler/Utility.cc \
-      src/compiler/codegen/RallocUtil.cc \
-      src/compiler/codegen/arm/ArchUtility.cc \
-      src/compiler/codegen/arm/ArmRallocUtil.cc \
-      src/compiler/codegen/arm/Assemble.cc \
-      src/compiler/codegen/arm/armv7-a/Codegen.cc \
-      src/compiler_llvm/dalvik_reg.cc \
-      src/compiler_llvm/gbc_expander.cc \
-      src/compiler_llvm/method_compiler.cc \
-      src/greenland/intrinsic_helper.cc \
-      src/greenland/ir_builder.cc
-  else
-    LIBART_COMPILER_LLVM_SRC_FILES += \
-      src/compiler_llvm/dalvik_reg.cc \
-      src/compiler_llvm/method_compiler.cc
-  endif
+  LIBART_COMPILER_LLVM_SRC_FILES += \
+    src/compiler_llvm/dalvik_reg.cc \
+    src/compiler_llvm/method_compiler.cc
 endif
 
 # $(1): target or host

@@ -20,20 +20,16 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 
-#if defined(ART_USE_QUICK_COMPILER)
 namespace llvm {
   class Module;
   class LLVMContext;
 }
-#endif
 
 namespace art {
-#if defined(ART_USE_QUICK_COMPILER)
 namespace greenland {
   class IntrinsicHelper;
   class IRBuilder;
 }
-#endif
 
 #define COMPILER_TRACED(X)
 #define COMPILER_TRACEE(X)
@@ -141,10 +137,8 @@ enum debugControlVector {
   kDebugShowNops,
   kDebugCountOpcodes,
   kDebugDumpCheckStats,
-#if defined(ART_USE_QUICK_COMPILER)
   kDebugDumpBitcodeFile,
   kDebugVerifyBitcode,
-#endif
 };
 
 enum OatMethodAttributes {
@@ -177,7 +171,6 @@ enum DataFlowAnalysisMode {
   kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
 };
 
-#if defined(ART_USE_QUICK_COMPILER)
 class LLVMInfo {
   public:
     LLVMInfo();
@@ -205,7 +198,6 @@ class LLVMInfo {
     UniquePtr<art::greenland::IntrinsicHelper> intrinsic_helper_;
     UniquePtr<art::greenland::IRBuilder> ir_builder_;
 };
-#endif
 
 struct CompilationUnit;
 struct BasicBlock;

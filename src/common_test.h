@@ -353,6 +353,16 @@ class CommonTest : public testing::Test {
 #elif defined(__i386__)
     instruction_set = kX86;
 #endif
+
+    // TODO: make selectable
+#if defined(ART_USE_PORTABLE_COMPILER)
+    CompilerBackend compiler_backend = kPortable;
+#elif defined(ART_USE_LLVM_COMPILER)
+    CompilerBackend compiler_backend = kIceland; // TODO: remove
+#else
+    CompilerBackend compiler_backend = kQuick;
+#endif
+
     runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
@@ -374,7 +384,7 @@ class CommonTest : public testing::Test {
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     image_classes_.reset(new std::set<std::string>);
-    compiler_.reset(new Compiler(instruction_set, true, 2, false, image_classes_.get(),
+    compiler_.reset(new Compiler(compiler_backend, instruction_set, true, 2, false, image_classes_.get(),
                                  true, true));
 
     runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test

@@ -77,7 +77,7 @@ class CompilerLLVM {
   CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit,
                                    InvokeType invoke_type);
 
-#if defined(ART_USE_LLVM_COMPILER) && defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   CompiledMethod* CompileGBCMethod(OatCompilationUnit* oat_compilation_unit, std::string* func);
 #endif
 

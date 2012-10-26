@@ -370,7 +370,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   func_ = &func;
   changed_ = false; // Assume unchanged
 
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   basic_blocks_.resize(code_item_->insns_size_in_code_units_);
   basic_block_landing_pads_.resize(code_item_->tries_size_, NULL);
   basic_block_unwind_ = NULL;
@@ -1032,7 +1032,7 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
                                             bool is_div, JType op_jty) {
   llvm::Value* dividend = call_inst.getArgOperand(0);
   llvm::Value* divisor = call_inst.getArgOperand(1);
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   EmitGuard_DivZeroException(dex_pc, divisor, op_jty);
 #endif
@@ -1145,7 +1145,7 @@ void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
   };
 
   llvm::Value* entry_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (obj->getType() != irb_.getJObjectTy()) {
     obj = irb_.getJNull();
   }
@@ -1155,7 +1155,7 @@ void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
 }
 
 void GBCExpanderPass::Expand_PopShadowFrame() {
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (old_shadow_frame_ == NULL) {
     return;
   }
@@ -1191,7 +1191,7 @@ void GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
   // alloca instructions)
   EmitStackOverflowCheck(&*first_non_alloca);
 
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   irb_.Runtime().EmitTestSuspend();
 #endif
 
@@ -2385,7 +2385,7 @@ void GBCExpanderPass::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_add
 }
 
 void GBCExpanderPass::EmitUpdateDexPC(uint32_t dex_pc) {
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (shadow_frame_ == NULL) {
     return;
   }
@@ -2477,7 +2477,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
   // Get return type
 
   char ret_shorty = shorty[0];
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   ret_shorty = art::remapShorty(ret_shorty);
 #endif
   llvm::Type* ret_type = irb_.getJType(ret_shorty, kAccurate);
@@ -2492,7 +2492,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
     char shorty_type = art::remapShorty(shorty[i]);
     args_type.push_back(irb_.getJType(shorty_type, kAccurate));
 #else
@@ -2627,7 +2627,7 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
 
   // Emit the code to return default value (zero) for the given return type.
   char ret_shorty = oat_compilation_unit_->GetShorty()[0];
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   ret_shorty = art::remapShorty(ret_shorty);
 #endif
   if (ret_shorty == 'V') {

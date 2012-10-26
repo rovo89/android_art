@@ -241,6 +241,7 @@ const void* Trace::GetSavedCodeFromMap(const AbstractMethod* method) {
 
 void Trace::SaveAndUpdateCode(AbstractMethod* method) {
 #if defined(ART_USE_LLVM_COMPILER)
+  UNUSED(method);
   UNIMPLEMENTED(FATAL);
 #else
   void* trace_stub = GetLogTraceEntryPoint();

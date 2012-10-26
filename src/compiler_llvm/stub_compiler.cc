@@ -151,7 +151,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAAJRuntime);
 
   llvm::CallInst* retval = irb_.CreateCall(code_addr, args);
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   for (size_t i = 1; i < shorty_size; ++i) {
     switch(shorty[i]) {
       case 'Z':
@@ -216,7 +216,7 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   llvm::Function* func =
     llvm::Function::Create(accurate_func_type, llvm::Function::ExternalLinkage,
                            func_name, module_);
-#if defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   switch(shorty[0]) {
     case 'Z':
     case 'C':

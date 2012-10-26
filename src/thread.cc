@@ -292,9 +292,6 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   SetUpAlternateSignalStack();
   InitCpu();
   InitFunctionPointers();
-#ifdef ART_USE_GREENLAND_COMPILER
-  InitRuntimeEntryPoints(&runtime_entry_points_);
-#endif
   InitCardTable();
   InitTid();
 
