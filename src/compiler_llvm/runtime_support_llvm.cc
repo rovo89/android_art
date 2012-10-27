@@ -86,7 +86,16 @@ void art_unlock_object_from_code(Object* obj, Thread* thread)
 
 void art_test_suspend_from_code(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  thread->FullSuspendCheck();
+  for (;;) {
+    if (thread->ReadFlag(kCheckpointRequest)) {
+      thread->RunCheckpointFunction();
+      thread->AtomicClearFlag(kCheckpointRequest);
+    } else if (thread->ReadFlag(kSuspendRequest)) {
+      thread->FullSuspendCheck();
+    } else {
+      break;
+    }
+  }
 }
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
