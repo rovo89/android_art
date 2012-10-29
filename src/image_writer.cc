@@ -61,9 +61,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
   for (size_t i = 0; i < all_dex_caches.size(); i++) {
     DexCache* dex_cache = all_dex_caches[i];
-    if (InSourceSpace(dex_cache)) {
-      dex_caches_.insert(dex_cache);
-    }
+    dex_caches_.insert(dex_cache);
   }
 
   oat_file_ = OatFile::Open(oat_filename, oat_location, NULL,
@@ -120,17 +118,6 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
   return true;
-}
-
-bool ImageWriter::InSourceSpace(const Object* object) const {
-  const Spaces& spaces = Runtime::Current()->GetHeap()->GetSpaces();
-  // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsAllocSpace() && (*cur)->Contains(object)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 bool ImageWriter::AllocMemory() {
@@ -307,9 +294,6 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
   DCHECK(arg != NULL);
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  if (!image_writer->InSourceSpace(obj)) {
-    return;
-  }
 
   // if it is a string, we want to intern it if its not interned.
   if (obj->GetClass()->IsStringClass()) {
@@ -439,9 +423,6 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK(arg != NULL);
   const Object* obj = object;
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  if (!image_writer->InSourceSpace(object)) {
-    return;
-  }
 
   // see GetLocalAddress for similar computation
   size_t offset = image_writer->GetImageOffset(obj);
@@ -606,6 +587,14 @@ void ImageWriter::FixupFields(const Object* orig,
         copy->SetFieldPtr(field_offset, GetImageAddress(ref), false);
       }
     }
+  }
+  if (!is_static && orig->IsReferenceInstance()) {
+    // Fix-up referent, that isn't marked as an object field, for References.
+    Field* field = orig->GetClass()->FindInstanceField("referent", "Ljava/lang/Object;");
+    MemberOffset field_offset = field->GetOffset();
+    const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
+    // Use SetFieldPtr to avoid card marking since we are writing to the image.
+    copy->SetFieldPtr(field_offset, GetImageAddress(ref), false);
   }
 }
 

@@ -1070,6 +1070,9 @@ class MANAGED Array : public Object {
                       size_t component_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static Array* CreateMultiArray(Thread* self, Class* element_class, IntArray* dimensions)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   size_t SizeOf() const;
 
   int32_t GetLength() const {
@@ -1492,6 +1495,10 @@ class MANAGED Class : public StaticStorageBase {
   bool IsStringClass() const;
 
   bool IsThrowableClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsFieldClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool IsMethodClass() const;
 
   Class* GetComponentType() const {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
@@ -2166,16 +2173,11 @@ inline bool Object::IsArrayInstance() const {
 }
 
 inline bool Object::IsField() const {
-  Class* java_lang_Class = klass_->klass_;
-  Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->GetClass();
-  return GetClass() == java_lang_reflect_Field;
+  return GetClass()->IsFieldClass();
 }
 
 inline bool Object::IsMethod() const {
-  Class* c = GetClass();
-  return
-      c == AbstractMethod::GetMethodClass() ||
-      c == AbstractMethod::GetConstructorClass();
+  return GetClass()->IsMethodClass();
 }
 
 inline bool Object::IsReferenceInstance() const {
@@ -2487,6 +2489,26 @@ class MANAGED String : public Object {
 
   // Create a modified UTF-8 encoded std::string from a java/lang/String object.
   std::string ToModifiedUtf8() const;
+
+  int32_t FastIndexOf(int32_t ch, int32_t start) {
+    int32_t count = GetLength();
+    if (start < 0) {
+      start = 0;
+    } else if (start > count) {
+      start = count;
+    }
+    const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
+    const uint16_t* p = chars + start;
+    const uint16_t* end = chars + count;
+    while (p < end) {
+      if (*p++ == ch) {
+        return (p - 1) - chars;
+      }
+    }
+    return -1;
+  }
+
+  int32_t CompareTo(String* other) const;
 
   static Class* GetJavaLangString() {
     DCHECK(java_lang_String_ != NULL);

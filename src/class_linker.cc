@@ -34,6 +34,7 @@
 #include "dex_file.h"
 #include "heap.h"
 #include "intern_table.h"
+#include "interpreter/interpreter.h"
 #include "leb128.h"
 #include "logging.h"
 #include "oat_file.h"
@@ -2574,7 +2575,6 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
 
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
     if (clinit != NULL && !can_run_clinit) {
-      DCHECK_EQ(klass->GetStatus(), Class::kStatusVerified) << PrettyClass(klass);
       // if the class has a <clinit> but we can't run it during compilation,
       // don't bother going to kStatusInitializing. We return false so that
       // sub-classes don't believe this class is initialized.
@@ -2630,7 +2630,11 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
   bool has_static_field_initializers = InitializeStaticFields(klass);
 
   if (clinit != NULL) {
-    clinit->Invoke(self, NULL, NULL, NULL);
+    if (Runtime::Current()->IsStarted()) {
+      clinit->Invoke(self, NULL, NULL, NULL);
+    } else {
+      art::interpreter::EnterInterpreterFromInvoke(self, clinit, NULL, NULL, NULL);
+    }
   }
 
   FixupStaticTrampolines(klass);
@@ -3432,8 +3436,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
   }
 
   // We lie to the GC about the java.lang.ref.Reference.referent field, so it doesn't scan it.
-  std::string descriptor(ClassHelper(klass.get(), this).GetDescriptor());
-  if (!is_static &&  descriptor == "Ljava/lang/ref/Reference;") {
+  if (!is_static &&
+      StringPiece(ClassHelper(klass.get(), this).GetDescriptor()) == "Ljava/lang/ref/Reference;") {
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields);
@@ -3457,7 +3461,8 @@ bool ClassLinker::LinkFields(SirtRef<Class>& klass, bool is_static) {
     fh.ChangeField(field);
     Primitive::Type type = fh.GetTypeAsPrimitiveType();
     bool is_primitive = type != Primitive::kPrimNot;
-    if (descriptor == "Ljava/lang/ref/Reference;" && StringPiece(fh.GetName()) == "referent") {
+    if (StringPiece(ClassHelper(klass.get(), this).GetDescriptor()) == "Ljava/lang/ref/Reference;" &&
+        StringPiece(fh.GetName()) == "referent") {
       is_primitive = true; // We lied above, so we have to expect a lie here.
     }
     if (is_primitive) {

@@ -81,15 +81,9 @@ class ImageWriter {
     return offsets_.find(object)->second;
   }
 
-  bool InSourceSpace(const Object* object) const;
-
   Object* GetImageAddress(const Object* object) const {
     if (object == NULL) {
       return NULL;
-    }
-    // if object outside the relocating source_space_, assume unchanged
-    if (!InSourceSpace(object)) {
-      return const_cast<Object*>(object);
     }
     return reinterpret_cast<Object*>(image_begin_ + GetImageOffset(object));
   }

@@ -720,13 +720,13 @@ class ImageDumper {
     } else if (type->IsStringClass()) {
       String* string = value->AsString();
       StringAppendF(&summary, "%p   String: \"%s\"\n", string, string->ToModifiedUtf8().c_str());
-    } else if (value->IsClass()) {
+    } else if (type->IsClassClass()) {
       Class* klass = value->AsClass();
       StringAppendF(&summary, "%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
-    } else if (value->IsField()) {
+    } else if (type->IsFieldClass()) {
       Field* field = value->AsField();
       StringAppendF(&summary, "%p   Field: %s\n", field, PrettyField(field).c_str());
-    } else if (value->IsMethod()) {
+    } else if (type->IsMethodClass()) {
       AbstractMethod* method = value->AsMethod();
       StringAppendF(&summary, "%p   Method: %s\n", method, PrettyMethod(method).c_str());
     } else {
@@ -880,7 +880,7 @@ class ImageDumper {
         summary += "\t\tSTATICS:\n";
         for (int32_t i = 0; i < sfields->GetLength(); i++) {
           Field* field = sfields->Get(i);
-          PrintField(summary, field, NULL);
+          PrintField(summary, field, field->GetDeclaringClass());
         }
       }
     } else if (obj->IsMethod()) {

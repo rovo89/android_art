@@ -1340,7 +1340,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   ObjectArray<Object>* method_trace_;
 };
 
-jobject Thread::CreateInternalStackTrace(const ScopedObjectAccess& soa) const {
+jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor(GetManagedStack(), GetTraceStack());
   count_visitor.WalkStack();
@@ -1483,6 +1483,9 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, co
       ScopedObjectAccessUnchecked soa(env);
       Throwable* t = reinterpret_cast<Throwable*>(soa.Self()->DecodeJObject(exception.get()));
       t->SetDetailMessage(String::AllocFromModifiedUtf8(soa.Self(), msg));
+      if (cause != NULL) {
+        t->SetCause(soa.Decode<Throwable*>(cause));
+      }
       soa.Self()->SetException(t);
     } else {
       LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "

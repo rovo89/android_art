@@ -206,6 +206,40 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   EXPECT_TRUE(array->GetClass()->GetComponentType()->IsPrimitive());
 }
 
+TEST_F(ObjectTest, CreateMultiArray) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  SirtRef<Class> c(soa.Self(), class_linker_->FindSystemClass("I"));
+  SirtRef<IntArray> dims(soa.Self(), IntArray::Alloc(soa.Self(), 1));
+  dims->Set(0, 1);
+  Array* multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+  EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[I"));
+  EXPECT_EQ(1, multi->GetLength());
+
+  dims->Set(0, -1);
+  multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException()->GetClass()),
+            "java.lang.NegativeArraySizeException");
+  soa.Self()->ClearException();
+
+  dims.reset(IntArray::Alloc(soa.Self(), 2));
+  for (int i = 1; i < 20; ++i) {
+    for (int j = 0; j < 20; ++j) {
+      dims->Set(0, i);
+      dims->Set(1, j);
+      multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
+      EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass("[[I"));
+      EXPECT_EQ(i, multi->GetLength());
+      for (int k = 0; k < i; ++k) {
+        Array* outer = multi->AsObjectArray<Array>()->Get(k);
+        EXPECT_TRUE(outer->GetClass() == class_linker_->FindSystemClass("[I"));
+        EXPECT_EQ(j, outer->GetLength());
+      }
+    }
+  }
+}
+
 TEST_F(ObjectTest, StaticFieldFromCode) {
   // pretend we are trying to access 'Static.s0' from StaticsFromCode.<clinit>
   ScopedObjectAccess soa(Thread::Current());
@@ -239,7 +273,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   Field* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
                                    sizeof(Object*));
   Object* s0 = field->GetObj(klass);
-  EXPECT_EQ(NULL, s0);
+  EXPECT_TRUE(s0 != NULL);
 
   SirtRef<CharArray> char_array(soa.Self(), CharArray::Alloc(soa.Self(), 0));
   field->SetObj(field->GetDeclaringClass(), char_array.get());
@@ -304,6 +338,22 @@ TEST_F(ObjectTest, StringEquals) {
   SirtRef<String> empty(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
   EXPECT_TRUE(empty->Equals(""));
   EXPECT_FALSE(empty->Equals("a"));
+}
+
+TEST_F(ObjectTest, StringCompareTo) {
+  ScopedObjectAccess soa(Thread::Current());
+  SirtRef<String> string(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
+  SirtRef<String> string_2(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "android"));
+  SirtRef<String> string_3(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "Android"));
+  SirtRef<String> string_4(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "and"));
+  SirtRef<String> string_5(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
+  EXPECT_EQ(0, string->CompareTo(string_2.get()));
+  EXPECT_LT(0, string->CompareTo(string_3.get()));
+  EXPECT_GT(0, string_3->CompareTo(string.get()));
+  EXPECT_LT(0, string->CompareTo(string_4.get()));
+  EXPECT_GT(0, string_4->CompareTo(string.get()));
+  EXPECT_LT(0, string->CompareTo(string_5.get()));
+  EXPECT_GT(0, string_5->CompareTo(string.get()));
 }
 
 TEST_F(ObjectTest, StringLength) {

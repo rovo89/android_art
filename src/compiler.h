@@ -281,11 +281,11 @@ class Compiler {
   void VerifyDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void InitializeClassesWithoutClinit(jobject class_loader,
+  void InitializeClasses(jobject class_loader,
                                       const std::vector<const DexFile*>& dex_files,
                                       TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void InitializeClassesWithoutClinit(jobject class_loader, const DexFile& dex_file,
+  void InitializeClasses(jobject class_loader, const DexFile& dex_file,
                                       TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 

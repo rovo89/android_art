@@ -29,8 +29,8 @@
 #include "dex_file.h"
 #include "globals.h"
 #include "heap.h"
-#include "interpreter/interpreter.h"
 #include "intern_table.h"
+#include "interpreter/interpreter.h"
 #include "logging.h"
 #include "monitor.h"
 #include "object_utils.h"
@@ -69,13 +69,15 @@ ShortArray* Object::AsShortArray() {
 
 IntArray* Object::AsIntArray() {
   DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveInt());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveInt() ||
+         GetClass()->GetComponentType()->IsPrimitiveFloat());
   return down_cast<IntArray*>(this);
 }
 
 LongArray* Object::AsLongArray() {
   DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveLong());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveLong() ||
+         GetClass()->GetComponentType()->IsPrimitiveDouble());
   return down_cast<LongArray*>(this);
 }
 
@@ -314,26 +316,34 @@ void Field::SetShort(Object* object, int16_t s) const {
 }
 
 int32_t Field::GetInt(const Object* object) const {
-  DCHECK_EQ(Primitive::kPrimInt, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+#ifndef NDEBUG
+  Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+  CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
+#endif
   return Get32(object);
 }
 
 void Field::SetInt(Object* object, int32_t i) const {
-  DCHECK_EQ(Primitive::kPrimInt, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+#ifndef NDEBUG
+  Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+  CHECK(type == Primitive::kPrimInt || type == Primitive::kPrimFloat) << PrettyField(this);
+#endif
   Set32(object, i);
 }
 
 int64_t Field::GetLong(const Object* object) const {
-  DCHECK_EQ(Primitive::kPrimLong, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+#ifndef NDEBUG
+  Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+  CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
+#endif
   return Get64(object);
 }
 
 void Field::SetLong(Object* object, int64_t j) const {
-  DCHECK_EQ(Primitive::kPrimLong, FieldHelper(this).GetTypeAsPrimitiveType())
-       << PrettyField(this);
+#ifndef NDEBUG
+  Primitive::Type type = FieldHelper(this).GetTypeAsPrimitiveType();
+  CHECK(type == Primitive::kPrimLong || type == Primitive::kPrimDouble) << PrettyField(this);
+#endif
   Set64(object, j);
 }
 
@@ -1031,6 +1041,19 @@ bool Class::IsThrowableClass() const {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
+bool Class::IsFieldClass() const {
+  Class* java_lang_Class = GetClass();
+  Class* java_lang_reflect_Field = java_lang_Class->GetInstanceField(0)->GetClass();
+  return this == java_lang_reflect_Field;
+
+}
+
+bool Class::IsMethodClass() const {
+  return (this == AbstractMethod::GetMethodClass()) ||
+      (this == AbstractMethod::GetConstructorClass());
+
+}
+
 ClassLoader* Class::GetClassLoader() const {
   return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
@@ -1358,6 +1381,76 @@ Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count) {
   return Alloc(self, array_class, component_count, array_class->GetComponentSize());
 }
 
+// Create a multi-dimensional array of Objects or primitive types.
+//
+// We have to generate the names for X[], X[][], X[][][], and so on.  The
+// easiest way to deal with that is to create the full name once and then
+// subtract pieces off.  Besides, we want to start with the outermost
+// piece and work our way in.
+// Recursively create an array with multiple dimensions.  Elements may be
+// Objects or primitive types.
+static Array* RecursiveCreateMultiArray(Thread* self, Class* array_class, int current_dimension,
+                                        IntArray* dimensions)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  int32_t array_length = dimensions->Get(current_dimension);
+  SirtRef<Array> new_array(self, Array::Alloc(self, array_class, array_length));
+  if (UNLIKELY(new_array.get() == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;
+  }
+  if ((current_dimension + 1) < dimensions->GetLength()) {
+    // Create a new sub-array in every element of the array.
+    for (int32_t i = 0; i < array_length; i++) {
+      Array* sub_array = RecursiveCreateMultiArray(self, array_class->GetComponentType(),
+                                                   current_dimension + 1, dimensions);
+      if (UNLIKELY(sub_array == NULL)) {
+        CHECK(self->IsExceptionPending());
+        return NULL;
+      }
+      new_array->AsObjectArray<Array>()->Set(i, sub_array);
+    }
+  }
+  return new_array.get();
+}
+
+Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dimensions) {
+  // Verify dimensions.
+  //
+  // The caller is responsible for verifying that "dimArray" is non-null
+  // and has a length > 0 and <= 255.
+  int num_dimensions = dimensions->GetLength();
+  DCHECK_GT(num_dimensions, 0);
+  DCHECK_LE(num_dimensions, 255);
+
+  for (int i = 0; i < num_dimensions; i++) {
+    int dimension = dimensions->Get(i);
+    if (UNLIKELY(dimension < 0)) {
+      self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
+                               "Dimension %d: %d", i, dimension);
+      return NULL;
+    }
+  }
+
+  // Generate the full name of the array class.
+  std::string descriptor(num_dimensions, '[');
+  descriptor += ClassHelper(element_class).GetDescriptor();
+
+  // Find/generate the array class.
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
+  if (UNLIKELY(array_class == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;
+  }
+  // create the array
+  Array* new_array = RecursiveCreateMultiArray(self, array_class, 0, dimensions);
+  if (UNLIKELY(new_array == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;
+  }
+  return new_array;
+}
+
 bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "length=%i; index=%i", length_, index);
@@ -1572,6 +1665,46 @@ std::string String::ToModifiedUtf8() const {
   std::string result(byte_count, static_cast<char>(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
   return result;
+}
+
+#ifdef HAVE__MEMCMP16
+// "count" is in 16-bit units.
+extern "C" uint32_t __memcmp16(const uint16_t* s0, const uint16_t* s1, size_t count);
+#define MemCmp16 __memcmp16
+#else
+static uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
+  for (size_t i = 0; i < count; i++) {
+    if (s0[i] != s1[i]) {
+      return static_cast<int32_t>(s0[i]) - static_cast<int32_t>(s1[i]);
+    }
+  }
+  return 0;
+}
+#endif
+
+int32_t String::CompareTo(String* rhs) const {
+  // Quick test for comparison of a string with itself.
+  const String* lhs = this;
+  if (lhs == rhs) {
+    return 0;
+  }
+  // TODO: is this still true?
+  // The annoying part here is that 0x00e9 - 0xffff != 0x00ea,
+  // because the interpreter converts the characters to 32-bit integers
+  // *without* sign extension before it subtracts them (which makes some
+  // sense since "char" is unsigned).  So what we get is the result of
+  // 0x000000e9 - 0x0000ffff, which is 0xffff00ea.
+  int lhsCount = lhs->GetLength();
+  int rhsCount = rhs->GetLength();
+  int countDiff = lhsCount - rhsCount;
+  int minCount = (countDiff < 0) ? lhsCount : rhsCount;
+  const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
+  const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
+  int otherRes = MemCmp16(lhsChars, rhsChars, minCount);
+  if (otherRes != 0) {
+    return otherRes;
+  }
+  return countDiff;
 }
 
 void Throwable::SetCause(Throwable* cause) {

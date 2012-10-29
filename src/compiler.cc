@@ -535,7 +535,7 @@ void Compiler::PreCompile(jobject class_loader, const std::vector<const DexFile*
 
   Verify(class_loader, dex_files, timings);
 
-  InitializeClassesWithoutClinit(class_loader, dex_files, timings);
+  InitializeClasses(class_loader, dex_files, timings);
 }
 
 bool Compiler::IsImageClass(const std::string& descriptor) const {
@@ -1235,8 +1235,186 @@ void Compiler::VerifyDexFile(jobject class_loader, const DexFile& dex_file, Timi
   timings.AddSplit("Verify " + dex_file.GetLocation());
 }
 
-static void InitializeClassWithoutClinit(const CompilationContext* context,
-                                         size_t class_def_index)
+static const char* class_initializer_black_list[] = {
+  "Landroid/app/ActivityThread;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/bluetooth/BluetoothAudioGateway;", // Calls android.bluetooth.BluetoothAudioGateway.classInitNative().
+  "Landroid/bluetooth/HeadsetBase;", // Calls android.bluetooth.HeadsetBase.classInitNative().
+  "Landroid/content/res/CompatibilityInfo;", // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
+  "Landroid/content/res/CompatibilityInfo$1;", // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
+  "Landroid/content/UriMatcher;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/database/CursorWindow;", // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
+  "Landroid/database/sqlite/SQLiteConnection;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/database/sqlite/SQLiteConnection$Operation;", // Requires SimpleDateFormat -> java.util.Locale.
+  "Landroid/database/sqlite/SQLiteDatabaseConfiguration;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/database/sqlite/SQLiteDebug;", // Calls android.util.Log.isLoggable.
+  "Landroid/database/sqlite/SQLiteOpenHelper;", // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
+  "Landroid/database/sqlite/SQLiteQueryBuilder;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/drm/DrmManagerClient;", // Calls System.loadLibrary.
+  "Landroid/graphics/drawable/AnimatedRotateDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/AnimationDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/BitmapDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/ClipDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/ColorDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/Drawable;", // Requires android.graphics.Rect.
+  "Landroid/graphics/drawable/DrawableContainer;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/GradientDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/LayerDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/NinePatchDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/RotateDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/ScaleDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/ShapeDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/StateListDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/drawable/TransitionDrawable;", // Sub-class of Drawable.
+  "Landroid/graphics/Matrix;", // Calls android.graphics.Matrix.native_create.
+  "Landroid/graphics/Matrix$1;", // Requires Matrix.
+  "Landroid/graphics/PixelFormat;", // Calls android.graphics.PixelFormat.nativeClassInit().
+  "Landroid/graphics/Rect;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/graphics/SurfaceTexture;", // Calls android.graphics.SurfaceTexture.nativeClassInit().
+  "Landroid/graphics/Typeface;", // Calls android.graphics.Typeface.nativeCreate.
+  "Landroid/inputmethodservice/ExtractEditText;", // Requires android.widget.TextView.
+  "Landroid/media/CameraProfile;", // Calls System.loadLibrary.
+  "Landroid/media/DecoderCapabilities;", // Calls System.loadLibrary.
+  "Landroid/media/MediaFile;", // Requires DecoderCapabilities.
+  "Landroid/media/MediaPlayer;", // Calls System.loadLibrary.
+  "Landroid/media/MediaRecorder;", // Calls System.loadLibrary.
+  "Landroid/media/MediaScanner;", // Calls System.loadLibrary.
+  "Landroid/net/NetworkInfo;", // Calls java.util.EnumMap.<init> -> java.lang.Enum.getSharedConstants -> System.identityHashCode.
+  "Landroid/net/Proxy;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/net/SSLCertificateSocketFactory;", // Requires javax.net.ssl.HttpsURLConnection.
+  "Landroid/net/Uri;", // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
+  "Landroid/net/Uri$AbstractHierarchicalUri;", // Requires Uri.
+  "Landroid/net/Uri$HierarchicalUri;", // Requires Uri.
+  "Landroid/net/Uri$OpaqueUri;", // Requires Uri.
+  "Landroid/net/Uri$StringUri;", // Requires Uri.
+  "Landroid/net/WebAddress;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/nfc/NdefRecord;", // Calls String.getBytes -> java.nio.charset.Charset.
+  "Landroid/opengl/GLES10;", // Calls android.opengl.GLES10._nativeClassInit.
+  "Landroid/opengl/GLES10Ext;", // Calls android.opengl.GLES10Ext._nativeClassInit.
+  "Landroid/opengl/GLES11;", // Requires GLES10.
+  "Landroid/opengl/GLES11Ext;", // Calls android.opengl.GLES11Ext._nativeClassInit.
+  "Landroid/opengl/GLES20;", // Calls android.opengl.GLES20._nativeClassInit.
+  "Landroid/opengl/GLUtils;", // Calls android.opengl.GLUtils.nativeClassInit.
+  "Landroid/os/Build;", // Calls -..-> android.os.SystemProperties.native_get.
+  "Landroid/os/Build$VERSION;", // Requires Build.
+  "Landroid/os/Debug;", // Requires android.os.Environment.
+  "Landroid/os/Environment;", // Calls System.getenv.
+  "Landroid/os/FileUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/os/StrictMode;", // Calls android.util.Log.isLoggable.
+  "Landroid/os/StrictMode$VmPolicy;", // Requires StrictMode.
+  "Landroid/os/Trace;", // Calls android.os.Trace.nativeGetEnabledTags.
+  "Landroid/os/UEventObserver;", // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
+  "Landroid/provider/Settings$Secure;", // Requires android.net.Uri.
+  "Landroid/provider/Settings$System;", // Requires android.net.Uri.
+  "Landroid/renderscript/RenderScript;", // Calls System.loadLibrary.
+  "Landroid/server/BluetoothService;", // Calls android.server.BluetoothService.classInitNative.
+  "Landroid/server/BluetoothEventLoop;", // Calls android.server.BluetoothEventLoop.classInitNative.
+  "Landroid/telephony/PhoneNumberUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/text/AutoText;", // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
+  "Landroid/text/Layout;", // Calls com.android.internal.util.ArrayUtils.emptyArray -> System.identityHashCode.
+  "Landroid/text/BoringLayout;", // Requires Layout.
+  "Landroid/text/DynamicLayout;", // Requires Layout.
+  "Landroid/text/Html$HtmlParser;", // Calls -..-> String.toLowerCase -> java.util.Locale.
+  "Landroid/text/StaticLayout;", // Requires Layout.
+  "Landroid/text/TextUtils;", // Requires android.util.DisplayMetrics.
+  "Landroid/util/DisplayMetrics;", // Calls SystemProperties.native_get_int.
+  "Landroid/util/Patterns;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/view/animation/Animation;", // Calls SystemProperties.native_get_boolean.
+  "Landroid/view/animation/AlphaAnimation;", // Requires Animation.
+  "Landroid/view/Choreographer;", // Calls SystemProperties.native_get_boolean.
+  "Landroid/view/GLES20Canvas;", // Calls android.view.GLES20Canvas.nIsAvailable.
+  "Landroid/view/GLES20RecordingCanvas;", // Requires android.view.GLES20Canvas.
+  "Landroid/view/HardwareRenderer$GlRenderer;", // Requires SystemProperties.native_get.
+  "Landroid/view/HardwareRenderer$Gl20Renderer;", // Requires SystemProperties.native_get.
+  "Landroid/view/InputEventConsistencyVerifier;", // Requires android.os.Build.
+  "Landroid/view/Surface;", // Requires SystemProperties.native_get.
+  "Landroid/webkit/JniUtil;", // Calls System.loadLibrary.
+  "Landroid/webkit/WebViewCore;", // Calls System.loadLibrary.
+  "Landroid/widget/AutoCompleteTextView;", // Requires TextView.
+  "Landroid/widget/Button;", // Requires TextView.
+  "Landroid/widget/CheckBox;", // Requires TextView.
+  "Landroid/widget/CheckedTextView;", // Requires TextView.
+  "Landroid/widget/CompoundButton;", // Requires TextView.
+  "Landroid/widget/EditText;", // Requires TextView.
+  "Landroid/widget/NumberPicker;", // Requires java.util.Locale.
+  "Landroid/widget/ScrollBarDrawable;", // Sub-class of Drawable.
+  "Landroid/widget/SearchView$SearchAutoComplete;", // Requires TextView.
+  "Landroid/widget/Switch;", // Requires TextView.
+  "Landroid/widget/TextView;", // Calls Paint.<init> -> Paint.native_init.
+  "Lcom/android/i18n/phonenumbers/AsYouTypeFormatter;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Lcom/android/i18n/phonenumbers/PhoneNumberUtil;", // Requires java.util.logging.LogManager.
+  "Lcom/android/internal/os/SamplingProfilerIntegration;", // Calls SystemProperties.native_get_int.
+  "Lcom/android/internal/policy/impl/PhoneWindow;", // Calls android.os.Binder.init.
+  "Lcom/android/internal/view/menu/ActionMenuItemView;", // Requires TextView.
+  "Lcom/android/internal/widget/DialogTitle;", // Requires TextView.
+  "Lcom/android/org/bouncycastle/asn1/StreamUtil;", // Calls Runtime.getRuntime().maxMemory().
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA1;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
+  "Lcom/android/org/bouncycastle/crypto/engines/RSABlindedEngine;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/jce/provider/CertBlacklist;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jce/provider/PKIXCertPathValidatorSpi;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/google/android/gles_jni/EGLContextImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
+  "Lcom/google/android/gles_jni/EGLImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
+  "Lcom/google/android/gles_jni/GLImpl;", // Calls com.google.android.gles_jni.GLImpl._nativeClassInit.
+  "Ljava/io/Console;", // Has FileDescriptor(s).
+  "Ljava/io/File;", // Calls to Random.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
+  "Ljava/io/FileDescriptor;", // Requires libcore.io.OsConstants.
+  "Ljava/io/ObjectInputStream;", // Requires java.lang.ClassLoader$SystemClassLoader.
+  "Ljava/io/ObjectStreamClass;",  // Calls to Class.forName -> java.io.FileDescriptor.
+  "Ljava/io/ObjectStreamConstants;", // Instance of non-image class SerializablePermission.
+  "Ljava/lang/ClassLoader$SystemClassLoader;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/lang/Runtime;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/lang/System;", // Calls OsConstants.initConstants.
+  "Ljava/math/BigDecimal;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Ljava/math/BigInteger;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Ljava/math/Multiplication;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Ljava/net/InetAddress;", // Requires libcore.io.OsConstants.
+  "Ljava/net/Inet4Address;", // Sub-class of InetAddress.
+  "Ljava/net/Inet6Address;", // Sub-class of InetAddress.
+  "Ljava/nio/charset/Charset;", // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
+  "Ljava/nio/charset/CharsetICU;", // Sub-class of Charset.
+  "Ljava/nio/charset/Charsets;", // Calls Charset.forName.
+  "Ljava/security/Security;", // Tries to do disk IO for "security.properties".
+  "Ljava/util/Date;", // Calls Date.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
+  "Ljava/util/Locale;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/util/SimpleTimeZone;", // Sub-class of TimeZone.
+  "Ljava/util/TimeZone;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Ljava/util/concurrent/ConcurrentHashMap$Segment;", // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/logging/LogManager;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljavax/microedition/khronos/egl/EGL10;", // Requires EGLContext.
+  "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
+  "Ljavax/net/ssl/HttpsURLConnection;", // Calls SSLSocketFactory.getDefault -> java.security.Security.getProperty.
+  "Llibcore/icu/LocaleData;", // Requires java.util.Locale.
+  "Llibcore/icu/TimeZones;", // Requires java.util.TimeZone.
+  "Llibcore/io/OsConstants;", // Platform specific.
+  "Llibcore/net/MimeUtils;", // Calls libcore.net.MimeUtils.getContentTypesPropertiesStream -> System.getProperty.
+  "Llibcore/util/ZoneInfo;", // Sub-class of TimeZone.
+  "Llibcore/util/ZoneInfoDB;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lorg/apache/commons/logging/LogFactory;", // Calls System.getProperty.
+  "Lorg/apache/harmony/security/fortress/Services;", // Calls ClassLoader.getSystemClassLoader -> System.getProperty.
+  "Lorg/apache/harmony/security/provider/cert/X509CertFactoryImpl;", // Requires java.nio.charsets.Charsets.
+  "Lorg/apache/harmony/security/provider/crypto/RandomBitsSupplier;", // Requires java.io.File.
+  "Lorg/apache/harmony/security/utils/AlgNameMapper;", // Requires java.util.Locale.
+  "Lorg/apache/harmony/security/x501/AttributeTypeAndValue;", // Calls IntegralToString.convertInt -> Thread.currentThread.
+  "Lorg/apache/harmony/security/x501/DirectoryString;", // Requires BigInteger.
+  "Lorg/apache/harmony/security/x501/Name;", // Requires org.apache.harmony.security.x501.AttributeTypeAndValue.
+  "Lorg/apache/harmony/security/x509/Certificate;", // Requires org.apache.harmony.security.x509.TBSCertificate.
+  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
+  "Lorg/apache/harmony/security/x509/EDIPartyName;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lorg/apache/harmony/security/x509/GeneralName;", // Requires org.apache.harmony.security.x501.Name.
+  "Lorg/apache/harmony/security/x509/GeneralNames;", // Requires GeneralName.
+  "Lorg/apache/harmony/security/x509/Time;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lorg/apache/harmony/security/x509/Validity;", // Requires x509.Time.
+  "Lorg/apache/harmony/xml/ExpatParser;", // Calls native ExpatParser.staticInitialize.
+  "Lorg/apache/harmony/xnet/provider/jsse/NativeCrypto;", // Calls native NativeCrypto.clinit().
+  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$MD5;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
+  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$SHA1;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
+  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$SHA512;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
+  "Lorg/apache/harmony/xnet/provider/jsse/TrustedCertificateStore;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lorg/apache/http/conn/params/ConnRouteParams;", // Requires java.util.Locale.
+  "Lorg/apache/http/conn/ssl/SSLSocketFactory;", // Calls java.security.Security.getProperty.
+  "Lorg/apache/http/conn/util/InetAddressUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+};
+
+static void InitializeClass(const CompilationContext* context, size_t class_def_index)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
   const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
   ScopedObjectAccess soa(Thread::Current());
@@ -1244,14 +1422,47 @@ static void InitializeClassWithoutClinit(const CompilationContext* context,
   const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
   Class* klass = context->GetClassLinker()->FindClass(descriptor, class_loader);
   Thread* self = Thread::Current();
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  bool can_init_static_fields = compiling_boot &&
+      context->GetCompiler()->IsImageClass(descriptor);
   if (klass != NULL) {
-    ObjectLock lock(self, klass);
+    // We don't want class initialization occurring on multiple threads due to deadlock problems.
+    // For example, a parent class is initialized (holding its lock) that refers to a sub-class
+    // in its static/class initializer causing it to try to acquire the sub-class' lock. While
+    // on a second thread the sub-class is initialized (holding its lock) after first initializing
+    // its parents, whose locks are acquired. This leads to a parent-to-child and a child-to-parent
+    // lock ordering and consequent potential deadlock.
+    static Mutex lock1("Initializer lock", kMonitorLock);
+    MutexLock mu(self, lock1);
+    // The lock required to initialize the class.
+    ObjectLock lock2(self, klass);
+    // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
-      // Only try to initialize classes that were successfully verified.
-      bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
-      bool can_init_static_fields = compiling_boot &&
-          context->GetCompiler()->IsImageClass(descriptor);
       context->GetClassLinker()->EnsureInitialized(klass, false, can_init_static_fields);
+      if (!klass->IsInitialized()) {
+        if (can_init_static_fields) {
+          bool is_black_listed = false;
+          for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
+            if (StringPiece(descriptor) == class_initializer_black_list[i]) {
+              is_black_listed = true;
+              break;
+            }
+          }
+          if (!is_black_listed) {
+            LOG(INFO) << "Initializing: " << descriptor;
+            if (StringPiece(descriptor) == "Ljava/lang/Void;"){
+              // Hand initialize j.l.Void to avoid Dex file operations in un-started runtime.
+              ObjectArray<Field>* fields = klass->GetSFields();
+              CHECK_EQ(fields->GetLength(), 1);
+              fields->Get(0)->SetObj(klass, context->GetClassLinker()->FindPrimitiveClass('V'));
+              klass->SetStatus(Class::kStatusInitialized);
+            } else {
+              context->GetClassLinker()->EnsureInitialized(klass, true, can_init_static_fields);
+            }
+            CHECK(!self->IsExceptionPending()) << self->GetException()->Dump();
+          }
+        }
+      }
       // If successfully initialized place in SSB array.
       if (klass->IsInitialized()) {
         klass->GetDexCache()->GetInitializedStaticStorage()->Set(klass->GetDexTypeIndex(), klass);
@@ -1272,21 +1483,27 @@ static void InitializeClassWithoutClinit(const CompilationContext* context,
   self->ClearException();
 }
 
-void Compiler::InitializeClassesWithoutClinit(jobject jni_class_loader, const DexFile& dex_file,
+void Compiler::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
                                               TimingLogger& timings) {
+#ifndef NDEBUG
+  for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
+    const char* descriptor = class_initializer_black_list[i];
+    CHECK(IsValidDescriptor(descriptor)) << descriptor;
+  }
+#endif
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   CompilationContext context(class_linker, jni_class_loader, this, &dex_file, thread_pool_.get());
-  context.ForAll(0, dex_file.NumClassDefs(), InitializeClassWithoutClinit, thread_count_);
+  context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count_);
   timings.AddSplit("InitializeNoClinit " + dex_file.GetLocation());
 }
 
-void Compiler::InitializeClassesWithoutClinit(jobject class_loader,
-                                              const std::vector<const DexFile*>& dex_files,
-                                              TimingLogger& timings) {
+void Compiler::InitializeClasses(jobject class_loader,
+                                 const std::vector<const DexFile*>& dex_files,
+                                 TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    InitializeClassesWithoutClinit(class_loader, *dex_file, timings);
+    InitializeClasses(class_loader, *dex_file, timings);
   }
 }
 

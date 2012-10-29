@@ -1984,11 +1984,14 @@ size_t Heap::GetConcurrentMinFree() const {
 void Heap::EnqueueClearedReferences(Object** cleared) {
   DCHECK(cleared != NULL);
   if (*cleared != NULL) {
-    ScopedObjectAccess soa(Thread::Current());
-    JValue args[1];
-    args[0].SetL(*cleared);
-    soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(), NULL,
-                                                                                 args, NULL);
+    // When a runtime isn't started there are no reference queues to care about so ignore.
+    if (LIKELY(Runtime::Current()->IsStarted())) {
+      ScopedObjectAccess soa(Thread::Current());
+      JValue args[1];
+      args[0].SetL(*cleared);
+      soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(), NULL,
+                                                                                   args, NULL);
+    }
     *cleared = NULL;
   }
 }

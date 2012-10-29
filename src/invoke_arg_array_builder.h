@@ -127,35 +127,35 @@ class ArgArray {
 
   void BuildArgArray(const ShadowFrame& shadow_frame, uint32_t range_start)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    for (size_t i = 1, offset = range_start; i < shorty_len_; ++i, ++offset) {
+    for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset].SetZ(shadow_frame.GetVReg(offset));
+          arg_array_[offset].SetZ(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'B':
-          arg_array_[offset].SetB(shadow_frame.GetVReg(offset));
+          arg_array_[offset].SetB(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'C':
-          arg_array_[offset].SetC(shadow_frame.GetVReg(offset));
+          arg_array_[offset].SetC(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'S':
-          arg_array_[offset].SetS(shadow_frame.GetVReg(offset));
+          arg_array_[offset].SetS(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'I':
-          arg_array_[offset].SetI(shadow_frame.GetVReg(offset));
+          arg_array_[offset].SetI(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'F':
-          arg_array_[offset].SetF(shadow_frame.GetVRegFloat(offset));
+          arg_array_[offset].SetF(shadow_frame.GetVRegFloat(range_start + offset));
           break;
         case 'L':
-          arg_array_[offset].SetL(shadow_frame.GetReference(offset));
+          arg_array_[offset].SetL(shadow_frame.GetReference(range_start + offset));
           break;
         case 'D':
-          arg_array_[offset].SetD(shadow_frame.GetVRegDouble(offset));
+          arg_array_[offset].SetD(shadow_frame.GetVRegDouble(range_start + offset));
           offset++;
           break;
         case 'J':
-          arg_array_[offset].SetJ(shadow_frame.GetVRegLong(offset));
+          arg_array_[offset].SetJ(shadow_frame.GetVRegLong(range_start + offset));
           offset++;
           break;
       }

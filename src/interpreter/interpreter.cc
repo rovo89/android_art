@@ -22,6 +22,7 @@
 #include "dex_instruction.h"
 #include "invoke_arg_array_builder.h"
 #include "logging.h"
+#include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support.h"
@@ -31,6 +32,310 @@
 
 namespace art {
 namespace interpreter {
+
+static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
+                                   Object* receiver, JValue* args, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // In a runtime that's not started we intercept certain methods to avoid complicated dependency
+  // problems in core libraries.
+  std::string name(PrettyMethod(target_method));
+  if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
+    std::string descriptor(DotToDescriptor(args[0].GetL()->AsString()->ToModifiedUtf8().c_str()));
+    ClassLoader* class_loader = NULL; // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
+    Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
+                                                                   class_loader);
+    CHECK(found != NULL) << "Class.forName failed in un-started runtime for class: "
+        << PrettyDescriptor(descriptor);
+    result->SetL(found);
+  } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
+    Class* klass = receiver->AsClass();
+    AbstractMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
+    CHECK(c != NULL);
+    Object* obj = klass->AllocObject(self);
+    CHECK(obj != NULL);
+    EnterInterpreterFromInvoke(self, c, obj, NULL, NULL);
+    result->SetL(obj);
+  } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
+    // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
+    // going the reflective Dex way.
+    Class* klass = receiver->AsClass();
+    String* name = args[0].GetL()->AsString();
+    Field* found = NULL;
+    FieldHelper fh;
+    ObjectArray<Field>* fields = klass->GetIFields();
+    for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
+      Field* f = fields->Get(i);
+      fh.ChangeField(f);
+      if (name->Equals(fh.GetName())) {
+        found = f;
+      }
+    }
+    if (found == NULL) {
+      fields = klass->GetSFields();
+      for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
+        Field* f = fields->Get(i);
+        fh.ChangeField(f);
+        if (name->Equals(fh.GetName())) {
+          found = f;
+        }
+      }
+    }
+    CHECK(found != NULL)
+      << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
+      << name->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
+    // TODO: getDeclaredField calls GetType once the field is found to ensure a
+    //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
+    result->SetL(found);
+  } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") {
+    // Special case array copying without initializing System.
+    Class* ctype = args[0].GetL()->GetClass()->GetComponentType();
+    jint srcPos = args[1].GetI();
+    jint dstPos = args[3].GetI();
+    jint length = args[4].GetI();
+    if (!ctype->IsPrimitive()) {
+      ObjectArray<Object>* src = args[0].GetL()->AsObjectArray<Object>();
+      ObjectArray<Object>* dst = args[2].GetL()->AsObjectArray<Object>();
+      for (jint i = 0; i < length; ++i) {
+        dst->Set(dstPos + i, src->Get(srcPos + i));
+      }
+    } else if (ctype->IsPrimitiveChar()) {
+      CharArray* src = args[0].GetL()->AsCharArray();
+      CharArray* dst = args[2].GetL()->AsCharArray();
+      for (jint i = 0; i < length; ++i) {
+        dst->Set(dstPos + i, src->Get(srcPos + i));
+      }
+    } else if (ctype->IsPrimitiveInt()) {
+      IntArray* src = args[0].GetL()->AsIntArray();
+      IntArray* dst = args[2].GetL()->AsIntArray();
+      for (jint i = 0; i < length; ++i) {
+        dst->Set(dstPos + i, src->Get(srcPos + i));
+      }
+    } else {
+      UNIMPLEMENTED(FATAL) << "System.arraycopy of unexpected type: " << PrettyDescriptor(ctype);
+    }
+  } else {
+    // Not special, continue with regular interpreter execution.
+    EnterInterpreterFromInvoke(self, target_method, receiver, args, result);
+  }
+}
+
+// Hand select a number of methods to be run in a not yet started runtime without using JNI.
+static void UnstartedRuntimeJni(Thread* self, AbstractMethod* method,
+                                Object* receiver, JValue* args, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::string name(PrettyMethod(method));
+  if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
+    result->SetL(NULL);
+  } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
+    NthCallerVisitor visitor(self->GetManagedStack(), NULL, 3);
+    visitor.WalkStack();
+    result->SetL(visitor.caller->GetDeclaringClass());
+  } else if (name == "double java.lang.Math.log(double)") {
+    result->SetD(log(args[0].GetD()));
+  } else if (name == "java.lang.String java.lang.Class.getNameNative()") {
+    result->SetL(receiver->AsClass()->ComputeName());
+  } else if (name == "int java.lang.Float.floatToRawIntBits(float)") {
+    result->SetI(args[0].GetI());
+  } else if (name == "float java.lang.Float.intBitsToFloat(int)") {
+    result->SetF(args[0].GetF());
+  } else if (name == "double java.lang.Math.exp(double)") {
+    result->SetD(exp(args[0].GetD()));
+  } else if (name == "java.lang.Object java.lang.Object.internalClone()") {
+    result->SetL(receiver->Clone(self));
+  } else if (name == "void java.lang.Object.notifyAll()") {
+    receiver->NotifyAll();
+  } else if (name == "int java.lang.String.compareTo(java.lang.String)") {
+    String* rhs = args[0].GetL()->AsString();
+    CHECK(rhs != NULL);
+    result->SetI(receiver->AsString()->CompareTo(rhs));
+  } else if (name == "java.lang.String java.lang.String.intern()") {
+    result->SetL(receiver->AsString()->Intern());
+  } else if (name == "int java.lang.String.fastIndexOf(int, int)") {
+    result->SetI(receiver->AsString()->FastIndexOf(args[0].GetI(), args[1].GetI()));
+  } else if (name == "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])") {
+    result->SetL(Array::CreateMultiArray(self, args[0].GetL()->AsClass(), args[1].GetL()->AsIntArray()));
+  } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
+    ScopedObjectAccessUnchecked soa(self);
+    result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace(soa)));
+  } else if (name == "boolean java.nio.ByteOrder.isLittleEndian()") {
+    result->SetJ(JNI_TRUE);
+  } else if (name == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
+    Object* obj = args[0].GetL();
+    jlong offset = args[1].GetJ();
+    jint expectedValue = args[2].GetI();
+    jint newValue = args[3].GetI();
+    byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
+    volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
+    // Note: android_atomic_release_cas() returns 0 on success, not failure.
+    int r = android_atomic_release_cas(expectedValue, newValue, address);
+    result->SetZ(r == 0);
+  } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
+    Object* obj = args[0].GetL();
+    Object* newValue = args[2].GetL();
+    obj->SetFieldObject(MemberOffset(args[1].GetJ()), newValue, false);
+  } else {
+    LOG(FATAL) << "Attempt to invoke native method in non-started runtime: " << name;
+  }
+}
+
+static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece shorty,
+                           Object* receiver, JValue* args, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
+  //       it should be removed and JNI compiled stubs used instead.
+  ScopedObjectAccessUnchecked soa(self);
+  if (method->IsStatic()) {
+    if (shorty == "L") {
+      typedef jobject (fnptr)(JNIEnv*, jclass);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get())));
+    } else if (shorty == "V") {
+      typedef void (fnptr)(JNIEnv*, jclass);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      fn(soa.Env(), klass.get());
+    } else if (shorty == "Z") {
+      typedef jboolean (fnptr)(JNIEnv*, jclass);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetZ(fn(soa.Env(), klass.get()));
+    } else if (shorty == "BI") {
+      typedef jbyte (fnptr)(JNIEnv*, jclass, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetB(fn(soa.Env(), klass.get(), args[0].GetI()));
+    } else if (shorty == "II") {
+      typedef jint (fnptr)(JNIEnv*, jclass, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetI(fn(soa.Env(), klass.get(), args[0].GetI()));
+    } else if (shorty == "LL") {
+      typedef jobject (fnptr)(JNIEnv*, jclass, jobject);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg0(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[0].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get(), arg0.get())));
+    } else if (shorty == "IIZ") {
+      typedef jint (fnptr)(JNIEnv*, jclass, jint, jboolean);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetI(fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ()));
+    } else if (shorty == "ILI") {
+      typedef jint (fnptr)(JNIEnv*, jclass, jobject, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg0(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[0].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1].GetI()));
+    } else if (shorty == "SIZ") {
+      typedef jshort (fnptr)(JNIEnv*, jclass, jint, jboolean);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetS(fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ()));
+    } else if (shorty == "VIZ") {
+      typedef void (fnptr)(JNIEnv*, jclass, jint, jboolean);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedThreadStateChange tsc(self, kNative);
+      fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ());
+    } else if (shorty == "ZLL") {
+      typedef jboolean (fnptr)(JNIEnv*, jclass, jobject, jobject);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg0(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[0].GetL()));
+      ScopedLocalRef<jobject> arg1(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[1].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
+    } else if (shorty == "ZILL") {
+      typedef jboolean (fnptr)(JNIEnv*, jclass, jint, jobject, jobject);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg1(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[1].GetL()));
+      ScopedLocalRef<jobject> arg2(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[2].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetZ(fn(soa.Env(), klass.get(), args[0].GetI(), arg1.get(), arg2.get()));
+    } else if (shorty == "VILII") {
+      typedef void (fnptr)(JNIEnv*, jclass, jint, jobject, jint, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg1(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[1].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      fn(soa.Env(), klass.get(), args[0].GetI(), arg1.get(), args[2].GetI(), args[3].GetI());
+    } else if (shorty == "VLILII") {
+      typedef void (fnptr)(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jclass> klass(soa.Env(),
+                                   soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
+      ScopedLocalRef<jobject> arg0(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[0].GetL()));
+      ScopedLocalRef<jobject> arg2(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[2].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      fn(soa.Env(), klass.get(), arg0.get(), args[1].GetI(), arg2.get(), args[3].GetI(),
+         args[4].GetI());
+    } else {
+      LOG(FATAL) << "Do something with static native method: " << PrettyMethod(method)
+          << " shorty: " << shorty;
+    }
+  } else {
+    if (shorty == "L") {
+      typedef jobject (fnptr)(JNIEnv*, jobject);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jobject> rcvr(soa.Env(),
+                                   soa.AddLocalReference<jobject>(receiver));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get())));
+    } else if (shorty == "LL") {
+      typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jobject> rcvr(soa.Env(),
+                                   soa.AddLocalReference<jobject>(receiver));
+      ScopedLocalRef<jobject> arg0(soa.Env(),
+                                   soa.AddLocalReference<jobject>(args[0].GetL()));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get(), arg0.get())));
+    } else if (shorty == "III") {
+      typedef jint (fnptr)(JNIEnv*, jobject, jint, jint);
+      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jobject> rcvr(soa.Env(),
+                                   soa.AddLocalReference<jobject>(receiver));
+      ScopedThreadStateChange tsc(self, kNative);
+      result->SetI(fn(soa.Env(), rcvr.get(), args[0].GetI(), args[1].GetI()));
+    } else {
+      LOG(FATAL) << "Do something with native method: " << PrettyMethod(method)
+          << " shorty: " << shorty;
+    }
+  }
+}
 
 static void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorEnter(self);
@@ -71,7 +376,11 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   } else {
     arg_array.BuildArgArray(shadow_frame, dec_insn.arg + (type != kStatic ? 1 : 0));
   }
-  target_method->Invoke(self, receiver, arg_array.get(), result);
+  if (LIKELY(Runtime::Current()->IsStarted())) {
+    target_method->Invoke(self, receiver, arg_array.get(), result);
+  } else {
+    UnstartedRuntimeInvoke(self, target_method, receiver, arg_array.get(), result);
+  }
   if (!mh.GetReturnType()->IsPrimitive() && result->GetL() != NULL) {
     CHECK(mh.GetReturnType()->IsAssignableFrom(result->GetL()->GetClass()));
   }
@@ -183,7 +492,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
   while (true) {
     shadow_frame.SetDexPC(inst->GetDexPc(insns));
     DecodedInstruction dec_insn(inst);
-    const bool kTracing = true;
+    const bool kTracing = false;
     if (kTracing) {
       LOG(INFO) << PrettyMethod(shadow_frame.GetMethod())
                 << StringPrintf("\n0x%x: %s\nReferences:",
@@ -264,7 +573,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         return result;
       }
       case Instruction::CONST_4: {
-        int32_t val = (dec_insn.vB << 28) >> 28;
+        int32_t val = static_cast<int32_t>(dec_insn.vB << 28) >> 28;
         shadow_frame.SetVReg(dec_insn.vA, val);
         if (val == 0) {
           shadow_frame.SetReference(dec_insn.vA, NULL);
@@ -295,24 +604,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         }
         break;
       }
-      case Instruction::CONST_WIDE_16: {
-        int64_t val = static_cast<int16_t>(dec_insn.vB);
-        shadow_frame.SetVReg(dec_insn.vA, val);
-        shadow_frame.SetVReg(dec_insn.vA + 1, val >> 32);
+      case Instruction::CONST_WIDE_16:
+        shadow_frame.SetVRegLong(dec_insn.vA, static_cast<int16_t>(dec_insn.vB));
         break;
-      }
-      case Instruction::CONST_WIDE_32: {
-        int64_t val = static_cast<int32_t>(dec_insn.vB);
-        shadow_frame.SetVReg(dec_insn.vA, val);
-        shadow_frame.SetVReg(dec_insn.vA + 1, val >> 32);
+      case Instruction::CONST_WIDE_32:
+        shadow_frame.SetVRegLong(dec_insn.vA, static_cast<int32_t>(dec_insn.vB));
         break;
-      }
       case Instruction::CONST_WIDE:
-        shadow_frame.SetVReg(dec_insn.vA, dec_insn.vB_wide);
-        shadow_frame.SetVReg(dec_insn.vA + 1, dec_insn.vB_wide >> 32);
+        shadow_frame.SetVRegLong(dec_insn.vA, dec_insn.vB_wide);
         break;
       case Instruction::CONST_WIDE_HIGH16:
-        shadow_frame.SetVRegLong(dec_insn.vA + 1, static_cast<uint64_t>(dec_insn.vB) << 48);
+        shadow_frame.SetVRegLong(dec_insn.vA, static_cast<uint64_t>(dec_insn.vB) << 48);
         break;
       case Instruction::CONST_STRING:
       case Instruction::CONST_STRING_JUMBO: {
@@ -351,12 +653,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ARRAY_LENGTH:  {
-        Array* array = shadow_frame.GetReference(dec_insn.vB)->AsArray();
+        Object* array = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(array == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
-        shadow_frame.SetVReg(dec_insn.vA, array->GetLength());
+        shadow_frame.SetVReg(dec_insn.vA, array->AsArray()->GetLength());
         break;
       }
       case Instruction::NEW_INSTANCE: {
@@ -371,9 +673,30 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILLED_NEW_ARRAY:
-      case Instruction::FILLED_NEW_ARRAY_RANGE:
-        UNIMPLEMENTED(FATAL) << inst->DumpString(&mh.GetDexFile());
+      case Instruction::FILLED_NEW_ARRAY_RANGE: {
+        bool is_range = (dec_insn.opcode == Instruction::FILLED_NEW_ARRAY_RANGE);
+        int32_t length = dec_insn.vA;
+        CHECK(is_range || length <= 5);
+        Class* arrayClass = mh.ResolveClass(dec_insn.vB);
+        CHECK(arrayClass->IsArrayClass());
+        if (arrayClass->GetComponentType()->IsPrimitiveInt()) {
+          IntArray* newArray = IntArray::Alloc(self, length);
+          if (newArray != NULL) {
+            for (int32_t i = 0; i < length; ++i) {
+              if (is_range) {
+                newArray->Set(i, shadow_frame.GetVReg(dec_insn.vC + i));
+              } else {
+                newArray->Set(i, shadow_frame.GetVReg(dec_insn.arg[i]));
+              }
+            }
+          }
+          result_register.SetL(newArray);
+        } else {
+          UNIMPLEMENTED(FATAL) << inst->DumpString(&mh.GetDexFile())
+              << " for array type: " << PrettyDescriptor(arrayClass);
+        }
         break;
+      }
       case Instruction::CMPL_FLOAT: {
         float val1 = shadow_frame.GetVRegFloat(dec_insn.vB);
         float val2 = shadow_frame.GetVRegFloat(dec_insn.vC);
@@ -408,7 +731,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t result;
         if (val1 == val2) {
           result = 0;
-        } else if (val1 > val2) {
+        } else if (val1 < val2) {
           result = 1;
         } else {
           result = -1;
@@ -423,7 +746,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t result;
         if (val1 == val2) {
           result = 0;
-        } else if (val1 < val2) {
+        } else if (val1 > val2) {
           result = -1;
         } else {
           result = 1;
@@ -436,11 +759,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int64_t val2 = shadow_frame.GetVRegLong(dec_insn.vC);
         int32_t result;
         if (val1 < val2) {
-          result = -1;
+          result = 1;
         } else if (val1 == val2) {
           result = 0;
         } else {
-          result = 1;
+          result = -1;
         }
         shadow_frame.SetVReg(dec_insn.vA, result);
         break;
@@ -1124,7 +1447,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       case Instruction::MUL_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
-                                 shadow_frame.GetVRegLong(dec_insn.vA) +
+                                 shadow_frame.GetVRegLong(dec_insn.vA) *
                                  shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::DIV_LONG_2ADDR:
@@ -1282,6 +1605,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 
 void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
                                 JValue* args, JValue* result) {
+  DCHECK_EQ(self, Thread::Current());
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint16_t num_regs;
@@ -1313,7 +1637,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
                                                             true, true);
     CHECK(method->GetDeclaringClass()->IsInitializing());
   }
-  StringPiece shorty(mh.GetShorty());
+  const char* shorty = mh.GetShorty();
   size_t arg_pos = 0;
   for (; cur_reg < num_regs; ++cur_reg, ++arg_pos) {
     DCHECK_LT(arg_pos + 1, mh.GetShortyLength());
@@ -1332,165 +1656,18 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
         break;
     }
   }
-  if (!method->IsNative()) {
+  if (LIKELY(!method->IsNative())) {
     JValue r = Execute(self, mh, code_item, *shadow_frame.get());
     if (result != NULL) {
       *result = r;
     }
   } else {
-    // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
-    //       it should be removed and JNI compiled stubs used instead.
-    ScopedObjectAccessUnchecked soa(self);
-    if (method->IsStatic()) {
-      if (shorty == "L") {
-        typedef jobject (fnptr)(JNIEnv*, jclass);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get())));
-      } else if (shorty == "V") {
-        typedef void (fnptr)(JNIEnv*, jclass);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        fn(soa.Env(), klass.get());
-      } else if (shorty == "Z") {
-        typedef jboolean (fnptr)(JNIEnv*, jclass);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetZ(fn(soa.Env(), klass.get()));
-      } else if (shorty == "BI") {
-        typedef jbyte (fnptr)(JNIEnv*, jclass, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetB(fn(soa.Env(), klass.get(), args[0].GetI()));
-      } else if (shorty == "II") {
-        typedef jint (fnptr)(JNIEnv*, jclass, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetI(fn(soa.Env(), klass.get(), args[0].GetI()));
-      } else if (shorty == "LL") {
-        typedef jobject (fnptr)(JNIEnv*, jclass, jobject);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg0(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[0].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get(), arg0.get())));
-      } else if (shorty == "IIZ") {
-        typedef jint (fnptr)(JNIEnv*, jclass, jint, jboolean);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetI(fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ()));
-      } else if (shorty == "ILI") {
-        typedef jint (fnptr)(JNIEnv*, jclass, jobject, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg0(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[0].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1].GetI()));
-      } else if (shorty == "SIZ") {
-        typedef jshort (fnptr)(JNIEnv*, jclass, jint, jboolean);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetS(fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ()));
-      } else if (shorty == "VIZ") {
-        typedef void (fnptr)(JNIEnv*, jclass, jint, jboolean);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedThreadStateChange tsc(self, kNative);
-        fn(soa.Env(), klass.get(), args[0].GetI(), args[1].GetZ());
-      } else if (shorty == "ZLL") {
-        typedef jboolean (fnptr)(JNIEnv*, jclass, jobject, jobject);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg0(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[0].GetL()));
-        ScopedLocalRef<jobject> arg1(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[1].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
-      } else if (shorty == "ZILL") {
-        typedef jboolean (fnptr)(JNIEnv*, jclass, jint, jobject, jobject);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg1(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[1].GetL()));
-        ScopedLocalRef<jobject> arg2(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[2].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetZ(fn(soa.Env(), klass.get(), args[0].GetI(), arg1.get(), arg2.get()));
-      } else if (shorty == "VILII") {
-        typedef void (fnptr)(JNIEnv*, jclass, jint, jobject, jint, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg1(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[1].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        fn(soa.Env(), klass.get(), args[0].GetI(), arg1.get(), args[2].GetI(), args[3].GetI());
-      } else if (shorty == "VLILII") {
-        typedef void (fnptr)(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jclass> klass(soa.Env(),
-                                     soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-        ScopedLocalRef<jobject> arg0(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[0].GetL()));
-        ScopedLocalRef<jobject> arg2(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[2].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        fn(soa.Env(), klass.get(), arg0.get(), args[1].GetI(), arg2.get(), args[3].GetI(),
-           args[4].GetI());
-      } else {
-        LOG(FATAL) << "Do something with static native method: " << PrettyMethod(method)
-            << " shorty: " << shorty;
-      }
+    // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
+    // generated stub) except during testing and image writing.
+    if (!Runtime::Current()->IsStarted()) {
+      UnstartedRuntimeJni(self, method, receiver, args, result);
     } else {
-      if (shorty == "L") {
-        typedef jobject (fnptr)(JNIEnv*, jobject);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jobject> rcvr(soa.Env(),
-                                     soa.AddLocalReference<jobject>(receiver));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get())));
-      } else if (shorty == "LL") {
-        typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jobject> rcvr(soa.Env(),
-                                     soa.AddLocalReference<jobject>(receiver));
-        ScopedLocalRef<jobject> arg0(soa.Env(),
-                                     soa.AddLocalReference<jobject>(args[0].GetL()));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get(), arg0.get())));
-      } else if (shorty == "III") {
-        typedef jint (fnptr)(JNIEnv*, jobject, jint, jint);
-        fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
-        ScopedLocalRef<jobject> rcvr(soa.Env(),
-                                     soa.AddLocalReference<jobject>(receiver));
-        ScopedThreadStateChange tsc(self, kNative);
-        result->SetI(fn(soa.Env(), rcvr.get(), args[0].GetI(), args[1].GetI()));
-      } else {
-        LOG(FATAL) << "Do something with native method: " << PrettyMethod(method)
-            << " shorty: " << shorty;
-      }
+      InterpreterJni(self, method, shorty, receiver, args, result);
     }
   }
   self->PopShadowFrame();

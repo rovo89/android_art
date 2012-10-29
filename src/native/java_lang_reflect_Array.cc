@@ -23,55 +23,6 @@
 
 namespace art {
 
-// Recursively create an array with multiple dimensions.  Elements may be
-// Objects or primitive types.
-static Array* CreateMultiArray(Thread* self, Class* array_class, int current_dimension,
-                               IntArray* dimensions)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  int32_t array_length = dimensions->Get(current_dimension++);
-  SirtRef<Array> new_array(self, Array::Alloc(self, array_class, array_length));
-  if (new_array.get() == NULL) {
-    CHECK(self->IsExceptionPending());
-    return NULL;
-  }
-  if (current_dimension == dimensions->GetLength()) {
-    return new_array.get();
-  }
-
-  if (!array_class->GetComponentType()->IsArrayClass()) {
-    // TODO: throw an exception, not relying on class_linker->FindClass to throw.
-    // old code assumed this but if you recurse from "[Foo" to "Foo" to "oo",
-    // you shouldn't assume there isn't a class "oo".
-  }
-  std::string sub_array_descriptor(ClassHelper(array_class).GetDescriptor() + 1);
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* sub_array_class = class_linker->FindClass(sub_array_descriptor.c_str(),
-                                                   array_class->GetClassLoader());
-  if (sub_array_class == NULL) {
-    CHECK(self->IsExceptionPending());
-    return NULL;
-  }
-  DCHECK(sub_array_class->IsArrayClass());
-  // Create a new sub-array in every element of the array.
-  SirtRef<ObjectArray<Array> > object_array(self, new_array->AsObjectArray<Array>());
-  for (int32_t i = 0; i < array_length; i++) {
-    SirtRef<Array> sub_array(self, CreateMultiArray(self, sub_array_class, current_dimension,
-                                                    dimensions));
-    if (sub_array.get() == NULL) {
-      CHECK(self->IsExceptionPending());
-      return NULL;
-    }
-    object_array->Set(i, sub_array.get());
-  }
-  return new_array.get();
-}
-
-// Create a multi-dimensional array of Objects or primitive types.
-//
-// We have to generate the names for X[], X[][], X[][][], and so on.  The
-// easiest way to deal with that is to create the full name once and then
-// subtract pieces off.  Besides, we want to start with the outermost
-// piece and work our way in.
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
   ScopedObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
@@ -82,41 +33,7 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
   IntArray* dimensions_array = down_cast<IntArray*>(dimensions_obj);
-
-  // Verify dimensions.
-  //
-  // The caller is responsible for verifying that "dimArray" is non-null
-  // and has a length > 0 and <= 255.
-  int num_dimensions = dimensions_array->GetLength();
-  DCHECK_GT(num_dimensions, 0);
-  DCHECK_LE(num_dimensions, 255);
-
-  for (int i = 0; i < num_dimensions; i++) {
-    int dimension = dimensions_array->Get(i);
-    if (dimension < 0) {
-      soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
-          "Dimension %d: %d", i, dimension);
-      return NULL;
-    }
-  }
-
-  // Generate the full name of the array class.
-  std::string descriptor(num_dimensions, '[');
-  descriptor += ClassHelper(element_class).GetDescriptor();
-
-  // Find/generate the array class.
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
-  if (array_class == NULL) {
-    CHECK(soa.Self()->IsExceptionPending());
-    return NULL;
-  }
-  // create the array
-  Array* new_array = CreateMultiArray(soa.Self(), array_class, 0, dimensions_array);
-  if (new_array == NULL) {
-    CHECK(soa.Self()->IsExceptionPending());
-    return NULL;
-  }
+  Array* new_array = Array::CreateMultiArray(soa.Self(), element_class, dimensions_array);
   return soa.AddLocalReference<jobject>(new_array);
 }
 
@@ -124,26 +41,21 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   ScopedObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
   Class* element_class = soa.Decode<Class*>(javaElementClass);
-  if (length < 0) {
+  if (UNLIKELY(length < 0)) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
-  std::string descriptor;
-  descriptor += '[';
+  std::string descriptor("[");
   descriptor += ClassHelper(element_class).GetDescriptor();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
-  if (array_class == NULL) {
+  if (UNLIKELY(array_class == NULL)) {
     CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
   Array* new_array = Array::Alloc(soa.Self(), array_class, length);
-  if (new_array == NULL) {
-    CHECK(soa.Self()->IsExceptionPending());
-    return NULL;
-  }
   return soa.AddLocalReference<jobject>(new_array);
 }
 

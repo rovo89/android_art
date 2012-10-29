@@ -3258,6 +3258,7 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(Compiler::MethodReferenc
   MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
+    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.second, *ref.first);
     return NULL;
   }
   CHECK(it->second != NULL);

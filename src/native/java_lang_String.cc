@@ -17,56 +17,19 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "scoped_thread_state_change.h"
-
-#ifdef HAVE__MEMCMP16
-// "count" is in 16-bit units.
-extern "C" uint32_t __memcmp16(const uint16_t* s0, const uint16_t* s1, size_t count);
-#define MemCmp16 __memcmp16
-#else
-uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
-  for (size_t i = 0; i < count; i++) {
-    if (s0[i] != s1[i]) {
-      return static_cast<int32_t>(s0[i]) - static_cast<int32_t>(s1[i]);
-    }
-  }
-  return 0;
-}
-#endif
+#include "ScopedLocalRef.h"
 
 namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
-  ScopedObjectAccess soa(env);
-  String* lhs = soa.Decode<String*>(javaThis);
-  String* rhs = soa.Decode<String*>(javaRhs);
-
-  if (rhs == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "rhs == null");
+  if (UNLIKELY(javaRhs == NULL)) {
+    ScopedLocalRef<jclass> npe(env, env->FindClass("java/lang/NullPointerException"));
+    env->ThrowNew(npe.get(), "rhs == null");
     return -1;
+  } else {
+    ScopedObjectAccess soa(env);
+    return soa.Decode<String*>(javaThis)->CompareTo(soa.Decode<String*>(javaRhs));
   }
-
-  // Quick test for comparison of a string with itself.
-  if (lhs == rhs) {
-    return 0;
-  }
-
-  // TODO: is this still true?
-  // The annoying part here is that 0x00e9 - 0xffff != 0x00ea,
-  // because the interpreter converts the characters to 32-bit integers
-  // *without* sign extension before it subtracts them (which makes some
-  // sense since "char" is unsigned).  So what we get is the result of
-  // 0x000000e9 - 0x0000ffff, which is 0xffff00ea.
-  int lhsCount = lhs->GetLength();
-  int rhsCount = rhs->GetLength();
-  int countDiff = lhsCount - rhsCount;
-  int minCount = (countDiff < 0) ? lhsCount : rhsCount;
-  const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
-  const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
-  int otherRes = MemCmp16(lhsChars, rhsChars, minCount);
-  if (otherRes != 0) {
-    return otherRes;
-  }
-  return countDiff;
 }
 
 static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint start) {
@@ -75,24 +38,7 @@ static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint sta
   DCHECK_LE(ch, 0xffff);
 
   String* s = soa.Decode<String*>(java_this);
-
-  jint count = s->GetLength();
-  if (start < 0) {
-    start = 0;
-  } else if (start > count) {
-    start = count;
-  }
-
-  const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
-  const uint16_t* p = chars + start;
-  const uint16_t* end = chars + count;
-  while (p < end) {
-    if (*p++ == ch) {
-      return (p - 1) - chars;
-    }
-  }
-
-  return -1;
+  return s->FastIndexOf(ch, start);
 }
 
 static jstring String_intern(JNIEnv* env, jobject javaThis) {
