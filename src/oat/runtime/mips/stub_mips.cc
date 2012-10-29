@@ -74,7 +74,8 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ LoadFromOffset(kLoadWord, RA, SP, 44);
   __ AddConstant(SP, SP, 48);
 
-  __ Jr(V0);  // Leaf call to method's code
+  __ Move(T9, V0); // Put method's code in T9
+  __ Jr(T9);  // Leaf call to method's code
 
   __ Break();
 #else // ART_USE_LLVM_COMPILER
