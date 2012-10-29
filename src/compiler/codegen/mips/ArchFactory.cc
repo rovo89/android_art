@@ -58,16 +58,16 @@ bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   /*
    *  [v1 v0] =  [a1 a0] - [a3 a2];
+   *  sltu  t1,a0,a2
    *  subu  v0,a0,a2
    *  subu  v1,a1,a3
-   *  sltu  t1,a0,v0
    *  subu  v1,v1,t1
    */
 
+  int tReg = oatAllocTemp(cUnit);
+  newLIR3(cUnit, kMipsSltu, tReg, rlSrc1.lowReg, rlSrc2.lowReg);
   opRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
   opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
-  int tReg = oatAllocTemp(cUnit);
-  newLIR3(cUnit, kMipsSltu, tReg, rlSrc1.lowReg, rlResult.lowReg);
   opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
   oatFreeTemp(cUnit, tReg);
   storeValueWide(cUnit, rlDest, rlResult);
