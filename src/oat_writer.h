@@ -64,7 +64,6 @@ class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
   static bool Create(File* file,
-                     jobject class_loader,
                      const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
@@ -77,7 +76,6 @@ class OatWriter {
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_begin,
             const std::string& image_file_location,
-            jobject class_loader,
             const Compiler& compiler) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ~OatWriter();
 
@@ -151,9 +149,6 @@ class OatWriter {
   };
 
   const Compiler* compiler_;
-
-  // TODO: remove the ClassLoader when the code storage moves out of Method
-  jobject class_loader_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
