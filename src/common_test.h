@@ -396,20 +396,14 @@ class CommonTest : public testing::Test {
     ASSERT_TRUE(android_data != NULL);
     DIR* dir = opendir(art_cache_.c_str());
     ASSERT_TRUE(dir != NULL);
-    while (true) {
-      dirent entry;
-      dirent* entry_ptr;
-      int readdir_result = readdir_r(dir, &entry, &entry_ptr);
-      ASSERT_EQ(0, readdir_result);
-      if (entry_ptr == NULL) {
-        break;
-      }
-      if ((strcmp(entry_ptr->d_name, ".") == 0) || (strcmp(entry_ptr->d_name, "..") == 0)) {
+    dirent* e;
+    while ((e = readdir(dir)) != NULL) {
+      if ((strcmp(e->d_name, ".") == 0) || (strcmp(e->d_name, "..") == 0)) {
         continue;
       }
       std::string filename(art_cache_);
       filename.push_back('/');
-      filename.append(entry_ptr->d_name);
+      filename.append(e->d_name);
       int unlink_result = unlink(filename.c_str());
       ASSERT_EQ(0, unlink_result);
     }

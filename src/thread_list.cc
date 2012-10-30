@@ -89,12 +89,11 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
     return;
   }
 
-  dirent de;
-  dirent* e;
   Thread* self = Thread::Current();
-  while (!readdir_r(d, &de, &e) && e != NULL) {
+  dirent* e;
+  while ((e = readdir(d)) != NULL) {
     char* end;
-    pid_t tid = strtol(de.d_name, &end, 10);
+    pid_t tid = strtol(e->d_name, &end, 10);
     if (!*end) {
       bool contains;
       {
