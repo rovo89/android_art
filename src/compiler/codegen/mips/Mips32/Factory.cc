@@ -16,13 +16,7 @@
 
 namespace art {
 
-/*
- * This file contains codegen for the MIPS32 ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the MIPS32 ISA. */
 
 static int coreRegs[] = {r_ZERO, r_AT, r_V0, r_V1, r_A0, r_A1, r_A2, r_A3,
                          r_T0, r_T1, r_T2, r_T3, r_T4, r_T5, r_T6, r_T7,
@@ -743,6 +737,49 @@ void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
   loadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
   loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
+}
+
+LIR* opThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
+{
+  LOG(FATAL) << "Unexpected use of opThreadMem for MIPS";
+  return NULL;
+}
+
+LIR* opMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
+{
+  LOG(FATAL) << "Unexpected use of opMem for MIPS";
+  return NULL;
+}
+
+LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
+                          int rBase, int rIndex, int scale, int displacement,
+                          int rSrc, int rSrcHi,
+                          OpSize size, int sReg)
+{
+  LOG(FATAL) << "Unexpected use of storeBaseIndexedDisp for MIPS";
+  return NULL;
+}
+
+LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
+              int offset)
+{
+  LOG(FATAL) << "Unexpected use of opRegMem for MIPS";
+  return NULL;
+}
+
+LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
+                         int rBase, int rIndex, int scale, int displacement,
+                         int rDest, int rDestHi,
+                         OpSize size, int sReg)
+{
+  LOG(FATAL) << "Unexpected use of loadBaseIndexedDisp for MIPS";
+  return NULL;
+}
+
+LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
+{
+  LOG(FATAL) << "Unexpected use of opCondBranch for MIPS";
+  return NULL;
 }
 
 }  // namespace art

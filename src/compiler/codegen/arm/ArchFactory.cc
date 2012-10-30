@@ -14,19 +14,11 @@
  * limitations under the License.
  */
 
-/*
- * This file contains arm-specific codegen factory support.
- * It is included by
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains arm-specific codegen factory support. */
 
 #include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
-
-void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
 bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc)
@@ -104,13 +96,6 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
 
   flushIns(cUnit, argLocs, rlMethod);
 
-  if (cUnit->genDebugger) {
-    // Refresh update debugger callout
-    loadWordDisp(cUnit, rSELF,
-                 ENTRYPOINT_OFFSET(pUpdateDebuggerFromCode), rSUSPEND);
-    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
-  }
-
   oatFreeTemp(cUnit, r0);
   oatFreeTemp(cUnit, r1);
   oatFreeTemp(cUnit, r2);
@@ -128,10 +113,6 @@ void genExitSequence(CompilationUnit* cUnit)
   oatLockTemp(cUnit, r1);
 
   newLIR0(cUnit, kPseudoMethodExit);
-  /* If we're compiling for the debugger, generate an update callout */
-  if (cUnit->genDebugger) {
-    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
-  }
   opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
   /* Need to restore any FP callee saves? */
   if (cUnit->numFPSpills) {
@@ -207,4 +188,40 @@ bool oatArchInit()
 
   return oatArchVariantInit();
 }
+
+bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genAddLong for Arm";
+  return false;
+}
+
+bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genSubLong for Arm";
+  return false;
+}
+
+bool genAndLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genAndLong for Arm";
+  return false;
+}
+
+bool genOrLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genOrLong for Arm";
+  return false;
+}
+
+bool genXorLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genXoLong for Arm";
+  return false;
+}
+
 }  // namespace art

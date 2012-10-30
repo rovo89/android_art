@@ -1722,23 +1722,22 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       }
       break;
 
-#if defined(TARGET_ARM)
+    // TODO: need GBC intrinsic to take advantage of fused operations
     case kMirOpFusedCmplFloat:
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpFusedCmpFloat";
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpFloat unsupported";
       break;
     case kMirOpFusedCmpgFloat:
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpFusedCmgFloat";
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmgFloat unsupported";
       break;
     case kMirOpFusedCmplDouble:
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpFusedCmplDouble";
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmplDouble unsupported";
       break;
     case kMirOpFusedCmpgDouble:
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpFusedCmpgDouble";
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpgDouble unsupported";
       break;
     case kMirOpFusedCmpLong:
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpLongCmpBranch";
+      UNIMPLEMENTED(FATAL) << "kMirOpLongCmpBranch unsupported";
       break;
-#endif
     default:
       break;
   }
@@ -1862,12 +1861,6 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
     int opcode = mir->dalvikInsn.opcode;
     Instruction::Format dalvikFormat =
         Instruction::FormatOf(mir->dalvikInsn.opcode);
-
-    /* If we're compiling for the debugger, generate an update callout */
-    if (cUnit->genDebugger) {
-      UNIMPLEMENTED(FATAL) << "Need debug codegen";
-      //genDebuggerUpdate(cUnit, mir->offset);
-    }
 
     if (opcode == kMirOpCheck) {
       // Combine check and work halves of throwing instruction.
@@ -2521,13 +2514,10 @@ void cvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
   RegLocation rlSrc1 = getLoc(cUnit, inst->getOperand(0));
   rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
   llvm::Value* rhs = inst->getOperand(1);
-#if defined(TARGET_MIPS)
-  // Compare and branch in one shot
-  (void)taken;
-  (void)cond;
-  (void)rhs;
-  UNIMPLEMENTED(FATAL);
-#else
+  if (cUnit->instructionSet == kMips) {
+    // Compare and branch in one shot
+    UNIMPLEMENTED(FATAL);
+  }
   //Compare, then branch
   // TODO: handle fused CMP_LONG/IF_xxZ case
   if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
@@ -2540,7 +2530,6 @@ void cvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
     opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
   }
   opCondBranch(cUnit, cond, taken);
-#endif
   // Fallthrough
   opUnconditionalBranch(cUnit, fallThrough);
 }

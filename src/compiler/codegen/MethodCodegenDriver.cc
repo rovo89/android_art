@@ -18,9 +18,6 @@
 
 namespace art {
 
-#define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
-                                 (1 << kDebugDisplayMissingTargets))
-
 const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG,
                             INVALID_SREG};
@@ -124,40 +121,40 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
                              vtableIdx, directCode, directMethod,
                              originalType);
   }
-  if (DISPLAY_MISSING_TARGETS) {
+  if (cUnit->enableDebug & (1 << kDebugDisplayMissingTargets)) {
     genShowTarget(cUnit);
   }
   LIR* callInst;
-#if !defined(TARGET_X86)
-  callInst = opReg(cUnit, kOpBlx, rINVOKE_TGT);
-#else
-  if (fastPath && info->type != kInterface) {
-    callInst = opMem(cUnit, kOpBlx, rARG0, AbstractMethod::GetCodeOffset().Int32Value());
+  if (cUnit->instructionSet != kX86) {
+    callInst = opReg(cUnit, kOpBlx, rINVOKE_TGT);
   } else {
-    int trampoline = 0;
-    switch (info->type) {
-    case kInterface:
-      trampoline = fastPath ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
-          : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
-      break;
-    case kDirect:
-      trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
-      break;
-    case kStatic:
-      trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
-      break;
-    case kSuper:
-      trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
-      break;
-    case kVirtual:
-      trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
-      break;
-    default:
-      LOG(FATAL) << "Unexpected invoke type";
+    if (fastPath && info->type != kInterface) {
+      callInst = opMem(cUnit, kOpBlx, rARG0, AbstractMethod::GetCodeOffset().Int32Value());
+    } else {
+      int trampoline = 0;
+      switch (info->type) {
+      case kInterface:
+        trampoline = fastPath ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
+            : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+        break;
+      case kDirect:
+        trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+        break;
+      case kStatic:
+        trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+        break;
+      case kSuper:
+        trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+        break;
+      case kVirtual:
+        trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+        break;
+      default:
+        LOG(FATAL) << "Unexpected invoke type";
+      }
+      callInst = opThreadMem(cUnit, kOpBlx, trampoline);
     }
-    callInst = opThreadMem(cUnit, kOpBlx, trampoline);
   }
-#endif
   markSafepointPC(cUnit, callInst);
 
   oatClobberCalleeSave(cUnit);
@@ -921,11 +918,6 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
       headLIR = boundaryLIR;
       /* Set the first boundaryLIR as a scheduling barrier */
       headLIR->defMask = ENCODE_ALL;
-    }
-
-    /* If we're compiling for the debugger, generate an update callout */
-    if (cUnit->genDebugger) {
-      genDebuggerUpdate(cUnit, mir->offset);
     }
 
     /* Don't generate the SSA annotation unless verbose mode is on */

@@ -22,6 +22,17 @@
 
 namespace art {
 
+void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
+{
+  DCHECK_EQ(cUnit->instructionSet, kMips);
+
+  // Mips-specific resource map setup here.
+  int flags = EncodingMap[lir->opcode].flags;
+  if (flags & REG_DEF_LR) {
+    lir->defMask |= ENCODE_REG_LR;
+  }
+}
+
 /* For dumping instructions */
 #define MIPS_REG_COUNT 32
 static const char *mipsRegName[MIPS_REG_COUNT] = {

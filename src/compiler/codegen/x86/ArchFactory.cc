@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains x86-specific codegen factory support.
- * It is included by
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains x86-specific codegen factory support. */
 
 namespace art {
 
@@ -120,8 +114,6 @@ bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
   return false;
 }
 
-void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
-
 void spillCoreRegs(CompilationUnit* cUnit) {
   if (cUnit->numCoreSpills == 0) {
     return;
@@ -202,16 +194,6 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
 
   flushIns(cUnit, argLocs, rlMethod);
 
-  if (cUnit->genDebugger) {
-    // Refresh update debugger callout
-    UNIMPLEMENTED(WARNING) << "genDebugger";
-#if 0
-    loadWordDisp(cUnit, rSELF,
-           OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
-    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
-#endif
-  }
-
   oatFreeTemp(cUnit, rARG0);
   oatFreeTemp(cUnit, rARG1);
   oatFreeTemp(cUnit, rARG2);
@@ -226,10 +208,6 @@ void genExitSequence(CompilationUnit* cUnit) {
   oatLockTemp(cUnit, rRET1);
 
   newLIR0(cUnit, kPseudoMethodExit);
-  /* If we're compiling for the debugger, generate an update callout */
-  if (cUnit->genDebugger) {
-  genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
-  }
   unSpillCoreRegs(cUnit);
   /* Remove frame except for return address */
   opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - 4);
@@ -291,5 +269,14 @@ bool oatArchInit() {
 
   return oatArchVariantInit();
 }
+
+// Not used in x86
+int loadHelper(CompilationUnit* cUnit, int offset)
+{
+  LOG(FATAL) << "Unexpected use of loadHelper in x86";
+  return INVALID_REG;
+}
+
+
 
 }  // namespace art

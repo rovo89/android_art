@@ -15,7 +15,6 @@
  */
 
 #define _CODEGEN_C
-#define TARGET_X86
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"

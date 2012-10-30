@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains register alloction support and is intended to be
- * included by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains register alloction support. */
 
 #include "../../CompilerIR.h"
 
@@ -91,8 +85,19 @@ inline s4 s4FromSwitchData(const void* switchData) {
 
 #endif
 
-extern void oatSetupResourceMasks(LIR* lir);
+extern void oatSetupResourceMasks(CompilationUnit* cUnit, LIR* lir);
 
 extern LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc);
+
+bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genAndLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genOrLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2);
+bool genXorLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2);
 
 }  // namespace art

@@ -22,6 +22,32 @@
 
 namespace art {
 
+void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
+{
+  DCHECK_EQ(cUnit->instructionSet, kX86);
+
+  // X86-specific resource map setup here.
+  int flags = EncodingMap[lir->opcode].flags;
+  if (flags & REG_DEFA) {
+    oatSetupRegMask(cUnit, &lir->defMask, rAX);
+  }
+
+  if (flags & REG_DEFD) {
+    oatSetupRegMask(cUnit, &lir->defMask, rDX);
+  }
+  if (flags & REG_USEA) {
+    oatSetupRegMask(cUnit, &lir->useMask, rAX);
+  }
+
+  if (flags & REG_USEC) {
+    oatSetupRegMask(cUnit, &lir->useMask, rCX);
+  }
+
+  if (flags & REG_USED) {
+    oatSetupRegMask(cUnit, &lir->useMask, rDX);
+  }
+}
+
 /* For dumping instructions */
 static const char* x86RegName[] = {
   "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",

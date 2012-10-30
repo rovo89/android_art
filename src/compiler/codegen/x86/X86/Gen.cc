@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains codegen for the X86 ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the X86 ISA */
 
 namespace art {
 
@@ -417,6 +411,141 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir) {
       LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
   }
   opCondBranch(cUnit, ccode, taken);
+}
+RegLocation genDivRemLit(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int lit, bool isDiv)
+{
+  LOG(FATAL) << "Unexpected use of genDivRemLit for x86";
+  return rlDest;
+}
+
+RegLocation genDivRem(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int regHi, bool isDiv)
+{
+  LOG(FATAL) << "Unexpected use of genDivRem for x86";
+  return rlDest;
+}
+
+/*
+ * Mark garbage collection card. Skip if the value we're storing is null.
+ */
+void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+{
+  int regCardBase = oatAllocTemp(cUnit);
+  int regCardNo = oatAllocTemp(cUnit);
+  LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
+  newLIR2(cUnit, kX86Mov32RT, regCardBase, Thread::CardTableOffset().Int32Value());
+  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
+  storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+                   kUnsignedByte);
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branchOver->target = (LIR*)target;
+  oatFreeTemp(cUnit, regCardBase);
+  oatFreeTemp(cUnit, regCardNo);
+}
+
+bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
+{
+  DCHECK_EQ(cUnit->instructionSet, kX86);
+  RegLocation rlSrc1 = info->args[0];
+  RegLocation rlSrc2 = info->args[1];
+  rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
+  rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
+  RegLocation rlDest = inlineTarget(cUnit, info);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
+  DCHECK_EQ(cUnit->instructionSet, kX86);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, isMin ? kX86CondG : kX86CondL);
+  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
+  LIR* branch2 = newLIR1(cUnit, kX86Jmp8, 0);
+  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
+  branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
+  storeValue(cUnit, rlDest, rlResult);
+  return true;
+}
+
+void opLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int offset)
+{
+  newLIR5(cUnit, kX86Lea32RA, rBase, reg1, reg2, scale, offset);
+}
+
+void opTlsCmp(CompilationUnit* cUnit, int offset, int val)
+{
+  newLIR2(cUnit, kX86Cmp16TI8, offset, val);
+}
+
+bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
+  DCHECK_NE(cUnit->instructionSet, kThumb2);
+  return false;
+}
+
+bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
+  DCHECK_NE(cUnit->instructionSet, kThumb2);
+  return false;
+}
+
+LIR* opPcRelLoad(CompilationUnit* cUnit, int reg, LIR* target) {
+  LOG(FATAL) << "Unexpected use of opPcRelLoad for x86";
+  return NULL;
+}
+
+LIR* opVldm(CompilationUnit* cUnit, int rBase, int count)
+{
+  LOG(FATAL) << "Unexpected use of opVldm for x86";
+  return NULL;
+}
+
+LIR* opVstm(CompilationUnit* cUnit, int rBase, int count)
+{
+  LOG(FATAL) << "Unexpected use of opVstm for x86";
+  return NULL;
+}
+
+void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
+                                   RegLocation rlResult, int lit,
+                                   int firstBit, int secondBit)
+{
+  int tReg = oatAllocTemp(cUnit);
+  opRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, secondBit - firstBit);
+  opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, tReg);
+  oatFreeTemp(cUnit, tReg);
+  if (firstBit != 0) {
+    opRegRegImm(cUnit, kOpLsl, rlResult.lowReg, rlResult.lowReg, firstBit);
+  }
+}
+
+void genDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
+{
+  int tReg = oatAllocTemp(cUnit);
+  opRegRegReg(cUnit, kOpOr, tReg, regLo, regHi);
+  genImmedCheck(cUnit, kCondEq, tReg, 0, kThrowDivZero);
+  oatFreeTemp(cUnit, tReg);
+}
+
+// Test suspend flag, return target of taken suspend branch
+LIR* opTestSuspend(CompilationUnit* cUnit, LIR* target)
+{
+  opTlsCmp(cUnit, Thread::ThreadFlagsOffset().Int32Value(), 0);
+  return opCondBranch(cUnit, (target == NULL) ? kCondNe : kCondEq, target);
+}
+
+// Decrement register and branch on condition
+LIR* opDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* target)
+{
+  opRegImm(cUnit, kOpSub, reg, 1);
+  return opCmpImmBranch(cUnit, cCode, reg, 0, target);
+}
+
+bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
+                        RegLocation rlSrc, RegLocation rlDest, int lit)
+{
+  LOG(FATAL) << "Unexpected use of smallLiteralDive in x86";
+  return false;
+}
+
+LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide)
+{
+  LOG(FATAL) << "Unexpected use of opIT in x86";
+  return NULL;
 }
 
 }  // namespace art

@@ -16,13 +16,7 @@
 
 namespace art {
 
-/*
- * This file contains codegen for the Thumb ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the Thumb ISA. */
 
 static int coreRegs[] = {r0, r1, r2, r3, rSUSPEND, r5, r6, r7, r8, rSELF, r10,
                          r11, r12, rSP, rLR, rPC};
@@ -1035,6 +1029,41 @@ LIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
   return res;
 }
 
+LIR* opThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
+{
+  LOG(FATAL) << "Unexpected use of opThreadMem for Arm";
+  return NULL;
+}
 
+LIR* opMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
+{
+  LOG(FATAL) << "Unexpected use of opMem for Arm";
+  return NULL;
+}
+
+LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
+                          int rBase, int rIndex, int scale, int displacement,
+                          int rSrc, int rSrcHi,
+                          OpSize size, int sReg)
+{
+  LOG(FATAL) << "Unexpected use of storeBaseIndexedDisp for Arm";
+  return NULL;
+}
+
+LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
+              int offset)
+{
+  LOG(FATAL) << "Unexpected use of opRegMem for Arm";
+  return NULL;
+}
+
+LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
+                         int rBase, int rIndex, int scale, int displacement,
+                         int rDest, int rDestHi,
+                         OpSize size, int sReg)
+{
+  LOG(FATAL) << "Unexpected use of loadBaseIndexedDisp for Arm";
+  return NULL;
+}
 
 }  // namespace art

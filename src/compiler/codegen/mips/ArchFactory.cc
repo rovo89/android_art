@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains mips-specific codegen factory support.
- * It is included by
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains mips-specific codegen factory support. */
 
 #include "oat/runtime/oat_support_entrypoints.h"
 
@@ -96,8 +90,6 @@ bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
-
-void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
 /*
  * In the Arm code a it is typical to use the link register
@@ -185,13 +177,6 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
 
   flushIns(cUnit, argLocs, rlMethod);
 
-  if (cUnit->genDebugger) {
-    // Refresh update debugger callout
-    loadWordDisp(cUnit, rSELF,
-                 ENTRYPOINT_OFFSET(pUpdateDebuggerFromCode), rSUSPEND);
-    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
-  }
-
   oatFreeTemp(cUnit, rARG0);
   oatFreeTemp(cUnit, rARG1);
   oatFreeTemp(cUnit, rARG2);
@@ -208,10 +193,6 @@ void genExitSequence(CompilationUnit* cUnit)
   oatLockTemp(cUnit, rRET1);
 
   newLIR0(cUnit, kPseudoMethodExit);
-  /* If we're compiling for the debugger, generate an update callout */
-  if (cUnit->genDebugger) {
-    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
-  }
   unSpillCoreRegs(cUnit);
   opReg(cUnit, kOpBx, r_RA);
 }
@@ -273,5 +254,28 @@ bool oatArchInit()
 
   return oatArchVariantInit();
 }
+
+bool genAndLong(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genAndLong for Mips";
+  return false;
+}
+
+bool genOrLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genOrLong for Mips";
+  return false;
+}
+
+bool genXorLong(CompilationUnit* cUnit, RegLocation rlDest,
+               RegLocation rlSrc1, RegLocation rlSrc2)
+{
+  LOG(FATAL) << "Unexpected use of genXorLong for Mips";
+  return false;
+}
+
+
 
 }  // namespace art
