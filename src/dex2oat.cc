@@ -269,7 +269,6 @@ class Dex2Oat {
     }
 
     if (!OatWriter::Create(oat_file,
-                           class_loader,
                            dex_files,
                            image_file_location_oat_checksum,
                            image_file_location_oat_begin,

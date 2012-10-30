@@ -80,7 +80,6 @@ TEST_F(OatTest, WriteRead) {
   ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
   bool success = OatWriter::Create(tmp.GetFile(),
-                                   class_loader,
                                    class_linker->GetBootClassPath(),
                                    42U,
                                    4096U,

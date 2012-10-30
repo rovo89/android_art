@@ -31,7 +31,6 @@
 namespace art {
 
 bool OatWriter::Create(File* file,
-                       jobject class_loader,
                        const std::vector<const DexFile*>& dex_files,
                        uint32_t image_file_location_oat_checksum,
                        uint32_t image_file_location_oat_begin,
@@ -41,7 +40,6 @@ bool OatWriter::Create(File* file,
                        image_file_location_oat_checksum,
                        image_file_location_oat_begin,
                        image_file_location,
-                       class_loader,
                        compiler);
   return oat_writer.Write(file);
 }
@@ -50,10 +48,8 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
-                     jobject class_loader,
                      const Compiler& compiler) {
   compiler_ = &compiler;
-  class_loader_ = class_loader;
   image_file_location_oat_checksum_ = image_file_location_oat_checksum;
   image_file_location_oat_begin_ = image_file_location_oat_begin;
   image_file_location_ = image_file_location;
@@ -403,7 +399,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
-                                           soa.Decode<ClassLoader*>(class_loader_), NULL, type);
+                                                   NULL, NULL, type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);
