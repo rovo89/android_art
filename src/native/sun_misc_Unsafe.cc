@@ -20,27 +20,6 @@
 
 namespace art {
 
-static jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
-  // TODO: move to Java code
-  jfieldID fid = env->FromReflectedField(javaField);
-  ScopedObjectAccess soa(env);
-  Field* field = soa.DecodeField(fid);
-  return field->GetOffset().Int32Value();
-}
-
-static jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
-  // TODO: move to Java code
-  ScopedObjectAccess soa(env);
-  Class* array_class = soa.Decode<Class*>(javaArrayClass);
-  return Array::DataOffset(array_class->GetComponentSize()).Int32Value();
-}
-
-static jint Unsafe_arrayIndexScale0(JNIEnv* env, jclass, jclass javaClass) {
-  ScopedObjectAccess soa(env);
-  Class* c = soa.Decode<Class*>(javaClass);
-  return c->GetComponentSize();
-}
-
 static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
   ScopedObjectAccess soa(env);
   Object* obj = soa.Decode<Object*>(javaObj);
@@ -176,9 +155,6 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Unsafe, objectFieldOffset0, "(Ljava/lang/reflect/Field;)J"),
-  NATIVE_METHOD(Unsafe, arrayBaseOffset0, "(Ljava/lang/Class;)I"),
-  NATIVE_METHOD(Unsafe, arrayIndexScale0, "(Ljava/lang/Class;)I"),
   NATIVE_METHOD(Unsafe, compareAndSwapInt, "(Ljava/lang/Object;JII)Z"),
   NATIVE_METHOD(Unsafe, compareAndSwapLong, "(Ljava/lang/Object;JJJ)Z"),
   NATIVE_METHOD(Unsafe, compareAndSwapObject, "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Z"),
