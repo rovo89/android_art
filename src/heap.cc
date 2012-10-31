@@ -136,7 +136,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       card_table_(NULL),
       concurrent_gc_(concurrent_gc),
       have_zygote_space_(false),
-      card_marking_disabled_(false),
       is_gc_running_(false),
       last_gc_type_(kGcTypeNone),
       enforce_heap_growth_rate_(false),

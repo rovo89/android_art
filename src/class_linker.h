@@ -372,6 +372,9 @@ class ClassLinker {
   const void* GetOatCodeFor(const AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Get the oat code for a method from a method index.
+  const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx);
+
   // Relocate the OatFiles (ELF images)
   void RelocateExecutable() LOCKS_EXCLUDED(dex_lock_);
 
