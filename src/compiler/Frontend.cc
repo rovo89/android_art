@@ -858,14 +858,15 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
         (1 << kLoadStoreElimination) |
         (1 << kLoadHoisting) |
         (1 << kSuppressLoads) |
-        (1 << kNullCheckElimination) |
-        (1 << kPromoteRegs) |
+        //(1 << kNullCheckElimination) |
+        //(1 << kPromoteRegs) |
         (1 << kTrackLiveTemps) |
-        (1 << kSkipLargeMethodOptimization) |
-        (1 << kSafeOptimizations) |
+        //(1 << kSkipLargeMethodOptimization) |
+        //(1 << kSafeOptimizations) |
         (1 << kBBOpt) |
         (1 << kMatch) |
-        (1 << kPromoteCompilerTemps));
+        //(1 << kPromoteCompilerTemps) |
+        0);
 }
 #endif
 
