@@ -136,11 +136,7 @@ class AtomicStack {
   // Size in number of elements.
   void Init() {
     mem_map_.reset(MemMap::MapAnonymous(name_.c_str(), NULL, capacity_ * sizeof(T), PROT_READ | PROT_WRITE));
-    if (mem_map_.get() == NULL) {
-      std::string maps;
-      ReadFileToString("/proc/self/maps", &maps);
-      LOG(FATAL) << "couldn't allocate mark stack\n" << maps;
-    }
+    CHECK(mem_map_.get() != NULL) << "couldn't allocate mark stack";
     byte* addr = mem_map_->Begin();
     CHECK(addr != NULL);
     begin_ = reinterpret_cast<T*>(addr);

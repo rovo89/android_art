@@ -27,10 +27,6 @@ OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
 OATDUMP := $(OATDUMPD)
 
-# start of image reserved address space
-IMG_HOST_BASE_ADDRESS   := 0x60000000
-IMG_TARGET_BASE_ADDRESS := 0x60000000
-
 PRELOADED_CLASSES := frameworks/base/preloaded-classes
 
 ########################################################################

@@ -48,13 +48,15 @@ TEST_F(ImageTest, WriteRead) {
     }
   }
 
-  ImageWriter writer(NULL);
   ScratchFile tmp_image;
-  const uintptr_t requested_image_base = 0x60000000;
-  bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
-                                    tmp_oat.GetFilename(), tmp_oat.GetFilename(),
-                                    *compiler_.get());
-  ASSERT_TRUE(success_image);
+  const uintptr_t requested_image_base = ART_BASE_ADDRESS;
+  {
+    ImageWriter writer(NULL);
+    bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
+                                      tmp_oat.GetFilename(), tmp_oat.GetFilename(),
+                                      *compiler_.get());
+    ASSERT_TRUE(success_image);
+  }
 
   {
     UniquePtr<File> file(OS::OpenFile(tmp_image.GetFilename().c_str(), false));

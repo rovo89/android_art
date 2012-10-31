@@ -87,8 +87,11 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
 
   byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_byte_count, prot, flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
+    std::string maps;
+    ReadFileToString("/proc/self/maps", &maps);
     PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_byte_count
-                << ", " << prot << ", " << flags << ", " << fd.get() << ", 0) failed for " << name;
+                << ", " << prot << ", " << flags << ", " << fd.get() << ", 0) failed for " << name
+                << "\n" << maps;
     return NULL;
   }
   return new MemMap(name, actual, byte_count, actual, page_aligned_byte_count, prot);
@@ -110,7 +113,11 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
                                               fd,
                                               page_aligned_offset));
   if (actual == MAP_FAILED) {
-    PLOG(ERROR) << "mmap failed";
+    std::string maps;
+    ReadFileToString("/proc/self/maps", &maps);
+    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_byte_count
+                << ", " << prot << ", " << flags << ", " << fd << ", " << page_aligned_offset
+                << ") failed\n" << maps;
     return NULL;
   }
   return new MemMap("file", actual + page_offset, byte_count, actual, page_aligned_byte_count,

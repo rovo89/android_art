@@ -54,11 +54,7 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous("dalvik-card-table", NULL,
                                                  capacity + 256, PROT_READ | PROT_WRITE));
-  if (mem_map.get() == NULL) {
-    std::string maps;
-    ReadFileToString("/proc/self/maps", &maps);
-    LOG(FATAL) << "couldn't allocate card table\n" << maps;
-  }
+  CHECK(mem_map.get() != NULL) << "couldn't allocate card table";
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
   COMPILE_ASSERT(kCardClean == 0, card_clean_must_be_0);

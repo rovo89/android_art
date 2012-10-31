@@ -87,7 +87,8 @@ static bool GenerateImage(const std::string& image_file_name) {
   const char* oat_file_option = oat_file_option_string.c_str();
   arg_vector.push_back(strdup(oat_file_option));
 
-  arg_vector.push_back(strdup("--base=0x60000000"));
+  std::string base_option_string(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
+  arg_vector.push_back(strdup(base_option_string.c_str()));
 
   std::string command_line(Join(arg_vector, ' '));
   LOG(INFO) << command_line;
@@ -233,8 +234,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                                              growth_limit, capacity,
                                                              requested_begin));
   alloc_space_ = alloc_space.release();
-  alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
+  alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
   AddSpace(alloc_space_);
 
   // Spaces are sorted in order of Begin().

@@ -78,11 +78,20 @@ art_debug_cflags := \
 	-DDYNAMIC_ANNOTATIONS_ENABLED=1 \
 	-UNDEBUG
 
-ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1
+# start of image reserved address space
+IMG_HOST_BASE_ADDRESS   := 0x60000000
+
+ifeq ($(TARGET_ARCH),mips)
+IMG_TARGET_BASE_ADDRESS := 0x30000000
+else
+IMG_TARGET_BASE_ADDRESS := 0x60000000
+endif
+
+ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(IMG_HOST_BASE_ADDRESS)
 # The host GCC isn't necessarily new enough to support -Wthread-safety (GCC 4.4).
 ART_HOST_CFLAGS := $(filter-out -Wthread-safety,$(ART_HOST_CFLAGS))
 
-ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET
+ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(IMG_TARGET_BASE_ADDRESS)
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else

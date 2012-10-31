@@ -22,7 +22,7 @@
     /* Deliver the given exception */
     .extern artDeliverExceptionFromCode
     /* Deliver an exception pending on a thread */
-    .extern artDeliverPendingException
+    .extern artDeliverPendingExceptionFromCode
 
     /* Cache alignment for function entry */
 .macro ALIGN_FUNCTION_ENTRY
@@ -115,16 +115,17 @@
      * exception is Thread::Current()->exception_
      */
 .macro DELIVER_PENDING_EXCEPTION
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME            # save callee saves for throw
-    move    $a0, rSELF                          # pass Thread::Current
-    jal     artDeliverPendingExceptionFromCode  # artDeliverPendingExceptionFromCode(Thread*, $sp)
-    move    $a1, $sp                            # pass $sp
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME     # save callee saves for throw
+    move    $a0, rSELF                   # pass Thread::Current
+    la      $t9, artDeliverPendingExceptionFromCode
+    jr      $t9                          # artDeliverPendingExceptionFromCode(Thread*, $sp)
+    move    $a1, $sp                     # pass $sp
 .endm
 
 .macro RETURN_IF_NO_EXCEPTION
     lw     $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bnez   $t0, 1f                        # success if no exception is pending
+    bnez   $t0, 1f                       # success if no exception is pending
     nop
     jr     $ra
     nop
@@ -254,9 +255,10 @@ art_do_long_jump:
 art_deliver_exception_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a1, rSELF                     # pass Thread::Current
-    jal  artDeliverExceptionFromCode    # artDeliverExceptionFromCode(Throwable*, Thread*, $sp)
-    move $a2, $sp                       # pass $sp
+    move $a1, rSELF                 # pass Thread::Current
+    la   $t9, artDeliverExceptionFromCode
+    jr   $t9                        # artDeliverExceptionFromCode(Throwable*, Thread*, $sp)
+    move $a2, $sp                   # pass $sp
 
     .global art_throw_null_pointer_exception_from_code
     .extern artThrowNullPointerExceptionFromCode
@@ -267,9 +269,10 @@ art_deliver_exception_from_code:
 art_throw_null_pointer_exception_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a0, rSELF                           # pass Thread::Current
-    jal  artThrowNullPointerExceptionFromCode  # artThrowNullPointerExceptionFromCode(Thread*, $sp)
-    move $a1, $sp                             # pass $sp
+    move $a0, rSELF                 # pass Thread::Current
+    la   $t9, artThrowNullPointerExceptionFromCode
+    jr   $t9                        # artThrowNullPointerExceptionFromCode(Thread*, $sp)
+    move $a1, $sp                   # pass $sp
 
     .global art_throw_div_zero_from_code
     .extern artThrowDivZeroFromCode
@@ -281,7 +284,8 @@ art_throw_div_zero_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
-    jal  artThrowDivZeroFromCode     # artThrowDivZeroFromCode(Thread*, $sp)
+    la   $t9, artThrowDivZeroFromCode
+    jr   $t9                        # artThrowDivZeroFromCode(Thread*, $sp)
     move $a1, $sp                   # pass $sp
 
     .global art_throw_array_bounds_from_code
@@ -293,9 +297,10 @@ art_throw_div_zero_from_code:
 art_throw_array_bounds_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a2, rSELF                  # pass Thread::Current
-    jal artThrowArrayBoundsFromCode  # artThrowArrayBoundsFromCode(index, limit, Thread*, $sp)
-    move $a3, $sp                    # pass $sp
+    move $a2, rSELF                 # pass Thread::Current
+    la   $t9, artThrowArrayBoundsFromCode
+    jr   $t9                        # artThrowArrayBoundsFromCode(index, limit, Thread*, $sp)
+    move $a3, $sp                   # pass $sp
 
     .global art_throw_stack_overflow_from_code
     .extern artThrowStackOverflowFromCode
@@ -306,9 +311,10 @@ art_throw_array_bounds_from_code:
 art_throw_stack_overflow_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a0, rSELF                    # pass Thread::Current
-    jal artThrowStackOverflowFromCode  # artThrowStackOverflowFromCode(Thread*, $sp)
-    move $a1, $sp                      # pass $sp
+    move $a0, rSELF                 # pass Thread::Current
+    la   $t9, artThrowStackOverflowFromCode
+    jr   $t9                        # artThrowStackOverflowFromCode(Thread*, $sp)
+    move $a1, $sp                   # pass $sp
 
     .global art_throw_no_such_method_from_code
     .extern artThrowNoSuchMethodFromCode
@@ -319,9 +325,10 @@ art_throw_stack_overflow_from_code:
 art_throw_no_such_method_from_code:
     .cpload $25
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a1, rSELF                       # pass Thread::Current
-    jal artThrowNoSuchMethodFromCode      # artThrowNoSuchMethodFromCode(method_idx, Thread*, $sp)
-    move $a2, $sp                         # pass $sp
+    move $a1, rSELF                 # pass Thread::Current
+    la   $t9, artThrowNoSuchMethodFromCode
+    jr   $t9                        # artThrowNoSuchMethodFromCode(method_idx, Thread*, $sp)
+    move $a2, $sp                   # pass $sp
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
@@ -349,8 +356,10 @@ art_throw_no_such_method_from_code:
     move  $t0, $sp                        # save $sp
     addiu $sp, $sp, -16                   # make space for extra args
     move  $a3, rSELF                      # pass Thread::Current
+    sw    $gp, 12($sp)                    # save $gp
     jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
     sw    $t0, 16($sp)                    # pass $sp
+    lw    $gp, 12($sp)                    # restore $gp
     addiu $sp, $sp, 16                    # release out args
     move  $a0, $v0                        # save target Method*
     move  $t9, $v1                        # save $v0->code_
@@ -866,12 +875,12 @@ art_trace_entry_from_code:
     move     $a2, $ra       # pass $ra
     jal      artTraceMethodEntryFromCode  # (Method*, Thread*, LR)
     move     $a1, rSELF     # pass Thread::Current
-    move     $t0, $v0       # $t0 holds reference to code
+    move     $t9, $v0       # $t9 holds reference to code
     lw       $a0, 0($sp)
     lw       $a1, 4($sp)
     lw       $a2, 8($sp)
     lw       $a3, 12($sp)
-    jalr     $t0            # call method
+    jalr     $t9            # call method
     addiu    $sp, $sp, 16
     /* intentional fallthrough */
 
