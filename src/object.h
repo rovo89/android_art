@@ -1142,6 +1142,10 @@ class MANAGED ObjectArray : public Array {
   // circumstances, such as during boot image writing
   void SetWithoutChecks(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Set element without bound and element type checks, to be used in limited circumstances, such
+  // as during boot image writing. Does not do write barrier.
+  void SetPtrWithoutChecks(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   T* GetWithoutChecks(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Copy(const ObjectArray<T>* src, int src_pos,
@@ -2259,6 +2263,13 @@ void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
   DCHECK(IsValidIndex(i));
   MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   SetFieldObject(data_offset, object, false);
+}
+
+template<class T>
+void ObjectArray<T>::SetPtrWithoutChecks(int32_t i, T* object) {
+  DCHECK(IsValidIndex(i));
+  MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
+  SetFieldPtr(data_offset, object, false);
 }
 
 template<class T>

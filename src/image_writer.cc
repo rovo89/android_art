@@ -99,14 +99,11 @@ bool ImageWriter::Write(const std::string& image_filename,
     CheckNonImageClassesRemoved();
   }
 #endif
-  heap->DisableCardMarking();
-  {
-    Thread::Current()->TransitionFromSuspendedToRunnable();
-    CalculateNewObjectOffsets();
-    CopyAndFixupObjects();
-    PatchOatCodeAndMethods(compiler);
-    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-  }
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  CalculateNewObjectOffsets();
+  CopyAndFixupObjects();
+  PatchOatCodeAndMethods(compiler);
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
   UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), true));
   if (file.get() == NULL) {
@@ -192,7 +189,7 @@ void ImageWriter::ComputeEagerResolvedStrings()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: Check image spaces only?
   Heap* heap = Runtime::Current()->GetHeap();
-  ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
@@ -397,11 +394,8 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   {
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
-  }
-
-  {
     // TODO: Image spaces only?
     // TODO: Add InOrderWalk to heap bitmap.
     const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
@@ -434,7 +428,7 @@ void ImageWriter::CopyAndFixupObjects()
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
   self->EndAssertNoThreadSuspension(old_cause);
@@ -553,7 +547,7 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
 void ImageWriter::FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy) {
   for (int32_t i = 0; i < orig->GetLength(); ++i) {
     const Object* element = orig->Get(i);
-    copy->SetWithoutChecks(i, GetImageAddress(element));
+    copy->SetPtrWithoutChecks(i, GetImageAddress(element));
   }
 }
 
@@ -587,7 +581,8 @@ void ImageWriter::FixupFields(const Object* orig,
       size_t right_shift = CLZ(ref_offsets);
       MemberOffset byte_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
       const Object* ref = orig->GetFieldObject<const Object*>(byte_offset, false);
-      copy->SetFieldObject(byte_offset, GetImageAddress(ref), false);
+      // Use SetFieldPtr to avoid card marking since we are writing to the image.
+      copy->SetFieldPtr(byte_offset, GetImageAddress(ref), false);
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
@@ -607,32 +602,11 @@ void ImageWriter::FixupFields(const Object* orig,
                         : klass->GetInstanceField(i));
         MemberOffset field_offset = field->GetOffset();
         const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
-        copy->SetFieldObject(field_offset, GetImageAddress(ref), false);
+        // Use SetFieldPtr to avoid card marking since we are writing to the image.
+        copy->SetFieldPtr(field_offset, GetImageAddress(ref), false);
       }
     }
   }
-}
-
-static AbstractMethod* GetReferrerMethod(const Compiler::PatchInformation* patch)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
-  AbstractMethod* method = class_linker->ResolveMethod(patch->GetDexFile(),
-                                               patch->GetReferrerMethodIdx(),
-                                               dex_cache,
-                                               NULL,
-                                               NULL,
-                                               patch->GetReferrerInvokeType());
-  CHECK(method != NULL)
-    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
-  CHECK(!method->IsRuntimeMethod())
-    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
-  CHECK(dex_cache->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx()) == method)
-    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
-    << PrettyMethod(dex_cache->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx())) << " "
-    << PrettyMethod(method);
-  return method;
 }
 
 static AbstractMethod* GetTargetMethod(const Compiler::PatchInformation* patch)
@@ -657,9 +631,12 @@ static AbstractMethod* GetTargetMethod(const Compiler::PatchInformation* patch)
 }
 
 void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
+  Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
 
-  const std::vector<const Compiler::PatchInformation*>& code_to_patch = compiler.GetCodeToPatch();
+  typedef std::vector<const Compiler::PatchInformation*> Patches;
+  const Patches& code_to_patch = compiler.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
     const Compiler::PatchInformation* patch = code_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);
@@ -669,8 +646,7 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetOatAddress(code_offset)));
   }
 
-  const std::vector<const Compiler::PatchInformation*>& methods_to_patch
-      = compiler.GetMethodsToPatch();
+  const Patches& methods_to_patch = compiler.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const Compiler::PatchInformation* patch = methods_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);
@@ -680,16 +656,16 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
   // Update the image header with the new checksum after patching
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   image_header->SetOatChecksum(oat_file_->GetOatHeader().GetChecksum());
+  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  AbstractMethod* method = GetReferrerMethod(patch);
-  // Goodbye const, we are about to modify some code.
-  void* code = const_cast<void*>(class_linker->GetOatCodeFor(method));
+  const void* oat_code = class_linker->GetOatCodeFor(patch->GetDexFile(),
+                                                     patch->GetReferrerMethodIdx());
   OatHeader& oat_header = const_cast<OatHeader&>(oat_file_->GetOatHeader());
   // TODO: make this Thumb2 specific
-  uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(code) & ~0x1);
+  uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(oat_code) & ~0x1);
   uint32_t* patch_location = reinterpret_cast<uint32_t*>(base + patch->GetLiteralOffset());
 #ifndef NDEBUG
   const DexFile::MethodId& id = patch->GetDexFile().GetMethodId(patch->GetTargetMethodIdx());

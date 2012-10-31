@@ -1461,6 +1461,42 @@ const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const
   return oat_class;
 }
 
+static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint32_t method_idx) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  const DexFile::TypeId& type_id = dex_file.GetTypeId(method_id.class_idx_);
+  const DexFile::ClassDef* class_def = dex_file.FindClassDef(dex_file.GetTypeDescriptor(type_id));
+  CHECK(class_def != NULL);
+  const byte* class_data = dex_file.GetClassData(*class_def);
+  CHECK(class_data != NULL);
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  // Process methods
+  size_t class_def_method_index = 0;
+  while (it.HasNextDirectMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return class_def_method_index;
+    }
+    class_def_method_index++;
+    it.Next();
+  }
+  while (it.HasNextVirtualMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return class_def_method_index;
+    }
+    class_def_method_index++;
+    it.Next();
+  }
+  DCHECK(!it.HasNext());
+  LOG(FATAL) << "Failed to find method index " << method_idx << " in " << dex_file.GetLocation();
+  return 0;
+}
+
 const OatFile::OatMethod ClassLinker::GetOatMethodFor(const AbstractMethod* method) {
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
@@ -1487,6 +1523,10 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const AbstractMethod* meth
   ClassHelper kh(declaring_class);
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
   CHECK(oat_class.get() != NULL);
+  DCHECK_EQ(oat_method_index,
+            GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
+                                             method->GetDexMethodIndex()));
+
   return oat_class->GetOatMethod(oat_method_index);
 }
 
@@ -1494,6 +1534,15 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const AbstractMethod* meth
 const void* ClassLinker::GetOatCodeFor(const AbstractMethod* method) {
   CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
   return GetOatMethodFor(method).GetCode();
+}
+
+const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx) {
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  const char* descriptor = dex_file.GetTypeDescriptor(dex_file.GetTypeId(method_id.class_idx_));
+  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, method_idx);
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, descriptor));
+  CHECK(oat_class.get() != NULL);
+  return oat_class->GetOatMethod(oat_method_idx).GetCode();
 }
 
 void ClassLinker::FixupStaticTrampolines(Class* klass) {

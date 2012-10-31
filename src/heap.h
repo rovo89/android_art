@@ -230,26 +230,17 @@ class Heap {
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
   void WriteBarrierField(const Object* dst, MemberOffset /*offset*/, const Object* /*new_value*/) {
-    if (!card_marking_disabled_) {
-      card_table_->MarkCard(dst);
-    }
+    card_table_->MarkCard(dst);
   }
 
   // Write barrier for array operations that update many field positions
   void WriteBarrierArray(const Object* dst, int /*start_offset*/,
                          size_t /*length TODO: element_count or byte_count?*/) {
-    if (UNLIKELY(!card_marking_disabled_)) {
-      card_table_->MarkCard(dst);
-    }
+    card_table_->MarkCard(dst);
   }
 
   CardTable* GetCardTable() {
     return card_table_.get();
-  }
-
-  void DisableCardMarking() {
-    // TODO: we shouldn't need to disable card marking, this is here to help the image_writer
-    card_marking_disabled_ = true;
   }
 
   void AddFinalizerReference(Thread* self, Object* object);
@@ -411,10 +402,6 @@ class Heap {
 
   // If we have a zygote space.
   bool have_zygote_space_;
-
-  // Used by the image writer to disable card marking on copied objects
-  // TODO: remove
-  bool card_marking_disabled_;
 
   // Guards access to the state of GC, associated conditional variable is used to signal when a GC
   // completes.
