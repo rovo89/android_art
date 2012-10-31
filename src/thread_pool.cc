@@ -69,11 +69,15 @@ ThreadPool::ThreadPool(size_t num_threads)
 }
 
 ThreadPool::~ThreadPool() {
-  // Tell any remaining workers to shut down.
-  shutting_down_ = true;
-  android_memory_barrier();
-  // Broadcast to everyone waiting.
-  task_queue_condition_.Broadcast(Thread::Current());
+  {
+    Thread* self = Thread::Current();
+    MutexLock mu(self, task_queue_lock_);
+    // Tell any remaining workers to shut down.
+    shutting_down_ = true;
+    android_memory_barrier();
+    // Broadcast to everyone waiting.
+    task_queue_condition_.Broadcast(self);
+  }
   // Wait for the threads to finish.
   STLDeleteElements(&threads_);
 }

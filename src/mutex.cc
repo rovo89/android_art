@@ -749,6 +749,7 @@ void ConditionVariable::Broadcast(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
   // TODO: enable below, there's a race in thread creation that causes false failures currently.
   // guard_.AssertExclusiveHeld(self);
+  DCHECK_EQ(guard_.GetExclusiveOwnerTid(), SafeGetTid(self));
 #if ART_USE_FUTEXES
   if (num_waiters_ > 0) {
     android_atomic_inc(&state_); // Indicate a wake has occurred to waiters coming in.
