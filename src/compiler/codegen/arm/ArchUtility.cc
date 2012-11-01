@@ -22,6 +22,74 @@
 
 namespace art {
 
+void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
+{
+  DCHECK_EQ(cUnit->instructionSet, kThumb2);
+
+  // Thumb2 specific setup
+  int flags = EncodingMap[lir->opcode].flags;
+  int opcode = lir->opcode;
+
+  if (flags & REG_DEF_LIST0) {
+    lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
+  }
+
+  if (flags & REG_DEF_LIST1) {
+    lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
+  }
+
+  if (flags & REG_DEF_FPCS_LIST0) {
+    lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
+  }
+
+  if (flags & REG_DEF_FPCS_LIST2) {
+    for (int i = 0; i < lir->operands[2]; i++) {
+      oatSetupRegMask(cUnit, &lir->defMask, lir->operands[1] + i);
+    }
+  }
+
+  if (flags & REG_USE_PC) {
+    lir->useMask |= ENCODE_REG_PC;
+  }
+
+  /* Conservatively treat the IT block */
+  if (flags & IS_IT) {
+    lir->defMask = ENCODE_ALL;
+  }
+
+  if (flags & REG_USE_LIST0) {
+    lir->useMask |= ENCODE_REG_LIST(lir->operands[0]);
+  }
+
+  if (flags & REG_USE_LIST1) {
+    lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
+  }
+
+  if (flags & REG_USE_FPCS_LIST0) {
+    lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
+  }
+
+  if (flags & REG_USE_FPCS_LIST2) {
+    for (int i = 0; i < lir->operands[2]; i++) {
+      oatSetupRegMask(cUnit, &lir->useMask, lir->operands[1] + i);
+    }
+  }
+  /* Fixup for kThumbPush/lr and kThumbPop/pc */
+  if (opcode == kThumbPush || opcode == kThumbPop) {
+    u8 r8Mask = oatGetRegMaskCommon(cUnit, r8);
+    if ((opcode == kThumbPush) && (lir->useMask & r8Mask)) {
+      lir->useMask &= ~r8Mask;
+      lir->useMask |= ENCODE_REG_LR;
+    } else if ((opcode == kThumbPop) && (lir->defMask & r8Mask)) {
+      lir->defMask &= ~r8Mask;
+      lir->defMask |= ENCODE_REG_PC;
+    }
+  }
+  if (flags & REG_DEF_LR) {
+    lir->defMask |= ENCODE_REG_LR;
+  }
+}
+
 ArmConditionCode oatArmConditionEncoding(ConditionCode code)
 {
   ArmConditionCode res;

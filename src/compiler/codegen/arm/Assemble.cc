@@ -1070,7 +1070,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           // Change the load to be relative to the new Adr base
           lir->operands[1] = baseReg;
           lir->operands[2] = 0;
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           if ((lir->opcode == kThumb2Vldrs) ||
@@ -1101,7 +1101,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           /* operand[0] is src1 in both cb[n]z & CmpRI8 */
           lir->operands[1] = 0;
           lir->target = 0;
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           lir->operands[1] = delta >> 1;
@@ -1126,7 +1126,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             }
           }
           lir->operands[0] = reg;
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBCond || lir->opcode == kThumb2BCond) {
@@ -1138,7 +1138,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
         delta = target - pc;
         if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
           lir->opcode = kThumb2BCond;
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
         lir->operands[0] = delta >> 1;
@@ -1162,7 +1162,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           // Convert to Thumb2BCond w/ kArmCondAl
           lir->opcode = kThumb2BUncond;
           lir->operands[0] = 0;
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           lir->operands[0] = delta >> 1;
@@ -1221,7 +1221,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           lir->opcode = kThumb2AddRRR;
           lir->operands[1] = rPC;
           lir->operands[2] = lir->operands[0];
-          oatSetupResourceMasks(lir);
+          oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumb2MovImm16LST) {

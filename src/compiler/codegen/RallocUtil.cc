@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains register alloction support and is intended to be
- * included by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains register alloction support. */
 
 #include "../CompilerUtility.h"
 #include "../CompilerIR.h"

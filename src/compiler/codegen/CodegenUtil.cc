@@ -74,24 +74,22 @@ void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
 /*
  * Decode the register id.
  */
-inline u8 getRegMaskCommon(int reg)
+inline u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
 {
   u8 seed;
   int shift;
+  int regId;
 
-#if defined(TARGET_X86)
-  int regId = reg & 0xf;
-  /*
-   * Double registers in x86 are just a single FP register
-   */
-  seed = 1;
-#else
-  int regId = reg & 0x1f;
-  /*
-   * Each double register is equal to a pair of single-precision FP registers
-   */
-  seed = DOUBLEREG(reg) ? 3 : 1;
-#endif
+
+  if (cUnit->instructionSet == kX86) {
+    regId = reg & 0xf;
+    /* Double registers in x86 are just a single FP register */
+    seed = 1;
+  } else {
+    regId = reg & 0x1f;
+  /* Each double register is equal to a pair of single-precision FP registers */
+    seed = DOUBLEREG(reg) ? 3 : 1;
+  }
   /* FP register starts at bit position 16 */
   shift = FPREG(reg) ? kFPReg0 : 0;
   /* Expand the double register id into single offset */
@@ -99,18 +97,29 @@ inline u8 getRegMaskCommon(int reg)
   return (seed << shift);
 }
 
+u8 oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
+{
+  return getRegMaskCommon(cUnit, reg);
+}
+
 /*
  * Mark the corresponding bit(s).
  */
-inline void setupRegMask(u8* mask, int reg)
+inline void setupRegMask(CompilationUnit* cUnit, u8* mask, int reg)
 {
-  *mask |= getRegMaskCommon(reg);
+  *mask |= getRegMaskCommon(cUnit, reg);
+}
+
+/* Exported version of setupRegMask */
+void oatSetupRegMask(CompilationUnit* cUnit, u8* mask, int reg)
+{
+  setupRegMask(cUnit, mask, reg);
 }
 
 /*
  * Set up the proper fields in the resource mask
  */
-void setupResourceMasks(LIR* lir)
+void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   int opcode = lir->opcode;
   int flags;
@@ -120,7 +129,7 @@ void setupResourceMasks(LIR* lir)
     return;
   }
 
-  flags = EncodingMap[lir->opcode].flags;
+  flags = EncodingMap[opcode].flags;
 
   if (flags & NEEDS_FIXUP) {
     lir->flags.pcRelFixup = true;
@@ -145,135 +154,42 @@ void setupResourceMasks(LIR* lir)
   }
 
   if (flags & REG_DEF0) {
-    setupRegMask(&lir->defMask, lir->operands[0]);
+    setupRegMask(cUnit, &lir->defMask, lir->operands[0]);
   }
 
   if (flags & REG_DEF1) {
-    setupRegMask(&lir->defMask, lir->operands[1]);
+    setupRegMask(cUnit, &lir->defMask, lir->operands[1]);
   }
-
-#if defined(TARGET_X86)
-  if (flags & REG_DEFA) {
-    setupRegMask(&lir->defMask, rAX);
-  }
-
-  if (flags & REG_DEFD) {
-    setupRegMask(&lir->defMask, rDX);
-  }
-#endif
 
   if (flags & REG_DEF_SP) {
     lir->defMask |= ENCODE_REG_SP;
   }
 
-#if !defined(TARGET_X86)
-  if (flags & REG_DEF_LR) {
-    lir->defMask |= ENCODE_REG_LR;
-  }
-#endif
-
-#if defined(TARGET_ARM)
-  if (flags & REG_DEF_LIST0) {
-    lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
-  }
-
-  if (flags & REG_DEF_LIST1) {
-    lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
-  }
-
-  if (flags & REG_DEF_FPCS_LIST0) {
-    lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
-  }
-
-  if (flags & REG_DEF_FPCS_LIST2) {
-    for (int i = 0; i < lir->operands[2]; i++) {
-      setupRegMask(&lir->defMask, lir->operands[1] + i);
-    }
-  }
-#endif
 
   if (flags & SETS_CCODES) {
     lir->defMask |= ENCODE_CCODE;
   }
-
-#if defined(TARGET_ARM)
-  /* Conservatively treat the IT block */
-  if (flags & IS_IT) {
-    lir->defMask = ENCODE_ALL;
-  }
-#endif
 
   if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
     int i;
 
     for (i = 0; i < 4; i++) {
       if (flags & (1 << (kRegUse0 + i))) {
-        setupRegMask(&lir->useMask, lir->operands[i]);
+        setupRegMask(cUnit, &lir->useMask, lir->operands[i]);
       }
     }
   }
-
-#if defined(TARGET_X86)
-  if (flags & REG_USEA) {
-    setupRegMask(&lir->useMask, rAX);
-  }
-
-  if (flags & REG_USEC) {
-    setupRegMask(&lir->useMask, rCX);
-  }
-
-  if (flags & REG_USED) {
-    setupRegMask(&lir->useMask, rDX);
-  }
-#endif
-
-#if defined(TARGET_ARM)
-  if (flags & REG_USE_PC) {
-    lir->useMask |= ENCODE_REG_PC;
-  }
-#endif
 
   if (flags & REG_USE_SP) {
     lir->useMask |= ENCODE_REG_SP;
   }
 
-#if defined(TARGET_ARM)
-  if (flags & REG_USE_LIST0) {
-    lir->useMask |= ENCODE_REG_LIST(lir->operands[0]);
-  }
-
-  if (flags & REG_USE_LIST1) {
-    lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
-  }
-
-  if (flags & REG_USE_FPCS_LIST0) {
-    lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
-  }
-
-  if (flags & REG_USE_FPCS_LIST2) {
-    for (int i = 0; i < lir->operands[2]; i++) {
-      setupRegMask(&lir->useMask, lir->operands[1] + i);
-    }
-  }
-#endif
-
   if (flags & USES_CCODES) {
     lir->useMask |= ENCODE_CCODE;
   }
 
-#if defined(TARGET_ARM)
-  /* Fixup for kThumbPush/lr and kThumbPop/pc */
-  if (opcode == kThumbPush || opcode == kThumbPop) {
-    u8 r8Mask = getRegMaskCommon(r8);
-    if ((opcode == kThumbPush) && (lir->useMask & r8Mask)) {
-      lir->useMask &= ~r8Mask;
-      lir->useMask |= ENCODE_REG_LR;
-    } else if ((opcode == kThumbPop) && (lir->defMask & r8Mask)) {
-      lir->defMask &= ~r8Mask;
-      lir->defMask |= ENCODE_REG_PC;
-    }
-  }
-#endif
+  // Handle target-specific actions
+  setupTargetResourceMasks(cUnit, lir);
 }
 
 /*
@@ -472,7 +388,7 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
   insn->operands[3] = op3;
   insn->operands[4] = op4;
   insn->target = target;
-  oatSetupResourceMasks(insn);
+  oatSetupResourceMasks(cUnit, insn);
   if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
       (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
@@ -697,13 +613,19 @@ void installSwitchTables(CompilationUnit* cUnit)
      * the auto pc-advance.  For other targets the reference point
      * is a label, so we can use the offset as-is.
      */
-#if defined(TARGET_ARM)
-    int bxOffset = tabRec->anchor->offset + 4;
-#elif defined(TARGET_X86)
-    int bxOffset = 0;
-#else
-    int bxOffset = tabRec->anchor->offset;
-#endif
+    int bxOffset = INVALID_OFFSET;
+    switch (cUnit->instructionSet) {
+      case kThumb2:
+        bxOffset = tabRec->anchor->offset + 4;
+        break;
+      case kX86:
+        bxOffset = 0;
+        break;
+      case kMips:
+        bxOffset = tabRec->anchor->offset;
+        break;
+      default: LOG(FATAL) << "Unexpected instruction set: " << cUnit->instructionSet;
+    }
     if (cUnit->printMe) {
       LOG(INFO) << "Switch table for offset 0x" << std::hex << bxOffset;
     }

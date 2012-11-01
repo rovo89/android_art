@@ -146,6 +146,9 @@ namespace art {
 #define r_FRESULT0 r_F0
 #define r_FRESULT1 r_F1
 
+/* Regs not used for Mips */
+#define rLR INVALID_REG
+
 /* RegisterLocation templates return values (r_V0, or r_V0/r_V1) */
 #define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
                       INVALID_SREG, INVALID_SREG}
@@ -308,6 +311,7 @@ enum NativeRegisterPool {
 #define rRET0 r_RESULT0
 #define rRET1 r_RESULT1
 #define rINVOKE_TGT r_T9
+#define rCOUNT INVALID_REG
 
 /* Shift encodings */
 enum MipsShiftEncodings {
@@ -337,26 +341,7 @@ enum MipsShiftEncodings {
  * Assemble.cc.
  */
 enum MipsOpCode {
-  kPseudoExportedPC = -18,
-  kPseudoSafepointPC = -17,
-  kPseudoIntrinsicRetry = -16,
-  kPseudoSuspendTarget = -15,
-  kPseudoThrowTarget = -14,
-  kPseudoCaseLabel = -13,
-  kPseudoMethodEntry = -12,
-  kPseudoMethodExit = -11,
-  kPseudoBarrier = -10,
-  kPseudoExtended = -9,
-  kPseudoSSARep = -8,
-  kPseudoEntryBlock = -7,
-  kPseudoExitBlock = -6,
-  kPseudoTargetLabel = -5,
-  kPseudoDalvikByteCodeBoundary = -4,
-  kPseudoPseudoAlign4 = -3,
-  kPseudoEHBlockLabel = -2,
-  kPseudoNormalBlockLabel = -1,
-
-  kMipsFirst,
+  kMipsFirst = 0,
   kMips32BitData = kMipsFirst, /* data [31..0] */
   kMipsAddiu, /* addiu t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0] */
   kMipsAddu,  /* add d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100001] */

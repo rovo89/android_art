@@ -15,7 +15,6 @@
  */
 #define _CODEGEN_C
 #define _ARMV7_A
-#define TARGET_ARM
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"

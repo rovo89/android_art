@@ -16,16 +16,7 @@
 
 namespace art {
 
-/*
- * This file contains target-independent codegen and support, and is
- * included by:
- *
- *        $(TARGET_ARCH)/Codegen-$(TARGET_ARCH_VARIANT).c
- *
- * which combines this common code with specific support found in the
- * applicable directories below this one.
- *
- */
+/* This file contains target-independent codegen and support. */
 
 /*
  * Load an immediate value into a fixed or temp register.  Target
@@ -263,30 +254,6 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
     defEnd = (LIR*)cUnit->lastLIRInsn;
     oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
   }
-}
-
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
-{
-  int regCardBase = oatAllocTemp(cUnit);
-  int regCardNo = oatAllocTemp(cUnit);
-  LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-#if !defined(TARGET_X86)
-  loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
-               regCardBase);
-#else
-  newLIR2(cUnit, kX86Mov32RT, regCardBase,
-          Thread::CardTableOffset().Int32Value());
-#endif
-  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
-  storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
-                   kUnsignedByte);
-  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
-  oatFreeTemp(cUnit, regCardBase);
-  oatFreeTemp(cUnit, regCardNo);
 }
 
 /* Utilities to load the current Method* */

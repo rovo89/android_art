@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-/*
- * This file contains codegen for the Mips ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the Mips ISA */
 
 #include "oat/runtime/oat_support_entrypoints.h"
 
@@ -523,6 +517,149 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
 void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
+}
+
+LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
+                    int reg1, int base, int offset, ThrowKind kind)
+{
+  LOG(FATAL) << "Unexpected use of genRegMemCheck for Arm";
+  return NULL;
+}
+
+RegLocation genDivRem(CompilationUnit* cUnit, RegLocation rlDest, int reg1, int reg2, bool isDiv)
+{
+  newLIR4(cUnit, kMipsDiv, r_HI, r_LO, reg1, reg2);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  if (isDiv) {
+    newLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+  } else {
+    newLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+  }
+  return rlResult;
+}
+
+RegLocation genDivRemLit(CompilationUnit* cUnit, RegLocation rlDest, int reg1, int lit, bool isDiv)
+{
+  int tReg = oatAllocTemp(cUnit);
+  newLIR3(cUnit, kMipsAddiu, tReg, r_ZERO, lit);
+  newLIR4(cUnit, kMipsDiv, r_HI, r_LO, reg1, tReg);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  if (isDiv) {
+    newLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+  } else {
+    newLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+  }
+  oatFreeTemp(cUnit, tReg);
+  return rlResult;
+}
+
+/*
+ * Mark garbage collection card. Skip if the value we're storing is null.
+ */
+void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+{
+  int regCardBase = oatAllocTemp(cUnit);
+  int regCardNo = oatAllocTemp(cUnit);
+  LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
+  loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(), regCardBase);
+  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
+  storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+                   kUnsignedByte);
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branchOver->target = (LIR*)target;
+  oatFreeTemp(cUnit, regCardBase);
+  oatFreeTemp(cUnit, regCardNo);
+}
+
+bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
+{
+  // TODO: need Mips implementation
+  return false;
+}
+
+void opLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int offset)
+{
+  LOG(FATAL) << "Unexpected use of opLea for Arm";
+}
+
+void opTlsCmp(CompilationUnit* cUnit, int offset, int val)
+{
+  LOG(FATAL) << "Unexpected use of opTlsCmp for Arm";
+}
+
+bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
+  DCHECK_NE(cUnit->instructionSet, kThumb2);
+  return false;
+}
+
+bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
+  DCHECK_NE(cUnit->instructionSet, kThumb2);
+  return false;
+}
+
+LIR* opPcRelLoad(CompilationUnit* cUnit, int reg, LIR* target) {
+  LOG(FATAL) << "Unexpected use of opPcRelLoad for Mips";
+  return NULL;
+}
+
+LIR* opVldm(CompilationUnit* cUnit, int rBase, int count)
+{
+  LOG(FATAL) << "Unexpected use of opVldm for Mips";
+  return NULL;
+}
+
+LIR* opVstm(CompilationUnit* cUnit, int rBase, int count)
+{
+  LOG(FATAL) << "Unexpected use of opVstm for Mips";
+  return NULL;
+}
+
+void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
+                                   RegLocation rlResult, int lit,
+                                   int firstBit, int secondBit)
+{
+  int tReg = oatAllocTemp(cUnit);
+  opRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, secondBit - firstBit);
+  opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, tReg);
+  oatFreeTemp(cUnit, tReg);
+  if (firstBit != 0) {
+    opRegRegImm(cUnit, kOpLsl, rlResult.lowReg, rlResult.lowReg, firstBit);
+  }
+}
+
+void genDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
+{
+  int tReg = oatAllocTemp(cUnit);
+  opRegRegReg(cUnit, kOpOr, tReg, regLo, regHi);
+  genImmedCheck(cUnit, kCondEq, tReg, 0, kThrowDivZero);
+  oatFreeTemp(cUnit, tReg);
+}
+
+// Test suspend flag, return target of taken suspend branch
+LIR* opTestSuspend(CompilationUnit* cUnit, LIR* target)
+{
+  opRegImm(cUnit, kOpSub, rSUSPEND, 1);
+  return opCmpImmBranch(cUnit, (target == NULL) ? kCondEq : kCondNe, rSUSPEND, 0, target);
+}
+
+// Decrement register and branch on condition
+LIR* opDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* target)
+{
+  opRegImm(cUnit, kOpSub, reg, 1);
+  return opCmpImmBranch(cUnit, cCode, reg, 0, target);
+}
+
+bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
+                        RegLocation rlSrc, RegLocation rlDest, int lit)
+{
+  LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
+  return false;
+}
+
+LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide)
+{
+  LOG(FATAL) << "Unexpected use of opIT in Mips";
+  return NULL;
 }
 
 }  // namespace art

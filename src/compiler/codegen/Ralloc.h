@@ -202,10 +202,7 @@ extern void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg);
 extern void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg);
 
 
-/*
- * Architecture-dependent register allocation routines implemented in
- * ${TARGET_ARCH}/${TARGET_ARCH_VARIANT}/Ralloc.c
- */
+/* Architecture-dependent register allocation routines. */
 extern int oatAllocTypedTempPair(CompilationUnit* cUnit,
                                  bool fpHint, int regClass);
 

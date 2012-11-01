@@ -885,19 +885,6 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
         (1 << kMatch) |
         (1 << kPromoteCompilerTemps));
   }
-  /* Are we generating code for the debugger? */
-  if (compiler.IsDebuggingSupported()) {
-    cUnit->genDebugger = true;
-    // Yes, disable most optimizations
-    cUnit->disableOpt |= (
-        (1 << kLoadStoreElimination) |
-        (1 << kLoadHoisting) |
-        (1 << kSuppressLoads) |
-        (1 << kPromoteRegs) |
-        (1 << kBBOpt) |
-        (1 << kMatch) |
-        (1 << kTrackLiveTemps));
-  }
 
   /* Gathering opcode stats? */
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {

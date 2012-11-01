@@ -175,6 +175,8 @@ enum ResourceEncodingPos {
 
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
+/* Not used for x86 */
+#define ENCODE_REG_PC           (ENCODE_ALL)
 
 /*
  * Annotate special-purpose core registers:
@@ -245,55 +247,12 @@ enum NativeRegisterPool {
 #define rRET0 rAX
 #define rRET1 rDX
 #define rINVOKE_TGT rAX
+#define rLR INVALID_REG
+#define rSUSPEND INVALID_REG
+#define rSELF INVALID_REG
+#define rCOUNT rCX
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
-
-/* X86 condition encodings */
-enum X86ConditionCode {
-  kX86CondO   = 0x0,    // overflow
-  kX86CondNo  = 0x1,    // not overflow
-
-  kX86CondB   = 0x2,    // below
-  kX86CondNae = kX86CondB,  // not-above-equal
-  kX86CondC   = kX86CondB,  // carry
-
-  kX86CondNb  = 0x3,    // not-below
-  kX86CondAe  = kX86CondNb, // above-equal
-  kX86CondNc  = kX86CondNb, // not-carry
-
-  kX86CondZ   = 0x4,    // zero
-  kX86CondEq  = kX86CondZ,  // equal
-
-  kX86CondNz  = 0x5,    // not-zero
-  kX86CondNe  = kX86CondNz, // not-equal
-
-  kX86CondBe  = 0x6,    // below-equal
-  kX86CondNa  = kX86CondBe, // not-above
-
-  kX86CondNbe = 0x7,    // not-below-equal
-  kX86CondA   = kX86CondNbe,// above
-
-  kX86CondS   = 0x8,    // sign
-  kX86CondNs  = 0x9,    // not-sign
-
-  kX86CondP   = 0xA,    // 8-bit parity even
-  kX86CondPE  = kX86CondP,
-
-  kX86CondNp  = 0xB,    // 8-bit parity odd
-  kX86CondPo  = kX86CondNp,
-
-  kX86CondL   = 0xC,    // less-than
-  kX86CondNge = kX86CondL,  // not-greater-equal
-
-  kX86CondNl  = 0xD,    // not-less-than
-  kX86CondGe  = kX86CondNl, // not-greater-equal
-
-  kX86CondLe  = 0xE,    // less-than-equal
-  kX86CondNg  = kX86CondLe, // not-greater
-
-  kX86CondNle = 0xF,    // not-less-than
-  kX86CondG   = kX86CondNle,// greater
-};
 
 /*
  * The following enum defines the list of supported X86 instructions by the
@@ -301,25 +260,7 @@ enum X86ConditionCode {
  * Assemble.cc.
  */
 enum X86OpCode {
-  kPseudoExportedPC = -18,
-  kPseudoSafepointPC = -17,
-  kPseudoIntrinsicRetry = -16,
-  kPseudoSuspendTarget = -15,
-  kPseudoThrowTarget = -14,
-  kPseudoCaseLabel = -13,
-  kPseudoMethodEntry = -12,
-  kPseudoMethodExit = -11,
-  kPseudoBarrier = -10,
-  kPseudoExtended = -9,
-  kPseudoSSARep = -8,
-  kPseudoEntryBlock = -7,
-  kPseudoExitBlock = -6,
-  kPseudoTargetLabel = -5,
-  kPseudoDalvikByteCodeBoundary = -4,
-  kPseudoPseudoAlign4 = -3,
-  kPseudoEHBlockLabel = -2,
-  kPseudoNormalBlockLabel = -1,
-  kX86First,
+  kX86First = 0,
   kX8632BitData = kX86First, /* data [31..0] */
   kX86Bkpt,
   kX86Nop,

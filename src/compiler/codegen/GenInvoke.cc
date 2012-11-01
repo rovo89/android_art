@@ -140,10 +140,11 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
                    uintptr_t directCode, uintptr_t directMethod,
                    InvokeType type)
 {
-#if !defined(TARGET_ARM)
-  directCode = 0;
-  directMethod = 0;
-#endif
+  if (cUnit->instructionSet != kThumb2) {
+    // Disable sharpening
+    directCode = 0;
+    directMethod = 0;
+  }
   if (directCode != 0 && directMethod != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets rARG0]
@@ -155,14 +156,9 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
           dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
           dataTarget->operands[1] = type;
         }
-#if defined(TARGET_ARM)
-        LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                                kThumb2LdrPcRel12, rINVOKE_TGT, 0, 0, 0, 0,
-                                dataTarget);
+        LIR* loadPcRel = opPcRelLoad(cUnit, rINVOKE_TGT, dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
-#else
-        UNIMPLEMENTED(FATAL) << (void*)dataTarget;
-#endif
+        DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
       }
       if (directMethod != (uintptr_t)-1) {
         loadConstant(cUnit, rARG0, directMethod);
@@ -172,14 +168,9 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
           dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
           dataTarget->operands[1] = type;
         }
-#if defined(TARGET_ARM)
-        LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                                kThumb2LdrPcRel12, rARG0, 0, 0, 0, 0,
-                                dataTarget);
+        LIR* loadPcRel = opPcRelLoad(cUnit, rARG0, dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
-#else
-        UNIMPLEMENTED(FATAL) << (void*)dataTarget;
-#endif
+        DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
       }
       break;
     default:
@@ -205,14 +196,9 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
             dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
             dataTarget->operands[1] = type;
           }
-#if defined(TARGET_ARM)
-          LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                                  kThumb2LdrPcRel12, rINVOKE_TGT, 0, 0, 0, 0,
-                                  dataTarget);
+          LIR* loadPcRel = opPcRelLoad(cUnit, rINVOKE_TGT, dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
-#else
-          UNIMPLEMENTED(FATAL) << (void*)dataTarget;
-#endif
+          DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
         }
       }
       break;
@@ -221,14 +207,15 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
                    Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
                    rARG0);
       break;
-#if !defined(TARGET_X86)
     case 3:  // Grab the code from the method*
-      if (directCode == 0) {
-        loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
-                     rINVOKE_TGT);
+      if (cUnit->instructionSet != kX86) {
+        if (directCode == 0) {
+          loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
+                       rINVOKE_TGT);
+        }
+        break;
       }
-      break;
-#endif
+      // Intentional fallthrough for x86
     default:
       return -1;
     }
@@ -271,12 +258,12 @@ int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
       loadWordDisp(cUnit, rINVOKE_TGT, (methodIdx * 4) +
                    Array::DataOffset(sizeof(Object*)).Int32Value(), rARG0);
       break;
-#if !defined(TARGET_X86)
     case 4: // Get the compiled code address [uses rARG0, sets rINVOKE_TGT]
-      loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
-                   rINVOKE_TGT);
-      break;
-#endif
+      if (cUnit->instructionSet != kX86) {
+        loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(), rINVOKE_TGT);
+        break;
+      }
+      // Intentional fallthrough for X86
     default:
       return -1;
   }
@@ -291,19 +278,19 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
                           uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
                           uintptr_t directMethod, InvokeType unused4)
 {
-#if !defined(TARGET_ARM)
-  directMethod = 0;
-#endif
-#if !defined(TARGET_X86)
-  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
-#endif
+  if (cUnit->instructionSet != kThumb2) {
+    // Disable sharpening
+    directMethod = 0;
+  }
+  int trampoline = (cUnit->instructionSet == kX86) ? 0
+      : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
 
   if (directMethod != 0) {
     switch (state) {
       case 0:  // Load the trampoline target [sets rINVOKE_TGT].
-#if !defined(TARGET_X86)
-        loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
-#endif
+        if (cUnit->instructionSet != kX86) {
+          loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+        }
         // Get the interface Method* [sets rARG0]
         if (directMethod != (uintptr_t)-1) {
           loadConstant(cUnit, rARG0, directMethod);
@@ -313,14 +300,9 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
             dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
             dataTarget->operands[1] = kInterface;
           }
-#if defined(TARGET_ARM)
-          LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                                  kThumb2LdrPcRel12, rARG0, 0, 0, 0, 0,
-                                  dataTarget);
+          LIR* loadPcRel = opPcRelLoad(cUnit, rARG0, dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
-#else
-          UNIMPLEMENTED(FATAL) << (void*)dataTarget;
-#endif
+          DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
         }
         break;
       default:
@@ -332,9 +314,9 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
         // Get the current Method* [sets rARG0] - TUNING: remove copy of method if it is promoted.
         loadCurrMethodDirect(cUnit, rARG0);
         // Load the trampoline target [sets rINVOKE_TGT].
-#if !defined(TARGET_X86)
-        loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
-#endif
+        if (cUnit->instructionSet != kX86) {
+          loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+        }
         break;
     case 1:  // Get method->dex_cache_resolved_methods_ [set/use rARG0]
       loadWordDisp(cUnit, rARG0,
@@ -361,10 +343,10 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
    * resolved at compile time, we bail to a runtime helper.
    */
   if (state == 0) {
-#if !defined(TARGET_X86)
-    // Load trampoline target
-    loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
-#endif
+    if (cUnit->instructionSet != kX86) {
+      // Load trampoline target
+      loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+    }
     // Load rARG0 with method index
     loadConstant(cUnit, rARG0, dexIdx);
     return 1;
@@ -593,42 +575,41 @@ int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
 
   int startOffset = oatSRegOffset(cUnit, info->args[3].sRegLow);
   int outsOffset = 4 /* Method* */ + (3 * 4);
-#if defined(TARGET_MIPS) || defined(TARGET_X86)
-  // Generate memcpy
-  opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
-  opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-  callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                             rARG0, rARG1, (info->numArgWords - 3) * 4, false);
-#else
-  if (info->numArgWords >= 20) {
+  if (cUnit->instructionSet != kThumb2) {
     // Generate memcpy
     opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
     callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
                                rARG0, rARG1, (info->numArgWords - 3) * 4, false);
   } else {
-    // Use vldm/vstm pair using rARG3 as a temp
-    int regsLeft = std::min(info->numArgWords - 3, 16);
-    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
-                             directCode, directMethod, type);
-    opRegRegImm(cUnit, kOpAdd, rARG3, rSP, startOffset);
-    LIR* ld = newLIR3(cUnit, kThumb2Vldms, rARG3, fr0, regsLeft);
-    //TUNING: loosen barrier
-    ld->defMask = ENCODE_ALL;
-    setMemRefType(ld, true /* isLoad */, kDalvikReg);
-    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
-                             directCode, directMethod, type);
-    opRegRegImm(cUnit, kOpAdd, rARG3, rSP, 4 /* Method* */ + (3 * 4));
-    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
-                             directCode, directMethod, type);
-    LIR* st = newLIR3(cUnit, kThumb2Vstms, rARG3, fr0, regsLeft);
-    setMemRefType(st, false /* isLoad */, kDalvikReg);
-    st->defMask = ENCODE_ALL;
-    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
-                             directCode, directMethod, type);
-
+    if (info->numArgWords >= 20) {
+      // Generate memcpy
+      opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
+      opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
+      callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
+                                 rARG0, rARG1, (info->numArgWords - 3) * 4, false);
+    } else {
+      // Use vldm/vstm pair using rARG3 as a temp
+      int regsLeft = std::min(info->numArgWords - 3, 16);
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
+                               directCode, directMethod, type);
+      opRegRegImm(cUnit, kOpAdd, rARG3, rSP, startOffset);
+      LIR* ld = opVldm(cUnit, rARG3, regsLeft);
+      //TUNING: loosen barrier
+      ld->defMask = ENCODE_ALL;
+      setMemRefType(ld, true /* isLoad */, kDalvikReg);
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
+                               directCode, directMethod, type);
+      opRegRegImm(cUnit, kOpAdd, rARG3, rSP, 4 /* Method* */ + (3 * 4));
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
+                               directCode, directMethod, type);
+      LIR* st = opVstm(cUnit, rARG3, regsLeft);
+      setMemRefType(st, false /* isLoad */, kDalvikReg);
+      st->defMask = ENCODE_ALL;
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
+                               directCode, directMethod, type);
+    }
   }
-#endif
 
   callState = loadArgRegs(cUnit, info, callState, nextCallInsn,
                           dexIdx, methodIdx, directCode, directMethod,
@@ -667,7 +648,10 @@ RegLocation inlineTargetWide(CompilationUnit* cUnit, CallInfo* info)
 
 bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   // Location of reference to data array
   int valueOffset = String::ValueOffset().Int32Value();
   // Location of count
@@ -685,41 +669,43 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
   genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, info->optFlags);
   bool rangeCheck = (!(info->optFlags & MIR_IGNORE_RANGE_CHECK));
   LIR* launchPad = NULL;
-#if !defined(TARGET_X86)
-  int regOff = oatAllocTemp(cUnit);
-  int regPtr = oatAllocTemp(cUnit);
-  if (rangeCheck) {
-    regMax = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
+  int regOff = INVALID_REG;
+  int regPtr = INVALID_REG;
+  if (cUnit->instructionSet != kX86) {
+    regOff = oatAllocTemp(cUnit);
+    regPtr = oatAllocTemp(cUnit);
+    if (rangeCheck) {
+      regMax = oatAllocTemp(cUnit);
+      loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
+    }
+    loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
+    loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
+    if (rangeCheck) {
+      // Set up a launch pad to allow retry in case of bounds violation */
+      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
+      oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                            (intptr_t)launchPad);
+      opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
+      oatFreeTemp(cUnit, regMax);
+      opCondBranch(cUnit, kCondCs, launchPad);
+   }
+  } else {
+    if (rangeCheck) {
+      regMax = oatAllocTemp(cUnit);
+      loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
+      // Set up a launch pad to allow retry in case of bounds violation */
+      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
+      oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                            (intptr_t)launchPad);
+      opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
+      oatFreeTemp(cUnit, regMax);
+      opCondBranch(cUnit, kCondCc, launchPad);
+    }
+    regOff = oatAllocTemp(cUnit);
+    regPtr = oatAllocTemp(cUnit);
+    loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
+    loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
   }
-  loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
-  loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
-  if (rangeCheck) {
-    // Set up a launch pad to allow retry in case of bounds violation */
-    launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
-    oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-                          (intptr_t)launchPad);
-    opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
-    oatFreeTemp(cUnit, regMax);
-    opCondBranch(cUnit, kCondCs, launchPad);
-  }
-#else
-  if (rangeCheck) {
-    regMax = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
-    // Set up a launch pad to allow retry in case of bounds violation */
-    launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
-    oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-                          (intptr_t)launchPad);
-    opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
-    oatFreeTemp(cUnit, regMax);
-    opCondBranch(cUnit, kCondCc, launchPad);
-  }
-  int regOff = oatAllocTemp(cUnit);
-  int regPtr = oatAllocTemp(cUnit);
-  loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
-  loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
-#endif
   opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
   opRegReg(cUnit, kOpAdd, regOff, rlIdx.lowReg);
   oatFreeTemp(cUnit, rlObj.lowReg);
@@ -736,46 +722,16 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
   // Record that we've already inlined & null checked
   info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   return true;
-#else
-  return false;
-#endif
-}
-
-bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
-{
-#if defined(TARGET_ARM) || defined(TARGET_X86)
-  RegLocation rlSrc1 = info->args[0];
-  RegLocation rlSrc2 = info->args[1];
-  rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
-  rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
-  RegLocation rlDest = inlineTarget(cUnit, info);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
-#if defined(TARGET_ARM)
-  opIT(cUnit, (isMin) ? kArmCondGt : kArmCondLt, "E");
-  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
-  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
-  genBarrier(cUnit);
-#elif defined(TARGET_X86)
-  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, isMin ? kX86CondG : kX86CondL);
-  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
-  LIR* branch2 = newLIR1(cUnit, kX86Jmp8, 0);
-  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
-  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
-  branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
-#endif
-  storeValue(cUnit, rlDest, rlResult);
-  return true;
-#else
-  return false;
-#endif
 }
 
 // Generates an inlined String.isEmpty or String.length.
 bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
                                      bool isEmpty)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   // dst = src.length();
   RegLocation rlObj = info->args[0];
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -786,25 +742,26 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
                rlResult.lowReg);
   if (isEmpty) {
     // dst = (dst == 0);
-#if defined(TARGET_ARM)
-    int tReg = oatAllocTemp(cUnit);
-    opRegReg(cUnit, kOpNeg, tReg, rlResult.lowReg);
-    opRegRegReg(cUnit, kOpAdc, rlResult.lowReg, rlResult.lowReg, tReg);
-#elif defined(TARGET_X86)
-    opRegImm(cUnit, kOpSub, rlResult.lowReg, 1);
-    opRegImm(cUnit, kOpLsr, rlResult.lowReg, 31);
-#endif
+    if (cUnit->instructionSet == kThumb2) {
+      int tReg = oatAllocTemp(cUnit);
+      opRegReg(cUnit, kOpNeg, tReg, rlResult.lowReg);
+      opRegRegReg(cUnit, kOpAdc, rlResult.lowReg, rlResult.lowReg, tReg);
+    } else {
+      DCHECK_EQ(cUnit->instructionSet, kX86);
+      opRegImm(cUnit, kOpSub, rlResult.lowReg, 1);
+      opRegImm(cUnit, kOpLsr, rlResult.lowReg, 31);
+    }
   }
   storeValue(cUnit, rlDest, rlResult);
   return true;
-#else
-  return false;
-#endif
 }
 
 bool genInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   RegLocation rlSrc = info->args[0];
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   RegLocation rlDest = inlineTarget(cUnit, info);
@@ -816,72 +773,72 @@ bool genInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info)
   opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
   storeValue(cUnit, rlDest, rlResult);
   return true;
-#else
-  return false;
-#endif
 }
 
 bool genInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
-  RegLocation rlSrc = info->args[0];
-  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-  RegLocation rlDest = inlineTargetWide(cUnit, info);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  int signReg = oatAllocTemp(cUnit);
-  // abs(x) = y<=x>>31, (x+y)^y.
-  opRegRegImm(cUnit, kOpAsr, signReg, rlSrc.highReg, 31);
-  opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
-  opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc.highReg, signReg);
-  opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
-  opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
-  storeValueWide(cUnit, rlDest, rlResult);
-  return true;
-#elif defined(TARGET_X86)
-  // Reuse source registers to avoid running out of temps
-  RegLocation rlSrc = info->args[0];
-  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-  RegLocation rlDest = inlineTargetWide(cUnit, info);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  opRegCopyWide(cUnit, rlResult.lowReg, rlResult.highReg, rlSrc.lowReg, rlSrc.highReg);
-  oatFreeTemp(cUnit, rlSrc.lowReg);
-  oatFreeTemp(cUnit, rlSrc.highReg);
-  int signReg = oatAllocTemp(cUnit);
-  // abs(x) = y<=x>>31, (x+y)^y.
-  opRegRegImm(cUnit, kOpAsr, signReg, rlResult.highReg, 31);
-  opRegReg(cUnit, kOpAdd, rlResult.lowReg, signReg);
-  opRegReg(cUnit, kOpAdc, rlResult.highReg, signReg);
-  opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
-  opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
-  storeValueWide(cUnit, rlDest, rlResult);
-  return true;
-#else
-  return false;
-#endif
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
+  if (cUnit->instructionSet == kThumb2) {
+    RegLocation rlSrc = info->args[0];
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    RegLocation rlDest = inlineTargetWide(cUnit, info);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    int signReg = oatAllocTemp(cUnit);
+    // abs(x) = y<=x>>31, (x+y)^y.
+    opRegRegImm(cUnit, kOpAsr, signReg, rlSrc.highReg, 31);
+    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
+    opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc.highReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return true;
+  } else {
+    DCHECK_EQ(cUnit->instructionSet, kX86);
+    // Reuse source registers to avoid running out of temps
+    RegLocation rlSrc = info->args[0];
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    RegLocation rlDest = inlineTargetWide(cUnit, info);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    opRegCopyWide(cUnit, rlResult.lowReg, rlResult.highReg, rlSrc.lowReg, rlSrc.highReg);
+    oatFreeTemp(cUnit, rlSrc.lowReg);
+    oatFreeTemp(cUnit, rlSrc.highReg);
+    int signReg = oatAllocTemp(cUnit);
+    // abs(x) = y<=x>>31, (x+y)^y.
+    opRegRegImm(cUnit, kOpAsr, signReg, rlResult.highReg, 31);
+    opRegReg(cUnit, kOpAdd, rlResult.lowReg, signReg);
+    opRegReg(cUnit, kOpAdc, rlResult.highReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return true;
+  }
 }
 
 bool genInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   RegLocation rlSrc = info->args[0];
   RegLocation rlDest = inlineTarget(cUnit, info);
   storeValue(cUnit, rlDest, rlSrc);
   return true;
-#else
-  return false;
-#endif
 }
 
 bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   RegLocation rlSrc = info->args[0];
   RegLocation rlDest = inlineTargetWide(cUnit, info);
   storeValueWide(cUnit, rlDest, rlSrc);
   return true;
-#else
-  return false;
-#endif
 }
 
 /*
@@ -891,7 +848,10 @@ bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info)
 bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
                        bool zeroBased)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int regPtr = rARG0;
@@ -908,20 +868,18 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   } else {
     loadValueDirectFixed(cUnit, rlStart, regStart);
   }
-#if !defined(TARGET_X86)
-  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf));
-#endif
+  int rTgt = (cUnit->instructionSet != kX86) ? loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf)) : 0;
   genNullCheck(cUnit, rlObj.sRegLow, regPtr, info->optFlags);
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
               (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
   // NOTE: not a safepoint
-#if !defined(TARGET_X86)
-  opReg(cUnit, kOpBlx, rTgt);
-#else
-  opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pIndexOf));
-#endif
+  if (cUnit->instructionSet != kX86) {
+    opReg(cUnit, kOpBlx, rTgt);
+  } else {
+    opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pIndexOf));
+  }
   LIR* resumeTgt = newLIR0(cUnit, kPseudoTargetLabel);
   launchPad->operands[2] = (uintptr_t)resumeTgt;
   // Record that we've already inlined & null checked
@@ -930,15 +888,15 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   RegLocation rlDest = inlineTarget(cUnit, info);
   storeValue(cUnit, rlDest, rlReturn);
   return true;
-#else
-  return false;
-#endif
 }
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
 bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM) || defined(TARGET_X86)
+  if (cUnit->instructionSet == kMips) {
+    // TODO - add Mips implementation
+    return false;
+  }
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int regThis = rARG0;
@@ -948,9 +906,8 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
   RegLocation rlCmp = info->args[1];
   loadValueDirectFixed(cUnit, rlThis, regThis);
   loadValueDirectFixed(cUnit, rlCmp, regCmp);
-#if !defined(TARGET_X86)
-  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo));
-#endif
+  int rTgt = (cUnit->instructionSet != kX86) ?
+      loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   genNullCheck(cUnit, rlThis.sRegLow, regThis, info->optFlags);
   //TUNING: check if rlCmp.sRegLow is already null checked
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
@@ -958,11 +915,11 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
                         (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
   // NOTE: not a safepoint
-#if !defined(TARGET_X86)
-  opReg(cUnit, kOpBlx, rTgt);
-#else
-  opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pStringCompareTo));
-#endif
+  if (cUnit->instructionSet != kX86) {
+    opReg(cUnit, kOpBlx, rTgt);
+  } else {
+    opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pStringCompareTo));
+  }
   launchPad->operands[2] = 0;  // No return possible
   // Record that we've already inlined & null checked
   info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
@@ -970,97 +927,6 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
   RegLocation rlDest = inlineTarget(cUnit, info);
   storeValue(cUnit, rlDest, rlReturn);
   return true;
-#else
-  return false;
-#endif
-}
-
-bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
-#if defined(TARGET_ARM)
-  // Unused - RegLocation rlSrcUnsafe = info->args[0];
-  RegLocation rlSrcObj= info->args[1];  // Object - known non-null
-  RegLocation rlSrcOffset= info->args[2];  // long low
-  rlSrcOffset.wide = 0;  // ignore high half in info->args[3]
-  RegLocation rlSrcExpected= info->args[4];  // int or Object
-  RegLocation rlSrcNewValue= info->args[5];  // int or Object
-  RegLocation rlDest = inlineTarget(cUnit, info);  // boolean place for result
-
-
-  // Release store semantics, get the barrier out of the way.
-  oatGenMemBarrier(cUnit, kSY);
-
-  RegLocation rlObject = loadValue(cUnit, rlSrcObj, kCoreReg);
-  RegLocation rlNewValue = loadValue(cUnit, rlSrcNewValue, kCoreReg);
-
-  if (need_write_barrier) {
-    // Mark card for object assuming new value is stored.
-    markGCCard(cUnit, rlNewValue.lowReg, rlObject.lowReg);
-  }
-
-  RegLocation rlOffset = loadValue(cUnit, rlSrcOffset, kCoreReg);
-
-  int rPtr = oatAllocTemp(cUnit);
-  opRegRegReg(cUnit, kOpAdd, rPtr, rlObject.lowReg, rlOffset.lowReg);
-
-  // Free now unneeded rlObject and rlOffset to give more temps.
-  oatClobberSReg(cUnit, rlObject.sRegLow);
-  oatFreeTemp(cUnit, rlObject.lowReg);
-  oatClobberSReg(cUnit, rlOffset.sRegLow);
-  oatFreeTemp(cUnit, rlOffset.lowReg);
-
-  int rOldValue = oatAllocTemp(cUnit);
-  newLIR3(cUnit, kThumb2Ldrex, rOldValue, rPtr, 0);  // rOldValue := [rPtr]
-
-  RegLocation rlExpected = loadValue(cUnit, rlSrcExpected, kCoreReg);
-
-  // if (rOldValue == rExpected) {
-  //   [rPtr] <- rNewValue && rResult := success ? 0 : 1
-  //   rResult ^= 1
-  // } else {
-  //   rResult := 0
-  // }
-  opRegReg(cUnit, kOpCmp, rOldValue, rlExpected.lowReg);
-  oatFreeTemp(cUnit, rOldValue);  // Now unneeded.
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  opIT(cUnit, kArmCondEq, "TE");
-  newLIR4(cUnit, kThumb2Strex, rlResult.lowReg, rlNewValue.lowReg, rPtr, 0);
-  oatFreeTemp(cUnit, rPtr);  // Now unneeded.
-  opRegImm(cUnit, kOpXor, rlResult.lowReg, 1);
-  opRegReg(cUnit, kOpXor, rlResult.lowReg, rlResult.lowReg);
-
-  storeValue(cUnit, rlDest, rlResult);
-
-  return true;
-#else
-  return false;
-#endif
-}
-
-bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
-#if defined(TARGET_ARM)
-  LIR *branch;
-  RegLocation rlSrc = info->args[0];
-  RegLocation rlDest = inlineTargetWide(cUnit, info);  // double place for result
-  rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vsqrtd, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlSrc.lowReg, rlSrc.highReg));
-  newLIR2(cUnit, kThumb2Vcmpd, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlResult.lowReg, rlResult.highReg));
-  newLIR0(cUnit, kThumb2Fmstat);
-  branch = newLIR2(cUnit, kThumbBCond, 0, kArmCondEq);
-  oatClobberCalleeSave(cUnit);
-  oatLockCallTemps(cUnit);  // Using fixed registers
-  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pSqrt));
-  newLIR3(cUnit, kThumb2Fmrrd, r0, r1, S2D(rlSrc.lowReg, rlSrc.highReg));
-  newLIR1(cUnit, kThumbBlxR, rTgt);
-  newLIR3(cUnit, kThumb2Fmdrr, S2D(rlResult.lowReg, rlResult.highReg), r0, r1);
-  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
-  storeValueWide(cUnit, rlDest, rlResult);
-  return true;
-#else
-  return false;
-#endif
 }
 
 bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info)

@@ -91,11 +91,14 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
       continue;
     }
 
-#if defined(TARGET_X86)
-    int nativeRegId = (EncodingMap[thisLIR->opcode].flags & IS_STORE) ? thisLIR->operands[2] : thisLIR->operands[0];
-#else
-    int nativeRegId = thisLIR->operands[0];
-#endif
+    int nativeRegId;
+    if (cUnit->instructionSet == kX86) {
+      // If x86, location differs depending on whether memory/reg operation.
+      nativeRegId = (EncodingMap[thisLIR->opcode].flags & IS_STORE) ? thisLIR->operands[2]
+          : thisLIR->operands[0];
+    } else {
+      nativeRegId = thisLIR->operands[0];
+    }
     bool isThisLIRLoad = EncodingMap[thisLIR->opcode].flags & IS_LOAD;
     LIR* checkLIR;
     /* Use the mem mask to determine the rough memory location */
@@ -107,19 +110,19 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
      */
     if (!(thisMemMask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) continue;
 
-#if defined(TARGET_X86)
-    u8 stopUseRegMask = (IS_BRANCH | thisLIR->useMask) & ~ENCODE_MEM;
-#else
-    /*
-     * Add r15 (pc) to the resource mask to prevent this instruction
-     * from sinking past branch instructions. Also take out the memory
-     * region bits since stopMask is used to check data/control
-     * dependencies.
-     */
-    u8 stopUseRegMask = (ENCODE_REG_PC | thisLIR->useMask) &
-              ~ENCODE_MEM;
-#endif
     u8 stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
+    u8 stopUseRegMask;
+    if (cUnit->instructionSet == kX86) {
+      stopUseRegMask = (IS_BRANCH | thisLIR->useMask) & ~ENCODE_MEM;
+    } else {
+      /*
+       * Add pc to the resource mask to prevent this instruction
+       * from sinking past branch instructions. Also take out the memory
+       * region bits since stopMask is used to check data/control
+       * dependencies.
+       */
+        stopUseRegMask = (ENCODE_REG_PC | thisLIR->useMask) & ~ENCODE_MEM;
+    }
 
     for (checkLIR = NEXT_LIR(thisLIR);
         checkLIR != tailLIR;
@@ -226,15 +229,15 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
       }
 
       if (stopHere == true) {
-#if defined(TARGET_X86)
-        // Prevent stores from being sunk between ops that generate ccodes and
-        // ops that use them.
-        int flags = EncodingMap[checkLIR->opcode].flags;
-        if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
-          checkLIR = PREV_LIR(checkLIR);
-          sinkDistance--;
+        if (cUnit->instructionSet == kX86) {
+          // Prevent stores from being sunk between ops that generate ccodes and
+          // ops that use them.
+          int flags = EncodingMap[checkLIR->opcode].flags;
+          if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
+            checkLIR = PREV_LIR(checkLIR);
+            sinkDistance--;
+          }
         }
-#endif
         DEBUG_OPT(dumpDependentInsnPair(thisLIR, checkLIR, "REG CLOBBERED"));
         /* Only sink store instructions */
         if (sinkDistance && !isThisLIRLoad) {
@@ -287,17 +290,17 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
 
     u8 stopUseAllMask = thisLIR->useMask;
 
-#if !defined(TARGET_X86)
-    /*
-     * Branches for null/range checks are marked with the true resource
-     * bits, and loads to Dalvik registers, constant pools, and non-alias
-     * locations are safe to be hoisted. So only mark the heap references
-     * conservatively here.
-     */
-    if (stopUseAllMask & ENCODE_HEAP_REF) {
-      stopUseAllMask |= ENCODE_REG_PC;
+    if (cUnit->instructionSet != kX86) {
+      /*
+       * Branches for null/range checks are marked with the true resource
+       * bits, and loads to Dalvik registers, constant pools, and non-alias
+       * locations are safe to be hoisted. So only mark the heap references
+       * conservatively here.
+       */
+      if (stopUseAllMask & ENCODE_HEAP_REF) {
+        stopUseAllMask |= ENCODE_REG_PC;
+      }
     }
-#endif
 
     /* Similar as above, but just check for pure register dependency */
     u8 stopUseRegMask = stopUseAllMask & ~ENCODE_MEM;

@@ -16,13 +16,7 @@
 
 namespace art {
 
-/*
- * This file contains codegen for the X86 ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the X86 ISA */
 
 //FIXME: restore "static" when usage uncovered
 /*static*/ int coreRegs[] = {

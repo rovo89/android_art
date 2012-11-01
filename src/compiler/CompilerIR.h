@@ -128,6 +128,7 @@ struct RegisterPool {
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
 #define INVALID_REG (0xFF)
+#define INVALID_OFFSET (0xDEADF00FU)
 
 /* SSA encodings for special registers */
 #define SSA_METHOD_BASEREG (-2)
@@ -174,6 +175,28 @@ struct LIR {
   int aliasInfo;              // For Dalvik register & litpool disambiguation
   u8 useMask;                 // Resource mask for use
   u8 defMask;                 // Resource mask for def
+};
+
+/* Shared pseudo opcodes - must be < 0 */
+enum LIRPseudoOpcode {
+  kPseudoExportedPC = -18,
+  kPseudoSafepointPC = -17,
+  kPseudoIntrinsicRetry = -16,
+  kPseudoSuspendTarget = -15,
+  kPseudoThrowTarget = -14,
+  kPseudoCaseLabel = -13,
+  kPseudoMethodEntry = -12,
+  kPseudoMethodExit = -11,
+  kPseudoBarrier = -10,
+  kPseudoExtended = -9,
+  kPseudoSSARep = -8,
+  kPseudoEntryBlock = -7,
+  kPseudoExitBlock = -6,
+  kPseudoTargetLabel = -5,
+  kPseudoDalvikByteCodeBoundary = -4,
+  kPseudoPseudoAlign4 = -3,
+  kPseudoEHBlockLabel = -2,
+  kPseudoNormalBlockLabel = -1,
 };
 
 enum ExtendedMIROpcode {
@@ -326,7 +349,6 @@ struct CompilationUnit {
       totalSize(0),
       assemblerStatus(kSuccess),
       assemblerRetries(0),
-      genDebugger(false),
       printMe(false),
       hasLoop(false),
       hasInvoke(false),
@@ -435,7 +457,6 @@ struct CompilationUnit {
   std::vector<uint32_t> coreVmapTable;
   std::vector<uint32_t> fpVmapTable;
   std::vector<uint8_t> nativeGcMap;
-  bool genDebugger;                   // Generate code for debugger
   bool printMe;
   bool hasLoop;                       // Contains a loop
   bool hasInvoke;                     // Contains an invoke instruction
@@ -642,6 +663,73 @@ enum ConditionCode {
   kCondAl,  // always
   kCondNv,  // never
 };
+
+// Target specific condition encodings
+enum ArmConditionCode {
+  kArmCondEq = 0x0,  /* 0000 */
+  kArmCondNe = 0x1,  /* 0001 */
+  kArmCondCs = 0x2,  /* 0010 */
+  kArmCondCc = 0x3,  /* 0011 */
+  kArmCondMi = 0x4,  /* 0100 */
+  kArmCondPl = 0x5,  /* 0101 */
+  kArmCondVs = 0x6,  /* 0110 */
+  kArmCondVc = 0x7,  /* 0111 */
+  kArmCondHi = 0x8,  /* 1000 */
+  kArmCondLs = 0x9,  /* 1001 */
+  kArmCondGe = 0xa,  /* 1010 */
+  kArmCondLt = 0xb,  /* 1011 */
+  kArmCondGt = 0xc,  /* 1100 */
+  kArmCondLe = 0xd,  /* 1101 */
+  kArmCondAl = 0xe,  /* 1110 */
+  kArmCondNv = 0xf,  /* 1111 */
+};
+
+enum X86ConditionCode {
+  kX86CondO   = 0x0,    // overflow
+  kX86CondNo  = 0x1,    // not overflow
+
+  kX86CondB   = 0x2,    // below
+  kX86CondNae = kX86CondB,  // not-above-equal
+  kX86CondC   = kX86CondB,  // carry
+
+  kX86CondNb  = 0x3,    // not-below
+  kX86CondAe  = kX86CondNb, // above-equal
+  kX86CondNc  = kX86CondNb, // not-carry
+
+  kX86CondZ   = 0x4,    // zero
+  kX86CondEq  = kX86CondZ,  // equal
+
+  kX86CondNz  = 0x5,    // not-zero
+  kX86CondNe  = kX86CondNz, // not-equal
+
+  kX86CondBe  = 0x6,    // below-equal
+  kX86CondNa  = kX86CondBe, // not-above
+
+  kX86CondNbe = 0x7,    // not-below-equal
+  kX86CondA   = kX86CondNbe,// above
+
+  kX86CondS   = 0x8,    // sign
+  kX86CondNs  = 0x9,    // not-sign
+
+  kX86CondP   = 0xA,    // 8-bit parity even
+  kX86CondPE  = kX86CondP,
+
+  kX86CondNp  = 0xB,    // 8-bit parity odd
+  kX86CondPo  = kX86CondNp,
+
+  kX86CondL   = 0xC,    // less-than
+  kX86CondNge = kX86CondL,  // not-greater-equal
+
+  kX86CondNl  = 0xD,    // not-less-than
+  kX86CondGe  = kX86CondNl, // not-greater-equal
+
+  kX86CondLe  = 0xE,    // less-than-equal
+  kX86CondNg  = kX86CondLe, // not-greater
+
+  kX86CondNle = 0xF,    // not-less-than
+  kX86CondG   = kX86CondNle,// greater
+};
+
 
 enum ThrowKind {
   kThrowNullPointer,

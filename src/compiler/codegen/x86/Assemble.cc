@@ -1225,7 +1225,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
                   << " delta: " << delta << " old delta: " << lir->operands[0];
             }
             lir->opcode = kX86Jcc32;
-            oatSetupResourceMasks(lir);
+            oatSetupResourceMasks(cUnit, lir);
             res = kRetryAll;
           }
           if (kVerbosePcFixup) {
@@ -1278,7 +1278,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
               LOG(INFO) << "Retry for JMP growth at " << lir->offset;
             }
             lir->opcode = kX86Jmp32;
-            oatSetupResourceMasks(lir);
+            oatSetupResourceMasks(cUnit, lir);
             res = kRetryAll;
           }
           lir->operands[0] = delta;

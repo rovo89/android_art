@@ -258,6 +258,7 @@ enum NativeRegisterPool {
 #define rRET0 r0
 #define rRET1 r1
 #define rINVOKE_TGT rLR
+#define rCOUNT INVALID_REG
 
 /* Shift encodings */
 enum ArmShiftEncodings {
@@ -265,26 +266,6 @@ enum ArmShiftEncodings {
   kArmLsr = 0x1,
   kArmAsr = 0x2,
   kArmRor = 0x3
-};
-
-/* Thumb condition encodings */
-enum ArmConditionCode {
-  kArmCondEq = 0x0,  /* 0000 */
-  kArmCondNe = 0x1,  /* 0001 */
-  kArmCondCs = 0x2,  /* 0010 */
-  kArmCondCc = 0x3,  /* 0011 */
-  kArmCondMi = 0x4,  /* 0100 */
-  kArmCondPl = 0x5,  /* 0101 */
-  kArmCondVs = 0x6,  /* 0110 */
-  kArmCondVc = 0x7,  /* 0111 */
-  kArmCondHi = 0x8,  /* 1000 */
-  kArmCondLs = 0x9,  /* 1001 */
-  kArmCondGe = 0xa,  /* 1010 */
-  kArmCondLt = 0xb,  /* 1011 */
-  kArmCondGt = 0xc,  /* 1100 */
-  kArmCondLe = 0xd,  /* 1101 */
-  kArmCondAl = 0xe,  /* 1110 */
-  kArmCondNv = 0xf,  /* 1111 */
 };
 
 #define isPseudoOpcode(opcode) ((int)(opcode) < 0)
@@ -295,26 +276,9 @@ enum ArmConditionCode {
  * Assemble.cc.
  */
 enum ArmOpcode {
-  kPseudoExportedPC = -18,
-  kPseudoSafepointPC = -17,
-  kPseudoIntrinsicRetry = -16,
-  kPseudoSuspendTarget = -15,
-  kPseudoThrowTarget = -14,
-  kPseudoCaseLabel = -13,
-  kPseudoMethodEntry = -12,
-  kPseudoMethodExit = -11,
-  kPseudoBarrier = -10,
-  kPseudoExtended = -9,
-  kPseudoSSARep = -8,
-  kPseudoEntryBlock = -7,
-  kPseudoExitBlock = -6,
-  kPseudoTargetLabel = -5,
-  kPseudoDalvikByteCodeBoundary = -4,
-  kPseudoPseudoAlign4 = -3,
-  kPseudoEHBlockLabel = -2,
-  kPseudoNormalBlockLabel = -1,
   /************************************************************************/
-  kArm16BitData,     /* DATA   [0] rd[15..0] */
+  kArmFirst = 0,
+  kArm16BitData = kArmFirst, /* DATA   [0] rd[15..0] */
   kThumbAdcRR,       /* adc   [0100000101] rm[5..3] rd[2..0] */
   kThumbAddRRI3,     /* add(1)  [0001110] imm_3[8..6] rn[5..3] rd[2..0]*/
   kThumbAddRI8,      /* add(2)  [00110] rd[10..8] imm_8[7..0] */

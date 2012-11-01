@@ -16,13 +16,7 @@
 
 namespace art {
 
-/*
- * This file contains codegen for the Thumb ISA and is intended to be
- * includes by:
- *
- *        Codegen-$(TARGET_ARCH_VARIANT).c
- *
- */
+/* This file contains codegen for the Thumb ISA. */
 
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
@@ -74,8 +68,7 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
   oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
   for (int i = 0; i < numReserved; i++) {
-    if (NO_SUSPEND && !cUnit->genDebugger &&
-      (reservedRegs[i] == rSUSPEND)) {
+    if (NO_SUSPEND && (reservedRegs[i] == rSUSPEND)) {
       //To measure cost of suspend check
       continue;
     }

@@ -15,7 +15,6 @@
  */
 
 #define _CODEGEN_C
-#define TARGET_MIPS
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"
