@@ -1803,8 +1803,9 @@ int lowestSetBit(unsigned int x) {
 bool handleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
             RegLocation rlSrc, RegLocation rlDest, int lit)
 {
-  if (lit < 2)
+  if ((lit < 2) || ((cUnit->instructionSet != kThumb2) && !isPowerOfTwo(lit))) {
     return false;
+  }
   // No divide instruction for Arm, so check for more special cases
   if ((cUnit->instructionSet == kThumb2) && !isPowerOfTwo(lit)) {
     return smallLiteralDivide(cUnit, dalvikOpcode, rlSrc, rlDest, lit);
