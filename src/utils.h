@@ -285,6 +285,14 @@ static inline uint64_t MsToNs(uint64_t ns) {
   return ns * 1000 * 1000;
 }
 
+#if defined(__APPLE__)
+// No clocks to specify on OS/X, fake value to pass to routines that require a clock.
+#define CLOCK_REALTIME 0xebadf00d
+#endif
+
+// Initialize a timespec to either an absolute or relative time.
+void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
+
 // Splits a string using the given separator character into a vector of
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char separator, std::vector<std::string>& result);

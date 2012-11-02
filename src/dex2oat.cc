@@ -473,7 +473,108 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
   return failure_count;
 }
 
+// The primary goal of the watchdog is to prevent stuck build servers
+// during development when fatal aborts lead to a cascade of failures
+// that result in a deadlock.
+class WatchDog {
+
+// WatchDog defines its own CHECK_PTHREAD_CALL to avoid using Log which uses locks
+#undef CHECK_PTHREAD_CALL
+#define CHECK_WATCH_DOG_PTHREAD_CALL(call, args, what) \
+  do { \
+    int rc = call args; \
+    if (rc != 0) { \
+      errno = rc; \
+      std::string message(# call); \
+      message += " failed for "; \
+      message += reason; \
+      Die(message); \
+    } \
+  } while (false)
+
+ public:
+  WatchDog() {
+    if (!kIsWatchDogEnabled) {
+      return;
+    }
+    shutting_down_ = false;
+    const char* reason = "dex2oat watch dog thread startup";
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_init, (&mutex_, NULL), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_init, (&cond_, NULL), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_attr_init, (&attr_), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_create, (&pthread_, &attr_, &CallBack, this), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_attr_destroy, (&attr_), reason);
+  }
+  ~WatchDog() {
+    if (!kIsWatchDogEnabled) {
+      return;
+    }
+    const char* reason = "dex2oat watch dog thread shutdown";
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
+    shutting_down_ = true;
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_signal, (&cond_), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
+
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_join, (pthread_, NULL), reason);
+
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_cond_destroy, (&cond_), reason);
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_destroy, (&mutex_), reason);
+  }
+
+ private:
+  static void* CallBack(void* arg) {
+    WatchDog* self = reinterpret_cast<WatchDog*>(arg);
+    self->Wait();
+    return NULL;
+  }
+
+  static void Die(const std::string& message) {
+    // TODO: Switch to LOG(FATAL) when we can guarantee it won't prevent shutdown in error cases
+    fprintf(stderr, "%s\n", message.c_str());
+    exit(1);
+  }
+
+  void Wait() {
+    int64_t ms = kWatchDogTimeoutSeconds * 1000;
+    int32_t ns = 0;
+    timespec ts;
+    InitTimeSpec(true, CLOCK_REALTIME, ms, ns, &ts);
+    const char* reason = "dex2oat watch dog thread waiting";
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
+    while (!shutting_down_) {
+      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_, &ts));
+      if (rc == ETIMEDOUT) {
+        std::string message(StringPrintf("dex2oat did not finish after %d seconds",
+                                         kWatchDogTimeoutSeconds));
+        Die(message.c_str());
+      }
+      if (rc != 0) {
+        std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
+                                         strerror(errno)));
+        Die(message.c_str());
+      }
+    }
+    CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
+  }
+
+  static const bool kIsWatchDogEnabled = !kIsTargetBuild;
+#ifdef ART_USE_LLVM_COMPILER
+  static const unsigned int kWatchDogTimeoutSeconds = 20 * 60; // 15 minutes + buffer
+#else
+  static const unsigned int kWatchDogTimeoutSeconds = 2 * 60;  // 1 minute + buffer
+#endif
+
+  bool shutting_down_;
+  // TODO: Switch to Mutex when we can guarantee it won't prevent shutdown in error cases
+  pthread_mutex_t mutex_;
+  pthread_cond_t cond_;
+  pthread_attr_t attr_;
+  pthread_t pthread_;
+};
+
 static int dex2oat(int argc, char** argv) {
+  WatchDog watch_dog;
+
   InitLogging(argv);
 
   // Skip over argv[0].

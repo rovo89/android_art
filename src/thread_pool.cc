@@ -11,6 +11,7 @@ ThreadPoolWorker::ThreadPoolWorker(ThreadPool* thread_pool, const std::string& n
       name_(name),
       stack_size_(stack_size) {
   const char* reason = "new thread pool worker thread";
+  pthread_attr_t attr;
   CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), reason);
   CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), reason);
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, &attr, &Callback, this), reason);

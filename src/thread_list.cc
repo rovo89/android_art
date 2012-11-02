@@ -207,7 +207,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       // Shouldn't need to wait for longer than 1 millisecond.
       const uint64_t threshold = 1;
       if (NsToMs(end - start) > threshold) {
-        LOG(INFO) << "Warning: waited longer than " << threshold << " ms for thrad suspend"
+        LOG(INFO) << "Warning: waited longer than " << threshold << " ms for thread suspend"
                   << std::endl;
       }
     }

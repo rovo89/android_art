@@ -66,6 +66,13 @@ const bool kIsDebugBuild = false;
 const bool kIsDebugBuild = true;
 #endif
 
+// Whether or not this is a target (vs host) build. Useful in conditionals where ART_TARGET isn't.
+#if defined(ART_TARGET)
+const bool kIsTargetBuild = true;
+#else
+const bool kIsTargetBuild = false;
+#endif
+
 }  // namespace art
 
 #endif  // ART_SRC_GLOBALS_H_

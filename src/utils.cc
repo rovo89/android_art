@@ -180,6 +180,39 @@ uint64_t ThreadCpuNanoTime() {
 #endif
 }
 
+void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts) {
+  int64_t endSec;
+
+  if (absolute) {
+#if !defined(__APPLE__)
+    clock_gettime(clock, ts);
+#else
+    UNUSED(clock);
+    timeval tv;
+    gettimeofday(&tv, NULL);
+    ts->tv_sec = tv.tv_sec;
+    ts->tv_nsec = tv.tv_usec * 1000;
+#endif
+  } else {
+    ts->tv_sec = 0;
+    ts->tv_nsec = 0;
+  }
+  endSec = ts->tv_sec + ms / 1000;
+  if (UNLIKELY(endSec >= 0x7fffffff)) {
+    std::ostringstream ss;
+    LOG(INFO) << "Note: end time exceeds epoch: " << ss.str();
+    endSec = 0x7ffffffe;
+  }
+  ts->tv_sec = endSec;
+  ts->tv_nsec = (ts->tv_nsec + (ms % 1000) * 1000000) + ns;
+
+  // Catch rollover.
+  if (ts->tv_nsec >= 1000000000L) {
+    ts->tv_sec++;
+    ts->tv_nsec -= 1000000000L;
+  }
+}
+
 std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";

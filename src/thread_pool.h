@@ -47,7 +47,6 @@ class ThreadPoolWorker {
   const std::string name_;
   const size_t stack_size_;
   pthread_t pthread_;
-  pthread_attr_t attr;
 
   friend class ThreadPool;
   DISALLOW_COPY_AND_ASSIGN(ThreadPoolWorker);

@@ -27,12 +27,6 @@
 #include "thread.h"
 #include "utils.h"
 
-#if defined(__APPLE__)
-#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
-// No clocks to specify on OS/X, fake value to pass to routines that require a clock.
-#define CLOCK_REALTIME 0xebadf00d
-#endif
-
 #define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 
 extern int pthread_mutex_lock(pthread_mutex_t* mutex) EXCLUSIVE_LOCK_FUNCTION(mutex);
@@ -97,43 +91,6 @@ static uint64_t SafeGetTid(const Thread* self) {
     return static_cast<uint64_t>(self->GetTid());
   } else {
     return static_cast<uint64_t>(GetTid());
-  }
-}
-
-// Initialize a timespec to either an absolute or relative time.
-static void InitTimeSpec(Thread* self, bool absolute, int clock, int64_t ms, int32_t ns,
-                         timespec* ts) {
-  int64_t endSec;
-
-  if (absolute) {
-#if !defined(__APPLE__)
-    clock_gettime(clock, ts);
-#else
-    UNUSED(clock);
-    timeval tv;
-    gettimeofday(&tv, NULL);
-    ts->tv_sec = tv.tv_sec;
-    ts->tv_nsec = tv.tv_usec * 1000;
-#endif
-  } else {
-    ts->tv_sec = 0;
-    ts->tv_nsec = 0;
-  }
-  endSec = ts->tv_sec + ms / 1000;
-  if (UNLIKELY(endSec >= 0x7fffffff)) {
-    std::ostringstream ss;
-    ScopedObjectAccess soa(self);
-    self->Dump(ss);
-    LOG(INFO) << "Note: end time exceeds epoch: " << ss.str();
-    endSec = 0x7ffffffe;
-  }
-  ts->tv_sec = endSec;
-  ts->tv_nsec = (ts->tv_nsec + (ms % 1000) * 1000000) + ns;
-
-  // Catch rollover.
-  if (ts->tv_nsec >= 1000000000L) {
-    ts->tv_sec++;
-    ts->tv_nsec -= 1000000000L;
   }
 }
 
@@ -563,7 +520,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
   exclusive_owner_ = SafeGetTid(self);
 #else
   timespec ts;
-  InitTimeSpec(self, true, CLOCK_REALTIME, ms, ns, &ts);
+  InitTimeSpec(true, CLOCK_REALTIME, ms, ns, &ts);
   int result = pthread_rwlock_timedwrlock(&rwlock_, &ts);
   if (result == ETIMEDOUT) {
     return false;
@@ -891,8 +848,8 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
 #endif
   guard_.recursion_count_ = 0;
   timespec ts;
-  InitTimeSpec(self, true, clock, ms, ns, &ts);
-  int rc = TIMEDWAIT(&cond_, &guard_.mutex_, &ts);
+  InitTimeSpec(true, clock, ms, ns, &ts);
+  int rc = TEMP_FAILURE_RETRY(TIMEDWAIT(&cond_, &guard_.mutex_, &ts));
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
