@@ -574,16 +574,15 @@ bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
 
 bool Compiler::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
                                                   uint32_t string_idx) {
-  // TODO: Add support for loading strings referenced by image_classes_
   // See also Compiler::ResolveDexFile
 
-  // The following is a test saying that if we're building the image without a restricted set of
-  // image classes then we can assume the string is present in the dex cache if it is there now
-  bool result = IsImage() && image_classes_ == NULL;
-  if (result) {
+  bool result = false;
+  if (IsImage()) {
+    // We resolve all const-string strings when building for the image.
     ScopedObjectAccess soa(Thread::Current());
     DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
-    result = dex_cache->GetResolvedString(string_idx) != NULL;
+    Runtime::Current()->GetClassLinker()->ResolveString(dex_file, string_idx, dex_cache);
+    result = true;
   }
   if (result) {
     stats_->StringInDexCache();
