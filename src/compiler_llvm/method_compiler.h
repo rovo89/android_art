@@ -90,6 +90,8 @@ class MethodCompiler {
 
   llvm::Value* GetShadowFrameEntry(uint32_t reg_idx);
 
+  llvm::Value* GetVRegEntry(uint32_t reg_idx);
+
 
  private:
   void CreateFunction();
@@ -460,6 +462,7 @@ class MethodCompiler {
 
   std::vector<DalvikReg*> regs_;
   std::vector<llvm::Value*> shadow_frame_entries_;
+  std::vector<llvm::Value*> vregs_;
   std::vector<int32_t> reg_to_shadow_frame_index_;
   UniquePtr<DalvikReg> retval_reg_;
 

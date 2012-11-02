@@ -60,7 +60,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
  private:
   llvm::AllocaInst* shadow_frame_;
   llvm::Value* old_shadow_frame_;
-  uint16_t num_shadow_frame_refs_;
 
  private:
   art::Compiler* compiler_;
@@ -217,9 +216,11 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* Expand_DivRem(llvm::CallInst& call_inst, bool is_div, JType op_jty);
 
-  void Expand_AllocaShadowFrame(llvm::Value* num_entry_value);
+  void Expand_AllocaShadowFrame(llvm::Value* num_entry_value, llvm::Value* num_vregs_value);
 
   void Expand_SetShadowFrameEntry(llvm::Value* obj, llvm::Value* entry_idx);
+
+  void Expand_SetVReg(llvm::Value* entry_idx, llvm::Value* obj);
 
   void Expand_PopShadowFrame();
 
@@ -326,7 +327,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
-        shadow_frame_(NULL), old_shadow_frame_(NULL), num_shadow_frame_refs_(0),
+        shadow_frame_(NULL), old_shadow_frame_(NULL),
         compiler_(NULL), dex_file_(NULL), code_item_(NULL),
         oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL),
         changed_(false)
@@ -336,7 +337,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
                   art::Compiler* compiler, art::OatCompilationUnit* oat_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
-        shadow_frame_(NULL), old_shadow_frame_(NULL), num_shadow_frame_refs_(0),
+        shadow_frame_(NULL), old_shadow_frame_(NULL),
         compiler_(compiler),
         dex_file_(oat_compilation_unit->GetDexFile()),
         code_item_(oat_compilation_unit->GetCodeItem()),
@@ -366,7 +367,6 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   // Setup rewrite context
   shadow_frame_ = NULL;
   old_shadow_frame_ = NULL;
-  num_shadow_frame_refs_ = 0;
   func_ = &func;
   changed_ = false; // Assume unchanged
 
@@ -1092,14 +1092,17 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
   return result;
 }
 
-void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_entry_value) {
+void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_entry_value,
+                                               llvm::Value* num_vregs_value) {
   // Most of the codes refer to MethodCompiler::EmitPrologueAllocShadowFrame and
   // MethodCompiler::EmitPushShadowFrame
-  num_shadow_frame_refs_ =
+  uint16_t num_shadow_frame_refs =
     llvm::cast<llvm::ConstantInt>(num_entry_value)->getZExtValue();
+  uint16_t num_vregs =
+    llvm::cast<llvm::ConstantInt>(num_vregs_value)->getZExtValue();
 
   llvm::StructType* shadow_frame_type =
-    irb_.getShadowFrameTy(num_shadow_frame_refs_);
+    irb_.getShadowFrameTy(num_shadow_frame_refs, num_vregs);
 
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
@@ -1126,14 +1129,15 @@ void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_entry_value) {
 
   llvm::Value* result = rtb_.EmitPushShadowFrame(shadow_frame_upcast,
                                                  method_object_addr,
-                                                 num_shadow_frame_refs_,
-                                                 0);
+                                                 num_shadow_frame_refs,
+                                                 num_vregs);
 
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 
   return;
 }
 
+// TODO: We will remove ShadowFrameEntry later, so I just copy/paste from ShadowFrameEntry.
 void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
                                                  llvm::Value* entry_idx) {
   DCHECK(shadow_frame_ != NULL);
@@ -1151,6 +1155,24 @@ void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
   }
 #endif
   irb_.CreateStore(obj, entry_addr, kTBAAShadowFrame);
+  return;
+}
+
+void GBCExpanderPass::Expand_SetVReg(llvm::Value* entry_idx,
+                                     llvm::Value* value) {
+  DCHECK(shadow_frame_ != NULL);
+
+  llvm::Value* gep_index[] = {
+    irb_.getInt32(0), // No pointer displacement
+    irb_.getInt32(2), // VRegs
+    entry_idx // Pointer field
+  };
+
+  llvm::Value* vreg_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+
+  irb_.CreateStore(value,
+                   irb_.CreateBitCast(vreg_addr, value->getType()->getPointerTo()),
+                   kTBAAShadowFrame);
   return;
 }
 
@@ -3455,12 +3477,18 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Shadow Frame -----------------------------------------------------==//
     case IntrinsicHelper::AllocaShadowFrame: {
-      Expand_AllocaShadowFrame(call_inst.getArgOperand(0));
+      Expand_AllocaShadowFrame(call_inst.getArgOperand(0),
+                               call_inst.getArgOperand(1));
       return NULL;
     }
     case IntrinsicHelper::SetShadowFrameEntry: {
       Expand_SetShadowFrameEntry(call_inst.getArgOperand(0),
                                  call_inst.getArgOperand(1));
+      return NULL;
+    }
+    case IntrinsicHelper::SetVReg: {
+      Expand_SetVReg(call_inst.getArgOperand(0),
+                     call_inst.getArgOperand(1));
       return NULL;
     }
     case IntrinsicHelper::PopShadowFrame: {

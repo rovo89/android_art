@@ -39,7 +39,7 @@ class DalvikReg {
 
   static char GetRegCategoryNamePrefix(RegCategory reg_cat);
 
-  DalvikReg(MethodCompiler& method_compiler, const std::string& name);
+  DalvikReg(MethodCompiler& method_compiler, const std::string& name, llvm::Value* vreg);
 
   ~DalvikReg();
 
@@ -70,6 +70,7 @@ class DalvikReg {
   llvm::Value* reg_32_;
   llvm::Value* reg_64_;
   llvm::Value* reg_obj_;
+  llvm::Value* vreg_;
 };
 
 } // namespace compiler_llvm

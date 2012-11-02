@@ -66,9 +66,9 @@ size_t StackVisitor::GetNativePcOffset() const {
 
 
 uint32_t StackVisitor::GetVReg(AbstractMethod* m, int vreg) const {
+  DCHECK(m == GetMethod());
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably read registers without a context.
-    DCHECK(m == GetMethod());
     uint32_t core_spills = m->GetCoreSpillMask();
     const VmapTable vmap_table(m->GetVmapTableRaw());
     uint32_t vmap_offset;
@@ -95,8 +95,7 @@ uint32_t StackVisitor::GetVReg(AbstractMethod* m, int vreg) const {
       return GetVReg(cur_quick_frame_, code_item, core_spills, fp_spills, frame_size, vreg);
     }
   } else {
-    LOG(FATAL) << "Unimplemented - shadow frame GetVReg";
-    return 0;  // Keep GCC happy.
+    return cur_shadow_frame_->GetVReg(vreg);
   }
 }
 

@@ -61,6 +61,17 @@ void defineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
   llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
+
+  // Set vreg for debugging
+  if (!cUnit->compiler->IsDebuggingSupported()) {
+    greenland::IntrinsicHelper::IntrinsicId id =
+        greenland::IntrinsicHelper::SetVReg;
+    llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+    int vReg = SRegToVReg(cUnit, sReg);
+    llvm::Value* tableSlot = cUnit->irb->getInt32(vReg);
+    llvm::Value* args[] = { tableSlot, val };
+    cUnit->irb->CreateCall(func, args);
+  }
 }
 
 llvm::Type* llvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
@@ -1837,7 +1848,9 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
             greenland::IntrinsicHelper::AllocaShadowFrame;
     llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
     llvm::Value* entries = cUnit->irb->getInt32(cUnit->numShadowFrameEntries);
-    cUnit->irb->CreateCall(func, entries);
+    llvm::Value* dalvikRegs = cUnit->irb->getInt32(cUnit->numDalvikRegisters);
+    llvm::Value* args[] = { entries, dalvikRegs };
+    cUnit->irb->CreateCall(func, args);
   } else if (bb->blockType == kExitBlock) {
     /*
      * Because of the differences between how MIR/LIR and llvm handle exit
@@ -2998,6 +3011,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::AllocaShadowFrame:
               case greenland::IntrinsicHelper::SetShadowFrameEntry:
               case greenland::IntrinsicHelper::PopShadowFrame:
+              case greenland::IntrinsicHelper::SetVReg:
                 // Ignore shadow frame stuff for quick compiler
                 break;
               case greenland::IntrinsicHelper::CopyInt:

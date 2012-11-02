@@ -175,7 +175,7 @@ void MethodCompiler::EmitPrologue() {
 #if !defined(NDEBUG)
     name = StringPrintf("%u", r);
 #endif
-    regs_[r] = new DalvikReg(*this, name);
+    regs_[r] = new DalvikReg(*this, name, GetVRegEntry(r));
 
     // Cache shadow frame entry address
     shadow_frame_entries_[r] = GetShadowFrameEntry(r);
@@ -185,7 +185,7 @@ void MethodCompiler::EmitPrologue() {
 #if !defined(NDEBUG)
   name = "_res";
 #endif
-  retval_reg_.reset(new DalvikReg(*this, name));
+  retval_reg_.reset(new DalvikReg(*this, name, NULL));
 
   // Store argument to dalvik register
   irb_.SetInsertPoint(basic_block_reg_arg_init_);
@@ -284,7 +284,8 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
     }
   }
 
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(num_shadow_frame_refs_);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(num_shadow_frame_refs_,
+                                                              code_item_->registers_size_);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Alloca a pointer to old shadow frame
@@ -3802,6 +3803,43 @@ llvm::Value* MethodCompiler::GetShadowFrameEntry(uint32_t reg_idx) {
 }
 
 
+// TODO: We will remove ShadowFrameEntry later, so I just copy/paste from ShadowFrameEntry.
+llvm::Value* MethodCompiler::GetVRegEntry(uint32_t reg_idx) {
+  if (!compiler_->IsDebuggingSupported()) {
+    return NULL;
+  }
+
+  if (!method_info_.need_shadow_frame_entry) {
+    return NULL;
+  }
+
+  std::string reg_name;
+
+#if !defined(NDEBUG)
+  StringAppendF(&reg_name, "v%u", reg_idx);
+#endif
+
+  // Save current IR builder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+
+  irb_.SetInsertPoint(basic_block_shadow_frame_);
+
+  llvm::Value* gep_index[] = {
+    irb_.getInt32(0), // No pointer displacement
+    irb_.getInt32(2), // VRegs
+    irb_.getInt32(reg_idx) // Pointer field
+  };
+
+  llvm::Value* reg_addr = irb_.CreateGEP(shadow_frame_, gep_index, reg_name);
+
+  // Restore IRBuilder insert point
+  irb_.restoreIP(irb_ip_original);
+
+  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
+  return reg_addr;
+}
+
+
 void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   if (!method_info_.need_shadow_frame) {
     return;
@@ -3819,11 +3857,13 @@ void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   llvm::Value* result;
   if (is_inline) {
     result = irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr,
-                                                num_shadow_frame_refs_, 0);
+                                                num_shadow_frame_refs_,
+                                                code_item_->registers_size_);
   } else {
     DCHECK(num_shadow_frame_refs_ == 0);
     result = irb_.Runtime().EmitPushShadowFrameNoInline(shadow_frame_upcast, method_object_addr,
-                                                        num_shadow_frame_refs_, 0);
+                                                        num_shadow_frame_refs_,
+                                                        code_item_->registers_size_);
   }
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 }

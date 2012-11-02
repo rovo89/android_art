@@ -101,7 +101,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Shadow stack
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size, 0);
   llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Store the dex pc

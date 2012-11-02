@@ -27,9 +27,9 @@ using namespace art::compiler_llvm;
 // Dalvik Register
 //----------------------------------------------------------------------------
 
-DalvikReg::DalvikReg(MethodCompiler& method_compiler, const std::string& name)
+DalvikReg::DalvikReg(MethodCompiler& method_compiler, const std::string& name, llvm::Value* vreg)
 : method_compiler_(&method_compiler), irb_(method_compiler.GetIRBuilder()),
-  reg_name_(name), reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
+  reg_name_(name), reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL), vreg_(vreg) {
 }
 
 
@@ -118,10 +118,6 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
       return NULL;
     }
     break;
-
-  default:
-    LOG(FATAL) << "Couldn't GetValue of JType " << jty;
-    return NULL;
   }
 
   if (jty == kFloat || jty == kDouble) {
@@ -141,13 +137,13 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   switch (space) {
   case kReg:
   case kField:
-    irb_.CreateStore(value, GetAddr(jty), kTBAARegister);
-    return;
+    break;
 
   case kAccurate:
   case kArray:
     switch (jty) {
     case kVoid:
+      LOG(FATAL) << "Dalvik register with void type has no value";
       break;
 
     case kBoolean:
@@ -155,7 +151,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to zero extend boolean from
       // i1 to i32, and char from i16 to i32.  In array type space, we have
       // to zero extend boolean from i8 to i32, and char from i16 to i32.
-      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty), kTBAARegister);
+      value = RegCat1ZExt(value);
       break;
 
     case kByte:
@@ -163,7 +159,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to signed extend byte from
       // i8 to i32, and short from i16 to i32.  In array type space, we have
       // to sign extend byte from i8 to i32, and short from i16 to i32.
-      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty), kTBAARegister);
+      value = RegCat1SExt(value);
       break;
 
     case kInt:
@@ -171,12 +167,18 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
     case kFloat:
     case kDouble:
     case kObject:
-      irb_.CreateStore(value, GetAddr(jty), kTBAARegister);
       break;
 
     default:
       LOG(FATAL) << "Unknown java type: " << jty;
     }
+  }
+
+  irb_.CreateStore(value, GetAddr(jty), kTBAARegister);
+  if (vreg_ != NULL) {
+    irb_.CreateStore(value,
+                     irb_.CreateBitCast(vreg_, value->getType()->getPointerTo()),
+                     kTBAAShadowFrame);
   }
 }
 

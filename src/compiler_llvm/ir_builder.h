@@ -315,7 +315,7 @@ class IRBuilder : public LLVMIRBuilder {
     return getJLongTy();
   }
 
-  llvm::StructType* getShadowFrameTy(uint32_t sirt_size);
+  llvm::StructType* getShadowFrameTy(uint32_t sirt_size, uint32_t vreg_size);
 
 
   //--------------------------------------------------------------------------

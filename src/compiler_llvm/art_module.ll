@@ -26,6 +26,7 @@
                     , i32                  ; Line number for stack backtrace
                     , i32                  ; Number of references
                     ; [0 x %JavaObject*]   ; References
+                    ; [0 x i32]            ; VRegs
                     }
 
 declare void @__art_type_list(%JavaObject*, %ShadowFrame*)
