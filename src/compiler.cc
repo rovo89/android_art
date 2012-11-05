@@ -1781,4 +1781,61 @@ bool Compiler::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
+bool Compiler::WriteElf(std::vector<uint8_t>& oat_contents, File* file) {
+  typedef bool (*WriteElfFn)(Compiler&, std::vector<uint8_t>&, File*);
+  WriteElfFn WriteElf =
+    FindFunction<WriteElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "WriteElf");
+  return WriteElf(*this, oat_contents, file);
+}
+
+bool Compiler::FixupElf(File* file, uintptr_t oat_data_begin) const {
+  typedef bool (*FixupElfFn)(File*, uintptr_t oat_data_begin);
+  FixupElfFn FixupElf =
+    FindFunction<FixupElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "FixupElf");
+  return FixupElf(file, oat_data_begin);
+}
+
+void Compiler::GetOatElfInformation(File* file,
+                                    size_t& oat_loaded_size,
+                                    size_t& oat_data_offset) const {
+  typedef bool (*GetOatElfInformationFn)(File*, size_t& oat_loaded_size, size_t& oat_data_offset);
+  GetOatElfInformationFn GetOatElfInformation =
+    FindFunction<GetOatElfInformationFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
+                                         "GetOatElfInformation");
+  GetOatElfInformation(file, oat_loaded_size, oat_data_offset);
+}
+
+void Compiler::InstructionSetToLLVMTarget(InstructionSet instruction_set,
+                                          std::string& target_triple,
+                                          std::string& target_cpu,
+                                          std::string& target_attr) {
+    switch (instruction_set) {
+    case kThumb2:
+      target_triple = "thumb-none-linux-gnueabi";
+      target_cpu = "cortex-a9";
+      target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
+      break;
+
+    case kArm:
+      target_triple = "armv7-none-linux-gnueabi";
+      // TODO: Fix for Nexus S.
+      target_cpu = "cortex-a9";
+      // TODO: Fix for Xoom.
+      target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
+      break;
+
+    case kX86:
+      target_triple = "i386-pc-linux-gnu";
+      target_attr = "";
+      break;
+
+    case kMips:
+      target_triple = "mipsel-unknown-linux";
+      target_attr = "mips32r2";
+      break;
+
+    default:
+      LOG(FATAL) << "Unknown instruction set: " << instruction_set;
+    }
+  }
 }  // namespace art

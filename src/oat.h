@@ -31,7 +31,7 @@ class PACKED(4) OatHeader {
   OatHeader(InstructionSet instruction_set,
             const std::vector<const DexFile*>* dex_files,
             uint32_t image_file_location_oat_checksum,
-            uint32_t image_file_location_oat_begin,
+            uint32_t image_file_location_oat_data_begin,
             const std::string& image_file_location);
 
   bool IsValid() const;
@@ -43,7 +43,7 @@ class PACKED(4) OatHeader {
   InstructionSet GetInstructionSet() const;
   void SetExecutableOffset(uint32_t executable_offset);
   uint32_t GetImageFileLocationOatChecksum() const;
-  uint32_t GetImageFileLocationOatBegin() const;
+  uint32_t GetImageFileLocationOatDataBegin() const;
   uint32_t GetImageFileLocationSize() const;
   const uint8_t* GetImageFileLocationData() const;
   std::string GetImageFileLocation() const;
@@ -61,7 +61,7 @@ class PACKED(4) OatHeader {
   uint32_t executable_offset_;
 
   uint32_t image_file_location_oat_checksum_;
-  uint32_t image_file_location_oat_begin_;
+  uint32_t image_file_location_oat_data_begin_;
   uint32_t image_file_location_size_;
   uint8_t image_file_location_data_[0];  // note variable width data at end
 

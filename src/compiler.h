@@ -188,6 +188,17 @@ class Compiler {
 
   void SetBitcodeFileName(std::string const& filename);
 
+  // TODO: remove when libart links against LLVM (when separate compiler library is gone)
+  bool WriteElf(std::vector<uint8_t>& oat_contents, File* file);
+  bool FixupElf(File* file, uintptr_t oat_data_begin) const;
+  void GetOatElfInformation(File* file, size_t& oat_loaded_size, size_t& oat_data_offset) const;
+
+  // TODO: move to a common home for llvm helpers once quick/portable are merged
+  static void InstructionSetToLLVMTarget(InstructionSet instruction_set,
+                                         std::string& target_triple,
+                                         std::string& target_cpu,
+                                         std::string& target_attr);
+
   void SetCompilerContext(void* compiler_context) {
     compiler_context_ = compiler_context;
   }

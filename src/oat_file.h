@@ -17,15 +17,19 @@
 #ifndef ART_SRC_OAT_FILE_H_
 #define ART_SRC_OAT_FILE_H_
 
+#include <string>
 #include <vector>
 
-#include "dex_file.h"
-#include "invoke_type.h"
-#include "mem_map.h"
-#include "oat.h"
+#include "globals.h"
 #include "object.h"
+#include "os.h"
 
 namespace art {
+
+class ElfFile;
+class MemMap;
+class OatMethodOffsets;
+struct OatHeader;
 
 class OatFile {
  public:
@@ -36,14 +40,17 @@ class OatFile {
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base,
-                       bool writable = false);
+                       byte* requested_base);
 
-  // Open an oat file from an already opened File with the given location.
-  static OatFile* Open(File& file,
+  // Open an oat file from an already opened File.
+  static OatFile* Open(File* file,
                        const std::string& location,
                        byte* requested_base,
-                       bool writable = false);
+                       bool writable);
+
+  // Open an oat file backed by a std::vector with the given location.
+  static OatFile* Open(std::vector<uint8_t>& oat_contents,
+                       const std::string& location);
 
   ~OatFile();
 
@@ -195,7 +202,7 @@ class OatFile {
     OatDexFile(const OatFile* oat_file,
                const std::string& dex_file_location,
                uint32_t dex_file_checksum,
-               byte* dex_file_pointer,
+               const byte* dex_file_pointer,
                const uint32_t* oat_class_offsets_pointer);
 
     const OatFile* oat_file_;
@@ -217,8 +224,21 @@ class OatFile {
   }
 
  private:
+  static void CheckLocation(const std::string& location);
+
+  static OatFile* OpenDlopen(const std::string& elf_filename,
+                             const std::string& location,
+                             byte* requested_base);
+
+  static OatFile* OpenElfFile(File* file,
+                              const std::string& location,
+                              byte* requested_base,
+                              bool writable);
+
   explicit OatFile(const std::string& filename);
-  bool Map(File& file, byte* requested_base, bool writable);
+  bool Dlopen(const std::string& elf_filename, byte* requested_base);
+  bool ElfFileOpen(File* file, byte* requested_base, bool writable);
+  void Setup();
 
   const byte* Begin() const;
   const byte* End() const;
@@ -228,8 +248,20 @@ class OatFile {
   // The image will embed this to link its associated oat file.
   const std::string location_;
 
-  // backing memory map for oat file
+  // Pointer to OatHeader.
+  const byte* begin_;
+
+  // Pointer to end of oat region for bounds checking.
+  const byte* end_;
+
+  // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
   UniquePtr<MemMap> mem_map_;
+
+  // Backing memory map for oat file during cross compilation.
+  UniquePtr<ElfFile> elf_file_;
+
+  // dlopen handle during runtime.
+  void* dlopen_handle_;
 
   typedef SafeMap<std::string, const OatDexFile*> Table;
   Table oat_dex_files_;

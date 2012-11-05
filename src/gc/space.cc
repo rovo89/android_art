@@ -494,7 +494,8 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
                                                  PROT_READ | PROT_WRITE | PROT_EXEC,
                                                  MAP_PRIVATE | MAP_FIXED,
                                                  file->Fd(),
-                                                 0));
+                                                 0,
+                                                 false));
   if (map.get() == NULL) {
     LOG(ERROR) << "Failed to map " << image_file_name;
     return NULL;

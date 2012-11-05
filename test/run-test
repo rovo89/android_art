@@ -237,8 +237,11 @@ if [ "$dev_mode" = "yes" ]; then
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
-        echo "run exit status: $?" 1>&2
-        good="yes"
+	run_exit="$?"
+        echo "run exit status: $run_exit" 1>&2
+        if [ "$run_exit" = "0" ]; then
+            good="yes"
+        fi
     fi
 elif [ "$update_mode" = "yes" ]; then
     "./${build}" >"$build_output" 2>&1

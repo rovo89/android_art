@@ -16,8 +16,12 @@
 
 #include "oat_file.h"
 
+#include <dlfcn.h>
+
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
+#include "elf_file.h"
+#include "oat.h"
 #include "os.h"
 
 namespace art {
@@ -29,28 +33,65 @@ std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
   return oat_location;
 }
 
-OatFile* OatFile::Open(const std::string& filename,
-                       const std::string& location,
-                       byte* requested_base,
-                       bool writable) {
-  CHECK(!filename.empty()) << location;
-  UniquePtr<File> file(OS::OpenFile(filename.c_str(), writable, false));
-  if (file.get() == NULL) {
-    return NULL;
-  }
-  return Open(*file.get(), location, requested_base, writable);
-}
-
-OatFile* OatFile::Open(File& file,
-                       const std::string& location,
-                       byte* requested_base,
-                       bool writable) {
+void OatFile::CheckLocation(const std::string& location) {
   CHECK(!location.empty());
   if (!IsValidOatFilename(location)) {
     LOG(WARNING) << "Attempting to open oat file with unknown extension '" << location << "'";
   }
+}
+
+OatFile* OatFile::Open(std::vector<uint8_t>& oat_contents,
+                       const std::string& location) {
+  CHECK(!oat_contents.empty()) << location;
+  CheckLocation(location);
   UniquePtr<OatFile> oat_file(new OatFile(location));
-  bool success = oat_file->Map(file, requested_base, writable);
+  oat_file->begin_ = &oat_contents[0];
+  oat_file->end_ = &oat_contents[oat_contents.size()];
+  oat_file->Setup();
+  return oat_file.release();
+}
+
+OatFile* OatFile::Open(const std::string& filename,
+                       const std::string& location,
+                       byte* requested_base) {
+  CHECK(!filename.empty()) << location;
+  CheckLocation(location);
+  OatFile* result = OpenDlopen(filename, location, requested_base);
+  if (result != NULL) {
+    return result;
+  }
+  UniquePtr<File> file(OS::OpenFile(filename.c_str(), false, false));
+  if (file.get() == NULL) {
+    return NULL;
+  }
+  return OpenElfFile(file.get(), location, requested_base, false);
+}
+
+OatFile* OatFile::Open(File* file,
+                       const std::string& location,
+                       byte* requested_base,
+                       bool writable) {
+  CheckLocation(location);
+  return OpenElfFile(file, location, requested_base, writable);
+}
+
+OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
+                             const std::string& location,
+                             byte* requested_base) {
+  UniquePtr<OatFile> oat_file(new OatFile(location));
+  bool success = oat_file->Dlopen(elf_filename, requested_base);
+  if (!success) {
+    return NULL;
+  }
+  return oat_file.release();
+}
+
+OatFile* OatFile::OpenElfFile(File* file,
+                              const std::string& location,
+                              byte* requested_base,
+                              bool writable) {
+  UniquePtr<OatFile> oat_file(new OatFile(location));
+  bool success = oat_file->ElfFileOpen(file, requested_base, writable);
   if (!success) {
     return NULL;
   }
@@ -58,110 +99,133 @@ OatFile* OatFile::Open(File& file,
 }
 
 OatFile::OatFile(const std::string& location)
-    : location_(location) {
+    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL) {
   CHECK(!location_.empty());
 }
 
 OatFile::~OatFile() {
   STLDeleteValues(&oat_dex_files_);
+  if (dlopen_handle_ != NULL) {
+    dlclose(dlopen_handle_);
+  }
 }
 
-bool OatFile::Map(File& file,
-                  byte* requested_base,
-                  bool writable) {
-  OatHeader oat_header;
-  bool success = file.ReadFully(&oat_header, sizeof(oat_header));
-  if (!success || !oat_header.IsValid()) {
-    LOG(WARNING) << "Invalid oat header " << GetLocation();
+bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
+
+  char* absolute_path = realpath(elf_filename.c_str(), NULL);
+  if (absolute_path == NULL) {
+    PLOG(WARNING) << "Failed to create absolute path for " << elf_filename;
     return false;
   }
-
-  int flags = 0;
-  int prot = 0;
-  if (writable) {
-    flags |= MAP_SHARED;  // So changes will write through to file
-    prot |= (PROT_READ | PROT_WRITE);
-  } else {
-    flags |= MAP_PRIVATE;
-    prot |= PROT_READ;
-  }
-  if (requested_base != NULL) {
-    flags |= MAP_FIXED;
-  }
-  UniquePtr<MemMap> map(MemMap::MapFileAtAddress(requested_base,
-                                                 file.GetLength(),
-                                                 prot,
-                                                 flags,
-                                                 file.Fd(),
-                                                 0));
-  if (map.get() == NULL) {
-    LOG(WARNING) << "Failed to map oat file from " << file.GetPath() << " for " << GetLocation();
+  dlopen_handle_ = dlopen(absolute_path, RTLD_NOW);
+  free(absolute_path);
+  if (dlopen_handle_ == NULL) {
     return false;
   }
-  CHECK(requested_base == 0 || requested_base == map->Begin())
-      << file.GetPath() << " for " << GetLocation() << " " << reinterpret_cast<void*>(map->Begin());
-  DCHECK_EQ(0, memcmp(&oat_header, map->Begin(), sizeof(OatHeader)))
-      << file.GetPath() << " for " << GetLocation();
-
-  off_t code_offset = oat_header.GetExecutableOffset();
-  if (code_offset < file.GetLength()) {
-    byte* code_address = map->Begin() + code_offset;
-    size_t code_length = file.GetLength() - code_offset;
-    if (mprotect(code_address, code_length, prot | PROT_EXEC) != 0) {
-      PLOG(ERROR) << "Failed to make oat code executable in "
-                  << file.GetPath() << " for " << GetLocation();
-      return false;
-    }
-  } else {
-    // its possible to have no code if all the methods were abstract, native, etc
-    DCHECK_EQ(code_offset, RoundUp(file.GetLength(), kPageSize))
-        << file.GetPath() << " for " << GetLocation();
+  begin_ = reinterpret_cast<byte*>(dlsym(dlopen_handle_, "oatdata"));
+  if (begin_ == NULL) {
+    LOG(WARNING) << "Failed to find oatdata symbol in " << elf_filename << ": " << dlerror();
+    return false;
   }
+  if (requested_base != NULL && begin_ != requested_base) {
+    std::string maps;
+    ReadFileToString("/proc/self/maps", &maps);
+    LOG(WARNING) << "Failed to find oatdata symbol at expected address: oatdata="
+                 << reinterpret_cast<const void*>(begin_) << " != expected="
+                 << reinterpret_cast<const void*>(requested_base)
+                 << " /proc/self/maps:\n" << maps;
+    return false;
+  }
+  end_ = reinterpret_cast<byte*>(dlsym(dlopen_handle_, "oatlastword"));
+  if (end_ == NULL) {
+    LOG(WARNING) << "Failed to find oatlastword symbol in " << elf_filename << ": " << dlerror();
+    return false;
+  }
+  // Readjust to be non-inclusive upper bound.
+  end_ += sizeof(uint32_t);
+  Setup();
+  return true;
+}
 
-  const byte* oat = map->Begin();
+bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable) {
+  elf_file_.reset(ElfFile::Open(file, writable, true));
+  if (elf_file_.get() == NULL) {
+    PLOG(WARNING) << "Failed to create ELF file for " << file->GetPath();
+    return false;
+  }
+  bool loaded = elf_file_->Load();
+  if (!loaded) {
+    LOG(WARNING) << "Failed to load ELF file " << file->GetPath();
+    return false;
+  }
+  begin_ = elf_file_->FindDynamicSymbolAddress("oatdata");
+  if (begin_ == NULL) {
+    LOG(WARNING) << "Failed to find oatdata symbol in " << file->GetPath();
+    return false;
+  }
+  if (requested_base != NULL && begin_ != requested_base) {
+    std::string maps;
+    ReadFileToString("/proc/self/maps", &maps);
+    LOG(WARNING) << "Failed to find oatdata symbol at expected address: oatdata="
+                 << reinterpret_cast<const void*>(begin_) << " != expected="
+                 << reinterpret_cast<const void*>(requested_base)
+                 << " /proc/self/maps:\n" << maps;
+    return false;
+  }
+  end_ = elf_file_->FindDynamicSymbolAddress("oatlastword");
+  if (end_ == NULL) {
+    LOG(WARNING) << "Failed to find oatlastword symbol in " << file->GetPath();
+    return false;
+  }
+  // Readjust to be non-inclusive upper bound.
+  end_ += sizeof(uint32_t);
+  Setup();
+  return true;
+}
 
+void OatFile::Setup() {
+  const byte* oat = Begin();
   oat += sizeof(OatHeader);
-  oat += oat_header.GetImageFileLocationSize();
+  oat += GetOatHeader().GetImageFileLocationSize();
 
-  CHECK_LE(oat, map->End())
-    << reinterpret_cast<void*>(map->Begin())
+  CHECK_LE(oat, End())
+    << reinterpret_cast<const void*>(Begin())
     << "+" << sizeof(OatHeader)
-    << "+" << oat_header.GetImageFileLocationSize()
-    << "<=" << reinterpret_cast<void*>(map->End())
-    << " " << file.GetPath() << " for " << GetLocation();
-  for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
+    << "+" << GetOatHeader().GetImageFileLocationSize()
+    << "<=" << reinterpret_cast<const void*>(End())
+    << " " << GetLocation();
+  for (size_t i = 0; i < GetOatHeader().GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_location_size, 0U) << file.GetPath() << " for " << GetLocation();
+    CHECK_GT(dex_file_location_size, 0U) << GetLocation();
     oat += sizeof(dex_file_location_size);
-    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
+    CHECK_LT(oat, End()) << GetLocation();
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
-    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
+    CHECK_LT(oat, End()) << GetLocation();
 
     std::string dex_file_location(dex_file_location_data, dex_file_location_size);
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);
-    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
+    CHECK_LT(oat, End()) << GetLocation();
 
     uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_offset, 0U) << file.GetPath() << " for " << GetLocation();
-    CHECK_LT(dex_file_offset, static_cast<uint32_t>(file.GetLength()))
-        << file.GetPath() << " for " << GetLocation();
+    CHECK_GT(dex_file_offset, 0U) << GetLocation();
+    CHECK_LT(dex_file_offset, Size()) << GetLocation();
     oat += sizeof(dex_file_offset);
-    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
+    CHECK_LT(oat, End()) << GetLocation();
 
-    uint8_t* dex_file_pointer = map->Begin() + dex_file_offset;
+    const uint8_t* dex_file_pointer = Begin() + dex_file_offset;
     CHECK(DexFile::IsMagicValid(dex_file_pointer))
-        << file.GetPath() << " for " << GetLocation() << " " << dex_file_pointer;
+        << GetLocation() << " " << dex_file_pointer;
     CHECK(DexFile::IsVersionValid(dex_file_pointer))
-        << file.GetPath() << " for " << GetLocation() << " "  << dex_file_pointer;
+        << GetLocation() << " "  << dex_file_pointer;
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
-    CHECK_LE(oat, map->End()) << file.GetPath() << " for " << GetLocation();
+    CHECK_LE(oat, End()) << GetLocation();
 
     oat_dex_files_.Put(dex_file_location, new OatDexFile(this,
                                                          dex_file_location,
@@ -169,9 +233,6 @@ bool OatFile::Map(File& file,
                                                          dex_file_pointer,
                                                          methods_offsets_pointer));
   }
-
-  mem_map_.reset(map.release());
-  return true;
 }
 
 const OatHeader& OatFile::GetOatHeader() const {
@@ -179,13 +240,13 @@ const OatHeader& OatFile::GetOatHeader() const {
 }
 
 const byte* OatFile::Begin() const {
-  CHECK(mem_map_->Begin() != NULL);
-  return mem_map_->Begin();
+  CHECK(begin_ != NULL);
+  return begin_;
 }
 
 const byte* OatFile::End() const {
-  CHECK(mem_map_->End() != NULL);
-  return mem_map_->End();
+  CHECK(end_ != NULL);
+  return end_;
 }
 
 const OatFile::OatDexFile* OatFile::GetOatDexFile(const std::string& dex_file_location,
@@ -211,7 +272,7 @@ std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& dex_file_location,
                                 uint32_t dex_file_location_checksum,
-                                byte* dex_file_pointer,
+                                const byte* dex_file_pointer,
                                 const uint32_t* oat_class_offsets_pointer)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),

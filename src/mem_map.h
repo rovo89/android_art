@@ -45,7 +45,7 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start) {
-    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start);
+    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start, false);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -54,7 +54,7 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapFileAtAddress(
-      byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start);
+      byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start, bool reuse);
 
   // Releases the memory mapping
   ~MemMap();

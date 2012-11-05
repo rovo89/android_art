@@ -178,39 +178,10 @@ bool CompilationUnit::MaterializeToString(std::string& str_buffer) {
 
 bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
-  const char* target_triple = NULL;
-  const char* target_cpu = "";
-  const char* target_attr = NULL;
-
-  InstructionSet insn_set = GetInstructionSet();
-  switch (insn_set) {
-  case kThumb2:
-    target_triple = "thumb-none-linux-gnueabi";
-    target_cpu = "cortex-a9";
-    target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
-    break;
-
-  case kArm:
-    target_triple = "armv7-none-linux-gnueabi";
-    // TODO: Fix for Nexus S.
-    target_cpu = "cortex-a9";
-    // TODO: Fix for Xoom.
-    target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
-    break;
-
-  case kX86:
-    target_triple = "i386-pc-linux-gnu";
-    target_attr = "";
-    break;
-
-  case kMips:
-    target_triple = "mipsel-unknown-linux";
-    target_attr = "mips32r2";
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown instruction set: " << insn_set;
-  }
+  std::string target_triple;
+  std::string target_cpu;
+  std::string target_attr;
+  Compiler::InstructionSetToLLVMTarget(GetInstructionSet(), target_triple, target_cpu, target_attr);
 
   std::string errmsg;
   const llvm::Target* target =
@@ -323,7 +294,6 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 
   return true;
 }
-
 
 bool CompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
   if (GetInstructionSet() == kX86) {

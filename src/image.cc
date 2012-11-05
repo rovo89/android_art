@@ -19,6 +19,6 @@
 namespace art {
 
 const byte ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const byte ImageHeader::kImageVersion[] = { '0', '0', '1', '\0' };
+const byte ImageHeader::kImageVersion[] = { '0', '0', '2', '\0' };
 
 }  // namespace art

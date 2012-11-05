@@ -32,6 +32,7 @@
 #include "gc/space.h"
 #include "image.h"
 #include "indenter.h"
+#include "oat.h"
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
@@ -118,7 +119,7 @@ class OatDumper {
     os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
 
     os << "IMAGE FILE LOCATION OAT BEGIN:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatBegin());
+    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatDataBegin());
 
     os << "IMAGE FILE LOCATION:\n";
     const std::string image_file_location(oat_header.GetImageFileLocation());
@@ -218,7 +219,7 @@ class OatDumper {
     // If the last thing in the file is code for a method, there won't be an offset for the "next"
     // thing. Instead of having a special case in the upper_bound code, let's just add an entry
     // for the end of the file.
-    offsets_.insert(static_cast<uint32_t>(oat_file_.End() - oat_file_.Begin()));
+    offsets_.insert(static_cast<uint32_t>(oat_file_.Size()));
   }
 
   void AddOffsets(const OatFile::OatMethod& oat_method) {
@@ -696,9 +697,13 @@ class ImageDumper {
 
     os << "OAT CHECKSUM: " << StringPrintf("0x%08x\n\n", image_header_.GetOatChecksum());
 
-    os << "OAT BEGIN:" << reinterpret_cast<void*>(image_header_.GetOatBegin()) << "\n\n";
+    os << "OAT FILE BEGIN:" << reinterpret_cast<void*>(image_header_.GetOatFileBegin()) << "\n\n";
 
-    os << "OAT END:" << reinterpret_cast<void*>(image_header_.GetOatEnd()) << "\n\n";
+    os << "OAT DATA BEGIN:" << reinterpret_cast<void*>(image_header_.GetOatDataBegin()) << "\n\n";
+
+    os << "OAT DATA END:" << reinterpret_cast<void*>(image_header_.GetOatDataEnd()) << "\n\n";
+
+    os << "OAT FILE END:" << reinterpret_cast<void*>(image_header_.GetOatFileEnd()) << "\n\n";
 
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";

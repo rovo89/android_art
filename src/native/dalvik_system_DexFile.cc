@@ -23,6 +23,7 @@
 #include "gc/space.h"
 #include "image.h"
 #include "jni_internal.h"
+#include "oat.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -249,8 +250,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
                   << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
         return JNI_TRUE;
       }
-      if (oat_file->GetOatHeader().GetImageFileLocationOatBegin()
-          != reinterpret_cast<uint32_t>(image_header.GetOatBegin())) {
+      if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
+          != reinterpret_cast<uint32_t>(image_header.GetOatDataBegin())) {
         ScopedObjectAccess soa(env);
         LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
                   << " has out-of-date oat begin compared to "

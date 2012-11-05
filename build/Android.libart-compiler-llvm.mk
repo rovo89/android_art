@@ -21,6 +21,8 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 endif
 
 LIBART_COMPILER_LLVM_SRC_FILES += \
+	src/elf_writer.cc \
+	src/compiler/write_elf.cc \
 	src/compiler_llvm/compilation_unit.cc \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/generated/art_module.cc \

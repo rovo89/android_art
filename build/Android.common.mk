@@ -55,6 +55,7 @@ ART_C_INCLUDES := \
 	external/gtest/include \
 	external/valgrind/dynamic_annotations \
 	external/zlib \
+	frameworks/compile/mclinker/include \
 	art/src
 
 art_cflags := \
@@ -66,6 +67,9 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-Wthread-safety \
 	-fstrict-aliasing
+
+# TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
+# On 10.04 LTS (Lucid Lynx), it can cause dependencies on GLIBCXX_3.4.14 version symbols.
 
 ifeq ($(HOST_OS),linux)
   art_non_debug_cflags := \
@@ -159,6 +163,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
 	src/dlmalloc.cc \
+	src/elf_file.cc \
 	src/file_output_stream.cc \
 	src/gc/card_table.cc \
 	src/gc/garbage_collector.cc \
@@ -378,6 +383,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
+	src/elf_writer_test.cc \
 	src/exception_test.cc \
 	src/gc/space_bitmap_test.cc \
 	src/gc/space_test.cc \

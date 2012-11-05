@@ -39,6 +39,7 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
+#include "oat.h"
 #include "oat_file.h"
 #include "object.h"
 #include "object_utils.h"
@@ -703,7 +704,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
   runtime->GetHeap()->UnReserveOatFileAddressRange();
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatBegin());
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin());
   VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
@@ -751,8 +752,8 @@ static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
   if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
     return NULL;
   }
-  if (oat_file->GetOatHeader().GetImageFileLocationOatBegin()
-      != reinterpret_cast<uint32_t>(image_header.GetOatBegin())) {
+  if (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
+      != reinterpret_cast<uint32_t>(image_header.GetOatDataBegin())) {
     return NULL;
   }
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
@@ -803,7 +804,7 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::s
     LOG(ERROR) << "Failed to seek to start of generated oat file: " << oat_location;
     return NULL;
   }
-  const OatFile* oat_file = OatFile::Open(*file.get(), oat_location, NULL);
+  const OatFile* oat_file = OatFile::Open(file.get(), oat_location, NULL, false);
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open generated oat file: " << oat_location;
     return NULL;
@@ -823,9 +824,9 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
   uint32_t image_oat_checksum = image_header.GetOatChecksum();
-  uint32_t image_oat_begin = reinterpret_cast<uint32_t>(image_header.GetOatBegin());
+  uint32_t image_oat_data_begin = reinterpret_cast<uint32_t>(image_header.GetOatDataBegin());
   bool image_check = ((oat_file->GetOatHeader().GetImageFileLocationOatChecksum() == image_oat_checksum)
-                      && (oat_file->GetOatHeader().GetImageFileLocationOatBegin() == image_oat_begin));
+                      && (oat_file->GetOatHeader().GetImageFileLocationOatDataBegin() == image_oat_data_begin));
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
   if (oat_dex_file == NULL) {
@@ -850,9 +851,9 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
         ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8());
     LOG(WARNING) << ".oat file " << oat_file->GetLocation()
                  << " mismatch ( " << std::hex << oat_file->GetOatHeader().GetImageFileLocationOatChecksum()
-                 << ", " << oat_file->GetOatHeader().GetImageFileLocationOatBegin()
+                 << ", " << oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
                  << ") with " << image_file
-                 << " (" << image_oat_checksum << ", " << std::hex << image_oat_begin << ")";
+                 << " (" << image_oat_checksum << ", " << std::hex << image_oat_data_begin << ")";
   }
   if (!dex_check) {
     LOG(WARNING) << ".oat file " << oat_file->GetLocation()
@@ -968,7 +969,7 @@ void ClassLinker::InitFromImage() {
   OatFile* oat_file = OpenOat(space);
   CHECK(oat_file != NULL) << "Failed to open oat file for image";
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
-  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatBegin(), 0U);
+  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
   CHECK(oat_file->GetOatHeader().GetImageFileLocation().empty());
   Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
@@ -987,6 +988,7 @@ void ClassLinker::InitFromImage() {
     SirtRef<DexCache> dex_cache(self, dex_caches->Get(i));
     const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
+    CHECK(oat_dex_file != NULL) << oat_file->GetLocation() << " " << dex_file_location;
     const DexFile* dex_file = oat_dex_file->OpenDexFile();
     if (dex_file == NULL) {
       LOG(FATAL) << "Failed to open dex file " << dex_file_location

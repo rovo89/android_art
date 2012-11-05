@@ -30,7 +30,7 @@ OatHeader::OatHeader() {
 OatHeader::OatHeader(InstructionSet instruction_set,
                      const std::vector<const DexFile*>* dex_files,
                      uint32_t image_file_location_oat_checksum,
-                     uint32_t image_file_location_oat_begin,
+                     uint32_t image_file_location_oat_data_begin,
                      const std::string& image_file_location) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
@@ -47,9 +47,9 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   image_file_location_oat_checksum_ = image_file_location_oat_checksum;
   UpdateChecksum(&image_file_location_oat_checksum_, sizeof(image_file_location_oat_checksum_));
 
-  CHECK(IsAligned<kPageSize>(image_file_location_oat_begin));
-  image_file_location_oat_begin_ = image_file_location_oat_begin;
-  UpdateChecksum(&image_file_location_oat_begin_, sizeof(image_file_location_oat_begin_));
+  CHECK(IsAligned<kPageSize>(image_file_location_oat_data_begin));
+  image_file_location_oat_data_begin_ = image_file_location_oat_data_begin;
+  UpdateChecksum(&image_file_location_oat_data_begin_, sizeof(image_file_location_oat_data_begin_));
 
   image_file_location_size_ = image_file_location.size();
   UpdateChecksum(&image_file_location_size_, sizeof(image_file_location_size_));
@@ -106,9 +106,9 @@ uint32_t OatHeader::GetImageFileLocationOatChecksum() const {
   return image_file_location_oat_checksum_;
 }
 
-uint32_t OatHeader::GetImageFileLocationOatBegin() const {
+uint32_t OatHeader::GetImageFileLocationOatDataBegin() const {
   CHECK(IsValid());
-  return image_file_location_oat_begin_;
+  return image_file_location_oat_data_begin_;
 }
 
 uint32_t OatHeader::GetImageFileLocationSize() const {

@@ -215,18 +215,18 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     AddSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
-    byte* oat_end_addr = image_space->GetImageHeader().GetOatEnd();
-    CHECK_GT(oat_end_addr, image_space->End());
+    byte* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
+    CHECK_GT(oat_file_end_addr, image_space->End());
 
     // Reserve address range from image_space->End() to image_space->GetImageHeader().GetOatEnd()
     uintptr_t reserve_begin = RoundUp(reinterpret_cast<uintptr_t>(image_space->End()), kPageSize);
-    uintptr_t reserve_end = RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr), kPageSize);
+    uintptr_t reserve_end = RoundUp(reinterpret_cast<uintptr_t>(oat_file_end_addr), kPageSize);
     oat_file_map_.reset(MemMap::MapAnonymous("oat file reserve",
                                              reinterpret_cast<byte*>(reserve_begin),
                                              reserve_end - reserve_begin, PROT_NONE));
 
-    if (oat_end_addr > requested_begin) {
-      requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),
+    if (oat_file_end_addr > requested_begin) {
+      requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_file_end_addr),
                                                           kPageSize));
     }
   }

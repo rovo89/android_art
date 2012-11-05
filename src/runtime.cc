@@ -244,6 +244,8 @@ void Runtime::Abort() {
   // libpthread, which means the stacks we dump would be useless. Calling
   // tgkill(2) directly avoids that.
   syscall(__NR_tgkill, getpid(), GetTid(), SIGABRT);
+  // TODO: LLVM installs it's own SIGABRT handler so exit to be safe... Can we disable that?
+  exit(1);
 #endif
   // notreached
 }

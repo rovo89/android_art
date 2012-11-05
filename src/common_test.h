@@ -526,6 +526,18 @@ class CommonTest : public testing::Test {
     CompileMethod(method);
   }
 
+  void ReserveImageSpace() {
+    // Reserve where the image will be loaded up front so that other parts of test set up don't
+    // accidentally end up colliding with the fixed memory address when we need to load the image.
+    image_reservation_.reset(MemMap::MapAnonymous("Image reservation", (byte*)ART_BASE_ADDRESS,
+                                                  (size_t)100 * 1024 * 1024,  // 100MB
+                                                  PROT_NONE));
+  }
+
+  void UnreserveImageSpace() {
+    image_reservation_.reset();
+  }
+
   std::string android_data_;
   std::string art_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
@@ -538,6 +550,7 @@ class CommonTest : public testing::Test {
 
  private:
   std::vector<const DexFile*> opened_dex_files_;
+  UniquePtr<MemMap> image_reservation_;
 };
 
 // Sets a CheckJni abort hook to catch failures. Note that this will cause CheckJNI to carry on

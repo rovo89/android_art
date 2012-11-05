@@ -33,6 +33,7 @@
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
+#include "oat.h"
 #include "oat_file.h"
 #include "object.h"
 #include "object_utils.h"
@@ -64,11 +65,12 @@ bool ImageWriter::Write(const std::string& image_filename,
     dex_caches_.insert(dex_cache);
   }
 
-  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL, true);
-  if (oat_file_ == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << oat_filename;
+  UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true, false));
+  if (oat_file.get() == NULL) {
+    LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
     return false;
   }
+  oat_file_ = OatFile::Open(oat_file.get(), oat_location, NULL, true);
   class_linker->RegisterOatFile(*oat_file_);
 
   {
@@ -97,21 +99,24 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
 #endif
   Thread::Current()->TransitionFromSuspendedToRunnable();
-  CalculateNewObjectOffsets();
+  size_t oat_loaded_size = 0;
+  size_t oat_data_offset = 0;
+  compiler.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
+  CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
   PatchOatCodeAndMethods(compiler);
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
-  UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), true));
-  if (file.get() == NULL) {
+  UniquePtr<File> image_file(OS::OpenFile(image_filename.c_str(), true));
+  if (image_file.get() == NULL) {
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
   }
-  if (fchmod(file->Fd(), 0644) != 0) {
+  if (fchmod(image_file->Fd(), 0644) != 0) {
     PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
     return EXIT_FAILURE;
   }
-  bool success = file->WriteFully(image_->Begin(), image_end_);
+  bool success = image_file->WriteFully(image_->Begin(), image_end_);
   if (!success) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
     return false;
@@ -363,7 +368,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   return image_roots.get();
 }
 
-void ImageWriter::CalculateNewObjectOffsets() {
+void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset) {
+  CHECK_NE(0U, oat_loaded_size);
   Thread* self = Thread::Current();
   SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
 
@@ -390,17 +396,22 @@ void ImageWriter::CalculateNewObjectOffsets() {
     self->EndAssertNoThreadSuspension(old);
   }
 
-  // Note that image_top_ is left at end of used space
-  oat_begin_ = image_begin_ +  RoundUp(image_end_, kPageSize);
-  const byte* oat_limit = oat_begin_ +  oat_file_->Size();
+  const byte* oat_file_begin = image_begin_ + RoundUp(image_end_, kPageSize);
+  const byte* oat_file_end = oat_file_begin + oat_loaded_size;
+  oat_data_begin_ = oat_file_begin + oat_data_offset;
+  const byte* oat_data_end = oat_data_begin_ + oat_file_->Size();
 
   // return to write header at start of image with future location of image_roots
   ImageHeader image_header(reinterpret_cast<uint32_t>(image_begin_),
                            reinterpret_cast<uint32_t>(GetImageAddress(image_roots.get())),
                            oat_file_->GetOatHeader().GetChecksum(),
-                           reinterpret_cast<uint32_t>(oat_begin_),
-                           reinterpret_cast<uint32_t>(oat_limit));
+                           reinterpret_cast<uint32_t>(oat_file_begin),
+                           reinterpret_cast<uint32_t>(oat_data_begin_),
+                           reinterpret_cast<uint32_t>(oat_data_end),
+                           reinterpret_cast<uint32_t>(oat_file_end));
   memcpy(image_->Begin(), &image_header, sizeof(image_header));
+
+  // Note that image_end_ is left at end of used space
 }
 
 void ImageWriter::CopyAndFixupObjects()

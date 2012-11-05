@@ -15,6 +15,8 @@
 #
 
 LIBART_COMPILER_SRC_FILES += \
+	src/elf_writer.cc \
+	src/compiler/write_elf.cc \
 	src/compiler/dataflow.cc \
 	src/compiler/frontend.cc \
 	src/compiler/ralloc.cc \

@@ -32,18 +32,25 @@ class PACKED(4) ImageHeader {
   ImageHeader(uint32_t image_begin,
               uint32_t image_roots,
               uint32_t oat_checksum,
-              uint32_t oat_begin,
-              uint32_t oat_end)
+              uint32_t oat_file_begin,
+              uint32_t oat_data_begin,
+              uint32_t oat_data_end,
+              uint32_t oat_file_end)
       : image_begin_(image_begin),
         oat_checksum_(oat_checksum),
-        oat_begin_(oat_begin),
-        oat_end_(oat_end),
+        oat_file_begin_(oat_file_begin),
+        oat_data_begin_(oat_data_begin),
+        oat_data_end_(oat_data_end),
+        oat_file_end_(oat_file_end),
         image_roots_(image_roots) {
     CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
-    CHECK_EQ(oat_begin, RoundUp(oat_begin, kPageSize));
+    CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
+    CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
     CHECK_LT(image_begin, image_roots);
-    CHECK_LT(image_roots, oat_begin);
-    CHECK_LT(oat_begin, oat_end);
+    CHECK_LT(image_roots, oat_file_begin);
+    CHECK_LE(oat_file_begin, oat_data_begin);
+    CHECK_LT(oat_data_begin, oat_data_end);
+    CHECK_LE(oat_data_end, oat_file_end);
     memcpy(magic_, kImageMagic, sizeof(kImageMagic));
     memcpy(version_, kImageVersion, sizeof(kImageVersion));
   }
@@ -75,12 +82,20 @@ class PACKED(4) ImageHeader {
     oat_checksum_ = oat_checksum;
   }
 
-  byte* GetOatBegin() const {
-    return reinterpret_cast<byte*>(oat_begin_);
+  byte* GetOatFileBegin() const {
+    return reinterpret_cast<byte*>(oat_file_begin_);
   }
 
-  byte* GetOatEnd() const {
-    return reinterpret_cast<byte*>(oat_end_);
+  byte* GetOatDataBegin() const {
+    return reinterpret_cast<byte*>(oat_data_begin_);
+  }
+
+  byte* GetOatDataEnd() const {
+    return reinterpret_cast<byte*>(oat_data_end_);
+  }
+
+  byte* GetOatFileEnd() const {
+    return reinterpret_cast<byte*>(oat_file_end_);
   }
 
   enum ImageRoot {
@@ -114,19 +129,26 @@ class PACKED(4) ImageHeader {
   byte magic_[4];
   byte version_[4];
 
-  // required base address for mapping the image.
+  // Required base address for mapping the image.
   uint32_t image_begin_;
 
-  // checksum of the oat file we link to for load time sanity check
+  // Checksum of the oat file we link to for load time sanity check.
   uint32_t oat_checksum_;
 
-  // required oat address expected by image Method::GetCode() pointers.
-  uint32_t oat_begin_;
+  // Start address for oat file. Will be before oat_data_begin_ for .so files.
+  uint32_t oat_file_begin_;
 
-  // end of oat address range for this image file, used for positioning a following image
-  uint32_t oat_end_;
+  // Required oat address expected by image Method::GetCode() pointers.
+  uint32_t oat_data_begin_;
 
-  // absolute address of an Object[] of objects needed to reinitialize from an image
+  // End of oat data address range for this image file.
+  uint32_t oat_data_end_;
+
+  // End of oat file address range. will be after oat_data_end_ for
+  // .so files. Used for positioning a following alloc spaces.
+  uint32_t oat_file_end_;
+
+  // Absolute address of an Object[] of objects needed to reinitialize from an image.
   uint32_t image_roots_;
 
   friend class ImageWriter;

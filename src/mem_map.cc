@@ -96,7 +96,8 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
   return new MemMap(name, actual, byte_count, actual, page_aligned_byte_count, prot);
 }
 
-MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start) {
+MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count,
+                                 int prot, int flags, int fd, off_t start, bool reuse) {
   CHECK_NE(0U, byte_count);
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
@@ -104,8 +105,13 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
   int page_offset = start % kPageSize;
   off_t page_aligned_offset = start - page_offset;
   size_t page_aligned_byte_count = RoundUp(byte_count + page_offset, kPageSize);
-  CheckMapRequest(addr, page_aligned_byte_count);
-  byte* actual = reinterpret_cast<byte*>(mmap(addr,
+  byte* page_aligned_addr = addr - page_offset;
+  if (!reuse) {
+    // reuse means it is okay that it overlaps an existing page mapping.
+    // Only use this if you actually made the page reservation yourself.
+    CheckMapRequest(page_aligned_addr, page_aligned_byte_count);
+  }
+  byte* actual = reinterpret_cast<byte*>(mmap(page_aligned_addr,
                                               page_aligned_byte_count,
                                               prot,
                                               flags,
@@ -114,7 +120,8 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int fl
   if (actual == MAP_FAILED) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);
-    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_byte_count
+    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(page_aligned_addr)
+                << ", " << page_aligned_byte_count
                 << ", " << prot << ", " << flags << ", " << fd << ", " << page_aligned_offset
                 << ") failed\n" << maps;
     return NULL;

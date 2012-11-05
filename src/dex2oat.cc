@@ -29,7 +29,6 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
-#include "file_output_stream.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "oat_writer.h"
@@ -40,6 +39,7 @@
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "timing_logger.h"
+#include "vector_output_stream.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
 
@@ -257,28 +257,35 @@ class Dex2Oat {
 
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
-    uint32_t image_file_location_oat_begin = 0;
+    uint32_t image_file_location_oat_data_begin = 0;
     Heap* heap = Runtime::Current()->GetHeap();
     if (heap->GetSpaces().size() > 1) {
       ImageSpace* image_space = heap->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
-      image_file_location_oat_begin = reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatBegin());
+      image_file_location_oat_data_begin = reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());
       image_file_location = image_space->GetImageFilename();
       if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
         image_file_location = image_file_location.substr(host_prefix->size());
       }
     }
 
-    FileOutputStream file_output_stream(oat_file);
-    if (!OatWriter::Create(file_output_stream,
+    std::vector<uint8_t> oat_contents;
+    VectorOutputStream vector_output_stream(oat_file->GetPath(), oat_contents);
+    if (!OatWriter::Create(vector_output_stream,
                            dex_files,
                            image_file_location_oat_checksum,
-                           image_file_location_oat_begin,
+                           image_file_location_oat_data_begin,
                            image_file_location,
                            *compiler.get())) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->GetPath();
       return NULL;
     }
+
+    if (!compiler->WriteElf(oat_contents, oat_file)) {
+      LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
+      return NULL;
+    }
+
     return compiler.release();
   }
 
@@ -289,11 +296,29 @@ class Dex2Oat {
                        const std::string& oat_location,
                        const Compiler& compiler)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
-    ImageWriter image_writer(image_classes);
-    if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
-      LOG(ERROR) << "Failed to create image file " << image_filename;
+    uintptr_t oat_data_begin;
+    {
+      // ImageWriter is scoped so it can free memory before doing FixupElf
+      ImageWriter image_writer(image_classes);
+      if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
+        LOG(ERROR) << "Failed to create image file " << image_filename;
+        return false;
+      }
+      oat_data_begin = image_writer.GetOatDataBegin();
+    }
+
+    LG << "dex2oat CreateImageFile opening : " << oat_filename;
+    UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true, false));
+    LG << "dex2oat CreateImageFile opened : " << oat_filename;
+    if (oat_file.get() == NULL) {
+      PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
     }
+    if (!compiler.FixupElf(oat_file.get(), oat_data_begin)) {
+      LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
+      return false;
+    }
+    LOG(ERROR) << "ELF file fixed up successfully: " << oat_file->GetPath();
     return true;
   }
 
@@ -901,6 +926,56 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
+  // Notes on the interleaving of creating the image and oat file to
+  // ensure the references between the two are correct.
+  //
+  // Currently we have a memory layout that looks something like this:
+  //
+  // +--------------+
+  // | image        |
+  // +--------------+
+  // | boot oat     |
+  // +--------------+
+  // | alloc spaces |
+  // +--------------+
+  //
+  // There are several constraints on the loading of the imag and boot.oat.
+  //
+  // 1. The image is expected to be loaded at an absolute address and
+  // contains Objects with absolute pointers within the image.
+  //
+  // 2. There are absolute pointers from Methods in the image to their
+  // code in the oat.
+  //
+  // 3. There are absolute pointers from the code in the oat to Methods
+  // in the image.
+  //
+  // 4. There are absolute pointers from code in the oat to other code
+  // in the oat.
+  //
+  // To get this all correct, we go through several steps.
+  //
+  // 1. We have already created that oat file above with
+  // CreateOatFile. Originally this was just our own proprietary file
+  // but now it is contained within an ELF dynamic object (aka .so
+  // file). The Compiler returned by CreateOatFile provides
+  // PatchInformation for references to oat code and Methods that need
+  // to be update once we know where the oat file will be located
+  // after the image.
+  //
+  // 2. We create the image file. It needs to know where the oat file
+  // will be loaded after itself. Originally when oat file was simply
+  // memory mapped so we could predict where its contents were based
+  // on the file size. Now that it is an ELF file, we need to inspect
+  // the ELF file to understand the in memory segment layout including
+  // where the oat header is located within. ImageWriter's
+  // PatchOatCodeAndMethods uses the PatchInformation from the
+  // Compiler to touch up absolute references in the oat file.
+  //
+  // 3. We fixup the ELF program headers so that dlopen will try to
+  // load the .so at the desired location at runtime by offsetting the
+  // Elf32_Phdr.p_vaddr values by the desired base address.
+  //
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   bool image_creation_success = dex2oat->CreateImageFile(image_filename,
                                                          image_base,

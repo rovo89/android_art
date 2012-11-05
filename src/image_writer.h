@@ -40,7 +40,7 @@ class ImageWriter {
  public:
   explicit ImageWriter(const std::set<std::string>* image_classes)
       : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
-        oat_begin_(NULL) {}
+        oat_data_begin_(NULL) {}
 
   ~ImageWriter() {}
 
@@ -50,6 +50,10 @@ class ImageWriter {
              const std::string& oat_location,
              const Compiler& compiler)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  uintptr_t GetOatDataBegin() {
+    return reinterpret_cast<uintptr_t>(oat_data_begin_);
+  }
 
  private:
   bool AllocMemory();
@@ -99,7 +103,7 @@ class ImageWriter {
     if (offset == 0) {
       return NULL;
     }
-    return oat_begin_ + offset;
+    return oat_data_begin_ + offset;
   }
 
   bool IsImageClass(const Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -123,7 +127,8 @@ class ImageWriter {
   static void CheckNonImageClassesRemovedCallback(Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void CalculateNewObjectOffsets() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ObjectArray<Object>* CreateImageRoots() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg)
@@ -170,7 +175,7 @@ class ImageWriter {
   const std::set<std::string>* image_classes_;
 
   // Beginning target oat address for the pointers from the output image to its oat file
-  const byte* oat_begin_;
+  const byte* oat_data_begin_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
   typedef std::set<DexCache*> Set;

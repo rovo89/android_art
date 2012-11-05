@@ -72,6 +72,7 @@ define build-art-test
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
+    include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_EXECUTABLE)
     art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
@@ -83,6 +84,7 @@ define build-art-test
       # Mac OS complains about unresolved symbols if you don't include this.
       LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
     endif
+    include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
     ART_HOST_TEST_EXECUTABLES += $$(art_gtest_exe)

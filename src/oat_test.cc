@@ -16,7 +16,7 @@
 
 #include "oat_file.h"
 #include "oat_writer.h"
-#include "file_output_stream.h"
+#include "vector_output_stream.h"
 
 #include "common_test.h"
 
@@ -80,27 +80,28 @@ TEST_F(OatTest, WriteRead) {
 
   ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
-  FileOutputStream file_output_stream(tmp.GetFile());
-  bool success = OatWriter::Create(file_output_stream,
-                                   class_linker->GetBootClassPath(),
-                                   42U,
-                                   4096U,
-                                   "lue.art",
-                                   *compiler_.get());
-  ASSERT_TRUE(success);
+  std::vector<uint8_t> oat_contents;
+  VectorOutputStream output_stream(tmp.GetFilename(), oat_contents);
+  bool success_oat = OatWriter::Create(output_stream,
+                                       class_linker->GetBootClassPath(),
+                                       42U,
+                                       4096U,
+                                       "lue.art",
+                                       *compiler_.get());
+  ASSERT_TRUE(success_oat);
+  bool success_elf = compiler_->WriteElf(oat_contents, tmp.GetFile());
+  ASSERT_TRUE(success_elf);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
     compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(),
-                                            tmp.GetFilename(),
-                                            NULL));
+  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
   ASSERT_EQ(42U, oat_header.GetImageFileLocationOatChecksum());
-  ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatBegin());
+  ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatDataBegin());
   ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
 
   const DexFile* dex_file = java_lang_dex_file_;
