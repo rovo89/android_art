@@ -493,8 +493,9 @@ class WatchDog {
   } while (false)
 
  public:
-  WatchDog() {
-    if (!kIsWatchDogEnabled) {
+  WatchDog(bool is_watch_dog_enabled) {
+    is_watch_dog_enabled_ = is_watch_dog_enabled;
+    if (!is_watch_dog_enabled_) {
       return;
     }
     shutting_down_ = false;
@@ -506,7 +507,7 @@ class WatchDog {
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_attr_destroy, (&attr_), reason);
   }
   ~WatchDog() {
-    if (!kIsWatchDogEnabled) {
+    if (!is_watch_dog_enabled_) {
       return;
     }
     const char* reason = "dex2oat watch dog thread shutdown";
@@ -557,13 +558,13 @@ class WatchDog {
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
   }
 
-  static const bool kIsWatchDogEnabled = !kIsTargetBuild;
 #ifdef ART_USE_LLVM_COMPILER
   static const unsigned int kWatchDogTimeoutSeconds = 20 * 60; // 15 minutes + buffer
 #else
   static const unsigned int kWatchDogTimeoutSeconds = 2 * 60;  // 1 minute + buffer
 #endif
 
+  bool is_watch_dog_enabled_;
   bool shutting_down_;
   // TODO: Switch to Mutex when we can guarantee it won't prevent shutdown in error cases
   pthread_mutex_t mutex_;
@@ -573,8 +574,6 @@ class WatchDog {
 };
 
 static int dex2oat(int argc, char** argv) {
-  WatchDog watch_dog;
-
   InitLogging(argv);
 
   // Skip over argv[0].
@@ -619,6 +618,7 @@ static int dex2oat(int argc, char** argv) {
 #endif
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
+  bool watch_dog_enabled = !kIsTargetBuild;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -644,8 +644,12 @@ static int dex2oat(int argc, char** argv) {
       if (!ParseInt(oat_fd_str, &oat_fd)) {
         Usage("could not parse --oat-fd argument '%s' as an integer", oat_fd_str);
       }
-    } else if (option.starts_with("-g")) {
+    } else if (option == "-g") {
       support_debugging = true;
+    } else if (option == "--watch-dog") {
+      watch_dog_enabled = true;
+    } else if (option == "--no-watch-dog") {
+      watch_dog_enabled = false;
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
       if (!ParseInt(thread_count_str, &thread_count)) {
@@ -780,6 +784,9 @@ static int dex2oat(int argc, char** argv) {
       Usage("non-zero --base not specified");
     }
   }
+
+  // Done with usage checks, enable watchdog if requested
+  WatchDog watch_dog(watch_dog_enabled);
 
   // Check early that the result of compilation can be written
   UniquePtr<File> oat_file;
