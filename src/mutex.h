@@ -107,7 +107,7 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // Assert that the Mutex is exclusively held by the current thread.
   void AssertExclusiveHeld(const Thread* self) {
-    if (kDebugLocking) {
+    if (kDebugLocking && !gAborting) {
       CHECK(IsExclusiveHeld(self)) << *this;
     }
   }

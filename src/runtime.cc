@@ -153,8 +153,6 @@ Runtime::~Runtime() {
   instance_ = NULL;
 }
 
-static bool gAborting = false;
-
 struct AbortState {
   void Dump(std::ostream& os) {
     if (gAborting) {
@@ -200,6 +198,8 @@ struct AbortState {
 };
 
 void Runtime::Abort() {
+  gAborting = true;  // set before taking any locks
+
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
   MutexLock mu(Thread::Current(), *Locks::abort_lock_);

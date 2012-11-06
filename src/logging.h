@@ -318,6 +318,11 @@ struct LogVerbosity {
 };
 
 extern LogVerbosity gLogVerbosity;
+
+// Used on fatal exit. Prevents recursive aborts. Allows us to disable
+// some error checking to ensure fatal shutdown makes forward progress.
+extern bool gAborting;
+
 extern void InitLogging(char* argv[]);
 
 extern const char* GetCmdLine();

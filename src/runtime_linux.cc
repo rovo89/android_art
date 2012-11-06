@@ -228,6 +228,7 @@ struct UContext {
 };
 
 static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
+  gAborting = true;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
