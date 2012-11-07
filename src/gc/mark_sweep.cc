@@ -51,6 +51,7 @@ static const bool kCountClassesMarked = false;
 static const bool kProfileLargeObjects = false;
 static const bool kMeasureOverhead = false;
 static const bool kCountTasks = false;
+static const bool kCountJavaLangRefs = false;
 
 class SetFingerVisitor {
  public:
@@ -83,6 +84,7 @@ MarkSweep::MarkSweep(ObjectStack* mark_stack)
       large_object_test_(0), large_object_mark_(0),
       classes_marked_(0), overhead_time_(0),
       work_chunks_created_(0), work_chunks_deleted_(0),
+      reference_count_(0),
       gc_barrier_(new Barrier),
       large_object_lock_("large object lock") {
   DCHECK(mark_stack_ != NULL);
@@ -272,8 +274,7 @@ class CheckObjectVisitor {
   }
 
   void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_) {
+      NO_THREAD_SAFETY_ANALYSIS {
     mark_sweep_->CheckReference(obj, ref, offset, is_static);
   }
 
@@ -327,7 +328,7 @@ class ScanObjectVisitor {
   MarkSweep* const mark_sweep_;
 };
 
-void MarkSweep::ScanGrayObjects() {
+void MarkSweep::ScanGrayObjects(byte minimum_age) {
   const Spaces& spaces = heap_->GetSpaces();
   CardTable* card_table = heap_->GetCardTable();
   ScanObjectVisitor visitor(this);
@@ -339,7 +340,7 @@ void MarkSweep::ScanGrayObjects() {
     byte* end = space->End();
     // Image spaces are handled properly since live == marked for them.
     SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
-    card_table->Scan(mark_bitmap, begin, end, visitor, IdentityFunctor());
+    card_table->Scan(mark_bitmap, begin, end, visitor, VoidFunctor(), minimum_age);
   }
 }
 
@@ -373,7 +374,7 @@ void MarkSweep::VerifyImageRoots() {
       uintptr_t end = reinterpret_cast<uintptr_t>(space->End());
       SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       DCHECK(live_bitmap != NULL);
-      live_bitmap->VisitMarkedRange(begin, end, visitor, IdentityFunctor());
+      live_bitmap->VisitMarkedRange(begin, end, visitor, VoidFunctor());
     }
   }
 }
@@ -436,7 +437,7 @@ void MarkSweep::RecursiveMarkCards(CardTable* card_table, const std::vector<byte
       }
     }
     if (kDisableFinger) {
-      active_bitmap->VisitMarkedRange(begin, end, image_root_visitor, IdentityFunctor());
+      active_bitmap->VisitMarkedRange(begin, end, image_root_visitor, VoidFunctor());
     } else {
       active_bitmap->VisitMarkedRange(begin, end, image_root_visitor, finger_visitor);
     }
@@ -452,8 +453,8 @@ bool MarkSweep::IsMarkedCallback(const Object* object, void* arg) {
       !reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object);
 }
 
-void MarkSweep::RecursiveMarkDirtyObjects() {
-  ScanGrayObjects();
+void MarkSweep::RecursiveMarkDirtyObjects(byte minimum_age) {
+  ScanGrayObjects(minimum_age);
   ProcessMarkStack();
 }
 
@@ -569,8 +570,8 @@ class CheckpointMarkThreadRoots : public Closure {
   virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
     // Note: self is not necessarily equal to thread since thread may be suspended.
     Thread* self = Thread::Current();
-    DCHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
-        << thread->GetState();
+    CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
+        << thread->GetState() << " thread " << thread << " self " << self;
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     thread->VisitRoots(MarkSweep::MarkObjectCallback, mark_sweep_);
     mark_sweep_->GetBarrier().Pass(self);
@@ -585,12 +586,12 @@ Barrier& MarkSweep::GetBarrier() {
 }
 
 void MarkSweep::MarkRootsCheckpoint() {
-  UniquePtr<CheckpointMarkThreadRoots> check_point(new CheckpointMarkThreadRoots(this));
+  CheckpointMarkThreadRoots check_point(this);
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   // Increment the count of the barrier. If all of the checkpoints have already been finished then
   // will hit 0 and continue. Otherwise we are still waiting for some checkpoints, so the counter
   // will go positive and we will unblock when it hits zero.
-  gc_barrier_->Increment(Thread::Current(), thread_list->RunCheckpoint(check_point.get()));
+  gc_barrier_->Increment(Thread::Current(), thread_list->RunCheckpoint(&check_point));
 }
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
@@ -675,7 +676,7 @@ void MarkSweep::SweepArray(TimingLogger& logger, ObjectStack* allocations, bool 
   freed_bytes_ += freed_bytes;
   logger.AddSplit("FreeList");
   allocations->Reset();
-  logger.AddSplit("Reset stack");
+  logger.AddSplit("ResetStack");
 }
 
 void MarkSweep::Sweep(TimingLogger& timings, bool partial, bool swap_bitmaps) {
@@ -799,6 +800,9 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
   DCHECK(klass->IsReferenceClass());
   Object* pending = obj->GetFieldObject<Object*>(heap_->GetReferencePendingNextOffset(), false);
   Object* referent = heap_->GetReferenceReferent(obj);
+  if (kCountJavaLangRefs) {
+    ++reference_count_;
+  }
   if (pending == NULL && referent != NULL && !IsMarked(referent)) {
     Object** list = NULL;
     if (klass->IsSoftReferenceClass()) {
@@ -826,9 +830,7 @@ class MarkObjectVisitor {
   }
 
   void operator ()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */,
-                   bool /* is_static */) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                   bool /* is_static */) const EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     mark_sweep_->MarkObject(ref);
   }
 
@@ -963,13 +965,9 @@ public:
   virtual void Run(Thread* self) {
     int index;
     while ((index = index_++) < length_) {
-      static const size_t prefetch_look_ahead = 4;
       if (kUseMarkStackPrefetch) {
-        if (index + prefetch_look_ahead < length_) {
-          __builtin_prefetch(&data_[index + prefetch_look_ahead]);
-        } else {
-          __builtin_prefetch(&data_[length_ - 1]);
-        }
+        static const size_t prefetch_look_ahead = 1;
+        __builtin_prefetch(data_[std::min(index + prefetch_look_ahead, length_ - 1)]);
       }
       Object* obj = data_[index];
       DCHECK(obj != NULL);
@@ -1203,25 +1201,29 @@ void MarkSweep::UnBindBitmaps() {
 }
 
 MarkSweep::~MarkSweep() {
-  if (class_count_ != 0 || array_count_ != 0 || other_count_ != 0) {
-    LOG(INFO) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_
-               << " other=" << other_count_;
+  if (kCountScannedTypes) {
+    VLOG(gc) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_
+             << " other=" << other_count_;
   }
 
   if (kCountTasks) {
-    LOG(INFO) << "Total number of work chunks allocated: " << work_chunks_created_;
+    VLOG(gc) << "Total number of work chunks allocated: " << work_chunks_created_;
   }
 
   if (kMeasureOverhead) {
-    LOG(INFO) << "Overhead time " << PrettyDuration(overhead_time_);
+    VLOG(gc) << "Overhead time " << PrettyDuration(overhead_time_);
   }
 
   if (kProfileLargeObjects) {
-    LOG(INFO) << "Large objects tested " << large_object_test_ << " marked " << large_object_mark_;
+    VLOG(gc) << "Large objects tested " << large_object_test_ << " marked " << large_object_mark_;
   }
 
   if (kCountClassesMarked) {
-    LOG(INFO) << "Classes marked " << classes_marked_;
+    VLOG(gc) << "Classes marked " << classes_marked_;
+  }
+
+  if (kCountJavaLangRefs) {
+    VLOG(gc) << "References scanned " << reference_count_;
   }
 
   // Ensure that the mark stack is empty.

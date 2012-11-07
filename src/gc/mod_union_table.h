@@ -185,11 +185,9 @@ public:
         return (*it)->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect;
       }
     }
-    if (ref != NULL) {
-      Implementation::GetHeap()->DumpSpaces();
-      LOG(FATAL) << "Reference " << ref << " not in any space!";
-    }
-    return false;
+    // Assume it points to a large object.
+    // TODO: Check.
+    return true;
   }
 };
 

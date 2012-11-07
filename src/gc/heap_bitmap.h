@@ -73,8 +73,7 @@ namespace art {
       // TODO: C++0x auto
       for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
         SpaceBitmap* bitmap = *it;
-        bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor,
-                                 IdentityFunctor());
+        bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor, VoidFunctor());
       }
       large_objects_->Visit(visitor);
     }

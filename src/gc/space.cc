@@ -28,6 +28,8 @@
 
 namespace art {
 
+static const bool kPrefetchDuringDlMallocFreeList = true;
+
 // Magic padding value that we use to check for buffer overruns.
 static const word kPaddingValue = 0xBAC0BAC0;
 
@@ -308,7 +310,7 @@ size_t DlMallocSpace::Free(Thread* self, Object* ptr) {
         *reinterpret_cast<word*>(reinterpret_cast<byte*>(ptr) + AllocationSize(ptr) -
             sizeof(word) - kChunkOverhead), kPaddingValue);
   }
-  const size_t bytes_freed = AllocationSize(ptr);
+  const size_t bytes_freed = InternalAllocationSize(ptr);
   num_bytes_allocated_ -= bytes_freed;
   --num_objects_allocated_;
   mspace_free(mspace_, ptr);
@@ -316,15 +318,21 @@ size_t DlMallocSpace::Free(Thread* self, Object* ptr) {
 }
 
 size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
+  DCHECK(ptrs != NULL);
+
   // Don't need the lock to calculate the size of the freed pointers.
   size_t bytes_freed = 0;
   for (size_t i = 0; i < num_ptrs; i++) {
-    bytes_freed += AllocationSize(ptrs[i]);
+    Object* ptr = ptrs[i];
+    const size_t look_ahead = 8;
+    if (kPrefetchDuringDlMallocFreeList && i + look_ahead < num_ptrs) {
+      // The head of chunk for the allocation is sizeof(size_t) behind the allocation.
+      __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + look_ahead]) - sizeof(size_t));
+    }
+    bytes_freed += InternalAllocationSize(ptr);
   }
 
-  MutexLock mu(self, lock_);
   if (kDebugSpaces) {
-    CHECK(ptrs != NULL);
     size_t num_broken_ptrs = 0;
     for (size_t i = 0; i < num_ptrs; i++) {
       if (!Contains(ptrs[i])) {
@@ -337,10 +345,14 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
     }
     CHECK_EQ(num_broken_ptrs, 0u);
   }
-  num_bytes_allocated_ -= bytes_freed;
-  num_objects_allocated_ -= num_ptrs;
-  mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
-  return bytes_freed;
+
+  {
+    MutexLock mu(self, lock_);
+    num_bytes_allocated_ -= bytes_freed;
+    num_objects_allocated_ -= num_ptrs;
+    mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
+    return bytes_freed;
+  }
 }
 
 // Callback from dlmalloc when it needs to increase the footprint
@@ -384,9 +396,14 @@ void* DlMallocSpace::MoreCore(intptr_t increment) {
   return original_end;
 }
 
-size_t DlMallocSpace::AllocationSize(const Object* obj) {
+// Virtual functions can't get inlined.
+inline size_t DlMallocSpace::InternalAllocationSize(const Object* obj) {
   return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) +
       kChunkOverhead;
+}
+
+size_t DlMallocSpace::AllocationSize(const Object* obj) {
+  return InternalAllocationSize(obj);
 }
 
 void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* arg */) {

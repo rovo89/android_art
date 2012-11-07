@@ -22,6 +22,7 @@
 #include "mem_map.h"
 #include "space_bitmap.h"
 #include "UniquePtr.h"
+#include "utils.h"
 
 namespace art {
 
@@ -72,32 +73,146 @@ class CardTable {
     return biased_begin_;
   }
 
-  // For every dirty card between begin and end invoke the visitor with the specified argument.
+  /*
+   * Visitor is expected to take in a card and return the new value. When a value is modified, the
+   * modify visitor is called.
+   * visitor: The visitor which modifies the cards. Returns the new value for a card given an old
+   * value.
+   * modified: Whenever the visitor modifies a card, this visitor is called on the card. Enables
+   * us to know which cards got cleared.
+   */
+  template <typename Visitor, typename ModifiedVisitor>
+  void ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const Visitor& visitor,
+                      const ModifiedVisitor& modified = VoidFunctor()) {
+    byte* card_cur = CardFromAddr(scan_begin);
+    byte* card_end = CardFromAddr(scan_end);
+    CheckCardValid(card_cur);
+    CheckCardValid(card_end);
+
+    // Handle any unaligned cards at the start.
+    while (!IsAligned<sizeof(word)>(card_cur) && card_cur < card_end) {
+      byte expected, new_value;
+      do {
+        expected = *card_cur;
+        new_value = visitor(expected);
+      } while (expected != new_value && UNLIKELY(byte_cas(expected, new_value, card_cur) != 0));
+      if (expected != new_value) {
+        modified(card_cur, expected, new_value);
+      }
+      ++card_cur;
+    }
+
+    // Handle unaligned cards at the end.
+    while (!IsAligned<sizeof(word)>(card_end) && card_end > card_cur) {
+      --card_end;
+      byte expected, new_value;
+      do {
+        expected = *card_end;
+        new_value = visitor(expected);
+      } while (expected != new_value && UNLIKELY(byte_cas(expected, new_value, card_end) != 0));
+      if (expected != new_value) {
+        modified(card_cur, expected, new_value);
+      }
+    }
+
+    // Now we have the words, we can process words in parallel.
+    uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
+    uintptr_t* word_end = reinterpret_cast<uintptr_t*>(card_end);
+    uintptr_t expected_word;
+    uintptr_t new_word;
+
+    // TODO: Parallelize.
+    while (word_cur < word_end) {
+      while ((expected_word = *word_cur) != 0) {
+        new_word =
+            (visitor((expected_word >> 0) & 0xFF) << 0) |
+            (visitor((expected_word >> 8) & 0xFF) << 8) |
+            (visitor((expected_word >> 16) & 0xFF) << 16) |
+            (visitor((expected_word >> 24) & 0xFF) << 24);
+        if (new_word == expected_word) {
+          // No need to do a cas.
+          break;
+        }
+        if (LIKELY(android_atomic_cas(expected_word, new_word,
+                                      reinterpret_cast<int32_t*>(word_cur)) == 0)) {
+          for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
+            const byte expected_byte = (expected_word >> (8 * i)) & 0xFF;
+            const byte new_byte = (new_word >> (8 * i)) & 0xFF;
+            if (expected_byte != new_byte) {
+              modified(reinterpret_cast<byte*>(word_cur) + i, expected_byte, new_byte);
+            }
+          }
+          break;
+        }
+      }
+      ++word_cur;
+    }
+  }
+
+  // For every dirty at least minumum age between begin and end invoke the visitor with the
+  // specified argument.
   template <typename Visitor, typename FingerVisitor>
   void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
-            const Visitor& visitor, const FingerVisitor& finger_visitor) const
+            const Visitor& visitor, const FingerVisitor& finger_visitor,
+            const byte minimum_age = kCardDirty) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(bitmap->HasAddress(scan_begin));
     DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
     byte* card_cur = CardFromAddr(scan_begin);
     byte* card_end = CardFromAddr(scan_end);
-    while (card_cur < card_end) {
+    CheckCardValid(card_cur);
+    CheckCardValid(card_end);
+
+    // Handle any unaligned cards at the start.
+    while (!IsAligned<sizeof(word)>(card_cur) && card_cur < card_end) {
+      if (*card_cur >= minimum_age) {
+        uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
+        uintptr_t end = start + kCardSize;
+        bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+      }
+      ++card_cur;
+    }
+
+    byte* aligned_end = card_end -
+        (reinterpret_cast<uintptr_t>(card_end) & (sizeof(uintptr_t) - 1));
+
+    // Now we have the words, we can send these to be processed in parallel.
+    uintptr_t* word_cur = reinterpret_cast<uintptr_t*>(card_cur);
+    uintptr_t* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
+
+    // TODO: Parallelize
+    while (word_cur < word_end) {
       // Find the first dirty card.
-      card_cur = reinterpret_cast<byte*>(memchr(card_cur, kCardDirty, card_end - card_cur));
-      if (card_cur == NULL) {
+      while (*word_cur == 0 && word_cur < word_end) {
+        word_cur++;
+      }
+      if (word_cur >= word_end) {
         break;
       }
-      byte* run_start = card_cur++;
-
-      while (*card_cur == kCardDirty && card_cur < card_end) {
-        card_cur++;
+      uintptr_t start_word = *word_cur;
+      for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
+        if ((start_word & 0xFF) == minimum_age) {
+          byte* card = reinterpret_cast<byte*>(word_cur) + i;
+          DCHECK_EQ(*card, start_word & 0xFF);
+          uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card));
+          uintptr_t end = start + kCardSize;
+          bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+        }
+        start_word >>= 8;
       }
-      byte* run_end = card_cur;
+      ++word_cur;
+    }
 
-      uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(run_start));
-      uintptr_t end = reinterpret_cast<uintptr_t>(AddrFromCard(run_end));
-      bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+    // Handle any unaligned cards at the end.
+    card_cur = reinterpret_cast<byte*>(word_end);
+    while (card_cur < card_end) {
+      if (*card_cur >= minimum_age) {
+        uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
+        uintptr_t end = start + kCardSize;
+        bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
+      }
+      ++card_cur;
     }
   }
 
@@ -109,12 +224,6 @@ class CardTable {
 
   // Resets all of the bytes in the card table which do not map to the image space.
   void ClearSpaceCards(ContinuousSpace* space);
-
-  // Clean all the cards which map to a space.
-  void PreClearCards(ContinuousSpace* space, std::vector<byte*>& out_cards);
-
-  // Returns all of the dirty cards which map to a space.
-  void GetDirtyCards(ContinuousSpace* space, std::vector<byte*>& out_cards) const;
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const byte *card_addr) const {
@@ -138,6 +247,19 @@ class CardTable {
   bool AddrIsInCardTable(const void* addr) const;
 
  private:
+  static int byte_cas(byte old_value, byte new_value, byte* address) {
+    // Little endian means most significant byte is on the left.
+    const size_t shift = reinterpret_cast<uintptr_t>(address) % sizeof(uintptr_t);
+    // Align the address down.
+    address -= shift;
+    int32_t* word_address = reinterpret_cast<int32_t*>(address);
+    // Word with the byte we are trying to cas cleared.
+    const int32_t cur_word = *word_address & ~(0xFF << shift);
+    const int32_t old_word = cur_word | (static_cast<int32_t>(old_value) << shift);
+    const int32_t new_word = cur_word | (static_cast<int32_t>(new_value) << shift);
+    return android_atomic_cas(old_word, new_word, word_address);
+  }
+
   CardTable(MemMap* begin, byte* biased_begin, size_t offset);
 
   // Returns true iff the card table address is within the bounds of the card table.
@@ -145,6 +267,13 @@ class CardTable {
     byte* begin = mem_map_->Begin() + offset_;
     byte* end = mem_map_->End();
     return card_addr >= begin && card_addr < end;
+  }
+
+  void CheckCardValid(byte* card) const {
+    DCHECK(IsValidCard(card))
+        << " card_addr: " << reinterpret_cast<const void*>(card)
+        << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
+        << " end: " << reinterpret_cast<void*>(mem_map_->End());
   }
 
   // Verifies that all gray objects are on a dirty card.

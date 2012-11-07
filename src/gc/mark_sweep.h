@@ -82,7 +82,7 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Builds a mark stack with objects on dirty cards and recursively mark until it empties.
-  void RecursiveMarkDirtyObjects()
+  void RecursiveMarkDirtyObjects(byte minimum_age = CardTable::kCardDirty)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -165,7 +165,7 @@ class MarkSweep {
         ++other_count_;
       }
       VisitOtherReferences(klass, obj, visitor);
-      if (klass->IsReferenceClass()) {
+      if (UNLIKELY(klass->IsReferenceClass())) {
         DelayReferenceReferent(const_cast<Object*>(obj));
       }
     }
@@ -329,9 +329,8 @@ class MarkSweep {
   template <typename Visitor>
   static void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static,
                              const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_) {
-    if (ref_offsets != CLASS_WALK_SUPER) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+    if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
       // Found a reference offset bitmap.  Mark the specified offsets.
       while (ref_offsets != 0) {
         size_t right_shift = CLZ(ref_offsets);
@@ -386,8 +385,9 @@ class MarkSweep {
   }
 
   // Blackens objects grayed during a garbage collection.
-  void ScanGrayObjects()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void ScanGrayObjects(byte minimum_age)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(Object* reference)
@@ -459,6 +459,7 @@ class MarkSweep {
   AtomicInteger overhead_time_;
   AtomicInteger work_chunks_created_;
   AtomicInteger work_chunks_deleted_;
+  AtomicInteger reference_count_;
 
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_;

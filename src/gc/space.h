@@ -29,11 +29,7 @@
 
 namespace art {
 
-#ifndef NDEBUG
-static const bool kDebugSpaces = true;
-#else
-static const bool kDebugSpaces = false;
-#endif
+static const bool kDebugSpaces = kIsDebugBuild;
 
 class DlMallocSpace;
 class ImageSpace;
@@ -357,6 +353,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   }
 
  private:
+  size_t InternalAllocationSize(const Object* obj);
   Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   UniquePtr<SpaceBitmap> live_bitmap_;

@@ -59,6 +59,17 @@ class TimingLogger;
 typedef AtomicStack<Object*> ObjectStack;
 typedef std::vector<ContinuousSpace*> Spaces;
 
+class AgeCardVisitor {
+ public:
+  byte operator ()(byte card) const {
+    if (card == CardTable::kCardDirty) {
+      return card - 1;
+    } else {
+      return 0;
+    }
+  }
+};
+
 // The ordering of the enum matters, it is used to determine which GCs are run first.
 enum GcType {
   // No Gc
@@ -382,7 +393,7 @@ class Heap {
   void SwapStacks();
 
   // Clear cards and update the mod union table.
-  void ClearCards(TimingLogger& timings);
+  void ProcessCards(TimingLogger& timings);
 
   Spaces spaces_;
 

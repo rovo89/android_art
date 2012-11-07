@@ -342,10 +342,25 @@ bool IsValidZipFilename(const std::string& filename);
 bool IsValidDexFilename(const std::string& filename);
 bool IsValidOatFilename(const std::string& filename);
 
-class IdentityFunctor {
+class VoidFunctor {
  public:
-  template <typename T>
-  inline T operator () (T t) const { return t; }
+  template <typename A>
+  inline void operator () (A a) const {
+    UNUSED(a);
+  }
+
+  template <typename A, typename B>
+  inline void operator () (A a, B b) const {
+    UNUSED(a);
+    UNUSED(b);
+  }
+
+  template <typename A, typename B, typename C>
+  inline void operator () (A a, B b, C c) const {
+    UNUSED(a);
+    UNUSED(b);
+    UNUSED(c);
+  }
 };
 
 }  // namespace art
