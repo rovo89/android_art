@@ -23,9 +23,9 @@
 
 namespace art {
 
-class CountClosure : public Closure {
+class CountTask : public Task {
  public:
-  CountClosure(AtomicInteger* count) : count_(count) {
+  CountTask(AtomicInteger* count) : count_(count) {
 
   }
 
@@ -34,6 +34,9 @@ class CountClosure : public Closure {
     usleep(100);
     // Increment the counter which keeps track of work completed.
     ++*count_;
+  }
+
+  void Finalize() {
     delete this;
   }
 
@@ -55,7 +58,7 @@ TEST_F(ThreadPoolTest, CheckRun) {
   AtomicInteger count = 0;
   static const int32_t num_tasks = num_threads * 4;
   for (int32_t i = 0; i < num_tasks; ++i) {
-    thread_pool.AddTask(self, new CountClosure(&count));
+    thread_pool.AddTask(self, new CountTask(&count));
   }
   thread_pool.StartWorkers(self);
   // Wait for tasks to complete.
@@ -70,7 +73,7 @@ TEST_F(ThreadPoolTest, StopStart) {
   AtomicInteger count = 0;
   static const int32_t num_tasks = num_threads * 4;
   for (int32_t i = 0; i < num_tasks; ++i) {
-    thread_pool.AddTask(self, new CountClosure(&count));
+    thread_pool.AddTask(self, new CountTask(&count));
   }
   usleep(200);
   // Check that no threads started prematurely.
@@ -80,15 +83,15 @@ TEST_F(ThreadPoolTest, StopStart) {
   usleep(200);
   thread_pool.StopWorkers(self);
   AtomicInteger bad_count = 0;
-  thread_pool.AddTask(self, new CountClosure(&bad_count));
+  thread_pool.AddTask(self, new CountTask(&bad_count));
   usleep(200);
   // Ensure that the task added after the workers were stopped doesn't get run.
   EXPECT_EQ(0, bad_count);
 }
 
-class TreeClosure : public Closure {
+class TreeTask : public Task {
  public:
-  TreeClosure(ThreadPool* const thread_pool, AtomicInteger* count, int depth)
+  TreeTask(ThreadPool* const thread_pool, AtomicInteger* count, int depth)
       : thread_pool_(thread_pool),
         count_(count),
         depth_(depth) {
@@ -97,11 +100,14 @@ class TreeClosure : public Closure {
 
   void Run(Thread* self) {
     if (depth_ > 1) {
-      thread_pool_->AddTask(self, new TreeClosure(thread_pool_, count_, depth_ - 1));
-      thread_pool_->AddTask(self, new TreeClosure(thread_pool_, count_, depth_ - 1));
+      thread_pool_->AddTask(self, new TreeTask(thread_pool_, count_, depth_ - 1));
+      thread_pool_->AddTask(self, new TreeTask(thread_pool_, count_, depth_ - 1));
     }
     // Increment the counter which keeps track of work completed.
     ++*count_;
+  }
+
+  void Finalize() {
     delete this;
   }
 
@@ -117,7 +123,7 @@ TEST_F(ThreadPoolTest, RecursiveTest) {
   ThreadPool thread_pool(num_threads);
   AtomicInteger count = 0;
   static const int depth = 8;
-  thread_pool.AddTask(self, new TreeClosure(&thread_pool, &count, depth));
+  thread_pool.AddTask(self, new TreeTask(&thread_pool, &count, depth));
   thread_pool.StartWorkers(self);
   thread_pool.Wait(self);
   EXPECT_EQ((1 << depth) - 1, count);

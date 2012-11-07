@@ -1521,6 +1521,10 @@ class MANAGED Class : public StaticStorageBase {
     return !IsPrimitive() && !IsInterface() && !IsAbstract();
   }
 
+  bool IsObjectArrayClass() const {
+    return GetComponentType() != NULL && !GetComponentType()->IsPrimitive();
+  }
+
   // Creates a raw object instance but does not invoke the default constructor.
   Object* AllocObject(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -2008,6 +2012,15 @@ class MANAGED Class : public StaticStorageBase {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, dex_type_idx_), type_idx, false);
   }
 
+  static Class* GetJavaLangClass() {
+    DCHECK(java_lang_Class_ != NULL);
+    return java_lang_Class_;
+  }
+
+  // Can't call this SetClass or else gets called instead of Object::SetClass in places.
+  static void SetClassClass(Class* java_lang_Class);
+  static void ResetClass();
+
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(klass != NULL) << PrettyClass(this);
@@ -2126,6 +2139,9 @@ class MANAGED Class : public StaticStorageBase {
 
   // Location of first static field.
   uint32_t fields_[0];
+
+  // java.lang.Class
+  static Class* java_lang_Class_;
 
   friend struct ClassOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Class);

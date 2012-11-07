@@ -38,9 +38,9 @@ namespace art {
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       if (LIKELY(bitmap != NULL)) {
-        return bitmap->Clear(obj);
+        bitmap->Clear(obj);
       } else {
-        return large_objects_->Clear(obj);
+        large_objects_->Clear(obj);
       }
     }
 

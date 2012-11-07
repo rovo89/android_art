@@ -31,6 +31,7 @@
 #include "offsets.h"
 #include "safe_map.h"
 #include "timing_logger.h"
+#include "thread_pool.h"
 
 #define VERIFY_OBJECT_ENABLED 0
 
@@ -312,6 +313,13 @@ class Heap {
   // GC performance measuring
   void DumpGcPerformanceInfo();
 
+  // Thread pool.
+  void CreateThreadPool();
+  void DeleteThreadPool();
+  ThreadPool* GetThreadPool() {
+    return thread_pool_.get();
+  }
+
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
   // large object space.
@@ -408,6 +416,9 @@ class Heap {
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
+  // Reference queue lock
+  UniquePtr<Mutex> reference_queue_lock_;
+
   // True while the garbage collector is running.
   volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
 
@@ -449,6 +460,9 @@ class Heap {
   const bool verify_pre_gc_heap_;
   const bool verify_post_gc_heap_;
   const bool verify_mod_union_table_;
+
+  // Parallel GC data structures.
+  UniquePtr<ThreadPool> thread_pool_;
 
   // After how many GCs we force to do a partial GC instead of sticky mark bits GC.
   const size_t partial_gc_frequency_;

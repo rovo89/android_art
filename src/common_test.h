@@ -388,6 +388,10 @@ class CommonTest : public testing::Test {
     compiler_.reset(new Compiler(compiler_backend, instruction_set, true, 2, false, image_classes_.get(),
                                  true, true));
 
+    // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
+    // pool is created by the runtime.
+    runtime_->GetHeap()->CreateThreadPool();
+
     runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   }
 

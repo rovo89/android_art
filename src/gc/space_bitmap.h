@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <vector>
 
+#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
 #include "UniquePtr.h"
 #include "globals.h"
 #include "logging.h"
@@ -64,12 +66,32 @@ class SpaceBitmap {
     return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset_ / kAlignment) % kBitsPerWord);
   }
 
-  inline void Set(const Object* obj) {
-    Modify(obj, true);
+  inline bool Set(const Object* obj) {
+    return Modify(obj, true);
   }
 
-  inline void Clear(const Object* obj) {
-    Modify(obj, false);
+  inline bool Clear(const Object* obj) {
+    return Modify(obj, false);
+  }
+
+  // Returns true if the object was previously marked.
+  inline bool AtomicTestAndSet(const Object* obj) {
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    DCHECK_GE(addr, heap_begin_);
+    const uintptr_t offset = addr - heap_begin_;
+    const size_t index = OffsetToIndex(offset);
+    const word mask = OffsetToMask(offset);
+    word* const address = &bitmap_begin_[index];
+    DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
+    word old_word;
+    do {
+      old_word = *address;
+      // Fast path: The bit is already set.
+      if ((old_word & mask) != 0) {
+        return true;
+      }
+    } while (UNLIKELY(android_atomic_cas(old_word, old_word | mask, address) != 0));
+    return false;
   }
 
   void Clear();
@@ -229,6 +251,12 @@ class SpaceBitmap {
   std::string GetName() const;
   void SetName(const std::string& name);
 
+  const void* GetObjectWordAddress(const Object* obj) const {
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    const uintptr_t offset = addr - heap_begin_;
+    const size_t index = OffsetToIndex(offset);
+    return &bitmap_begin_[index];
+  }
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
@@ -237,18 +265,21 @@ class SpaceBitmap {
         heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
         name_(name) {}
 
-  inline void Modify(const Object* obj, bool do_set) {
+  inline bool Modify(const Object* obj, bool do_set) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
     DCHECK_GE(addr, heap_begin_);
     const uintptr_t offset = addr - heap_begin_;
     const size_t index = OffsetToIndex(offset);
     const word mask = OffsetToMask(offset);
     DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
+    word* address = &bitmap_begin_[index];
+    word old_word = *address;
     if (do_set) {
-      bitmap_begin_[index] |= mask;
+      *address = old_word | mask;
     } else {
-      bitmap_begin_[index] &= ~mask;
+      *address = old_word & ~mask;
     }
+    return (old_word & mask) != 0;
   }
 
   // Backing storage for bitmap.

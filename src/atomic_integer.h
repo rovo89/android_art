@@ -71,6 +71,10 @@ class AtomicInteger {
   int32_t operator -- () {
     return android_atomic_dec(&value_) - 1;
   }
+
+  int CompareAndSwap(int expected_value, int new_value) {
+    return android_atomic_cas(expected_value, new_value, &value_);
+  }
  private:
   int32_t value_;
 };

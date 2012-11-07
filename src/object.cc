@@ -733,6 +733,19 @@ void AbstractMethod::UnregisterNative(Thread* self) {
   RegisterNative(self, Runtime::Current()->GetJniDlsymLookupStub()->GetData());
 }
 
+Class* Class::java_lang_Class_ = NULL;
+
+void Class::SetClassClass(Class* java_lang_Class) {
+  CHECK(java_lang_Class_ == NULL) << java_lang_Class_ << " " << java_lang_Class;
+  CHECK(java_lang_Class != NULL);
+  java_lang_Class_ = java_lang_Class;
+}
+
+void Class::ResetClass() {
+  CHECK(java_lang_Class_ != NULL);
+  java_lang_Class_ = NULL;
+}
+
 void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError || !Runtime::Current()->IsStarted())
       << PrettyClass(this) << " " << GetStatus() << " -> " << new_status;
