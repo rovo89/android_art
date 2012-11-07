@@ -994,7 +994,7 @@ void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
     }
     case kType: {
       Class* resolved = linker_->ResolveType(dex_file_, jval_.i, dex_cache_, class_loader_);
-      field->SetObject(NULL, resolved);
+      field->SetObject(field->GetDeclaringClass(), resolved);
       break;
     }
     default: UNIMPLEMENTED(FATAL) << ": type " << type_;
