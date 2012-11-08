@@ -312,8 +312,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      create_invoke_stub_(NULL),
-      thread_pool_(new ThreadPool(thread_count))
+      create_invoke_stub_(NULL)
 {
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_, instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -471,11 +470,12 @@ void Compiler::CompileAll(jobject class_loader,
                           const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
 
+  ThreadPool thread_pool(thread_count_);
   TimingLogger timings("compiler");
 
-  PreCompile(class_loader, dex_files, timings);
+  PreCompile(class_loader, dex_files, thread_pool, timings);
 
-  Compile(class_loader, dex_files, timings);
+  Compile(class_loader, dex_files, thread_pool, timings);
 
   if (dump_timings_ && timings.GetTotalNs() > MsToNs(1000)) {
     timings.Dump();
@@ -507,8 +507,9 @@ void Compiler::CompileOne(const AbstractMethod* method) {
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
+  ThreadPool thread_pool(1U);
   TimingLogger timings("CompileOne");
-  PreCompile(class_loader, dex_files, timings);
+  PreCompile(class_loader, dex_files, thread_pool, timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
@@ -521,21 +522,21 @@ void Compiler::CompileOne(const AbstractMethod* method) {
 }
 
 void Compiler::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       TimingLogger& timings) {
+                       ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    ResolveDexFile(class_loader, *dex_file, timings);
+    ResolveDexFile(class_loader, *dex_file, thread_pool, timings);
   }
 }
 
 void Compiler::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                          TimingLogger& timings) {
-  Resolve(class_loader, dex_files, timings);
+                          ThreadPool& thread_pool, TimingLogger& timings) {
+  Resolve(class_loader, dex_files, thread_pool, timings);
 
-  Verify(class_loader, dex_files, timings);
+  Verify(class_loader, dex_files, thread_pool, timings);
 
-  InitializeClasses(class_loader, dex_files, timings);
+  InitializeClasses(class_loader, dex_files, thread_pool, timings);
 }
 
 bool Compiler::IsImageClass(const std::string& descriptor) const {
@@ -962,12 +963,12 @@ class CompilationContext {
           jobject class_loader,
           Compiler* compiler,
           const DexFile* dex_file,
-          ThreadPool* thread_pool)
+          ThreadPool& thread_pool)
     : class_linker_(class_linker),
       class_loader_(class_loader),
       compiler_(compiler),
       dex_file_(dex_file),
-      thread_pool_(thread_pool) {}
+      thread_pool_(&thread_pool) {}
 
   ClassLinker* GetClassLinker() const {
     CHECK(class_linker_ != NULL);
@@ -1160,13 +1161,13 @@ static void ResolveType(const CompilationContext* context, size_t type_idx)
 }
 
 void Compiler::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                              TimingLogger& timings) {
+                              ThreadPool& thread_pool, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
   //       and method names.
 
-  CompilationContext context(class_linker, class_loader, this, &dex_file, thread_pool_.get());
+  CompilationContext context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumTypeIds(), ResolveType, thread_count_);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
@@ -1175,11 +1176,11 @@ void Compiler::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
 }
 
 void Compiler::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                      TimingLogger& timings) {
+                      ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    VerifyDexFile(class_loader, *dex_file, timings);
+    VerifyDexFile(class_loader, *dex_file, thread_pool, timings);
   }
 }
 
@@ -1229,9 +1230,10 @@ static void VerifyClass(const CompilationContext* context, size_t class_def_inde
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 
-void Compiler::VerifyDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings) {
+void Compiler::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+                             ThreadPool& thread_pool, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  CompilationContext context(class_linker, class_loader, this, &dex_file, thread_pool_.get());
+  CompilationContext context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
   timings.AddSplit("Verify " + dex_file.GetLocation());
 }
@@ -1485,7 +1487,7 @@ static void InitializeClass(const CompilationContext* context, size_t class_def_
 }
 
 void Compiler::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
-                                              TimingLogger& timings) {
+                                 ThreadPool& thread_pool, TimingLogger& timings) {
 #ifndef NDEBUG
   for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
     const char* descriptor = class_initializer_black_list[i];
@@ -1493,27 +1495,27 @@ void Compiler::InitializeClasses(jobject jni_class_loader, const DexFile& dex_fi
   }
 #endif
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  CompilationContext context(class_linker, jni_class_loader, this, &dex_file, thread_pool_.get());
+  CompilationContext context(class_linker, jni_class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), InitializeClass, thread_count_);
   timings.AddSplit("InitializeNoClinit " + dex_file.GetLocation());
 }
 
 void Compiler::InitializeClasses(jobject class_loader,
                                  const std::vector<const DexFile*>& dex_files,
-                                 TimingLogger& timings) {
+                                 ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    InitializeClasses(class_loader, *dex_file, timings);
+    InitializeClasses(class_loader, *dex_file, thread_pool, timings);
   }
 }
 
 void Compiler::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       TimingLogger& timings) {
+                       ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
-    CompileDexFile(class_loader, *dex_file, timings);
+    CompileDexFile(class_loader, *dex_file, thread_pool, timings);
   }
 }
 
@@ -1582,8 +1584,8 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
 }
 
 void Compiler::CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                              TimingLogger& timings) {
-  CompilationContext context(NULL, class_loader, this, &dex_file, thread_pool_.get());
+                              ThreadPool& thread_pool, TimingLogger& timings) {
+  CompilationContext context(NULL, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
   timings.AddSplit("Compile " + dex_file.GetLocation());
 }
