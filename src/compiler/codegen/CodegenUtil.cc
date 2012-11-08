@@ -65,36 +65,7 @@ void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
    * Store the Dalvik register id in aliasInfo. Mark the MSB if it is a 64-bit
    * access.
    */
-  lir->aliasInfo = regId;
-  if (is64bit) {
-    lir->aliasInfo |= 0x80000000;
-  }
-}
-
-/*
- * Decode the register id.
- */
-inline u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
-{
-  u8 seed;
-  int shift;
-  int regId;
-
-
-  if (cUnit->instructionSet == kX86) {
-    regId = reg & 0xf;
-    /* Double registers in x86 are just a single FP register */
-    seed = 1;
-  } else {
-    regId = reg & 0x1f;
-  /* Each double register is equal to a pair of single-precision FP registers */
-    seed = DOUBLEREG(reg) ? 3 : 1;
-  }
-  /* FP register starts at bit position 16 */
-  shift = FPREG(reg) ? kFPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += regId;
-  return (seed << shift);
+  lir->aliasInfo = ENCODE_ALIAS_INFO(regId, is64bit);
 }
 
 u8 oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
@@ -161,10 +132,6 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
     setupRegMask(cUnit, &lir->defMask, lir->operands[1]);
   }
 
-  if (flags & REG_DEF_SP) {
-    lir->defMask |= ENCODE_REG_SP;
-  }
-
 
   if (flags & SETS_CCODES) {
     lir->defMask |= ENCODE_CCODE;
@@ -178,10 +145,6 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
         setupRegMask(cUnit, &lir->useMask, lir->operands[i]);
       }
     }
-  }
-
-  if (flags & REG_USE_SP) {
-    lir->useMask |= ENCODE_REG_SP;
   }
 
   if (flags & USES_CCODES) {

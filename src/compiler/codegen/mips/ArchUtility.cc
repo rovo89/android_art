@@ -22,14 +22,49 @@
 
 namespace art {
 
+/*
+ * Decode the register id.
+ */
+u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
+{
+  u8 seed;
+  int shift;
+  int regId;
+
+
+  regId = reg & 0x1f;
+  /* Each double register is equal to a pair of single-precision FP registers */
+  seed = DOUBLEREG(reg) ? 3 : 1;
+  /* FP register starts at bit position 16 */
+  shift = FPREG(reg) ? kMipsFPReg0 : 0;
+  /* Expand the double register id into single offset */
+  shift += regId;
+  return (seed << shift);
+}
+
+uint64_t getPCUseDefEncoding()
+{
+  return ENCODE_MIPS_REG_PC;
+}
+
+
 void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   DCHECK_EQ(cUnit->instructionSet, kMips);
 
   // Mips-specific resource map setup here.
-  int flags = EncodingMap[lir->opcode].flags;
+  uint64_t flags = EncodingMap[lir->opcode].flags;
+
+  if (flags & REG_DEF_SP) {
+    lir->defMask |= ENCODE_MIPS_REG_SP;
+  }
+
+  if (flags & REG_USE_SP) {
+    lir->useMask |= ENCODE_MIPS_REG_SP;
+  }
+
   if (flags & REG_DEF_LR) {
-    lir->defMask |= ENCODE_REG_LR;
+    lir->defMask |= ENCODE_MIPS_REG_LR;
   }
 }
 
@@ -151,7 +186,7 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
     char num[8];
     int i;
 
-    for (i = 0; i < kRegEnd; i++) {
+    for (i = 0; i < kMipsRegEnd; i++) {
       if (mask & (1ULL << i)) {
         sprintf(num, "%d ", i);
         strcat(buf, num);

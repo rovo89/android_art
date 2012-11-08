@@ -352,7 +352,7 @@ static size_t computeSize(X86EncodingMap* entry, int displacement, bool has_sib)
   }
   if (displacement != 0) {
     if (entry->opcode != kX86Lea32RA) {
-      DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), 0) << entry->name;
+      DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), 0ULL) << entry->name;
     }
     size += IS_SIMM8(displacement) ? 1 : 4;
   }

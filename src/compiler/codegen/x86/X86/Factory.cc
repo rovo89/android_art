@@ -67,7 +67,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
       opcode = kX86MovdrxRR;
     }
   }
-  DCHECK_NE((EncodingMap[opcode].flags & IS_BINARY_OP), 0);
+  DCHECK_NE((EncodingMap[opcode].flags & IS_BINARY_OP), 0ULL);
   LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
   if (rDest == rSrc) {
     res->flags.isNop = true;

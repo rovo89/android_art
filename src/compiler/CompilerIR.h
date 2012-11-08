@@ -158,6 +158,42 @@ enum BBType {
 #define NEXT_LIR(lir) (lir->next)
 #define PREV_LIR(lir) (lir->prev)
 
+/* Defines for aliasInfo (tracks Dalvik register references) */
+#define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
+#define DECODE_ALIAS_INFO_WIDE_FLAG     (0x80000000)
+#define DECODE_ALIAS_INFO_WIDE(X)       ((X & DECODE_ALIAS_INFO_WIDE_FLAG) ? 1 : 0)
+#define ENCODE_ALIAS_INFO(REG, ISWIDE)  (REG | (ISWIDE ? DECODE_ALIAS_INFO_WIDE_FLAG : 0))
+
+/*
+ * Def/Use encoding in 64-bit useMask/defMask.  Low positions used for target-specific
+ * registers (and typically use the register number as the position).  High positions
+ * reserved for common and abstract resources.
+ */
+
+enum ResourceEncodingPos {
+  kMustNotAlias = 63,
+  kHeapRef = 62,          // Default memory reference type
+  kLiteral = 61,          // Literal pool memory reference
+  kDalvikReg = 60,        // Dalvik vReg memory reference
+  kFPStatus = 59,
+  kCCode = 58,
+  kLowestCommonResource = kCCode
+};
+
+/* Common resource macros */
+#define ENCODE_CCODE            (1ULL << kCCode)
+#define ENCODE_FP_STATUS        (1ULL << kFPStatus)
+
+/* Abstract memory locations */
+#define ENCODE_DALVIK_REG       (1ULL << kDalvikReg)
+#define ENCODE_LITERAL          (1ULL << kLiteral)
+#define ENCODE_HEAP_REF         (1ULL << kHeapRef)
+#define ENCODE_MUST_NOT_ALIAS   (1ULL << kMustNotAlias)
+
+#define ENCODE_ALL              (~0ULL)
+#define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
+                                 ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
+
 struct LIR {
   int offset;                        // Offset of this instruction
   int dalvikOffset;                  // Offset of Dalvik opcode
