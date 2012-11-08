@@ -264,34 +264,36 @@ class Compiler {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                  TimingLogger& timings)
+                  ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
   void Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               TimingLogger& timings)
+               ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void ResolveDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
+  void ResolveDexFile(jobject class_loader, const DexFile& dex_file,
+                      ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-              TimingLogger& timings);
-  void VerifyDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
+              ThreadPool& thread_pool, TimingLogger& timings);
+  void VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+                     ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void InitializeClasses(jobject class_loader,
-                                      const std::vector<const DexFile*>& dex_files,
-                                      TimingLogger& timings)
+  void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                         ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitializeClasses(jobject class_loader, const DexFile& dex_file,
-                                      TimingLogger& timings)
+                         ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-               TimingLogger& timings);
-  void CompileDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
+               ThreadPool& thread_pool, TimingLogger& timings);
+  void CompileDexFile(jobject class_loader, const DexFile& dex_file,
+                      ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t method_idx,
@@ -366,8 +368,6 @@ class Compiler {
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
   CreateInvokeStubFn create_invoke_stub_;
-
-  UniquePtr<ThreadPool> thread_pool_;
 
   pthread_key_t tls_key_;
 
