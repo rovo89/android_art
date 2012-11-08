@@ -22,57 +22,24 @@
 
 namespace art {
 
-/*
- * Decode the register id.
- */
-u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
-{
-  u8 seed;
-  int shift;
-  int regId;
-
-
-  regId = reg & 0x1f;
-  /* Each double register is equal to a pair of single-precision FP registers */
-  seed = DOUBLEREG(reg) ? 3 : 1;
-  /* FP register starts at bit position 16 */
-  shift = FPREG(reg) ? kArmFPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += regId;
-  return (seed << shift);
-}
-
-uint64_t getPCUseDefEncoding()
-{
-  return ENCODE_ARM_REG_PC;
-}
-
 void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   DCHECK_EQ(cUnit->instructionSet, kThumb2);
 
   // Thumb2 specific setup
-  uint64_t flags = EncodingMap[lir->opcode].flags;
+  int flags = EncodingMap[lir->opcode].flags;
   int opcode = lir->opcode;
 
-  if (flags & REG_DEF_SP) {
-    lir->defMask |= ENCODE_ARM_REG_SP;
-  }
-
-  if (flags & REG_USE_SP) {
-    lir->useMask |= ENCODE_ARM_REG_SP;
-  }
-
   if (flags & REG_DEF_LIST0) {
-    lir->defMask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
+    lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
   }
 
   if (flags & REG_DEF_LIST1) {
-    lir->defMask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
+    lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
   }
 
   if (flags & REG_DEF_FPCS_LIST0) {
-    lir->defMask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
+    lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
   }
 
   if (flags & REG_DEF_FPCS_LIST2) {
@@ -82,7 +49,7 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 
   if (flags & REG_USE_PC) {
-    lir->useMask |= ENCODE_ARM_REG_PC;
+    lir->useMask |= ENCODE_REG_PC;
   }
 
   /* Conservatively treat the IT block */
@@ -91,15 +58,15 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 
   if (flags & REG_USE_LIST0) {
-    lir->useMask |= ENCODE_ARM_REG_LIST(lir->operands[0]);
+    lir->useMask |= ENCODE_REG_LIST(lir->operands[0]);
   }
 
   if (flags & REG_USE_LIST1) {
-    lir->useMask |= ENCODE_ARM_REG_LIST(lir->operands[1]);
+    lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
   }
 
   if (flags & REG_USE_FPCS_LIST0) {
-    lir->useMask |= ENCODE_ARM_REG_FPCS_LIST(lir->operands[0]);
+    lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
   }
 
   if (flags & REG_USE_FPCS_LIST2) {
@@ -112,14 +79,14 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
     u8 r8Mask = oatGetRegMaskCommon(cUnit, r8);
     if ((opcode == kThumbPush) && (lir->useMask & r8Mask)) {
       lir->useMask &= ~r8Mask;
-      lir->useMask |= ENCODE_ARM_REG_LR;
+      lir->useMask |= ENCODE_REG_LR;
     } else if ((opcode == kThumbPop) && (lir->defMask & r8Mask)) {
       lir->defMask &= ~r8Mask;
-      lir->defMask |= ENCODE_ARM_REG_PC;
+      lir->defMask |= ENCODE_REG_PC;
     }
   }
   if (flags & REG_DEF_LR) {
-    lir->defMask |= ENCODE_ARM_REG_LR;
+    lir->defMask |= ENCODE_REG_LR;
   }
 }
 
@@ -387,7 +354,7 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
     char num[8];
     int i;
 
-    for (i = 0; i < kArmRegEnd; i++) {
+    for (i = 0; i < kRegEnd; i++) {
       if (mask & (1ULL << i)) {
         sprintf(num, "%d ", i);
         strcat(buf, num);

@@ -22,50 +22,12 @@
 
 namespace art {
 
-/*
- * Decode the register id.
- */
-u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
-{
-  u8 seed;
-  int shift;
-  int regId;
-
-  regId = reg & 0xf;
-  /* Double registers in x86 are just a single FP register */
-  seed = 1;
-  /* FP register starts at bit position 16 */
-  shift = FPREG(reg) ? kX86FPReg0 : 0;
-  /* Expand the double register id into single offset */
-  shift += regId;
-  return (seed << shift);
-}
-
-uint64_t getPCUseDefEncoding()
-{
-  /*
-   * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
-   * able to clean up some of the x86/Arm_Mips differences
-   */
-  LOG(FATAL) << "Unexpected call to getPCUseDefEncoding for x86";
-  return 0ULL;
-}
-
 void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   DCHECK_EQ(cUnit->instructionSet, kX86);
 
   // X86-specific resource map setup here.
-  uint64_t flags = EncodingMap[lir->opcode].flags;
-
-  if (flags & REG_USE_SP) {
-    lir->useMask |= ENCODE_X86_REG_SP;
-  }
-
-  if (flags & REG_DEF_SP) {
-    lir->defMask |= ENCODE_X86_REG_SP;
-  }
-
+  int flags = EncodingMap[lir->opcode].flags;
   if (flags & REG_DEFA) {
     oatSetupRegMask(cUnit, &lir->defMask, rAX);
   }
@@ -185,7 +147,7 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
     char num[8];
     int i;
 
-    for (i = 0; i < kX86RegEnd; i++) {
+    for (i = 0; i < kRegEnd; i++) {
       if (mask & (1ULL << i)) {
         sprintf(num, "%d ", i);
         strcat(buf, num);

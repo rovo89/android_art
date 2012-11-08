@@ -22,6 +22,9 @@
 
 namespace art {
 
+// Set to 1 to measure cost of suspend check
+#define NO_SUSPEND 0
+
 /*
  * Runtime register conventions. We consider both x86, x86-64 and x32 (32bit mode x86-64), although
  * we currently only target x86. The ABI has different conventions and we hope to have a single
@@ -140,16 +143,40 @@ namespace art {
 #define LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG, INVALID_SREG}
 
-enum X86ResourceEncodingPos {
-  kX86GPReg0   = 0,
-  kX86RegSP    = 4,
-  kX86FPReg0   = 16,  // xmm0 .. xmm7/xmm15
-  kX86FPRegEnd   = 32,
-  kX86RegEnd   = kX86FPRegEnd,
+enum ResourceEncodingPos {
+  kGPReg0   = 0,
+  kRegSP    = 4,
+  kRegLR    = -1,
+  kFPReg0   = 16,  // xmm0 .. xmm7/xmm15
+  kFPRegEnd   = 32,
+  kRegEnd   = kFPRegEnd,
+  kCCode    = kRegEnd,
+  // The following four bits are for memory disambiguation
+  kDalvikReg,     // 1 Dalvik Frame (can be fully disambiguated)
+  kLiteral,       // 2 Literal pool (can be fully disambiguated)
+  kHeapRef,       // 3 Somewhere on the heap (alias with any other heap)
+  kMustNotAlias,  // 4 Guaranteed to be non-alias (eg *(r6+x))
 };
 
-#define ENCODE_X86_REG_LIST(N)      ((u8) N)
-#define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
+#define ENCODE_REG_LIST(N)      ((u8) N)
+#define ENCODE_REG_SP           (1ULL << kRegSP)
+#define ENCODE_CCODE            (1ULL << kCCode)
+#define ENCODE_FP_STATUS        (1ULL << kFPStatus)
+
+/* Abstract memory locations */
+#define ENCODE_DALVIK_REG       (1ULL << kDalvikReg)
+#define ENCODE_LITERAL          (1ULL << kLiteral)
+#define ENCODE_HEAP_REF         (1ULL << kHeapRef)
+#define ENCODE_MUST_NOT_ALIAS   (1ULL << kMustNotAlias)
+
+#define ENCODE_ALL              (~0ULL)
+#define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
+                                 ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
+
+#define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
+#define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
+/* Not used for x86 */
+#define ENCODE_REG_PC           (ENCODE_ALL)
 
 /*
  * Annotate special-purpose core registers:
@@ -417,7 +444,7 @@ enum X86EncodingKind {
 struct X86EncodingMap {
   X86OpCode opcode;      // e.g. kOpAddRI
   X86EncodingKind kind;  // Used to discriminate in the union below
-  uint64_t flags;
+  int flags;
   struct {
   uint8_t prefix1;       // non-zero => a prefix byte
   uint8_t prefix2;       // non-zero => a second prefix byte
@@ -439,6 +466,85 @@ extern X86EncodingMap EncodingMap[kX86Last];
 // FIXME: mem barrier type - what do we do for x86?
 #define kSY 0
 #define kST 0
+
+/* Bit flags describing the behavior of each native opcode */
+enum X86OpFeatureFlags {
+  kIsBranch = 0,
+  kRegDef0,
+  kRegDef1,
+  kRegDefA,
+  kRegDefD,
+  kRegDefSP,
+  kRegUse0,
+  kRegUse1,
+  kRegUse2,
+  kRegUse3,
+  kRegUse4,
+  kRegUseA,
+  kRegUseC,
+  kRegUseD,
+  kRegUseSP,
+  kNoOperand,
+  kIsUnaryOp,
+  kIsBinaryOp,
+  kIsTertiaryOp,
+  kIsQuadOp,
+  kIsQuinOp,
+  kIsSextupleOp,
+  kIsIT,
+  kSetsCCodes,
+  kUsesCCodes,
+  kMemLoad,
+  kMemStore,
+  kPCRelFixup,
+// FIXME: add NEEDS_FIXUP to instruction attributes
+};
+
+#define IS_LOAD         (1 << kMemLoad)
+#define IS_STORE        (1 << kMemStore)
+#define IS_BRANCH       (1 << kIsBranch)
+#define REG_DEF0        (1 << kRegDef0)
+#define REG_DEF1        (1 << kRegDef1)
+#define REG_DEFA        (1 << kRegDefA)
+#define REG_DEFD        (1 << kRegDefD)
+#define REG_DEF_SP      (1 << kRegDefSP)
+#define REG_USE0        (1 << kRegUse0)
+#define REG_USE1        (1 << kRegUse1)
+#define REG_USE2        (1 << kRegUse2)
+#define REG_USE3        (1 << kRegUse3)
+#define REG_USE4        (1 << kRegUse4)
+#define REG_USEA        (1 << kRegUseA)
+#define REG_USEC        (1 << kRegUseC)
+#define REG_USED        (1 << kRegUseD)
+#define REG_USE_SP      (1 << kRegUseSP)
+#define NO_OPERAND      (1 << kNoOperand)
+#define IS_UNARY_OP     (1 << kIsUnaryOp)
+#define IS_BINARY_OP    (1 << kIsBinaryOp)
+#define IS_TERTIARY_OP  (1 << kIsTertiaryOp)
+#define IS_QUAD_OP      (1 << kIsQuadOp)
+#define IS_QUIN_OP      (1 << kIsQuinOp)
+#define IS_SEXTUPLE_OP  (1 << kIsSextupleOp)
+#define IS_IT           (1 << kIsIT)
+#define SETS_CCODES     (1 << kSetsCCodes)
+#define USES_CCODES     (1 << kUsesCCodes)
+#define NEEDS_FIXUP     (1 << kPCRelFixup)
+
+/*  attributes, included for compatibility */
+#define REG_DEF_FPCS_LIST0   (0)
+#define REG_DEF_FPCS_LIST2   (0)
+
+
+/* Common combo register usage patterns */
+#define REG_USE01       (REG_USE0 | REG_USE1)
+#define REG_USE02       (REG_USE0 | REG_USE2)
+#define REG_USE012      (REG_USE01 | REG_USE2)
+#define REG_USE014      (REG_USE01 | REG_USE4)
+#define REG_DEF0_USE0   (REG_DEF0 | REG_USE0)
+#define REG_DEF0_USE1   (REG_DEF0 | REG_USE1)
+#define REG_DEF0_USE12  (REG_DEF0_USE1 | REG_USE2)
+#define REG_DEFA_USEA   (REG_DEFA | REG_USEA)
+#define REG_DEFAD_USEA  (REG_DEFA_USEA | REG_DEFD)
+#define REG_DEFAD_USEAD (REG_DEFAD_USEA | REG_USED)
 
 /* Keys for target-specific scheduling and other optimization hints */
 enum X86TargetOptHints {

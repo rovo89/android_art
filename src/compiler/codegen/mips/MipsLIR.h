@@ -22,6 +22,9 @@
 
 namespace art {
 
+// Set to 1 to measure cost of suspend check
+#define NO_SUSPEND 0
+
 /*
  * Runtime register conventions.
  *
@@ -156,22 +159,44 @@ namespace art {
 #define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
                                   r_FRESULT1, INVALID_SREG, INVALID_SREG}
 
-enum MipsResourceEncodingPos {
-  kMipsGPReg0   = 0,
-  kMipsRegSP    = 29,
-  kMipsRegLR    = 31,
-  kMipsFPReg0   = 32, /* only 16 fp regs supported currently */
-  kMipsFPRegEnd   = 48,
-  kMipsRegHI    = kMipsFPRegEnd,
-  kMipsRegLO,
-  kMipsRegPC,
-  kMipsRegEnd   = 51,
+enum ResourceEncodingPos {
+  kGPReg0   = 0,
+  kRegSP    = 29,
+  kRegLR    = 31,
+  kFPReg0   = 32, /* only 16 fp regs supported currently */
+  kFPRegEnd   = 48,
+  kRegHI    = kFPRegEnd,
+  kRegLO,
+  kRegPC,
+  kRegEnd   = 51,
+  kCCode    = kRegEnd,
+  kFPStatus,      // FP status word
+  // The following four bits are for memory disambiguation
+  kDalvikReg,     // 1 Dalvik Frame (can be fully disambiguated)
+  kLiteral,       // 2 Literal pool (can be fully disambiguated)
+  kHeapRef,       // 3 Somewhere on the heap (alias with any other heap)
+  kMustNotAlias,    // 4 Guaranteed to be non-alias (eg *(r6+x))
 };
 
-#define ENCODE_MIPS_REG_LIST(N)      ((u8) N)
-#define ENCODE_MIPS_REG_SP           (1ULL << kMipsRegSP)
-#define ENCODE_MIPS_REG_LR           (1ULL << kMipsRegLR)
-#define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
+#define ENCODE_REG_LIST(N)      ((u8) N)
+#define ENCODE_REG_SP           (1ULL << kRegSP)
+#define ENCODE_REG_LR           (1ULL << kRegLR)
+#define ENCODE_REG_PC           (1ULL << kRegPC)
+#define ENCODE_CCODE            (1ULL << kCCode)
+#define ENCODE_FP_STATUS        (1ULL << kFPStatus)
+
+/* Abstract memory locations */
+#define ENCODE_DALVIK_REG       (1ULL << kDalvikReg)
+#define ENCODE_LITERAL          (1ULL << kLiteral)
+#define ENCODE_HEAP_REF         (1ULL << kHeapRef)
+#define ENCODE_MUST_NOT_ALIAS   (1ULL << kMustNotAlias)
+
+#define ENCODE_ALL              (~0ULL)
+#define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
+                 ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
+
+#define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
+#define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
 
 /*
  * Annotate special-purpose core registers:
@@ -413,6 +438,84 @@ enum MipsOpCode {
 };
 
 /* Bit flags describing the behavior of each native opcode */
+enum MipsOpFeatureFlags {
+  kIsBranch = 0,
+  kRegDef0,
+  kRegDef1,
+  kRegDefSP,
+  kRegDefLR,
+  kRegDefList0,
+  kRegDefList1,
+  kRegUse0,
+  kRegUse1,
+  kRegUse2,
+  kRegUse3,
+  kRegUseSP,
+  kRegUsePC,
+  kRegUseList0,
+  kRegUseList1,
+  kNoOperand,
+  kIsUnaryOp,
+  kIsBinaryOp,
+  kIsTertiaryOp,
+  kIsQuadOp,
+  kIsIT,
+  kSetsCCodes,
+  kUsesCCodes,
+  kMemLoad,
+  kMemStore,
+  kPCRelFixup,
+  kRegUseLR,
+};
+
+#define IS_LOAD         (1 << kMemLoad)
+#define IS_STORE        (1 << kMemStore)
+#define IS_BRANCH       (1 << kIsBranch)
+#define REG_DEF0        (1 << kRegDef0)
+#define REG_DEF1        (1 << kRegDef1)
+#define REG_DEF_SP      (1 << kRegDefSP)
+#define REG_DEF_LR      (1 << kRegDefLR)
+#define REG_DEF_LIST0   (1 << kRegDefList0)
+#define REG_DEF_LIST1   (1 << kRegDefList1)
+#define REG_USE0        (1 << kRegUse0)
+#define REG_USE1        (1 << kRegUse1)
+#define REG_USE2        (1 << kRegUse2)
+#define REG_USE3        (1 << kRegUse3)
+#define REG_USE_SP      (1 << kRegUseSP)
+#define REG_USE_PC      (1 << kRegUsePC)
+#define REG_USE_LIST0   (1 << kRegUseList0)
+#define REG_USE_LIST1   (1 << kRegUseList1)
+#define NO_OPERAND      (1 << kNoOperand)
+#define IS_UNARY_OP     (1 << kIsUnaryOp)
+#define IS_BINARY_OP    (1 << kIsBinaryOp)
+#define IS_TERTIARY_OP  (1 << kIsTertiaryOp)
+#define IS_QUAD_OP      (1 << kIsQuadOp)
+#define IS_QUIN_OP      0
+#define IS_IT           (1 << kIsIT)
+#define SETS_CCODES     (1 << kSetsCCodes)
+#define USES_CCODES     (1 << kUsesCCodes)
+#define NEEDS_FIXUP     (1 << kPCRelFixup)
+#define REG_USE_LR      (1 << kRegUseLR)
+
+/*  attributes, included for compatibility */
+#define REG_DEF_FPCS_LIST0   (0)
+#define REG_DEF_FPCS_LIST2   (0)
+
+
+/* Common combo register usage patterns */
+#define REG_USE01       (REG_USE0 | REG_USE1)
+#define REG_USE02       (REG_USE0 | REG_USE2)
+#define REG_USE012      (REG_USE01 | REG_USE2)
+#define REG_USE12       (REG_USE1 | REG_USE2)
+#define REG_USE23       (REG_USE2 | REG_USE3)
+#define REG_DEF01       (REG_DEF0 | REG_DEF1)
+#define REG_DEF0_USE0   (REG_DEF0 | REG_USE0)
+#define REG_DEF0_USE1   (REG_DEF0 | REG_USE1)
+#define REG_DEF0_USE2   (REG_DEF0 | REG_USE2)
+#define REG_DEF0_USE01  (REG_DEF0 | REG_USE01)
+#define REG_DEF0_USE12  (REG_DEF0 | REG_USE12)
+#define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
+
 /* Instruction assembly fieldLoc kind */
 enum MipsEncodingKind {
   kFmtUnused,
@@ -431,7 +534,7 @@ struct MipsEncodingMap {
     int start; /* start for kFmtBitBlt, 4-bit slice end for FP regs */
   } fieldLoc[4];
   MipsOpCode opcode;
-  uint64_t flags;
+  int flags;
   const char *name;
   const char* fmt;
   int size;   /* Size in bytes */
