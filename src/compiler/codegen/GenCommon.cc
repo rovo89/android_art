@@ -1576,11 +1576,11 @@ void genLong3Addr(CompilationUnit* cUnit, OpKind firstOp,
   rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
   rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   // The longs may overlap - use intermediate temp if so
-  if (rlResult.lowReg == rlSrc1.highReg) {
+  if ((rlResult.lowReg == rlSrc1.highReg) || (rlResult.lowReg == rlSrc2.highReg)){
     int tReg = oatAllocTemp(cUnit);
-    opRegCopy(cUnit, tReg, rlSrc1.highReg);
-    opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-    opRegRegReg(cUnit, secondOp, rlResult.highReg, tReg, rlSrc2.highReg);
+    opRegRegReg(cUnit, firstOp, tReg, rlSrc1.lowReg, rlSrc2.lowReg);
+    opRegRegReg(cUnit, secondOp, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
+    opRegCopy(cUnit, rlResult.lowReg, tReg);
     oatFreeTemp(cUnit, tReg);
   } else {
     opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
