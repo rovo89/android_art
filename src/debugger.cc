@@ -25,9 +25,7 @@
 #include "dex_instruction.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
-#if !defined(ART_USE_LLVM_COMPILER)
-#include "oat/runtime/context.h"  // For VmapTable
-#endif
+#include "oat/runtime/context.h"
 #include "object_utils.h"
 #include "safe_map.h"
 #include "ScopedLocalRef.h"
@@ -1691,7 +1689,7 @@ struct GetThisVisitor : public StackVisitor {
       this_object = NULL;
     } else {
       uint16_t reg = DemangleSlot(0, m);
-      this_object = reinterpret_cast<Object*>(GetVReg(m, reg));
+      this_object = reinterpret_cast<Object*>(GetVReg(m, reg, kReferenceVReg));
     }
     return false;
   }
@@ -1759,7 +1757,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       case JDWP::JT_BOOLEAN:
         {
           CHECK_EQ(width_, 1U);
-          uint32_t intVal = GetVReg(m, reg);
+          uint32_t intVal = GetVReg(m, reg, kIntVReg);
           VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
           JDWP::Set1(buf_+1, intVal != 0);
         }
@@ -1767,7 +1765,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       case JDWP::JT_BYTE:
         {
           CHECK_EQ(width_, 1U);
-          uint32_t intVal = GetVReg(m, reg);
+          uint32_t intVal = GetVReg(m, reg, kIntVReg);
           VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
           JDWP::Set1(buf_+1, intVal);
         }
@@ -1776,16 +1774,23 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       case JDWP::JT_CHAR:
         {
           CHECK_EQ(width_, 2U);
-          uint32_t intVal = GetVReg(m, reg);
+          uint32_t intVal = GetVReg(m, reg, kIntVReg);
           VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
           JDWP::Set2BE(buf_+1, intVal);
         }
         break;
       case JDWP::JT_INT:
+        {
+          CHECK_EQ(width_, 4U);
+          uint32_t intVal = GetVReg(m, reg, kIntVReg);
+          VLOG(jdwp) << "get int local " << reg << " = " << intVal;
+          JDWP::Set4BE(buf_+1, intVal);
+        }
+        break;
       case JDWP::JT_FLOAT:
         {
           CHECK_EQ(width_, 4U);
-          uint32_t intVal = GetVReg(m, reg);
+          uint32_t intVal = GetVReg(m, reg, kFloatVReg);
           VLOG(jdwp) << "get int/float local " << reg << " = " << intVal;
           JDWP::Set4BE(buf_+1, intVal);
         }
@@ -1793,7 +1798,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       case JDWP::JT_ARRAY:
         {
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
-          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg));
+          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get array local " << reg << " = " << o;
           if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
@@ -1809,7 +1814,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       case JDWP::JT_THREAD_GROUP:
         {
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
-          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg));
+          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg, kReferenceVReg));
           VLOG(jdwp) << "get object local " << reg << " = " << o;
           if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
             LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
@@ -1819,11 +1824,20 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
         }
         break;
       case JDWP::JT_DOUBLE:
+        {
+          CHECK_EQ(width_, 8U);
+          uint32_t lo = GetVReg(m, reg, kDoubleLoVReg);
+          uint64_t hi = GetVReg(m, reg + 1, kDoubleHiVReg);
+          uint64_t longVal = (hi << 32) | lo;
+          VLOG(jdwp) << "get double/long local " << hi << ":" << lo << " = " << longVal;
+          JDWP::Set8BE(buf_+1, longVal);
+        }
+        break;
       case JDWP::JT_LONG:
         {
           CHECK_EQ(width_, 8U);
-          uint32_t lo = GetVReg(m, reg);
-          uint64_t hi = GetVReg(m, reg + 1);
+          uint32_t lo = GetVReg(m, reg, kLongLoVReg);
+          uint64_t hi = GetVReg(m, reg + 1, kLongHiVReg);
           uint64_t longVal = (hi << 32) | lo;
           VLOG(jdwp) << "get double/long local " << hi << ":" << lo << " = " << longVal;
           JDWP::Set8BE(buf_+1, longVal);
@@ -1878,17 +1892,20 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
         case JDWP::JT_BOOLEAN:
         case JDWP::JT_BYTE:
           CHECK_EQ(width_, 1U);
-          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg);
           break;
         case JDWP::JT_SHORT:
         case JDWP::JT_CHAR:
           CHECK_EQ(width_, 2U);
-          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg);
           break;
         case JDWP::JT_INT:
+          CHECK_EQ(width_, 4U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kIntVReg);
+          break;
         case JDWP::JT_FLOAT:
           CHECK_EQ(width_, 4U);
-          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kFloatVReg);
           break;
         case JDWP::JT_ARRAY:
         case JDWP::JT_OBJECT:
@@ -1899,14 +1916,18 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
           if (o == kInvalidObject) {
             UNIMPLEMENTED(FATAL) << "return an error code when given an invalid object to store";
           }
-          SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)));
+          SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)), kReferenceVReg);
         }
         break;
         case JDWP::JT_DOUBLE:
+          CHECK_EQ(width_, 8U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kDoubleLoVReg);
+          SetVReg(m, reg + 1, static_cast<uint32_t>(value_ >> 32), kDoubleHiVReg);
+          break;
         case JDWP::JT_LONG:
           CHECK_EQ(width_, 8U);
-          SetVReg(m, reg, static_cast<uint32_t>(value_));
-          SetVReg(m, reg + 1, static_cast<uint32_t>(value_ >> 32));
+          SetVReg(m, reg, static_cast<uint32_t>(value_), kLongLoVReg);
+          SetVReg(m, reg + 1, static_cast<uint32_t>(value_ >> 32), kLongHiVReg);
           break;
         default:
           LOG(FATAL) << "Unknown tag " << tag_;

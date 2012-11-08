@@ -275,7 +275,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
     opcode += kConditionCodeNames[cond];
     opcode += suffixes;
     // TODO: a more complete ARM disassembler could generate wider opcodes.
-    os << StringPrintf("\t\t\t%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
+    os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
 }
 
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
@@ -854,7 +854,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
     it_conditions_.pop_back();
   }
 
-  os << StringPrintf("\t\t\t%p: %08x\t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
+  os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
   return 4;
 }
 
@@ -1157,7 +1157,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
       it_conditions_.pop_back();
     }
 
-    os << StringPrintf("\t\t\t%p: %04x    \t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
+    os << StringPrintf("%p: %04x    \t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
   }
   return 2;
 }

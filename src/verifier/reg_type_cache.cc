@@ -312,14 +312,41 @@ const RegType& RegTypeCache::FromType(RegType::Type type) {
   }
 }
 
-const RegType& RegTypeCache::FromCat1Const(int32_t value) {
+const RegType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
+  RegType::Type wanted_type = precise ? RegType::kRegTypePreciseConst : RegType::kRegTypeImpreciseConst;
   for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
-    if (cur_entry->IsConstant() && cur_entry->ConstantValue() == value) {
+    if (cur_entry->GetType() == wanted_type && cur_entry->ConstantValue() == value) {
       return *cur_entry;
     }
   }
-  RegType* entry = new RegType(RegType::kRegTypeConst, NULL, value, entries_.size());
+  RegType* entry = new RegType(wanted_type, NULL, value, entries_.size());
+  entries_.push_back(entry);
+  return *entry;
+}
+
+const RegType& RegTypeCache::FromCat2ConstLo(int32_t value, bool precise) {
+  RegType::Type wanted_type = precise ? RegType::kRegTypePreciseConstLo : RegType::kRegTypeImpreciseConstLo;
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+    RegType* cur_entry = entries_[i];
+    if (cur_entry->GetType() == wanted_type && cur_entry->ConstantValueLo() == value) {
+      return *cur_entry;
+    }
+  }
+  RegType* entry = new RegType(wanted_type, NULL, value, entries_.size());
+  entries_.push_back(entry);
+  return *entry;
+}
+
+const RegType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
+  RegType::Type wanted_type = precise ? RegType::kRegTypePreciseConstHi : RegType::kRegTypeImpreciseConstHi;
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+    RegType* cur_entry = entries_[i];
+    if (cur_entry->GetType() == wanted_type && cur_entry->ConstantValueHi() == value) {
+      return *cur_entry;
+    }
+  }
+  RegType* entry = new RegType(wanted_type, NULL, value, entries_.size());
   entries_.push_back(entry);
   return *entry;
 }
@@ -337,11 +364,10 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, ClassLoader*
 }
 
 void RegTypeCache::Dump(std::ostream& os) {
-  os << "Register Types:\n";
   for (size_t i = 0; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
     if (cur_entry != NULL) {
-      os << "\t" << i << ": " << cur_entry->Dump() << "\n";
+      os << i << ": " << cur_entry->Dump() << "\n";
     }
   }
 }

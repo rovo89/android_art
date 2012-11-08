@@ -289,8 +289,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
       switch (insn.opcode) {
         case CONST_STRING:
           if (file != NULL) {
-            os << StringPrintf("const-string v%d, \"%s\" // string@%d", insn.vA,
-                               file->StringDataByIdx(insn.vB), insn.vB);
+            os << StringPrintf("const-string v%d, %s // string@%d", insn.vA,
+                               PrintableString(file->StringDataByIdx(insn.vB)).c_str(), insn.vB);
             break;
           }  // else fall-through
         case CHECK_CAST:

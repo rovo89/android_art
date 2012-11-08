@@ -25,6 +25,7 @@
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
 #include "verifier/dex_gc_map.h"
+#include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
 #include "logging.h"
@@ -324,22 +325,37 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, co
   return result;
 }
 
-void MethodVerifier::VerifyMethodAndDump(AbstractMethod* method) {
-  CHECK(method != NULL);
-  MethodHelper mh(method);
-  MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                          mh.GetClassDefIndex(), mh.GetCodeItem(), method->GetDexMethodIndex(),
-                          method, method->GetAccessFlags());
+void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_idx,
+                                         const DexFile* dex_file, DexCache* dex_cache,
+                                         ClassLoader* class_loader, uint32_t class_def_idx,
+                                         const DexFile::CodeItem* code_item, AbstractMethod* method,
+                                         uint32_t method_access_flags) {
+  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
+                          dex_method_idx, method, method_access_flags);
   verifier.Verify();
-  verifier.DumpFailures(LOG(INFO) << "Dump of method " << PrettyMethod(method) << "\n")
-      << verifier.info_messages_.str() << MutatorLockedDumpable<MethodVerifier>(verifier);
+  verifier.DumpFailures(os);
+  os << verifier.info_messages_.str();
+  verifier.Dump(os);
+}
+
+std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_method_idx,
+                                                   const DexFile* dex_file, DexCache* dex_cache,
+                                                   ClassLoader* class_loader,
+                                                   uint32_t class_def_idx,
+                                                   const DexFile::CodeItem* code_item,
+                                                   AbstractMethod* method,
+                                                   uint32_t method_access_flags, uint32_t dex_pc) {
+  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
+                          dex_method_idx, method, method_access_flags);
+  verifier.Verify();
+  return verifier.DescribeVRegs(dex_pc);
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
     ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    uint32_t method_idx, AbstractMethod* method, uint32_t method_access_flags)
+    uint32_t dex_method_idx, AbstractMethod* method, uint32_t method_access_flags)
     : work_insn_idx_(-1),
-      method_idx_(method_idx),
+      dex_method_idx_(dex_method_idx),
       foo_method_(method),
       method_access_flags_(method_access_flags),
       dex_file_(dex_file),
@@ -355,7 +371,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       monitor_enter_count_(0) {
 }
 
-void MethodVerifier::FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc, std::vector<uint32_t>& monitor_enter_dex_pcs) {
+void MethodVerifier::FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
+                                      std::vector<uint32_t>& monitor_enter_dex_pcs) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
                           mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
@@ -446,7 +463,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     }
   }
   failures_.push_back(error);
-  std::string location(StringPrintf("%s: [0x%X]", PrettyMethod(method_idx_, *dex_file_).c_str(),
+  std::string location(StringPrintf("%s: [0x%X]", PrettyMethod(dex_method_idx_, *dex_file_).c_str(),
                                     work_insn_idx_));
   std::ostringstream* failure_message = new std::ostringstream(location);
   failure_messages_.push_back(failure_message);
@@ -1000,7 +1017,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   if (!SetTypesFromSignature()) {
     DCHECK_NE(failures_.size(), 0U);
     std::string prepend("Bad signature in ");
-    prepend += PrettyMethod(method_idx_, *dex_file_);
+    prepend += PrettyMethod(dex_method_idx_, *dex_file_);
     PrependToLastFailMessage(prepend);
     return false;
   }
@@ -1010,7 +1027,7 @@ bool MethodVerifier::VerifyCodeFlow() {
     return false;
   }
 
-  Compiler::MethodReference ref(dex_file_, method_idx_);
+  Compiler::MethodReference ref(dex_file_, dex_method_idx_);
 
 #if !defined(ART_USE_LLVM_COMPILER)
 
@@ -1054,17 +1071,28 @@ void MethodVerifier::Dump(std::ostream& os) {
     os << "Native method\n";
     return;
   }
-  reg_types_.Dump(os);
+  {
+    os << "Register Types:\n";
+    Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
+    std::ostream indent_os(&indent_filter);
+    reg_types_.Dump(indent_os);
+  }
   os << "Dumping instructions and register lines:\n";
+  Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
+  std::ostream indent_os(&indent_filter);
   const Instruction* inst = Instruction::At(code_item_->insns_);
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits()) {
-    os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].Dump()
-       << " " << inst->DumpHex(5) << " " << inst->DumpString(dex_file_) << "\n";
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != NULL) {
-      os << reg_line->Dump() << "\n";
+      indent_os << reg_line->Dump() << "\n";
     }
+    indent_os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].Dump() << " ";
+    const bool kDumpHexOfInstruction = false;
+    if (kDumpHexOfInstruction) {
+      indent_os << inst->DumpHex(5) << " ";
+    }
+    indent_os << inst->DumpString(dex_file_) << "\n";
     inst = inst->Next();
   }
 }
@@ -1108,7 +1136,7 @@ bool MethodVerifier::SetTypesFromSignature() {
   }
 
   const DexFile::ProtoId& proto_id =
-      dex_file_->GetMethodPrototype(dex_file_->GetMethodId(method_idx_));
+      dex_file_->GetMethodPrototype(dex_file_->GetMethodId(dex_method_idx_));
   DexFileParameterIterator iterator(*dex_file_, proto_id);
 
   for (; iterator.HasNext(); iterator.Next()) {
@@ -1153,8 +1181,9 @@ bool MethodVerifier::SetTypesFromSignature() {
         break;
       case 'J':
       case 'D': {
-        const RegType& low_half = descriptor[0] == 'J' ? reg_types_.Long() : reg_types_.Double();
-        reg_line->SetRegisterType(arg_start + cur_arg, low_half);  // implicitly sets high-register
+        const RegType& lo_half = descriptor[0] == 'J' ? reg_types_.LongLo() : reg_types_.DoubleLo();
+        const RegType& hi_half = descriptor[0] == 'J' ? reg_types_.LongHi() : reg_types_.DoubleHi();
+        reg_line->SetRegisterTypeWide(arg_start + cur_arg, lo_half, hi_half);
         cur_arg++;
         break;
       }
@@ -1250,7 +1279,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
         if (work_line_->CompareLine(register_line) != 0) {
           Dump(std::cout);
           std::cout << info_messages_.str();
-          LOG(FATAL) << "work_line diverged in " << PrettyMethod(method_idx_, *dex_file_)
+          LOG(FATAL) << "work_line diverged in " << PrettyMethod(dex_method_idx_, *dex_file_)
                      << "@" << reinterpret_cast<void*>(work_insn_idx_) << "\n"
                      << " work_line=" << *work_line_ << "\n"
                      << "  expected=" << *register_line;
@@ -1259,7 +1288,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
 #endif
     }
     if (!CodeFlowVerifyInstruction(&start_guess)) {
-      std::string prepend(PrettyMethod(method_idx_, *dex_file_));
+      std::string prepend(PrettyMethod(dex_method_idx_, *dex_file_));
       prepend += " failed to verify: ";
       PrependToLastFailMessage(prepend);
       return false;
@@ -1500,32 +1529,51 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
 
-    case Instruction::CONST_4:
       /* could be boolean, int, float, or a null reference */
+    case Instruction::CONST_4:
       work_line_->SetRegisterType(dec_insn.vA,
-                                  reg_types_.FromCat1Const((dec_insn.vB << 28) >> 28));
+                                  reg_types_.FromCat1Const(static_cast<int32_t>(dec_insn.vB << 28) >> 28, true));
       break;
     case Instruction::CONST_16:
-      /* could be boolean, int, float, or a null reference */
       work_line_->SetRegisterType(dec_insn.vA,
-                                  reg_types_.FromCat1Const(static_cast<int16_t>(dec_insn.vB)));
+                                  reg_types_.FromCat1Const(static_cast<int16_t>(dec_insn.vB), true));
       break;
     case Instruction::CONST:
-      /* could be boolean, int, float, or a null reference */
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.FromCat1Const(dec_insn.vB));
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.FromCat1Const(dec_insn.vB, true));
       break;
     case Instruction::CONST_HIGH16:
-      /* could be boolean, int, float, or a null reference */
       work_line_->SetRegisterType(dec_insn.vA,
-                                  reg_types_.FromCat1Const(dec_insn.vB << 16));
+                                  reg_types_.FromCat1Const(dec_insn.vB << 16, true));
       break;
-    case Instruction::CONST_WIDE_16:
-    case Instruction::CONST_WIDE_32:
-    case Instruction::CONST_WIDE:
-    case Instruction::CONST_WIDE_HIGH16:
       /* could be long or double; resolved upon use */
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.ConstLo());
+    case Instruction::CONST_WIDE_16: {
+      int64_t val = static_cast<int16_t>(dec_insn.vB);
+      const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
+      const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+      work_line_->SetRegisterTypeWide(dec_insn.vA, lo, hi);
       break;
+    }
+    case Instruction::CONST_WIDE_32: {
+      int64_t val = static_cast<int32_t>(dec_insn.vB);
+      const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
+      const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+      work_line_->SetRegisterTypeWide(dec_insn.vA, lo, hi);
+      break;
+    }
+    case Instruction::CONST_WIDE: {
+      int64_t val = dec_insn.vB_wide;
+      const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
+      const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+      work_line_->SetRegisterTypeWide(dec_insn.vA, lo, hi);
+      break;
+    }
+    case Instruction::CONST_WIDE_HIGH16: {
+      int64_t val = static_cast<uint64_t>(dec_insn.vB) << 48;
+      const RegType& lo = reg_types_.FromCat2ConstLo(static_cast<int32_t>(val), true);
+      const RegType& hi = reg_types_.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+      work_line_->SetRegisterTypeWide(dec_insn.vA, lo, hi);
+      break;
+    }
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
       work_line_->SetRegisterType(dec_insn.vA, reg_types_.JavaLangString());
@@ -1658,19 +1706,23 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
-      if (!work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Double())) {
+      if (!work_line_->VerifyRegisterTypeWide(dec_insn.vB, reg_types_.DoubleLo(),
+                                              reg_types_.DoubleHi())) {
         break;
       }
-      if (!work_line_->VerifyRegisterType(dec_insn.vC, reg_types_.Double())) {
+      if (!work_line_->VerifyRegisterTypeWide(dec_insn.vC, reg_types_.DoubleLo(),
+                                              reg_types_.DoubleHi())) {
         break;
       }
       work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
       break;
     case Instruction::CMP_LONG:
-      if (!work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Long())) {
+      if (!work_line_->VerifyRegisterTypeWide(dec_insn.vB, reg_types_.LongLo(),
+                                              reg_types_.LongHi())) {
         break;
       }
-      if (!work_line_->VerifyRegisterType(dec_insn.vC, reg_types_.Long())) {
+      if (!work_line_->VerifyRegisterTypeWide(dec_insn.vC, reg_types_.LongLo(),
+                                              reg_types_.LongHi())) {
         break;
       }
       work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
@@ -1792,7 +1844,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyAGet(dec_insn, reg_types_.Integer(), true);
       break;
     case Instruction::AGET_WIDE:
-      VerifyAGet(dec_insn, reg_types_.Long(), true);
+      VerifyAGet(dec_insn, reg_types_.LongLo(), true);
       break;
     case Instruction::AGET_OBJECT:
       VerifyAGet(dec_insn, reg_types_.JavaLangObject(false), false);
@@ -1814,7 +1866,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyAPut(dec_insn, reg_types_.Integer(), true);
       break;
     case Instruction::APUT_WIDE:
-      VerifyAPut(dec_insn, reg_types_.Long(), true);
+      VerifyAPut(dec_insn, reg_types_.LongLo(), true);
       break;
     case Instruction::APUT_OBJECT:
       VerifyAPut(dec_insn, reg_types_.JavaLangObject(false), false);
@@ -1836,7 +1888,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISGet(dec_insn, reg_types_.Integer(), true, false);
       break;
     case Instruction::IGET_WIDE:
-      VerifyISGet(dec_insn, reg_types_.Long(), true, false);
+      VerifyISGet(dec_insn, reg_types_.LongLo(), true, false);
       break;
     case Instruction::IGET_OBJECT:
       VerifyISGet(dec_insn, reg_types_.JavaLangObject(false), false, false);
@@ -1858,7 +1910,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISPut(dec_insn, reg_types_.Integer(), true, false);
       break;
     case Instruction::IPUT_WIDE:
-      VerifyISPut(dec_insn, reg_types_.Long(), true, false);
+      VerifyISPut(dec_insn, reg_types_.LongLo(), true, false);
       break;
     case Instruction::IPUT_OBJECT:
       VerifyISPut(dec_insn, reg_types_.JavaLangObject(false), false, false);
@@ -1880,7 +1932,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISGet(dec_insn, reg_types_.Integer(), true, true);
       break;
     case Instruction::SGET_WIDE:
-      VerifyISGet(dec_insn, reg_types_.Long(), true, true);
+      VerifyISGet(dec_insn, reg_types_.LongLo(), true, true);
       break;
     case Instruction::SGET_OBJECT:
       VerifyISGet(dec_insn, reg_types_.JavaLangObject(false), false, true);
@@ -1902,7 +1954,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       VerifyISPut(dec_insn, reg_types_.Integer(), true, true);
       break;
     case Instruction::SPUT_WIDE:
-      VerifyISPut(dec_insn, reg_types_.Long(), true, true);
+      VerifyISPut(dec_insn, reg_types_.LongLo(), true, true);
       break;
     case Instruction::SPUT_OBJECT:
       VerifyISPut(dec_insn, reg_types_.JavaLangObject(false), false, true);
@@ -1927,7 +1979,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
       }
       const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
-      work_line_->SetResultRegisterType(return_type);
+      if (!return_type.IsLowHalf()) {
+        work_line_->SetResultRegisterType(return_type);
+      } else {
+        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+      }
       just_set_result = true;
       break;
     }
@@ -1989,7 +2045,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       const RegType& return_type = reg_types_.FromDescriptor(class_loader_, return_type_descriptor,
                                                              false);
-      work_line_->SetResultRegisterType(return_type);
+      if (!return_type.IsLowHalf()) {
+        work_line_->SetResultRegisterType(return_type);
+      } else {
+        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+      }
       just_set_result = true;
       break;
     }
@@ -2007,7 +2067,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         }
         const RegType& return_type =  reg_types_.FromDescriptor(class_loader_, descriptor, false);
-        work_line_->SetResultRegisterType(return_type);
+        if (!return_type.IsLowHalf()) {
+          work_line_->SetResultRegisterType(return_type);
+        } else {
+          work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+        }
         just_set_result = true;
       }
       break;
@@ -2057,8 +2121,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
       }
       const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
-      work_line_->SetResultRegisterType(return_type);
-      work_line_->SetResultRegisterType(return_type);
+      if (!return_type.IsLowHalf()) {
+        work_line_->SetResultRegisterType(return_type);
+      } else {
+        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+      }
       just_set_result = true;
       break;
     }
@@ -2068,49 +2135,61 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::NEG_LONG:
     case Instruction::NOT_LONG:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Long(), reg_types_.Long());
+      work_line_->CheckUnaryOpWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                   reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::NEG_FLOAT:
       work_line_->CheckUnaryOp(dec_insn, reg_types_.Float(), reg_types_.Float());
       break;
     case Instruction::NEG_DOUBLE:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Double(), reg_types_.Double());
+      work_line_->CheckUnaryOpWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                   reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::INT_TO_LONG:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Long(), reg_types_.Integer());
+      work_line_->CheckUnaryOpToWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                     reg_types_.Integer());
       break;
     case Instruction::INT_TO_FLOAT:
       work_line_->CheckUnaryOp(dec_insn, reg_types_.Float(), reg_types_.Integer());
       break;
     case Instruction::INT_TO_DOUBLE:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Double(), reg_types_.Integer());
+      work_line_->CheckUnaryOpToWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                     reg_types_.Integer());
       break;
     case Instruction::LONG_TO_INT:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Integer(), reg_types_.Long());
+      work_line_->CheckUnaryOpFromWide(dec_insn, reg_types_.Integer(),
+                                       reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::LONG_TO_FLOAT:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Float(), reg_types_.Long());
+      work_line_->CheckUnaryOpFromWide(dec_insn, reg_types_.Float(),
+                                       reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::LONG_TO_DOUBLE:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Double(), reg_types_.Long());
+      work_line_->CheckUnaryOpWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                   reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::FLOAT_TO_INT:
       work_line_->CheckUnaryOp(dec_insn, reg_types_.Integer(), reg_types_.Float());
       break;
     case Instruction::FLOAT_TO_LONG:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Long(), reg_types_.Float());
+      work_line_->CheckUnaryOpToWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                     reg_types_.Float());
       break;
     case Instruction::FLOAT_TO_DOUBLE:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Double(), reg_types_.Float());
+      work_line_->CheckUnaryOpToWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                     reg_types_.Float());
       break;
     case Instruction::DOUBLE_TO_INT:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Integer(), reg_types_.Double());
+      work_line_->CheckUnaryOpFromWide(dec_insn, reg_types_.Integer(),
+                                       reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::DOUBLE_TO_LONG:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Long(), reg_types_.Double());
+      work_line_->CheckUnaryOpWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                   reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::DOUBLE_TO_FLOAT:
-      work_line_->CheckUnaryOp(dec_insn, reg_types_.Float(), reg_types_.Double());
+      work_line_->CheckUnaryOpFromWide(dec_insn, reg_types_.Float(),
+                                       reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::INT_TO_BYTE:
       work_line_->CheckUnaryOp(dec_insn, reg_types_.Byte(), reg_types_.Integer());
@@ -2130,12 +2209,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::SHL_INT:
     case Instruction::SHR_INT:
     case Instruction::USHR_INT:
-      work_line_->CheckBinaryOp(dec_insn, reg_types_.Integer(), reg_types_.Integer(), reg_types_.Integer(), false);
+      work_line_->CheckBinaryOp(dec_insn, reg_types_.Integer(), reg_types_.Integer(),
+                                reg_types_.Integer(), false);
       break;
     case Instruction::AND_INT:
     case Instruction::OR_INT:
     case Instruction::XOR_INT:
-      work_line_->CheckBinaryOp(dec_insn, reg_types_.Integer(), reg_types_.Integer(), reg_types_.Integer(), true);
+      work_line_->CheckBinaryOp(dec_insn, reg_types_.Integer(), reg_types_.Integer(),
+                                reg_types_.Integer(), true);
       break;
     case Instruction::ADD_LONG:
     case Instruction::SUB_LONG:
@@ -2145,13 +2226,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::AND_LONG:
     case Instruction::OR_LONG:
     case Instruction::XOR_LONG:
-      work_line_->CheckBinaryOp(dec_insn, reg_types_.Long(), reg_types_.Long(), reg_types_.Long(), false);
+      work_line_->CheckBinaryOpWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                    reg_types_.LongLo(), reg_types_.LongHi(),
+                                    reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::SHL_LONG:
     case Instruction::SHR_LONG:
     case Instruction::USHR_LONG:
       /* shift distance is Int, making these different from other binary operations */
-      work_line_->CheckBinaryOp(dec_insn, reg_types_.Long(), reg_types_.Long(), reg_types_.Integer(), false);
+      work_line_->CheckBinaryOpWideShift(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                         reg_types_.Integer());
       break;
     case Instruction::ADD_FLOAT:
     case Instruction::SUB_FLOAT:
@@ -2165,7 +2249,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::MUL_DOUBLE:
     case Instruction::DIV_DOUBLE:
     case Instruction::REM_DOUBLE:
-      work_line_->CheckBinaryOp(dec_insn, reg_types_.Double(), reg_types_.Double(), reg_types_.Double(), false);
+      work_line_->CheckBinaryOpWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                    reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                    reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::ADD_INT_2ADDR:
     case Instruction::SUB_INT_2ADDR:
@@ -2192,12 +2278,15 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::AND_LONG_2ADDR:
     case Instruction::OR_LONG_2ADDR:
     case Instruction::XOR_LONG_2ADDR:
-      work_line_->CheckBinaryOp2addr(dec_insn, reg_types_.Long(), reg_types_.Long(), reg_types_.Long(), false);
+      work_line_->CheckBinaryOp2addrWide(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                         reg_types_.LongLo(), reg_types_.LongHi(),
+                                         reg_types_.LongLo(), reg_types_.LongHi());
       break;
     case Instruction::SHL_LONG_2ADDR:
     case Instruction::SHR_LONG_2ADDR:
     case Instruction::USHR_LONG_2ADDR:
-      work_line_->CheckBinaryOp2addr(dec_insn, reg_types_.Long(), reg_types_.Long(), reg_types_.Integer(), false);
+      work_line_->CheckBinaryOp2addrWideShift(dec_insn, reg_types_.LongLo(), reg_types_.LongHi(),
+                                              reg_types_.Integer());
       break;
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::SUB_FLOAT_2ADDR:
@@ -2211,7 +2300,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::MUL_DOUBLE_2ADDR:
     case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE_2ADDR:
-      work_line_->CheckBinaryOp2addr(dec_insn, reg_types_.Double(), reg_types_.Double(),  reg_types_.Double(), false);
+      work_line_->CheckBinaryOp2addrWide(dec_insn, reg_types_.DoubleLo(), reg_types_.DoubleHi(),
+                                         reg_types_.DoubleLo(),  reg_types_.DoubleHi(),
+                                         reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::ADD_INT_LIT16:
     case Instruction::RSUB_INT:
@@ -2290,7 +2381,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }  // end - switch (dec_insn.opcode)
 
   if (have_pending_hard_failure_) {
-    if (!Runtime::Current()->IsStarted()) {
+    if (Runtime::Current()->IsCompiler()) {
       /* When compiling, check that the last failure is a hard failure */
       CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
     }
@@ -2645,7 +2736,7 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
     const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
     if (super.IsUnresolvedTypes()) {
       Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
-                                   << PrettyMethod(method_idx_, *dex_file_)
+                                   << PrettyMethod(dex_method_idx_, *dex_file_)
                                    << " to super " << PrettyMethod(res_method);
       return NULL;
     }
@@ -2653,7 +2744,7 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
     if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
       MethodHelper mh(res_method);
       Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                   << PrettyMethod(method_idx_, *dex_file_)
+                                   << PrettyMethod(dex_method_idx_, *dex_file_)
                                    << " to super " << super
                                    << "." << mh.GetName()
                                    << mh.GetSignature();
@@ -2768,7 +2859,7 @@ void MethodVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_
 }
 
 void MethodVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
-                             const RegType& insn_type, bool is_primitive) {
+                                const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid reg type for array index (" << index_type << ")";
@@ -2782,7 +2873,8 @@ void MethodVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
         work_line_->SetRegisterType(dec_insn.vA, reg_types_.Zero());
       } else {
         // Category 2
-        work_line_->SetRegisterType(dec_insn.vA, reg_types_.ConstLo());
+        work_line_->SetRegisterTypeWide(dec_insn.vA, reg_types_.FromCat2ConstLo(0, false),
+                                        reg_types_.FromCat2ConstHi(0, false));
       }
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aget";
@@ -2797,14 +2889,19 @@ void MethodVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
             << " source for category 1 aget";
       } else if (is_primitive && !insn_type.Equals(component_type) &&
                  !((insn_type.IsInteger() && component_type.IsFloat()) ||
-                   (insn_type.IsLong() && component_type.IsDouble()))) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
-              << " incompatible with aget of type " << insn_type;
+                 (insn_type.IsLong() && component_type.IsDouble()))) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
+            << " incompatible with aget of type " << insn_type;
       } else {
-          // Use knowledge of the field type which is stronger than the type inferred from the
-          // instruction, which can't differentiate object types and ints from floats, longs from
-          // doubles.
+        // Use knowledge of the field type which is stronger than the type inferred from the
+        // instruction, which can't differentiate object types and ints from floats, longs from
+        // doubles.
+        if (!component_type.IsLowHalf()) {
           work_line_->SetRegisterType(dec_insn.vA, component_type);
+        } else {
+          work_line_->SetRegisterTypeWide(dec_insn.vA, component_type,
+                                          component_type.HighHalf(&reg_types_));
+        }
       }
     }
   }
@@ -2925,7 +3022,7 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
       // the field is declared in this class
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
                                         << " of a not fully initialized object within the context of "
-                                        << PrettyMethod(method_idx_, *dex_file_);
+                                        << PrettyMethod(dex_method_idx_, *dex_file_);
       return NULL;
     } else if (!field_klass.IsAssignableFrom(obj_type)) {
       // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
@@ -2986,7 +3083,11 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
       return;
     }
   }
-  work_line_->SetRegisterType(dec_insn.vA, field_type);
+  if (!field_type.IsLowHalf()) {
+    work_line_->SetRegisterType(dec_insn.vA, field_type);
+  } else {
+    work_line_->SetRegisterTypeWide(dec_insn.vA, field_type, field_type.HighHalf(&reg_types_));
+  }
 }
 
 void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
@@ -3113,7 +3214,7 @@ InsnFlags* MethodVerifier::CurrentInsnFlags() {
 }
 
 const RegType& MethodVerifier::GetMethodReturnType() {
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
   const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
   uint16_t return_type_idx = proto_id.return_type_idx_;
   const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
@@ -3125,7 +3226,7 @@ const RegType& MethodVerifier::GetDeclaringClass() {
     Class* klass = foo_method_->GetDeclaringClass();
     return reg_types_.FromClass(klass, klass->IsFinal());
   } else {
-    const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
+    const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
     const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
     return reg_types_.FromDescriptor(class_loader_, descriptor, false);
   }
@@ -3263,6 +3364,50 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(Compiler::MethodReferenc
   }
   CHECK(it->second != NULL);
   return it->second;
+}
+
+std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
+  RegisterLine* line = reg_table_.GetLine(dex_pc);
+  std::vector<int32_t> result;
+  for (size_t i = 0; i < line->NumRegs(); ++i) {
+    const RegType& type = line->GetRegisterType(i);
+    if (type.IsConstant()) {
+      result.push_back(type.IsPreciseConstant() ? kConstant : kImpreciseConstant);
+      result.push_back(type.ConstantValue());
+    } else if (type.IsConstantLo()) {
+      result.push_back(type.IsPreciseConstantLo() ? kConstant : kImpreciseConstant);
+      result.push_back(type.ConstantValueLo());
+    } else if (type.IsConstantHi()) {
+      result.push_back(type.IsPreciseConstantHi() ? kConstant : kImpreciseConstant);
+      result.push_back(type.ConstantValueHi());
+    } else if (type.IsIntegralTypes()) {
+      result.push_back(kIntVReg);
+      result.push_back(0);
+    } else if (type.IsFloat()) {
+      result.push_back(kFloatVReg);
+      result.push_back(0);
+    } else if (type.IsLong()) {
+      result.push_back(kLongLoVReg);
+      result.push_back(0);
+      result.push_back(kLongHiVReg);
+      result.push_back(0);
+      ++i;
+    } else if (type.IsDouble()) {
+      result.push_back(kDoubleLoVReg);
+      result.push_back(0);
+      result.push_back(kDoubleHiVReg);
+      result.push_back(0);
+      ++i;
+    } else if (type.IsUndefined() || type.IsConflict() || type.IsHighHalf()) {
+      result.push_back(kUndefined);
+      result.push_back(0);
+    } else {
+      CHECK(type.IsNonZeroReferenceTypes()) << type;
+      result.push_back(kReferenceVReg);
+      result.push_back(0);
+    }
+  }
+  return result;
 }
 
 Mutex* MethodVerifier::dex_gc_maps_lock_ = NULL;

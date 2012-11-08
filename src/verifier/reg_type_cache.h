@@ -44,7 +44,10 @@ class RegTypeCache {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromClass(Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromCat1Const(int32_t value);
+  const RegType& FromCat1Const(int32_t value, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& FromCat2ConstLo(int32_t value, bool precise);
+  const RegType& FromCat2ConstHi(int32_t value, bool precise);
   const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromType(RegType::Type)
@@ -70,11 +73,17 @@ class RegTypeCache {
   const RegType& Float() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromType(RegType::kRegTypeFloat);
   }
-  const RegType& Long() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& LongLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromType(RegType::kRegTypeLongLo);
   }
-  const RegType& Double() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& LongHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromType(RegType::kRegTypeLongHi);
+  }
+  const RegType& DoubleLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromType(RegType::kRegTypeDoubleLo);
+  }
+  const RegType& DoubleHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromType(RegType::kRegTypeDoubleHi);
   }
 
   const RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -103,11 +112,8 @@ class RegTypeCache {
   const RegType& Conflict() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromType(RegType::kRegTypeConflict);
   }
-  const RegType& ConstLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return FromType(RegType::kRegTypeConstLo);
-  }
   const RegType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return FromCat1Const(0);
+    return FromCat1Const(0, true);
   }
 
   const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc);
@@ -118,9 +124,15 @@ class RegTypeCache {
   // Representatives of various constant types. When merging constants we can't infer a type,
   // (an int may later be used as a float) so we select these representative values meaning future
   // merges won't know the exact constant value but have some notion of its size.
-  const RegType& ByteConstant() { return FromCat1Const(std::numeric_limits<jbyte>::min()); }
-  const RegType& ShortConstant() { return FromCat1Const(std::numeric_limits<jshort>::min()); }
-  const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
+  const RegType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromCat1Const(std::numeric_limits<jbyte>::min(), false);
+  }
+  const RegType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromCat1Const(std::numeric_limits<jshort>::min(), false);
+  }
+  const RegType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return FromCat1Const(std::numeric_limits<jint>::max(), false);
+  }
 
   const RegType& GetComponentType(const RegType& array, ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -184,7 +184,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(int_reg_type.IsDoubleTypes());
   EXPECT_TRUE(int_reg_type.IsArrayIndexTypes());
 
-  const RegType& long_reg_type = cache.Long();
+  const RegType& long_reg_type = cache.LongLo();
   EXPECT_FALSE(long_reg_type.IsUndefined());
   EXPECT_FALSE(long_reg_type.IsConflict());
   EXPECT_FALSE(long_reg_type.IsZero());
@@ -246,7 +246,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(float_reg_type.IsDoubleTypes());
   EXPECT_FALSE(float_reg_type.IsArrayIndexTypes());
 
-  const RegType& double_reg_type = cache.Double();
+  const RegType& double_reg_type = cache.DoubleLo();
   EXPECT_FALSE(double_reg_type.IsUndefined());
   EXPECT_FALSE(double_reg_type.IsConflict());
   EXPECT_FALSE(double_reg_type.IsZero());

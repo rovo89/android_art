@@ -62,11 +62,6 @@ struct ReferenceMap2Visitor : public StackVisitor {
       return true;
     }
 
-    // Enable this to dump reference map to LOG(INFO)
-    if (false) {
-      ScopedObjectAccess ts(Thread::Current());
-      art::verifier::MethodVerifier::VerifyMethodAndDump(m);
-    }
     const uint8_t* ref_bitmap = NULL;
     MethodHelper mh(m);
     std::string m_name(mh.GetName());

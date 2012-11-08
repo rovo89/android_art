@@ -52,10 +52,13 @@ class RegType {
     kRegTypeLongHi,
     kRegTypeDoubleLo,       // D.
     kRegTypeDoubleHi,
-    kRegTypeConstLo,        // Const derived wide, lower half - could be long or double.
-    kRegTypeConstHi,        // Const derived wide, upper half - could be long or double.
-    kRegTypeLastFixedLocation = kRegTypeConstHi,
-    kRegTypeConst,          // 32-bit constant derived value - could be float or int.
+    kRegTypeLastFixedLocation = kRegTypeDoubleHi,
+    kRegTypePreciseConst,   // 32-bit constant - could be float or int.
+    kRegTypeImpreciseConst, // 32-bit constant derived value - could be float or int.
+    kRegTypePreciseConstLo, // Const wide, lower half - could be long or double.
+    kRegTypePreciseConstHi, // Const wide, upper half - could be long or double.
+    kRegTypeImpreciseConstLo, // Const derived wide, lower half - could be long or double.
+    kRegTypeImpreciseConstHi, // Const derived wide, upper half - could be long or double.
     kRegTypeUnresolvedReference,        // Reference type that couldn't be resolved.
     kRegTypeUninitializedReference,     // Freshly allocated reference type.
     kRegTypeUninitializedThisReference, // Freshly allocated reference passed as "this".
@@ -105,38 +108,85 @@ class RegType {
         IsUnresolvedAndUninitializedThisReference() || IsUnresolvedMergedReference() ||
         IsUnresolvedSuperClass();
   }
-  bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
-                                  type_ == kRegTypeDoubleLo ||
-                                  type_ == kRegTypeConstLo; }
-  bool IsHighHalf() const { return type_ == kRegTypeLongHi ||
-                                   type_ == kRegTypeDoubleHi ||
-                                   type_ == kRegTypeConstHi; }
+  bool IsLowHalf() const {
+    return type_ == kRegTypeLongLo ||
+           type_ == kRegTypeDoubleLo ||
+           type_ == kRegTypePreciseConstLo ||
+           type_ == kRegTypeImpreciseConstLo;
+  }
+  bool IsHighHalf() const {
+    return type_ == kRegTypeLongHi ||
+           type_ == kRegTypeDoubleHi ||
+           type_ == kRegTypePreciseConstHi ||
+           type_ == kRegTypeImpreciseConstHi;
+  }
 
   bool IsLongOrDoubleTypes() const { return IsLowHalf(); }
 
   // Check this is the low half, and that type_h is its matching high-half
   bool CheckWidePair(const RegType& type_h) const {
-    return IsLowHalf() && (type_h.type_ == type_ + 1);
+    if (IsLowHalf()) {
+      return (type_h.type_ == type_ + 1) ||
+          (IsPreciseConstantLo() && !type_h.IsPreciseConstantHi()) ||
+          (!IsPreciseConstantLo() && type_h.IsPreciseConstantHi());
+    }
+    return false;
   }
 
   // The high half that corresponds to this low half
   const RegType& HighHalf(RegTypeCache* cache) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsConstant() const { return type_ == kRegTypeConst; }
-  bool IsLongConstant() const { return type_ == kRegTypeConstLo; }
-  bool IsLongConstantHigh() const { return type_ == kRegTypeConstHi; }
+  bool IsPreciseConstant() const {
+    return type_ == kRegTypePreciseConst;
+  }
+  bool IsPreciseConstantLo() const {
+    bool result = (type_ == kRegTypePreciseConstLo);
+    DCHECK(result || (type_ == kRegTypeImpreciseConstLo));
+    return result;
+  }
+  bool IsPreciseConstantHi() const {
+    bool result = (type_ == kRegTypePreciseConstHi);
+    DCHECK(result || (type_ == kRegTypeImpreciseConstHi));
+    return result;
+  }
+  bool IsConstant() const {
+    return type_ == kRegTypePreciseConst || type_ == kRegTypeImpreciseConst;
+  }
 
-  // If this is a 32-bit constant, what is the value? This value may just
-  // approximate to the actual constant value by virtue of merging.
+  bool IsConstantLo() const {
+    return type_ == kRegTypePreciseConstLo || type_ == kRegTypeImpreciseConstLo;
+  }
+  bool IsLongConstant() const {
+    return IsConstantLo();
+  }
+  bool IsConstantHi() const {
+    return type_ == kRegTypePreciseConstHi || type_ == kRegTypeImpreciseConstHi;
+  }
+  bool IsLongConstantHigh() const {
+    return IsConstantHi();
+  }
+
+  // If this is a 32-bit constant, what is the value? This value may be imprecise in which case
+  // the value represents part of the integer range of values that may be held in the register.
   int32_t ConstantValue() const {
     DCHECK(IsConstant());
     return allocation_pc_or_constant_or_merged_types_;
   }
+  int32_t ConstantValueLo() const {
+    DCHECK(IsConstantLo());
+    return allocation_pc_or_constant_or_merged_types_;
+  }
+  int32_t ConstantValueHi() const {
+    DCHECK(IsConstantHi());
+    return allocation_pc_or_constant_or_merged_types_;
+  }
 
-  bool IsZero()         const { return IsConstant() && ConstantValue() == 0; }
-  bool IsOne()          const { return IsConstant() && ConstantValue() == 1; }
-  bool IsConstantBoolean() const { return IsZero() || IsOne(); }
+  bool IsZero()         const { return IsPreciseConstant() && ConstantValue() == 0; }
+  bool IsOne()          const { return IsPreciseConstant() && ConstantValue() == 1; }
+  bool IsConstantBoolean() const {
+    return IsConstant() && ConstantValue() >= 0 && ConstantValue() <= 1;
+  }
   bool IsConstantByte() const {
     return IsConstant() &&
         ConstantValue() >= std::numeric_limits<jbyte>::min() &&
@@ -187,13 +237,17 @@ class RegType {
     return IsLong() || IsLongConstant();
   }
   bool IsLongHighTypes() const {
-    return type_ == kRegTypeLongHi || type_ == kRegTypeConstHi;
+    return type_ == kRegTypeLongHi ||
+           type_ == kRegTypePreciseConstHi ||
+           type_ == kRegTypeImpreciseConstHi;
   }
   bool IsDoubleTypes() const {
     return IsDouble() || IsLongConstant();
   }
   bool IsDoubleHighTypes() const {
-    return type_ == kRegTypeDoubleHi || type_ == kRegTypeConstHi;
+    return type_ == kRegTypeDoubleHi ||
+           type_ == kRegTypePreciseConstHi ||
+           type_ == kRegTypeImpreciseConstHi;
   }
 
   uint32_t GetAllocationPc() const {
@@ -351,8 +405,9 @@ class RegType {
       : type_(type), klass_or_descriptor_(klass_or_descriptor),
         allocation_pc_or_constant_or_merged_types_(allocation_pc_or_constant_or_merged_types),
         cache_id_(cache_id) {
-    DCHECK(IsConstant() || IsUninitializedTypes() || IsUnresolvedMergedReference() ||
-           IsUnresolvedSuperClass() || allocation_pc_or_constant_or_merged_types == 0);
+    DCHECK(IsConstant() || IsConstantLo() || IsConstantHi() ||
+           IsUninitializedTypes() || IsUnresolvedMergedReference() || IsUnresolvedSuperClass() ||
+           allocation_pc_or_constant_or_merged_types == 0);
     if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
         !IsConflict() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       DCHECK(klass_or_descriptor != NULL);

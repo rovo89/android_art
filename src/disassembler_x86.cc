@@ -731,7 +731,7 @@ DISASSEMBLER_ENTRY(cmp,
   for (size_t i = 0; begin_instr + i < instr; ++i) {
     hex << StringPrintf("%02X", begin_instr[i]);
   }
-  os << StringPrintf("\t\t\t%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(), opcode.str().c_str()) << args.str() << '\n';
+  os << StringPrintf("%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(), opcode.str().c_str()) << args.str() << '\n';
   return instr - begin_instr;
 }
 

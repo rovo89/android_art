@@ -932,7 +932,8 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
       }
 
       uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
-      Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register));
+      Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register,
+                                                                   kReferenceVReg));
       DumpLockedObject(os, o);
     }
   }

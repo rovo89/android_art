@@ -35,12 +35,9 @@ bool RegisterLine::CheckConstructorReturn() const {
 
 bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   DCHECK_LT(vdst, num_regs_);
-  if (new_type.IsLowHalf()) {
-    line_[vdst] = new_type.GetId();
-    line_[vdst + 1] = new_type.HighHalf(verifier_->GetRegTypeCache()).GetId();
-  } else if (new_type.IsHighHalf()) {
-    /* should never set these explicitly */
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Explicit set of high register type";
+  if (new_type.IsLowHalf() || new_type.IsHighHalf()) {
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Expected category1 register type not '"
+        << new_type << "'";
     return false;
   } else if (new_type.IsConflict()) {  // should only be set during a merge
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
@@ -58,19 +55,45 @@ bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   return true;
 }
 
+bool RegisterLine::SetRegisterTypeWide(uint32_t vdst, const RegType& new_type1,
+                                       const RegType& new_type2) {
+  DCHECK_LT(vdst, num_regs_);
+  if (!new_type1.CheckWidePair(new_type2)) {
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Invalid wide pair '"
+        << new_type1 << "' '" << new_type2 << "'";
+    return false;
+  } else {
+    line_[vdst] = new_type1.GetId();
+    line_[vdst + 1] = new_type2.GetId();
+  }
+  // Clear the monitor entry bits for this register.
+  ClearAllRegToLockDepths(vdst);
+  ClearAllRegToLockDepths(vdst + 1);
+  return true;
+}
+
 void RegisterLine::SetResultTypeToUnknown() {
   result_[0] = RegType::kRegTypeUndefined;
   result_[1] = RegType::kRegTypeUndefined;
 }
 
 void RegisterLine::SetResultRegisterType(const RegType& new_type) {
+  DCHECK(!new_type.IsLowHalf());
+  DCHECK(!new_type.IsHighHalf());
   result_[0] = new_type.GetId();
+  result_[1] = RegType::kRegTypeUndefined;
   if (new_type.IsLowHalf()) {
     DCHECK_EQ(new_type.HighHalf(verifier_->GetRegTypeCache()).GetId(), new_type.GetId() + 1);
     result_[1] = new_type.GetId() + 1;
   } else {
     result_[1] = RegType::kRegTypeUndefined;
   }
+}
+
+void RegisterLine::SetResultRegisterTypeWide(const RegType& new_type1, const RegType& new_type2) {
+  DCHECK(new_type1.CheckWidePair(new_type2));
+  result_[0] = new_type1.GetId();
+  result_[1] = new_type2.GetId();
 }
 
 const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
@@ -113,6 +136,29 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) 
                                                    << src_type << "/" << src_type_h;
       return false;
     }
+  }
+  // The register at vsrc has a defined type, we know the lower-upper-bound, but this is less
+  // precise than the subtype in vsrc so leave it for reference types. For primitive types
+  // if they are a defined type then they are as precise as we can get, however, for constant
+  // types we may wish to refine them. Unfortunately constant propagation has rendered this useless.
+  return true;
+}
+
+bool RegisterLine::VerifyRegisterTypeWide(uint32_t vsrc, const RegType& check_type1,
+                                          const RegType& check_type2) {
+  DCHECK(check_type1.CheckWidePair(check_type2));
+  // Verify the src register type against the check type refining the type of the register
+  const RegType& src_type = GetRegisterType(vsrc);
+  if (!check_type1.IsAssignableFrom(src_type)) {
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register v" << vsrc << " has type " << src_type
+                               << " but expected " << check_type1;
+    return false;
+  }
+  const RegType& src_type_h = GetRegisterType(vsrc + 1);
+  if (!src_type.CheckWidePair(src_type_h)) {
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register v" << vsrc << " has type "
+        << src_type << "/" << src_type_h;
+    return false;
   }
   // The register at vsrc has a defined type, we know the lower-upper-bound, but this is less
   // precise than the subtype in vsrc so leave it for reference types. For primitive types
@@ -180,7 +226,7 @@ void RegisterLine::CopyRegister2(uint32_t vdst, uint32_t vsrc) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy2 v" << vdst << "<-v" << vsrc
                                                  << " type=" << type_l << "/" << type_h;
   } else {
-    SetRegisterType(vdst, type_l);  // implicitly sets the second half
+    SetRegisterTypeWide(vdst, type_l, type_h);
   }
 }
 
@@ -209,7 +255,7 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
         << "copyRes2 v" << vdst << "<- result0"  << " type=" << type_l;
   } else {
     DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
-    SetRegisterType(vdst, type_l);  // also sets the high
+    SetRegisterTypeWide(vdst, type_l, type_h);  // also sets the high
     result_[0] = RegType::kRegTypeUndefined;
     result_[1] = RegType::kRegTypeUndefined;
   }
@@ -218,6 +264,30 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
 void RegisterLine::CheckUnaryOp(const DecodedInstruction& dec_insn,
                                 const RegType& dst_type, const RegType& src_type) {
   if (VerifyRegisterType(dec_insn.vB, src_type)) {
+    SetRegisterType(dec_insn.vA, dst_type);
+  }
+}
+
+void RegisterLine::CheckUnaryOpWide(const DecodedInstruction& dec_insn,
+                                    const RegType& dst_type1, const RegType& dst_type2,
+                                    const RegType& src_type1, const RegType& src_type2) {
+  if (VerifyRegisterTypeWide(dec_insn.vB, src_type1, src_type2)) {
+    SetRegisterTypeWide(dec_insn.vA, dst_type1, dst_type2);
+  }
+}
+
+void RegisterLine::CheckUnaryOpToWide(const DecodedInstruction& dec_insn,
+                                      const RegType& dst_type1, const RegType& dst_type2,
+                                      const RegType& src_type) {
+  if (VerifyRegisterType(dec_insn.vB, src_type)) {
+    SetRegisterTypeWide(dec_insn.vA, dst_type1, dst_type2);
+  }
+}
+
+void RegisterLine::CheckUnaryOpFromWide(const DecodedInstruction& dec_insn,
+                                        const RegType& dst_type,
+                                        const RegType& src_type1, const RegType& src_type2) {
+  if (VerifyRegisterTypeWide(dec_insn.vB, src_type1, src_type2)) {
     SetRegisterType(dec_insn.vA, dst_type);
   }
 }
@@ -240,6 +310,25 @@ void RegisterLine::CheckBinaryOp(const DecodedInstruction& dec_insn,
   }
 }
 
+void RegisterLine::CheckBinaryOpWide(const DecodedInstruction& dec_insn,
+                                     const RegType& dst_type1, const RegType& dst_type2,
+                                     const RegType& src_type1_1, const RegType& src_type1_2,
+                                     const RegType& src_type2_1, const RegType& src_type2_2) {
+  if (VerifyRegisterTypeWide(dec_insn.vB, src_type1_1, src_type1_2) &&
+      VerifyRegisterTypeWide(dec_insn.vC, src_type2_1, src_type2_2)) {
+    SetRegisterTypeWide(dec_insn.vA, dst_type1, dst_type2);
+  }
+}
+
+void RegisterLine::CheckBinaryOpWideShift(const DecodedInstruction& dec_insn,
+                                          const RegType& long_lo_type, const RegType& long_hi_type,
+                                          const RegType& int_type) {
+  if (VerifyRegisterTypeWide(dec_insn.vB, long_lo_type, long_hi_type) &&
+      VerifyRegisterType(dec_insn.vC, int_type)) {
+    SetRegisterTypeWide(dec_insn.vA, long_lo_type, long_hi_type);
+  }
+}
+
 void RegisterLine::CheckBinaryOp2addr(const DecodedInstruction& dec_insn,
                                       const RegType& dst_type, const RegType& src_type1,
                                       const RegType& src_type2, bool check_boolean_op) {
@@ -254,6 +343,25 @@ void RegisterLine::CheckBinaryOp2addr(const DecodedInstruction& dec_insn,
       }
     }
     SetRegisterType(dec_insn.vA, dst_type);
+  }
+}
+
+void RegisterLine::CheckBinaryOp2addrWide(const DecodedInstruction& dec_insn,
+                                          const RegType& dst_type1, const RegType& dst_type2,
+                                          const RegType& src_type1_1, const RegType& src_type1_2,
+                                          const RegType& src_type2_1, const RegType& src_type2_2) {
+  if (VerifyRegisterTypeWide(dec_insn.vA, src_type1_1, src_type1_2) &&
+      VerifyRegisterTypeWide(dec_insn.vB, src_type2_1, src_type2_2)) {
+    SetRegisterTypeWide(dec_insn.vA, dst_type1, dst_type2);
+  }
+}
+
+void RegisterLine::CheckBinaryOp2addrWideShift(const DecodedInstruction& dec_insn,
+                                               const RegType& long_lo_type, const RegType& long_hi_type,
+                                               const RegType& int_type) {
+  if (VerifyRegisterTypeWide(dec_insn.vA, long_lo_type, long_hi_type) &&
+      VerifyRegisterType(dec_insn.vB, int_type)) {
+    SetRegisterTypeWide(dec_insn.vA, long_lo_type, long_hi_type);
   }
 }
 

@@ -683,6 +683,11 @@ void ClassLinker::RegisterOatFile(const OatFile& oat_file) {
 
 void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
   dex_lock_.AssertHeld(Thread::Current());
+#ifndef NDEBUG
+  for (size_t i = 0; i < oat_files_.size(); ++i) {
+    CHECK_NE(&oat_file, oat_files_[i]) << oat_file.GetLocation();
+  }
+#endif
   oat_files_.push_back(&oat_file);
 }
 
@@ -955,7 +960,6 @@ const OatFile* ClassLinker::FindOatFileFromOatLocationLocked(const std::string& 
   if (oat_file == NULL) {
     return NULL;
   }
-  CHECK(oat_file != NULL) << oat_location;
   return oat_file;
 }
 
@@ -1840,13 +1844,27 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file, SirtRef<DexCache>& de
 
 DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   MutexLock mu(Thread::Current(), dex_lock_);
+  // Search assuming unique-ness of dex file.
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     DexCache* dex_cache = dex_caches_[i];
     if (dex_cache->GetDexFile() == &dex_file) {
       return dex_cache;
     }
   }
-  LOG(FATAL) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
+  // Search matching by location name.
+  std::string location(dex_file.GetLocation());
+  for (size_t i = 0; i != dex_caches_.size(); ++i) {
+    DexCache* dex_cache = dex_caches_[i];
+    if (dex_cache->GetDexFile()->GetLocation() == location) {
+      return dex_cache;
+    }
+  }
+  // Failure, dump diagnostic and abort.
+  for (size_t i = 0; i != dex_caches_.size(); ++i) {
+    DexCache* dex_cache = dex_caches_[i];
+    LOG(ERROR) << "Registered dex file " << i << " = " << dex_cache->GetDexFile()->GetLocation();
+  }
+  LOG(FATAL) << "Failed to find DexCache for DexFile " << location;
   return NULL;
 }
 

@@ -366,6 +366,7 @@ TEST_COMMON_SRC_FILES := \
 	src/gtest_test.cc \
 	src/heap_test.cc \
 	src/image_test.cc \
+	src/indenter_test.cc \
 	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \
 	src/jni_internal_test.cc \

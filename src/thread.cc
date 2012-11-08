@@ -1883,20 +1883,10 @@ class ReferenceMapVisitor : public StackVisitor {
             if (TestBitmap(reg, reg_bitmap)) {
               uint32_t vmap_offset;
               Object* ref;
-              if (vmap_table.IsInContext(reg, vmap_offset)) {
-                // Compute the register we need to load from the context
-                uint32_t spill_mask = core_spills;
-                CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
-                uint32_t matches = 0;
-                uint32_t spill_shifts = 0;
-                while (matches != (vmap_offset + 1)) {
-                  DCHECK_NE(spill_mask, 0u);
-                  matches += spill_mask & 1;  // Add 1 if the low bit is set
-                  spill_mask >>= 1;
-                  spill_shifts++;
-                }
-                spill_shifts--;  // wind back one as we want the last match
-                ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
+              if (vmap_table.IsInContext(reg, vmap_offset, kReferenceVReg)) {
+                uintptr_t val = GetGPR(vmap_table.ComputeRegister(core_spills, vmap_offset,
+                                                                  kReferenceVReg));
+                ref = reinterpret_cast<Object*>(val);
               } else {
                 ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
                                                         fp_spills, frame_size, reg));

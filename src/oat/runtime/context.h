@@ -57,54 +57,6 @@ class Context {
   };
 };
 
-class VmapTable {
- public:
-  explicit VmapTable(const uint16_t* table) : table_(table) {
-  }
-
-  uint16_t operator[](size_t i) const {
-    return table_[i + 1];
-  }
-
-  size_t size() const {
-    return table_[0];
-  }
-
-  /*
-   * WARNING: This code should be changed or renamed.  The "reg"
-   * argument is a Dalvik virtual register number, but the way
-   * the vmap and register promotion works a Dalvik vReg can have
-   * neither, one or both of core register and floating point register
-   * identities. The "INVALID_VREG" marker of 0xffff below separates the
-   * core promoted registers from the floating point promoted registers,
-   * and thus terminates the search before reaching the fp section.
-   * This is likely the desired behavior for GC, as references won't
-   * ever be promoted to float registers - but we'll probably want to
-   * rework this shared code to make it useful for the debugger as well.
-   */
-  // Is register 'reg' in the context or on the stack?
-  bool IsInContext(size_t reg, uint32_t& vmap_offset) const {
-    vmap_offset = 0xEBAD0FF5;
-    // TODO: take advantage of the registers being ordered
-    for (size_t i = 0; i < size(); ++i) {
-      // Stop if we find what we are are looking for...
-      if (table_[i + 1] == reg) {
-        vmap_offset = i;
-        return true;
-      }
-      // ...or the INVALID_VREG that marks lr.
-      // TODO: x86?
-      if (table_[i + 1] == 0xffff) {
-        break;
-      }
-    }
-    return false;
-  }
-
- private:
-  const uint16_t* table_;
-};
-
 }  // namespace art
 
 #endif  // ART_SRC_OAT_RUNTIME_CONTEXT_H_

@@ -64,49 +64,38 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
 }
 
-
-uint32_t StackVisitor::GetVReg(AbstractMethod* m, int vreg) const {
-  DCHECK(m == GetMethod());
+uint32_t StackVisitor::GetVReg(AbstractMethod* m, uint16_t vreg, VRegKind kind) const {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably read registers without a context.
-    uint32_t core_spills = m->GetCoreSpillMask();
+    DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTableRaw());
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
-    if (vmap_table.IsInContext(vreg, vmap_offset)) {
-      // Compute the register we need to load from the context.
-      uint32_t spill_mask = core_spills;
-      CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
-      uint32_t matches = 0;
-      uint32_t spill_shifts = 0;
-      while (matches != (vmap_offset + 1)) {
-        DCHECK_NE(spill_mask, 0u);
-        matches += spill_mask & 1;  // Add 1 if the low bit is set.
-        spill_mask >>= 1;
-        spill_shifts++;
-      }
-      spill_shifts--;  // Wind back one as we want the last match.
-      return GetGPR(spill_shifts);
+    if (vmap_table.IsInContext(vreg, vmap_offset, kind)) {
+      bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
+      uint32_t spill_mask = is_float ? m->GetFpSpillMask()
+                                     : m->GetCoreSpillMask();
+      return GetGPR(vmap_table.ComputeRegister(spill_mask, vmap_offset, kind));
     } else {
       const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
       DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
-      uint32_t fp_spills = m->GetFpSpillMask();
       size_t frame_size = m->GetFrameSizeInBytes();
-      return GetVReg(cur_quick_frame_, code_item, core_spills, fp_spills, frame_size, vreg);
+      return GetVReg(cur_quick_frame_, code_item, m->GetCoreSpillMask(), m->GetFpSpillMask(),
+                     frame_size, vreg);
     }
   } else {
     return cur_shadow_frame_->GetVReg(vreg);
   }
 }
 
-void StackVisitor::SetVReg(AbstractMethod* m, int vreg, uint32_t new_value) {
+void StackVisitor::SetVReg(AbstractMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind) {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
     const VmapTable vmap_table(m->GetVmapTableRaw());
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
-    if (vmap_table.IsInContext(vreg, vmap_offset)) {
+    if (vmap_table.IsInContext(vreg, vmap_offset, kind)) {
       UNIMPLEMENTED(FATAL);
     }
     const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
@@ -118,7 +107,7 @@ void StackVisitor::SetVReg(AbstractMethod* m, int vreg, uint32_t new_value) {
     byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
     *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
   } else {
-    LOG(FATAL) << "Unimplemented - shadow frame SetVReg";
+    return cur_shadow_frame_->SetVReg(vreg, new_value);
   }
 }
 
@@ -129,7 +118,7 @@ uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
 
 uintptr_t StackVisitor::GetReturnPc() const {
   AbstractMethod** sp = GetCurrentQuickFrame();
-  CHECK(sp != NULL);
+  DCHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }

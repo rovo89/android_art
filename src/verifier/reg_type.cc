@@ -25,19 +25,22 @@ namespace verifier {
 static const char* type_strings[] = {
     "Undefined",
     "Conflict",
-    "Boolean",
-    "Byte",
-    "Short",
-    "Char",
-    "Integer",
-    "Float",
-    "Long (Low Half)",
-    "Long (High Half)",
-    "Double (Low Half)",
-    "Double (High Half)",
-    "64-bit Constant (Low Half)",
-    "64-bit Constant (High Half)",
-    "32-bit Constant",
+    "boolean",
+    "byte",
+    "short",
+    "char",
+    "int",
+    "float",
+    "long (Low Half)",
+    "long (High Half)",
+    "double (Low Half)",
+    "double (High Half)",
+    "Precise 32-bit Constant",
+    "Imprecise 32-bit Constant",
+    "Precise 64-bit Constant (Low Half)",
+    "Precise 64-bit Constant (High Half)",
+    "Imprecise 64-bit Constant (Low Half)",
+    "Imprecise 64-bit Constant (High Half)",
     "Unresolved Reference",
     "Uninitialized Reference",
     "Uninitialized This Reference",
@@ -81,13 +84,33 @@ std::string RegType::Dump(const RegTypeCache* reg_types) const {
   } else if (IsConstant()) {
     uint32_t val = ConstantValue();
     if (val == 0) {
-      result = "Zero";
+      CHECK(IsPreciseConstant());
+      result = "Zero/null";
     } else {
+      result = IsPreciseConstant() ? "Precise " : "Imprecise ";
       if (IsConstantShort()) {
-        result = StringPrintf("32-bit Constant: %d", val);
+        result += StringPrintf("Constant: %d", val);
       } else {
-        result = StringPrintf("32-bit Constant: 0x%x", val);
+        result += StringPrintf("Constant: 0x%x", val);
       }
+    }
+  } else if (IsConstantLo()) {
+    int32_t val = ConstantValueLo();
+    result = IsPreciseConstantLo() ? "Precise " : "Imprecise ";
+    if (val >= std::numeric_limits<jshort>::min() &&
+        val <= std::numeric_limits<jshort>::max()) {
+      result += StringPrintf("Low-half Constant: %d", val);
+    } else {
+      result += StringPrintf("Low-half Constant: 0x%x", val);
+    }
+  } else if (IsConstantHi()) {
+    int32_t val = ConstantValueHi();
+    result = IsPreciseConstantHi() ? "Precise " : "Imprecise ";
+    if (val >= std::numeric_limits<jshort>::min() &&
+        val <= std::numeric_limits<jshort>::max()) {
+      result += StringPrintf("High-half Constant: %d", val);
+    } else {
+      result += StringPrintf("High-half Constant: 0x%x", val);
     }
   } else {
     result = type_strings[type_];
@@ -104,13 +127,14 @@ std::string RegType::Dump(const RegTypeCache* reg_types) const {
 }
 
 const RegType& RegType::HighHalf(RegTypeCache* cache) const {
-  CHECK(IsLowHalf());
+  DCHECK(IsLowHalf());
   if (type_ == kRegTypeLongLo) {
     return cache->FromType(kRegTypeLongHi);
   } else if (type_ == kRegTypeDoubleLo) {
     return cache->FromType(kRegTypeDoubleHi);
   } else {
-    return cache->FromType(kRegTypeConstHi);
+    DCHECK_EQ(type_, kRegTypeImpreciseConstLo);
+    return cache->FromType(kRegTypeImpreciseConstHi);
   }
 }
 
@@ -244,16 +268,32 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
     if (val1 >= 0 && val2 >= 0) {
       // +ve1 MERGE +ve2 => MAX(+ve1, +ve2)
       if (val1 >= val2) {
-        return *this;
+        if (!IsPreciseConstant()) {
+          return *this;
+        } else {
+          return reg_types->FromCat1Const(val1, false);
+        }
       } else {
-        return incoming_type;
+        if (!incoming_type.IsPreciseConstant()) {
+          return incoming_type;
+        } else {
+          return reg_types->FromCat1Const(val2, false);
+        }
       }
     } else if (val1 < 0 && val2 < 0) {
       // -ve1 MERGE -ve2 => MIN(-ve1, -ve2)
       if (val1 <= val2) {
-        return *this;
+        if (!IsPreciseConstant()) {
+          return *this;
+        } else {
+          return reg_types->FromCat1Const(val1, false);
+        }
       } else {
-        return incoming_type;
+        if (!incoming_type.IsPreciseConstant()) {
+          return incoming_type;
+        } else {
+          return reg_types->FromCat1Const(val2, false);
+        }
       }
     } else {
       // Values are +ve and -ve, choose smallest signed type in which they both fit
@@ -275,6 +315,14 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
         return reg_types->IntConstant();
       }
     }
+  } else if (IsConstantLo() && incoming_type.IsConstantLo()) {
+    int32_t val1 = ConstantValueLo();
+    int32_t val2 = incoming_type.ConstantValueLo();
+    return reg_types->FromCat2ConstLo(val1 | val2, false);
+  } else if (IsConstantHi() && incoming_type.IsConstantHi()) {
+    int32_t val1 = ConstantValueHi();
+    int32_t val2 = incoming_type.ConstantValueHi();
+    return reg_types->FromCat2ConstHi(val1 | val2, false);
   } else if (IsIntegralTypes() && incoming_type.IsIntegralTypes()) {
     if (IsBooleanTypes() && incoming_type.IsBooleanTypes()) {
       return reg_types->Boolean();  // boolean MERGE boolean => boolean

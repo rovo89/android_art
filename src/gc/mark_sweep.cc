@@ -272,8 +272,7 @@ void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const AbstractMethod
       LOG(ERROR) << "Found invalid root: " << root;
       LOG(ERROR) << "VReg: " << vreg;
       if (method != NULL) {
-        LOG(ERROR) << "In method " << PrettyMethod(method, true) << "\nVerifier output:\n";
-        verifier::MethodVerifier::VerifyMethodAndDump(const_cast<AbstractMethod*>(method));
+        LOG(ERROR) << "In method " << PrettyMethod(method, true);
       }
     }
   }

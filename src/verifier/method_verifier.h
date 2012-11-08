@@ -113,6 +113,8 @@ enum RegisterTrackingMode {
   kTrackRegsAll,
 };
 
+// A mapping from a dex pc to the register line statuses as they are immediately prior to the
+// execution of that instruction.
 class PcToRegisterLineTable {
  public:
   PcToRegisterLineTable() {}
@@ -137,7 +139,6 @@ class PcToRegisterLineTable {
 
  private:
   typedef SafeMap<int32_t, RegisterLine*> Table;
-  // Map from a dex pc to the register status associated with it
   Table pc_to_register_line_;
 };
 
@@ -162,7 +163,19 @@ class MethodVerifier {
                                  std::string& error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VerifyMethodAndDump(AbstractMethod* method)
+  static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
+                                  DexCache* dex_cache, ClassLoader* class_loader,
+                                  uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+                                  AbstractMethod* method, uint32_t method_access_flags)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static std::vector<int32_t> DescribeVRegs(uint32_t dex_method_idx,
+                                            const DexFile* dex_file, DexCache* dex_cache,
+                                            ClassLoader* class_loader,
+                                            uint32_t class_def_idx,
+                                            const DexFile::CodeItem* code_item,
+                                            AbstractMethod* method,
+                                            uint32_t method_access_flags, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -180,7 +193,7 @@ class MethodVerifier {
 
   // Log for verification information.
   std::ostream& LogVerifyInfo() {
-    return info_messages_ << "VFY: " << PrettyMethod(method_idx_, *dex_file_)
+    return info_messages_ << "VFY: " << PrettyMethod(dex_method_idx_, *dex_file_)
                           << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
   }
 
@@ -576,6 +589,9 @@ class MethodVerifier {
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
 
+  // Describe VRegs at the given dex pc.
+  std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
+
   InsnFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
@@ -617,7 +633,7 @@ class MethodVerifier {
   // Storage for the register status we're saving for later.
   UniquePtr<RegisterLine> saved_line_;
 
-  uint32_t method_idx_;  // The method we're working on.
+  uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
   AbstractMethod* foo_method_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t method_access_flags_;  // Method's access flags.
