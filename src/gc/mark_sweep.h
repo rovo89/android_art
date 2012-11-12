@@ -237,6 +237,8 @@ class MarkSweep {
   static void MarkObjectCallback(const Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  static void MarkRootParallelCallback(const Object* root, void* arg);
+
   // Marks an object.
   void MarkObject(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -260,22 +262,16 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_);
 
-  static void ScanDirtyCardCallback(Object* obj, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void MarkObjectNonNull(const Object* obj, bool check_finger)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void MarkObjectNonNullParallel(const Object* obj, bool check_finger);
 
   bool MarkLargeObject(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Returns true if we need to add obj to a mark stack.
   bool MarkObjectParallel(const Object* obj) NO_THREAD_SAFETY_ANALYSIS;
-
-  static void ScanBitmapCallback(Object* obj, void* finger, void* arg)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SweepCallback(size_t num_ptrs, Object** ptrs, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -294,6 +290,9 @@ class MarkSweep {
   // Called in MarkObject, so may we may not hold the mutator lock.
   void VerifyRoots()
       NO_THREAD_SAFETY_ANALYSIS;
+
+  // Expand mark stack to 2x its current size. Thread safe.
+  void ExpandMarkStack();
 
   static void VerifyRootCallback(const Object* root, void* arg, size_t vreg,
                                  const AbstractMethod* method);
@@ -462,7 +461,8 @@ class MarkSweep {
   AtomicInteger reference_count_;
 
   UniquePtr<Barrier> gc_barrier_;
-  Mutex large_object_lock_;
+  Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex mark_stack_expand_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
   friend class CheckBitmapVisitor;

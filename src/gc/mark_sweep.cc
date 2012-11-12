@@ -86,7 +86,8 @@ MarkSweep::MarkSweep(ObjectStack* mark_stack)
       work_chunks_created_(0), work_chunks_deleted_(0),
       reference_count_(0),
       gc_barrier_(new Barrier),
-      large_object_lock_("large object lock") {
+      large_object_lock_("large object lock"),
+      mark_stack_expand_lock_("mark stack expand lock") {
   DCHECK(mark_stack_ != NULL);
 }
 
@@ -111,6 +112,33 @@ void MarkSweep::FindDefaultMarkBitmap() {
   }
   GetHeap()->DumpSpaces();
   LOG(FATAL) << "Could not find a default mark bitmap";
+}
+
+void MarkSweep::ExpandMarkStack() {
+  // Rare case, no need to have Thread::Current be a parameter.
+  MutexLock mu(Thread::Current(), mark_stack_expand_lock_);
+  if (UNLIKELY(mark_stack_->Size() < mark_stack_->Capacity())) {
+    // Someone else acquired the lock and expanded the mark stack before us.
+    return;
+  }
+  std::vector<Object*> temp;
+  temp.insert(temp.begin(), mark_stack_->Begin(), mark_stack_->End());
+  mark_stack_->Resize(mark_stack_->Capacity() * 2);
+  for (size_t i = 0; i < temp.size(); ++i) {
+    mark_stack_->PushBack(temp[i]);
+  }
+}
+
+inline void MarkSweep::MarkObjectNonNullParallel(const Object* obj, bool check_finger) {
+  DCHECK(obj != NULL);
+  if (MarkObjectParallel(obj)) {
+    if (kDisableFinger || (check_finger && obj < finger_)) {
+      while (UNLIKELY(!mark_stack_->AtomicPushBack(const_cast<Object*>(obj)))) {
+        // Only reason a push can fail is that the mark stack is full.
+        ExpandMarkStack();
+      }
+    }
+  }
 }
 
 inline void MarkSweep::MarkObjectNonNull(const Object* obj, bool check_finger) {
@@ -140,12 +168,7 @@ inline void MarkSweep::MarkObjectNonNull(const Object* obj, bool check_finger) {
     if (kDisableFinger || (check_finger && obj < finger_)) {
       // Do we need to expand the mark stack?
       if (UNLIKELY(mark_stack_->Size() >= mark_stack_->Capacity())) {
-        std::vector<Object*> temp;
-        temp.insert(temp.begin(), mark_stack_->Begin(), mark_stack_->End());
-        mark_stack_->Resize(mark_stack_->Capacity() * 2);
-        for (size_t i = 0; i < temp.size(); ++i) {
-          mark_stack_->PushBack(temp[i]);
-        }
+        ExpandMarkStack();
       }
       // The object must be pushed on to the mark stack.
       mark_stack_->PushBack(const_cast<Object*>(obj));
@@ -213,6 +236,13 @@ void MarkSweep::MarkObject(const Object* obj) {
   if (obj != NULL) {
     MarkObjectNonNull(obj, true);
   }
+}
+
+void MarkSweep::MarkRootParallelCallback(const Object* root, void* arg) {
+  DCHECK(root != NULL);
+  DCHECK(arg != NULL);
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  mark_sweep->MarkObjectNonNullParallel(root, false);
 }
 
 void MarkSweep::MarkObjectCallback(const Object* root, void* arg) {
@@ -572,8 +602,7 @@ class CheckpointMarkThreadRoots : public Closure {
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    thread->VisitRoots(MarkSweep::MarkObjectCallback, mark_sweep_);
+    thread->VisitRoots(MarkSweep::MarkRootParallelCallback, mark_sweep_);
     mark_sweep_->GetBarrier().Pass(self);
   }
 
