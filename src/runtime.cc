@@ -786,9 +786,11 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   Thread::Startup();
 
-  // ClassLinker needs an attached thread, but we can't fully attach a thread
-  // without creating objects. We can't supply a thread group yet; it will be fixed later.
-  Thread* self = Thread::Attach("main", false, NULL);
+  // ClassLinker needs an attached thread, but we can't fully attach a thread without creating
+  // objects. We can't supply a thread group yet; it will be fixed later. Since we are the main
+  // thread, we do not get a java peer.
+  Thread* self = Thread::Attach("main", false, NULL, false);
+  CHECK_EQ(self->thin_lock_id_, ThreadList::kMainId);
   CHECK(self != NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
@@ -984,8 +986,9 @@ void Runtime::BlockSignals() {
   signals.Block();
 }
 
-bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group) {
-  bool success = Thread::Attach(thread_name, as_daemon, thread_group) != NULL;
+bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
+                                  bool create_peer) {
+  bool success = Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != NULL;
   if (thread_name == NULL) {
     LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
   }

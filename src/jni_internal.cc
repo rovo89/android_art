@@ -383,7 +383,7 @@ static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, 
     thread_group = args->group;
   }
 
-  if (!runtime->AttachCurrentThread(thread_name, as_daemon, thread_group)) {
+  if (!runtime->AttachCurrentThread(thread_name, as_daemon, thread_group, !runtime->IsCompiler())) {
     *p_env = NULL;
     return JNI_ERR;
   } else {

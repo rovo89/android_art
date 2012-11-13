@@ -379,7 +379,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   static const size_t kChunkOverhead = kWordSize;
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
-  Mutex lock_;
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Underlying malloc space
   void* const mspace_;

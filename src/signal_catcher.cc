@@ -186,7 +186,8 @@ void* SignalCatcher::Run(void* arg) {
   CHECK(signal_catcher != NULL);
 
   Runtime* runtime = Runtime::Current();
-  CHECK(runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup()));
+  CHECK(runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup(),
+                                     !runtime->IsCompiler()));
 
   Thread* self = Thread::Current();
   DCHECK_NE(self->GetState(), kRunnable);
