@@ -163,7 +163,8 @@ class Runtime {
   jobject GetSystemThreadGroup() const;
 
   // Attaches the calling native thread to the runtime.
-  bool AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group);
+  bool AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
+                           bool create_peer);
 
   void CallExitHook(jint status);
 

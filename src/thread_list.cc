@@ -219,6 +219,13 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
     }
   }
 
+  {
+    // Imitate ResumeAll, threads may be waiting on Thread::resume_cond_ since we raised their
+    // suspend count. Now the suspend_count_ is lowered so we must do the broadcast.
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    Thread::resume_cond_->Broadcast(self);
+  }
+
   // Add one for self.
   return count + suspended_count_modified_threads.size() + 1;
 }

@@ -308,7 +308,8 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   thread_list->Register(this);
 }
 
-Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group) {
+Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group,
+                       bool create_peer) {
   Thread* self;
   Runtime* runtime = Runtime::Current();
   if (runtime == NULL) {
@@ -335,7 +336,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
   // In the compiler, all threads need this hack, because no-one's going to be getting
   // a native peer!
-  if (self->thin_lock_id_ != ThreadList::kMainId && !Runtime::Current()->IsCompiler()) {
+  if (create_peer) {
     self->CreatePeer(thread_name, as_daemon, thread_group);
   } else {
     // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.

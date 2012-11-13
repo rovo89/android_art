@@ -117,7 +117,8 @@ class PACKED Thread {
 
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
-  static Thread* Attach(const char* thread_name, bool as_daemon, jobject thread_group);
+  static Thread* Attach(const char* thread_name, bool as_daemon, jobject thread_group,
+                        bool create_peer);
 
   // Reset internal state of child thread after fork.
   void InitAfterFork();
