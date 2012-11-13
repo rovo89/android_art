@@ -392,6 +392,9 @@ class Heap {
   // Swap the allocation stack with the live stack.
   void SwapStacks();
 
+  // Bind bitmaps (makes the live and mark bitmaps for immune spaces point to the same bitmap).
+  void BindBitmaps(GcType gc_type, MarkSweep& mark_sweep);
+
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger& timings);
 

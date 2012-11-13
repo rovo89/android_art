@@ -1030,35 +1030,11 @@ void Heap::CollectGarbageMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_
     // Process dirty cards and add dirty cards to mod union tables.
     ProcessCards(timings);
 
+    // Bind live to mark bitmaps.
+    BindBitmaps(gc_type, mark_sweep);
+    timings.AddSplit("BindBitmaps");
+
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    if (gc_type == kGcTypePartial) {
-      // Copy the mark bits over from the live bits, do this as early as possible or else we can
-      // accidentally un-mark roots.
-      // Needed for scanning dirty objects.
-      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-        if ((*it)->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect) {
-          mark_sweep.BindLiveToMarkBitmap(*it);
-        }
-      }
-      timings.AddSplit("BindLiveToMarked");
-
-      // We can assume that everything from the start of the first space to the alloc space is marked.
-      mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_[0]->Begin()),
-                                reinterpret_cast<Object*>(alloc_space_->Begin()));
-    } else if (gc_type == kGcTypeSticky) {
-      for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
-        if ((*it)->GetGcRetentionPolicy() != kGcRetentionPolicyNeverCollect) {
-          mark_sweep.BindLiveToMarkBitmap(*it);
-        }
-      }
-      timings.AddSplit("BindLiveToMarkBitmap");
-      large_object_space_->CopyLiveToMarked();
-      timings.AddSplit("CopyLiveToMarked");
-      mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_[0]->Begin()),
-                                reinterpret_cast<Object*>(alloc_space_->Begin()));
-    }
-    mark_sweep.FindDefaultMarkBitmap();
-
     mark_sweep.MarkRoots();
     mark_sweep.MarkConcurrentRoots();
     timings.AddSplit("MarkRoots");
@@ -1361,20 +1337,24 @@ class VerifyReferenceCardVisitor {
         failed_(failed) {
   }
 
-  // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for smarter
-  // analysis.
+  // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
+  // annotalysis on visitors.
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& offset,
                      bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
-    if (ref != NULL && !obj->GetClass()->IsPrimitiveArray()) {
+    // Filter out class references since changing an object's class does not mark the card as dirty.
+    // Also handles large objects, since the only reference they hold is a class reference.
+    if (ref != NULL && !ref->IsClass()) {
       CardTable* card_table = heap_->GetCardTable();
       // If the object is not dirty and it is referencing something in the live stack other than
       // class, then it must be on a dirty card.
       if (!card_table->AddrIsInCardTable(obj)) {
         LOG(ERROR) << "Object " << obj << " is not in the address range of the card table";
         *failed_ = true;
-      } else if (!card_table->IsDirty(obj)) {
+      } else if (card_table->GetCard(obj) < CardTable::kCardDirty - 1) {
+        // Card should be either kCardDirty if it got re-dirtied after we aged it, or
+        // kCardDirty - 1 if it didnt get touched since we aged it.
         ObjectStack* live_stack = heap_->live_stack_.get();
-        if (std::binary_search(live_stack->Begin(), live_stack->End(), ref) && !ref->IsClass()) {
+        if (std::binary_search(live_stack->Begin(), live_stack->End(), ref)) {
           if (std::binary_search(live_stack->Begin(), live_stack->End(), obj)) {
             LOG(ERROR) << "Object " << obj << " found in live stack";
           }
@@ -1515,6 +1495,38 @@ void Heap::ProcessCards(TimingLogger& timings) {
   }
 }
 
+// Bind the live bits to the mark bits of bitmaps based on the gc type.
+void Heap::BindBitmaps(GcType gc_type, MarkSweep& mark_sweep) {
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  if (gc_type == kGcTypePartial) {
+    // For partial GCs we need to bind the bitmap of the zygote space so that all objects in the
+    // zygote space are viewed as marked.
+    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      if ((*it)->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect) {
+        mark_sweep.BindLiveToMarkBitmap(*it);
+      }
+    }
+    mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
+                              reinterpret_cast<Object*>(alloc_space_->Begin()));
+  } else if (gc_type == kGcTypeSticky) {
+    // For sticky GC, we want to bind the bitmaps of both the zygote space and the alloc space.
+    // This lets us start with the mark bitmap of the previous garbage collection as the current
+    // mark bitmap of the alloc space. After the sticky GC finishes, we then unbind the bitmaps,
+    // making it so that the live bitmap of the alloc space is contains the newly marked objects
+    // from the sticky GC.
+    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      if ((*it)->GetGcRetentionPolicy() != kGcRetentionPolicyNeverCollect) {
+        mark_sweep.BindLiveToMarkBitmap(*it);
+      }
+    }
+
+    large_object_space_->CopyLiveToMarked();
+    mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
+                              reinterpret_cast<Object*>(alloc_space_->Begin()));
+  }
+  mark_sweep.FindDefaultMarkBitmap();
+}
+
 void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, GcCause gc_cause,
                                                  bool clear_soft_references) {
   TimingLogger timings("ConcurrentCollectGarbageInternal", true);
@@ -1532,35 +1544,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
     mark_sweep.Init();
     timings.AddSplit("Init");
 
-    {
-      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-
-      if (gc_type == kGcTypePartial) {
-        // Copy the mark bits over from the live bits, do this as early as possible or else we can
-        // accidentally un-mark roots.
-        // Needed for scanning dirty objects.
-        for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-          if ((*it)->GetGcRetentionPolicy() == kGcRetentionPolicyFullCollect) {
-            mark_sweep.BindLiveToMarkBitmap(*it);
-          }
-        }
-        timings.AddSplit("BindLiveToMark");
-        mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
-                                  reinterpret_cast<Object*>(alloc_space_->Begin()));
-      } else if (gc_type == kGcTypeSticky) {
-        for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-          if ((*it)->GetGcRetentionPolicy() != kGcRetentionPolicyNeverCollect) {
-            mark_sweep.BindLiveToMarkBitmap(*it);
-          }
-        }
-        timings.AddSplit("BindLiveToMark");
-        large_object_space_->CopyLiveToMarked();
-        timings.AddSplit("CopyLiveToMarked");
-        mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
-                                  reinterpret_cast<Object*>(alloc_space_->Begin()));
-      }
-      mark_sweep.FindDefaultMarkBitmap();
-    }
+    BindBitmaps(gc_type, mark_sweep);
+    timings.AddSplit("BindBitmaps");
 
     if (verify_pre_gc_heap_) {
       thread_list->SuspendAll();
@@ -1676,20 +1661,20 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_type, G
       UnMarkAllocStack(alloc_space_->GetMarkBitmap(), large_object_space_->GetMarkObjects(),
                       allocation_stack_.get());
       timings.AddSplit("UnMarkAllocStack");
-#ifndef NDEBUG
-      if (gc_type == kGcTypeSticky) {
-        // Make sure everything in the live stack isn't something we unmarked.
-        std::sort(allocation_stack_->Begin(), allocation_stack_->End());
-        for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-          DCHECK(!std::binary_search(allocation_stack_->Begin(), allocation_stack_->End(), *it))
-              << "Unmarked object " << *it << " in the live stack";
-        }
-      } else {
-        for (Object** it = allocation_stack_->Begin(); it != allocation_stack_->End(); ++it) {
-          DCHECK(!GetLiveBitmap()->Test(*it)) << "Object " << *it << " is marked as live";
+      if (kIsDebugBuild) {
+        if (gc_type == kGcTypeSticky) {
+          // Make sure everything in the live stack isn't something we unmarked.
+          std::sort(allocation_stack_->Begin(), allocation_stack_->End());
+          for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
+            DCHECK(!std::binary_search(allocation_stack_->Begin(), allocation_stack_->End(), *it))
+                << "Unmarked object " << *it << " in the live stack";
+          }
+        } else {
+          for (Object** it = allocation_stack_->Begin(); it != allocation_stack_->End(); ++it) {
+            DCHECK(!GetLiveBitmap()->Test(*it)) << "Object " << *it << " is marked as live";
+          }
         }
       }
-#endif
     }
 
     if (kIsDebugBuild) {

@@ -51,7 +51,12 @@ class CardTable {
 
   // Is the object on a dirty card?
   bool IsDirty(const Object* obj) const {
-    return *CardFromAddr(obj) == kCardDirty;
+    return GetCard(obj) == kCardDirty;
+  }
+
+  // Return the state of the card at an address.
+  byte GetCard(const Object* obj) const {
+    return *CardFromAddr(obj);
   }
 
   // Visit and clear cards within memory range, only visits dirty cards.
@@ -192,9 +197,11 @@ class CardTable {
       }
       uintptr_t start_word = *word_cur;
       for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
-        if ((start_word & 0xFF) == minimum_age) {
+        if ((start_word & 0xFF) >= minimum_age) {
           byte* card = reinterpret_cast<byte*>(word_cur) + i;
-          DCHECK_EQ(*card, start_word & 0xFF);
+          const byte card_byte = *card;
+          DCHECK(card_byte == (start_word & 0xFF) || card_byte == kCardDirty)
+              << "card " << static_cast<size_t>(card_byte) << " word " << (start_word & 0xFF);
           uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card));
           uintptr_t end = start + kCardSize;
           bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
