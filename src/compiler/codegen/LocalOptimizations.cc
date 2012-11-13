@@ -121,7 +121,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
        * region bits since stopMask is used to check data/control
        * dependencies.
        */
-        stopUseRegMask = (ENCODE_REG_PC | thisLIR->useMask) & ~ENCODE_MEM;
+        stopUseRegMask = (getPCUseDefEncoding() | thisLIR->useMask) & ~ENCODE_MEM;
     }
 
     for (checkLIR = NEXT_LIR(thisLIR);
@@ -232,7 +232,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
         if (cUnit->instructionSet == kX86) {
           // Prevent stores from being sunk between ops that generate ccodes and
           // ops that use them.
-          int flags = EncodingMap[checkLIR->opcode].flags;
+          uint64_t flags = EncodingMap[checkLIR->opcode].flags;
           if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
             checkLIR = PREV_LIR(checkLIR);
             sinkDistance--;
@@ -298,7 +298,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
        * conservatively here.
        */
       if (stopUseAllMask & ENCODE_HEAP_REF) {
-        stopUseAllMask |= ENCODE_REG_PC;
+        stopUseAllMask |= getPCUseDefEncoding();
       }
     }
 
