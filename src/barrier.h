@@ -25,7 +25,7 @@ namespace art {
 
 class Barrier {
  public:
-  Barrier();
+  Barrier(int count);
   virtual ~Barrier();
 
   // Pass through the barrier, decrements the count but does not block.

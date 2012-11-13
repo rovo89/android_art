@@ -20,6 +20,7 @@
 #include <deque>
 #include <vector>
 
+#include "barrier.h"
 #include "closure.h"
 #include "locks.h"
 #include "../src/mutex.h"
@@ -114,6 +115,7 @@ class ThreadPool {
   // Work balance detection.
   uint64_t start_time_ GUARDED_BY(task_queue_lock_);
   uint64_t total_wait_time_;
+  Barrier creation_barier_;
 
   friend class ThreadPoolWorker;
   friend class WorkStealingWorker;

@@ -115,8 +115,6 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
-  heap_->DeleteThreadPool();
-
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
@@ -133,6 +131,7 @@ Runtime::~Runtime() {
 
   // Make sure to let the GC complete if it is running.
   heap_->WaitForConcurrentGcToComplete(self);
+  heap_->DeleteThreadPool();
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();

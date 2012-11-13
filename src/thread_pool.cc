@@ -26,6 +26,7 @@ ThreadPoolWorker::~ThreadPoolWorker() {
 void ThreadPoolWorker::Run() {
   Thread* self = Thread::Current();
   Task* task = NULL;
+  thread_pool_->creation_barier_.Wait(self);
   while ((task = thread_pool_->GetTask(self)) != NULL) {
     task->Run(self);
     task->Finalize();
@@ -57,11 +58,16 @@ ThreadPool::ThreadPool(size_t num_threads)
     completion_condition_("task completion condition", task_queue_lock_),
     started_(false),
     shutting_down_(false),
-    waiting_count_(0) {
+    waiting_count_(0),
+    // Add one since the caller of constructor waits on the barrier too.
+    creation_barier_(num_threads + 1) {
+  Thread* self = Thread::Current();
   while (GetThreadCount() < num_threads) {
     const std::string name = StringPrintf("Thread pool worker %zu", GetThreadCount());
     threads_.push_back(new ThreadPoolWorker(this, name, ThreadPoolWorker::kDefaultStackSize));
   }
+  // Wait for all of the threads to attach.
+  creation_barier_.Wait(self);
 }
 
 ThreadPool::~ThreadPool() {

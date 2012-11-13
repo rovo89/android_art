@@ -85,7 +85,7 @@ MarkSweep::MarkSweep(ObjectStack* mark_stack)
       classes_marked_(0), overhead_time_(0),
       work_chunks_created_(0), work_chunks_deleted_(0),
       reference_count_(0),
-      gc_barrier_(new Barrier),
+      gc_barrier_(new Barrier(0)),
       large_object_lock_("large object lock"),
       mark_stack_expand_lock_("mark stack expand lock") {
   DCHECK(mark_stack_ != NULL);

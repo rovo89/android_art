@@ -4,8 +4,8 @@
 
 namespace art {
 
-Barrier::Barrier()
-    : count_(0),
+Barrier::Barrier(int count)
+    : count_(count),
       lock_("GC barrier lock"),
       condition_("GC barrier condition", lock_) {
 }
