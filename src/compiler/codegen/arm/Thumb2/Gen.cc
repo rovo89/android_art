@@ -42,7 +42,7 @@ RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc)
       // Bad case - half in register, half in frame.  Just punt
       loc.location = kLocInvalid;
     } else if (argNum < 2) {
-      loc.lowReg = rARG1 + argNum;
+      loc.lowReg = rARM_ARG1 + argNum;
       loc.highReg = loc.lowReg + 1;
       loc.location = kLocPhysReg;
     } else {
@@ -50,7 +50,7 @@ RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc)
     }
   } else {
     if (argNum < 3) {
-      loc.lowReg = rARG1 + argNum;
+      loc.lowReg = rARM_ARG1 + argNum;
       loc.location = kLocPhysReg;
     } else {
       loc.location = kLocDalvikFrame;
@@ -69,10 +69,10 @@ RegLocation loadArg(CompilationUnit* cUnit, RegLocation loc)
   if (loc.location == kLocDalvikFrame) {
     int start = (inPosition(cUnit, loc.sRegLow) + 1) * sizeof(uint32_t);
     loc.lowReg = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rSP, start, loc.lowReg);
+    loadWordDisp(cUnit, rARM_SP, start, loc.lowReg);
     if (loc.wide) {
       loc.highReg = oatAllocTemp(cUnit);
-      loadWordDisp(cUnit, rSP, start + sizeof(uint32_t), loc.highReg);
+      loadWordDisp(cUnit, rARM_SP, start + sizeof(uint32_t), loc.highReg);
     }
     loc.location = kLocPhysReg;
   }
@@ -88,7 +88,7 @@ void lockLiveArgs(CompilationUnit* cUnit, MIR* mir)
     int vReg = SRegToVReg(cUnit, mir->ssaRep->uses[i]);
     int inPosition = vReg - firstIn;
     if (inPosition < numArgRegs) {
-      oatLockTemp(cUnit, rARG1 + inPosition);
+      oatLockTemp(cUnit, rARM_ARG1 + inPosition);
     }
   }
 }
@@ -239,7 +239,7 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
        break;
      case kConstFunction:
        genPrintLabel(cUnit, mir);
-       loadConstant(cUnit, rRET0, mir->dalvikInsn.vB);
+       loadConstant(cUnit, rARM_RET0, mir->dalvikInsn.vB);
        nextMir = getNextMir(cUnit, &bb, mir);
        break;
      case kIGet:
@@ -291,7 +291,7 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     if (specialCase != kIdentity) {
       genPrintLabel(cUnit, nextMir);
     }
-    newLIR1(cUnit, kThumbBx, rLR);
+    newLIR1(cUnit, kThumbBx, rARM_LR);
     cUnit->coreSpillMask = 0;
     cUnit->numCoreSpills = 0;
     cUnit->fpSpillMask = 0;
@@ -356,14 +356,14 @@ LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
  * The test loop will look something like:
  *
  *   adr   rBase, <table>
- *   ldr   rVal, [rSP, vRegOff]
+ *   ldr   rVal, [rARM_SP, vRegOff]
  *   mov   rIdx, #tableSize
  * lp:
  *   ldmia rBase!, {rKey, rDisp}
  *   sub   rIdx, #1
  *   cmp   rVal, rKey
  *   ifeq
- *   add   rPC, rDisp   ; This is the branch from which we compute displacement
+ *   add   rARM_PC, rDisp   ; This is the branch from which we compute displacement
  *   cbnz  rIdx, lp
  */
 void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
@@ -488,12 +488,12 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
   // Making a call - use explicit registers
   oatFlushAllRegs(cUnit);   /* Everything to home location */
   loadValueDirectFixed(cUnit, rlSrc, r0);
-  loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
-               rLR);
+  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
+               rARM_LR);
   // Materialize a pointer to the fill data image
   newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
   oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
 }
 
@@ -511,8 +511,8 @@ void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
   RegLocation rlResult;
   rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vnegd, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlSrc.lowReg, rlSrc.highReg));
+  newLIR2(cUnit, kThumb2Vnegd, s2d(rlResult.lowReg, rlResult.highReg),
+          s2d(rlSrc.lowReg, rlSrc.highReg));
   storeValueWide(cUnit, rlDest, rlResult);
 }
 
@@ -549,7 +549,7 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
-  loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  loadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   newLIR3(cUnit, kThumb2Ldrex, r1, r0,
           Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
   // Align owner
@@ -564,9 +564,9 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   opRegImm(cUnit, kOpCmp, r1, 0);
   opIT(cUnit, kArmCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
-  loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rLR);
+  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
   oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
   oatGenMemBarrier(cUnit, kSY);
 }
@@ -585,7 +585,7 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
   loadWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
-  loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  loadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==threadId) on unlock?
   opRegRegImm(cUnit, kOpAnd, r3, r1,
               (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
@@ -596,9 +596,9 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   opIT(cUnit, kArmCondEq, "EE");
   storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
-  loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rLR);
+  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
   oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
   oatGenMemBarrier(cUnit, kSY);
 }
@@ -643,7 +643,7 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
 
   target1 = newLIR0(cUnit, kPseudoTargetLabel);
 
-  RegLocation rlTemp = LOC_C_RETURN; // Just using as template, will change
+  RegLocation rlTemp = locCReturn(); // Just using as template, will change
   rlTemp.lowReg = tReg;
   storeValue(cUnit, rlDest, rlTemp);
   oatFreeTemp(cUnit, tReg);
@@ -708,13 +708,13 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
   LIR* branch;
   int modImm;
   ArmConditionCode armCond = oatArmConditionEncoding(cond);
-  if ((LOWREG(reg)) && (checkValue == 0) &&
+  if ((ARM_LOWREG(reg)) && (checkValue == 0) &&
      ((armCond == kArmCondEq) || (armCond == kArmCondNe))) {
     branch = newLIR2(cUnit, (armCond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
                      reg, 0);
   } else {
     modImm = modifiedImmediate(checkValue);
-    if (LOWREG(reg) && ((checkValue & 0xff) == checkValue)) {
+    if (ARM_LOWREG(reg) && ((checkValue & 0xff) == checkValue)) {
       newLIR2(cUnit, kThumbCmpRI8, reg, checkValue);
     } else if (modImm >= 0) {
       newLIR2(cUnit, kThumb2CmpRI8, reg, modImm);
@@ -732,13 +732,13 @@ LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
 {
   LIR* res;
   int opcode;
-  if (FPREG(rDest) || FPREG(rSrc))
+  if (ARM_FPREG(rDest) || ARM_FPREG(rSrc))
     return fpRegCopy(cUnit, rDest, rSrc);
-  if (LOWREG(rDest) && LOWREG(rSrc))
+  if (ARM_LOWREG(rDest) && ARM_LOWREG(rSrc))
     opcode = kThumbMovRR;
-  else if (!LOWREG(rDest) && !LOWREG(rSrc))
+  else if (!ARM_LOWREG(rDest) && !ARM_LOWREG(rSrc))
      opcode = kThumbMovRR_H2H;
-  else if (LOWREG(rDest))
+  else if (ARM_LOWREG(rDest))
      opcode = kThumbMovRR_H2L;
   else
      opcode = kThumbMovRR_L2H;
@@ -759,19 +759,19 @@ LIR* opRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
                int srcLo, int srcHi)
 {
-  bool destFP = FPREG(destLo) && FPREG(destHi);
-  bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-  DCHECK_EQ(FPREG(srcLo), FPREG(srcHi));
-  DCHECK_EQ(FPREG(destLo), FPREG(destHi));
+  bool destFP = ARM_FPREG(destLo) && ARM_FPREG(destHi);
+  bool srcFP = ARM_FPREG(srcLo) && ARM_FPREG(srcHi);
+  DCHECK_EQ(ARM_FPREG(srcLo), ARM_FPREG(srcHi));
+  DCHECK_EQ(ARM_FPREG(destLo), ARM_FPREG(destHi));
   if (destFP) {
     if (srcFP) {
-      opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
+      opRegCopy(cUnit, s2d(destLo, destHi), s2d(srcLo, srcHi));
     } else {
-      newLIR3(cUnit, kThumb2Fmdrr, S2D(destLo, destHi), srcLo, srcHi);
+      newLIR3(cUnit, kThumb2Fmdrr, s2d(destLo, destHi), srcLo, srcHi);
     }
   } else {
     if (srcFP) {
-      newLIR3(cUnit, kThumb2Fmrrd, destLo, destHi, S2D(srcLo, srcHi));
+      newLIR3(cUnit, kThumb2Fmrrd, destLo, destHi, s2d(srcLo, srcHi));
     } else {
       // Handle overlap
       if (srcHi == destLo) {
@@ -872,7 +872,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
   int regCardBase = oatAllocTemp(cUnit);
   int regCardNo = oatAllocTemp(cUnit);
   LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-  loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(), regCardBase);
+  loadWordDisp(cUnit, rARM_SELF, Thread::CardTableOffset().Int32Value(), regCardBase);
   opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
   storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
@@ -994,18 +994,18 @@ bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
   RegLocation rlDest = inlineTargetWide(cUnit, info);  // double place for result
   rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vsqrtd, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlSrc.lowReg, rlSrc.highReg));
-  newLIR2(cUnit, kThumb2Vcmpd, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlResult.lowReg, rlResult.highReg));
+  newLIR2(cUnit, kThumb2Vsqrtd, s2d(rlResult.lowReg, rlResult.highReg),
+          s2d(rlSrc.lowReg, rlSrc.highReg));
+  newLIR2(cUnit, kThumb2Vcmpd, s2d(rlResult.lowReg, rlResult.highReg),
+          s2d(rlResult.lowReg, rlResult.highReg));
   newLIR0(cUnit, kThumb2Fmstat);
   branch = newLIR2(cUnit, kThumbBCond, 0, kArmCondEq);
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pSqrt));
-  newLIR3(cUnit, kThumb2Fmrrd, r0, r1, S2D(rlSrc.lowReg, rlSrc.highReg));
+  newLIR3(cUnit, kThumb2Fmrrd, r0, r1, s2d(rlSrc.lowReg, rlSrc.highReg));
   newLIR1(cUnit, kThumbBlxR, rTgt);
-  newLIR3(cUnit, kThumb2Fmdrr, S2D(rlResult.lowReg, rlResult.highReg), r0, r1);
+  newLIR3(cUnit, kThumb2Fmdrr, s2d(rlResult.lowReg, rlResult.highReg), r0, r1);
   branch->target = newLIR0(cUnit, kPseudoTargetLabel);
   storeValueWide(cUnit, rlDest, rlResult);
   return true;
@@ -1048,7 +1048,7 @@ void genDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
 // Test suspend flag, return target of taken suspend branch
 LIR* opTestSuspend(CompilationUnit* cUnit, LIR* target)
 {
-  newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
+  newLIR2(cUnit, kThumbSubRI8, rARM_SUSPEND, 1);
   return opCondBranch(cUnit, (target == NULL) ? kCondEq : kCondNe, target);
 }
 

@@ -25,8 +25,8 @@ const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
 /* Mark register usage state and return long retloc */
 RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble)
 {
-  RegLocation gpr_res = LOC_C_RETURN_WIDE;
-  RegLocation fpr_res = LOC_C_RETURN_WIDE_DOUBLE;
+  RegLocation gpr_res = locCReturnWide();
+  RegLocation fpr_res = locCReturnDouble();
   RegLocation res = isDouble ? fpr_res : gpr_res;
   oatClobber(cUnit, res.lowReg);
   oatClobber(cUnit, res.highReg);
@@ -38,8 +38,8 @@ RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble)
 
 RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
 {
-  RegLocation gpr_res = LOC_C_RETURN;
-  RegLocation fpr_res = LOC_C_RETURN_FLOAT;
+  RegLocation gpr_res = locCReturn();
+  RegLocation fpr_res = locCReturnFloat();
   RegLocation res = isFloat ? fpr_res : gpr_res;
   oatClobber(cUnit, res.lowReg);
   if (cUnit->instructionSet == kMips) {
@@ -126,10 +126,11 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
   }
   LIR* callInst;
   if (cUnit->instructionSet != kX86) {
-    callInst = opReg(cUnit, kOpBlx, rINVOKE_TGT);
+    callInst = opReg(cUnit, kOpBlx, targetReg(kInvokeTgt));
   } else {
     if (fastPath && info->type != kInterface) {
-      callInst = opMem(cUnit, kOpBlx, rARG0, AbstractMethod::GetCodeOffset().Int32Value());
+      callInst = opMem(cUnit, kOpBlx, targetReg(kArg0),
+                       AbstractMethod::GetCodeOffset().Int32Value());
     } else {
       int trampoline = 0;
       switch (info->type) {

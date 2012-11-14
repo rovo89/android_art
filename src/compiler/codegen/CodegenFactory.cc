@@ -58,7 +58,7 @@ void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
   } else {
     DCHECK((rlSrc.location == kLocDalvikFrame) ||
            (rlSrc.location == kLocCompilerTemp));
-    loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), rDest);
+    loadWordDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlSrc.sRegLow), rDest);
   }
 }
 
@@ -88,7 +88,7 @@ void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
   } else {
     DCHECK((rlSrc.location == kLocDalvikFrame) ||
            (rlSrc.location == kLocCompilerTemp));
-    loadBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow),
+    loadBaseDispWide(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlSrc.sRegLow),
                      regLo, regHi, INVALID_SREG);
   }
 }
@@ -167,7 +167,7 @@ void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
   if (oatIsDirty(cUnit, rlDest.lowReg) &&
       oatLiveOut(cUnit, rlDest.sRegLow)) {
     defStart = (LIR* )cUnit->lastLIRInsn;
-    storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
+    storeBaseDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlDest.sRegLow),
                   rlDest.lowReg, kWord);
     oatMarkClean(cUnit, rlDest);
     defEnd = (LIR* )cUnit->lastLIRInsn;
@@ -207,7 +207,7 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
 #endif
   LIR* defStart;
   LIR* defEnd;
-  DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));
+  DCHECK_EQ(fpReg(rlSrc.lowReg), fpReg(rlSrc.highReg));
   DCHECK(rlDest.wide);
   DCHECK(rlSrc.wide);
   if (rlSrc.location == kLocPhysReg) {
@@ -248,7 +248,7 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
     defStart = (LIR*)cUnit->lastLIRInsn;
     DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
               SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
-    storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
+    storeBaseDispWide(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlDest.sRegLow),
                       rlDest.lowReg, rlDest.highReg);
     oatMarkClean(cUnit, rlDest);
     defEnd = (LIR*)cUnit->lastLIRInsn;

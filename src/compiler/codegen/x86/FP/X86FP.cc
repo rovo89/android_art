@@ -104,11 +104,11 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  int rDest = S2D(rlResult.lowReg, rlResult.highReg);
-  int rSrc1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
-  int rSrc2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
+  int rDest = s2d(rlResult.lowReg, rlResult.highReg);
+  int rSrc1 = s2d(rlSrc1.lowReg, rlSrc1.highReg);
+  int rSrc2 = s2d(rlSrc2.lowReg, rlSrc2.highReg);
   if (rDest == rSrc2) {
-    rSrc2 = oatAllocTempDouble(cUnit) | FP_DOUBLE;
+    rSrc2 = oatAllocTempDouble(cUnit) | X86_FP_DOUBLE;
     opRegCopy(cUnit, rSrc2, rDest);
   }
   opRegCopy(cUnit, rDest, rSrc1);
@@ -166,7 +166,7 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
       srcReg = rlSrc.lowReg;
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      int tempReg = oatAllocTempDouble(cUnit) | FP_DOUBLE;
+      int tempReg = oatAllocTempDouble(cUnit) | X86_FP_DOUBLE;
 
       loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
       newLIR2(cUnit, kX86Cvtsi2sdRR, tempReg, rlResult.lowReg);
@@ -193,14 +193,14 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
   }
   if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, rcSrc);
-    srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
+    srcReg = s2d(rlSrc.lowReg, rlSrc.highReg);
   } else {
     rlSrc = loadValue(cUnit, rlSrc, rcSrc);
     srcReg = rlSrc.lowReg;
   }
   if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, op, S2D(rlResult.lowReg, rlResult.highReg), srcReg);
+    newLIR2(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
@@ -223,9 +223,9 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation
     srcReg2 = rlSrc2.lowReg;
   } else {
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-    srcReg1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
+    srcReg1 = s2d(rlSrc1.lowReg, rlSrc1.highReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    srcReg2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
+    srcReg2 = s2d(rlSrc2.lowReg, rlSrc2.highReg);
   }
   oatClobberSReg(cUnit, rlDest.sRegLow);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -274,8 +274,8 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    newLIR2(cUnit, kX86UcomisdRR, S2D(rlSrc1.lowReg, rlSrc1.highReg),
-            S2D(rlSrc2.lowReg, rlSrc2.highReg));
+    newLIR2(cUnit, kX86UcomisdRR, s2d(rlSrc1.lowReg, rlSrc1.highReg),
+            s2d(rlSrc2.lowReg, rlSrc2.highReg));
   } else {
     rlSrc1 = oatGetSrc(cUnit, mir, 0);
     rlSrc2 = oatGetSrc(cUnit, mir, 1);

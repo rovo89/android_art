@@ -22,6 +22,91 @@
 
 namespace art {
 
+RegLocation locCReturn()
+{
+  RegLocation res = X86_LOC_C_RETURN;
+  return res;
+}
+
+RegLocation locCReturnWide()
+{
+  RegLocation res = X86_LOC_C_RETURN_WIDE;
+  return res;
+}
+
+RegLocation locCReturnFloat()
+{
+  RegLocation res = X86_LOC_C_RETURN_FLOAT;
+  return res;
+}
+
+RegLocation locCReturnDouble()
+{
+  RegLocation res = X86_LOC_C_RETURN_DOUBLE;
+  return res;
+}
+
+// Return a target-dependent special register.
+int targetReg(SpecialTargetRegister reg) {
+  int res = INVALID_REG;
+  switch (reg) {
+    case kSelf: res = rX86_SELF; break;
+    case kSuspend: res =  rX86_SUSPEND; break;
+    case kLr: res =  rX86_LR; break;
+    case kPc: res =  rX86_PC; break;
+    case kSp: res =  rX86_SP; break;
+    case kArg0: res = rX86_ARG0; break;
+    case kArg1: res = rX86_ARG1; break;
+    case kArg2: res = rX86_ARG2; break;
+    case kArg3: res = rX86_ARG3; break;
+    case kFArg0: res = rX86_FARG0; break;
+    case kFArg1: res = rX86_FARG1; break;
+    case kFArg2: res = rX86_FARG2; break;
+    case kFArg3: res = rX86_FARG3; break;
+    case kRet0: res = rX86_RET0; break;
+    case kRet1: res = rX86_RET1; break;
+    case kInvokeTgt: res = rX86_INVOKE_TGT; break;
+    case kCount: res = rX86_COUNT; break;
+  }
+  return res;
+}
+
+// Create a double from a pair of singles.
+int s2d(int lowReg, int highReg)
+{
+  return X86_S2D(lowReg, highReg);
+}
+
+// Is reg a single or double?
+bool fpReg(int reg)
+{
+  return X86_FPREG(reg);
+}
+
+// Is reg a single?
+bool singleReg(int reg)
+{
+  return X86_SINGLEREG(reg);
+}
+
+// Is reg a double?
+bool doubleReg(int reg)
+{
+  return X86_DOUBLEREG(reg);
+}
+
+// Return mask to strip off fp reg flags and bias.
+uint32_t fpRegMask()
+{
+  return X86_FP_REG_MASK;
+}
+
+// True if both regs single, both core or both double.
+bool sameRegType(int reg1, int reg2)
+{
+  return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
+}
+
 /*
  * Decode the register id.
  */
@@ -35,7 +120,7 @@ u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
   /* Double registers in x86 are just a single FP register */
   seed = 1;
   /* FP register starts at bit position 16 */
-  shift = FPREG(reg) ? kX86FPReg0 : 0;
+  shift = X86_FPREG(reg) ? kX86FPReg0 : 0;
   /* Expand the double register id into single offset */
   shift += regId;
   return (seed << shift);
@@ -149,8 +234,8 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
             break;
           }
           case 'r':
-            if (FPREG(operand) || DOUBLEREG(operand)) {
-              int fp_reg = operand & FP_REG_MASK;
+            if (X86_FPREG(operand) || X86_DOUBLEREG(operand)) {
+              int fp_reg = operand & X86_FP_REG_MASK;
               buf += StringPrintf("xmm%d", fp_reg);
             } else {
               DCHECK_LT(static_cast<size_t>(operand), sizeof(x86RegName));

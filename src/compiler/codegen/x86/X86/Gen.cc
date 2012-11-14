@@ -163,12 +163,12 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
 
   // Making a call - use explicit registers
   oatFlushAllRegs(cUnit);   /* Everything to home location */
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);
+  loadValueDirectFixed(cUnit, rlSrc, rX86_ARG0);
   // Materialize a pointer to the fill data image
-  newLIR1(cUnit, kX86StartOfMethod, rARG2);
-  newLIR2(cUnit, kX86PcRelAdr, rARG1, (intptr_t)tabRec);
-  newLIR2(cUnit, kX86Add32RR, rARG1, rARG2);
-  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rARG0, rARG1,
+  newLIR1(cUnit, kX86StartOfMethod, rX86_ARG2);
+  newLIR2(cUnit, kX86PcRelAdr, rX86_ARG1, (intptr_t)tabRec);
+  newLIR2(cUnit, kX86Add32RR, rX86_ARG1, rX86_ARG2);
+  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0, rX86_ARG1,
                           true);
 }
 
@@ -266,7 +266,7 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
   newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r3:r2) ? 1 : 0
   newLIR2(cUnit, kX86Movzx8RR, r0, r0);
   opRegReg(cUnit, kOpOr, r0, r2);   // r0 = r0 | r2
-  RegLocation rlResult = LOC_C_RETURN;
+  RegLocation rlResult = locCReturn();
   storeValue(cUnit, rlDest, rlResult);
 }
 
@@ -320,7 +320,7 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
 
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-  if (FPREG(rDest) || FPREG(rSrc))
+  if (X86_FPREG(rDest) || X86_FPREG(rSrc))
     return fpRegCopy(cUnit, rDest, rSrc);
   LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Mov32RR,
                     rDest, rSrc);
@@ -340,13 +340,13 @@ LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
                    int srcLo, int srcHi)
 {
-  bool destFP = FPREG(destLo) && FPREG(destHi);
-  bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-  assert(FPREG(srcLo) == FPREG(srcHi));
-  assert(FPREG(destLo) == FPREG(destHi));
+  bool destFP = X86_FPREG(destLo) && X86_FPREG(destHi);
+  bool srcFP = X86_FPREG(srcLo) && X86_FPREG(srcHi);
+  assert(X86_FPREG(srcLo) == X86_FPREG(srcHi));
+  assert(X86_FPREG(destLo) == X86_FPREG(destHi));
   if (destFP) {
     if (srcFP) {
-      opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
+      opRegCopy(cUnit, s2d(destLo, destHi), s2d(srcLo, srcHi));
     } else {
       // TODO: Prevent this from happening in the code. The result is often
       // unused or could have been loaded more easily from memory.

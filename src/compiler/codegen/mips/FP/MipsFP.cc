@@ -107,9 +107,9 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  newLIR3(cUnit, (MipsOpCode)op, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlSrc1.lowReg, rlSrc1.highReg),
-          S2D(rlSrc2.lowReg, rlSrc2.highReg));
+  newLIR3(cUnit, (MipsOpCode)op, s2d(rlResult.lowReg, rlResult.highReg),
+          s2d(rlSrc1.lowReg, rlSrc1.highReg),
+          s2d(rlSrc2.lowReg, rlSrc2.highReg));
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 #else
@@ -149,14 +149,14 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
   }
   if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-    srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
+    srcReg = s2d(rlSrc.lowReg, rlSrc.highReg);
   } else {
     rlSrc = loadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
   if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, (MipsOpCode)op, S2D(rlResult.lowReg, rlResult.highReg),
+    newLIR2(cUnit, (MipsOpCode)op, s2d(rlResult.lowReg, rlResult.highReg),
             srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
@@ -197,11 +197,11 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);
   if (wide) {
-    loadValueDirectWideFixed(cUnit, rlSrc1, rFARG0, rFARG1);
-    loadValueDirectWideFixed(cUnit, rlSrc2, rFARG2, rFARG3);
+    loadValueDirectWideFixed(cUnit, rlSrc1, rMIPS_FARG0, rMIPS_FARG1);
+    loadValueDirectWideFixed(cUnit, rlSrc2, rMIPS_FARG2, rMIPS_FARG3);
   } else {
-    loadValueDirectFixed(cUnit, rlSrc1, rFARG0);
-    loadValueDirectFixed(cUnit, rlSrc2, rFARG2);
+    loadValueDirectFixed(cUnit, rlSrc1, rMIPS_FARG0);
+    loadValueDirectFixed(cUnit, rlSrc2, rMIPS_FARG2);
   }
   int rTgt = loadHelper(cUnit, offset);
   // NOTE: not a safepoint

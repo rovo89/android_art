@@ -41,24 +41,24 @@ void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod
 {
   /*
    * Dummy up a RegLocation for the incoming Method*
-   * It will attempt to keep rARG0 live (or copy it to home location
+   * It will attempt to keep kArg0 live (or copy it to home location
    * if promoted).
    */
   RegLocation rlSrc = rlMethod;
   rlSrc.location = kLocPhysReg;
-  rlSrc.lowReg = rARG0;
+  rlSrc.lowReg = targetReg(kArg0);
   rlSrc.home = false;
   oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
   storeValue(cUnit, rlMethod, rlSrc);
   // If Method* has been promoted, explicitly flush
   if (rlMethod.location == kLocPhysReg) {
-    storeWordDisp(cUnit, rSP, 0, rARG0);
+    storeWordDisp(cUnit, targetReg(kSp), 0, targetReg(kArg0));
   }
 
   if (cUnit->numIns == 0)
     return;
   const int numArgRegs = 3;
-  static int argRegs[] = {rARG1, rARG2, rARG3};
+  static SpecialTargetRegister argRegs[] = {kArg1, kArg2, kArg3};
   int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
   /*
    * Copy incoming arguments to their proper home locations.
@@ -79,10 +79,10 @@ void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod
       bool needFlush = true;
       RegLocation* tLoc = &argLocs[i];
       if ((vMap->coreLocation == kLocPhysReg) && !tLoc->fp) {
-        opRegCopy(cUnit, vMap->coreReg, argRegs[i]);
+        opRegCopy(cUnit, vMap->coreReg, targetReg(argRegs[i]));
         needFlush = false;
       } else if ((vMap->fpLocation == kLocPhysReg) && tLoc->fp) {
-        opRegCopy(cUnit, vMap->fpReg, argRegs[i]);
+        opRegCopy(cUnit, vMap->fpReg, targetReg(argRegs[i]));
         needFlush = false;
       } else {
         needFlush = true;
@@ -95,17 +95,17 @@ void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod
             (pMap->fpLocation != vMap->fpLocation);
       }
       if (needFlush) {
-        storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                      argRegs[i], kWord);
+        storeBaseDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, startVReg + i),
+                      targetReg(argRegs[i]), kWord);
       }
     } else {
       // If arriving in frame & promoted
       if (vMap->coreLocation == kLocPhysReg) {
-        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+        loadWordDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, startVReg + i),
                      vMap->coreReg);
       }
       if (vMap->fpLocation == kLocPhysReg) {
-        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+        loadWordDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, startVReg + i),
                      vMap->fpReg);
       }
     }
@@ -147,28 +147,28 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
   }
   if (directCode != 0 && directMethod != 0) {
     switch (state) {
-    case 0:  // Get the current Method* [sets rARG0]
+    case 0:  // Get the current Method* [sets kArg0]
       if (directCode != (uintptr_t)-1) {
-        loadConstant(cUnit, rINVOKE_TGT, directCode);
+        loadConstant(cUnit, targetReg(kInvokeTgt), directCode);
       } else {
         LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
         if (dataTarget == NULL) {
           dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
           dataTarget->operands[1] = type;
         }
-        LIR* loadPcRel = opPcRelLoad(cUnit, rINVOKE_TGT, dataTarget);
+        LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kInvokeTgt), dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
         DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
       }
       if (directMethod != (uintptr_t)-1) {
-        loadConstant(cUnit, rARG0, directMethod);
+        loadConstant(cUnit, targetReg(kArg0), directMethod);
       } else {
         LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
         if (dataTarget == NULL) {
           dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
           dataTarget->operands[1] = type;
         }
-        LIR* loadPcRel = opPcRelLoad(cUnit, rARG0, dataTarget);
+        LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kArg0), dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
         DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
       }
@@ -178,40 +178,38 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
     }
   } else {
     switch (state) {
-    case 0:  // Get the current Method* [sets rARG0]
+    case 0:  // Get the current Method* [sets kArg0]
       // TUNING: we can save a reg copy if Method* has been promoted.
-      loadCurrMethodDirect(cUnit, rARG0);
+      loadCurrMethodDirect(cUnit, targetReg(kArg0));
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
-      loadWordDisp(cUnit, rARG0,
-        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-        rARG0);
+      loadWordDisp(cUnit, targetReg(kArg0),
+        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), targetReg(kArg0));
       // Set up direct code if known.
       if (directCode != 0) {
         if (directCode != (uintptr_t)-1) {
-          loadConstant(cUnit, rINVOKE_TGT, directCode);
+          loadConstant(cUnit, targetReg(kInvokeTgt), directCode);
         } else {
           LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
           if (dataTarget == NULL) {
             dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
             dataTarget->operands[1] = type;
           }
-          LIR* loadPcRel = opPcRelLoad(cUnit, rINVOKE_TGT, dataTarget);
+          LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kInvokeTgt), dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
           DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
         }
       }
       break;
     case 2:  // Grab target method*
-      loadWordDisp(cUnit, rARG0,
-                   Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
-                   rARG0);
+      loadWordDisp(cUnit, targetReg(kArg0),
+                   Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4, targetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cUnit->instructionSet != kX86) {
         if (directCode == 0) {
-          loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(),
-                       rINVOKE_TGT);
+          loadWordDisp(cUnit, targetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+                       targetReg(kInvokeTgt));
         }
         break;
       }
@@ -226,9 +224,9 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
 /*
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in a virtual invoke sequence.
- * We can use rLR as a temp prior to target address loading
+ * We can use kLr as a temp prior to target address loading
  * Note also that we'll load the first argument ("this") into
- * rARG1 here rather than the standard loadArgRegs.
+ * kArg1 here rather than the standard loadArgRegs.
  */
 int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
                   int state, uint32_t dexIdx, uint32_t methodIdx,
@@ -239,28 +237,29 @@ int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
    * fully resolved at compile time.
    */
   switch (state) {
-    case 0: {  // Get "this" [set rARG1]
+    case 0: {  // Get "this" [set kArg1]
       RegLocation  rlArg = info->args[0];
-      loadValueDirectFixed(cUnit, rlArg, rARG1);
+      loadValueDirectFixed(cUnit, rlArg, targetReg(kArg1));
       break;
     }
-    case 1: // Is "this" null? [use rARG1]
-      genNullCheck(cUnit, info->args[0].sRegLow, rARG1, info->optFlags);
-      // get this->klass_ [use rARG1, set rINVOKE_TGT]
-      loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(),
-                   rINVOKE_TGT);
+    case 1: // Is "this" null? [use kArg1]
+      genNullCheck(cUnit, info->args[0].sRegLow, targetReg(kArg1), info->optFlags);
+      // get this->klass_ [use kArg1, set kInvokeTgt]
+      loadWordDisp(cUnit, targetReg(kArg1), Object::ClassOffset().Int32Value(),
+                   targetReg(kInvokeTgt));
       break;
-    case 2: // Get this->klass_->vtable [usr rINVOKE_TGT, set rINVOKE_TGT]
-      loadWordDisp(cUnit, rINVOKE_TGT, Class::VTableOffset().Int32Value(),
-                   rINVOKE_TGT);
+    case 2: // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
+      loadWordDisp(cUnit, targetReg(kInvokeTgt), Class::VTableOffset().Int32Value(),
+                   targetReg(kInvokeTgt));
       break;
-    case 3: // Get target method [use rINVOKE_TGT, set rARG0]
-      loadWordDisp(cUnit, rINVOKE_TGT, (methodIdx * 4) +
-                   Array::DataOffset(sizeof(Object*)).Int32Value(), rARG0);
+    case 3: // Get target method [use kInvokeTgt, set kArg0]
+      loadWordDisp(cUnit, targetReg(kInvokeTgt), (methodIdx * 4) +
+                   Array::DataOffset(sizeof(Object*)).Int32Value(), targetReg(kArg0));
       break;
-    case 4: // Get the compiled code address [uses rARG0, sets rINVOKE_TGT]
+    case 4: // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cUnit->instructionSet != kX86) {
-        loadWordDisp(cUnit, rARG0, AbstractMethod::GetCodeOffset().Int32Value(), rINVOKE_TGT);
+        loadWordDisp(cUnit, targetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+                     targetReg(kInvokeTgt));
         break;
       }
       // Intentional fallthrough for X86
@@ -287,20 +286,20 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
 
   if (directMethod != 0) {
     switch (state) {
-      case 0:  // Load the trampoline target [sets rINVOKE_TGT].
+      case 0:  // Load the trampoline target [sets kInvokeTgt].
         if (cUnit->instructionSet != kX86) {
-          loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+          loadWordDisp(cUnit, targetReg(kSelf), trampoline, targetReg(kInvokeTgt));
         }
-        // Get the interface Method* [sets rARG0]
+        // Get the interface Method* [sets kArg0]
         if (directMethod != (uintptr_t)-1) {
-          loadConstant(cUnit, rARG0, directMethod);
+          loadConstant(cUnit, targetReg(kArg0), directMethod);
         } else {
           LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
           if (dataTarget == NULL) {
             dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
             dataTarget->operands[1] = kInterface;
           }
-          LIR* loadPcRel = opPcRelLoad(cUnit, rARG0, dataTarget);
+          LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kArg0), dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
           DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
         }
@@ -311,22 +310,22 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
   } else {
     switch (state) {
       case 0:
-        // Get the current Method* [sets rARG0] - TUNING: remove copy of method if it is promoted.
-        loadCurrMethodDirect(cUnit, rARG0);
-        // Load the trampoline target [sets rINVOKE_TGT].
+        // Get the current Method* [sets kArg0] - TUNING: remove copy of method if it is promoted.
+        loadCurrMethodDirect(cUnit, targetReg(kArg0));
+        // Load the trampoline target [sets kInvokeTgt].
         if (cUnit->instructionSet != kX86) {
-          loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+          loadWordDisp(cUnit, targetReg(kSelf), trampoline, targetReg(kInvokeTgt));
         }
         break;
-    case 1:  // Get method->dex_cache_resolved_methods_ [set/use rARG0]
-      loadWordDisp(cUnit, rARG0,
+    case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
+      loadWordDisp(cUnit, targetReg(kArg0),
                    AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                   rARG0);
+                   targetReg(kArg0));
       break;
-    case 2:  // Grab target method* [set/use rARG0]
-      loadWordDisp(cUnit, rARG0,
+    case 2:  // Grab target method* [set/use kArg0]
+      loadWordDisp(cUnit, targetReg(kArg0),
                    Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
-                   rARG0);
+                   targetReg(kArg0));
       break;
     default:
       return -1;
@@ -345,10 +344,10 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
   if (state == 0) {
     if (cUnit->instructionSet != kX86) {
       // Load trampoline target
-      loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+      loadWordDisp(cUnit, targetReg(kSelf), trampoline, targetReg(kInvokeTgt));
     }
-    // Load rARG0 with method index
-    loadConstant(cUnit, rARG0, dexIdx);
+    // Load kArg0 with method index
+    loadConstant(cUnit, targetReg(kArg0), dexIdx);
     return 1;
   }
   return -1;
@@ -402,8 +401,8 @@ int loadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
                 uint32_t methodIdx, uintptr_t directCode,
                 uintptr_t directMethod, InvokeType type, bool skipThis)
 {
-  int lastArgReg = rARG3;
-  int nextReg = rARG1;
+  int lastArgReg = targetReg(kArg3);
+  int nextReg = targetReg(kArg1);
   int nextArg = 0;
   if (skipThis) {
     nextReg++;
@@ -412,7 +411,7 @@ int loadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
   for (; (nextReg <= lastArgReg) && (nextArg < info->numArgWords); nextReg++) {
     RegLocation rlArg = info->args[nextArg++];
     rlArg = oatUpdateRawLoc(cUnit, rlArg);
-    if (rlArg.wide && (nextReg <= rARG2)) {
+    if (rlArg.wide && (nextReg <= targetReg(kArg2))) {
       loadValueDirectWideFixed(cUnit, rlArg, nextReg, nextReg + 1);
       nextReg++;
       nextArg++;
@@ -428,7 +427,7 @@ int loadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
 
 /*
  * Load up to 5 arguments, the first three of which will be in
- * rARG1 .. rARG3.  On entry rARG0 contains the current method pointer,
+ * kArg1 .. kArg3.  On entry kArg0 contains the current method pointer,
  * and as part of the load sequence, it must be replaced with
  * the target method pointer.  Note, this may also be called
  * for "range" variants if the number of arguments is 5 or fewer.
@@ -464,14 +463,14 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
       if (rlArg.location == kLocPhysReg) {
         reg = rlArg.highReg;
       } else {
-        // rARG2 & rARG3 can safely be used here
-        reg = rARG3;
-        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
+        // kArg2 & rArg3 can safely be used here
+        reg = targetReg(kArg3);
+        loadWordDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
         callState = nextCallInsn(cUnit, info, callState, dexIdx,
                                  methodIdx, directCode, directMethod, type);
       }
-      storeBaseDisp(cUnit, rSP, (nextUse + 1) * 4, reg, kWord);
-      storeBaseDisp(cUnit, rSP, 16 /* (3+1)*4 */, reg, kWord);
+      storeBaseDisp(cUnit, targetReg(kSp), (nextUse + 1) * 4, reg, kWord);
+      storeBaseDisp(cUnit, targetReg(kSp), 16 /* (3+1)*4 */, reg, kWord);
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
       nextUse++;
@@ -486,9 +485,9 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
         lowReg = rlArg.lowReg;
         highReg = rlArg.highReg;
       } else {
-        lowReg = rARG2;
+        lowReg = targetReg(kArg2);
         if (rlArg.wide) {
-          highReg = rARG3;
+          highReg = targetReg(kArg3);
           loadValueDirectWideFixed(cUnit, rlArg, lowReg, highReg);
         } else {
           loadValueDirectFixed(cUnit, rlArg, lowReg);
@@ -498,10 +497,10 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
       }
       int outsOffset = (nextUse + 1) * 4;
       if (rlArg.wide) {
-        storeBaseDispWide(cUnit, rSP, outsOffset, lowReg, highReg);
+        storeBaseDispWide(cUnit, targetReg(kSp), outsOffset, lowReg, highReg);
         nextUse += 2;
       } else {
-        storeWordDisp(cUnit, rSP, outsOffset, lowReg);
+        storeWordDisp(cUnit, targetReg(kSp), outsOffset, lowReg);
         nextUse++;
       }
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
@@ -514,7 +513,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
                           type, skipThis);
 
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, rARG1,
+    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, targetReg(kArg1),
                              info->optFlags);
   }
   return callState;
@@ -529,10 +528,10 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
  * Two general strategies:
  *    If < 20 arguments
  *       Pass args 3-18 using vldm/vstm block copy
- *       Pass arg0, arg1 & arg2 in rARG1-rARG3
+ *       Pass arg0, arg1 & arg2 in kArg1-kArg3
  *    If 20+ arguments
  *       Pass args arg19+ using memcpy block copy
- *       Pass arg0, arg1 & arg2 in rARG1-rARG3
+ *       Pass arg0, arg1 & arg2 in kArg1-kArg3
  *
  */
 int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
@@ -559,14 +558,14 @@ int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
     if (loc.wide) {
       loc = oatUpdateLocWide(cUnit, loc);
       if ((nextArg >= 2) && (loc.location == kLocPhysReg)) {
-        storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
+        storeBaseDispWide(cUnit, targetReg(kSp), oatSRegOffset(cUnit, loc.sRegLow),
                           loc.lowReg, loc.highReg);
       }
       nextArg += 2;
     } else {
       loc = oatUpdateLoc(cUnit, loc);
       if ((nextArg >= 3) && (loc.location == kLocPhysReg)) {
-        storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
+        storeBaseDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, loc.sRegLow),
                       loc.lowReg, kWord);
       }
       nextArg++;
@@ -577,33 +576,33 @@ int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
   int outsOffset = 4 /* Method* */ + (3 * 4);
   if (cUnit->instructionSet != kThumb2) {
     // Generate memcpy
-    opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
-    opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-    callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                               rARG0, rARG1, (info->numArgWords - 3) * 4, false);
+    opRegRegImm(cUnit, kOpAdd, targetReg(kArg0), targetReg(kSp), outsOffset);
+    opRegRegImm(cUnit, kOpAdd, targetReg(kArg1), targetReg(kSp), startOffset);
+    callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy), targetReg(kArg0),
+                               targetReg(kArg1), (info->numArgWords - 3) * 4, false);
   } else {
     if (info->numArgWords >= 20) {
       // Generate memcpy
-      opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
-      opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-      callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                                 rARG0, rARG1, (info->numArgWords - 3) * 4, false);
+      opRegRegImm(cUnit, kOpAdd, targetReg(kArg0), targetReg(kSp), outsOffset);
+      opRegRegImm(cUnit, kOpAdd, targetReg(kArg1), targetReg(kSp), startOffset);
+      callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy), targetReg(kArg0),
+                                 targetReg(kArg1), (info->numArgWords - 3) * 4, false);
     } else {
-      // Use vldm/vstm pair using rARG3 as a temp
+      // Use vldm/vstm pair using kArg3 as a temp
       int regsLeft = std::min(info->numArgWords - 3, 16);
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
-      opRegRegImm(cUnit, kOpAdd, rARG3, rSP, startOffset);
-      LIR* ld = opVldm(cUnit, rARG3, regsLeft);
+      opRegRegImm(cUnit, kOpAdd, targetReg(kArg3), targetReg(kSp), startOffset);
+      LIR* ld = opVldm(cUnit, targetReg(kArg3), regsLeft);
       //TUNING: loosen barrier
       ld->defMask = ENCODE_ALL;
       setMemRefType(ld, true /* isLoad */, kDalvikReg);
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
-      opRegRegImm(cUnit, kOpAdd, rARG3, rSP, 4 /* Method* */ + (3 * 4));
+      opRegRegImm(cUnit, kOpAdd, targetReg(kArg3), targetReg(kSp), 4 /* Method* */ + (3 * 4));
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
-      LIR* st = opVstm(cUnit, rARG3, regsLeft);
+      LIR* st = opVstm(cUnit, targetReg(kArg3), regsLeft);
       setMemRefType(st, false /* isLoad */, kDalvikReg);
       st->defMask = ENCODE_ALL;
       callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
@@ -618,7 +617,7 @@ int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
   callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                            directCode, directMethod, type);
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, rARG1,
+    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, targetReg(kArg1),
                              info->optFlags);
   }
   return callState;
@@ -854,9 +853,9 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   }
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
-  int regPtr = rARG0;
-  int regChar = rARG1;
-  int regStart = rARG2;
+  int regPtr = targetReg(kArg0);
+  int regChar = targetReg(kArg1);
+  int regStart = targetReg(kArg2);
 
   RegLocation rlObj = info->args[0];
   RegLocation rlChar = info->args[1];
@@ -899,8 +898,8 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
   }
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
-  int regThis = rARG0;
-  int regCmp = rARG1;
+  int regThis = targetReg(kArg0);
+  int regCmp = targetReg(kArg1);
 
   RegLocation rlThis = info->args[0];
   RegLocation rlCmp = info->args[1];

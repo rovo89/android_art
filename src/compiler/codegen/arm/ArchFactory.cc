@@ -44,8 +44,8 @@ bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
 
 int loadHelper(CompilationUnit* cUnit, int offset)
 {
-  loadWordDisp(cUnit, rSELF, offset, rLR);
-  return rLR;
+  loadWordDisp(cUnit, rARM_SELF, offset, rARM_LR);
+  return rARM_LR;
 }
 
 void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
@@ -73,7 +73,7 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
   newLIR0(cUnit, kPseudoMethodEntry);
   if (!skipOverflowCheck) {
     /* Load stack limit */
-    loadWordDisp(cUnit, rSELF, Thread::StackEndOffset().Int32Value(), r12);
+    loadWordDisp(cUnit, rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
   }
   /* Spill core callee saves */
   newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
@@ -87,11 +87,11 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
     newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
   }
   if (!skipOverflowCheck) {
-    opRegRegImm(cUnit, kOpSub, rLR, rSP, cUnit->frameSize - (spillCount * 4));
-    genRegRegCheck(cUnit, kCondCc, rLR, r12, kThrowStackOverflow);
-    opRegCopy(cUnit, rSP, rLR);     // Establish stack
+    opRegRegImm(cUnit, kOpSub, rARM_LR, rARM_SP, cUnit->frameSize - (spillCount * 4));
+    genRegRegCheck(cUnit, kCondCc, rARM_LR, r12, kThrowStackOverflow);
+    opRegCopy(cUnit, rARM_SP, rARM_LR);     // Establish stack
   } else {
-    opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));
+    opRegImm(cUnit, kOpSub, rARM_SP, cUnit->frameSize - (spillCount * 4));
   }
 
   flushIns(cUnit, argLocs, rlMethod);
@@ -113,20 +113,20 @@ void genExitSequence(CompilationUnit* cUnit)
   oatLockTemp(cUnit, r1);
 
   newLIR0(cUnit, kPseudoMethodExit);
-  opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
+  opRegImm(cUnit, kOpAdd, rARM_SP, cUnit->frameSize - (spillCount * 4));
   /* Need to restore any FP callee saves? */
   if (cUnit->numFPSpills) {
     newLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
   }
-  if (cUnit->coreSpillMask & (1 << rLR)) {
-    /* Unspill rLR to rPC */
-    cUnit->coreSpillMask &= ~(1 << rLR);
-    cUnit->coreSpillMask |= (1 << rPC);
+  if (cUnit->coreSpillMask & (1 << rARM_LR)) {
+    /* Unspill rARM_LR to rARM_PC */
+    cUnit->coreSpillMask &= ~(1 << rARM_LR);
+    cUnit->coreSpillMask |= (1 << rARM_PC);
   }
   newLIR1(cUnit, kThumb2Pop, cUnit->coreSpillMask);
-  if (!(cUnit->coreSpillMask & (1 << rPC))) {
-    /* We didn't pop to rPC, so must do a bv rLR */
-    newLIR1(cUnit, kThumbBx, rLR);
+  if (!(cUnit->coreSpillMask & (1 << rARM_PC))) {
+    /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
+    newLIR1(cUnit, kThumbBx, rARM_LR);
   }
 }
 

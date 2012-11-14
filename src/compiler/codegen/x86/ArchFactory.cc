@@ -123,7 +123,7 @@ void spillCoreRegs(CompilationUnit* cUnit) {
   int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      storeWordDisp(cUnit, rSP, offset, reg);
+      storeWordDisp(cUnit, rX86_SP, offset, reg);
       offset += 4;
     }
   }
@@ -138,7 +138,7 @@ void unSpillCoreRegs(CompilationUnit* cUnit) {
   int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      loadWordDisp(cUnit, rSP, offset, reg);
+      loadWordDisp(cUnit, rX86_SP, offset, reg);
       offset += 4;
     }
   }
@@ -159,17 +159,17 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
                       RegLocation rlMethod)
 {
   /*
-   * On entry, rARG0, rARG1, rARG2 are live.  Let the register
+   * On entry, rX86_ARG0, rX86_ARG1, rX86_ARG2 are live.  Let the register
    * allocation mechanism know so it doesn't try to use any of them when
    * expanding the frame or flushing.  This leaves the utility
    * code with no spare temps.
    */
-  oatLockTemp(cUnit, rARG0);
-  oatLockTemp(cUnit, rARG1);
-  oatLockTemp(cUnit, rARG2);
+  oatLockTemp(cUnit, rX86_ARG0);
+  oatLockTemp(cUnit, rX86_ARG1);
+  oatLockTemp(cUnit, rX86_ARG2);
 
   /* Build frame, return address already on stack */
-  opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - 4);
+  opRegImm(cUnit, kOpSub, rX86_SP, cUnit->frameSize - 4);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -184,9 +184,9 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
   /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
   DCHECK_EQ(cUnit->numFPSpills, 0);
   if (!skipOverflowCheck) {
-    // cmp rSP, fs:[stack_end_]; jcc throw_launchpad
+    // cmp rX86_SP, fs:[stack_end_]; jcc throw_launchpad
     LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kThrowStackOverflow, 0, 0, 0, 0);
-    opRegThreadMem(cUnit, kOpCmp, rSP, Thread::StackEndOffset().Int32Value());
+    opRegThreadMem(cUnit, kOpCmp, rX86_SP, Thread::StackEndOffset().Int32Value());
     opCondBranch(cUnit, kCondUlt, tgt);
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
@@ -194,23 +194,23 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
 
   flushIns(cUnit, argLocs, rlMethod);
 
-  oatFreeTemp(cUnit, rARG0);
-  oatFreeTemp(cUnit, rARG1);
-  oatFreeTemp(cUnit, rARG2);
+  oatFreeTemp(cUnit, rX86_ARG0);
+  oatFreeTemp(cUnit, rX86_ARG1);
+  oatFreeTemp(cUnit, rX86_ARG2);
 }
 
 void genExitSequence(CompilationUnit* cUnit) {
   /*
-   * In the exit path, rRET0/rRET1 are live - make sure they aren't
+   * In the exit path, rX86_RET0/rX86_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  oatLockTemp(cUnit, rRET0);
-  oatLockTemp(cUnit, rRET1);
+  oatLockTemp(cUnit, rX86_RET0);
+  oatLockTemp(cUnit, rX86_RET1);
 
   newLIR0(cUnit, kPseudoMethodExit);
   unSpillCoreRegs(cUnit);
   /* Remove frame except for return address */
-  opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - 4);
+  opRegImm(cUnit, kOpAdd, rX86_SP, cUnit->frameSize - 4);
   newLIR0(cUnit, kX86Ret);
 }
 

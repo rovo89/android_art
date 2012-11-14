@@ -1051,12 +1051,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
             ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
           /*
-           * Note: because rLR may be used to fix up out-of-range
+           * Note: because rARM_LR may be used to fix up out-of-range
            * vldrs/vldrd we include REG_DEF_LR in the resource
            * masks for these instructions.
            */
           int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
-            lir->operands[0] : rLR;
+            lir->operands[0] : rARM_LR;
 
           // Add new Adr to generate the address
           LIR* newAdr = rawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
@@ -1219,7 +1219,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                      0, lir->target);
           oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
           lir->opcode = kThumb2AddRRR;
-          lir->operands[1] = rPC;
+          lir->operands[1] = rARM_PC;
           lir->operands[2] = lir->operands[0];
           oatSetupResourceMasks(cUnit, lir);
           res = kRetryAll;
@@ -1304,9 +1304,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           bits |= value;
           break;
         case kFmtDfp: {
-          DCHECK(DOUBLEREG(operand));
+          DCHECK(ARM_DOUBLEREG(operand));
           DCHECK_EQ((operand & 0x1), 0U);
-          int regName = (operand & FP_REG_MASK) >> 1;
+          int regName = (operand & ARM_FP_REG_MASK) >> 1;
           /* Snag the 1-bit slice and position it */
           value = ((regName & 0x10) >> 4) << encoder->fieldLoc[i].end;
           /* Extract and position the 4-bit slice */
@@ -1315,7 +1315,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           break;
         }
         case kFmtSfp:
-          DCHECK(SINGLEREG(operand));
+          DCHECK(ARM_SINGLEREG(operand));
           /* Snag the 1-bit slice and position it */
           value = (operand & 0x1) << encoder->fieldLoc[i].end;
           /* Extract and position the 4-bit slice */
