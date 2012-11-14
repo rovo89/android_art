@@ -258,7 +258,7 @@ void oatDumpPromotionMap(CompilationUnit *cUnit)
     PromotionMap vRegMap = cUnit->promotionMap[i];
     std::string buf;
     if (vRegMap.fpLocation == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", vRegMap.fpReg & FP_REG_MASK);
+      StringAppendF(&buf, " : s%d", vRegMap.fpReg & fpRegMask());
     }
 
     std::string buf3;

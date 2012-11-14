@@ -20,12 +20,12 @@ namespace art {
 
 //FIXME: restore "static" when usage uncovered
 /*static*/ int coreRegs[] = {
-  rAX, rCX, rDX, rBX, rSP, rBP, rSI, rDI
+  rAX, rCX, rDX, rBX, rX86_SP, rBP, rSI, rDI
 #ifdef TARGET_REX_SUPPORT
   r8, r9, r10, r11, r12, r13, r14, 15
 #endif
 };
-/*static*/ int reservedRegs[] = {rSP};
+/*static*/ int reservedRegs[] = {rX86_SP};
 /*static*/ int coreTemps[] = {rAX, rCX, rDX, rBX};
 /*static*/ int fpRegs[] = {
   fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
@@ -52,18 +52,18 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(DOUBLEREG(rDest), DOUBLEREG(rSrc));
-  if (DOUBLEREG(rDest)) {
+  DCHECK_EQ(X86_DOUBLEREG(rDest), X86_DOUBLEREG(rSrc));
+  if (X86_DOUBLEREG(rDest)) {
     opcode = kX86MovsdRR;
   } else {
-    if (SINGLEREG(rDest)) {
-      if (SINGLEREG(rSrc)) {
+    if (X86_SINGLEREG(rDest)) {
+      if (X86_SINGLEREG(rSrc)) {
         opcode = kX86MovssRR;
       } else {  // Fpr <- Gpr
         opcode = kX86MovdxrRR;
       }
     } else {  // Gpr <- Fpr
-      DCHECK(SINGLEREG(rSrc));
+      DCHECK(X86_SINGLEREG(rSrc));
       opcode = kX86MovdrxRR;
     }
   }
@@ -87,11 +87,11 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
 {
   int rDestSave = rDest;
-  if (FPREG(rDest)) {
+  if (X86_FPREG(rDest)) {
     if (value == 0) {
       return newLIR2(cUnit, kX86XorpsRR, rDest, rDest);
     }
-    DCHECK(SINGLEREG(rDest));
+    DCHECK(X86_SINGLEREG(rDest));
     rDest = oatAllocTemp(cUnit);
   }
 
@@ -103,7 +103,7 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
     res = newLIR2(cUnit, kX86Mov32RI, rDest, value);
   }
 
-  if (FPREG(rDestSave)) {
+  if (X86_FPREG(rDestSave)) {
     newLIR2(cUnit, kX86MovdxrRR, rDestSave, rDest);
     oatFreeTemp(cUnit, rDest);
   }
@@ -145,7 +145,7 @@ LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value)
 {
   X86OpCode opcode = kX86Bkpt;
   bool byteImm = IS_SIMM8(value);
-  DCHECK(!FPREG(rDestSrc1));
+  DCHECK(!X86_FPREG(rDestSrc1));
   switch (op) {
     case kOpLsl: opcode = kX86Sal32RI; break;
     case kOpLsr: opcode = kX86Shr32RI; break;
@@ -342,8 +342,8 @@ LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
                            int rDestHi, int valLo, int valHi)
 {
     LIR *res;
-    if (FPREG(rDestLo)) {
-      DCHECK(FPREG(rDestHi));  // ignore rDestHi
+    if (X86_FPREG(rDestLo)) {
+      DCHECK(X86_FPREG(rDestHi));  // ignore rDestHi
       if (valLo == 0 && valHi == 0) {
         return newLIR2(cUnit, kX86XorpsRR, rDestLo, rDestLo);
       } else {
@@ -393,12 +393,12 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
     case kLong:
     case kDouble:
       is64bit = true;
-      if (FPREG(rDest)) {
+      if (X86_FPREG(rDest)) {
         opcode = isArray ? kX86MovsdRA : kX86MovsdRM;
-        if (SINGLEREG(rDest)) {
-          DCHECK(FPREG(rDestHi));
+        if (X86_SINGLEREG(rDest)) {
+          DCHECK(X86_FPREG(rDestHi));
           DCHECK_EQ(rDest, (rDestHi - 1));
-          rDest = S2D(rDest, rDestHi);
+          rDest = s2d(rDest, rDestHi);
         }
         rDestHi = rDest + 1;
       } else {
@@ -411,9 +411,9 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
     case kWord:
     case kSingle:
       opcode = isArray ? kX86Mov32RA : kX86Mov32RM;
-      if (FPREG(rDest)) {
+      if (X86_FPREG(rDest)) {
         opcode = isArray ? kX86MovssRA : kX86MovssRM;
-        DCHECK(SINGLEREG(rDest));
+        DCHECK(X86_SINGLEREG(rDest));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -449,7 +449,7 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
                         displacement + HIWORD_OFFSET);
       }
     }
-    if (rBase == rSP) {
+    if (rBase == rX86_SP) {
       annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0))
                               >> 2, true /* isLoad */, is64bit);
       if (pair) {
@@ -516,12 +516,12 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
     case kLong:
     case kDouble:
       is64bit = true;
-      if (FPREG(rSrc)) {
+      if (X86_FPREG(rSrc)) {
         opcode = isArray ? kX86MovsdAR : kX86MovsdMR;
-        if (SINGLEREG(rSrc)) {
-          DCHECK(FPREG(rSrcHi));
+        if (X86_SINGLEREG(rSrc)) {
+          DCHECK(X86_FPREG(rSrcHi));
           DCHECK_EQ(rSrc, (rSrcHi - 1));
-          rSrc = S2D(rSrc, rSrcHi);
+          rSrc = s2d(rSrc, rSrcHi);
         }
         rSrcHi = rSrc + 1;
       } else {
@@ -534,9 +534,9 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
     case kWord:
     case kSingle:
       opcode = isArray ? kX86Mov32AR : kX86Mov32MR;
-      if (FPREG(rSrc)) {
+      if (X86_FPREG(rSrc)) {
         opcode = isArray ? kX86MovssAR : kX86MovssMR;
-        DCHECK(SINGLEREG(rSrc));
+        DCHECK(X86_SINGLEREG(rSrc));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -560,7 +560,7 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
       store = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
       store2 = newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
     }
-    if (rBase == rSP) {
+    if (rBase == rX86_SP) {
       annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
                               >> 2, false /* isLoad */, is64bit);
       if (pair) {

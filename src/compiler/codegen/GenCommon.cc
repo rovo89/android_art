@@ -63,14 +63,14 @@ LIR* callHelper(CompilationUnit* cUnit, int rTgt, int helperOffset, bool safepoi
 
 void callRuntimeHelperImm(CompilationUnit* cUnit, int helperOffset, int arg0, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadConstant(cUnit, rARG0, arg0);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
 
 void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  opRegCopy(cUnit, rARG0, arg0);
+  opRegCopy(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -79,9 +79,9 @@ void callRuntimeHelperRegLocation(CompilationUnit* cUnit, int helperOffset, RegL
                                   bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
   if (arg0.wide == 0) {
-    loadValueDirectFixed(cUnit, arg0, rARG0);
+    loadValueDirectFixed(cUnit, arg0, targetReg(kArg0));
   } else {
-    loadValueDirectWideFixed(cUnit, arg0, rARG0, rARG1);
+    loadValueDirectWideFixed(cUnit, arg0, targetReg(kArg0), targetReg(kArg1));
   }
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
@@ -90,8 +90,8 @@ void callRuntimeHelperRegLocation(CompilationUnit* cUnit, int helperOffset, RegL
 void callRuntimeHelperImmImm(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                              bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadConstant(cUnit, rARG0, arg0);
-  loadConstant(cUnit, rARG1, arg1);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
+  loadConstant(cUnit, targetReg(kArg1), arg1);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -100,11 +100,11 @@ void callRuntimeHelperImmRegLocation(CompilationUnit* cUnit, int helperOffset, i
                                      RegLocation arg1, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
   if (arg1.wide == 0) {
-    loadValueDirectFixed(cUnit, arg1, rARG1);
+    loadValueDirectFixed(cUnit, arg1, targetReg(kArg1));
   } else {
-    loadValueDirectWideFixed(cUnit, arg1, rARG1, rARG2);
+    loadValueDirectWideFixed(cUnit, arg1, targetReg(kArg1), targetReg(kArg2));
   }
-  loadConstant(cUnit, rARG0, arg0);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -112,8 +112,8 @@ void callRuntimeHelperImmRegLocation(CompilationUnit* cUnit, int helperOffset, i
 void callRuntimeHelperRegLocationImm(CompilationUnit* cUnit, int helperOffset, RegLocation arg0,
                                      int arg1, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadValueDirectFixed(cUnit, arg0, rARG0);
-  loadConstant(cUnit, rARG1, arg1);
+  loadValueDirectFixed(cUnit, arg0, targetReg(kArg0));
+  loadConstant(cUnit, targetReg(kArg1), arg1);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -121,8 +121,8 @@ void callRuntimeHelperRegLocationImm(CompilationUnit* cUnit, int helperOffset, R
 void callRuntimeHelperImmReg(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                              bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  opRegCopy(cUnit, rARG1, arg1);
-  loadConstant(cUnit, rARG0, arg0);
+  opRegCopy(cUnit, targetReg(kArg1), arg1);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -130,16 +130,16 @@ void callRuntimeHelperImmReg(CompilationUnit* cUnit, int helperOffset, int arg0,
 void callRuntimeHelperRegImm(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                              bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  opRegCopy(cUnit, rARG0, arg0);
-  loadConstant(cUnit, rARG1, arg1);
+  opRegCopy(cUnit, targetReg(kArg0), arg0);
+  loadConstant(cUnit, targetReg(kArg1), arg1);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
 
 void callRuntimeHelperImmMethod(CompilationUnit* cUnit, int helperOffset, int arg0, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadCurrMethodDirect(cUnit, rARG1);
-  loadConstant(cUnit, rARG0, arg0);
+  loadCurrMethodDirect(cUnit, targetReg(kArg1));
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -148,26 +148,26 @@ void callRuntimeHelperRegLocationRegLocation(CompilationUnit* cUnit, int helperO
                                              RegLocation arg0, RegLocation arg1, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
   if (arg0.wide == 0) {
-    loadValueDirectFixed(cUnit, arg0, arg0.fp ? rFARG0 : rARG0);
+    loadValueDirectFixed(cUnit, arg0, arg0.fp ? targetReg(kFArg0) : targetReg(kArg0));
     if (arg1.wide == 0) {
       if (cUnit->instructionSet == kMips) {
-        loadValueDirectFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG1);
+        loadValueDirectFixed(cUnit, arg1, arg1.fp ? targetReg(kFArg2) : targetReg(kArg1));
       } else {
-        loadValueDirectFixed(cUnit, arg1, rARG1);
+        loadValueDirectFixed(cUnit, arg1, targetReg(kArg1));
       }
     } else {
       if (cUnit->instructionSet == kMips) {
-        loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG1, arg1.fp ? rFARG3 : rARG2);
+        loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? targetReg(kFArg2) : targetReg(kArg1), arg1.fp ? targetReg(kFArg3) : targetReg(kArg2));
       } else {
-        loadValueDirectWideFixed(cUnit, arg1, rARG1, rARG2);
+        loadValueDirectWideFixed(cUnit, arg1, targetReg(kArg1), targetReg(kArg2));
       }
     }
   } else {
-    loadValueDirectWideFixed(cUnit, arg0, arg0.fp ? rFARG0 : rARG0, arg0.fp ? rFARG1 : rARG1);
+    loadValueDirectWideFixed(cUnit, arg0, arg0.fp ? targetReg(kFArg0) : targetReg(kArg0), arg0.fp ? targetReg(kFArg1) : targetReg(kArg1));
     if (arg1.wide == 0) {
-      loadValueDirectFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG2);
+      loadValueDirectFixed(cUnit, arg1, arg1.fp ? targetReg(kFArg2) : targetReg(kArg2));
     } else {
-      loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? rFARG2 : rARG2, arg1.fp ? rFARG3 : rARG3);
+      loadValueDirectWideFixed(cUnit, arg1, arg1.fp ? targetReg(kFArg2) : targetReg(kArg2), arg1.fp ? targetReg(kFArg3) : targetReg(kArg3));
     }
   }
   oatClobberCalleeSave(cUnit);
@@ -177,9 +177,9 @@ void callRuntimeHelperRegLocationRegLocation(CompilationUnit* cUnit, int helperO
 void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                              bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  DCHECK_NE((int)rARG0, arg1);  // check copy into arg0 won't clobber arg1
-  opRegCopy(cUnit, rARG0, arg0);
-  opRegCopy(cUnit, rARG1, arg1);
+  DCHECK_NE((int)targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  opRegCopy(cUnit, targetReg(kArg0), arg0);
+  opRegCopy(cUnit, targetReg(kArg1), arg1);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -187,10 +187,10 @@ void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0,
 void callRuntimeHelperRegRegImm(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                                 int arg2, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  DCHECK_NE((int)rARG0, arg1);  // check copy into arg0 won't clobber arg1
-  opRegCopy(cUnit, rARG0, arg0);
-  opRegCopy(cUnit, rARG1, arg1);
-  loadConstant(cUnit, rARG2, arg2);
+  DCHECK_NE((int)targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  opRegCopy(cUnit, targetReg(kArg0), arg0);
+  opRegCopy(cUnit, targetReg(kArg1), arg1);
+  loadConstant(cUnit, targetReg(kArg2), arg2);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -198,9 +198,9 @@ void callRuntimeHelperRegRegImm(CompilationUnit* cUnit, int helperOffset, int ar
 void callRuntimeHelperImmMethodRegLocation(CompilationUnit* cUnit, int helperOffset, int arg0,
                                            RegLocation arg2, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadValueDirectFixed(cUnit, arg2, rARG2);
-  loadCurrMethodDirect(cUnit, rARG1);
-  loadConstant(cUnit, rARG0, arg0);
+  loadValueDirectFixed(cUnit, arg2, targetReg(kArg2));
+  loadCurrMethodDirect(cUnit, targetReg(kArg1));
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -208,9 +208,9 @@ void callRuntimeHelperImmMethodRegLocation(CompilationUnit* cUnit, int helperOff
 void callRuntimeHelperImmMethodImm(CompilationUnit* cUnit, int helperOffset, int arg0, int arg2,
                                    bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadCurrMethodDirect(cUnit, rARG1);
-  loadConstant(cUnit, rARG2, arg2);
-  loadConstant(cUnit, rARG0, arg0);
+  loadCurrMethodDirect(cUnit, targetReg(kArg1));
+  loadConstant(cUnit, targetReg(kArg2), arg2);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -219,13 +219,13 @@ void callRuntimeHelperImmRegLocationRegLocation(CompilationUnit* cUnit, int help
                                                 int arg0, RegLocation arg1, RegLocation arg2,
                                                 bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  loadValueDirectFixed(cUnit, arg1, rARG1);
+  loadValueDirectFixed(cUnit, arg1, targetReg(kArg1));
   if (arg2.wide == 0) {
-    loadValueDirectFixed(cUnit, arg2, rARG2);
+    loadValueDirectFixed(cUnit, arg2, targetReg(kArg2));
   } else {
-    loadValueDirectWideFixed(cUnit, arg2, rARG2, rARG3);
+    loadValueDirectWideFixed(cUnit, arg2, targetReg(kArg2), targetReg(kArg3));
   }
-  loadConstant(cUnit, rARG0, arg0);
+  loadConstant(cUnit, targetReg(kArg0), arg0);
   oatClobberCalleeSave(cUnit);
   callHelper(cUnit, rTgt, helperOffset, safepointPC);
 }
@@ -451,16 +451,16 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
     funcOffset = ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCodeWithAccessCheck);
   }
   callRuntimeHelperImmMethodImm(cUnit, funcOffset, typeIdx, elems, true);
-  oatFreeTemp(cUnit, rARG2);
-  oatFreeTemp(cUnit, rARG1);
+  oatFreeTemp(cUnit, targetReg(kArg2));
+  oatFreeTemp(cUnit, targetReg(kArg1));
   /*
    * NOTE: the implicit target for Instruction::FILLED_NEW_ARRAY is the
    * return region.  Because AllocFromCode placed the new array
-   * in rRET0, we'll just lock it into place.  When debugger support is
+   * in kRet0, we'll just lock it into place.  When debugger support is
    * added, it may be necessary to additionally copy all return
    * values to a home location in thread-local storage
    */
-  oatLockTemp(cUnit, rRET0);
+  oatLockTemp(cUnit, targetReg(kRet0));
 
   // TODO: use the correct component size, currently all supported types
   // share array alignment with ints (see comment at head of function)
@@ -479,7 +479,7 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
     for (int i = 0; i < elems; i++) {
       RegLocation loc = oatUpdateLoc(cUnit, info->args[i]);
       if (loc.location == kLocPhysReg) {
-        storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
+        storeBaseDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, loc.sRegLow),
                       loc.lowReg, kWord);
       }
     }
@@ -494,10 +494,10 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
     int rVal = INVALID_REG;
     switch(cUnit->instructionSet) {
       case kThumb2:
-        rVal = rLR;
+        rVal = targetReg(kLr);
         break;
       case kX86:
-        oatFreeTemp(cUnit, rRET0);
+        oatFreeTemp(cUnit, targetReg(kRet0));
         rVal = oatAllocTemp(cUnit);
         break;
       case kMips:
@@ -507,10 +507,10 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
     }
     // Set up source pointer
     RegLocation rlFirst = info->args[0];
-    opRegRegImm(cUnit, kOpAdd, rSrc, rSP,
+    opRegRegImm(cUnit, kOpAdd, rSrc, targetReg(kSp),
                 oatSRegOffset(cUnit, rlFirst.sRegLow));
     // Set up the target pointer
-    opRegRegImm(cUnit, kOpAdd, rDst, rRET0,
+    opRegRegImm(cUnit, kOpAdd, rDst, targetReg(kRet0),
                 Array::DataOffset(component_size).Int32Value());
     // Set up the loop counter (known to be > 0)
     loadConstant(cUnit, rIdx, elems - 1);
@@ -523,13 +523,13 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
     opDecAndBranch(cUnit, kCondGe, rIdx, target);
     if (cUnit->instructionSet == kX86) {
       // Restore the target pointer
-      opRegRegImm(cUnit, kOpAdd, rRET0, rDst, -Array::DataOffset(component_size).Int32Value());
+      opRegRegImm(cUnit, kOpAdd, targetReg(kRet0), rDst, -Array::DataOffset(component_size).Int32Value());
     }
   } else if (!info->isRange) {
     // TUNING: interleave
     for (int i = 0; i < elems; i++) {
       RegLocation rlArg = loadValue(cUnit, info->args[i], kCoreReg);
-      storeBaseDisp(cUnit, rRET0,
+      storeBaseDisp(cUnit, targetReg(kRet0),
                     Array::DataOffset(component_size).Int32Value() +
                     i * 4, rlArg.lowReg, kWord);
       // If the loadValue caused a temp to be allocated, free it
@@ -579,10 +579,10 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
       oatFlushAllRegs(cUnit);
       // Using fixed register to sync with possible call to runtime
       // support.
-      int rMethod = rARG1;
+      int rMethod = targetReg(kArg1);
       oatLockTemp(cUnit, rMethod);
       loadCurrMethodDirect(cUnit, rMethod);
-      rBase = rARG0;
+      rBase = targetReg(kArg0);
       oatLockTemp(cUnit, rBase);
       loadWordDisp(cUnit, rMethod,
                    AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
@@ -594,11 +594,11 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
       // or NULL if not initialized. Check for NULL and call helper if NULL.
       // TUNING: fast path should fall through
       LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rBase, 0, NULL);
-      loadConstant(cUnit, rARG0, ssbIndex);
+      loadConstant(cUnit, targetReg(kArg0), ssbIndex);
       callRuntimeHelperImm(cUnit, ENTRYPOINT_OFFSET(pInitializeStaticStorage), ssbIndex, true);
       if (cUnit->instructionSet == kMips) {
-        // For Arm, rRET0 = rARG0 = rBASE, for Mips, we need to copy
-        opRegCopy(cUnit, rBase, rRET0);
+        // For Arm, kRet0 = kArg0 = rBase, for Mips, we need to copy
+        opRegCopy(cUnit, rBase, targetReg(kRet0));
       }
       LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
       branchOver->target = (LIR*)skipTarget;
@@ -671,10 +671,10 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
       oatFlushAllRegs(cUnit);
       // Using fixed register to sync with possible call to runtime
       // support
-      int rMethod = rARG1;
+      int rMethod = targetReg(kArg1);
       oatLockTemp(cUnit, rMethod);
       loadCurrMethodDirect(cUnit, rMethod);
-      rBase = rARG0;
+      rBase = targetReg(kArg0);
       oatLockTemp(cUnit, rBase);
       loadWordDisp(cUnit, rMethod,
                    AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
@@ -688,8 +688,8 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
       LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rBase, 0, NULL);
       callRuntimeHelperImm(cUnit, ENTRYPOINT_OFFSET(pInitializeStaticStorage), ssbIndex, true);
       if (cUnit->instructionSet == kMips) {
-        // For Arm, rRET0 = rARG0 = rBASE, for Mips, we need to copy
-        opRegCopy(cUnit, rBase, rRET0);
+        // For Arm, kRet0 = kArg0 = rBase, for Mips, we need to copy
+        opRegCopy(cUnit, rBase, targetReg(kRet0));
       }
       LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
       branchOver->target = (LIR*)skipTarget;
@@ -733,8 +733,8 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
 void genShowTarget(CompilationUnit* cUnit)
 {
   DCHECK_NE(cUnit->instructionSet, kX86) << "unimplemented genShowTarget";
-  LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rINVOKE_TGT, 0, NULL);
-  loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pDebugMe), rINVOKE_TGT);
+  LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, targetReg(kInvokeTgt), 0, NULL);
+  loadWordDisp(cUnit, targetReg(kSelf), ENTRYPOINT_OFFSET(pDebugMe), targetReg(kInvokeTgt));
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
   branchOver->target = (LIR*)target;
 }
@@ -796,34 +796,34 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         funcOffset = ENTRYPOINT_OFFSET(pThrowNullPointerFromCode);
         break;
       case kThrowArrayBounds:
-        // Move v1 (array index) to rARG0 and v2 (array length) to rARG1
-        if (v2 != rARG0) {
-          opRegCopy(cUnit, rARG0, v1);
+        // Move v1 (array index) to kArg0 and v2 (array length) to kArg1
+        if (v2 != targetReg(kArg0)) {
+          opRegCopy(cUnit, targetReg(kArg0), v1);
           if (targetX86) {
             // x86 leaves the array pointer in v2, so load the array length that the handler expects
-            opRegMem(cUnit, kOpMov, rARG1, v2, Array::LengthOffset().Int32Value());
+            opRegMem(cUnit, kOpMov, targetReg(kArg1), v2, Array::LengthOffset().Int32Value());
           } else {
-            opRegCopy(cUnit, rARG1, v2);
+            opRegCopy(cUnit, targetReg(kArg1), v2);
           }
         } else {
-          if (v1 == rARG1) {
-            // Swap v1 and v2, using rARG2 as a temp
-            opRegCopy(cUnit, rARG2, v1);
+          if (v1 == targetReg(kArg1)) {
+            // Swap v1 and v2, using kArg2 as a temp
+            opRegCopy(cUnit, targetReg(kArg2), v1);
             if (targetX86) {
               // x86 leaves the array pointer in v2; load the array length that the handler expects
-              opRegMem(cUnit, kOpMov, rARG1, v2, Array::LengthOffset().Int32Value());
+              opRegMem(cUnit, kOpMov, targetReg(kArg1), v2, Array::LengthOffset().Int32Value());
             } else {
-              opRegCopy(cUnit, rARG1, v2);
+              opRegCopy(cUnit, targetReg(kArg1), v2);
             }
-            opRegCopy(cUnit, rARG0, rARG2);
+            opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));
           } else {
             if (targetX86) {
               // x86 leaves the array pointer in v2; load the array length that the handler expects
-              opRegMem(cUnit, kOpMov, rARG1, v2, Array::LengthOffset().Int32Value());
+              opRegMem(cUnit, kOpMov, targetReg(kArg1), v2, Array::LengthOffset().Int32Value());
             } else {
-              opRegCopy(cUnit, rARG1, v2);
+              opRegCopy(cUnit, targetReg(kArg1), v2);
             }
-            opRegCopy(cUnit, rARG0, v1);
+            opRegCopy(cUnit, targetReg(kArg0), v1);
           }
         }
         funcOffset = ENTRYPOINT_OFFSET(pThrowArrayBoundsFromCode);
@@ -832,7 +832,7 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         funcOffset = ENTRYPOINT_OFFSET(pThrowDivZeroFromCode);
         break;
       case kThrowNoSuchMethod:
-        opRegCopy(cUnit, rARG0, v1);
+        opRegCopy(cUnit, targetReg(kArg0), v1);
         funcOffset =
           ENTRYPOINT_OFFSET(pThrowNoSuchMethodFromCode);
         break;
@@ -840,9 +840,9 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         funcOffset = ENTRYPOINT_OFFSET(pThrowStackOverflowFromCode);
         // Restore stack alignment
         if (targetX86) {
-          opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
+          opRegImm(cUnit, kOpAdd, targetReg(kSp), cUnit->frameSize);
         } else {
-          opRegImm(cUnit, kOpAdd, rSP, (cUnit->numCoreSpills + cUnit->numFPSpills) * 4);
+          opRegImm(cUnit, kOpAdd, targetReg(kSp), (cUnit->numCoreSpills + cUnit->numFPSpills) * 4);
         }
         break;
       default:
@@ -990,7 +990,7 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Call out to helper which resolves type and verifies access.
-    // Resolved type returned in rRET0.
+    // Resolved type returned in kRet0.
     callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
                             type_idx, rlMethod.lowReg, true);
     RegLocation rlResult = oatGetReturn(cUnit, false);
@@ -1019,7 +1019,7 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
       LIR* branch2 = opUnconditionalBranch(cUnit,0);
       // TUNING: move slow path to end & remove unconditional branch
       LIR* target1 = newLIR0(cUnit, kPseudoTargetLabel);
-      // Call out to helper, which will return resolved type in rARG0
+      // Call out to helper, which will return resolved type in kArg0
       callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx,
                               rlMethod.lowReg, true);
       RegLocation rlResult = oatGetReturn(cUnit, false);
@@ -1051,27 +1051,27 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
     // slow path, resolve string if not in dex cache
     oatFlushAllRegs(cUnit);
     oatLockCallTemps(cUnit); // Using explicit registers
-    loadCurrMethodDirect(cUnit, rARG2);
-    loadWordDisp(cUnit, rARG2,
-                 AbstractMethod::DexCacheStringsOffset().Int32Value(), rARG0);
-    // Might call out to helper, which will return resolved string in rRET0
+    loadCurrMethodDirect(cUnit, targetReg(kArg2));
+    loadWordDisp(cUnit, targetReg(kArg2),
+                 AbstractMethod::DexCacheStringsOffset().Int32Value(), targetReg(kArg0));
+    // Might call out to helper, which will return resolved string in kRet0
     int rTgt = callHelperSetup(cUnit, ENTRYPOINT_OFFSET(pResolveStringFromCode));
-    loadWordDisp(cUnit, rARG0, offset_of_string, rRET0);
-    loadConstant(cUnit, rARG1, string_idx);
+    loadWordDisp(cUnit, targetReg(kArg0), offset_of_string, targetReg(kRet0));
+    loadConstant(cUnit, targetReg(kArg1), string_idx);
     if (cUnit->instructionSet == kThumb2) {
-      opRegImm(cUnit, kOpCmp, rRET0, 0);  // Is resolved?
+      opRegImm(cUnit, kOpCmp, targetReg(kRet0), 0);  // Is resolved?
       genBarrier(cUnit);
       // For testing, always force through helper
       if (!EXERCISE_SLOWEST_STRING_PATH) {
         opIT(cUnit, kArmCondEq, "T");
       }
-      opRegCopy(cUnit, rARG0, rARG2);   // .eq
+      opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));   // .eq
       LIR* callInst = opReg(cUnit, kOpBlx, rTgt);    // .eq, helper(Method*, string_idx)
       markSafepointPC(cUnit, callInst);
       oatFreeTemp(cUnit, rTgt);
     } else if (cUnit->instructionSet == kMips) {
-      LIR* branch = opCmpImmBranch(cUnit, kCondNe, rRET0, 0, NULL);
-      opRegCopy(cUnit, rARG0, rARG2);   // .eq
+      LIR* branch = opCmpImmBranch(cUnit, kCondNe, targetReg(kRet0), 0, NULL);
+      opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));   // .eq
       LIR* callInst = opReg(cUnit, kOpBlx, rTgt);
       markSafepointPC(cUnit, callInst);
       oatFreeTemp(cUnit, rTgt);
@@ -1079,7 +1079,7 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
       branch->target = target;
     } else {
       DCHECK_EQ(cUnit->instructionSet, kX86);
-      callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pResolveStringFromCode), rARG2, rARG1, true);
+      callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pResolveStringFromCode), targetReg(kArg2), targetReg(kArg1), true);
     }
     genBarrier(cUnit);
     storeValue(cUnit, rlDest, oatGetReturn(cUnit, false));
@@ -1121,9 +1121,9 @@ void genMoveException(CompilationUnit* cUnit, RegLocation rlDest)
   int funcOffset = ENTRYPOINT_OFFSET(pGetAndClearException);
   if (cUnit->instructionSet == kX86) {
     // Runtime helper will load argument for x86.
-    callRuntimeHelperReg(cUnit, funcOffset, rARG0, false);
+    callRuntimeHelperReg(cUnit, funcOffset, targetReg(kArg0), false);
   } else {
-    callRuntimeHelperReg(cUnit, funcOffset, rSELF, false);
+    callRuntimeHelperReg(cUnit, funcOffset, targetReg(kSelf), false);
   }
   RegLocation rlResult = oatGetReturn(cUnit, false);
   storeValue(cUnit, rlDest, rlResult);
@@ -1141,21 +1141,21 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
   oatFlushAllRegs(cUnit);
   // May generate a call - use explicit registers
   oatLockCallTemps(cUnit);
-  loadCurrMethodDirect(cUnit, rARG1);  // rARG1 <= current Method*
-  int classReg = rARG2;  // rARG2 will hold the Class*
+  loadCurrMethodDirect(cUnit, targetReg(kArg1));  // kArg1 <= current Method*
+  int classReg = targetReg(kArg2);  // kArg2 will hold the Class*
   if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
-    // returns Class* in rARG0
+    // returns Class* in kArg0
     callRuntimeHelperImm(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
                          type_idx, true);
-    opRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
+    opRegCopy(cUnit, classReg, targetReg(kRet0));  // Align usage with fast path
+    loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));  // kArg0 <= ref
   } else {
-    // Load dex cache entry into classReg (rARG2)
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
-    loadWordDisp(cUnit, rARG1,
+    // Load dex cache entry into classReg (kArg2)
+    loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));  // kArg0 <= ref
+    loadWordDisp(cUnit, targetReg(kArg1),
                  AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), classReg);
     int32_t offset_of_type =
         Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
@@ -1166,47 +1166,47 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
       // Need to test presence of type in dex cache at runtime
       LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
       // Not resolved
-      // Call out to helper, which will return resolved type in rRET0
+      // Call out to helper, which will return resolved type in kRet0
       callRuntimeHelperImm(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, true);
-      opRegCopy(cUnit, rARG2, rRET0); // Align usage with fast path
-      loadValueDirectFixed(cUnit, rlSrc, rARG0);  /* reload Ref */
+      opRegCopy(cUnit, targetReg(kArg2), targetReg(kRet0)); // Align usage with fast path
+      loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));  /* reload Ref */
       // Rejoin code paths
       LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
       hopBranch->target = (LIR*)hopTarget;
     }
   }
-  /* rARG0 is ref, rARG2 is class. If ref==null, use directly as bool result */
+  /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result */
   RegLocation rlResult = oatGetReturn(cUnit, false);
   if (cUnit->instructionSet == kMips) {
     loadConstant(cUnit, rlResult.lowReg, 0);  // store false result for if branch is taken
   }
-  LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
+  LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, targetReg(kArg0), 0, NULL);
   /* load object->klass_ */
   DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
-  loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
-  /* rARG0 is ref, rARG1 is ref->klass_, rARG2 is class */
+  loadWordDisp(cUnit, targetReg(kArg0),  Object::ClassOffset().Int32Value(), targetReg(kArg1));
+  /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class */
   LIR* callInst;
   LIR* branchover = NULL;
   if (cUnit->instructionSet == kThumb2) {
     /* Uses conditional nullification */
     int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
-    opRegReg(cUnit, kOpCmp, rARG1, rARG2);  // Same?
+    opRegReg(cUnit, kOpCmp, targetReg(kArg1), targetReg(kArg2));  // Same?
     opIT(cUnit, kArmCondEq, "EE");   // if-convert the test
-    loadConstant(cUnit, rARG0, 1);     // .eq case - load true
-    opRegCopy(cUnit, rARG0, rARG2);    // .ne case - arg0 <= class
+    loadConstant(cUnit, targetReg(kArg0), 1);     // .eq case - load true
+    opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));    // .ne case - arg0 <= class
     callInst = opReg(cUnit, kOpBlx, rTgt);    // .ne case: helper(class, ref->class)
     oatFreeTemp(cUnit, rTgt);
   } else {
     /* Uses branchovers */
     loadConstant(cUnit, rlResult.lowReg, 1);     // assume true
-    branchover = opCmpBranch(cUnit, kCondEq, rARG1, rARG2, NULL);
+    branchover = opCmpBranch(cUnit, kCondEq, targetReg(kArg1), targetReg(kArg2), NULL);
     if (cUnit->instructionSet != kX86) {
       int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
-      opRegCopy(cUnit, rARG0, rARG2);    // .ne case - arg0 <= class
+      opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));    // .ne case - arg0 <= class
       callInst = opReg(cUnit, kOpBlx, rTgt);    // .ne case: helper(class, ref->class)
       oatFreeTemp(cUnit, rTgt);
     } else {
-      opRegCopy(cUnit, rARG0, rARG2);
+      opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg2));
       callInst = opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
     }
   }
@@ -1226,20 +1226,20 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
   oatFlushAllRegs(cUnit);
   // May generate a call - use explicit registers
   oatLockCallTemps(cUnit);
-  loadCurrMethodDirect(cUnit, rARG1);  // rARG1 <= current Method*
-  int classReg = rARG2;  // rARG2 will hold the Class*
+  loadCurrMethodDirect(cUnit, targetReg(kArg1));  // kArg1 <= current Method*
+  int classReg = targetReg(kArg2);  // kArg2 will hold the Class*
   if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
-    // returns Class* in rRET0
+    // returns Class* in kRet0
     // InitializeTypeAndVerifyAccess(idx, method)
     callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
-                            type_idx, rARG1, true);
-    opRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
+                            type_idx, targetReg(kArg1), true);
+    opRegCopy(cUnit, classReg, targetReg(kRet0));  // Align usage with fast path
   } else {
-    // Load dex cache entry into classReg (rARG2)
-    loadWordDisp(cUnit, rARG1,
+    // Load dex cache entry into classReg (kArg2)
+    loadWordDisp(cUnit, targetReg(kArg1),
                  AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), classReg);
     int32_t offset_of_type =
         Array::DataOffset(sizeof(Class*)).Int32Value() +
@@ -1250,38 +1250,38 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
       // Need to test presence of type in dex cache at runtime
       LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
       // Not resolved
-      // Call out to helper, which will return resolved type in rARG0
+      // Call out to helper, which will return resolved type in kArg0
       // InitializeTypeFromCode(idx, method)
-      callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, rARG1,
+      callRuntimeHelperImmReg(cUnit, ENTRYPOINT_OFFSET(pInitializeTypeFromCode), type_idx, targetReg(kArg1),
                               true);
-      opRegCopy(cUnit, classReg, rRET0); // Align usage with fast path
+      opRegCopy(cUnit, classReg, targetReg(kRet0)); // Align usage with fast path
       // Rejoin code paths
       LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
       hopBranch->target = (LIR*)hopTarget;
     }
   }
-  // At this point, classReg (rARG2) has class
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
+  // At this point, classReg (kArg2) has class
+  loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));  // kArg0 <= ref
   /* Null is OK - continue */
-  LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
+  LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, targetReg(kArg0), 0, NULL);
   /* load object->klass_ */
   DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
-  loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
-  /* rARG1 now contains object->klass_ */
+  loadWordDisp(cUnit, targetReg(kArg0),  Object::ClassOffset().Int32Value(), targetReg(kArg1));
+  /* kArg1 now contains object->klass_ */
   LIR* branch2;
   if (cUnit->instructionSet == kThumb2) {
     int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pCheckCastFromCode));
-    opRegReg(cUnit, kOpCmp, rARG1, classReg);
+    opRegReg(cUnit, kOpCmp, targetReg(kArg1), classReg);
     branch2 = opCondBranch(cUnit, kCondEq, NULL); /* If eq, trivial yes */
-    opRegCopy(cUnit, rARG0, rARG1);
-    opRegCopy(cUnit, rARG1, rARG2);
+    opRegCopy(cUnit, targetReg(kArg0), targetReg(kArg1));
+    opRegCopy(cUnit, targetReg(kArg1), targetReg(kArg2));
     oatClobberCalleeSave(cUnit);
     LIR* callInst = opReg(cUnit, kOpBlx, rTgt);
     markSafepointPC(cUnit, callInst);
     oatFreeTemp(cUnit, rTgt);
   } else {
-    branch2 = opCmpBranch(cUnit, kCondEq, rARG1, classReg, NULL);
-    callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pCheckCastFromCode), rARG1, rARG2, true);
+    branch2 = opCmpBranch(cUnit, kCondEq, targetReg(kArg1), classReg, NULL);
+    callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pCheckCastFromCode), targetReg(kArg1), targetReg(kArg2), true);
   }
   /* branch target here */
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
@@ -1302,10 +1302,10 @@ void genArrayObjPut(CompilationUnit* cUnit, int optFlags, RegLocation rlArray,
   oatFlushAllRegs(cUnit);  // Use explicit registers
   oatLockCallTemps(cUnit);
 
-  int rValue = rARG0;  // Register holding value
-  int rArrayClass = rARG1;  // Register holding array's Class
-  int rArray = rARG2;  // Register holding array
-  int rIndex = rARG3;  // Register holding index into array
+  int rValue = targetReg(kArg0);  // Register holding value
+  int rArrayClass = targetReg(kArg1);  // Register holding array's Class
+  int rArray = targetReg(kArg2);  // Register holding array
+  int rIndex = targetReg(kArg3);  // Register holding index into array
 
   loadValueDirectFixed(cUnit, rlArray, rArray);  // Grab array
   loadValueDirectFixed(cUnit, rlSrc, rValue);  // Grab value
@@ -1332,7 +1332,7 @@ void genArrayObjPut(CompilationUnit* cUnit, int optFlags, RegLocation rlArray,
 
   if (cUnit->instructionSet == kX86) {
     // make an extra temp available for card mark below
-    oatFreeTemp(cUnit, rARG1);
+    oatFreeTemp(cUnit, targetReg(kArg1));
     if (!(optFlags & MIR_IGNORE_RANGE_CHECK)) {
       /* if (rlIndex >= [rlArray + lenOffset]) goto kThrowArrayBounds */
       genRegMemCheck(cUnit, kCondUge, rIndex, rArray, lenOffset, kThrowArrayBounds);
@@ -1343,7 +1343,7 @@ void genArrayObjPut(CompilationUnit* cUnit, int optFlags, RegLocation rlArray,
     bool needsRangeCheck = (!(optFlags & MIR_IGNORE_RANGE_CHECK));
     int regLen = INVALID_REG;
     if (needsRangeCheck) {
-      regLen = rARG1;
+      regLen = targetReg(kArg1);
       loadWordDisp(cUnit, rArray, lenOffset, regLen);  // Get len
     }
     /* rPtr -> array data */
@@ -1569,8 +1569,8 @@ void genLong3Addr(CompilationUnit* cUnit, OpKind firstOp,
      * lr is used explicitly elsewhere in the code generator and cannot
      * normally be used as a general temp register.
      */
-    oatMarkTemp(cUnit, rLR);   // Add lr to the temp pool
-    oatFreeTemp(cUnit, rLR);   // and make it available
+    oatMarkTemp(cUnit, targetReg(kLr));   // Add lr to the temp pool
+    oatFreeTemp(cUnit, targetReg(kLr));   // and make it available
   }
   rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
   rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
@@ -1598,8 +1598,8 @@ void genLong3Addr(CompilationUnit* cUnit, OpKind firstOp,
   freeRegLocTemps(cUnit, rlResult, rlSrc2);
   storeValueWide(cUnit, rlDest, rlResult);
   if (cUnit->instructionSet == kThumb2) {
-    oatClobber(cUnit, rLR);
-    oatUnmarkTemp(cUnit, rLR);  // Remove lr from the temp pool
+    oatClobber(cUnit, targetReg(kLr));
+    oatUnmarkTemp(cUnit, targetReg(kLr));  // Remove lr from the temp pool
   }
 }
 
@@ -1670,7 +1670,7 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
       op = kOpDiv;
       isDivRem = true;
       break;
-    /* NOTE: returns in rARG1 */
+    /* NOTE: returns in kArg1 */
     case Instruction::REM_INT:
     case Instruction::REM_INT_2ADDR:
       checkZero = true;
@@ -1718,7 +1718,7 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
         int tReg = INVALID_REG;
         if (cUnit->instructionSet == kX86) {
           // X86 doesn't require masking and must use ECX
-          tReg = rCOUNT;  // rCX
+          tReg = targetReg(kCount);  // rCX
           loadValueDirectFixed(cUnit, rlSrc2, tReg);
         } else {
           rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
@@ -1748,11 +1748,11 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
     } else {
       int funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
       oatFlushAllRegs(cUnit);   /* Send everything to home location */
-      loadValueDirectFixed(cUnit, rlSrc2, rARG1);
+      loadValueDirectFixed(cUnit, rlSrc2, targetReg(kArg1));
       int rTgt = callHelperSetup(cUnit, funcOffset);
-      loadValueDirectFixed(cUnit, rlSrc1, rARG0);
+      loadValueDirectFixed(cUnit, rlSrc1, targetReg(kArg0));
       if (checkZero) {
-        genImmedCheck(cUnit, kCondEq, rARG1, 0, kThrowDivZero);
+        genImmedCheck(cUnit, kCondEq, targetReg(kArg1), 0, kThrowDivZero);
       }
       // NOTE: callout here is not a safepoint
       callHelper(cUnit, rTgt, funcOffset, false /* not a safepoint */ );
@@ -1985,10 +1985,10 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
         rlResult = genDivRemLit(cUnit, rlDest, rlSrc.lowReg, lit, isDiv);
       } else {
         oatFlushAllRegs(cUnit);   /* Everything to home location */
-        loadValueDirectFixed(cUnit, rlSrc, rARG0);
-        oatClobber(cUnit, rARG0);
+        loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));
+        oatClobber(cUnit, targetReg(kArg0));
         int funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
-        callRuntimeHelperRegImm(cUnit, funcOffset, rARG0, lit, false);
+        callRuntimeHelperRegImm(cUnit, funcOffset, targetReg(kArg0), lit, false);
         if (isDiv)
           rlResult = oatGetReturn(cUnit, false);
         else
@@ -2022,7 +2022,7 @@ bool genArithOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocatio
   bool callOut = false;
   bool checkZero = false;
   int funcOffset;
-  int retReg = rRET0;
+  int retReg = targetReg(kRet0);
 
   switch (opcode) {
     case Instruction::NOT_LONG:
@@ -2061,14 +2061,14 @@ bool genArithOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocatio
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
       callOut = true;
-      retReg = rRET0;
+      retReg = targetReg(kRet0);
       funcOffset = ENTRYPOINT_OFFSET(pLmul);
       break;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:
       callOut = true;
       checkZero = true;
-      retReg = rRET0;
+      retReg = targetReg(kRet0);
       funcOffset = ENTRYPOINT_OFFSET(pLdiv);
       break;
     case Instruction::REM_LONG:
@@ -2076,8 +2076,8 @@ bool genArithOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocatio
       callOut = true;
       checkZero = true;
       funcOffset = ENTRYPOINT_OFFSET(pLdivmod);
-      /* NOTE - for Arm, result is in rARG2/rARG3 instead of rRET0/rRET1 */
-      retReg = (cUnit->instructionSet == kThumb2) ? rARG2 : rRET0;
+      /* NOTE - for Arm, result is in kArg2/kArg3 instead of kRet0/kRet1 */
+      retReg = (cUnit->instructionSet == kThumb2) ? targetReg(kArg2) : targetReg(kRet0);
       break;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
@@ -2114,18 +2114,18 @@ bool genArithOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocatio
   } else {
     oatFlushAllRegs(cUnit);   /* Send everything to home location */
     if (checkZero) {
-      loadValueDirectWideFixed(cUnit, rlSrc2, rARG2, rARG3);
+      loadValueDirectWideFixed(cUnit, rlSrc2, targetReg(kArg2), targetReg(kArg3));
       int rTgt = callHelperSetup(cUnit, funcOffset);
-      genDivZeroCheck(cUnit, rARG2, rARG3);
-      loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
+      genDivZeroCheck(cUnit, targetReg(kArg2), targetReg(kArg3));
+      loadValueDirectWideFixed(cUnit, rlSrc1, targetReg(kArg0), targetReg(kArg1));
       // NOTE: callout here is not a safepoint
       callHelper(cUnit, rTgt, funcOffset, false /* not safepoint */);
     } else {
       callRuntimeHelperRegLocationRegLocation(cUnit, funcOffset,
                           rlSrc1, rlSrc2, false);
     }
-    // Adjust return regs in to handle case of rem returning rARG2/rARG3
-    if (retReg == rRET0)
+    // Adjust return regs in to handle case of rem returning kArg2/kArg3
+    if (retReg == targetReg(kRet0))
       rlResult = oatGetReturnWide(cUnit, false);
     else
       rlResult = oatGetReturnWideAlt(cUnit);
@@ -2143,9 +2143,10 @@ bool genConversionCall(CompilationUnit* cUnit, int funcOffset,
    */
   oatFlushAllRegs(cUnit);   /* Send everything to home location */
   if (rlSrc.wide) {
-    loadValueDirectWideFixed(cUnit, rlSrc, rlSrc.fp ? rFARG0 : rARG0, rlSrc.fp ? rFARG1 : rARG1);
+    loadValueDirectWideFixed(cUnit, rlSrc, rlSrc.fp ? targetReg(kFArg0) : targetReg(kArg0),
+                             rlSrc.fp ? targetReg(kFArg1) : targetReg(kArg1));
   } else {
-    loadValueDirectFixed(cUnit, rlSrc, rlSrc.fp ? rFARG0 : rARG0);
+    loadValueDirectFixed(cUnit, rlSrc, rlSrc.fp ? targetReg(kFArg0) : targetReg(kArg0));
   }
   callRuntimeHelperRegLocation(cUnit, funcOffset, rlSrc, false);
   if (rlDest.wide) {

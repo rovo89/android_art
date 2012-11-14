@@ -35,7 +35,7 @@ namespace art {
 
 void oatAdjustSpillMask(CompilationUnit* cUnit)
 {
-  cUnit->coreSpillMask |= (1 << rLR);
+  cUnit->coreSpillMask |= (1 << rARM_LR);
   cUnit->numCoreSpills++;
 }
 
@@ -47,8 +47,8 @@ void oatAdjustSpillMask(CompilationUnit* cUnit)
  */
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 {
-  DCHECK_GE(reg, FP_REG_MASK + FP_CALLEE_SAVE_BASE);
-  reg = (reg & FP_REG_MASK) - FP_CALLEE_SAVE_BASE;
+  DCHECK_GE(reg, ARM_FP_REG_MASK + ARM_FP_CALLEE_SAVE_BASE);
+  reg = (reg & ARM_FP_REG_MASK) - ARM_FP_CALLEE_SAVE_BASE;
   // Ensure fpVmapTable is large enough
   int tableSize = cUnit->fpVmapTable.size();
   for (int i = tableSize; i < (reg + 1); i++) {
@@ -58,7 +58,7 @@ void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
   cUnit->fpVmapTable[reg] = vReg;
   // Size of fpVmapTable is high-water mark, use to set mask
   cUnit->numFPSpills = cUnit->fpVmapTable.size();
-  cUnit->fpSpillMask = ((1 << cUnit->numFPSpills) - 1) << FP_CALLEE_SAVE_BASE;
+  cUnit->fpSpillMask = ((1 << cUnit->numFPSpills) - 1) << ARM_FP_CALLEE_SAVE_BASE;
 }
 
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
@@ -80,7 +80,7 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
       SRegToVReg(cUnit, info1->sReg))
       info1 = info2;
     int vReg = SRegToVReg(cUnit, info1->sReg);
-    oatFlushRegWideImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg),
+    oatFlushRegWideImpl(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg),
                         info1->reg, info1->partner);
   }
 }
@@ -91,17 +91,17 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
   if (info->live && info->dirty) {
     info->dirty = false;
     int vReg = SRegToVReg(cUnit, info->sReg);
-    oatFlushRegImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg), reg, kWord);
+    oatFlushRegImpl(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
 bool oatIsFpReg(int reg) {
-  return FPREG(reg);
+  return ARM_FPREG(reg);
 }
 
 uint32_t oatFpRegMask() {
-  return FP_REG_MASK;
+  return ARM_FP_REG_MASK;
 }
 
 /* Clobber all regs that might be used by an external C call */
@@ -133,7 +133,7 @@ void oatClobberCalleeSave(CompilationUnit *cUnit)
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = LOC_C_RETURN_WIDE;
+  RegLocation res = locCReturnWide();
   res.lowReg = r2;
   res.highReg = r3;
   oatClobber(cUnit, r2);
@@ -146,7 +146,7 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = LOC_C_RETURN;
+  RegLocation res = locCReturn();
   res.lowReg = r1;
   oatClobber(cUnit, r1);
   oatMarkInUse(cUnit, r1);
@@ -155,7 +155,7 @@ extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
-  return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
+  return ARM_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & ARM_FP_REG_MASK]
       : &cUnit->regPool->coreRegs[reg];
 }
 

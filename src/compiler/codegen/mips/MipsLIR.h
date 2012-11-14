@@ -31,8 +31,8 @@ namespace art {
  * a0-a3 are scratch (normally hold subroutine arguments)
  * t0-t8 are scratch
  * t9 is scratch (normally used for function calls)
- * s0 (rSUSPEND) is reserved [holds suspend-check counter]
- * s1 (rSELF) is reserved [holds current &Thread]
+ * s0 (rMIPS_SUSPEND) is reserved [holds suspend-check counter]
+ * s1 (rMIPS_SELF) is reserved [holds current &Thread]
  * s2-s7 are callee save (promotion target)
  * k0, k1 are reserved for use by interrupt handlers
  * gp is reserved for global pointer
@@ -88,18 +88,17 @@ namespace art {
  */
 
 /* Offset to distingish FP regs */
-#define FP_REG_OFFSET 32
+#define MIPS_FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE 64
+#define MIPS_FP_DOUBLE 64
 /* Offset to distingish the extra regs */
-#define EXTRA_REG_OFFSET 128
+#define MIPS_EXTRA_REG_OFFSET 128
 /* Reg types */
-#define REGTYPE(x) (x & (FP_REG_OFFSET | FP_DOUBLE))
-#define FPREG(x) ((x & FP_REG_OFFSET) == FP_REG_OFFSET)
-#define EXTRAREG(x) ((x & EXTRA_REG_OFFSET) == EXTRA_REG_OFFSET)
-#define LOWREG(x) ((x & 0x1f) == x)
-#define DOUBLEREG(x) ((x & FP_DOUBLE) == FP_DOUBLE)
-#define SINGLEREG(x) (FPREG(x) && !DOUBLEREG(x))
+#define MIPS_REGTYPE(x) (x & (MIPS_FP_REG_OFFSET | MIPS_FP_DOUBLE))
+#define MIPS_FPREG(x) ((x & MIPS_FP_REG_OFFSET) == MIPS_FP_REG_OFFSET)
+#define MIPS_EXTRAREG(x) ((x & MIPS_EXTRA_REG_OFFSET) == MIPS_EXTRA_REG_OFFSET)
+#define MIPS_DOUBLEREG(x) ((x & MIPS_FP_DOUBLE) == MIPS_FP_DOUBLE)
+#define MIPS_SINGLEREG(x) (MIPS_FPREG(x) && !MIPS_DOUBLEREG(x))
 /*
  * Note: the low register of a floating point pair is sufficient to
  * create the name of a double, but require both names to be passed to
@@ -107,13 +106,9 @@ namespace art {
  * rework is done in this area.  Also, it is a good reminder in the calling
  * code that reg locations always describe doubles as a pair of singles.
  */
-#define S2D(x,y) ((x) | FP_DOUBLE)
+#define MIPS_S2D(x,y) ((x) | MIPS_FP_DOUBLE)
 /* Mask to strip off fp flags */
-#define FP_REG_MASK (FP_REG_OFFSET-1)
-/* non-existent Dalvik register */
-#define vNone   (-1)
-/* non-existant physical register */
-#define rNone   (-1)
+#define MIPS_FP_REG_MASK (MIPS_FP_REG_OFFSET-1)
 
 #ifdef HAVE_LITTLE_ENDIAN
 #define LOWORD_OFFSET 0
@@ -144,16 +139,17 @@ namespace art {
 #define r_FRESULT1 r_F1
 
 /* Regs not used for Mips */
-#define rLR INVALID_REG
+#define rMIPS_LR INVALID_REG
+#define rMIPS_PC INVALID_REG
 
 /* RegisterLocation templates return values (r_V0, or r_V0/r_V1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
-                      INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_FLOAT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0, \
-                            INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_RESULT0, \
-                           r_RESULT1, INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
+#define MIPS_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
+                           INVALID_SREG, INVALID_SREG}
+#define MIPS_LOC_C_RETURN_FLOAT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0, \
+                                 INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define MIPS_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_RESULT0, \
+                                r_RESULT1, INVALID_SREG, INVALID_SREG}
+#define MIPS_LOC_C_RETURN_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
                                   r_FRESULT1, INVALID_SREG, INVALID_SREG}
 
 enum MipsResourceEncodingPos {
@@ -177,7 +173,7 @@ enum MipsResourceEncodingPos {
  * Annotate special-purpose core registers:
  */
 
-enum NativeRegisterPool {
+enum MipsNativeRegisterPool {
   r_ZERO = 0,
   r_AT = 1,
   r_V0 = 2,
@@ -211,7 +207,7 @@ enum NativeRegisterPool {
   r_FP = 30,
   r_RA = 31,
 
-  r_F0 = 0 + FP_REG_OFFSET,
+  r_F0 = 0 + MIPS_FP_REG_OFFSET,
   r_F1,
   r_F2,
   r_F3,
@@ -245,25 +241,25 @@ enum NativeRegisterPool {
   r_F30,
   r_F31,
 #endif
-  r_DF0 = r_F0 + FP_DOUBLE,
-  r_DF1 = r_F2 + FP_DOUBLE,
-  r_DF2 = r_F4 + FP_DOUBLE,
-  r_DF3 = r_F6 + FP_DOUBLE,
-  r_DF4 = r_F8 + FP_DOUBLE,
-  r_DF5 = r_F10 + FP_DOUBLE,
-  r_DF6 = r_F12 + FP_DOUBLE,
-  r_DF7 = r_F14 + FP_DOUBLE,
+  r_DF0 = r_F0 + MIPS_FP_DOUBLE,
+  r_DF1 = r_F2 + MIPS_FP_DOUBLE,
+  r_DF2 = r_F4 + MIPS_FP_DOUBLE,
+  r_DF3 = r_F6 + MIPS_FP_DOUBLE,
+  r_DF4 = r_F8 + MIPS_FP_DOUBLE,
+  r_DF5 = r_F10 + MIPS_FP_DOUBLE,
+  r_DF6 = r_F12 + MIPS_FP_DOUBLE,
+  r_DF7 = r_F14 + MIPS_FP_DOUBLE,
 #if 0 /* only 16 fp regs supported currently */
-  r_DF8 = r_F16 + FP_DOUBLE,
-  r_DF9 = r_F18 + FP_DOUBLE,
-  r_DF10 = r_F20 + FP_DOUBLE,
-  r_DF11 = r_F22 + FP_DOUBLE,
-  r_DF12 = r_F24 + FP_DOUBLE,
-  r_DF13 = r_F26 + FP_DOUBLE,
-  r_DF14 = r_F28 + FP_DOUBLE,
-  r_DF15 = r_F30 + FP_DOUBLE,
+  r_DF8 = r_F16 + MIPS_FP_DOUBLE,
+  r_DF9 = r_F18 + MIPS_FP_DOUBLE,
+  r_DF10 = r_F20 + MIPS_FP_DOUBLE,
+  r_DF11 = r_F22 + MIPS_FP_DOUBLE,
+  r_DF12 = r_F24 + MIPS_FP_DOUBLE,
+  r_DF13 = r_F26 + MIPS_FP_DOUBLE,
+  r_DF14 = r_F28 + MIPS_FP_DOUBLE,
+  r_DF15 = r_F30 + MIPS_FP_DOUBLE,
 #endif
-  r_HI = EXTRA_REG_OFFSET,
+  r_HI = MIPS_EXTRA_REG_OFFSET,
   r_LO,
   r_PC,
 };
@@ -272,21 +268,21 @@ enum NativeRegisterPool {
  * Target-independent aliases
  */
 
-#define rSUSPEND r_S0
-#define rSELF r_S1
-#define rSP r_SP
-#define rARG0 r_ARG0
-#define rARG1 r_ARG1
-#define rARG2 r_ARG2
-#define rARG3 r_ARG3
-#define rFARG0 r_FARG0
-#define rFARG1 r_FARG1
-#define rFARG2 r_FARG2
-#define rFARG3 r_FARG3
-#define rRET0 r_RESULT0
-#define rRET1 r_RESULT1
-#define rINVOKE_TGT r_T9
-#define rCOUNT INVALID_REG
+#define rMIPS_SUSPEND r_S0
+#define rMIPS_SELF r_S1
+#define rMIPS_SP r_SP
+#define rMIPS_ARG0 r_ARG0
+#define rMIPS_ARG1 r_ARG1
+#define rMIPS_ARG2 r_ARG2
+#define rMIPS_ARG3 r_ARG3
+#define rMIPS_FARG0 r_FARG0
+#define rMIPS_FARG1 r_FARG1
+#define rMIPS_FARG2 r_FARG2
+#define rMIPS_FARG3 r_FARG3
+#define rMIPS_RET0 r_RESULT0
+#define rMIPS_RET1 r_RESULT1
+#define rMIPS_INVOKE_TGT r_T9
+#define rMIPS_COUNT INVALID_REG
 
 /* Shift encodings */
 enum MipsShiftEncodings {

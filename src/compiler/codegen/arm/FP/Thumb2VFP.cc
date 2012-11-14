@@ -98,9 +98,9 @@ bool genArithOpDouble(CompilationUnit* cUnit, Instruction::Code opcode,
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  newLIR3(cUnit, (ArmOpcode)op, S2D(rlResult.lowReg, rlResult.highReg),
-          S2D(rlSrc1.lowReg, rlSrc1.highReg),
-          S2D(rlSrc2.lowReg, rlSrc2.highReg));
+  newLIR3(cUnit, (ArmOpcode)op, s2d(rlResult.lowReg, rlResult.highReg),
+          s2d(rlSrc1.lowReg, rlSrc1.highReg),
+          s2d(rlSrc2.lowReg, rlSrc2.highReg));
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -141,14 +141,14 @@ bool genConversion(CompilationUnit* cUnit, Instruction::Code opcode,
   }
   if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-    srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
+    srcReg = s2d(rlSrc.lowReg, rlSrc.highReg);
   } else {
     rlSrc = loadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
   if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, (ArmOpcode)op, S2D(rlResult.lowReg, rlResult.highReg),
+    newLIR2(cUnit, (ArmOpcode)op, s2d(rlResult.lowReg, rlResult.highReg),
             srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
@@ -171,8 +171,8 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    newLIR2(cUnit, kThumb2Vcmpd, S2D(rlSrc1.lowReg, r1Src2.highReg),
-            S2D(rlSrc2.lowReg, rlSrc2.highReg));
+    newLIR2(cUnit, kThumb2Vcmpd, s2d(rlSrc1.lowReg, rlSrc2.highReg),
+            s2d(rlSrc2.lowReg, rlSrc2.highReg));
   } else {
     rlSrc1 = oatGetSrc(cUnit, mir, 0);
     rlSrc2 = oatGetSrc(cUnit, mir, 1);
@@ -246,8 +246,8 @@ bool genCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDe
     oatClobberSReg(cUnit, rlDest.sRegLow);
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     loadConstant(cUnit, rlResult.lowReg, defaultResult);
-    newLIR2(cUnit, kThumb2Vcmpd, S2D(rlSrc1.lowReg, r1Src2.highReg),
-            S2D(rlSrc2.lowReg, rlSrc2.highReg));
+    newLIR2(cUnit, kThumb2Vcmpd, s2d(rlSrc1.lowReg, rlSrc2.highReg),
+            s2d(rlSrc2.lowReg, rlSrc2.highReg));
   } else {
     rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
@@ -256,7 +256,7 @@ bool genCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDe
     loadConstant(cUnit, rlResult.lowReg, defaultResult);
     newLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
   }
-  DCHECK(!FPREG(rlResult.lowReg));
+  DCHECK(!ARM_FPREG(rlResult.lowReg));
   newLIR0(cUnit, kThumb2Fmstat);
 
   opIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");

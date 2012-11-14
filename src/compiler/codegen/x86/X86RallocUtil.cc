@@ -65,7 +65,7 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
     if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
       info1 = info2;
     int vReg = SRegToVReg(cUnit, info1->sReg);
-    oatFlushRegWideImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg),
+    oatFlushRegWideImpl(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg),
                         info1->reg, info1->partner);
   }
 }
@@ -76,17 +76,17 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
   if (info->live && info->dirty) {
     info->dirty = false;
     int vReg = SRegToVReg(cUnit, info->sReg);
-    oatFlushRegImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg), reg, kWord);
+    oatFlushRegImpl(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
 bool oatIsFpReg(int reg) {
-  return FPREG(reg);
+  return X86_FPREG(reg);
 }
 
 uint32_t oatFpRegMask() {
-  return FP_REG_MASK;
+  return X86_FP_REG_MASK;
 }
 
 /* Clobber all regs that might be used by an external C call */
@@ -98,7 +98,7 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
-  RegLocation res = LOC_C_RETURN_WIDE;
+  RegLocation res = locCReturnWide();
   CHECK(res.lowReg == rAX);
   CHECK(res.highReg == rDX);
   oatClobber(cUnit, rAX);
@@ -111,7 +111,7 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = LOC_C_RETURN;
+  RegLocation res = locCReturn();
   res.lowReg = rDX;
   oatClobber(cUnit, rDX);
   oatMarkInUse(cUnit, rDX);
@@ -120,26 +120,26 @@ extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
-  return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
+  return X86_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & X86_FP_REG_MASK]
                     : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-  oatLockTemp(cUnit, rARG0);
-  oatLockTemp(cUnit, rARG1);
-  oatLockTemp(cUnit, rARG2);
-  oatLockTemp(cUnit, rARG3);
+  oatLockTemp(cUnit, rX86_ARG0);
+  oatLockTemp(cUnit, rX86_ARG1);
+  oatLockTemp(cUnit, rX86_ARG2);
+  oatLockTemp(cUnit, rX86_ARG3);
 }
 
 /* To be used when explicitly managing register use */
 extern void oatFreeCallTemps(CompilationUnit* cUnit)
 {
-  oatFreeTemp(cUnit, rARG0);
-  oatFreeTemp(cUnit, rARG1);
-  oatFreeTemp(cUnit, rARG2);
-  oatFreeTemp(cUnit, rARG3);
+  oatFreeTemp(cUnit, rX86_ARG0);
+  oatFreeTemp(cUnit, rX86_ARG1);
+  oatFreeTemp(cUnit, rX86_ARG2);
+  oatFreeTemp(cUnit, rX86_ARG3);
 }
 
 /* Convert an instruction to a NOP */

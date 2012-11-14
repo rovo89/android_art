@@ -151,7 +151,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
           DCHECK(!(EncodingMap[checkLIR->opcode].flags & IS_STORE));
           /* Same value && same register type */
           if (checkLIR->aliasInfo == thisLIR->aliasInfo &&
-            REGTYPE(checkLIR->operands[0]) == REGTYPE(nativeRegId)) {
+              sameRegType(checkLIR->operands[0], nativeRegId)) {
             /*
              * Different destination register - insert
              * a move
@@ -166,8 +166,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
           /* Must alias */
           if (checkLIR->aliasInfo == thisLIR->aliasInfo) {
             /* Only optimize compatible registers */
-            bool regCompatible =
-                REGTYPE(checkLIR->operands[0]) == REGTYPE(nativeRegId);
+            bool regCompatible = sameRegType(checkLIR->operands[0], nativeRegId);
             if ((isThisLIRLoad && isCheckLIRLoad) ||
                 (!isThisLIRLoad && isCheckLIRLoad)) {
               /* RAR or RAW */

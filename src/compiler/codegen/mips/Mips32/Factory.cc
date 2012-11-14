@@ -46,12 +46,12 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
-  if (DOUBLEREG(rDest)) {
+  DCHECK_EQ(MIPS_DOUBLEREG(rDest),MIPS_DOUBLEREG(rSrc));
+  if (MIPS_DOUBLEREG(rDest)) {
     opcode = kMipsFmovd;
   } else {
-    if (SINGLEREG(rDest)) {
-      if (SINGLEREG(rSrc)) {
+    if (MIPS_SINGLEREG(rDest)) {
+      if (MIPS_SINGLEREG(rSrc)) {
         opcode = kMipsFmovs;
       } else {
         /* note the operands are swapped for the mtc1 instr */
@@ -61,7 +61,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
         opcode = kMipsMtc1;
       }
     } else {
-      DCHECK(SINGLEREG(rSrc));
+      DCHECK(MIPS_SINGLEREG(rSrc));
       opcode = kMipsMfc1;
     }
   }
@@ -88,9 +88,9 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
 
 #ifdef __mips_hard_float
   int rDestSave = rDest;
-  int isFpReg = FPREG(rDest);
+  int isFpReg = MIPS_FPREG(rDest);
   if (isFpReg) {
-    DCHECK(SINGLEREG(rDest));
+    DCHECK(MIPS_SINGLEREG(rDest));
     rDest = oatAllocTemp(cUnit);
   }
 #endif
@@ -372,8 +372,8 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
   int tReg = oatAllocTemp(cUnit);
 
 #ifdef __mips_hard_float
-  if (FPREG(rDest)) {
-    DCHECK(SINGLEREG(rDest));
+  if (MIPS_FPREG(rDest)) {
+    DCHECK(MIPS_SINGLEREG(rDest));
     DCHECK((size == kWord) || (size == kSingle));
     size = kSingle;
   } else {
@@ -429,8 +429,8 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
   int tReg = oatAllocTemp(cUnit);
 
 #ifdef __mips_hard_float
-  if (FPREG(rSrc)) {
-    DCHECK(SINGLEREG(rSrc));
+  if (MIPS_FPREG(rSrc)) {
+    DCHECK(MIPS_SINGLEREG(rSrc));
     DCHECK((size == kWord) || (size == kSingle));
     size = kSingle;
   } else {
@@ -540,12 +540,12 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
       pair = true;
       opcode = kMipsLw;
 #ifdef __mips_hard_float
-      if (FPREG(rDest)) {
+      if (MIPS_FPREG(rDest)) {
         opcode = kMipsFlwc1;
-        if (DOUBLEREG(rDest)) {
-          rDest = rDest - FP_DOUBLE;
+        if (MIPS_DOUBLEREG(rDest)) {
+          rDest = rDest - MIPS_FP_DOUBLE;
         } else {
-          DCHECK(FPREG(rDestHi));
+          DCHECK(MIPS_FPREG(rDestHi));
           DCHECK(rDest == (rDestHi - 1));
         }
         rDestHi = rDest + 1;
@@ -558,9 +558,9 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
     case kSingle:
       opcode = kMipsLw;
 #ifdef __mips_hard_float
-      if (FPREG(rDest)) {
+      if (MIPS_FPREG(rDest)) {
         opcode = kMipsFlwc1;
-        DCHECK(SINGLEREG(rDest));
+        DCHECK(MIPS_SINGLEREG(rDest));
       }
 #endif
       DCHECK_EQ((displacement & 0x3), 0);
@@ -608,7 +608,7 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
     }
   }
 
-  if (rBase == rSP) {
+  if (rBase == rMIPS_SP) {
     annotateDalvikRegAccess(load,
                             (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             true /* isLoad */, pair /* is64bit */);
@@ -650,12 +650,12 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
       pair = true;
       opcode = kMipsSw;
 #ifdef __mips_hard_float
-      if (FPREG(rSrc)) {
+      if (MIPS_FPREG(rSrc)) {
         opcode = kMipsFswc1;
-        if (DOUBLEREG(rSrc)) {
-          rSrc = rSrc - FP_DOUBLE;
+        if (MIPS_DOUBLEREG(rSrc)) {
+          rSrc = rSrc - MIPS_FP_DOUBLE;
         } else {
-          DCHECK(FPREG(rSrcHi));
+          DCHECK(MIPS_FPREG(rSrcHi));
           DCHECK_EQ(rSrc, (rSrcHi - 1));
         }
         rSrcHi = rSrc + 1;
@@ -668,9 +668,9 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     case kSingle:
       opcode = kMipsSw;
 #ifdef __mips_hard_float
-      if (FPREG(rSrc)) {
+      if (MIPS_FPREG(rSrc)) {
         opcode = kMipsFswc1;
-        DCHECK(SINGLEREG(rSrc));
+        DCHECK(MIPS_SINGLEREG(rSrc));
       }
 #endif
       DCHECK_EQ((displacement & 0x3), 0);
@@ -709,7 +709,7 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     oatFreeTemp(cUnit, rScratch);
   }
 
-  if (rBase == rSP) {
+  if (rBase == rMIPS_SP) {
     annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
                             >> 2, false /* isLoad */, pair /* is64bit */);
     if (pair) {

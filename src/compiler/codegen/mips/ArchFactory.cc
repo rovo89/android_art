@@ -99,7 +99,7 @@ bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
  */
 int loadHelper(CompilationUnit* cUnit, int offset)
 {
-  loadWordDisp(cUnit, rSELF, offset, r_T9);
+  loadWordDisp(cUnit, rMIPS_SELF, offset, r_T9);
   return r_T9;
 }
 
@@ -110,11 +110,11 @@ void spillCoreRegs(CompilationUnit* cUnit)
   }
   uint32_t mask = cUnit->coreSpillMask;
   int offset = cUnit->numCoreSpills * 4;
-  opRegImm(cUnit, kOpSub, rSP, offset);
+  opRegImm(cUnit, kOpSub, rMIPS_SP, offset);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      storeWordDisp(cUnit, rSP, offset, reg);
+      storeWordDisp(cUnit, rMIPS_SP, offset, reg);
     }
   }
 }
@@ -129,10 +129,10 @@ void unSpillCoreRegs(CompilationUnit* cUnit)
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
       offset -= 4;
-      loadWordDisp(cUnit, rSP, offset, reg);
+      loadWordDisp(cUnit, rMIPS_SP, offset, reg);
     }
   }
-  opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
+  opRegImm(cUnit, kOpAdd, rMIPS_SP, cUnit->frameSize);
 }
 
 void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
@@ -140,15 +140,15 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
-   * On entry, rARG0, rARG1, rARG2 & rARG3 are live.  Let the register
+   * On entry, rMIPS_ARG0, rMIPS_ARG1, rMIPS_ARG2 & rMIPS_ARG3 are live.  Let the register
    * allocation mechanism know so it doesn't try to use any of them when
    * expanding the frame or flushing.  This leaves the utility
    * code with a single temp: r12.  This should be enough.
    */
-  oatLockTemp(cUnit, rARG0);
-  oatLockTemp(cUnit, rARG1);
-  oatLockTemp(cUnit, rARG2);
-  oatLockTemp(cUnit, rARG3);
+  oatLockTemp(cUnit, rMIPS_ARG0);
+  oatLockTemp(cUnit, rMIPS_ARG1);
+  oatLockTemp(cUnit, rMIPS_ARG2);
+  oatLockTemp(cUnit, rMIPS_ARG3);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -161,36 +161,36 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
   int newSP = oatAllocTemp(cUnit);
   if (!skipOverflowCheck) {
     /* Load stack limit */
-    loadWordDisp(cUnit, rSELF, Thread::StackEndOffset().Int32Value(), checkReg);
+    loadWordDisp(cUnit, rMIPS_SELF, Thread::StackEndOffset().Int32Value(), checkReg);
   }
   /* Spill core callee saves */
   spillCoreRegs(cUnit);
   /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
   DCHECK_EQ(cUnit->numFPSpills, 0);
   if (!skipOverflowCheck) {
-    opRegRegImm(cUnit, kOpSub, newSP, rSP, cUnit->frameSize - (spillCount * 4));
+    opRegRegImm(cUnit, kOpSub, newSP, rMIPS_SP, cUnit->frameSize - (spillCount * 4));
     genRegRegCheck(cUnit, kCondCc, newSP, checkReg, kThrowStackOverflow);
-    opRegCopy(cUnit, rSP, newSP);     // Establish stack
+    opRegCopy(cUnit, rMIPS_SP, newSP);     // Establish stack
   } else {
-    opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));
+    opRegImm(cUnit, kOpSub, rMIPS_SP, cUnit->frameSize - (spillCount * 4));
   }
 
   flushIns(cUnit, argLocs, rlMethod);
 
-  oatFreeTemp(cUnit, rARG0);
-  oatFreeTemp(cUnit, rARG1);
-  oatFreeTemp(cUnit, rARG2);
-  oatFreeTemp(cUnit, rARG3);
+  oatFreeTemp(cUnit, rMIPS_ARG0);
+  oatFreeTemp(cUnit, rMIPS_ARG1);
+  oatFreeTemp(cUnit, rMIPS_ARG2);
+  oatFreeTemp(cUnit, rMIPS_ARG3);
 }
 
 void genExitSequence(CompilationUnit* cUnit)
 {
   /*
-   * In the exit path, rRET0/rRET1 are live - make sure they aren't
+   * In the exit path, rMIPS_RET0/rMIPS_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  oatLockTemp(cUnit, rRET0);
-  oatLockTemp(cUnit, rRET1);
+  oatLockTemp(cUnit, rMIPS_RET0);
+  oatLockTemp(cUnit, rMIPS_RET1);
 
   newLIR0(cUnit, kPseudoMethodExit);
   unSpillCoreRegs(cUnit);

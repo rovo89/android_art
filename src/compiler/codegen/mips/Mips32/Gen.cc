@@ -238,7 +238,7 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
   // Making a call - use explicit registers
   oatFlushAllRegs(cUnit);   /* Everything to home location */
   oatLockCallTemps(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);
+  loadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);
 
   // Must prevent code motion for the curr pc pair
   genBarrier(cUnit);
@@ -251,7 +251,7 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
   LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
 
   // Materialize a pointer to the fill data image
-  newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+  newLIR4(cUnit, kMipsDelta, rMIPS_ARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
   // And go...
   oatClobberCalleeSave(cUnit);
@@ -284,9 +284,9 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  loadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
+  genNullCheck(cUnit, rlSrc.sRegLow, rMIPS_ARG0, optFlags);
   // Go expensive route - artLockObjectFromCode(self, obj);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
   oatClobberCalleeSave(cUnit);
@@ -300,9 +300,9 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  loadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
+  genNullCheck(cUnit, rlSrc.sRegLow, rMIPS_ARG0, optFlags);
   // Go expensive route - UnlockObjectFromCode(obj);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
   oatClobberCalleeSave(cUnit);
@@ -453,7 +453,7 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
 #ifdef __mips_hard_float
-  if (FPREG(rDest) || FPREG(rSrc))
+  if (MIPS_FPREG(rDest) || MIPS_FPREG(rSrc))
     return fpRegCopy(cUnit, rDest, rSrc);
 #endif
   LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
@@ -475,13 +475,13 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
           int srcLo, int srcHi)
 {
 #ifdef __mips_hard_float
-  bool destFP = FPREG(destLo) && FPREG(destHi);
-  bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-  assert(FPREG(srcLo) == FPREG(srcHi));
-  assert(FPREG(destLo) == FPREG(destHi));
+  bool destFP = MIPS_FPREG(destLo) && MIPS_FPREG(destHi);
+  bool srcFP = MIPS_FPREG(srcLo) && MIPS_FPREG(srcHi);
+  assert(MIPS_FPREG(srcLo) == MIPS_FPREG(srcHi));
+  assert(MIPS_FPREG(destLo) == MIPS_FPREG(destHi));
   if (destFP) {
     if (srcFP) {
-      opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
+      opRegCopy(cUnit, s2d(destLo, destHi), s2d(srcLo, srcHi));
     } else {
        /* note the operands are swapped for the mtc1 instr */
       newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
@@ -561,7 +561,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
   int regCardBase = oatAllocTemp(cUnit);
   int regCardNo = oatAllocTemp(cUnit);
   LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-  loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(), regCardBase);
+  loadWordDisp(cUnit, rMIPS_SELF, Thread::CardTableOffset().Int32Value(), regCardBase);
   opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
   storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
@@ -638,8 +638,8 @@ void genDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
 // Test suspend flag, return target of taken suspend branch
 LIR* opTestSuspend(CompilationUnit* cUnit, LIR* target)
 {
-  opRegImm(cUnit, kOpSub, rSUSPEND, 1);
-  return opCmpImmBranch(cUnit, (target == NULL) ? kCondEq : kCondNe, rSUSPEND, 0, target);
+  opRegImm(cUnit, kOpSub, rMIPS_SUSPEND, 1);
+  return opCmpImmBranch(cUnit, (target == NULL) ? kCondEq : kCondNe, rMIPS_SUSPEND, 0, target);
 }
 
 // Decrement register and branch on condition

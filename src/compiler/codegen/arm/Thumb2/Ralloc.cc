@@ -68,7 +68,7 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
   oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
   for (int i = 0; i < numReserved; i++) {
-    if (NO_SUSPEND && (reservedRegs[i] == rSUSPEND)) {
+    if (NO_SUSPEND && (reservedRegs[i] == rARM_SUSPEND)) {
       //To measure cost of suspend check
       continue;
     }

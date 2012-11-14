@@ -44,6 +44,26 @@ enum RegisterClass {
   kAnyReg,
 };
 
+enum SpecialTargetRegister {
+  kSelf,            // Thread
+  kSuspend,         // Used to reduce suspend checks
+  kLr,
+  kPc,
+  kSp,
+  kArg0,
+  kArg1,
+  kArg2,
+  kArg3,
+  kFArg0,
+  kFArg1,
+  kFArg2,
+  kFArg3,
+  kRet0,
+  kRet1,
+  kInvokeTgt,
+  kCount
+};
+
 enum RegLocationType {
   kLocDalvikFrame = 0, // Normal Dalvik register
   kLocPhysReg,

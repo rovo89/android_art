@@ -22,6 +22,92 @@
 
 namespace art {
 
+RegLocation locCReturn()
+{
+  RegLocation res = ARM_LOC_C_RETURN;
+  return res;
+}
+
+RegLocation locCReturnWide()
+{
+  RegLocation res = ARM_LOC_C_RETURN_WIDE;
+  return res;
+}
+
+RegLocation locCReturnFloat()
+{
+  RegLocation res = ARM_LOC_C_RETURN_FLOAT;
+  return res;
+}
+
+RegLocation locCReturnDouble()
+{
+  RegLocation res = ARM_LOC_C_RETURN_DOUBLE;
+  return res;
+}
+
+// Return a target-dependent special register.
+int targetReg(SpecialTargetRegister reg) {
+  int res = INVALID_REG;
+  switch (reg) {
+    case kSelf: res = rARM_SELF; break;
+    case kSuspend: res =  rARM_SUSPEND; break;
+    case kLr: res =  rARM_LR; break;
+    case kPc: res =  rARM_PC; break;
+    case kSp: res =  rARM_SP; break;
+    case kArg0: res = rARM_ARG0; break;
+    case kArg1: res = rARM_ARG1; break;
+    case kArg2: res = rARM_ARG2; break;
+    case kArg3: res = rARM_ARG3; break;
+    case kFArg0: res = rARM_FARG0; break;
+    case kFArg1: res = rARM_FARG1; break;
+    case kFArg2: res = rARM_FARG2; break;
+    case kFArg3: res = rARM_FARG3; break;
+    case kRet0: res = rARM_RET0; break;
+    case kRet1: res = rARM_RET1; break;
+    case kInvokeTgt: res = rARM_INVOKE_TGT; break;
+    case kCount: res = rARM_COUNT; break;
+  }
+  return res;
+}
+
+
+// Create a double from a pair of singles.
+int s2d(int lowReg, int highReg)
+{
+  return ARM_S2D(lowReg, highReg);
+}
+
+// Is reg a single or double?
+bool fpReg(int reg)
+{
+  return ARM_FPREG(reg);
+}
+
+// Is reg a single?
+bool singleReg(int reg)
+{
+  return ARM_SINGLEREG(reg);
+}
+
+// Is reg a double?
+bool doubleReg(int reg)
+{
+  return ARM_DOUBLEREG(reg);
+}
+
+// Return mask to strip off fp reg flags and bias.
+uint32_t fpRegMask()
+{
+  return ARM_FP_REG_MASK;
+}
+
+// True if both regs single, both core or both double.
+bool sameRegType(int reg1, int reg2)
+{
+  return (ARM_REGTYPE(reg1) == ARM_REGTYPE(reg2));
+}
+
 /*
  * Decode the register id.
  */
@@ -34,9 +120,9 @@ u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
 
   regId = reg & 0x1f;
   /* Each double register is equal to a pair of single-precision FP registers */
-  seed = DOUBLEREG(reg) ? 3 : 1;
+  seed = ARM_DOUBLEREG(reg) ? 3 : 1;
   /* FP register starts at bit position 16 */
-  shift = FPREG(reg) ? kArmFPReg0 : 0;
+  shift = ARM_FPREG(reg) ? kArmFPReg0 : 0;
   /* Expand the double register id into single offset */
   shift += regId;
   return (seed << shift);
@@ -306,10 +392,10 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
              sprintf(tbuf,"%d [%#x]", operand, operand);
              break;
            case 's':
-             sprintf(tbuf,"s%d",operand & FP_REG_MASK);
+             sprintf(tbuf,"s%d",operand & ARM_FP_REG_MASK);
              break;
            case 'S':
-             sprintf(tbuf,"d%d",(operand & FP_REG_MASK) >> 1);
+             sprintf(tbuf,"d%d",(operand & ARM_FP_REG_MASK) >> 1);
              break;
            case 'h':
              sprintf(tbuf,"%04x", operand);

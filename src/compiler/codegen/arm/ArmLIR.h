@@ -30,12 +30,12 @@ namespace art {
  *        pointer in r0 as a hidden arg0. Otherwise used as codegen scratch
  *        registers.
  * r0-r1: As in C/C++ r0 is 32-bit return register and r0/r1 is 64-bit
- * r4   : (rSUSPEND) is reserved (suspend check/debugger assist)
+ * r4   : (rARM_SUSPEND) is reserved (suspend check/debugger assist)
  * r5   : Callee save (promotion target)
  * r6   : Callee save (promotion target)
  * r7   : Callee save (promotion target)
  * r8   : Callee save (promotion target)
- * r9   : (rSELF) is reserved (pointer to thread-local storage)
+ * r9   : (rARM_SELF) is reserved (pointer to thread-local storage)
  * r10  : Callee save (promotion target)
  * r11  : Callee save (promotion target)
  * r12  : Scratch, may be trashed by linkage stubs
@@ -95,17 +95,17 @@ namespace art {
  */
 
 /* Offset to distingish FP regs */
-#define FP_REG_OFFSET 32
+#define ARM_FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE 64
+#define ARM_FP_DOUBLE 64
 /* First FP callee save */
-#define FP_CALLEE_SAVE_BASE 16
+#define ARM_FP_CALLEE_SAVE_BASE 16
 /* Reg types */
-#define REGTYPE(x) (x & (FP_REG_OFFSET | FP_DOUBLE))
-#define FPREG(x) ((x & FP_REG_OFFSET) == FP_REG_OFFSET)
-#define LOWREG(x) ((x & 0x7) == x)
-#define DOUBLEREG(x) ((x & FP_DOUBLE) == FP_DOUBLE)
-#define SINGLEREG(x) (FPREG(x) && !DOUBLEREG(x))
+#define ARM_REGTYPE(x) (x & (ARM_FP_REG_OFFSET | ARM_FP_DOUBLE))
+#define ARM_FPREG(x) ((x & ARM_FP_REG_OFFSET) == ARM_FP_REG_OFFSET)
+#define ARM_LOWREG(x) ((x & 0x7) == x)
+#define ARM_DOUBLEREG(x) ((x & ARM_FP_DOUBLE) == ARM_FP_DOUBLE)
+#define ARM_SINGLEREG(x) (ARM_FPREG(x) && !ARM_DOUBLEREG(x))
 /*
  * Note: the low register of a floating point pair is sufficient to
  * create the name of a double, but require both names to be passed to
@@ -113,21 +113,17 @@ namespace art {
  * rework is done in this area.  Also, it is a good reminder in the calling
  * code that reg locations always describe doubles as a pair of singles.
  */
-#define S2D(x,y) ((x) | FP_DOUBLE)
+#define ARM_S2D(x,y) ((x) | ARM_FP_DOUBLE)
 /* Mask to strip off fp flags */
-#define FP_REG_MASK (FP_REG_OFFSET-1)
-/* non-existent Dalvik register */
-#define vNone   (-1)
-/* non-existant physical register */
-#define rNone   (-1)
+#define ARM_FP_REG_MASK (ARM_FP_REG_OFFSET-1)
 
 /* RegisterLocation templates return values (r0, or r0/r1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r0, INVALID_REG,\
-                      INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1, \
-                      INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_FLOAT  LOC_C_RETURN
-#define LOC_C_RETURN_WIDE_DOUBLE  LOC_C_RETURN_WIDE
+#define ARM_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r0, INVALID_REG,\
+                          INVALID_SREG, INVALID_SREG}
+#define ARM_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1, \
+                               INVALID_SREG, INVALID_SREG}
+#define ARM_LOC_C_RETURN_FLOAT  ARM_LOC_C_RETURN
+#define ARM_LOC_C_RETURN_DOUBLE  ARM_LOC_C_RETURN_WIDE
 
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
@@ -145,95 +141,89 @@ enum ArmResourceEncodingPos {
 #define ENCODE_ARM_REG_PC           (1ULL << kArmRegPC)
 #define ENCODE_ARM_REG_FPCS_LIST(N) ((u8)N << kArmFPReg16)
 
-/*
- * Annotate special-purpose core registers:
- *   - ARM architecture: r13sp, r14lr, and r15pc
- *
- * rPC, rFP, and rSELF are for architecture-independent code to use.
- */
-enum NativeRegisterPool {
+enum ArmNativeRegisterPool {
   r0   = 0,
   r1   = 1,
   r2   = 2,
   r3   = 3,
-  rSUSPEND = 4,
+  rARM_SUSPEND = 4,
   r5   = 5,
   r6   = 6,
   r7   = 7,
   r8   = 8,
-  rSELF  = 9,
+  rARM_SELF  = 9,
   r10  = 10,
   r11  = 11,
   r12  = 12,
   r13sp  = 13,
-  rSP  = 13,
+  rARM_SP  = 13,
   r14lr  = 14,
-  rLR  = 14,
+  rARM_LR  = 14,
   r15pc  = 15,
-  rPC  = 15,
-  fr0  =  0 + FP_REG_OFFSET,
-  fr1  =  1 + FP_REG_OFFSET,
-  fr2  =  2 + FP_REG_OFFSET,
-  fr3  =  3 + FP_REG_OFFSET,
-  fr4  =  4 + FP_REG_OFFSET,
-  fr5  =  5 + FP_REG_OFFSET,
-  fr6  =  6 + FP_REG_OFFSET,
-  fr7  =  7 + FP_REG_OFFSET,
-  fr8  =  8 + FP_REG_OFFSET,
-  fr9  =  9 + FP_REG_OFFSET,
-  fr10 = 10 + FP_REG_OFFSET,
-  fr11 = 11 + FP_REG_OFFSET,
-  fr12 = 12 + FP_REG_OFFSET,
-  fr13 = 13 + FP_REG_OFFSET,
-  fr14 = 14 + FP_REG_OFFSET,
-  fr15 = 15 + FP_REG_OFFSET,
-  fr16 = 16 + FP_REG_OFFSET,
-  fr17 = 17 + FP_REG_OFFSET,
-  fr18 = 18 + FP_REG_OFFSET,
-  fr19 = 19 + FP_REG_OFFSET,
-  fr20 = 20 + FP_REG_OFFSET,
-  fr21 = 21 + FP_REG_OFFSET,
-  fr22 = 22 + FP_REG_OFFSET,
-  fr23 = 23 + FP_REG_OFFSET,
-  fr24 = 24 + FP_REG_OFFSET,
-  fr25 = 25 + FP_REG_OFFSET,
-  fr26 = 26 + FP_REG_OFFSET,
-  fr27 = 27 + FP_REG_OFFSET,
-  fr28 = 28 + FP_REG_OFFSET,
-  fr29 = 29 + FP_REG_OFFSET,
-  fr30 = 30 + FP_REG_OFFSET,
-  fr31 = 31 + FP_REG_OFFSET,
-  dr0 = fr0 + FP_DOUBLE,
-  dr1 = fr2 + FP_DOUBLE,
-  dr2 = fr4 + FP_DOUBLE,
-  dr3 = fr6 + FP_DOUBLE,
-  dr4 = fr8 + FP_DOUBLE,
-  dr5 = fr10 + FP_DOUBLE,
-  dr6 = fr12 + FP_DOUBLE,
-  dr7 = fr14 + FP_DOUBLE,
-  dr8 = fr16 + FP_DOUBLE,
-  dr9 = fr18 + FP_DOUBLE,
-  dr10 = fr20 + FP_DOUBLE,
-  dr11 = fr22 + FP_DOUBLE,
-  dr12 = fr24 + FP_DOUBLE,
-  dr13 = fr26 + FP_DOUBLE,
-  dr14 = fr28 + FP_DOUBLE,
-  dr15 = fr30 + FP_DOUBLE,
+  rARM_PC  = 15,
+  fr0  =  0 + ARM_FP_REG_OFFSET,
+  fr1  =  1 + ARM_FP_REG_OFFSET,
+  fr2  =  2 + ARM_FP_REG_OFFSET,
+  fr3  =  3 + ARM_FP_REG_OFFSET,
+  fr4  =  4 + ARM_FP_REG_OFFSET,
+  fr5  =  5 + ARM_FP_REG_OFFSET,
+  fr6  =  6 + ARM_FP_REG_OFFSET,
+  fr7  =  7 + ARM_FP_REG_OFFSET,
+  fr8  =  8 + ARM_FP_REG_OFFSET,
+  fr9  =  9 + ARM_FP_REG_OFFSET,
+  fr10 = 10 + ARM_FP_REG_OFFSET,
+  fr11 = 11 + ARM_FP_REG_OFFSET,
+  fr12 = 12 + ARM_FP_REG_OFFSET,
+  fr13 = 13 + ARM_FP_REG_OFFSET,
+  fr14 = 14 + ARM_FP_REG_OFFSET,
+  fr15 = 15 + ARM_FP_REG_OFFSET,
+  fr16 = 16 + ARM_FP_REG_OFFSET,
+  fr17 = 17 + ARM_FP_REG_OFFSET,
+  fr18 = 18 + ARM_FP_REG_OFFSET,
+  fr19 = 19 + ARM_FP_REG_OFFSET,
+  fr20 = 20 + ARM_FP_REG_OFFSET,
+  fr21 = 21 + ARM_FP_REG_OFFSET,
+  fr22 = 22 + ARM_FP_REG_OFFSET,
+  fr23 = 23 + ARM_FP_REG_OFFSET,
+  fr24 = 24 + ARM_FP_REG_OFFSET,
+  fr25 = 25 + ARM_FP_REG_OFFSET,
+  fr26 = 26 + ARM_FP_REG_OFFSET,
+  fr27 = 27 + ARM_FP_REG_OFFSET,
+  fr28 = 28 + ARM_FP_REG_OFFSET,
+  fr29 = 29 + ARM_FP_REG_OFFSET,
+  fr30 = 30 + ARM_FP_REG_OFFSET,
+  fr31 = 31 + ARM_FP_REG_OFFSET,
+  dr0 = fr0 + ARM_FP_DOUBLE,
+  dr1 = fr2 + ARM_FP_DOUBLE,
+  dr2 = fr4 + ARM_FP_DOUBLE,
+  dr3 = fr6 + ARM_FP_DOUBLE,
+  dr4 = fr8 + ARM_FP_DOUBLE,
+  dr5 = fr10 + ARM_FP_DOUBLE,
+  dr6 = fr12 + ARM_FP_DOUBLE,
+  dr7 = fr14 + ARM_FP_DOUBLE,
+  dr8 = fr16 + ARM_FP_DOUBLE,
+  dr9 = fr18 + ARM_FP_DOUBLE,
+  dr10 = fr20 + ARM_FP_DOUBLE,
+  dr11 = fr22 + ARM_FP_DOUBLE,
+  dr12 = fr24 + ARM_FP_DOUBLE,
+  dr13 = fr26 + ARM_FP_DOUBLE,
+  dr14 = fr28 + ARM_FP_DOUBLE,
+  dr15 = fr30 + ARM_FP_DOUBLE,
 };
 
 /* Target-independent aliases */
-#define rARG0 r0
-#define rARG1 r1
-#define rARG2 r2
-#define rARG3 r3
-#define rFARG0 r0
-#define rFARG1 r1
-#define rFARG2 r2
-#define rFARG3 r3
-#define rRET0 r0
-#define rRET1 r1
-#define rINVOKE_TGT rLR
-#define rCOUNT INVALID_REG
+#define rARM_ARG0 r0
+#define rARM_ARG1 r1
+#define rARM_ARG2 r2
+#define rARM_ARG3 r3
+#define rARM_FARG0 r0
+#define rARM_FARG1 r1
+#define rARM_FARG2 r2
+#define rARM_FARG3 r3
+#define rARM_RET0 r0
+#define rARM_RET1 r1
+#define rARM_INVOKE_TGT rARM_LR
+#define rARM_COUNT INVALID_REG
 
 /* Shift encodings */
 enum ArmShiftEncodings {

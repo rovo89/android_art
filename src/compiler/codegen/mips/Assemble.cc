@@ -677,16 +677,16 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           bits |= (value << encoder->fieldLoc[i].end);
           break;
         case kFmtDfp: {
-          DCHECK(DOUBLEREG(operand));
+          DCHECK(MIPS_DOUBLEREG(operand));
           DCHECK_EQ((operand & 0x1), 0U);
-          value = ((operand & FP_REG_MASK) << encoder->fieldLoc[i].start) &
+          value = ((operand & MIPS_FP_REG_MASK) << encoder->fieldLoc[i].start) &
               ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
           bits |= value;
           break;
         }
         case kFmtSfp:
-          DCHECK(SINGLEREG(operand));
-          value = ((operand & FP_REG_MASK) << encoder->fieldLoc[i].start) &
+          DCHECK(MIPS_SINGLEREG(operand));
+          value = ((operand & MIPS_FP_REG_MASK) << encoder->fieldLoc[i].start) &
               ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
           bits |= value;
           break;

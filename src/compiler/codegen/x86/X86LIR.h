@@ -105,18 +105,17 @@ namespace art {
  */
 
 /* Offset to distingish FP regs */
-#define FP_REG_OFFSET 32
+#define X86_FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE (FP_REG_OFFSET + 16)
+#define X86_FP_DOUBLE (X86_FP_REG_OFFSET + 16)
 /* Offset to distingish the extra regs */
-#define EXTRA_REG_OFFSET (FP_DOUBLE + 16)
+#define X86_EXTRA_REG_OFFSET (X86_FP_DOUBLE + 16)
 /* Reg types */
-#define REGTYPE(x) (x & (FP_REG_OFFSET | FP_DOUBLE))
-#define FPREG(x) ((x & FP_REG_OFFSET) == FP_REG_OFFSET)
-#define EXTRAREG(x) ((x & EXTRA_REG_OFFSET) == EXTRA_REG_OFFSET)
-#define LOWREG(x) ((x & 0x1f) == x)
-#define DOUBLEREG(x) ((x & FP_DOUBLE) == FP_DOUBLE)
-#define SINGLEREG(x) (FPREG(x) && !DOUBLEREG(x))
+#define X86_REGTYPE(x) (x & (X86_FP_REG_OFFSET | X86_FP_DOUBLE))
+#define X86_FPREG(x) ((x & X86_FP_REG_OFFSET) == X86_FP_REG_OFFSET)
+#define X86_EXTRAREG(x) ((x & X86_EXTRA_REG_OFFSET) == X86_EXTRA_REG_OFFSET)
+#define X86_DOUBLEREG(x) ((x & X86_FP_DOUBLE) == X86_FP_DOUBLE)
+#define X86_SINGLEREG(x) (X86_FPREG(x) && !X86_DOUBLEREG(x))
 
 /*
  * Note: the low register of a floating point pair is sufficient to
@@ -125,20 +124,16 @@ namespace art {
  * rework is done in this area.  Also, it is a good reminder in the calling
  * code that reg locations always describe doubles as a pair of singles.
  */
-#define S2D(x,y) ((x) | FP_DOUBLE)
+#define X86_S2D(x,y) ((x) | X86_FP_DOUBLE)
 /* Mask to strip off fp flags */
-#define FP_REG_MASK 0xF
-/* non-existent Dalvik register */
-#define vNone   (-1)
-/* non-existant physical register */
-#define rNone   (-1)
+#define X86_FP_REG_MASK 0xF
 
 /* RegisterLocation templates return values (rAX, rAX/rDX or XMM0) */
 //                               location,     wide, defined, const, fp, core, ref, highWord, home, lowReg, highReg,     sRegLow
-#define LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define X86_LOC_C_RETURN_DOUBLE      {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG, INVALID_SREG}
 
 enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,
@@ -155,7 +150,7 @@ enum X86ResourceEncodingPos {
  * Annotate special-purpose core registers:
  */
 
-enum NativeRegisterPool {
+enum X86NativeRegisterPool {
   r0     = 0,
   rAX    = r0,
   r1     = 1,
@@ -165,7 +160,7 @@ enum NativeRegisterPool {
   r3     = 3,
   rBX    = r3,
   r4sp   = 4,
-  rSP    = r4sp,
+  rX86_SP    = r4sp,
   r4sib_no_index = r4sp,
   r5     = 5,
   rBP    = r5,
@@ -187,43 +182,44 @@ enum NativeRegisterPool {
   r15    = 15,
   rRET   = 16,  // fake return address register for core spill mask
 #endif
-  fr0  =  0 + FP_REG_OFFSET,
-  fr1  =  1 + FP_REG_OFFSET,
-  fr2  =  2 + FP_REG_OFFSET,
-  fr3  =  3 + FP_REG_OFFSET,
-  fr4  =  4 + FP_REG_OFFSET,
-  fr5  =  5 + FP_REG_OFFSET,
-  fr6  =  6 + FP_REG_OFFSET,
-  fr7  =  7 + FP_REG_OFFSET,
-  fr8  =  8 + FP_REG_OFFSET,
-  fr9  =  9 + FP_REG_OFFSET,
-  fr10 = 10 + FP_REG_OFFSET,
-  fr11 = 11 + FP_REG_OFFSET,
-  fr12 = 12 + FP_REG_OFFSET,
-  fr13 = 13 + FP_REG_OFFSET,
-  fr14 = 14 + FP_REG_OFFSET,
-  fr15 = 15 + FP_REG_OFFSET,
+  fr0  =  0 + X86_FP_REG_OFFSET,
+  fr1  =  1 + X86_FP_REG_OFFSET,
+  fr2  =  2 + X86_FP_REG_OFFSET,
+  fr3  =  3 + X86_FP_REG_OFFSET,
+  fr4  =  4 + X86_FP_REG_OFFSET,
+  fr5  =  5 + X86_FP_REG_OFFSET,
+  fr6  =  6 + X86_FP_REG_OFFSET,
+  fr7  =  7 + X86_FP_REG_OFFSET,
+  fr8  =  8 + X86_FP_REG_OFFSET,
+  fr9  =  9 + X86_FP_REG_OFFSET,
+  fr10 = 10 + X86_FP_REG_OFFSET,
+  fr11 = 11 + X86_FP_REG_OFFSET,
+  fr12 = 12 + X86_FP_REG_OFFSET,
+  fr13 = 13 + X86_FP_REG_OFFSET,
+  fr14 = 14 + X86_FP_REG_OFFSET,
+  fr15 = 15 + X86_FP_REG_OFFSET,
 };
 
 /*
  * Target-independent aliases
  */
 
-#define rARG0 rAX
-#define rARG1 rCX
-#define rARG2 rDX
-#define rARG3 rBX
-#define rFARG0 rAX
-#define rFARG1 rCX
-#define rFARG2 rDX
-#define rFARG3 rBX
-#define rRET0 rAX
-#define rRET1 rDX
-#define rINVOKE_TGT rAX
-#define rLR INVALID_REG
-#define rSUSPEND INVALID_REG
-#define rSELF INVALID_REG
-#define rCOUNT rCX
+#define rX86_ARG0 rAX
+#define rX86_ARG1 rCX
+#define rX86_ARG2 rDX
+#define rX86_ARG3 rBX
+#define rX86_FARG0 rAX
+#define rX86_FARG1 rCX
+#define rX86_FARG2 rDX
+#define rX86_FARG3 rBX
+#define rX86_RET0 rAX
+#define rX86_RET1 rDX
+#define rX86_INVOKE_TGT rAX
+#define rX86_LR INVALID_REG
+#define rX86_SUSPEND INVALID_REG
+#define rX86_SELF INVALID_REG
+#define rX86_COUNT rCX
+#define rX86_PC INVALID_REG
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 

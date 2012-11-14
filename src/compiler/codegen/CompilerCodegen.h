@@ -222,6 +222,17 @@ LIR* opDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* t
 LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
 uint64_t getPCUseDefEncoding();
 uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg);
+int s2d(int lowReg, int highReg);
+bool fpReg(int reg);
+bool singleReg(int reg);
+bool doubleReg(int reg);
+uint32_t fpRegMask();
+bool sameRegType(int reg1, int reg2);
+int targetReg(SpecialTargetRegister reg);
+RegLocation locCReturn();
+RegLocation locCReturnWide();
+RegLocation locCReturnFloat();
+RegLocation locCReturnDouble();
 
 }  // namespace art
 
