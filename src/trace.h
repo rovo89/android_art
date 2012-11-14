@@ -32,17 +32,6 @@ namespace art {
 class AbstractMethod;
 class Thread;
 
-uint32_t TraceMethodUnwindFromCode(Thread* self);
-
-struct TraceStackFrame {
-  TraceStackFrame(AbstractMethod* method, uintptr_t return_pc)
-      : method_(method), return_pc_(return_pc) {
-  }
-
-  AbstractMethod* method_;
-  uintptr_t return_pc_;
-};
-
 enum ProfilerClockSource {
   kProfilerClockSourceThreadCpu,
   kProfilerClockSourceWall,
@@ -72,32 +61,16 @@ class Trace {
 
   void LogMethodTraceEvent(Thread* self, const AbstractMethod* method, TraceEvent event);
 
-  void AddSavedCodeToMap(const AbstractMethod* method, const void* code);
-  void RemoveSavedCodeFromMap(const AbstractMethod* method);
-  const void* GetSavedCodeFromMap(const AbstractMethod* method);
-
-  void SaveAndUpdateCode(AbstractMethod* method);
-  void ResetSavedCode(AbstractMethod* method);
-
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
 
   void BeginTracing();
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Replaces code of each method with a pointer to a stub for method tracing.
-  void InstallStubs();
-
-  // Restores original code for each method and fixes the return values of each thread's stack.
-  void UninstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
-
   // Methods to output traced methods and threads.
   void GetVisitedMethods(size_t end_offset);
   void DumpMethodList(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
-
-  // Maps a method to its original code pointer.
-  SafeMap<const AbstractMethod*, const void*> saved_code_map_;
 
   // Set of methods visited by the profiler.
   std::set<const AbstractMethod*> visited_methods_;

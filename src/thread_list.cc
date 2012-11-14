@@ -121,7 +121,7 @@ void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread
   MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
-    if (thread != ignore1 || thread == ignore2) {
+    if (thread != ignore1 && thread != ignore2) {
       CHECK(thread->IsSuspended())
             << "\nUnsuspended thread: <<" << *thread << "\n"
             << "self: <<" << *Thread::Current();

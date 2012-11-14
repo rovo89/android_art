@@ -859,13 +859,15 @@ art_proxy_invoke_handler:
 1:
     DELIVER_PENDING_EXCEPTION
 
-    .global art_trace_entry_from_code
-    .extern artTraceMethodEntryFromCode
+    .global art_instrumentation_entry_from_code
+    .global art_instrumentation_exit_from_code
+    .extern artInstrumentationMethodEntryFromCode
+    .extern artInstrumentationMethodExitFromCode
     /*
-     * Routine that intercepts method calls
+     * Routine that intercepts method calls and returns.
      */
     ALIGN_FUNCTION_ENTRY
-art_trace_entry_from_code:
+art_instrumentation_entry_from_code:
     .cpload $25
     addiu    $sp, $sp, -16
     sw       $a0, 0($sp)
@@ -873,7 +875,7 @@ art_trace_entry_from_code:
     sw       $a2, 8($sp)
     sw       $a3, 12($sp)
     move     $a2, $ra       # pass $ra
-    jal      artTraceMethodEntryFromCode  # (Method*, Thread*, LR)
+    jal      artInstrumentationMethodEntryFromCode  # (Method*, Thread*, LR)
     move     $a1, rSELF     # pass Thread::Current
     move     $t9, $v0       # $t9 holds reference to code
     lw       $a0, 0($sp)
@@ -883,18 +885,11 @@ art_trace_entry_from_code:
     jalr     $t9            # call method
     addiu    $sp, $sp, 16
     /* intentional fallthrough */
-
-    .global art_trace_exit_from_code
-    .extern artTraceMethodExitFromCode
-    /*
-     * Routine that intercepts method returns
-     */
-    ALIGN_FUNCTION_ENTRY
-art_trace_exit_from_code:
+art_instrumentation_exit_from_code:
     .cpload $25
     addiu    $sp, $sp, -16
     sw       $v0, 0($sp)
-    jal      artTraceMethodExitFromCode  # ()
+    jal      artInstrumentationMethodExitFromCode  # ()
     sw       $v1, 4($sp)
     move     $ra, $v0         # restore link register
     lw       $v0, 0($sp)

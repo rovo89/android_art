@@ -63,7 +63,7 @@ static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThre
 // Returns the defining class loader of the caller's caller.
 static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   ScopedObjectAccess soa(env);
-  NthCallerVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetTraceStack(), 2);
+  NthCallerVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetInstrumentationStack(), 2);
   visitor.WalkStack();
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
@@ -71,9 +71,9 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
     ClosestUserClassLoaderVisitor(const ManagedStack* stack,
-                                  const std::vector<TraceStackFrame>* trace_stack,
+                                  const std::vector<InstrumentationStackFrame>* instrumentation_stack,
                                   Object* bootstrap, Object* system)
-      : StackVisitor(stack, trace_stack, NULL),
+      : StackVisitor(stack, instrumentation_stack, NULL),
         bootstrap(bootstrap), system(system), class_loader(NULL) {}
 
     bool VisitFrame() {
@@ -94,7 +94,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
   ScopedObjectAccess soa(env);
   Object* bootstrap = soa.Decode<Object*>(javaBootstrap);
   Object* system = soa.Decode<Object*>(javaSystem);
-  ClosestUserClassLoaderVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetTraceStack(),
+  ClosestUserClassLoaderVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetInstrumentationStack(),
                                         bootstrap, system);
   visitor.WalkStack();
   return soa.AddLocalReference<jobject>(visitor.class_loader);
@@ -103,7 +103,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
 // Returns the class of the caller's caller's caller.
 static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   ScopedObjectAccess soa(env);
-  NthCallerVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetTraceStack(), 3);
+  NthCallerVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetInstrumentationStack(), 3);
   visitor.WalkStack();
   return soa.AddLocalReference<jclass>(visitor.caller->GetDeclaringClass());
 }

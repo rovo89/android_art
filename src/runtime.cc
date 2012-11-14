@@ -32,6 +32,7 @@
 #include "debugger.h"
 #include "heap.h"
 #include "image.h"
+#include "instrumentation.h"
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "monitor.h"
@@ -88,7 +89,7 @@ Runtime::Runtime()
       stats_enabled_(false),
       method_trace_(0),
       method_trace_file_size_(0),
-      tracer_(NULL),
+      instrumentation_(NULL),
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
       system_thread_group_(NULL)
@@ -128,6 +129,7 @@ Runtime::~Runtime() {
   if (IsMethodTracingActive()) {
     Trace::Shutdown();
   }
+  delete instrumentation_;
 
   // Make sure to let the GC complete if it is running.
   heap_->WaitForConcurrentGcToComplete(self);
@@ -1149,15 +1151,26 @@ void Runtime::SetCalleeSaveMethod(AbstractMethod* method, CalleeSaveType type) {
   callee_save_methods_[type] = method;
 }
 
-void Runtime::EnableMethodTracing(Trace* tracer) {
+void Runtime::EnableMethodTracing(Trace* trace) {
   CHECK(!IsMethodTracingActive());
-  tracer_ = tracer;
+  if (instrumentation_ == NULL) {
+    instrumentation_ = new Instrumentation();
+  }
+  instrumentation_->SetTrace(trace);
 }
 
 void Runtime::DisableMethodTracing() {
   CHECK(IsMethodTracingActive());
-  delete tracer_;
-  tracer_ = NULL;
+  instrumentation_->RemoveTrace();
+}
+
+bool Runtime::IsMethodTracingActive() const {
+  return instrumentation_ != NULL && instrumentation_->GetTrace() != NULL;
+}
+
+Instrumentation* Runtime::GetInstrumentation() const {
+  CHECK(IsMethodTracingActive());
+  return instrumentation_;
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {

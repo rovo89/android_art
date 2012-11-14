@@ -19,10 +19,10 @@
 
 #include "dex_file.h"
 #include "heap.h"
+#include "instrumentation.h"
 #include "jni.h"
 #include "macros.h"
 #include "oat/runtime/context.h"
-#include "trace.h"
 
 #include <stdint.h>
 
@@ -303,10 +303,10 @@ class PACKED ManagedStack {
 
 class StackVisitor {
  protected:
-  StackVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+  StackVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
                Context* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : stack_start_(stack), trace_stack_(trace_stack), cur_shadow_frame_(NULL),
+      : stack_start_(stack), instrumentation_stack_(instrumentation_stack), cur_shadow_frame_(NULL),
         cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
         context_(context) {}
 
@@ -463,14 +463,14 @@ class StackVisitor {
  private:
   size_t ComputeNumFrames() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  TraceStackFrame GetTraceStackFrame(uint32_t depth) const {
-    return trace_stack_->at(trace_stack_->size() - depth - 1);
+  InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const {
+    return instrumentation_stack_->at(instrumentation_stack_->size() - depth - 1);
   }
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const ManagedStack* const stack_start_;
-  const std::vector<TraceStackFrame>* const trace_stack_;
+  const std::vector<InstrumentationStackFrame>* const instrumentation_stack_;
   ShadowFrame* cur_shadow_frame_;
   AbstractMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;

@@ -162,6 +162,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/image.cc \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
+	src/instrumentation.cc \
 	src/intern_table.cc \
 	src/interpreter/interpreter.cc \
 	src/jdwp/jdwp_event.cc \
@@ -253,6 +254,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_dexcache.cc \
 	src/oat/runtime/support_field.cc \
 	src/oat/runtime/support_fillarray.cc \
+	src/oat/runtime/support_instrumentation.cc \
 	src/oat/runtime/support_invoke.cc \
 	src/oat/runtime/support_jni.cc \
 	src/oat/runtime/support_locks.cc \
@@ -260,8 +262,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_proxy.cc \
 	src/oat/runtime/support_stubs.cc \
 	src/oat/runtime/support_thread.cc \
-	src/oat/runtime/support_throw.cc \
-	src/oat/runtime/support_trace.cc
+	src/oat/runtime/support_throw.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \

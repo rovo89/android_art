@@ -540,8 +540,8 @@ static const void* GetOatCode(const AbstractMethod* m)
   Runtime* runtime = Runtime::Current();
   const void* code = m->GetCode();
   // Peel off any method tracing trampoline.
-  if (runtime->IsMethodTracingActive() && runtime->GetTracer()->GetSavedCodeFromMap(m) != NULL) {
-    code = runtime->GetTracer()->GetSavedCodeFromMap(m);
+  if (runtime->IsMethodTracingActive() && runtime->GetInstrumentation()->GetSavedCodeFromMap(m) != NULL) {
+    code = runtime->GetInstrumentation()->GetSavedCodeFromMap(m);
   }
   // Peel off any resolution stub.
   if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {

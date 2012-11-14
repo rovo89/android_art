@@ -245,11 +245,11 @@ void ChangeDebuggerEntryPoint(EntryPoints*, bool) {
   UNIMPLEMENTED(FATAL);
 }
 
-bool IsTraceExitPc(uintptr_t) {
+bool IsInstrumentationExitPc(uintptr_t) {
   return false;
 }
 
-void* GetLogTraceEntryPoint() {
+void* GetInstrumentationEntryPoint() {
   return NULL;
 }
 

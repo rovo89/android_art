@@ -47,6 +47,7 @@ class ClassLinker;
 class ClassLoader;
 class DexFile;
 class Heap;
+class Instrumentation;
 class InternTable;
 struct JavaVMExt;
 class AbstractMethod;
@@ -343,17 +344,10 @@ class Runtime {
   void DidForkFromZygote();
   bool PreZygoteFork();
 
-  void EnableMethodTracing(Trace* tracer);
+  void EnableMethodTracing(Trace* trace);
   void DisableMethodTracing();
-
-  bool IsMethodTracingActive() const {
-    return tracer_ != NULL;
-  }
-
-  Trace* GetTracer() const {
-    CHECK(IsMethodTracingActive());
-    return tracer_;
-  }
+  bool IsMethodTracingActive() const;
+  Instrumentation* GetInstrumentation() const;
 
   bool UseCompileTimeClassPath() const {
     return use_compile_time_class_path_;
@@ -465,7 +459,7 @@ class Runtime {
   bool method_trace_;
   std::string method_trace_file_;
   size_t method_trace_file_size_;
-  Trace* tracer_;
+  Instrumentation* instrumentation_;
 
   typedef SafeMap<jobject, std::vector<const DexFile*>, JobjectComparator> CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;

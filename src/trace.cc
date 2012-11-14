@@ -21,6 +21,7 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_cache.h"
+#include "instrumentation.h"
 #if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
 #endif
@@ -158,105 +159,6 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t) (val >> 56);
 }
 
-static bool InstallStubsClassVisitor(Class* klass, void*)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Trace* tracer = Runtime::Current()->GetTracer();
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    AbstractMethod* method = klass->GetDirectMethod(i);
-    if (tracer->GetSavedCodeFromMap(method) == NULL) {
-      tracer->SaveAndUpdateCode(method);
-    }
-  }
-
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    AbstractMethod* method = klass->GetVirtualMethod(i);
-    if (tracer->GetSavedCodeFromMap(method) == NULL) {
-      tracer->SaveAndUpdateCode(method);
-    }
-  }
-  return true;
-}
-
-static bool UninstallStubsClassVisitor(Class* klass, void*)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Trace* tracer = Runtime::Current()->GetTracer();
-  for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    AbstractMethod* method = klass->GetDirectMethod(i);
-    if (tracer->GetSavedCodeFromMap(method) != NULL) {
-      tracer->ResetSavedCode(method);
-    }
-  }
-
-  for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    AbstractMethod* method = klass->GetVirtualMethod(i);
-    if (tracer->GetSavedCodeFromMap(method) != NULL) {
-      tracer->ResetSavedCode(method);
-    }
-  }
-  return true;
-}
-
-static void TraceRestoreStack(Thread* self, void*) {
-  struct RestoreStackVisitor : public StackVisitor {
-    RestoreStackVisitor(Thread* self)
-        : StackVisitor(self->GetManagedStack(), self->GetTraceStack(), NULL), self_(self) {}
-
-    virtual bool VisitFrame() {
-      if (self_->IsTraceStackEmpty()) {
-        return false;  // Stop.
-      }
-      uintptr_t pc = GetReturnPc();
-      if (IsTraceExitPc(pc)) {
-        TraceStackFrame trace_frame = self_->PopTraceStackFrame();
-        SetReturnPc(trace_frame.return_pc_);
-        CHECK(GetMethod() == trace_frame.method_);
-      }
-      return true;  // Continue.
-    }
-
-    Thread* self_;
-  };
-  ScopedObjectAccess soa(self);
-  RestoreStackVisitor visitor(self);
-  visitor.WalkStack();
-}
-
-void Trace::AddSavedCodeToMap(const AbstractMethod* method, const void* code) {
-  saved_code_map_.Put(method, code);
-}
-
-void Trace::RemoveSavedCodeFromMap(const AbstractMethod* method) {
-  saved_code_map_.erase(method);
-}
-
-const void* Trace::GetSavedCodeFromMap(const AbstractMethod* method) {
-  typedef SafeMap<const AbstractMethod*, const void*>::const_iterator It; // TODO: C++0x auto
-  It it = saved_code_map_.find(method);
-  if (it == saved_code_map_.end()) {
-    return NULL;
-  } else {
-    return it->second;
-  }
-}
-
-void Trace::SaveAndUpdateCode(AbstractMethod* method) {
-#if defined(ART_USE_LLVM_COMPILER)
-  UNUSED(method);
-  UNIMPLEMENTED(FATAL);
-#else
-  void* trace_stub = GetLogTraceEntryPoint();
-  CHECK(GetSavedCodeFromMap(method) == NULL);
-  AddSavedCodeToMap(method, method->GetCode());
-  method->SetCode(trace_stub);
-#endif
-}
-
-void Trace::ResetSavedCode(AbstractMethod* method) {
-  CHECK(GetSavedCodeFromMap(method) != NULL);
-  method->SetCode(GetSavedCodeFromMap(method));
-  RemoveSavedCodeFromMap(method);
-}
-
 Trace::Trace(File* trace_file, int buffer_size, int flags)
     : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
       clock_source_(gDefaultTraceClockSource), overflow_(false),
@@ -269,7 +171,6 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll();
 
   // Open trace file if not going directly to ddms.
@@ -309,10 +210,9 @@ void Trace::Stop() {
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll();
 
-  Runtime::Current()->GetTracer()->FinishTracing();
+  Runtime::Current()->GetInstrumentation()->GetTrace()->FinishTracing();
   Runtime::Current()->DisableMethodTracing();
 
   Runtime::Current()->GetThreadList()->ResumeAll();
@@ -323,7 +223,7 @@ void Trace::Shutdown() {
     LOG(INFO) << "Trace shutdown requested, but no trace currently running";
     return;
   }
-  Runtime::Current()->GetTracer()->FinishTracing();
+  Runtime::Current()->GetInstrumentation()->GetTrace()->FinishTracing();
   Runtime::Current()->DisableMethodTracing();
 }
 
@@ -354,12 +254,12 @@ void Trace::BeginTracing() {
   cur_offset_ = kTraceHeaderLength;
 
   // Install all method tracing stubs.
-  InstallStubs();
+  Runtime::Current()->GetInstrumentation()->InstallStubs();
 }
 
 void Trace::FinishTracing() {
   // Uninstall all method tracing stubs.
-  UninstallStubs();
+  Runtime::Current()->GetInstrumentation()->UninstallStubs();
 
   // Compute elapsed time.
   uint64_t elapsed = MicroTime() - start_time_;
@@ -494,29 +394,6 @@ void Trace::DumpThreadList(std::ostream& os) {
   Locks::thread_list_lock_->AssertNotHeld(self);
   MutexLock mu(self, *Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
-}
-
-void Trace::InstallStubs() {
-  Runtime::Current()->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, NULL);
-}
-
-void Trace::UninstallStubs() {
-  Thread* self = Thread::Current();
-  Locks::thread_list_lock_->AssertNotHeld(self);
-  Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
-  MutexLock mu(self, *Locks::thread_list_lock_);
-  Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
-}
-
-uint32_t TraceMethodUnwindFromCode(Thread* self) {
-  Trace* tracer = Runtime::Current()->GetTracer();
-  TraceStackFrame trace_frame = self->PopTraceStackFrame();
-  AbstractMethod* method = trace_frame.method_;
-  uint32_t lr = trace_frame.return_pc_;
-
-  tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
-
-  return lr;
 }
 
 }  // namespace art

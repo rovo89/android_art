@@ -27,6 +27,7 @@
 
 #include "closure.h"
 #include "globals.h"
+#include "instrumentation.h"
 #include "macros.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "locks.h"
@@ -34,7 +35,6 @@
 #include "runtime_stats.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
-#include "trace.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -548,21 +548,21 @@ class PACKED Thread {
 
   void SetDebuggerUpdatesEnabled(bool enabled);
 
-  const std::vector<TraceStackFrame>* GetTraceStack() const {
-    return trace_stack_;
+  const std::vector<InstrumentationStackFrame>* GetInstrumentationStack() const {
+    return instrumentation_stack_;
   }
 
-  bool IsTraceStackEmpty() const {
-    return trace_stack_->empty();
+  bool IsInstrumentationStackEmpty() const {
+    return instrumentation_stack_->empty();
   }
 
-  void PushTraceStackFrame(const TraceStackFrame& frame) {
-    trace_stack_->push_back(frame);
+  void PushInstrumentationStackFrame(const InstrumentationStackFrame& frame) {
+    instrumentation_stack_->push_back(frame);
   }
 
-  TraceStackFrame PopTraceStackFrame() {
-    TraceStackFrame frame = trace_stack_->back();
-    trace_stack_->pop_back();
+  InstrumentationStackFrame PopInstrumentationStackFrame() {
+    InstrumentationStackFrame frame = instrumentation_stack_->back();
+    instrumentation_stack_->pop_back();
     return frame;
   }
 
@@ -746,9 +746,9 @@ class PACKED Thread {
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
 
-  // Additional stack used by method tracer to store method and return pc values.
+  // Additional stack used by method instrumentation to store method and return pc values.
   // Stored as a pointer since std::vector is not PACKED.
-  std::vector<TraceStackFrame>* trace_stack_;
+  std::vector<InstrumentationStackFrame>* instrumentation_stack_;
 
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;

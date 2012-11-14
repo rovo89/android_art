@@ -43,9 +43,9 @@ namespace art {
 
 struct ReferenceMap2Visitor : public StackVisitor {
   explicit ReferenceMap2Visitor(const ManagedStack* stack,
-                                const std::vector<TraceStackFrame>* trace_stack)
+                                const std::vector<InstrumentationStackFrame>* instrumentation_stack)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, trace_stack, NULL) {
+      : StackVisitor(stack, instrumentation_stack, NULL) {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -281,7 +281,7 @@ extern "C" JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv*, jobject, jin
   // Visitor
   ScopedObjectAccess ts(Thread::Current());
   ReferenceMap2Visitor mapper(Thread::Current()->GetManagedStack(),
-                              Thread::Current()->GetTraceStack());
+                              Thread::Current()->GetInstrumentationStack());
   mapper.WalkStack();
 
   return count + 1;

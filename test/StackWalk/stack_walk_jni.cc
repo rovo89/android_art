@@ -41,9 +41,9 @@ static int gJava_StackWalk_refmap_calls = 0;
 
 struct TestReferenceMapVisitor : public StackVisitor {
   explicit TestReferenceMapVisitor(const ManagedStack* stack,
-                                   const std::vector<TraceStackFrame>* trace_stack)
+                                   const std::vector<InstrumentationStackFrame>* instrumentation_stack)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, trace_stack, NULL) {
+      : StackVisitor(stack, instrumentation_stack, NULL) {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -108,7 +108,7 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint c
 
   // Visitor
   TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
-                                 Thread::Current()->GetTraceStack());
+                                 Thread::Current()->GetInstrumentationStack());
   mapper.WalkStack();
 
   return count + 1;
@@ -120,7 +120,7 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint
 
   // Visitor
   TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
-                                 Thread::Current()->GetTraceStack());
+                                 Thread::Current()->GetInstrumentationStack());
   mapper.WalkStack();
 
   return count + 1;

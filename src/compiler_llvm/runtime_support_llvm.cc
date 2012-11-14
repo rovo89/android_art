@@ -150,7 +150,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx)
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
-  NthCallerVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), 0);
+  NthCallerVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), 0);
   visitor.WalkStack();
   AbstractMethod* throw_method = visitor.caller;
   ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
@@ -160,7 +160,7 @@ void art_throw_stack_overflow_from_code()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   if (Runtime::Current()->IsMethodTracingActive()) {
-    TraceMethodUnwindFromCode(thread);
+    InstrumentationMethodUnwindFromCode(thread);
   }
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
   thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;", "stack size %s",

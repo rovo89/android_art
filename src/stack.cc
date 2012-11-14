@@ -145,8 +145,8 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
 size_t StackVisitor::ComputeNumFrames() const {
   struct NumFramesVisitor : public StackVisitor {
     explicit NumFramesVisitor(const ManagedStack* stack,
-                              const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack, NULL), frames(0) {}
+                              const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+        : StackVisitor(stack, instrumentation_stack, NULL), frames(0) {}
 
     virtual bool VisitFrame() {
       frames++;
@@ -156,7 +156,7 @@ size_t StackVisitor::ComputeNumFrames() const {
     size_t frames;
   };
 
-  NumFramesVisitor visitor(stack_start_, trace_stack_);
+  NumFramesVisitor visitor(stack_start_, instrumentation_stack_);
   visitor.WalkStack(true);
   return visitor.frames;
 }
@@ -180,7 +180,7 @@ void StackVisitor::SanityCheckFrame() const {
 
 void StackVisitor::WalkStack(bool include_transitions) {
   bool method_tracing_active = Runtime::Current()->IsMethodTracingActive();
-  uint32_t trace_stack_depth = 0;
+  uint32_t instrumentation_stack_depth = 0;
   for (const ManagedStack* current_fragment = stack_start_; current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
@@ -208,13 +208,13 @@ void StackVisitor::WalkStack(bool include_transitions) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
           // TODO: stop using include_transitions as a proxy for is this the catch block visitor.
-          if (IsTraceExitPc(return_pc) && !include_transitions) {
+          if (IsInstrumentationExitPc(return_pc) && !include_transitions) {
             // TODO: unify trace and managed stack.
-            TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth);
-            trace_stack_depth++;
-            CHECK(trace_frame.method_ == GetMethod()) << "Excepted: " << PrettyMethod(method)
+            InstrumentationStackFrame instrumentation_frame = GetInstrumentationStackFrame(instrumentation_stack_depth);
+            instrumentation_stack_depth++;
+            CHECK(instrumentation_frame.method_ == GetMethod()) << "Excepted: " << PrettyMethod(method)
                 << " Found: " << PrettyMethod(GetMethod());
-            return_pc = trace_frame.return_pc_;
+            return_pc = instrumentation_frame.return_pc_;
           }
         }
         cur_quick_frame_pc_ = return_pc;

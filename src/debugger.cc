@@ -1543,8 +1543,8 @@ static int GetStackDepth(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
     CountStackDepthVisitor(const ManagedStack* stack,
-                           const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack, NULL), depth(0) {}
+                           const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+        : StackVisitor(stack, instrumentation_stack, NULL), depth(0) {}
 
     bool VisitFrame() {
       if (!GetMethod()->IsRuntimeMethod()) {
@@ -1559,7 +1559,7 @@ static int GetStackDepth(Thread* thread)
     MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
     CHECK(thread->IsSuspended());
   }
-  CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
+  CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
   visitor.WalkStack();
   return visitor.depth;
 }
@@ -1572,10 +1572,10 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
 JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf) {
   class GetFrameVisitor : public StackVisitor {
    public:
-    GetFrameVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+    GetFrameVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
                     size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(stack, trace_stack, NULL), depth_(0),
+        : StackVisitor(stack, instrumentation_stack, NULL), depth_(0),
           start_frame_(start_frame), frame_count_(frame_count), buf_(buf) {
       expandBufAdd4BE(buf_, frame_count_);
     }
@@ -1610,7 +1610,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Thread* thread = DecodeThread(soa, thread_id);  // Caller already checked thread is suspended.
-  GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), start_frame, frame_count, buf);
+  GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), start_frame, frame_count, buf);
   visitor.WalkStack();
   return JDWP::ERR_NONE;
 }
@@ -1675,10 +1675,10 @@ void Dbg::SuspendSelf() {
 }
 
 struct GetThisVisitor : public StackVisitor {
-  GetThisVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+  GetThisVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
                  Context* context, JDWP::FrameId frameId)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, trace_stack, context), this_object(NULL), frame_id(frameId) {}
+      : StackVisitor(stack, instrumentation_stack, context), this_object(NULL), frame_id(frameId) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
   // annotalysis.
@@ -1708,7 +1708,7 @@ static Object* GetThis(Thread* self, AbstractMethod* m, size_t frame_id)
   }
 
   UniquePtr<Context> context(Context::Create());
-  GetThisVisitor visitor(self->GetManagedStack(), self->GetTraceStack(), context.get(), frame_id);
+  GetThisVisitor visitor(self->GetManagedStack(), self->GetInstrumentationStack(), context.get(), frame_id);
   visitor.WalkStack();
   return visitor.this_object;
 }
@@ -1729,7 +1729,7 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
     }
   }
   UniquePtr<Context> context(Context::Create());
-  GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), frame_id);
+  GetThisVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(), frame_id);
   visitor.WalkStack();
   *result = gRegistry->Add(visitor.this_object);
   return JDWP::ERR_NONE;
@@ -1738,11 +1738,11 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
 void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                         uint8_t* buf, size_t width) {
   struct GetLocalVisitor : public StackVisitor {
-    GetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+    GetLocalVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
                     Context* context, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                     uint8_t* buf, size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(stack, trace_stack, context), frame_id_(frameId), slot_(slot), tag_(tag),
+        : StackVisitor(stack, instrumentation_stack, context), frame_id_(frameId), slot_(slot), tag_(tag),
           buf_(buf), width_(width) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -1849,7 +1849,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
-  GetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
+  GetLocalVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(),
                           frameId, slot, tag, buf, width);
   visitor.WalkStack();
 }
@@ -1857,11 +1857,11 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
 void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                         uint64_t value, size_t width) {
   struct SetLocalVisitor : public StackVisitor {
-    SetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack, Context* context,
+    SetLocalVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
                     size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(stack, trace_stack, context),
+        : StackVisitor(stack, instrumentation_stack, context),
           frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
@@ -1925,7 +1925,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
-  SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
+  SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(),
                           frameId, slot, tag, value, width);
   visitor.WalkStack();
 }
@@ -1965,7 +1965,7 @@ void Dbg::PostException(Thread* thread,
 
   // We need 'this' for InstanceOnly filters.
   UniquePtr<Context> context(Context::Create());
-  GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), throw_frame_id);
+  GetThisVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(), throw_frame_id);
   visitor.WalkStack();
   JDWP::ObjectId this_id = gRegistry->Add(visitor.this_object);
 
@@ -2147,10 +2147,10 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 
   struct SingleStepStackVisitor : public StackVisitor {
     SingleStepStackVisitor(const ManagedStack* stack,
-                           const std::vector<TraceStackFrame>* trace_stack)
+                           const std::vector<InstrumentationStackFrame>* instrumentation_stack)
         EXCLUSIVE_LOCKS_REQUIRED(gBreakpointsLock)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(stack, trace_stack, NULL) {
+        : StackVisitor(stack, instrumentation_stack, NULL) {
       gBreakpointsLock.AssertHeld(Thread::Current());
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
@@ -2176,7 +2176,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
       return true;
     }
   };
-  SingleStepStackVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
+  SingleStepStackVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
   visitor.WalkStack();
 
   //
@@ -2679,7 +2679,7 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     SirtRef<String> name(soa.Self(), t->GetThreadName(soa));
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
-    const jchar* chars = name->GetCharArray()->GetData();
+    const jchar* chars = (name.get() != NULL) ? name->GetCharArray()->GetData() : NULL;
 
     std::vector<uint8_t> bytes;
     JDWP::Append4BE(bytes, t->GetThinLockId());
@@ -3130,9 +3130,9 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
 
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(const ManagedStack* stack,
-                          const std::vector<TraceStackFrame>* trace_stack, AllocRecord* record)
+                          const std::vector<InstrumentationStackFrame>* instrumentation_stack, AllocRecord* record)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, trace_stack, NULL), record(record), depth(0) {}
+      : StackVisitor(stack, instrumentation_stack, NULL), record(record), depth(0) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
   // annotalysis.
@@ -3182,7 +3182,7 @@ void Dbg::RecordAllocation(Class* type, size_t byte_count) {
   record->thin_lock_id = self->GetThinLockId();
 
   // Fill in the stack trace.
-  AllocRecordStackVisitor visitor(self->GetManagedStack(), self->GetTraceStack(), record);
+  AllocRecordStackVisitor visitor(self->GetManagedStack(), self->GetInstrumentationStack(), record);
   visitor.WalkStack();
 
   if (gAllocRecordCount < kNumAllocRecords) {

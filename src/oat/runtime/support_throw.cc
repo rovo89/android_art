@@ -94,7 +94,7 @@ extern "C" void artThrowStackOverflowFromCode(Thread* self, AbstractMethod** sp)
   CHECK(!self->IsHandlingStackOverflow()) << "Recursive stack overflow.";
   // Remove extra entry pushed onto second stack during method tracing.
   if (Runtime::Current()->IsMethodTracingActive()) {
-    TraceMethodUnwindFromCode(self);
+    InstrumentationMethodUnwindFromCode(self);
   }
   self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
   JNIEnvExt* env = self->GetJniEnv();

@@ -1577,12 +1577,12 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     AbstractMethod* method = klass->GetDirectMethod(i);
     if (Runtime::Current()->IsMethodTracingActive()) {
-      Trace* tracer = Runtime::Current()->GetTracer();
-      if (tracer->GetSavedCodeFromMap(method) == trampoline) {
+      Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+      if (instrumentation->GetSavedCodeFromMap(method) == trampoline) {
         const void* code = oat_class->GetOatMethod(method_index).GetCode();
-        tracer->ResetSavedCode(method);
+        instrumentation->ResetSavedCode(method);
         method->SetCode(code);
-        tracer->SaveAndUpdateCode(method);
+        instrumentation->SaveAndUpdateCode(method);
       }
     } else if (method->GetCode() == trampoline) {
       const void* code = oat_class->GetOatMethod(method_index).GetCode();
@@ -1618,8 +1618,8 @@ static void LinkCode(SirtRef<AbstractMethod>& method, const OatFile::OatClass* o
   }
 
   if (Runtime::Current()->IsMethodTracingActive()) {
-    Trace* tracer = Runtime::Current()->GetTracer();
-    tracer->SaveAndUpdateCode(method.get());
+    Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    instrumentation->SaveAndUpdateCode(method.get());
   }
 }
 

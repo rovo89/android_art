@@ -149,9 +149,9 @@ extern "C" void art_throw_no_such_method_from_code(int32_t method_idx);
 extern "C" void art_throw_null_pointer_exception_from_code();
 extern "C" void art_throw_stack_overflow_from_code(void*);
 
-// Trace entrypoints.
-extern "C" void art_trace_entry_from_code(void*);
-extern "C" void art_trace_exit_from_code();
+// Instrumentation entrypoints.
+extern "C" void art_instrumentation_entry_from_code(void*);
+extern "C" void art_instrumentation_exit_from_code();
 
 void InitEntryPoints(EntryPoints* points) {
   // Alloc
@@ -276,12 +276,12 @@ void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled) {
   points->pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
 }
 
-bool IsTraceExitPc(uintptr_t) {
+bool IsInstrumentationExitPc(uintptr_t) {
   UNIMPLEMENTED(FATAL);
   return false;
 }
 
-void* GetLogTraceEntryPoint() {
+void* GetInstrumentationEntryPoint() {
   UNIMPLEMENTED(FATAL);
   return NULL;
 }

@@ -158,11 +158,11 @@ void InitEntryPoints(EntryPoints* points);
 // Change the debugger entry point in the data structure.
 void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled);
 
-// Is the given return_pc the trace exit return pc?
-bool IsTraceExitPc(uintptr_t pc);
+// Is the given return_pc the instrumentation exit return pc?
+bool IsInstrumentationExitPc(uintptr_t pc);
 
-// Return address of stub that logs method entries.
-void* GetLogTraceEntryPoint();
+// Return address of instrumentation stub.
+void* GetInstrumentationEntryPoint();
 
 }  // namespace art
 
