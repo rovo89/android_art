@@ -256,6 +256,7 @@ class CheckReferenceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
+  // TODO: Fixme when anotatalysis works with visitors.
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
                      bool /* is_static */) const
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
@@ -290,9 +291,11 @@ class ModUnionCheckReferences {
       references_(references) {
   }
 
-  void operator ()(const Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+  void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     DCHECK(obj != NULL);
+    if (kDebugLocking) {
+      Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
+    }
     CheckReferenceVisitor visitor(mod_union_table_, references_);
     MarkSweep::VisitObjectReferences(obj, visitor);
   }
@@ -306,7 +309,8 @@ void ModUnionTableReferenceCache::Verify() {
   // Start by checking that everything in the mod union table is marked.
   Heap* heap = GetHeap();
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
-    for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
+    for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end();
+        ++it_ref ) {
       DCHECK(heap->GetLiveBitmap()->Test(*it_ref));
     }
   }
@@ -368,7 +372,7 @@ void ModUnionTableReferenceCache::MarkReferences(MarkSweep* mark_sweep) {
   size_t count = 0;
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
     for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
-      mark_sweep->MarkObject(*it_ref);
+      mark_sweep->MarkRoot(*it_ref);
       ++count;
     }
   }

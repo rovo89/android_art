@@ -109,7 +109,9 @@ class ModUnionTableReferenceCache : public ModUnionTable {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences(MarkSweep* mark_sweep) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void MarkReferences(MarkSweep* mark_sweep)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.

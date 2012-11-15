@@ -44,6 +44,7 @@ class AllocSpace;
 class Class;
 class ConditionVariable;
 class DlMallocSpace;
+class GarbageCollector;
 class HeapBitmap;
 class ImageSpace;
 class LargeObjectSpace;
@@ -192,7 +193,11 @@ class Heap {
   // true if we waited for the GC to complete.
   GcType WaitForConcurrentGcToComplete(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
-  const Spaces& GetSpaces() {
+  const Spaces& GetSpaces() const {
+    return spaces_;
+  }
+
+  Spaces& GetSpaces() {
     return spaces_;
   }
 
@@ -291,6 +296,10 @@ class Heap {
     return mark_bitmap_.get();
   }
 
+  ObjectStack* GetLiveStack() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    return live_stack_.get();
+  }
+
   void PreZygoteFork() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Mark and empty stack.
@@ -349,10 +358,6 @@ class Heap {
   void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
-  // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
-  void SwapBitmaps(GcType gc_type) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-  void SwapLargeObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
-
   void RecordAllocation(size_t size, Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -364,14 +369,10 @@ class Heap {
                      Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_,
                      Locks::thread_suspend_count_lock_);
-  void CollectGarbageMarkSweepPlan(Thread* self, GcType gc_plan, GcCause gc_cause,
-                                   bool clear_soft_references)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
-                     Locks::mutator_lock_);
-  void CollectGarbageConcurrentMarkSweepPlan(Thread* self, GcType gc_plan, GcCause gc_cause,
-                                             bool clear_soft_references)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
-                     Locks::mutator_lock_);
+
+  void PreGcVerification(GarbageCollector* gc);
+  void PreSweepingGcVerification(GarbageCollector* gc);
+  void PostGcVerification(GarbageCollector* gc);
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
@@ -392,9 +393,6 @@ class Heap {
   // Swap the allocation stack with the live stack.
   void SwapStacks();
 
-  // Bind bitmaps (makes the live and mark bitmaps for immune spaces point to the same bitmap).
-  void BindBitmaps(GcType gc_type, MarkSweep& mark_sweep);
-
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger& timings);
 
@@ -405,10 +403,6 @@ class Heap {
 
   // The alloc space which we are currently allocating into.
   DlMallocSpace* alloc_space_;
-
-  // One cumulative logger for each type of Gc.
-  typedef SafeMap<GcType, CumulativeLogger*> CumulativeTimings;
-  CumulativeTimings cumulative_timings_;
 
   // The mod-union table remembers all of the references from the image space to the alloc /
   // zygote spaces.
@@ -453,7 +447,6 @@ class Heap {
   size_t concurrent_start_bytes_;
 
   // Number of bytes allocated since the last Gc, we use this to help determine when to schedule concurrent GCs.
-  size_t bytes_since_last_gc_;
   size_t sticky_gc_count_;
 
   size_t total_bytes_freed_;
@@ -495,9 +488,6 @@ class Heap {
   UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
   UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
 
-  // Used to ensure that we don't ever recursively request GC.
-  volatile bool requesting_gc_;
-
   // Mark stack that we reuse to avoid re-allocating the mark stack.
   UniquePtr<ObjectStack> mark_stack_;
 
@@ -535,7 +525,6 @@ class Heap {
   double target_utilization_;
 
   // Total time which mutators are paused or waiting for GC to complete.
-  uint64_t total_paused_time_;
   uint64_t total_wait_time_;
 
   // Total number of objects allocated in microseconds.
@@ -543,6 +532,8 @@ class Heap {
   AtomicInteger total_allocation_time_;
 
   bool verify_objects_;
+  typedef std::vector<MarkSweep*> Collectors;
+  Collectors mark_sweep_collectors_;
 
   friend class MarkSweep;
   friend class VerifyReferenceCardVisitor;

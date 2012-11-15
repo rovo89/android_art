@@ -18,6 +18,7 @@
 #define ART_SRC_MARK_SWEEP_H_
 
 #include "atomic_stack.h"
+#include "garbage_collector.h"
 #include "macros.h"
 #include "heap_bitmap.h"
 #include "object.h"
@@ -37,11 +38,25 @@ class Object;
 class TimingLogger;
 class MarkStackChunk;
 
-class MarkSweep {
+class MarkSweep : public GarbageCollector {
  public:
-  explicit MarkSweep(ObjectStack* mark_stack);
+  explicit MarkSweep(Heap* heap, bool is_concurrent);
 
   ~MarkSweep();
+
+  virtual std::string GetName() const;
+  virtual void InitializePhase();
+  virtual bool IsConcurrent() const;
+  virtual bool HandleDirtyObjectsPhase() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void MarkingPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void ReclaimPhase() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void FinishPhase();
+  virtual void MarkReachableObjects()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  virtual GcType GetGcType() const {
+    return kGcTypeFull;
+  }
 
   // Initializes internal structures.
   void Init();
@@ -61,19 +76,24 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void MarkRootsCheckpoint();
-       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Verify that image roots point to only marked objects within the alloc space.
   void VerifyImageRoots() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Builds a mark stack and recursively mark until it empties.
-  void RecursiveMark(bool partial, TimingLogger& timings)
+  void RecursiveMark()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Copies mark bits from live bitmap of ZygoteSpace to mark bitmap for partial GCs.
-  void CopyMarkBits(ContinuousSpace* space);
+  // Make a space immune, immune spaces are assumed to have all live objects marked.
+  void ImmuneSpace(ContinuousSpace* space)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);;
+
+  // Bind the live bits to the mark bits of bitmaps based on the gc type.
+  virtual void BindBitmaps()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void BindLiveToMarkBitmap(ContinuousSpace* space)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -86,32 +106,16 @@ class MarkSweep {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Recursive mark objects on specified cards. Updates finger.
-  void RecursiveMarkCards(CardTable* card_table, const std::vector<byte*>& cards,
-                          TimingLogger& timings)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);;
-
   // Remarks the root set after completing the concurrent mark.
   void ReMarkRoots()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Heap* GetHeap() {
-    return heap_;
-  }
-
-  void ProcessReferences(bool clear_soft_references)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ProcessReferences(&soft_reference_list_, clear_soft_references,
-                      &weak_reference_list_,
-                      &finalizer_reference_list_,
-                      &phantom_reference_list_);
-  }
+  void ProcessReferences(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep(TimingLogger& timings, bool partial, bool swap_bitmaps)
+  virtual void Sweep(TimingLogger& timings, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
@@ -121,6 +125,10 @@ class MarkSweep {
   // Sweep only pointers within an array. WARNING: Trashes objects.
   void SweepArray(TimingLogger& logger, ObjectStack* allocation_stack_, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
+  virtual void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void SwapLargeObjects() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   Object* GetClearedReferences() {
     return cleared_reference_list_;
@@ -187,11 +195,24 @@ class MarkSweep {
     return freed_objects_;
   }
 
-  // Everything inside the immune range is marked.
-  void SetImmuneRange(Object* begin, Object* end) {
-    immune_begin_ = begin;
-    immune_end_ = end;
+  uint64_t GetTotalTime() const {
+    return total_time_;
   }
+
+  uint64_t GetTotalPausedTime() const {
+    return total_paused_time_;
+  }
+
+  uint64_t GetTotalFreedObjects() const {
+    return total_freed_objects_;
+  }
+
+  uint64_t GetTotalFreedBytes() const {
+    return total_freed_bytes_;
+  }
+
+  // Everything inside the immune range is assumed to be marked.
+  void SetImmuneRange(Object* begin, Object* end);
 
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -235,17 +256,26 @@ class MarkSweep {
   }
 
   static void MarkObjectCallback(const Object* root, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void MarkRootParallelCallback(const Object* root, void* arg);
 
   // Marks an object.
   void MarkObject(const Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+
+  void MarkRoot(const Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   Barrier& GetBarrier();
+  const TimingLogger& GetTimings() const;
+  const CumulativeLogger& GetCumulativeTimings() const;
+  void ResetCumulativeStatistics();
 
- private:
+ protected:
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const Object* object) const;
 
@@ -256,6 +286,7 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void ReMarkObjectVisitor(const Object* root, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static void VerifyImageRootVisitor(Object* root, void* arg)
@@ -263,6 +294,7 @@ class MarkSweep {
                             Locks::mutator_lock_);
 
   void MarkObjectNonNull(const Object* obj, bool check_finger)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void MarkObjectNonNullParallel(const Object* obj, bool check_finger);
@@ -433,8 +465,6 @@ class MarkSweep {
 
   ObjectStack* mark_stack_;
 
-  Heap* heap_;
-
   Object* finger_;
 
   // Immune range, every object inside the immune range is assumed to be marked.
@@ -460,14 +490,26 @@ class MarkSweep {
   AtomicInteger work_chunks_deleted_;
   AtomicInteger reference_count_;
 
+  // Cumulative statistics.
+  uint64_t total_time_;
+  uint64_t total_paused_time_;
+  uint64_t total_freed_objects_;
+  uint64_t total_freed_bytes_;
+
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Mutex mark_stack_expand_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  TimingLogger timings_;
+  CumulativeLogger cumulative_timings_;
+
+  bool is_concurrent_;
+  bool clear_soft_references_;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
   friend class CheckBitmapVisitor;
   friend class CheckObjectVisitor;
   friend class CheckReferenceVisitor;
+  friend class Heap;
   friend class InternTableEntryIsUnmarked;
   friend class MarkIfReachesAllocspaceVisitor;
   friend class ModUnionCheckReferences;
