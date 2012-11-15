@@ -18,14 +18,14 @@
 
 namespace art {
 
+//TODO: remove decl.
+void genInvoke(CompilationUnit* cUnit, CallInfo* info);
+
 /*
  * This source files contains "gen" codegen routines that should
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
-void genInvoke(CompilationUnit* cUnit, CallInfo* info);
-bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
-                        RegLocation rlSrc, RegLocation rlDest, int lit);
 
 void markSafepointPC(CompilationUnit* cUnit, LIR* inst)
 {
@@ -2161,7 +2161,6 @@ bool genConversionCall(CompilationUnit* cUnit, int funcOffset,
   return false;
 }
 
-void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc);
 bool genArithOpFloatPortable(CompilationUnit* cUnit, Instruction::Code opcode,
                              RegLocation rlDest, RegLocation rlSrc1,
                              RegLocation rlSrc2)
@@ -2204,7 +2203,6 @@ bool genArithOpFloatPortable(CompilationUnit* cUnit, Instruction::Code opcode,
   return false;
 }
 
-void genNegDouble(CompilationUnit* cUnit, RegLocation rlDst, RegLocation rlSrc);
 bool genArithOpDoublePortable(CompilationUnit* cUnit, Instruction::Code opcode,
                               RegLocation rlDest, RegLocation rlSrc1,
                               RegLocation rlSrc2)

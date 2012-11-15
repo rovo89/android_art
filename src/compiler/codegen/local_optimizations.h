@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
-#define ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
-
-#include "../dalvik.h"
+#ifndef ART_SRC_COMPILER_CODEGEN_LOCALOPTIMIZATIONS_H_
+#define ART_SRC_COMPILER_CODEGEN_LOCALOPTIMIZATIONS_H_
 
 namespace art {
 
-/* Forward declarations */
-struct CompilationUnit;
-struct LIR;
-
-void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* head, LIR* tail);
+void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR);
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
+#endif // ART_SRC_COMPILER_CODEGEN_LOCALOPTIMIZATIONS_H_

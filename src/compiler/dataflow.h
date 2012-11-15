@@ -17,7 +17,6 @@
 #ifndef ART_SRC_COMPILER_DATAFLOW_H_
 #define ART_SRC_COMPILER_DATAFLOW_H_
 
-#include "dalvik.h"
 #include "compiler_internals.h"
 
 namespace art {
@@ -158,19 +157,25 @@ struct LoopInfo {
   ArenaBitVector* blocks;
 };
 
-void oatMethodLoopDetection(CompilationUnit*);
-
-void oatMethodUseCount(CompilationUnit*);
-
-void oatMethodNullCheckElimination(CompilationUnit*);
-
-void oatDumpCheckStats(CompilationUnit*);
-
-void oatMethodBasicBlockCombine(CompilationUnit*);
-
-void oatMethodCodeLayout(CompilationUnit*);
-
-void oatMethodBasicBlockOptimization(CompilationUnit*);
+int SRegToVReg(const CompilationUnit* cUnit, int ssaReg);
+char* oatGetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn, const char* note);
+char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir);
+char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
+bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
+bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
+bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb);
+void oatInitializeSSAConversion(CompilationUnit* cUnit);
+bool oatClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb);
+void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfaMode, bool isIterative);
+MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
+void oatMethodNullCheckElimination(CompilationUnit *cUnit);
+void oatMethodBasicBlockCombine(CompilationUnit* cUnit);
+void oatMethodCodeLayout(CompilationUnit* cUnit);
+void oatDumpCheckStats(CompilationUnit *cUnit);
+void oatMethodBasicBlockOptimization(CompilationUnit *cUnit);
+void oatDumpLoops(CompilationUnit *cUnit);
+void oatMethodLoopDetection(CompilationUnit *cUnit);
+void oatMethodUseCount(CompilationUnit *cUnit);
 
 }  // namespace art
 

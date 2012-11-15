@@ -17,7 +17,6 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_ARM_ARMLIR_H_
 #define ART_SRC_COMPILER_CODEGEN_ARM_ARMLIR_H_
 
-#include "../../dalvik.h"
 #include "../../compiler_internals.h"
 
 namespace art {
@@ -135,11 +134,11 @@ enum ArmResourceEncodingPos {
   kArmRegEnd   = 48,
 };
 
-#define ENCODE_ARM_REG_LIST(N)      ((u8) N)
+#define ENCODE_ARM_REG_LIST(N)      ((uint64_t) N)
 #define ENCODE_ARM_REG_SP           (1ULL << kArmRegSP)
 #define ENCODE_ARM_REG_LR           (1ULL << kArmRegLR)
 #define ENCODE_ARM_REG_PC           (1ULL << kArmRegPC)
-#define ENCODE_ARM_REG_FPCS_LIST(N) ((u8)N << kArmFPReg16)
+#define ENCODE_ARM_REG_FPCS_LIST(N) ((uint64_t)N << kArmFPReg16)
 
 enum ArmNativeRegisterPool {
   r0   = 0,
@@ -592,7 +591,7 @@ enum ArmEncodingKind {
 
 /* Struct used to define the snippet positions for each Thumb opcode */
 struct ArmEncodingMap {
-  u4 skeleton;
+  uint32_t skeleton;
   struct {
     ArmEncodingKind kind;
     int end;   /* end for kFmtBitBlt, 1-bit slice end for FP regs */
@@ -603,11 +602,6 @@ struct ArmEncodingMap {
   const char* name;
   const char* fmt;
   int size;   /* Size in bytes */
-};
-
-/* Keys for target-specific scheduling and other optimization hints */
-enum ArmTargetOptHints {
-  kMaxHoistDistance,
 };
 
 extern const ArmEncodingMap EncodingMap[kArmLast];

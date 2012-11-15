@@ -27,6 +27,9 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
 
+#include "method_codegen_driver.h"
+#include "local_optimizations.h"
+
 static const char* kLabelFormat = "%c0x%x_%d";
 static const char kInvalidBlock = 0xff;
 static const char kNormalBlock = 'L';
@@ -2819,8 +2822,8 @@ void cvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
           static_cast<llvm::ConstantInt*>(tableOffsetNode->getOperand(0));
   int32_t tableOffset = tableOffsetValue->getSExtValue();
   RegLocation rlSrc = getLoc(cUnit, testVal);
-  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
-  u2 tableMagic = *table;
+  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  uint16_t tableMagic = *table;
   if (tableMagic == 0x100) {
     genPackedSwitch(cUnit, tableOffset, rlSrc);
   } else {

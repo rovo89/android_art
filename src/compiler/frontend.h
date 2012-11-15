@@ -64,62 +64,6 @@ enum optControlVector {
   kPromoteCompilerTemps,
 };
 
-/* Type of allocation for memory tuning */
-enum oatAllocKind {
-  kAllocMisc,
-  kAllocBB,
-  kAllocLIR,
-  kAllocMIR,
-  kAllocDFInfo,
-  kAllocGrowableList,
-  kAllocGrowableBitMap,
-  kAllocDalvikToSSAMap,
-  kAllocDebugInfo,
-  kAllocSuccessor,
-  kAllocRegAlloc,
-  kAllocData,
-  kAllocPredecessors,
-  kNumAllocKinds
-};
-
-/* Type of growable list for memory tuning */
-enum oatListKind {
-  kListMisc = 0,
-  kListBlockList,
-  kListSSAtoDalvikMap,
-  kListDfsOrder,
-  kListDfsPostOrder,
-  kListDomPostOrderTraversal,
-  kListThrowLaunchPads,
-  kListSuspendLaunchPads,
-  kListSwitchTables,
-  kListFillArrayData,
-  kListSuccessorBlocks,
-  kListPredecessors,
-  kNumListKinds
-};
-
-/* Type of growable bitmap for memory tuning */
-enum oatBitMapKind {
-  kBitMapMisc = 0,
-  kBitMapUse,
-  kBitMapDef,
-  kBitMapLiveIn,
-  kBitMapBMatrix,
-  kBitMapDominators,
-  kBitMapIDominated,
-  kBitMapDomFrontier,
-  kBitMapPhi,
-  kBitMapTmpBlocks,
-  kBitMapInputBlocks,
-  kBitMapRegisterV,
-  kBitMapTempSSARegisterV,
-  kBitMapNullCheck,
-  kBitMapTmpBlockV,
-  kBitMapPredecessors,
-  kNumBitMapKinds
-};
-
 /* Force code generation paths for testing */
 enum debugControlVector {
   kDebugDisplayMissingTargets,
@@ -201,40 +145,9 @@ class LLVMInfo {
 
 struct CompilationUnit;
 struct BasicBlock;
-struct SSARepresentation;
-struct GrowableList;
-struct MIR;
 
-void oatInit(CompilationUnit* cUnit, const Compiler& compiler);
-bool oatArchInit(void);
-bool oatStartup(void);
-void oatShutdown(void);
-void oatScanAllClassPointers(void (*callback)(void* ptr));
-void oatInitializeSSAConversion(CompilationUnit* cUnit);
-int SRegToVReg(const CompilationUnit* cUnit, int ssaReg);
-int SRegToSubscript(const CompilationUnit* cUnit, int ssaReg);
-bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
-bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
-bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb);
-bool oatFindInductionVariables(CompilationUnit* cUnit, BasicBlock* bb);
-/* Clear the visited flag for each BB */
-bool oatClearVisitedFlag(CompilationUnit* cUnit, BasicBlock* bb);
-char* oatGetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn,
-                              const char* note);
-char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir);
-char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
-void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
-                                   bool (*func)(CompilationUnit* , BasicBlock*),
-                                   DataFlowAnalysisMode dfaMode,
-                                   bool isIterative);
-void oatMethodSSATransformation(CompilationUnit* cUnit);
-u8 oatGetRegResourceMask(int reg);
-void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix);
-void oatProcessSwitchTables(CompilationUnit* cUnit);
-bool oatIsFpReg(int reg);
-uint32_t oatFpRegMask(void);
-void oatReplaceSpecialChars(std::string& str);
 BasicBlock* oatFindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
+void oatReplaceSpecialChars(std::string& str);
 
 }  // namespace art
 

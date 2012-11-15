@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "dalvik.h"
 #include "compiler_internals.h"
 
 namespace art {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "dalvik.h"
+#include "compiler_internals.h"
 #include "dataflow.h"
 
 namespace art {

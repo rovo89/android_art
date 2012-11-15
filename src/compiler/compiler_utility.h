@@ -17,12 +17,71 @@
 #ifndef ART_SRC_COMPILER_COMPILER_UTILITY_H_
 #define ART_SRC_COMPILER_COMPILER_UTILITY_H_
 
-#include "dalvik.h"
+#include <stdint.h>
+#include <stddef.h>
 
 namespace art {
 
+struct CompilationUnit;
+
 /* Each arena page has some overhead, so take a few bytes off */
 #define ARENA_DEFAULT_SIZE ((2 * 1024 * 1024) - 256)
+
+/* Type of allocation for memory tuning */
+enum oatAllocKind {
+  kAllocMisc,
+  kAllocBB,
+  kAllocLIR,
+  kAllocMIR,
+  kAllocDFInfo,
+  kAllocGrowableList,
+  kAllocGrowableBitMap,
+  kAllocDalvikToSSAMap,
+  kAllocDebugInfo,
+  kAllocSuccessor,
+  kAllocRegAlloc,
+  kAllocData,
+  kAllocPredecessors,
+  kNumAllocKinds
+};
+
+/* Type of growable list for memory tuning */
+enum oatListKind {
+  kListMisc = 0,
+  kListBlockList,
+  kListSSAtoDalvikMap,
+  kListDfsOrder,
+  kListDfsPostOrder,
+  kListDomPostOrderTraversal,
+  kListThrowLaunchPads,
+  kListSuspendLaunchPads,
+  kListSwitchTables,
+  kListFillArrayData,
+  kListSuccessorBlocks,
+  kListPredecessors,
+  kNumListKinds
+};
+
+/* Type of growable bitmap for memory tuning */
+enum oatBitMapKind {
+  kBitMapMisc = 0,
+  kBitMapUse,
+  kBitMapDef,
+  kBitMapLiveIn,
+  kBitMapBMatrix,
+  kBitMapDominators,
+  kBitMapIDominated,
+  kBitMapDomFrontier,
+  kBitMapPhi,
+  kBitMapTmpBlocks,
+  kBitMapInputBlocks,
+  kBitMapRegisterV,
+  kBitMapTempSSARegisterV,
+  kBitMapNullCheck,
+  kBitMapTmpBlockV,
+  kBitMapPredecessors,
+  kNumBitMapKinds
+};
 
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(CompilationUnit* cUnit);
@@ -66,9 +125,9 @@ struct GrowableListIterator {
  * All operations on a BitVector are unsynchronized.
  */
 struct ArenaBitVector {
-  bool    expandable;     /* expand bitmap if we run out? */
-  u4      storageSize;    /* current size, in 32-bit words */
-  u4*     storage;
+  bool       expandable;     /* expand bitmap if we run out? */
+  uint32_t   storageSize;    /* current size, in 32-bit words */
+  uint32_t*  storage;
 #ifdef WITH_MEMSTATS
   oatBitMapKind kind;      /* for memory use tuning */
 #endif
@@ -77,8 +136,8 @@ struct ArenaBitVector {
 /* Handy iterator to walk through the bit positions set to 1 */
 struct ArenaBitVectorIterator {
   ArenaBitVector* pBits;
-  u4 idx;
-  u4 bitSize;
+  uint32_t idx;
+  uint32_t bitSize;
 };
 
 #define GET_ELEM_N(LIST, TYPE, N) (((TYPE*) LIST->elemList)[N])
@@ -125,7 +184,7 @@ bool oatTestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
 int oatCountSetBits(const ArenaBitVector* pBits);
 
 void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr);
-void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix);
+void oatDumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
 void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
                            const ArenaBitVector* bv, int length);
 void oatGetBlockName(BasicBlock* bb, char* name);

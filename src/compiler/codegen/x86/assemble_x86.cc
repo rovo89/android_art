@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include "../../dalvik.h"
-#include "../../compiler_internals.h"
 #include "x86_lir.h"
-#include "codegen.h"
+#include "../codegen_util.h"
 
 namespace art {
 

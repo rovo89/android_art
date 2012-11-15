@@ -59,9 +59,9 @@ LIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
   return loadPcRel;
 }
 
-int leadingZeros(u4 val)
+int leadingZeros(uint32_t val)
 {
-  u4 alt;
+  uint32_t alt;
   int n;
   int count;
 
@@ -82,11 +82,11 @@ int leadingZeros(u4 val)
  * Determine whether value can be encoded as a Thumb2 modified
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
-int modifiedImmediate(u4 value)
+int modifiedImmediate(uint32_t value)
 {
    int zLeading;
    int zTrailing;
-   u4 b0 = value & 0xff;
+   uint32_t b0 = value & 0xff;
 
    /* Note: case of value==0 must use 0:000:0:0000000 encoding */
    if (value <= 0xFF)

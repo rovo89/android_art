@@ -16,7 +16,8 @@
 
 #include "../../compiler_internals.h"
 #include "arm_lir.h"
-#include "../ralloc.h"
+#include "../ralloc_util.h"
+#include "../codegen_util.h"
 
 #include <string>
 
@@ -122,9 +123,9 @@ bool sameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
+uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg)
 {
-  u8 seed;
+  uint64_t seed;
   int shift;
   int regId;
 
@@ -206,7 +207,7 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
   /* Fixup for kThumbPush/lr and kThumbPop/pc */
   if (opcode == kThumbPush || opcode == kThumbPop) {
-    u8 r8Mask = oatGetRegMaskCommon(cUnit, r8);
+    uint64_t r8Mask = oatGetRegMaskCommon(cUnit, r8);
     if ((opcode == kThumbPush) && (lir->useMask & r8Mask)) {
       lir->useMask &= ~r8Mask;
       lir->useMask |= ENCODE_ARM_REG_LR;
@@ -310,7 +311,7 @@ char*  decodeFPCSRegList(int count, int base, char* buf)
 int expandImmediate(int value)
 {
   int mode = (value & 0xf00) >> 8;
-  u4 bits = value & 0xff;
+  uint32_t bits = value & 0xff;
   switch (mode) {
     case 0:
       return bits;
@@ -472,7 +473,7 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
   return buf;
 }
 
-void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
+void oatDumpResourceMask(LIR* lir, uint64_t mask, const char* prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -590,21 +591,6 @@ bool oatArchVariantInit(void)
 {
   return true;
 }
-
-int oatTargetOptHint(int key)
-{
-  int res = 0;
-  switch (key) {
-    case kMaxHoistDistance:
-      res = 7;
-      break;
-    default:
-      LOG(FATAL) << "Unknown target optimization hint key: " << key;
-    }
-  return res;
-}
-
-/* This file contains codegen for the Thumb ISA. */
 
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
@@ -755,8 +741,7 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
       SRegToVReg(cUnit, info1->sReg))
       info1 = info2;
     int vReg = SRegToVReg(cUnit, info1->sReg);
-    oatFlushRegWideImpl(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg),
-                        info1->reg, info1->partner);
+    storeBaseDispWide(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg), info1->reg, info1->partner);
   }
 }
 
@@ -766,7 +751,7 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
   if (info->live && info->dirty) {
     info->dirty = false;
     int vReg = SRegToVReg(cUnit, info->sReg);
-    oatFlushRegImpl(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
+    storeBaseDisp(cUnit, rARM_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
   }
 }
 

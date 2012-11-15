@@ -16,9 +16,8 @@
 
 namespace art {
 
-static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
-                            RegLocation rlDest, RegLocation rlSrc1,
-                            RegLocation rlSrc2) {
+bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
+                     RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
 
@@ -67,9 +66,8 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
   return false;
 }
 
-static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
-                             RegLocation rlDest, RegLocation rlSrc1,
-                             RegLocation rlSrc2) {
+bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
+                      RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
 
@@ -117,8 +115,8 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
   return false;
 }
 
-static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
-                          RegLocation rlDest, RegLocation rlSrc) {
+bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
+                   RegLocation rlDest, RegLocation rlSrc) {
   RegisterClass rcSrc = kFPReg;
   X86OpCode op = kX86Nop;
   int srcReg;
@@ -210,8 +208,8 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
   return false;
 }
 
-static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation rlDest,
-                     RegLocation rlSrc1, RegLocation rlSrc2) {
+bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation rlDest,
+              RegLocation rlSrc1, RegLocation rlSrc2) {
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
   bool unorderedGt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
   int srcReg1;

@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#include "dalvik.h"
 #include "compiler_internals.h"
 #include "dataflow.h"
-#include "codegen/ralloc.h"
+#include "codegen/ralloc_util.h"
 
 namespace art {
 
