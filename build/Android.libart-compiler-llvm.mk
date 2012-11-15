@@ -37,17 +37,16 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \
-    src/compiler/Dataflow.cc \
-    src/compiler/Frontend.cc \
-    src/compiler/IntermediateRep.cc \
-    src/compiler/Ralloc.cc \
-    src/compiler/SSATransformation.cc \
-    src/compiler/Utility.cc \
-    src/compiler/codegen/RallocUtil.cc \
-    src/compiler/codegen/arm/ArchUtility.cc \
-    src/compiler/codegen/arm/ArmRallocUtil.cc \
-    src/compiler/codegen/arm/Assemble.cc \
-    src/compiler/codegen/arm/armv7-a/Codegen.cc \
+    src/compiler/dataflow.cc \
+    src/compiler/frontend.cc \
+    src/compiler/intermediate_rep.cc \
+    src/compiler/ralloc.cc \
+    src/compiler/ssa_transformation.cc \
+    src/compiler/utility.cc \
+    src/compiler/codegen/ralloc_util.cc \
+    src/compiler/codegen/arm/target_arm.cc \
+    src/compiler/codegen/arm/assemble_arm.cc \
+    src/compiler/codegen/arm/backend_arm.cc \
     src/compiler_llvm/dalvik_reg.cc \
     src/compiler_llvm/gbc_expander.cc \
     src/compiler_llvm/method_compiler.cc \

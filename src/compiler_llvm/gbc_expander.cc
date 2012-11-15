@@ -24,7 +24,7 @@
 #include "thread.h"
 #include "verifier/method_verifier.h"
 
-#include "compiler/CompilerIR.h"
+#include "compiler/compiler_ir.h"
 using art::kMIRIgnoreNullCheck;
 using art::kMIRIgnoreRangeCheck;
 

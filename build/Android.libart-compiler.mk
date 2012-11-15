@@ -15,13 +15,13 @@
 #
 
 LIBART_COMPILER_COMMON_SRC_FILES += \
-	src/compiler/Dataflow.cc \
-	src/compiler/Frontend.cc \
-	src/compiler/IntermediateRep.cc \
-	src/compiler/Ralloc.cc \
-	src/compiler/SSATransformation.cc \
-	src/compiler/Utility.cc \
-	src/compiler/codegen/RallocUtil.cc \
+	src/compiler/dataflow.cc \
+	src/compiler/frontend.cc \
+	src/compiler/intermediate_rep.cc \
+	src/compiler/ralloc.cc \
+	src/compiler/ssa_transformation.cc \
+	src/compiler/utility.cc \
+	src/compiler/codegen/ralloc_util.cc \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \
 	src/oat/jni/arm/calling_convention_arm.cc \
@@ -32,26 +32,23 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 
 LIBART_COMPILER_arm_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
-	src/compiler/codegen/arm/ArchUtility.cc \
-	src/compiler/codegen/arm/ArmRallocUtil.cc \
-	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/compiler/codegen/arm/target_arm.cc \
+	src/compiler/codegen/arm/assemble_arm.cc \
+	src/compiler/codegen/arm/backend_arm.cc \
 	src/oat/jni/arm/jni_internal_arm.cc
 
 LIBART_COMPILER_mips_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
-	src/compiler/codegen/mips/ArchUtility.cc \
-	src/compiler/codegen/mips/MipsRallocUtil.cc \
-	src/compiler/codegen/mips/Assemble.cc \
-	src/compiler/codegen/mips/mips/Codegen.cc \
+	src/compiler/codegen/mips/target_mips.cc \
+	src/compiler/codegen/mips/assemble_mips.cc \
+	src/compiler/codegen/mips/backend_mips.cc \
 	src/oat/jni/mips/jni_internal_mips.cc
 
 LIBART_COMPILER_x86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
-	src/compiler/codegen/x86/ArchUtility.cc \
-	src/compiler/codegen/x86/X86RallocUtil.cc \
-	src/compiler/codegen/x86/Assemble.cc \
-	src/compiler/codegen/x86/x86/Codegen.cc \
+	src/compiler/codegen/x86/target_x86.cc \
+	src/compiler/codegen/x86/assemble_x86.cc \
+	src/compiler/codegen/x86/backend_x86.cc \
 	src/oat/jni/x86/jni_internal_x86.cc
 
 # $(1): target or host
