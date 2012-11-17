@@ -50,7 +50,7 @@ void convertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
    * will need to be re-checked (eg the new dest clobbers the src used in
    * thisLIR).
    */
-  oatInsertLIRAfter((LIR*) origLIR, (LIR*) moveLIR);
+  oatInsertLIRAfter(origLIR, moveLIR);
 }
 
 /*
@@ -240,15 +240,14 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
         DEBUG_OPT(dumpDependentInsnPair(thisLIR, checkLIR, "REG CLOBBERED"));
         /* Only sink store instructions */
         if (sinkDistance && !isThisLIRLoad) {
-          LIR* newStoreLIR =
-              (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+          LIR* newStoreLIR = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
           *newStoreLIR = *thisLIR;
           /*
            * Stop point found - insert *before* the checkLIR
            * since the instruction list is scanned in the
            * top-down order.
            */
-          oatInsertLIRBefore((LIR*) checkLIR, (LIR*) newStoreLIR);
+          oatInsertLIRBefore(checkLIR, newStoreLIR);
           thisLIR->flags.isNop = true;
         }
         break;
@@ -429,14 +428,13 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
       /* Found a slot to hoist to */
       if (slot >= 0) {
         LIR* curLIR = prevInstList[slot];
-        LIR* newLoadLIR = (LIR* ) oatNew(cUnit, sizeof(LIR),
-                             true, kAllocLIR);
+        LIR* newLoadLIR = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
         *newLoadLIR = *thisLIR;
         /*
          * Insertion is guaranteed to succeed since checkLIR
          * is never the first LIR on the list
          */
-        oatInsertLIRBefore((LIR*) curLIR, (LIR*) newLoadLIR);
+        oatInsertLIRBefore(curLIR, newLoadLIR);
         thisLIR->flags.isNop = true;
       }
     }
@@ -447,11 +445,49 @@ void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
                     LIR* tailLIR)
 {
   if (!(cUnit->disableOpt & (1 << kLoadStoreElimination))) {
-    applyLoadStoreElimination(cUnit, (LIR* ) headLIR,
-                  (LIR* ) tailLIR);
+    applyLoadStoreElimination(cUnit, headLIR, tailLIR);
   }
   if (!(cUnit->disableOpt & (1 << kLoadHoisting))) {
-    applyLoadHoisting(cUnit, (LIR* ) headLIR, (LIR* ) tailLIR);
+    applyLoadHoisting(cUnit, headLIR, tailLIR);
+  }
+}
+
+/*
+ * Nop any unconditional branches that go to the next instruction.
+ * Note: new redundant branches may be inserted later, and we'll
+ * use a check in final instruction assembly to nop those out.
+ */
+void removeRedundantBranches(CompilationUnit* cUnit)
+{
+  LIR* thisLIR;
+
+  for (thisLIR = cUnit->firstLIRInsn; thisLIR != cUnit->lastLIRInsn; thisLIR = NEXT_LIR(thisLIR)) {
+
+    /* Branch to the next instruction */
+    if (branchUnconditional(thisLIR)) {
+      LIR* nextLIR = thisLIR;
+
+      while (true) {
+        nextLIR = NEXT_LIR(nextLIR);
+
+        /*
+         * Is the branch target the next instruction?
+         */
+        if (nextLIR == thisLIR->target) {
+          thisLIR->flags.isNop = true;
+          break;
+        }
+
+        /*
+         * Found real useful stuff between the branch and the target.
+         * Need to explicitly check the lastLIRInsn here because it
+         * might be the last real instruction.
+         */
+        if (!isPseudoOpcode(nextLIR->opcode) ||
+          (nextLIR == cUnit->lastLIRInsn))
+          break;
+      }
+    }
   }
 }
 

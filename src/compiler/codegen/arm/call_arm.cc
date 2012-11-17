@@ -128,7 +128,7 @@ void genPrintLabel(CompilationUnit *cUnit, MIR* mir)
   /* Don't generate the SSA annotation unless verbose mode is on */
   if (cUnit->printMe && mir->ssaRep) {
     char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-    newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
+    newLIR1(cUnit, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssaString));
   }
 }
 
@@ -329,13 +329,13 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     dumpSparseSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                                              true, kAllocData);
+  SwitchTable *tabRec =
+      static_cast<SwitchTable*>(oatNew(cUnit, sizeof(SwitchTable), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
-  tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR);
-  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+  tabRec->targets = static_cast<LIR**>(oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR));
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
 
   // Get the switch value
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -350,7 +350,7 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     rKey = tmp;
   }
   // Materialize a pointer to the switch table
-  newLIR3(cUnit, kThumb2Adr, rBase, 0, (intptr_t)tabRec);
+  newLIR3(cUnit, kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tabRec));
   // Set up rIdx
   int rIdx = oatAllocTemp(cUnit);
   loadConstant(cUnit, rIdx, size);
@@ -377,19 +377,19 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     dumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                                              true, kAllocData);
+  SwitchTable *tabRec =
+      static_cast<SwitchTable*>(oatNew(cUnit, sizeof(SwitchTable), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
-  tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR);
-  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+  tabRec->targets = static_cast<LIR**>(oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR));
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
 
   // Get the switch value
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   int tableBase = oatAllocTemp(cUnit);
   // Materialize a pointer to the switch table
-  newLIR3(cUnit, kThumb2Adr, tableBase, 0, (intptr_t)tabRec);
+  newLIR3(cUnit, kThumb2Adr, tableBase, 0, reinterpret_cast<uintptr_t>(tabRec));
   int lowKey = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
@@ -413,7 +413,7 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
 
   /* branchOver target here */
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
+  branchOver->target = target;
 }
 
 /*
@@ -430,15 +430,15 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
 {
   const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tabRec = (FillArrayData *)
-     oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
+  FillArrayData *tabRec =
+      static_cast<FillArrayData*>(oatNew(cUnit, sizeof(FillArrayData), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   uint16_t width = tabRec->table[1];
   uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
   tabRec->size = (size * width) + 8;
 
-  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
+  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
 
   // Making a call - use explicit registers
   oatFlushAllRegs(cUnit);   /* Everything to home location */
@@ -446,7 +446,7 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
   loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
                rARM_LR);
   // Materialize a pointer to the fill data image
-  newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
+  newLIR3(cUnit, kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tabRec));
   oatClobberCalleeSave(cUnit);
   LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
@@ -552,7 +552,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
   storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
+  branchOver->target = target;
   oatFreeTemp(cUnit, regCardBase);
   oatFreeTemp(cUnit, regCardNo);
 }
@@ -577,7 +577,7 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
    * a leaf *and* our frame size < fudge factor.
    */
   bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
-                            ((size_t)cUnit->frameSize <
+                            (static_cast<size_t>(cUnit->frameSize) <
                             Thread::kStackOverflowReservedBytes));
   newLIR0(cUnit, kPseudoMethodEntry);
   if (!skipOverflowCheck) {

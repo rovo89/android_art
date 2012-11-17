@@ -346,7 +346,8 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/mutex.h \
 	src/object.h \
 	src/thread.h \
-	src/verifier/method_verifier.h
+	src/verifier/method_verifier.h \
+	src/compiler/compiler_enums.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \

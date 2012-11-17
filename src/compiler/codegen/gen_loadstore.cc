@@ -166,11 +166,11 @@ void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
   oatResetDefLoc(cUnit, rlDest);
   if (oatIsDirty(cUnit, rlDest.lowReg) &&
       oatLiveOut(cUnit, rlDest.sRegLow)) {
-    defStart = (LIR* )cUnit->lastLIRInsn;
+    defStart = cUnit->lastLIRInsn;
     storeBaseDisp(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlDest.sRegLow),
                   rlDest.lowReg, kWord);
     oatMarkClean(cUnit, rlDest);
-    defEnd = (LIR* )cUnit->lastLIRInsn;
+    defEnd = cUnit->lastLIRInsn;
     oatMarkDef(cUnit, rlDest, defStart, defEnd);
   }
 }
@@ -245,13 +245,13 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
       oatIsDirty(cUnit, rlDest.highReg)) &&
       (oatLiveOut(cUnit, rlDest.sRegLow) ||
       oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
-    defStart = (LIR*)cUnit->lastLIRInsn;
+    defStart = cUnit->lastLIRInsn;
     DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
               SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
     storeBaseDispWide(cUnit, targetReg(kSp), oatSRegOffset(cUnit, rlDest.sRegLow),
                       rlDest.lowReg, rlDest.highReg);
     oatMarkClean(cUnit, rlDest);
-    defEnd = (LIR*)cUnit->lastLIRInsn;
+    defEnd = cUnit->lastLIRInsn;
     oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
   }
 }

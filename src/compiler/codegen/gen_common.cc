@@ -177,7 +177,7 @@ void callRuntimeHelperRegLocationRegLocation(CompilationUnit* cUnit, int helperO
 void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                              bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  DCHECK_NE((int)targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  DCHECK_NE(targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
   opRegCopy(cUnit, targetReg(kArg0), arg0);
   opRegCopy(cUnit, targetReg(kArg1), arg1);
   oatClobberCalleeSave(cUnit);
@@ -187,7 +187,7 @@ void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0,
 void callRuntimeHelperRegRegImm(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1,
                                 int arg2, bool safepointPC) {
   int rTgt = callHelperSetup(cUnit, helperOffset);
-  DCHECK_NE((int)targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  DCHECK_NE(targetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
   opRegCopy(cUnit, targetReg(kArg0), arg0);
   opRegCopy(cUnit, targetReg(kArg1), arg1);
   loadConstant(cUnit, targetReg(kArg2), arg2);
@@ -246,7 +246,7 @@ void genBarrier(CompilationUnit* cUnit)
 LIR* opUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
 {
   LIR* branch = opBranchUnconditional(cUnit, kOpUncondBr);
-  branch->target = (LIR*) target;
+  branch->target = target;
   return branch;
 }
 
@@ -260,7 +260,7 @@ LIR* genCheck(CompilationUnit* cUnit, ConditionCode cCode,
                     cUnit->currentDalvikOffset);
   LIR* branch = opCondBranch(cUnit, cCode, tgt);
   // Remember branch target - will process later
-  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
 }
 
@@ -276,7 +276,7 @@ LIR* genImmedCheck(CompilationUnit* cUnit, ConditionCode cCode,
     branch = opCmpImmBranch(cUnit, cCode, reg, immVal, tgt);
   }
   // Remember branch target - will process later
-  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
 }
 
@@ -298,7 +298,7 @@ LIR* genRegRegCheck(CompilationUnit* cUnit, ConditionCode cCode,
                     cUnit->currentDalvikOffset, reg1, reg2);
   LIR* branch = opCmpBranch(cUnit, cCode, reg1, reg2, tgt);
   // Remember branch target - will process later
-  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
 }
 
@@ -329,8 +329,8 @@ void genCompareAndBranch(CompilationUnit* cUnit, Instruction::Code opcode,
       cond = kCondLe;
       break;
     default:
-      cond = (ConditionCode)0;
-      LOG(FATAL) << "Unexpected opcode " << (int)opcode;
+      cond = static_cast<ConditionCode>(0);
+      LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   opCmpBranch(cUnit, cond, rlSrc1.lowReg, rlSrc2.lowReg, taken);
   opUnconditionalBranch(cUnit, fallThrough);
@@ -361,8 +361,8 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, Instruction::Code opcode,
       cond = kCondLe;
       break;
     default:
-      cond = (ConditionCode)0;
-      LOG(FATAL) << "Unexpected opcode " << (int)opcode;
+      cond = static_cast<ConditionCode>(0);
+      LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   if (cUnit->instructionSet == kThumb2) {
     opRegImm(cUnit, kOpCmp, rlSrc.lowReg, 0);
@@ -601,7 +601,7 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
         opRegCopy(cUnit, rBase, targetReg(kRet0));
       }
       LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
-      branchOver->target = (LIR*)skipTarget;
+      branchOver->target = skipTarget;
       oatFreeTemp(cUnit, rMethod);
     }
     // rBase now holds static storage base
@@ -692,7 +692,7 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
         opRegCopy(cUnit, rBase, targetReg(kRet0));
       }
       LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
-      branchOver->target = (LIR*)skipTarget;
+      branchOver->target = skipTarget;
       oatFreeTemp(cUnit, rMethod);
     }
     // rBase now holds static storage base
@@ -736,19 +736,19 @@ void genShowTarget(CompilationUnit* cUnit)
   LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, targetReg(kInvokeTgt), 0, NULL);
   loadWordDisp(cUnit, targetReg(kSelf), ENTRYPOINT_OFFSET(pDebugMe), targetReg(kInvokeTgt));
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
+  branchOver->target = target;
 }
 
 void handleSuspendLaunchpads(CompilationUnit *cUnit)
 {
-  LIR** suspendLabel = (LIR **)cUnit->suspendLaunchpads.elemList;
+  LIR** suspendLabel = reinterpret_cast<LIR**>(cUnit->suspendLaunchpads.elemList);
   int numElems = cUnit->suspendLaunchpads.numUsed;
   int helperOffset = ENTRYPOINT_OFFSET(pTestSuspendFromCode);
   for (int i = 0; i < numElems; i++) {
     oatResetRegPool(cUnit);
     oatResetDefTracking(cUnit);
     LIR* lab = suspendLabel[i];
-    LIR* resumeLab = (LIR*)lab->operands[0];
+    LIR* resumeLab = reinterpret_cast<LIR*>(lab->operands[0]);
     cUnit->currentDalvikOffset = lab->operands[1];
     oatAppendLIR(cUnit, lab);
     int rTgt = callHelperSetup(cUnit, helperOffset);
@@ -759,18 +759,18 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
 
 void handleIntrinsicLaunchpads(CompilationUnit *cUnit)
 {
-  LIR** intrinsicLabel = (LIR **)cUnit->intrinsicLaunchpads.elemList;
+  LIR** intrinsicLabel = reinterpret_cast<LIR**>(cUnit->intrinsicLaunchpads.elemList);
   int numElems = cUnit->intrinsicLaunchpads.numUsed;
   for (int i = 0; i < numElems; i++) {
     oatResetRegPool(cUnit);
     oatResetDefTracking(cUnit);
     LIR* lab = intrinsicLabel[i];
-    CallInfo* info = (CallInfo*)lab->operands[0];
+    CallInfo* info = reinterpret_cast<CallInfo*>(lab->operands[0]);
     cUnit->currentDalvikOffset = info->offset;
     oatAppendLIR(cUnit, lab);
     // NOTE: genInvoke handles markSafepointPC
     genInvoke(cUnit, info);
-    LIR* resumeLab = (LIR*)lab->operands[2];
+    LIR* resumeLab = reinterpret_cast<LIR*>(lab->operands[2]);
     if (resumeLab != NULL) {
       opUnconditionalBranch(cUnit, resumeLab);
     }
@@ -779,7 +779,7 @@ void handleIntrinsicLaunchpads(CompilationUnit *cUnit)
 
 void handleThrowLaunchpads(CompilationUnit *cUnit)
 {
-  LIR** throwLabel = (LIR **)cUnit->throwLaunchpads.elemList;
+  LIR** throwLabel = reinterpret_cast<LIR**>(cUnit->throwLaunchpads.elemList);
   int numElems = cUnit->throwLaunchpads.numUsed;
   for (int i = 0; i < numElems; i++) {
     oatResetRegPool(cUnit);
@@ -1031,8 +1031,8 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
       oatClobberSReg(cUnit, rlDest.sRegLow);
       // Rejoin code paths
       LIR* target2 = newLIR0(cUnit, kPseudoTargetLabel);
-      branch1->target = (LIR*)target1;
-      branch2->target = (LIR*)target2;
+      branch1->target = target1;
+      branch2->target = target2;
     } else {
       // Fast path, we're done - just store result
       storeValue(cUnit, rlDest, rlResult);
@@ -1172,7 +1172,7 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
       loadValueDirectFixed(cUnit, rlSrc, targetReg(kArg0));  /* reload Ref */
       // Rejoin code paths
       LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-      hopBranch->target = (LIR*)hopTarget;
+      hopBranch->target = hopTarget;
     }
   }
   /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result */
@@ -1257,7 +1257,7 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
       opRegCopy(cUnit, classReg, targetReg(kRet0)); // Align usage with fast path
       // Rejoin code paths
       LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-      hopBranch->target = (LIR*)hopTarget;
+      hopBranch->target = hopTarget;
     }
   }
   // At this point, classReg (kArg2) has class
@@ -1705,8 +1705,7 @@ bool genArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
       op = kOpLsr;
       break;
     default:
-      LOG(FATAL) << "Invalid word arith op: " <<
-        (int)opcode;
+      LOG(FATAL) << "Invalid word arith op: " << opcode;
   }
   if (!isDivRem) {
     if (unary) {
@@ -1901,7 +1900,7 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
                       RegLocation rlDest, RegLocation rlSrc, int lit)
 {
   RegLocation rlResult;
-  OpKind op = (OpKind)0;    /* Make gcc happy */
+  OpKind op = static_cast<OpKind>(0);    /* Make gcc happy */
   int shiftOp = false;
   bool isDiv = false;
 
@@ -2296,9 +2295,9 @@ void genSuspendTest(CompilationUnit* cUnit, int optFlags)
   LIR* branch = opTestSuspend(cUnit, NULL);
   LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);
   LIR* target = rawLIR(cUnit, cUnit->currentDalvikOffset, kPseudoSuspendTarget,
-                       (intptr_t)retLab, cUnit->currentDalvikOffset);
-  branch->target = (LIR*)target;
-  oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
+                       reinterpret_cast<uintptr_t>(retLab), cUnit->currentDalvikOffset);
+  branch->target = target;
+  oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, reinterpret_cast<uintptr_t>(target));
 }
 
 /* Check if we need to check for pending suspend request */
@@ -2309,11 +2308,12 @@ void genSuspendTestAndBranch(CompilationUnit* cUnit, int optFlags, LIR* target)
     return;
   }
   opTestSuspend(cUnit, target);
-  LIR* launchPad = rawLIR(cUnit, cUnit->currentDalvikOffset, kPseudoSuspendTarget, (intptr_t)target,
-                          cUnit->currentDalvikOffset);
+  LIR* launchPad =
+      rawLIR(cUnit, cUnit->currentDalvikOffset, kPseudoSuspendTarget,
+             reinterpret_cast<uintptr_t>(target), cUnit->currentDalvikOffset);
   oatFlushAllRegs(cUnit);
   opUnconditionalBranch(cUnit, launchPad);
-  oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)launchPad);
+  oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, reinterpret_cast<uintptr_t>(launchPad));
 }
 
 }  // namespace art

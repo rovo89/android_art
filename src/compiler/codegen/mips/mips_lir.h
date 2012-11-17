@@ -163,7 +163,7 @@ enum MipsResourceEncodingPos {
   kMipsRegEnd   = 51,
 };
 
-#define ENCODE_MIPS_REG_LIST(N)      ((uint64_t) N)
+#define ENCODE_MIPS_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_MIPS_REG_SP           (1ULL << kMipsRegSP)
 #define ENCODE_MIPS_REG_LR           (1ULL << kMipsRegLR)
 #define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
@@ -303,7 +303,7 @@ enum MipsShiftEncodings {
 #define kST kSYNC0
 #define kSY kSYNC0
 
-#define isPseudoOpcode(opCode) ((int)(opCode) < 0)
+#define isPseudoOpcode(opCode) (static_cast<int>(opCode) < 0)
 
 /*
  * The following enum defines the list of supported Thumb instructions by the

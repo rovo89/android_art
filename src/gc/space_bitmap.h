@@ -110,7 +110,7 @@ class SpaceBitmap {
   bool HasAddress(const void* obj) const {
     // If obj < heap_begin_ then offset underflows to some very large value past the end of the
     // bitmap.
-    const uintptr_t offset = (uintptr_t)obj - heap_begin_;
+    const uintptr_t offset = reinterpret_cast<uintptr_t>(obj) - heap_begin_;
     const size_t index = OffsetToIndex(offset);
     return index < bitmap_size_ / kWordSize;
   }

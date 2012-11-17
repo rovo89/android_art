@@ -111,8 +111,8 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
   storeValue(cUnit, rlDest, rlTemp);
   oatFreeTemp(cUnit, tReg);
 
-  branch1->target = (LIR*)target1;
-  branch2->target = (LIR*)target2;
+  branch1->target = target1;
+  branch2->target = target2;
   branch3->target = branch1->target;
 }
 
@@ -155,7 +155,7 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
       ccode = kCondCs;
       break;
     default:
-      LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+      LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
   opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
   opCondBranch(cUnit, ccode, taken);
@@ -215,7 +215,7 @@ LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
 LIR* opRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
   LIR* res = opRegCopyNoInsert(cUnit, rDest, rSrc);
-  oatAppendLIR(cUnit, (LIR*)res);
+  oatAppendLIR(cUnit, res);
   return res;
 }
 
@@ -249,13 +249,6 @@ void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
 }
 
 // Table of magic divisors
-enum DividePattern {
-  DivideNone,
-  Divide3,
-  Divide5,
-  Divide7,
-};
-
 struct MagicTable {
   uint32_t magic;
   uint32_t shift;
@@ -285,7 +278,7 @@ static const MagicTable magicTable[] = {
 bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
                         RegLocation rlSrc, RegLocation rlDest, int lit)
 {
-  if ((lit < 0) || (lit >= (int)(sizeof(magicTable)/sizeof(magicTable[0])))) {
+  if ((lit < 0) || (lit >= static_cast<int>(sizeof(magicTable)/sizeof(magicTable[0])))) {
     return false;
   }
   DividePattern pattern = magicTable[lit].pattern;
@@ -321,7 +314,7 @@ bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
                encodeShift(kArmAsr, magicTable[lit].shift));
       break;
     default:
-      LOG(FATAL) << "Unexpected pattern: " << (int)pattern;
+      LOG(FATAL) << "Unexpected pattern: " << pattern;
   }
   storeValue(cUnit, rlDest, rlResult);
   return true;

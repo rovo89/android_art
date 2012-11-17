@@ -29,7 +29,7 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
   opRegMem(cUnit, kOpCmp, reg1, base, offset);
   LIR* branch = opCondBranch(cUnit, cCode, tgt);
   // Remember branch target - will process later
-  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
 }
 
@@ -208,7 +208,7 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir) {
     case kCondGe:
       break;
     default:
-      LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+      LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
   opCondBranch(cUnit, ccode, taken);
 }

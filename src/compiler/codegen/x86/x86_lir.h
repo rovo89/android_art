@@ -220,7 +220,7 @@ enum X86NativeRegisterPool {
 #define rX86_COUNT rCX
 #define rX86_PC INVALID_REG
 
-#define isPseudoOpcode(opCode) ((int)(opCode) < 0)
+#define isPseudoOpcode(opCode) (static_cast<int>(opCode) < 0)
 
 /*
  * The following enum defines the list of supported X86 instructions by the

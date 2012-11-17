@@ -557,7 +557,7 @@ static void emitOpReg(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
     reg = reg & X86_FP_REG_MASK;
   }
   if (reg >= 4) {
-    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << (int) reg
+    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
         << " in " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
   }
   DCHECK_LT(reg, 8);
@@ -614,7 +614,7 @@ static void emitMemReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
     reg = reg & X86_FP_REG_MASK;
   }
   if (reg >= 4) {
-    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << (int) reg
+    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
         << " in " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
   }
   DCHECK_LT(reg, 8);
@@ -705,7 +705,7 @@ static void emitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
     reg = reg & X86_FP_REG_MASK;
   }
   if (reg >= 4) {
-    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << (int) reg
+    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
         << " in " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
   }
   DCHECK_LT(reg, 8);
@@ -958,7 +958,7 @@ static void emitShiftRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
   if (reg >= 4) {
-    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << (int) reg
+    DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
         << " in " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
   }
   DCHECK_LT(reg, 8);
@@ -1118,11 +1118,11 @@ static void emitPcRel(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
                       int base_or_table, uint8_t index, int scale, int table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    SwitchTable *tabRec = (SwitchTable*)table_or_disp;
+    SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(table_or_disp);
     disp = tabRec->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
-    FillArrayData *tabRec = (FillArrayData *)base_or_table;
+    FillArrayData *tabRec = reinterpret_cast<FillArrayData*>(base_or_table);
     disp = tabRec->offset;
   }
   if (entry->skeleton.prefix1 != 0) {
@@ -1189,12 +1189,12 @@ void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR*
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAddr) {
+AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startAddr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
   const bool kVerbosePcFixup = false;
-  for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -1209,13 +1209,13 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
           LIR *targetLIR = lir->target;
           DCHECK(targetLIR != NULL);
           int delta = 0;
-          intptr_t pc;
+          uintptr_t pc;
           if (IS_SIMM8(lir->operands[0])) {
             pc = lir->offset + 2 /* opcode + rel8 */;
           } else {
             pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
           }
-          intptr_t target = targetLIR->offset;
+          uintptr_t target = targetLIR->offset;
           delta = target - pc;
           if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
             if (kVerbosePcFixup) {
@@ -1239,8 +1239,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         case kX86Jcc32: {
           LIR *targetLIR = lir->target;
           DCHECK(targetLIR != NULL);
-          intptr_t pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
-          intptr_t target = targetLIR->offset;
+          uintptr_t pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
+          uintptr_t target = targetLIR->offset;
           int delta = target - pc;
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
@@ -1256,13 +1256,13 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
           LIR *targetLIR = lir->target;
           DCHECK(targetLIR != NULL);
           int delta = 0;
-          intptr_t pc;
+          uintptr_t pc;
           if (IS_SIMM8(lir->operands[0])) {
             pc = lir->offset + 2 /* opcode + rel8 */;
           } else {
             pc = lir->offset + 5 /* opcode + rel32 */;
           }
-          intptr_t target = targetLIR->offset;
+          uintptr_t target = targetLIR->offset;
           delta = target - pc;
           if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && delta == 0) {
             // Useless branch
@@ -1285,8 +1285,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         case kX86Jmp32: {
           LIR *targetLIR = lir->target;
           DCHECK(targetLIR != NULL);
-          intptr_t pc = lir->offset + 5 /* opcode + rel32 */;
-          intptr_t target = targetLIR->offset;
+          uintptr_t pc = lir->offset + 5 /* opcode + rel32 */;
+          uintptr_t target = targetLIR->offset;
           int delta = target - pc;
           lir->operands[0] = delta;
           break;
@@ -1423,9 +1423,7 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit)
     LIR* x86LIR;
     int offset = 0;
 
-    for (x86LIR = (LIR *) cUnit->firstLIRInsn;
-        x86LIR;
-        x86LIR = NEXT_LIR(x86LIR)) {
+    for (x86LIR = cUnit->firstLIRInsn; x86LIR; x86LIR = NEXT_LIR(x86LIR)) {
         x86LIR->offset = offset;
         if (x86LIR->opcode >= 0) {
             if (!x86LIR->flags.isNop) {

@@ -42,8 +42,8 @@ BasicBlock* nextUnvisitedSuccessor(BasicBlock* bb)
         oatGrowableListIteratorInit(&bb->successorBlockList.blocks,
                                     &iterator);
         while (true) {
-          SuccessorBlockInfo *sbi = (SuccessorBlockInfo*)
-              oatGrowableListIteratorNext(&iterator);
+          SuccessorBlockInfo *sbi = reinterpret_cast<SuccessorBlockInfo*>
+              (oatGrowableListIteratorNext(&iterator));
           if (sbi == NULL) break;
           res = needsVisit(sbi->block);
           if (res != NULL) break;
@@ -246,9 +246,8 @@ void computeDefBlockMatrix(CompilationUnit* cUnit)
 {
   int numRegisters = cUnit->numDalvikRegisters;
   /* Allocate numDalvikRegisters bit vector pointers */
-  cUnit->defBlockMatrix = (ArenaBitVector **)
-      oatNew(cUnit, sizeof(ArenaBitVector *) * numRegisters, true,
-             kAllocDFInfo);
+  cUnit->defBlockMatrix = static_cast<ArenaBitVector**>
+      (oatNew(cUnit, sizeof(ArenaBitVector *) * numRegisters, true, kAllocDFInfo));
   int i;
 
   /* Initialize numRegister vectors with numBlocks bits each */
@@ -285,7 +284,7 @@ void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
     int bbIdx = oatBitVectorIteratorNext(&bvIterator);
     if (bbIdx == -1) break;
     BasicBlock* dominatedBB =
-        (BasicBlock* ) oatGrowableListGetElement(blockList, bbIdx);
+        reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, bbIdx));
     computeDomPostOrderTraversal(cUnit, dominatedBB);
   }
 
@@ -330,7 +329,7 @@ bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
                                   &iterator);
       while (true) {
         SuccessorBlockInfo *successorBlockInfo =
-            (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
+            reinterpret_cast<SuccessorBlockInfo*>(oatGrowableListIteratorNext(&iterator));
         if (successorBlockInfo == NULL) break;
         BasicBlock* succBB = successorBlockInfo->block;
         checkForDominanceFrontier(cUnit, bb, succBB);
@@ -344,16 +343,16 @@ bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
     //TUNING: hot call to oatBitVectorIteratorNext
     int dominatedIdx = oatBitVectorIteratorNext(&bvIterator);
     if (dominatedIdx == -1) break;
-    BasicBlock* dominatedBB = (BasicBlock* )
-        oatGrowableListGetElement(blockList, dominatedIdx);
+    BasicBlock* dominatedBB =
+        reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, dominatedIdx));
     ArenaBitVectorIterator dfIterator;
     oatBitVectorIteratorInit(dominatedBB->domFrontier, &dfIterator);
     while (true) {
       //TUNING: hot call to oatBitVectorIteratorNext
       int dfUpIdx = oatBitVectorIteratorNext(&dfIterator);
       if (dfUpIdx == -1) break;
-      BasicBlock* dfUpBlock = (BasicBlock* )
-          oatGrowableListGetElement(blockList, dfUpIdx);
+      BasicBlock* dfUpBlock =
+          reinterpret_cast<BasicBlock*>( oatGrowableListGetElement(blockList, dfUpIdx));
       checkForDominanceFrontier(cUnit, bb, dfUpBlock);
     }
   }
@@ -410,7 +409,7 @@ bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
   /* Iterate through the predecessors */
   oatGrowableListIteratorInit(bb->predecessors, &iter);
   while (true) {
-    BasicBlock* predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter);
+    BasicBlock* predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
     if (!predBB) break;
     /* tempBlockV = tempBlockV ^ dominators */
     if (predBB->dominators != NULL) {
@@ -446,9 +445,8 @@ bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
   /* Should not see any dead block */
   DCHECK_NE(oatCountSetBits(tempBlockV),  0);
   if (oatCountSetBits(tempBlockV) == 1) {
-    iDom = (BasicBlock* )
-        oatGrowableListGetElement(blockList,
-                                  oatBitVectorIteratorNext(&bvIterator));
+    iDom = reinterpret_cast<BasicBlock*>
+        (oatGrowableListGetElement(blockList, oatBitVectorIteratorNext(&bvIterator)));
     bb->iDom = iDom;
   } else {
     int iDomIdx = oatBitVectorIteratorNext(&bvIterator);
@@ -456,15 +454,15 @@ bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
     while (true) {
       int nextDom = oatBitVectorIteratorNext(&bvIterator);
       if (nextDom == -1) break;
-      BasicBlock* nextDomBB = (BasicBlock* )
-          oatGrowableListGetElement(blockList, nextDom);
+      BasicBlock* nextDomBB =
+          reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, nextDom));
       /* iDom dominates nextDom - set new iDom */
       if (oatIsBitSet(nextDomBB->dominators, iDomIdx)) {
           iDomIdx = nextDom;
       }
 
     }
-    iDom = (BasicBlock* ) oatGrowableListGetElement(blockList, iDomIdx);
+    iDom = reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, iDomIdx));
     /* Set the immediate dominator block for bb */
     bb->iDom = iDom;
   }
@@ -509,7 +507,7 @@ bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 
   /* Find the first processed predecessor */
   while (true) {
-    BasicBlock* predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter);
+    BasicBlock* predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
     CHECK(predBB != NULL);
     if (cUnit->iDomList[predBB->dfsId] != NOTVISITED) {
       idom = predBB->dfsId;
@@ -519,7 +517,7 @@ bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 
   /* Scan the rest of the predecessors */
   while (true) {
-      BasicBlock* predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter);
+      BasicBlock* predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
       if (!predBB) break;
       if (cUnit->iDomList[predBB->dfsId] == NOTVISITED) {
         continue;
@@ -556,8 +554,8 @@ bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
     int iDomDFSIdx = cUnit->iDomList[bb->dfsId];
     DCHECK_NE(iDomDFSIdx, NOTVISITED);
     int iDomIdx = cUnit->dfsPostOrder.elemList[iDomDFSIdx];
-    BasicBlock* iDom = (BasicBlock*)
-          oatGrowableListGetElement(&cUnit->blockList, iDomIdx);
+    BasicBlock* iDom =
+        reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(&cUnit->blockList, iDomIdx));
     if (cUnit->enableDebug & (1 << kDebugVerifyDataflow)) {
       DCHECK_EQ(bb->iDom->id, iDom->id);
     }
@@ -580,8 +578,8 @@ void computeDominators(CompilationUnit* cUnit)
 
   /* Initalize & Clear iDomList */
   if (cUnit->iDomList == NULL) {
-    cUnit->iDomList = (int*)oatNew(cUnit, sizeof(int) * numReachableBlocks,
-                                   false, kAllocDFInfo);
+    cUnit->iDomList = static_cast<int*>(oatNew(cUnit, sizeof(int) * numReachableBlocks,
+                                               false, kAllocDFInfo));
   }
   for (int i = 0; i < numReachableBlocks; i++) {
     cUnit->iDomList[i] = NOTVISITED;
@@ -641,8 +639,7 @@ void computeDominators(CompilationUnit* cUnit)
   }
 
   computeDomPostOrderTraversal(cUnit, cUnit->entryBlock);
-  DCHECK_EQ(cUnit->domPostOrderTraversal.numUsed,
-         (unsigned) cUnit->numReachableBlocks);
+  DCHECK_EQ(cUnit->domPostOrderTraversal.numUsed, static_cast<unsigned>(cUnit->numReachableBlocks));
 
   /* Now compute the dominance frontier for each block */
   oatDataFlowAnalysisDispatcher(cUnit, computeDominanceFrontier,
@@ -695,7 +692,7 @@ bool computeBlockLiveIns(CompilationUnit* cUnit, BasicBlock* bb)
                                 &iterator);
     while (true) {
       SuccessorBlockInfo *successorBlockInfo =
-          (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
+          reinterpret_cast<SuccessorBlockInfo*>(oatGrowableListIteratorNext(&iterator));
       if (successorBlockInfo == NULL) break;
       BasicBlock* succBB = successorBlockInfo->block;
       if (succBB->dataFlowInfo) {
@@ -749,7 +746,7 @@ void insertPhiNodes(CompilationUnit* cUnit)
         int idx = oatBitVectorIteratorNext(&iterator);
         if (idx == -1) break;
           BasicBlock* defBB =
-              (BasicBlock* ) oatGrowableListGetElement(blockList, idx);
+              reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, idx));
 
           /* Merge the dominance frontier to tmpBlocks */
           //TUNING: hot call to oatUnifyBitVectors
@@ -780,11 +777,11 @@ void insertPhiNodes(CompilationUnit* cUnit)
       int idx = oatBitVectorIteratorNext(&iterator);
       if (idx == -1) break;
       BasicBlock* phiBB =
-          (BasicBlock* ) oatGrowableListGetElement(blockList, idx);
+          reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, idx));
       /* Variable will be clobbered before being used - no need for phi */
       if (!oatIsBitSet(phiBB->dataFlowInfo->liveInV, dalvikReg)) continue;
-      MIR *phi = (MIR *) oatNew(cUnit, sizeof(MIR), true, kAllocDFInfo);
-      phi->dalvikInsn.opcode = (Instruction::Code)kMirOpPhi;
+      MIR *phi = static_cast<MIR*>(oatNew(cUnit, sizeof(MIR), true, kAllocDFInfo));
+      phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
       phi->dalvikInsn.vA = dalvikReg;
       phi->offset = phiBB->startOffset;
       phi->meta.phiNext = cUnit->phiList;
@@ -807,7 +804,7 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
 
   /* Phi nodes are at the beginning of each block */
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
-    if (mir->dalvikInsn.opcode != (Instruction::Code)kMirOpPhi)
+    if (mir->dalvikInsn.opcode != static_cast<Instruction::Code>(kMirOpPhi))
       return true;
     int ssaReg = mir->ssaRep->defs[0];
     DCHECK_GE(ssaReg, 0);   // Shouldn't see compiler temps here
@@ -820,7 +817,7 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     oatGrowableListIteratorInit(bb->predecessors, &iter);
     while (true) {
       BasicBlock* predBB =
-         (BasicBlock*)oatGrowableListIteratorNext(&iter);
+         reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
       if (!predBB) break;
       int ssaReg = predBB->dataFlowInfo->vRegToSSAMap[vReg];
       uses.push_back(ssaReg);
@@ -831,13 +828,13 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     int numUses = uses.size();
     mir->ssaRep->numUses = numUses;
     mir->ssaRep->uses =
-        (int*) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
+        static_cast<int*>(oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo));
     mir->ssaRep->fpUse =
-        (bool*) oatNew(cUnit, sizeof(bool) * numUses, true, kAllocDFInfo);
+        static_cast<bool*>(oatNew(cUnit, sizeof(bool) * numUses, true, kAllocDFInfo));
     int* incoming =
-        (int*) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
+        static_cast<int*>(oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo));
     // TODO: Ugly, rework (but don't burden each MIR/LIR for Phi-only needs)
-    mir->dalvikInsn.vB = (intptr_t) incoming;
+    mir->dalvikInsn.vB = reinterpret_cast<uintptr_t>(incoming);
 
     /* Set the uses array for the phi node */
     int *usePtr = mir->ssaRep->uses;
@@ -861,8 +858,7 @@ void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
   int mapSize = sizeof(int) * cUnit->numDalvikRegisters;
 
   /* Save SSA map snapshot */
-  int* savedSSAMap = (int*)oatNew(cUnit, mapSize, false,
-                                  kAllocDalvikToSSAMap);
+  int* savedSSAMap = static_cast<int*>(oatNew(cUnit, mapSize, false, kAllocDalvikToSSAMap));
   memcpy(savedSSAMap, cUnit->vRegToSSAMap, mapSize);
 
   if (block->fallThrough) {
@@ -877,11 +873,10 @@ void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
   }
   if (block->successorBlockList.blockListType != kNotUsed) {
     GrowableListIterator iterator;
-    oatGrowableListIteratorInit(&block->successorBlockList.blocks,
-                                &iterator);
+    oatGrowableListIteratorInit(&block->successorBlockList.blocks, &iterator);
     while (true) {
       SuccessorBlockInfo *successorBlockInfo =
-          (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
+          reinterpret_cast<SuccessorBlockInfo*>(oatGrowableListIteratorNext(&iterator));
       if (successorBlockInfo == NULL) break;
       BasicBlock* succBB = successorBlockInfo->block;
       doDFSPreOrderSSARename(cUnit, succBB);
@@ -929,8 +924,7 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
          false, kBitMapTempSSARegisterV);
 
     cUnit->tempSSABlockIdV =
-        (int*)oatNew(cUnit, sizeof(int) * cUnit->numSSARegs, false,
-                     kAllocDFInfo);
+        static_cast<int*>(oatNew(cUnit, sizeof(int) * cUnit->numSSARegs, false, kAllocDFInfo));
 
     /* Insert phi-operands with latest SSA names from predecessor blocks */
     oatDataFlowAnalysisDispatcher(cUnit, insertPhiNodeOperands,

@@ -184,8 +184,7 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
 CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                          InvokeType type, bool isRange)
 {
-  CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
-                                         kAllocMisc);
+  CallInfo* info = static_cast<CallInfo*>(oatNew(cUnit, sizeof(CallInfo), true, kAllocMisc));
   MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
   if (moveResultMIR == NULL) {
     info->result.location = kLocInvalid;
@@ -194,8 +193,8 @@ CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     moveResultMIR->dalvikInsn.opcode = Instruction::NOP;
   }
   info->numArgWords = mir->ssaRep->numUses;
-  info->args = (info->numArgWords == 0) ? NULL : (RegLocation*)
-      oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc);
+  info->args = (info->numArgWords == 0) ? NULL : static_cast<RegLocation*>
+      (oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc));
   for (int i = 0; i < info->numArgWords; i++) {
     info->args[i] = oatGetRawSrc(cUnit, mir, i);
   }
@@ -794,41 +793,26 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   return res;
 }
 
-const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
-  "kMirOpPhi",
-  "kMirOpCopy",
-  "kMirFusedCmplFloat",
-  "kMirFusedCmpgFloat",
-  "kMirFusedCmplDouble",
-  "kMirFusedCmpgDouble",
-  "kMirFusedCmpLong",
-  "kMirNop",
-  "kMirOpNullCheck",
-  "kMirOpRangeCheck",
-  "kMirOpDivZeroCheck",
-  "kMirOpCheck",
-};
-
 /* Extended MIR instructions like PHI */
 void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
   int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
   char* msg = NULL;
   if (cUnit->printMe) {
-    msg = (char*)oatNew(cUnit, strlen(extendedMIROpNames[opOffset]) + 1,
-                        false, kAllocDebugInfo);
+    msg = static_cast<char*>(oatNew(cUnit, strlen(extendedMIROpNames[opOffset]) + 1,
+                                    false, kAllocDebugInfo));
     strcpy(msg, extendedMIROpNames[opOffset]);
   }
-  LIR* op = newLIR1(cUnit, kPseudoExtended, (int) msg);
+  LIR* op = newLIR1(cUnit, kPseudoExtended, reinterpret_cast<uintptr_t>(msg));
 
-  switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
+  switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpPhi: {
       char* ssaString = NULL;
       if (cUnit->printMe) {
         ssaString = oatGetSSAString(cUnit, mir->ssaRep);
       }
       op->flags.isNop = true;
-      newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
+      newLIR1(cUnit, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssaString));
       break;
     }
     case kMirOpCopy: {
@@ -871,7 +855,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 
   /* Insert the block label */
   labelList[blockId].opcode = kPseudoNormalBlockLabel;
-  oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
+  oatAppendLIR(cUnit, &labelList[blockId]);
 
   LIR* headLIR = NULL;
 
@@ -928,7 +912,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     /* Don't generate the SSA annotation unless verbose mode is on */
     if (cUnit->printMe && mir->ssaRep) {
       char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-      newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
+      newLIR1(cUnit, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssaString));
     }
 
     if (opcode == kMirOpCheck) {
@@ -960,7 +944,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
      * Eliminate redundant loads/stores and delay stores into later
      * slots
      */
-    oatApplyLocalOptimizations(cUnit, (LIR*) headLIR, cUnit->lastLIRInsn);
+    oatApplyLocalOptimizations(cUnit, headLIR, cUnit->lastLIRInsn);
 
     /*
      * Generate an unconditional branch to the fallthrough block.
@@ -994,7 +978,7 @@ void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase)
   BasicBlock*bb = NULL;
   for (int idx = 0; idx < numReachableBlocks; idx++) {
     int dfsIndex = cUnit->dfsOrder.elemList[idx];
-    bb = (BasicBlock*)oatGrowableListGetElement(blockList, dfsIndex);
+    bb = reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, dfsIndex));
     if (bb->blockType == kDalvikByteCode) {
       break;
     }
@@ -1020,7 +1004,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
   /* Used to hold the labels of each block */
   cUnit->blockLabelList =
-      (LIR*) oatNew(cUnit, sizeof(LIR) * cUnit->numBlocks, true, kAllocLIR);
+      static_cast<LIR*>(oatNew(cUnit, sizeof(LIR) * cUnit->numBlocks, true, kAllocLIR));
 
   oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                 kPreOrderDFSTraversal, false /* Iterative */);

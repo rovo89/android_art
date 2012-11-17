@@ -281,11 +281,10 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
   return buf;
 }
 
-void oatDumpResourceMask(LIR *lir, uint64_t mask, const char *prefix)
+void oatDumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
-  LIR *x86LIR = (LIR *) lir;
 
   if (mask == ENCODE_ALL) {
     strcpy(buf, "all");
@@ -437,12 +436,6 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
   oatFreeTemp(cUnit, rX86_ARG3);
 }
 
-/* Convert an instruction to a NOP */
-void oatNopLIR( LIR* lir)
-{
-  ((LIR*)lir)->flags.isNop = true;
-}
-
 /*
  * Determine the initial instruction set to be used for this trace.
  * Later components may decide to change this.
@@ -502,17 +495,17 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit) {
   int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
   int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
   int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
-  RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
-                                              kAllocRegAlloc);
+  RegisterPool *pool =
+      static_cast<RegisterPool*>(oatNew(cUnit, sizeof(*pool), true, kAllocRegAlloc));
   cUnit->regPool = pool;
   pool->numCoreRegs = numRegs;
-  pool->coreRegs = (RegisterInfo *)
-      oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs), true,
-             kAllocRegAlloc);
+  pool->coreRegs =
+      static_cast<RegisterInfo*>(oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+                                             true, kAllocRegAlloc));
   pool->numFPRegs = numFPRegs;
-  pool->FPRegs = (RegisterInfo *)
-      oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
-             kAllocRegAlloc);
+  pool->FPRegs =
+      static_cast<RegisterInfo *>(oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs),
+                                              true, kAllocRegAlloc));
   oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
   oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
@@ -527,9 +520,8 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit) {
     oatMarkTemp(cUnit, fpTemps[i]);
   }
   // Construct the alias map.
-  cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
-                                    sizeof(cUnit->phiAliasMap[0]), false,
-                                    kAllocDFInfo);
+  cUnit->phiAliasMap = static_cast<int*>
+      (oatNew(cUnit, cUnit->numSSARegs * sizeof(cUnit->phiAliasMap[0]), false, kAllocDFInfo));
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     cUnit->phiAliasMap[i] = i;
   }
@@ -586,44 +578,9 @@ void unSpillCoreRegs(CompilationUnit* cUnit) {
   }
 }
 
-/*
- * Nop any unconditional branches that go to the next instruction.
- * Note: new redundant branches may be inserted later, and we'll
- * use a check in final instruction assembly to nop those out.
- */
-void removeRedundantBranches(CompilationUnit* cUnit) {
-  LIR* thisLIR;
-
-  for (thisLIR = (LIR*) cUnit->firstLIRInsn;
-    thisLIR != (LIR*) cUnit->lastLIRInsn;
-    thisLIR = NEXT_LIR(thisLIR)) {
-
-  /* Branch to the next instruction */
-  if (thisLIR->opcode == kX86Jmp8 || thisLIR->opcode == kX86Jmp32) {
-    LIR* nextLIR = thisLIR;
-
-    while (true) {
-      nextLIR = NEXT_LIR(nextLIR);
-
-      /*
-       * Is the branch target the next instruction?
-       */
-      if (nextLIR == (LIR*) thisLIR->target) {
-        thisLIR->flags.isNop = true;
-        break;
-      }
-
-      /*
-       * Found real useful stuff between the branch and the target.
-       * Need to explicitly check the lastLIRInsn here because it
-       * might be the last real instruction.
-       */
-      if (!isPseudoOpcode(nextLIR->opcode) ||
-          (nextLIR = (LIR*) cUnit->lastLIRInsn))
-        break;
-      }
-    }
-  }
+bool branchUnconditional(LIR* lir)
+{
+  return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
 /* Common initialization routine for an architecture family */
@@ -634,7 +591,7 @@ bool oatArchInit() {
     if (EncodingMap[i].opcode != i) {
       LOG(FATAL) << "Encoding order for " << EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << (int)EncodingMap[i].opcode;
+                 << static_cast<int>(EncodingMap[i].opcode);
     }
   }
 

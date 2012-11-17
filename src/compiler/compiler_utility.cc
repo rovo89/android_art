@@ -18,6 +18,21 @@
 
 namespace art {
 
+const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
+  "kMirOpPhi",
+  "kMirOpCopy",
+  "kMirFusedCmplFloat",
+  "kMirFusedCmpgFloat",
+  "kMirFusedCmplDouble",
+  "kMirFusedCmpgDouble",
+  "kMirFusedCmpLong",
+  "kMirNop",
+  "kMirOpNullCheck",
+  "kMirOpRangeCheck",
+  "kMirOpDivZeroCheck",
+  "kMirOpCheck",
+};
+
 #ifdef WITH_MEMSTATS
 struct Memstats {
   uint32_t allocStats[kNumAllocKinds];
@@ -88,7 +103,7 @@ bool oatHeapInit(CompilationUnit* cUnit)
 {
   DCHECK(cUnit->arenaHead == NULL);
   cUnit->arenaHead =
-      (ArenaMemBlock *) malloc(sizeof(ArenaMemBlock) + ARENA_DEFAULT_SIZE);
+      static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock) + ARENA_DEFAULT_SIZE));
   if (cUnit->arenaHead == NULL) {
     LOG(FATAL) << "No memory left to create compiler heap memory";
   }
@@ -137,8 +152,8 @@ retry:
 
     size_t blockSize = (size < ARENA_DEFAULT_SIZE) ?  ARENA_DEFAULT_SIZE : size;
     /* Time to allocate a new arena */
-    ArenaMemBlock *newArena = (ArenaMemBlock *)
-        malloc(sizeof(ArenaMemBlock) + blockSize);
+    ArenaMemBlock *newArena =
+        static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock) + blockSize));
     if (newArena == NULL) {
       LOG(FATAL) << "Arena allocation failure";
     }
@@ -174,12 +189,12 @@ void oatInitGrowableList(CompilationUnit* cUnit, GrowableList* gList,
 {
   gList->numAllocated = initLength;
   gList->numUsed = 0;
-  gList->elemList = (intptr_t *) oatNew(cUnit, sizeof(intptr_t) * initLength,
-                                        true, kAllocGrowableList);
+  gList->elemList = static_cast<uintptr_t *>(oatNew(cUnit, sizeof(intptr_t) * initLength,
+                                             true, kAllocGrowableList));
 #ifdef WITH_MEMSTATS
-  cUnit->mstats->listSizes[kind] += sizeof(intptr_t) * initLength;
+  cUnit->mstats->listSizes[kind] += sizeof(uintptr_t) * initLength;
   gList->kind = kind;
-  if ((int)initLength > cUnit->mstats->listMaxElems[kind]) {
+  if (static_cast<int>(initLength) > cUnit->mstats->listMaxElems[kind]) {
     cUnit->mstats->listMaxElems[kind] = initLength;
   }
 #endif
@@ -194,14 +209,14 @@ void expandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
   } else {
     newLength += 128;
   }
-  intptr_t *newArray =
-      (intptr_t *) oatNew(cUnit, sizeof(intptr_t) * newLength, true,
-                          kAllocGrowableList);
-  memcpy(newArray, gList->elemList, sizeof(intptr_t) * gList->numAllocated);
+  uintptr_t *newArray =
+      static_cast<uintptr_t*>(oatNew(cUnit, sizeof(uintptr_t) * newLength, true,
+                                     kAllocGrowableList));
+  memcpy(newArray, gList->elemList, sizeof(uintptr_t) * gList->numAllocated);
 #ifdef WITH_MEMSTATS
-  cUnit->mstats->listSizes[gList->kind] += sizeof(intptr_t) * newLength;
+  cUnit->mstats->listSizes[gList->kind] += sizeof(uintptr_t) * newLength;
   cUnit->mstats->listWasted[gList->kind] +=
-      sizeof(intptr_t) * gList->numAllocated;
+      sizeof(uintptr_t) * gList->numAllocated;
   cUnit->mstats->listGrows[gList->kind]++;
   if (newLength > cUnit->mstats->listMaxElems[gList->kind]) {
     cUnit->mstats->listMaxElems[gList->kind] = newLength;
@@ -213,7 +228,7 @@ void expandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
 
 /* Insert a new element into the growable list */
 void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
-                         intptr_t elem)
+                           uintptr_t elem)
 {
   DCHECK_NE(gList->numAllocated, 0U);
   if (gList->numUsed == gList->numAllocated) {
@@ -223,7 +238,7 @@ void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
 }
 
 /* Delete an element from a growable list. Element must be present */
-void oatDeleteGrowableList(GrowableList* gList, intptr_t elem)
+void oatDeleteGrowableList(GrowableList* gList, uintptr_t elem)
 {
   bool found = false;
   for (unsigned int i = 0; i < gList->numUsed; i++) {
@@ -246,14 +261,14 @@ void oatGrowableListIteratorInit(GrowableList* gList,
   iterator->size = gList->numUsed;
 }
 
-intptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator)
+uintptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator)
 {
   DCHECK_EQ(iterator->size, iterator->list->numUsed);
   if (iterator->idx == iterator->size) return 0;
   return iterator->list->elemList[iterator->idx++];
 }
 
-intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx)
+uintptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx)
 {
   DCHECK_LT(idx, gList->numUsed);
   return gList->elemList[idx];
@@ -318,7 +333,7 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
   oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
 
   while (true) {
-    bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
+    bb = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iterator));
     if (bb == NULL) break;
     LOG(INFO) << StringPrintf("Block %d (%s) (insn %04x - %04x%s)",
         bb->id,
@@ -361,8 +376,8 @@ ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
 
   DCHECK_EQ(sizeof(bv->storage[0]), 4U);        /* assuming 32-bit units */
 
-  bv = (ArenaBitVector*) oatNew(cUnit, sizeof(ArenaBitVector), false,
-                                kAllocGrowableBitMap);
+  bv = static_cast<ArenaBitVector*>(oatNew(cUnit, sizeof(ArenaBitVector), false,
+                                                kAllocGrowableBitMap));
 
   count = (startBits + 31) >> 5;
 
@@ -486,7 +501,7 @@ void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
   LOG(INFO) <<  msg;
   for (i = 0; i < length; i++) {
     if (oatIsBitSet(bv, i)) {
-      BasicBlock *bb = (BasicBlock *) oatGrowableListGetElement(blocks, i);
+      BasicBlock *bb = reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blocks, i));
       char blockName[BLOCK_NAME_LEN];
       oatGetBlockName(bb, blockName);
       LOG(INFO) << "Bit " << i << " / " << blockName << " is set";

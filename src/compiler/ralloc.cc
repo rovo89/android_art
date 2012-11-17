@@ -410,8 +410,8 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
   RegLocation* loc;
 
   /* Allocate the location map */
-  loc = (RegLocation*)oatNew(cUnit, cUnit->numSSARegs * sizeof(*loc), true,
-                             kAllocRegAlloc);
+  loc = static_cast<RegLocation*>(oatNew(cUnit, cUnit->numSSARegs * sizeof(*loc),
+                                  true, kAllocRegAlloc));
   for (i=0; i< cUnit->numSSARegs; i++) {
     loc[i] = freshLoc;
     loc[i].sRegLow = i;
@@ -422,7 +422,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
   loc[cUnit->methodSReg].location = kLocCompilerTemp;
   loc[cUnit->methodSReg].defined = true;
   for (i = 0; i < cUnit->numCompilerTemps; i++) {
-    CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
+    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cUnit->compilerTemps.elemList[i]);
     loc[ct->sReg].location = kLocCompilerTemp;
     loc[ct->sReg].defined = true;
   }
@@ -431,10 +431,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
   /* Allocation the promotion map */
   int numRegs = cUnit->numDalvikRegisters;
-  cUnit->promotionMap =
-      (PromotionMap*)oatNew(cUnit, (numRegs + cUnit->numCompilerTemps + 1) *
-                            sizeof(cUnit->promotionMap[0]), true,
-                            kAllocRegAlloc);
+  cUnit->promotionMap = static_cast<PromotionMap*>
+      (oatNew(cUnit, (numRegs + cUnit->numCompilerTemps + 1) * sizeof(cUnit->promotionMap[0]),
+              true, kAllocRegAlloc));
 
   /* Add types of incoming arguments based on signature */
   int numIns = cUnit->numIns;

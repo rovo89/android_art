@@ -324,7 +324,7 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       ccode = kCondCc;
       break;
     default:
-      LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+      LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
   opCondBranch(cUnit, ccode, taken);
 }

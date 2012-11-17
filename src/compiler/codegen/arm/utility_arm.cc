@@ -54,8 +54,8 @@ LIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
   LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrs,
                           rDest, r15pc, 0, 0, 0, dataTarget);
   setMemRefType(loadPcRel, true, kLiteral);
-  loadPcRel->aliasInfo = (intptr_t)dataTarget;
-  oatAppendLIR(cUnit, (LIR* ) loadPcRel);
+  loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
+  oatAppendLIR(cUnit, loadPcRel);
   return loadPcRel;
 }
 
@@ -157,9 +157,9 @@ LIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
   LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
                           kThumb2LdrPcRel12, rDest, 0, 0, 0, 0, dataTarget);
   setMemRefType(loadPcRel, true, kLiteral);
-  loadPcRel->aliasInfo = (intptr_t)dataTarget;
+  loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
   res = loadPcRel;
-  oatAppendLIR(cUnit, (LIR* ) loadPcRel);
+  oatAppendLIR(cUnit, loadPcRel);
 
   /*
    * To save space in the constant pool, we use the ADD_RRI8 instruction to
@@ -193,7 +193,7 @@ LIR* opReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
       opcode = kThumbBlxR;
       break;
     default:
-      LOG(FATAL) << "Bad opcode " << (int)op;
+      LOG(FATAL) << "Bad opcode " << op;
   }
   return newLIR1(cUnit, opcode, rDestSrc);
 }
@@ -295,7 +295,7 @@ LIR* opRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
       DCHECK_EQ(shift, 0);
       return newLIR4(cUnit, kThumb2Ubfx, rDestSrc1, rSrc2, 0, 16);
     default:
-      LOG(FATAL) << "Bad opcode: " << (int)op;
+      LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
@@ -374,7 +374,7 @@ LIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
       opcode = kThumb2RorRRR;
       break;
     default:
-      LOG(FATAL) << "Bad opcode: " << (int)op;
+      LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
@@ -496,7 +496,7 @@ LIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
       return res;
     }
     default:
-      LOG(FATAL) << "Bad opcode: " << (int)op;
+      LOG(FATAL) << "Bad opcode: " << op;
   }
 
   if (modImm >= 0) {
@@ -611,8 +611,8 @@ LIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo, int rDestHi,
           rawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrd,
                  s2d(rDestLo, rDestHi), r15pc, 0, 0, 0, dataTarget);
       setMemRefType(loadPcRel, true, kLiteral);
-      loadPcRel->aliasInfo = (intptr_t)dataTarget;
-      oatAppendLIR(cUnit, (LIR* ) loadPcRel);
+      loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
+      oatAppendLIR(cUnit, loadPcRel);
       res = loadPcRel;
     }
   } else {
@@ -681,7 +681,7 @@ LIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
       opcode = (thumbForm) ? kThumbLdrsbRRR : kThumb2LdrsbRRR;
       break;
     default:
-      LOG(FATAL) << "Bad size: " << (int)size;
+      LOG(FATAL) << "Bad size: " << size;
   }
   if (thumbForm)
     load = newLIR3(cUnit, opcode, rDest, rBase, rIndex);
@@ -742,7 +742,7 @@ LIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
       opcode = (thumbForm) ? kThumbStrbRRR : kThumb2StrbRRR;
       break;
     default:
-      LOG(FATAL) << "Bad size: " << (int)size;
+      LOG(FATAL) << "Bad size: " << size;
   }
   if (thumbForm)
     store = newLIR3(cUnit, opcode, rSrc, rBase, rIndex);
@@ -854,7 +854,7 @@ LIR* loadBaseDispBody(CompilationUnit* cUnit, int rBase,
       }
       break;
     default:
-      LOG(FATAL) << "Bad size: " << (int)size;
+      LOG(FATAL) << "Bad size: " << size;
   }
 
   if (shortForm) {
@@ -961,7 +961,7 @@ LIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase, int displacement,
       }
       break;
     default:
-      LOG(FATAL) << "Bad size: " << (int)size;
+      LOG(FATAL) << "Bad size: " << size;
   }
   if (shortForm) {
     store = res = newLIR3(cUnit, opcode, rSrc, rBase, encodedDisp);

@@ -134,11 +134,11 @@ enum ArmResourceEncodingPos {
   kArmRegEnd   = 48,
 };
 
-#define ENCODE_ARM_REG_LIST(N)      ((uint64_t) N)
+#define ENCODE_ARM_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_ARM_REG_SP           (1ULL << kArmRegSP)
 #define ENCODE_ARM_REG_LR           (1ULL << kArmRegLR)
 #define ENCODE_ARM_REG_PC           (1ULL << kArmRegPC)
-#define ENCODE_ARM_REG_FPCS_LIST(N) ((uint64_t)N << kArmFPReg16)
+#define ENCODE_ARM_REG_FPCS_LIST(N) (static_cast<uint64_t>(N) << kArmFPReg16)
 
 enum ArmNativeRegisterPool {
   r0   = 0,
@@ -232,7 +232,7 @@ enum ArmShiftEncodings {
   kArmRor = 0x3
 };
 
-#define isPseudoOpcode(opcode) ((int)(opcode) < 0)
+#define isPseudoOpcode(opcode) (static_cast<int>(opcode) < 0)
 
 /*
  * The following enum defines the list of supported Thumb instructions by the

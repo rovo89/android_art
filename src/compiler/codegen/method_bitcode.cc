@@ -46,7 +46,7 @@ llvm::BasicBlock* getLLVMBlock(CompilationUnit* cUnit, int id)
 
 llvm::Value* getLLVMValue(CompilationUnit* cUnit, int sReg)
 {
-  return (llvm::Value*)oatGrowableListGetElement(&cUnit->llvmValues, sReg);
+  return reinterpret_cast<llvm::Value*>(oatGrowableListGetElement(&cUnit->llvmValues, sReg));
 }
 
 // Replace the placeholder value with the real definition
@@ -60,7 +60,7 @@ void defineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
   }
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
-  cUnit->llvmValues.elemList[sReg] = (intptr_t)val;
+  cUnit->llvmValues.elemList[sReg] = reinterpret_cast<uintptr_t>(val);
   llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
@@ -173,10 +173,9 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
 
   if (cUnit->printMe && loc.home) {
     if (loc.wide) {
-      LOG(INFO) << "Promoted wide " << s << " to regs " << static_cast<int>(loc.lowReg)
-                << "/" << loc.highReg;
+      LOG(INFO) << "Promoted wide " << s << " to regs " << loc.lowReg << "/" << loc.highReg;
     } else {
-      LOG(INFO) << "Promoted " << s << " to reg " << static_cast<int>(loc.lowReg);
+      LOG(INFO) << "Promoted " << s << " to reg " << loc.lowReg;
     }
   }
   cUnit->locMap.Put(val, loc);
@@ -638,8 +637,8 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   if (info->result.location != kLocInvalid) {
     defineValue(cUnit, res, info->result.origSReg);
     if (info->result.ref) {
-      setShadowFrameEntry(cUnit, (llvm::Value*)
-                          cUnit->llvmValues.elemList[info->result.origSReg]);
+      setShadowFrameEntry(cUnit, reinterpret_cast<llvm::Value*>
+                          (cUnit->llvmValues.elemList[info->result.origSReg]));
     }
   }
 }
@@ -866,6 +865,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   RegLocation rlSrc[3];
   RegLocation rlDest = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
+  int opVal = opcode;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
   int optFlags = mir->optimizationFlags;
@@ -873,11 +873,10 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   bool objectDefinition = false;
 
   if (cUnit->printMe) {
-    if ((int)opcode < kMirOpFirst) {
-      LOG(INFO) << ".. " << Instruction::Name(opcode) << " 0x"
-                << std::hex << (int)opcode;
+    if (opVal < kMirOpFirst) {
+      LOG(INFO) << ".. " << Instruction::Name(opcode) << " 0x" << std::hex << opVal;
     } else {
-      LOG(INFO) << ".. opcode 0x" << std::hex << (int)opcode;
+      LOG(INFO) << extendedMIROpNames[opVal - kMirOpFirst] << " 0x" << std::hex << opVal;
     }
   }
 
@@ -1679,8 +1678,8 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       res = true;
   }
   if (objectDefinition) {
-    setShadowFrameEntry(cUnit, (llvm::Value*)
-                        cUnit->llvmValues.elemList[rlDest.origSReg]);
+    setShadowFrameEntry(cUnit, reinterpret_cast<llvm::Value*>
+                        (cUnit->llvmValues.elemList[rlDest.origSReg]));
   }
   return res;
 }
@@ -1690,7 +1689,7 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                         llvm::BasicBlock* llvmBB)
 {
 
-  switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
+  switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpPhi: {
       RegLocation rlDest = cUnit->regLocation[mir->ssaRep->defs[0]];
       /*
@@ -1703,7 +1702,7 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       if (rlDest.highWord) {
         return;  // No Phi node - handled via low word
       }
-      int* incoming = (int*)mir->dalvikInsn.vB;
+      int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
       llvm::Type* phiType =
           llvmTypeFromLocRec(cUnit, rlDest);
       llvm::PHINode* phi = cUnit->irb->CreatePHI(phiType, mir->ssaRep->numUses);
@@ -1823,9 +1822,8 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
   if (bb->blockType == kEntryBlock) {
     setMethodInfo(cUnit);
-    bool *canBeRef = (bool*)  oatNew(cUnit, sizeof(bool) *
-                                     cUnit->numDalvikRegisters, true,
-                                     kAllocMisc);
+    bool *canBeRef = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * cUnit->numDalvikRegisters,
+                                               true, kAllocMisc));
     for (int i = 0; i < cUnit->numSSARegs; i++) {
       int vReg = SRegToVReg(cUnit, i);
       if (vReg > SSA_METHOD_BASEREG) {
@@ -1838,9 +1836,8 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
       }
     }
     if (cUnit->numShadowFrameEntries > 0) {
-      cUnit->shadowMap = (int*) oatNew(cUnit, sizeof(int) *
-                                       cUnit->numShadowFrameEntries, true,
-                                       kAllocMisc);
+      cUnit->shadowMap = static_cast<int*>(oatNew(cUnit, sizeof(int) * cUnit->numShadowFrameEntries,
+                                                  true, kAllocMisc));
       for (int i = 0, j = 0; i < cUnit->numDalvikRegisters; i++) {
         if (canBeRef[i]) {
           cUnit->shadowMap[j++] = i;
@@ -1902,7 +1899,7 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
                                      bb->successorBlockList.blocks.numUsed);
         while (true) {
           SuccessorBlockInfo *successorBlockInfo =
-              (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iter);
+              reinterpret_cast<SuccessorBlockInfo*>(oatGrowableListIteratorNext(&iter));
           if (successorBlockInfo == NULL) break;
           llvm::BasicBlock *target =
               getLLVMBlock(cUnit, successorBlockInfo->block->id);
@@ -2077,11 +2074,11 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
          cUnit->irb->GetJLong(0) : cUnit->irb->GetJInt(0);
       val = emitConst(cUnit, immValue, cUnit->regLocation[i]);
       val->setName(llvmSSAName(cUnit, i));
-      oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)val);
+      oatInsertGrowableList(cUnit, &cUnit->llvmValues, reinterpret_cast<uintptr_t>(val));
     } else {
       // Recover previously-created argument values
       llvm::Value* argVal = arg_iter++;
-      oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)argVal);
+      oatInsertGrowableList(cUnit, &cUnit->llvmValues, reinterpret_cast<uintptr_t>(argVal));
     }
   }
 
@@ -2835,8 +2832,7 @@ void cvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
 void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
                bool isVoid, bool isFilledNewArray)
 {
-  CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
-                                         kAllocMisc);
+  CallInfo* info = static_cast<CallInfo*>(oatNew(cUnit, sizeof(CallInfo), true, kAllocMisc));
   if (isVoid) {
     info->result.location = kLocInvalid;
   } else {
@@ -2859,8 +2855,8 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
     RegLocation tLoc = getLoc(cUnit, callInst->getArgOperand(i));
     info->numArgWords += tLoc.wide ? 2 : 1;
   }
-  info->args = (info->numArgWords == 0) ? NULL : (RegLocation*)
-      oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc);
+  info->args = (info->numArgWords == 0) ? NULL : static_cast<RegLocation*>
+      (oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc));
   // Now, fill in the location records, synthesizing high loc of wide vals
   for (int i = 3, next = 0; next < info->numArgWords;) {
     info->args[next] = getLoc(cUnit, callInst->getArgOperand(i++));
@@ -2933,8 +2929,8 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
     oatClobberAllRegs(cUnit);
 
     if (isEntry) {
-      RegLocation* argLocs = (RegLocation*)
-          oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
+      RegLocation* argLocs = static_cast<RegLocation*>
+          (oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc));
       llvm::Function::arg_iterator it(cUnit->func->arg_begin());
       llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
       // Skip past Method*
@@ -3301,8 +3297,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
                 break;
 
               default:
-                LOG(FATAL) << "Unexpected intrinsic " << (int)id << ", "
-                           << cUnit->intrinsic_helper->GetName(id);
+                LOG(FATAL) << "Unexpected intrinsic " << cUnit->intrinsic_helper->GetName(id);
             }
           }
           break;
@@ -3409,7 +3404,7 @@ void oatMethodBitcode2LIR(CompilationUnit* cUnit)
   int numBasicBlocks = func->getBasicBlockList().size();
   // Allocate a list for LIR basic block labels
   cUnit->blockLabelList =
-    (LIR*)oatNew(cUnit, sizeof(LIR) * numBasicBlocks, true, kAllocLIR);
+    static_cast<LIR*>(oatNew(cUnit, sizeof(LIR) * numBasicBlocks, true, kAllocLIR));
   LIR* labelList = cUnit->blockLabelList;
   int nextLabel = 0;
   for (llvm::Function::iterator i = func->begin(),
