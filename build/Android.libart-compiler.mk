@@ -20,7 +20,7 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/compiler/intermediate_rep.cc \
 	src/compiler/ralloc.cc \
 	src/compiler/ssa_transformation.cc \
-	src/compiler/utility.cc \
+	src/compiler/compiler_utility.cc \
 	src/compiler/codegen/ralloc_util.cc \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \

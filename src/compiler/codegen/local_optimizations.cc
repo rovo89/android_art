@@ -43,7 +43,7 @@ void convertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
 {
   /* Insert a move to replace the load */
   LIR* moveLIR;
-  moveLIR = oatRegCopyNoInsert( cUnit, dest, src);
+  moveLIR = opRegCopyNoInsert( cUnit, dest, src);
   /*
    * Insert the converted instruction after the original since the
    * optimization is scannng in the top-down order and the new instruction
@@ -102,7 +102,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
     bool isThisLIRLoad = EncodingMap[thisLIR->opcode].flags & IS_LOAD;
     LIR* checkLIR;
     /* Use the mem mask to determine the rough memory location */
-    u8 thisMemMask = (thisLIR->useMask | thisLIR->defMask) & ENCODE_MEM;
+    uint64_t thisMemMask = (thisLIR->useMask | thisLIR->defMask) & ENCODE_MEM;
 
     /*
      * Currently only eliminate redundant ld/st for constant and Dalvik
@@ -110,8 +110,8 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
      */
     if (!(thisMemMask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) continue;
 
-    u8 stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
-    u8 stopUseRegMask;
+    uint64_t stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
+    uint64_t stopUseRegMask;
     if (cUnit->instructionSet == kX86) {
       stopUseRegMask = (IS_BRANCH | thisLIR->useMask) & ~ENCODE_MEM;
     } else {
@@ -134,8 +134,8 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
        */
       if (checkLIR->flags.isNop) continue;
 
-      u8 checkMemMask = (checkLIR->useMask | checkLIR->defMask) & ENCODE_MEM;
-      u8 aliasCondition = thisMemMask & checkMemMask;
+      uint64_t checkMemMask = (checkLIR->useMask | checkLIR->defMask) & ENCODE_MEM;
+      uint64_t aliasCondition = thisMemMask & checkMemMask;
       bool stopHere = false;
 
       /*
@@ -287,7 +287,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
       continue;
     }
 
-    u8 stopUseAllMask = thisLIR->useMask;
+    uint64_t stopUseAllMask = thisLIR->useMask;
 
     if (cUnit->instructionSet != kX86) {
       /*
@@ -302,8 +302,8 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
     }
 
     /* Similar as above, but just check for pure register dependency */
-    u8 stopUseRegMask = stopUseAllMask & ~ENCODE_MEM;
-    u8 stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
+    uint64_t stopUseRegMask = stopUseAllMask & ~ENCODE_MEM;
+    uint64_t stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
 
     int nextSlot = 0;
     bool stopHere = false;
@@ -319,8 +319,8 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
        */
       if (checkLIR->flags.isNop) continue;
 
-      u8 checkMemMask = checkLIR->defMask & ENCODE_MEM;
-      u8 aliasCondition = stopUseAllMask & checkMemMask;
+      uint64_t checkMemMask = checkLIR->defMask & ENCODE_MEM;
+      uint64_t aliasCondition = stopUseAllMask & checkMemMask;
       stopHere = false;
 
       /* Potential WAR alias seen - check the exact relation */

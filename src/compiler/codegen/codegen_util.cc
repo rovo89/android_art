@@ -17,13 +17,14 @@
 #include "gc_map.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
+#include "codegen_util.h"
 
 namespace art {
 
 void setMemRefType(LIR* lir, bool isLoad, int memType)
 {
-  u8 *maskPtr;
-  u8 mask = ENCODE_MEM;;
+  uint64_t *maskPtr;
+  uint64_t mask = ENCODE_MEM;;
   DCHECK(EncodingMap[lir->opcode].flags & (IS_LOAD | IS_STORE));
   if (isLoad) {
     maskPtr = &lir->useMask;
@@ -68,7 +69,7 @@ void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
   lir->aliasInfo = ENCODE_ALIAS_INFO(regId, is64bit);
 }
 
-u8 oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
+uint64_t oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
 {
   return getRegMaskCommon(cUnit, reg);
 }
@@ -76,13 +77,13 @@ u8 oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
 /*
  * Mark the corresponding bit(s).
  */
-inline void setupRegMask(CompilationUnit* cUnit, u8* mask, int reg)
+inline void setupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg)
 {
   *mask |= getRegMaskCommon(cUnit, reg);
 }
 
 /* Exported version of setupRegMask */
-void oatSetupRegMask(CompilationUnit* cUnit, u8* mask, int reg)
+void oatSetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg)
 {
   setupRegMask(cUnit, mask, reg);
 }
@@ -493,8 +494,6 @@ LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP, int value)
 LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
                int valLo, int valHi)
 {
-  //FIXME: hard-coded little endian, need BE variant
-  // Insert high word into list first
   addWordData(cUnit, constantListP, valHi);
   return addWordData(cUnit, constantListP, valLo);
 }
@@ -943,7 +942,7 @@ LIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 
 void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
-  const u2* table = tabRec->table;
+  const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;
   int *targets = (int*)&table[4];
   int entries = table[1];
@@ -956,7 +955,7 @@ void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 
 void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
-  const u2* table = tabRec->table;
+  const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;
   int entries = table[1];
   int* keys = (int*)&table[2];
@@ -985,9 +984,7 @@ void oatProcessSwitchTables(CompilationUnit* cUnit)
   }
 }
 
-//FIXME: Do we have endian issues here?
-
-void dumpSparseSwitchTable(const u2* table)
+void dumpSparseSwitchTable(const uint16_t* table)
   /*
    * Sparse switch data format:
    *  ushort ident = 0x0200   magic value
@@ -998,7 +995,7 @@ void dumpSparseSwitchTable(const u2* table)
    * Total size is (2+size*4) 16-bit code units.
    */
 {
-  u2 ident = table[0];
+  uint16_t ident = table[0];
   int entries = table[1];
   int* keys = (int*)&table[2];
   int* targets = &keys[entries];
@@ -1009,7 +1006,7 @@ void dumpSparseSwitchTable(const u2* table)
   }
 }
 
-void dumpPackedSwitchTable(const u2* table)
+void dumpPackedSwitchTable(const uint16_t* table)
   /*
    * Packed switch data format:
    *  ushort ident = 0x0100   magic value
@@ -1020,7 +1017,7 @@ void dumpPackedSwitchTable(const u2* table)
    * Total size is (4+size*2) 16-bit code units.
    */
 {
-  u2 ident = table[0];
+  uint16_t ident = table[0];
   int* targets = (int*)&table[4];
   int entries = table[1];
   int lowKey = s4FromSwitchData(&table[2]);

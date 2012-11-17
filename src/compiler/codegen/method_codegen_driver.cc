@@ -16,6 +16,8 @@
 
 #include "object_utils.h"
 
+#include "local_optimizations.h"
+
 namespace art {
 
 const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -50,6 +52,7 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
   return res;
 }
 
+// TODO: move to gen_invoke.cc
 void genInvoke(CompilationUnit* cUnit, CallInfo* info)
 {
   if (genIntrinsic(cUnit, info)) {
@@ -177,6 +180,7 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
  * high-word loc for wide arguments.  Also pull up any following
  * MOVE_RESULT and incorporate it into the invoke.
  */
+//TODO: move to gen_invoke.cc or utils
 CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                          InvokeType type, bool isRange)
 {
@@ -1030,37 +1034,6 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
   if (!(cUnit->disableOpt & (1 << kSafeOptimizations))) {
     removeRedundantBranches(cUnit);
   }
-}
-
-/* Needed by the ld/st optmizatons */
-LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-  return opRegCopyNoInsert(cUnit, rDest, rSrc);
-}
-
-/* Needed by the register allocator */
-void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-  opRegCopy(cUnit, rDest, rSrc);
-}
-
-/* Needed by the register allocator */
-void oatRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
-              int srcLo, int srcHi)
-{
-  opRegCopyWide(cUnit, destLo, destHi, srcLo, srcHi);
-}
-
-void oatFlushRegImpl(CompilationUnit* cUnit, int rBase,
-               int displacement, int rSrc, OpSize size)
-{
-  storeBaseDisp(cUnit, rBase, displacement, rSrc, size);
-}
-
-void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
-                 int displacement, int rSrcLo, int rSrcHi)
-{
-  storeBaseDispWide(cUnit, rBase, displacement, rSrcLo, rSrcHi);
 }
 
 }  // namespace art

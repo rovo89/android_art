@@ -16,7 +16,8 @@
 
 #include "../../compiler_internals.h"
 #include "x86_lir.h"
-#include "../ralloc.h"
+#include "../ralloc_util.h"
+#include "../codegen_util.h"
 
 #include <string>
 
@@ -132,9 +133,9 @@ bool sameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-u8 getRegMaskCommon(CompilationUnit* cUnit, int reg)
+uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg)
 {
-  u8 seed;
+  uint64_t seed;
   int shift;
   int regId;
 
@@ -280,7 +281,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
   return buf;
 }
 
-void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
+void oatDumpResourceMask(LIR *lir, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -360,8 +361,7 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
     if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
       info1 = info2;
     int vReg = SRegToVReg(cUnit, info1->sReg);
-    oatFlushRegWideImpl(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg),
-                        info1->reg, info1->partner);
+    storeBaseDispWide(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), info1->reg, info1->partner);
   }
 }
 
@@ -371,7 +371,7 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
   if (info->live && info->dirty) {
     info->dirty = false;
     int vReg = SRegToVReg(cUnit, info->sReg);
-    oatFlushRegImpl(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
+    storeBaseDisp(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
   }
 }
 
@@ -456,19 +456,6 @@ InstructionSet oatInstructionSet()
 bool oatArchVariantInit(void)
 {
   return true;
-}
-
-int dvmCompilerTargetOptHint(int key)
-{
-  int res;
-  switch (key) {
-    case kMaxHoistDistance:
-      res = 2;
-      break;
-    default:
-      LOG(FATAL) << "Unknown target optimization hint key: " << key;
-  }
-  return res;
 }
 
 void oatGenMemBarrier(CompilationUnit *cUnit, int /* barrierKind */)

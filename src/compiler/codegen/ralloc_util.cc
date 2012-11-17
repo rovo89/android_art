@@ -19,7 +19,8 @@
 #include "../compiler_utility.h"
 #include "../compiler_ir.h"
 #include "../dataflow.h"
-#include "ralloc.h"
+#include "ralloc_util.h"
+#include "codegen_util.h"
 
 namespace art {
 
@@ -935,8 +936,8 @@ RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
       newRegs = oatAllocTypedTempPair(cUnit, loc.fp, regClass);
       lowReg = newRegs & 0xff;
       highReg = (newRegs >> 8) & 0xff;
-      oatRegCopyWide(cUnit, lowReg, highReg, loc.lowReg,
-                   loc.highReg);
+      opRegCopyWide(cUnit, lowReg, highReg, loc.lowReg,
+                    loc.highReg);
       copyRegInfo(cUnit, lowReg, loc.lowReg);
       copyRegInfo(cUnit, highReg, loc.highReg);
       oatClobber(cUnit, loc.lowReg);
@@ -980,7 +981,7 @@ extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
     if (!regClassMatches(regClass, loc.lowReg)) {
       /* Wrong register class.  Realloc, copy and transfer ownership */
       newReg = oatAllocTypedTemp(cUnit, loc.fp, regClass);
-      oatRegCopy(cUnit, newReg, loc.lowReg);
+      opRegCopy(cUnit, newReg, loc.lowReg);
       copyRegInfo(cUnit, newReg, loc.lowReg);
       oatClobber(cUnit, loc.lowReg);
       loc.lowReg = newReg;
@@ -1006,24 +1007,28 @@ extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
   RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
   return res;
 }
+
 extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir)
 {
   DCHECK_GT(mir->ssaRep->numDefs, 0);
   RegLocation res = cUnit->regLocation[mir->ssaRep->defs[0]];
   return res;
 }
+
 extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir)
 {
   RegLocation res = oatGetRawDest(cUnit, mir);
   DCHECK(!res.wide);
   return res;
 }
+
 extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
   RegLocation res = oatGetRawSrc(cUnit, mir, num);
   DCHECK(!res.wide);
   return res;
 }
+
 extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir)
 {
   RegLocation res = oatGetRawDest(cUnit, mir);

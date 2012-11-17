@@ -42,7 +42,7 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     src/compiler/intermediate_rep.cc \
     src/compiler/ralloc.cc \
     src/compiler/ssa_transformation.cc \
-    src/compiler/utility.cc \
+    src/compiler/compiler_utility.cc \
     src/compiler/codegen/ralloc_util.cc \
     src/compiler/codegen/arm/target_arm.cc \
     src/compiler/codegen/arm/assemble_arm.cc \

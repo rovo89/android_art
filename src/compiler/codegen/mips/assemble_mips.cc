@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include "../../dalvik.h"
-#include "../../compiler_internals.h"
 #include "mips_lir.h"
-#include "codegen.h"
+#include "../codegen_util.h"
 
 namespace art {
 
@@ -653,11 +651,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
       continue;
     }
     const MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
-    u4 bits = encoder->skeleton;
+    uint32_t bits = encoder->skeleton;
     int i;
     for (i = 0; i < 4; i++) {
-      u4 operand;
-      u4 value;
+      uint32_t operand;
+      uint32_t value;
       operand = lir->operands[i];
       switch (encoder->fieldLoc[i].kind) {
         case kFmtUnused:
@@ -703,7 +701,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
       const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
-      u4 bits = encoder->skeleton;
+      uint32_t bits = encoder->skeleton;
       cUnit->codeBuffer.push_back(bits & 0xff);
       cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
       cUnit->codeBuffer.push_back((bits >> 16) & 0xff);

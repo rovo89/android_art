@@ -13,28 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define _CODEGEN_C
-#define _ARMV7_A
 
-#include "arm_lir.h"
-#include "../ralloc_util.h"
+#ifndef ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_
+#define ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_
 
-/* Common codegen utility code */
-#include "../codegen_util.cc"
+namespace art {
 
-#include "utility_arm.cc"
-#include "../gen_loadstore.cc"
-#include "../gen_common.cc"
-#include "../gen_invoke.cc"
-#include "call_arm.cc"
-#include "fp_arm.cc"
-#include "int_arm.cc"
+void oatMethodMIR2Bitcode(CompilationUnit* cUnit);
+void oatMethodBitcode2LIR(CompilationUnit* cUnit);
 
-/* Bitcode conversion */
-#include "../method_bitcode.cc"
+}  // namespace art
 
-/* MIR2LIR dispatcher and architectural independent codegen routines */
-#include "../method_codegen_driver.cc"
-
-/* Target-independent local optimizations */
-#include "../local_optimizations.cc"
+#endif // ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_

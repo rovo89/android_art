@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_COMPILER_CODEGEN_X86_X86LIR_H_
 #define ART_COMPILER_COMPILER_CODEGEN_X86_X86LIR_H_
 
-#include "../../dalvik.h"
 #include "../../compiler_internals.h"
 
 namespace art {
@@ -143,7 +142,7 @@ enum X86ResourceEncodingPos {
   kX86RegEnd   = kX86FPRegEnd,
 };
 
-#define ENCODE_X86_REG_LIST(N)      ((u8) N)
+#define ENCODE_X86_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
 
 /*
@@ -435,11 +434,6 @@ extern X86EncodingMap EncodingMap[kX86Last];
 // FIXME: mem barrier type - what do we do for x86?
 #define kSY 0
 #define kST 0
-
-/* Keys for target-specific scheduling and other optimization hints */
-enum X86TargetOptHints {
-  kMaxHoistDistance,
-};
 
 /* Offsets of high and low halves of a 64bit value */
 #define LOWORD_OFFSET 0

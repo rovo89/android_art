@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-#include "dalvik.h"
+#include "compiler.h"
 #include "compiler_internals.h"
 #include "dataflow.h"
+#include "ssa_transformation.h"
 #include "leb128.h"
 #include "object.h"
 #include "runtime.h"
+#include "codegen/codegen_util.h"
+#include "codegen/method_bitcode.h"
+#include "codegen/method_codegen_driver.h"
 
 #include <llvm/Support/Threading.h>
 
@@ -94,8 +98,8 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugVerifyBitcode) |
   0;
 
-inline bool contentIsInsn(const u2* codePtr) {
-  u2 instr = *codePtr;
+inline bool contentIsInsn(const uint16_t* codePtr) {
+  uint16_t instr = *codePtr;
   Instruction::Code opcode = (Instruction::Code)(instr & 0xff);
 
   /*
@@ -108,7 +112,7 @@ inline bool contentIsInsn(const u2* codePtr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
+inline int parseInsn(CompilationUnit* cUnit, const uint16_t* codePtr,
                    DecodedInstruction* decoded_instruction, bool printMe)
 {
   // Don't parse instruction data
@@ -511,7 +515,7 @@ void processTryCatchBlocks(CompilationUnit* cUnit)
 /* Process instructions with the kBranch flag */
 BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
                            MIR* insn, int curOffset, int width, int flags,
-                           const u2* codePtr, const u2* codeEnd)
+                           const uint16_t* codePtr, const uint16_t* codeEnd)
 {
   int target = curOffset;
   switch (insn->dalvikInsn.opcode) {
@@ -595,7 +599,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
 void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                       MIR* insn, int curOffset, int width, int flags)
 {
-  u2* switchData= (u2 *) (cUnit->insns + curOffset + insn->dalvikInsn.vB);
+  uint16_t* switchData= (uint16_t*) (cUnit->insns + curOffset + insn->dalvikInsn.vB);
   int size;
   int* keyTable;
   int* targetTable;
@@ -684,8 +688,8 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
 /* Process instructions with the kThrow flag */
 BasicBlock* processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                             MIR* insn, int curOffset, int width, int flags,
-                            ArenaBitVector* tryBlockAddr, const u2* codePtr,
-                            const u2* codeEnd)
+                            ArenaBitVector* tryBlockAddr, const uint16_t* codePtr,
+                            const uint16_t* codeEnd)
 {
   const DexFile::CodeItem* code_item = cUnit->code_item;
   bool inTryBlock = oatIsBitSet(tryBlockAddr, curOffset);
@@ -792,8 +796,8 @@ CompiledMethod* compileMethod(Compiler& compiler,
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
-  const u2* codePtr = code_item->insns_;
-  const u2* codeEnd = code_item->insns_ + code_item->insns_size_in_code_units_;
+  const uint16_t* codePtr = code_item->insns_;
+  const uint16_t* codeEnd = code_item->insns_ + code_item->insns_size_in_code_units_;
   int numBlocks = 0;
   unsigned int curOffset = 0;
 

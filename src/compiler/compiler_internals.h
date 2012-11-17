@@ -17,7 +17,23 @@
 #ifndef ART_SRC_COMPILER_COMPILER_INTERNAL_H_
 #define ART_SRC_COMPILER_COMPILER_INTERNAL_H_
 
-#include "dalvik.h"
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#include "gc/card_table.h"
+#include "class_linker.h"
+#include "compiler.h"
+#include "dex_cache.h"
+#include "logging.h"
+#include "monitor.h"
+#include "object.h"
+#include "thread.h"
+#include "utils.h"
+
+#include "frontend.h"
+#include "ralloc.h"
 #include "compiler_utility.h"
 #include "compiler_ir.h"
 #include "codegen/compiler_codegen.h"

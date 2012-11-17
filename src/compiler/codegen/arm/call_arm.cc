@@ -324,7 +324,7 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
                      RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpSparseSwitchTable(table);
   }
@@ -372,7 +372,7 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
 void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
                      RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpPackedSwitchTable(table);
   }
@@ -428,14 +428,14 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
  */
 void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
   FillArrayData *tabRec = (FillArrayData *)
      oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
-  u2 width = tabRec->table[1];
-  u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
+  uint16_t width = tabRec->table[1];
+  uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
   tabRec->size = (size * width) + 8;
 
   oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
@@ -456,10 +456,10 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
  * Handle simple case (thin lock) inline.  If it's complicated, bail
  * out to the heavyweight lock/unlock routines.  We'll use dedicated
  * registers here in order to be in the right position in case we
- * to bail to dvm[Lock/Unlock]Object(self, object)
+ * to bail to oat[Lock/Unlock]Object(self, object)
  *
- * r0 -> self pointer [arg0 for dvm[Lock/Unlock]Object
- * r1 -> object [arg1 for dvm[Lock/Unlock]Object
+ * r0 -> self pointer [arg0 for oat[Lock/Unlock]Object
+ * r1 -> object [arg1 for oat[Lock/Unlock]Object
  * r2 -> intial contents of object->lock, later result of strex
  * r3 -> self->threadId
  * r12 -> allow to be used by utilities as general temp

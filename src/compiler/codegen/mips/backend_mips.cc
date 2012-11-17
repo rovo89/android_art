@@ -16,17 +16,14 @@
 
 #define _CODEGEN_C
 
-#include "../../dalvik.h"
-#include "../../compiler_internals.h"
 #include "mips_lir.h"
-#include "../ralloc.h"
-#include "codegen.h"
+#include "../ralloc_util.h"
 
 /* Common codegen building blocks */
 #include "../codegen_util.cc"
 
 #include "utility_mips.cc"
-#include "../codegen_factory.cc"
+#include "../gen_loadstore.cc"
 #include "../gen_common.cc"
 #include "../gen_invoke.cc"
 #include "call_mips.cc"

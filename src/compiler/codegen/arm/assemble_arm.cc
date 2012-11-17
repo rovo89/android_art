@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include "../../dalvik.h"
-#include "../../compiler_internals.h"
 #include "arm_lir.h"
-#include "codegen.h"
+#include "../codegen_util.h"
 
 namespace art {
 
@@ -1252,11 +1250,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
       continue;
     }
     const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
-    u4 bits = encoder->skeleton;
+    uint32_t bits = encoder->skeleton;
     int i;
     for (i = 0; i < 4; i++) {
-      u4 operand;
-      u4 value;
+      uint32_t operand;
+      uint32_t value;
       operand = lir->operands[i];
       switch (encoder->fieldLoc[i].kind) {
         case kFmtUnused:
@@ -1337,13 +1335,13 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           bits |= value;
           break;
         case kFmtOff24: {
-          u4 signbit = (operand >> 31) & 0x1;
-          u4 i1 = (operand >> 22) & 0x1;
-          u4 i2 = (operand >> 21) & 0x1;
-          u4 imm10 = (operand >> 11) & 0x03ff;
-          u4 imm11 = operand & 0x07ff;
-          u4 j1 = (i1 ^ signbit) ? 0 : 1;
-          u4 j2 = (i2 ^ signbit) ? 0 : 1;
+          uint32_t signbit = (operand >> 31) & 0x1;
+          uint32_t i1 = (operand >> 22) & 0x1;
+          uint32_t i2 = (operand >> 21) & 0x1;
+          uint32_t imm10 = (operand >> 11) & 0x03ff;
+          uint32_t imm11 = operand & 0x07ff;
+          uint32_t j1 = (i1 ^ signbit) ? 0 : 1;
+          uint32_t j2 = (i2 ^ signbit) ? 0 : 1;
           value = (signbit << 26) | (j1 << 13) | (j2 << 11) | (imm10 << 16) |
               imm11;
           bits |= value;

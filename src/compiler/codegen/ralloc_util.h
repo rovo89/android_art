@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_RALLOC_H_
-#define ART_SRC_COMPILER_RALLOC_H_
+#ifndef ART_SRC_COMPILER_CODEGEN_RALLOCUTIL_H_
+#define ART_SRC_COMPILER_CODEGEN_RALLOCUTIL_H_
 
 /*
  * This file contains target independent register alloction support.
@@ -208,15 +208,6 @@ extern int oatAllocTypedTempPair(CompilationUnit* cUnit,
 
 extern int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass);
 
-extern void oatRegCopyWide(CompilationUnit* cUnit, int destLo,
-                           int destHi, int srcLo, int srcHi);
-
-extern void oatFlushRegImpl(CompilationUnit* cUnit, int rBase,
-                            int displacement, int rSrc, OpSize size);
-
-extern void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
-                                int displacement, int rSrcLo, int rSrcHi);
-
 extern void oatDumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
 extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
@@ -226,9 +217,8 @@ extern bool oatIsFPReg(int reg);
 extern uint32_t oatFPRegMask(void);
 extern void oatAdjustSpillMask(CompilationUnit* cUnit);
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg);
-void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
 int oatComputeFrameSize(CompilationUnit* cUnit);
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_RALLOC_H_
+#endif // ART_SRC_COMPILER_CODEGEN_RALLOCUTIL_H_

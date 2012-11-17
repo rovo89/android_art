@@ -18,8 +18,8 @@
 #define ART_SRC_COMPILER_COMPILER_IR_H_
 
 #include <vector>
-
-#include "codegen/optimizer.h"
+#include "dex_instruction.h"
+#include "compiler.h"
 #include "compiler_utility.h"
 #include "oat_compilation_unit.h"
 #include "safe_map.h"
@@ -37,6 +37,10 @@ namespace art {
 
 // Minimum field size to contain Dalvik vReg number
 #define VREG_NUM_WIDTH 16
+
+struct ArenaBitVector;
+struct LIR;
+class LLVMInfo;
 
 enum RegisterClass {
   kCoreReg,
@@ -73,9 +77,9 @@ enum RegLocationType {
 
 struct PromotionMap {
   RegLocationType coreLocation:3;
-  u1 coreReg;
+  uint8_t coreReg;
   RegLocationType fpLocation:3;
-  u1 fpReg;
+  uint8_t fpReg;
   bool firstInPair;
 };
 
@@ -89,8 +93,8 @@ struct RegLocation {
   unsigned ref:1;       // Something GC cares about
   unsigned highWord:1;  // High word of pair?
   unsigned home:1;      // Does this represent the home location?
-  u1 lowReg;            // First physical register
-  u1 highReg;           // 2nd physical register (if wide)
+  uint8_t lowReg;            // First physical register
+  uint8_t highReg;           // 2nd physical register (if wide)
   int32_t sRegLow;      // SSA name for low Dalvik word
   int32_t origSReg;     // TODO: remove after Bitcode gen complete
                         // and consolodate usage w/ sRegLow
@@ -229,8 +233,8 @@ struct LIR {
     unsigned int unused:25;
   } flags;
   int aliasInfo;              // For Dalvik register & litpool disambiguation
-  u8 useMask;                 // Resource mask for use
-  u8 defMask;                 // Resource mask for def
+  uint64_t useMask;           // Resource mask for use
+  uint64_t defMask;           // Resource mask for def
 };
 
 /* Shared pseudo opcodes - must be < 0 */
@@ -601,8 +605,8 @@ struct CompilationUnit {
   int currentDalvikOffset;
   GrowableList switchTables;
   GrowableList fillArrayData;
-  const u2* insns;
-  u4 insnsSize;
+  const uint16_t* insns;
+  uint32_t insnsSize;
   bool disableDataflow; // Skip dataflow analysis if possible
   SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
   SafeMap<unsigned int, unsigned int> blockIdMap; // Block collapse lookup cache
@@ -797,7 +801,7 @@ enum ThrowKind {
 
 struct SwitchTable {
   int offset;
-  const u2* table;            // Original dex table
+  const uint16_t* table;            // Original dex table
   int vaddr;                  // Dalvik offset of switch opcode
   LIR* anchor;                // Reference instruction for relative offsets
   LIR** targets;              // Array of case targets
@@ -805,7 +809,7 @@ struct SwitchTable {
 
 struct FillArrayData {
   int offset;
-  const u2* table;           // Original dex table
+  const uint16_t* table;           // Original dex table
   int size;
   int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
 };

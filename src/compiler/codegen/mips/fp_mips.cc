@@ -67,9 +67,8 @@ bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
 #endif
 }
 
-static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
-                             RegLocation rlDest, RegLocation rlSrc1,
-                             RegLocation rlSrc2)
+bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
+                      RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
 #ifdef __mips_hard_float
   int op = kMipsNop;
@@ -117,8 +116,8 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
 #endif
 }
 
-static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
-                          RegLocation rlDest, RegLocation rlSrc)
+bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
+                   RegLocation rlSrc)
 {
 #ifdef __mips_hard_float
   int op = kMipsNop;
@@ -170,8 +169,8 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
 #endif
 }
 
-static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
-                     RegLocation rlSrc1, RegLocation rlSrc2)
+bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
+              RegLocation rlSrc1, RegLocation rlSrc2)
 {
   bool wide = true;
   int offset;

@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "dalvik.h"
 #include "compiler_internals.h"
 
 namespace art {
 
 #ifdef WITH_MEMSTATS
 struct Memstats {
-  u4 allocStats[kNumAllocKinds];
+  uint32_t allocStats[kNumAllocKinds];
   int listSizes[kNumListKinds];
   int listWasted[kNumListKinds];
   int listGrows[kNumListKinds];
@@ -82,7 +81,7 @@ const char* bitMapNames[kNumBitMapKinds] = {
 };
 #endif
 
-#define kArenaBitVectorGrowth    4   /* increase by 4 u4s when limit hit */
+#define kArenaBitVectorGrowth    4   /* increase by 4 uint32_ts when limit hit */
 
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(CompilationUnit* cUnit)
@@ -264,7 +263,7 @@ intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx)
 /* Dump memory usage stats */
 void oatDumpMemStats(CompilationUnit* cUnit)
 {
-  u4 total = 0;
+  uint32_t total = 0;
   for (int i = 0; i < kNumAllocKinds; i++) {
     total += cUnit->mstats->allocStats[i];
   }
@@ -369,11 +368,11 @@ ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
 
   bv->storageSize = count;
   bv->expandable = expandable;
-  bv->storage = (u4*) oatNew(cUnit, count * sizeof(u4), true,
-                             kAllocGrowableBitMap);
+  bv->storage = static_cast<uint32_t*>(oatNew(cUnit, count * sizeof(uint32_t), true,
+                                              kAllocGrowableBitMap));
 #ifdef WITH_MEMSTATS
   bv->kind = kind;
-  cUnit->mstats->bitMapSizes[kind] += count * sizeof(u4);
+  cUnit->mstats->bitMapSizes[kind] += count * sizeof(uint32_t);
 #endif
   return bv;
 }
@@ -383,7 +382,7 @@ ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
  */
 bool oatIsBitSet(const ArenaBitVector* pBits, unsigned int num)
 {
-  DCHECK_LT(num, pBits->storageSize * sizeof(u4) * 8);
+  DCHECK_LT(num, pBits->storageSize * sizeof(uint32_t) * 8);
 
   unsigned int val = pBits->storage[num >> 5] & checkMasks[num & 0x1f];
   return (val != 0);
@@ -395,7 +394,7 @@ bool oatIsBitSet(const ArenaBitVector* pBits, unsigned int num)
 void oatClearAllBits(ArenaBitVector* pBits)
 {
   unsigned int count = pBits->storageSize;
-  memset(pBits->storage, 0, count * sizeof(u4));
+  memset(pBits->storage, 0, count * sizeof(uint32_t));
 }
 
 /*
@@ -408,7 +407,7 @@ void oatClearAllBits(ArenaBitVector* pBits)
  */
 bool oatSetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
 {
-  if (num >= pBits->storageSize * sizeof(u4) * 8) {
+  if (num >= pBits->storageSize * sizeof(uint32_t) * 8) {
     if (!pBits->expandable) {
       LOG(FATAL) << "Can't expand";
     }
@@ -416,15 +415,15 @@ bool oatSetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
     /* Round up to word boundaries for "num+1" bits */
     unsigned int newSize = (num + 1 + 31) >> 5;
     DCHECK_GT(newSize, pBits->storageSize);
-    u4 *newStorage = (u4*)oatNew(cUnit, newSize * sizeof(u4), false,
-                                 kAllocGrowableBitMap);
-    memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(u4));
+    uint32_t *newStorage = static_cast<uint32_t*>(oatNew(cUnit, newSize * sizeof(uint32_t), false,
+                                                         kAllocGrowableBitMap));
+    memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(uint32_t));
     memset(&newStorage[pBits->storageSize], 0,
-           (newSize - pBits->storageSize) * sizeof(u4));
+           (newSize - pBits->storageSize) * sizeof(uint32_t));
 #ifdef WITH_MEMSTATS
     cUnit->mstats->bitMapWasted[pBits->kind] +=
-        pBits->storageSize * sizeof(u4);
-    cUnit->mstats->bitMapSizes[pBits->kind] += newSize * sizeof(u4);
+        pBits->storageSize * sizeof(uint32_t);
+    cUnit->mstats->bitMapSizes[pBits->kind] += newSize * sizeof(uint32_t);
     cUnit->mstats->bitMapGrows[pBits->kind]++;
 #endif
     pBits->storage = newStorage;
@@ -445,7 +444,7 @@ bool oatSetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
  */
 bool oatClearBit(ArenaBitVector* pBits, unsigned int num)
 {
-  if (num >= pBits->storageSize * sizeof(u4) * 8) {
+  if (num >= pBits->storageSize * sizeof(uint32_t) * 8) {
     LOG(FATAL) << "Attempt to clear a bit not set in the vector yet";;
   }
 
@@ -459,7 +458,7 @@ bool oatClearBit(ArenaBitVector* pBits, unsigned int num)
 void oatMarkAllBits(ArenaBitVector* pBits, bool set)
 {
   int value = set ? -1 : 0;
-  memset(pBits->storage, value, pBits->storageSize * (int)sizeof(u4));
+  memset(pBits->storage, value, pBits->storageSize * static_cast<int>(sizeof(uint32_t)));
 }
 
 void oatDebugBitVector(char* msg, const ArenaBitVector* bv, int length)
@@ -499,7 +498,7 @@ void oatBitVectorIteratorInit(ArenaBitVector* pBits,
                             ArenaBitVectorIterator* iterator)
 {
   iterator->pBits = pBits;
-  iterator->bitSize = pBits->storageSize * sizeof(u4) * 8;
+  iterator->bitSize = pBits->storageSize * sizeof(uint32_t) * 8;
   iterator->idx = 0;
 }
 
@@ -523,7 +522,7 @@ void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
   /* if dest is expandable and < src, we could expand dest to match */
   checkSizes(dest, src);
 
-  memcpy(dest->storage, src->storage, sizeof(u4) * dest->storageSize);
+  memcpy(dest->storage, src->storage, sizeof(uint32_t) * dest->storageSize);
 }
 
 /*
@@ -608,7 +607,7 @@ int oatCountSetBits(const ArenaBitVector* pBits)
   unsigned int count = 0;
 
   for (word = 0; word < pBits->storageSize; word++) {
-    u4 val = pBits->storage[word];
+    uint32_t val = pBits->storage[word];
 
     if (val != 0) {
       if (val == 0xffffffff) {
@@ -630,23 +629,23 @@ int oatCountSetBits(const ArenaBitVector* pBits)
 int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
 {
   ArenaBitVector* pBits = iterator->pBits;
-  u4 bitIndex = iterator->idx;
-  u4 bitSize = iterator->bitSize;
+  uint32_t bitIndex = iterator->idx;
+  uint32_t bitSize = iterator->bitSize;
 
-  DCHECK_EQ(bitSize, pBits->storageSize * sizeof(u4) * 8);
+  DCHECK_EQ(bitSize, pBits->storageSize * sizeof(uint32_t) * 8);
 
   if (bitIndex >= bitSize) return -1;
 
-  u4 wordIndex = bitIndex >> 5;
-  u4 endWordIndex = bitSize >> 5;
-  u4* storage = pBits->storage;
-  u4 word = storage[wordIndex++];
+  uint32_t wordIndex = bitIndex >> 5;
+  uint32_t endWordIndex = bitSize >> 5;
+  uint32_t* storage = pBits->storage;
+  uint32_t word = storage[wordIndex++];
 
   // Mask out any bits in the first word we've already considered
   word &= ~((1 << (bitIndex & 0x1f))-1);
 
   for (; wordIndex <= endWordIndex;) {
-    u4 bitPos = bitIndex & 0x1f;
+    uint32_t bitPos = bitIndex & 0x1f;
     if (word == 0) {
       bitIndex += (32 - bitPos);
       word = storage[wordIndex++];

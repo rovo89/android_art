@@ -24,11 +24,6 @@ namespace art {
  * and "op" calls may be used here.
  */
 
-typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dexIdx,
-                            uint32_t methodIdx, uintptr_t directCode,
-                            uintptr_t directMethod, InvokeType type);
-LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target);
-
 /*
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform intial
@@ -112,7 +107,8 @@ void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod
   }
 }
 
-void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** codeTarget, const DexFile* dexFile, uint32_t dexMethodIdx)
+void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** codeTarget,
+                           const DexFile* dexFile, uint32_t dexMethodIdx)
 {
   LIR* curTarget = cUnit->methodLiteralList;
   LIR* nextTarget = curTarget != NULL ? curTarget->next : NULL;

@@ -14,27 +14,15 @@
  * limitations under the License.
  */
 
-#define _CODEGEN_C
+#ifndef ART_SRC_COMPILER_RALLOC_H_
+#define ART_SRC_COMPILER_RALLOC_H_
 
-#include "x86_lir.h"
-#include "../ralloc_util.h"
+#include "compiler_internals.h"
 
-/* Common codegen utility code */
-#include "../codegen_util.cc"
+namespace art {
 
-#include "utility_x86.cc"
-#include "../gen_loadstore.cc"
-#include "../gen_common.cc"
-#include "../gen_invoke.cc"
-#include "call_x86.cc"
-#include "fp_x86.cc"
-#include "int_x86.cc"
+void oatSimpleRegAlloc(CompilationUnit* cUnit);
 
-/* Bitcode conversion */
-#include "../method_bitcode.cc"
+}  // namespace art
 
-/* MIR2LIR dispatcher and architectural independent codegen routines */
-#include "../method_codegen_driver.cc"
-
-/* Target-independent local optimizations */
-#include "../local_optimizations.cc"
+#endif  // ART_SRC_COMPILER_RALLOC_H_

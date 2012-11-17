@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_COMPILER_CODEGEN_MIPS_MIPSLIR_H_
 #define ART_COMPILER_COMPILER_CODEGEN_MIPS_MIPSLIR_H_
 
-#include "../../dalvik.h"
 #include "../../compiler_internals.h"
 
 namespace art {
@@ -164,7 +163,7 @@ enum MipsResourceEncodingPos {
   kMipsRegEnd   = 51,
 };
 
-#define ENCODE_MIPS_REG_LIST(N)      ((u8) N)
+#define ENCODE_MIPS_REG_LIST(N)      ((uint64_t) N)
 #define ENCODE_MIPS_REG_SP           (1ULL << kMipsRegSP)
 #define ENCODE_MIPS_REG_LR           (1ULL << kMipsRegLR)
 #define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
@@ -420,7 +419,7 @@ enum MipsEncodingKind {
 
 /* Struct used to define the snippet positions for each MIPS opcode */
 struct MipsEncodingMap {
-  u4 skeleton;
+  uint32_t skeleton;
   struct {
     MipsEncodingKind kind;
     int end;   /* end for kFmtBitBlt, 1-bit slice end for FP regs */
@@ -431,11 +430,6 @@ struct MipsEncodingMap {
   const char *name;
   const char* fmt;
   int size;   /* Size in bytes */
-};
-
-/* Keys for target-specific scheduling and other optimization hints */
-enum MipsTargetOptHints {
-  kMaxHoistDistance,
 };
 
 extern MipsEncodingMap EncodingMap[kMipsLast];

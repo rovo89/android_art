@@ -21,7 +21,6 @@
 
 namespace art {
 
-
 // Set to 1 to measure cost of suspend check
 #define NO_SUSPEND 0
 
@@ -127,123 +126,11 @@ enum OpFeatureFlags {
 #define REG_USE12            (REG_USE1 | REG_USE2)
 #define REG_USE23            (REG_USE2 | REG_USE3)
 
-LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0,
-            int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0,
-            LIR* target = NULL);
-
-int oatGetInsnSize(LIR* lir);
-
-void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
-void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                         bool gtBias, bool isDouble);
-
-CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                         InvokeType type, bool isRange);
-
-/* Lower middle-level IR to low-level IR for the whole method */
-void oatMethodMIR2LIR(CompilationUnit* cUnit);
-
-/* Bitcode conversions */
-void oatMethodMIR2Bitcode(CompilationUnit* cUnit);
-void oatMethodBitcode2LIR(CompilationUnit* cUnit);
-
-/* Lower middle-level IR to low-level IR for the simple methods */
-void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase );
-
-/* Assemble LIR into machine code */
-void oatAssembleLIR(CompilationUnit* cUnit);
-AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
-                                        intptr_t startAddr);
-void oatAssignOffsets(CompilationUnit* cUnit);
-int oatAssignInsnOffsets(CompilationUnit* cUnit);
-
-/* Implemented in the codegen/<target>/ArchUtility.c */
-void oatCodegenDump(CompilationUnit* cUnit);
-void oatDumpPromotionMap(CompilationUnit* cUnit);
-std::string buildInsnString(const char* fmt, LIR* lir,
-                            unsigned char* baseAddr);
-
-
-/* Implemented in codegen/<target>/Ralloc.c */
-void oatSimpleRegAlloc(CompilationUnit* cUnit);
-
-/* Implemented in codegen/<target>/Thumb<version>Util.c */
-void oatInitializeRegAlloc(CompilationUnit* cUnit);
-
-/* Implemented in codegen/<target>/<target_variant>/ArchVariant.c */
-InstructionSet oatInstructionSet();
-
-/*
- * Implemented in codegen/<target>/<target_variant>/ArchVariant.c
- * Architecture-specific initializations and checks
- */
-bool oatArchVariantInit(void);
-
-/* Implemented in codegen/<target>/<target_variant>/ArchVariant.c */
-int oatTargetOptHint(int key);
-
-/* Implemented in codegen/<target>/<target_variant>/ArchVariant.c */
-void oatGenMemBarrier(CompilationUnit* cUnit, int barrierKind);
-
-LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
-                    int reg1, int base, int offset, ThrowKind kind);
-LIR* opThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset);
-LIR* opMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp);
-LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
-                          int rBase, int rIndex, int scale, int displacement,
-                          int rSrc, int rSrcHi, OpSize size, int sReg);
-LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase, int offset);
-LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
-                 int src2, LIR* target);
-void oatSetupRegMask(CompilationUnit* cUnit, u8* mask, int reg);
-u8 oatGetRegMaskCommon(CompilationUnit* cUnit, int reg);
-void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir);
-RegLocation genDivRem(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int regHi, bool isDiv);
-RegLocation genDivRemLit(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int lit, bool isDiv);
-void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg);
-bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin);
-void opLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int offset);
-void opTlsCmp(CompilationUnit* cUnit, int offset, int val);
-bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info);
-bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier);
-LIR* opPcRelLoad(CompilationUnit* cUnit, int reg, LIR* target);
-LIR* opVldm(CompilationUnit* cUnit, int rBase, int count);
-LIR* opVstm(CompilationUnit* cUnit, int rBase, int count);
-void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
-                                   RegLocation rlResult, int lit,
-                                   int firstBit, int secondBit);
-RegLocation inlineTarget(CompilationUnit* cUnit, CallInfo* info);
-RegLocation inlineTargetWide(CompilationUnit* cUnit, CallInfo* info);
-void genDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi);
-LIR* genImmedCheck(CompilationUnit* cUnit, ConditionCode cCode,
-                   int reg, int immVal, ThrowKind kind);
-LIR* opTestSuspend(CompilationUnit* cUnit, LIR* target);
-LIR* opDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* target);
-LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
-uint64_t getPCUseDefEncoding();
-uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg);
-// TODO: clean up include files
-int s2d(int lowReg, int highReg);
-bool fpReg(int reg);
-bool singleReg(int reg);
-bool doubleReg(int reg);
-uint32_t fpRegMask();
-bool sameRegType(int reg1, int reg2);
-int targetReg(SpecialTargetRegister reg);
-RegLocation locCReturn();
-RegLocation locCReturnWide();
-RegLocation locCReturnFloat();
-RegLocation locCReturnDouble();
-LIR* loadWordDisp(CompilationUnit* cUnit, int rBase, int displacement, int rDest);
-LIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
-                       int displacement, int rSrc);
-void removeRedundantBranches(CompilationUnit* cUnit);
-LIR* newLIR0(CompilationUnit* cUnit, int opcode);
-LIR* newLIR1(CompilationUnit* cUnit, int opcode, int dest);
-LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value);
-void spillCoreRegs(CompilationUnit* cUnit);
-void unSpillCoreRegs(CompilationUnit* cUnit);
-void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffset);
+// TEMP
+#include "gen_loadstore.h"
+#include "gen_common.h"
+#include "gen_invoke.h"
+#include "target_list.h"
 
 }  // namespace art
 
