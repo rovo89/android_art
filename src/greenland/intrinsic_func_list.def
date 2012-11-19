@@ -1546,14 +1546,7 @@ _EVAL_DEF_INTRINSICS_FUNC(AllocaShadowFrame,
                           dex_lang_alloca_shadow_frame,
                           kAttrNoThrow,
                           kVoidTy,
-                          _EXPAND_ARG2(kInt32ConstantTy, kInt32ConstantTy))
-
-// void dex_lang_set_shadow_frame_entry(JavaObject* obj, int entry_idx)
-_EVAL_DEF_INTRINSICS_FUNC(SetShadowFrameEntry,
-                          dex_lang_set_shadow_frame_entry,
-                          kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG2(kJavaObjectTy, kInt32ConstantTy))
+                          _EXPAND_ARG1(kInt32ConstantTy))
 
 // void dex_lang_set_vreg(int entry_idx, ...)
 _EVAL_DEF_INTRINSICS_FUNC(SetVReg,

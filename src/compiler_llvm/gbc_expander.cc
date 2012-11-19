@@ -217,9 +217,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* Expand_DivRem(llvm::CallInst& call_inst, bool is_div, JType op_jty);
 
-  void Expand_AllocaShadowFrame(llvm::Value* num_entry_value, llvm::Value* num_vregs_value);
-
-  void Expand_SetShadowFrameEntry(llvm::Value* obj, llvm::Value* entry_idx);
+  void Expand_AllocaShadowFrame(llvm::Value* num_vregs_value);
 
   void Expand_SetVReg(llvm::Value* entry_idx, llvm::Value* obj);
 
@@ -710,7 +708,7 @@ GBCExpanderPass::EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx) {
   llvm::Value* callee_method_object_field_addr =
     EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  return irb_.CreateLoad(callee_method_object_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(callee_method_object_field_addr, kTBAARuntimeInfo);
 }
 
 llvm::Value* GBCExpanderPass::
@@ -765,7 +763,27 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
 }
 
 void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+
+  llvm::Value* suspend_count =
+      irb_.Runtime().EmitLoadFromThreadOffset(art::Thread::ThreadFlagsOffset().Int32Value(),
+                                              irb_.getInt16Ty(),
+                                              kTBAARuntimeInfo);
+  llvm::Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getInt16(0));
+
+  llvm::BasicBlock* basic_block_suspend = CreateBasicBlockWithDexPC(dex_pc, "suspend");
+  llvm::BasicBlock* basic_block_cont = CreateBasicBlockWithDexPC(dex_pc, "suspend_cont");
+
+  irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_cont, kUnlikely);
+
+  irb_.SetInsertPoint(basic_block_suspend);
+  if (dex_pc != art::DexFile::kDexNoIndex) {
+    EmitUpdateDexPC(dex_pc);
+  }
   irb_.Runtime().EmitTestSuspend();
+  irb_.CreateBr(basic_block_cont);
+
+  irb_.SetInsertPoint(basic_block_cont);
   return;
 }
 
@@ -781,7 +799,7 @@ GBCExpanderPass::Expand_LoadStringFromDexCache(llvm::Value* string_idx_value) {
 
   llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
 
-  return irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 }
 
 llvm::Value*
@@ -792,7 +810,7 @@ GBCExpanderPass::Expand_LoadTypeFromDexCache(llvm::Value* type_idx_value) {
   llvm::Value* type_field_addr =
     EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
 
-  return irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 }
 
 void GBCExpanderPass::Expand_LockObject(llvm::Value* obj) {
@@ -980,7 +998,7 @@ GBCExpanderPass::Expand_LoadClassSSBFromDexCache(llvm::Value* type_idx_value) {
   llvm::Value* storage_field_addr =
     EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
 
-  return irb_.CreateLoad(storage_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 }
 
 llvm::Value*
@@ -1021,7 +1039,7 @@ llvm::Value* GBCExpanderPass::Expand_Invoke(llvm::CallInst& call_inst) {
     irb_.LoadFromObjectOffset(callee_method_object_addr,
                               art::AbstractMethod::GetCodeOffset().Int32Value(),
                               callee_method_type->getPointerTo(),
-                              kTBAAJRuntime);
+                              kTBAARuntimeInfo);
 
   // Invoke callee
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
@@ -1093,17 +1111,14 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
   return result;
 }
 
-void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_entry_value,
-                                               llvm::Value* num_vregs_value) {
+void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_vregs_value) {
   // Most of the codes refer to MethodCompiler::EmitPrologueAllocShadowFrame and
   // MethodCompiler::EmitPushShadowFrame
-  uint16_t num_shadow_frame_refs =
-    llvm::cast<llvm::ConstantInt>(num_entry_value)->getZExtValue();
   uint16_t num_vregs =
     llvm::cast<llvm::ConstantInt>(num_vregs_value)->getZExtValue();
 
   llvm::StructType* shadow_frame_type =
-    irb_.getShadowFrameTy(num_shadow_frame_refs, num_vregs);
+    irb_.getShadowFrameTy(num_vregs);
 
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
@@ -1111,51 +1126,18 @@ void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_entry_value,
   old_shadow_frame_ =
     irb_.CreateAlloca(shadow_frame_type->getElementType(0)->getPointerTo());
 
-  // Zero-initialization of the shadow frame table
-  llvm::Value* shadow_frame_table =
-    irb_.CreateConstGEP2_32(shadow_frame_, 0, 1);
-  llvm::Type* table_type = shadow_frame_type->getElementType(1);
-
-  llvm::ConstantAggregateZero* zero_initializer =
-    llvm::ConstantAggregateZero::get(table_type);
-
-  irb_.CreateStore(zero_initializer, shadow_frame_table, kTBAAShadowFrame);
-
   // Push the shadow frame
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  // Push the shadow frame
   llvm::Value* shadow_frame_upcast =
     irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
 
   llvm::Value* result = rtb_.EmitPushShadowFrame(shadow_frame_upcast,
                                                  method_object_addr,
-                                                 num_shadow_frame_refs,
                                                  num_vregs);
 
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 
-  return;
-}
-
-// TODO: We will remove ShadowFrameEntry later, so I just copy/paste from ShadowFrameEntry.
-void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
-                                                 llvm::Value* entry_idx) {
-  DCHECK(shadow_frame_ != NULL);
-
-  llvm::Value* gep_index[] = {
-    irb_.getInt32(0), // No pointer displacement
-    irb_.getInt32(1), // SIRT
-    entry_idx // Pointer field
-  };
-
-  llvm::Value* entry_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-#if defined(ART_USE_PORTABLE_COMPILER)
-  if (obj->getType() != irb_.getJObjectTy()) {
-    obj = irb_.getJNull();
-  }
-#endif
-  irb_.CreateStore(obj, entry_addr, kTBAAShadowFrame);
   return;
 }
 
@@ -1165,7 +1147,7 @@ void GBCExpanderPass::Expand_SetVReg(llvm::Value* entry_idx,
 
   llvm::Value* gep_index[] = {
     irb_.getInt32(0), // No pointer displacement
-    irb_.getInt32(2), // VRegs
+    irb_.getInt32(1), // VRegs
     entry_idx // Pointer field
   };
 
@@ -1560,7 +1542,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Value* type_field_addr =
       EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
 
-    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
+    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
     if (compiler_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
       return type_object_addr;
@@ -1625,7 +1607,7 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::Value* storage_field_addr =
     EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
 
-  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAAJRuntime);
+  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 
   llvm::BasicBlock* block_original = irb_.GetInsertBlock();
 
@@ -1832,7 +1814,7 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 
   llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
 
-  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
+  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
   if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
@@ -1904,6 +1886,8 @@ void GBCExpanderPass::Expand_MonitorEnter(llvm::CallInst& call_inst) {
   if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
     EmitGuard_NullPointerException(dex_pc, object_addr);
   }
+
+  EmitUpdateDexPC(dex_pc);
 
   irb_.Runtime().EmitLockObject(object_addr);
 
@@ -2177,7 +2161,7 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
       irb_.LoadFromObjectOffset(callee_method_object_addr,
                                 art::AbstractMethod::GetCodeOffset().Int32Value(),
                                 GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
-                                kTBAAJRuntime);
+                                kTBAARuntimeInfo);
   }
 
   // Invoke callee
@@ -2700,7 +2684,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return irb_.Runtime().EmitGetCurrentThread();
     }
     case IntrinsicHelper::CheckSuspend: {
-      // We will add suspend by ourselves.
+      Expand_TestSuspend(call_inst);
       return NULL;
     }
     case IntrinsicHelper::TestSuspend: {
@@ -3478,13 +3462,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Shadow Frame -----------------------------------------------------==//
     case IntrinsicHelper::AllocaShadowFrame: {
-      Expand_AllocaShadowFrame(call_inst.getArgOperand(0),
-                               call_inst.getArgOperand(1));
-      return NULL;
-    }
-    case IntrinsicHelper::SetShadowFrameEntry: {
-      Expand_SetShadowFrameEntry(call_inst.getArgOperand(0),
-                                 call_inst.getArgOperand(1));
+      Expand_AllocaShadowFrame(call_inst.getArgOperand(0));
       return NULL;
     }
     case IntrinsicHelper::SetVReg: {

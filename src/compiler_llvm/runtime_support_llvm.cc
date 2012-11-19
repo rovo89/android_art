@@ -90,11 +90,9 @@ void art_test_suspend_from_code(Thread* thread)
 }
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
-                                             AbstractMethod* method, uint16_t num_refs,
-                                             uint16_t num_vregs) {
+                                             AbstractMethod* method, uint32_t num_vregs) {
   ShadowFrame* old_frame = thread->PushShadowFrame(new_shadow_frame);
   new_shadow_frame->SetMethod(method);
-  new_shadow_frame->SetNumberOfReferences(num_refs);
   new_shadow_frame->SetNumberOfVRegs(num_vregs);
   return old_frame;
 }

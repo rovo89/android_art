@@ -302,7 +302,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
     gc_map_offset = (gc_map_size == 0) ? 0 : offset;
 
-#if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
+#if !defined(NDEBUG)
     // We expect GC maps except when the class hasn't been verified or the method is native
     Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
     CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);

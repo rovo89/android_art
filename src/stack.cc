@@ -24,13 +24,16 @@
 
 namespace art {
 
-size_t ManagedStack::NumShadowFrameReferences() const {
+size_t ManagedStack::NumJniShadowFrameReferences() const {
   size_t count = 0;
   for (const ManagedStack* current_fragment = this; current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     for (ShadowFrame* current_frame = current_fragment->top_shadow_frame_; current_frame != NULL;
          current_frame = current_frame->GetLink()) {
-      count += current_frame->NumberOfReferences();
+      if (current_frame->GetMethod()->IsNative()) {
+        // The JNI ShadowFrame only contains references. (For indirect reference.)
+        count += current_frame->NumberOfVRegs();
+      }
     }
   }
   return count;

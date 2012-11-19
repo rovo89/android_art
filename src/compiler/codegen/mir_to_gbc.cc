@@ -544,34 +544,6 @@ static void ConvertArithOp(CompilationUnit* cu, OpKind op, RegLocation rl_dest,
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void SetShadowFrameEntry(CompilationUnit* cu, llvm::Value* new_val)
-{
-  int index = -1;
-  DCHECK(new_val != NULL);
-  int v_reg = SRegToVReg(cu, GetLoc(cu, new_val).orig_sreg);
-  for (int i = 0; i < cu->num_shadow_frame_entries; i++) {
-    if (cu->shadow_map[i] == v_reg) {
-      index = i;
-      break;
-    }
-  }
-  if (index == -1) {
-    return;
-  }
-  llvm::Type* ty = new_val->getType();
-  greenland::IntrinsicHelper::IntrinsicId id =
-      greenland::IntrinsicHelper::SetShadowFrameEntry;
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* table_slot = cu->irb->getInt32(index);
-  // If new_val is a Null pointer, we'll see it here as a const int.  Replace
-  if (!ty->isPointerTy()) {
-    // TODO: assert new_val created w/ dex_lang_const_int(0) or dex_lang_const_float(0)
-    new_val = cu->irb->GetJNull();
-  }
-  llvm::Value* args[] = { new_val, table_slot };
-  cu->irb->CreateCall(func, args);
-}
-
 static void ConvertArithOpLit(CompilationUnit* cu, OpKind op, RegLocation rl_dest,
                               RegLocation rl_src1, int32_t imm)
 {
@@ -633,10 +605,6 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
   llvm::Value* res = cu->irb->CreateCall(intr, args);
   if (info->result.location != kLocInvalid) {
     DefineValue(cu, res, info->result.orig_sreg);
-    if (info->result.ref) {
-      SetShadowFrameEntry(cu, reinterpret_cast<llvm::Value*>
-                          (cu->llvm_values.elem_list[info->result.orig_sreg]));
-    }
   }
 }
 
@@ -855,8 +823,6 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
   uint32_t vC = mir->dalvikInsn.vC;
   int opt_flags = mir->optimization_flags;
 
-  bool object_definition = false;
-
   if (cu->verbose) {
     if (op_val < kMirOpFirst) {
       LOG(INFO) << ".. " << Instruction::Name(opcode) << " 0x" << std::hex << op_val;
@@ -900,9 +866,6 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       rl_dest = GetDestWide(cu, mir);
     } else {
       rl_dest = GetDest(cu, mir);
-      if (rl_dest.ref) {
-        object_definition = true;
-      }
     }
   }
 
@@ -935,9 +898,6 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16: {
-        if (vB == 0) {
-          object_definition = true;
-        }
         llvm::Constant* imm_value = cu->irb->GetJInt(vB);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
@@ -1661,10 +1621,6 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     default:
       UNIMPLEMENTED(FATAL) << "Unsupported Dex opcode 0x" << std::hex << opcode;
       res = true;
-  }
-  if (object_definition) {
-    SetShadowFrameEntry(cu, reinterpret_cast<llvm::Value*>
-                        (cu->llvm_values.elem_list[rl_dest.orig_sreg]));
   }
   return res;
 }
@@ -3022,7 +2978,6 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
                 cu->intrinsic_helper->GetIntrinsicId(callee);
             switch (id) {
               case greenland::IntrinsicHelper::AllocaShadowFrame:
-              case greenland::IntrinsicHelper::SetShadowFrameEntry:
               case greenland::IntrinsicHelper::PopShadowFrame:
               case greenland::IntrinsicHelper::SetVReg:
                 // Ignore shadow frame stuff for quick compiler

@@ -39,8 +39,10 @@ llvm::MDNode* MDBuilder::GetTBAASpecialType(TBAASpecialType sty_id) {
     case kTBAAHeapInstance: spec_ty = createTBAANode("HeapInstance", tbaa_root_); break;
     case kTBAAHeapStatic:   spec_ty = createTBAANode("HeapStatic", tbaa_root_); break;
     case kTBAAJRuntime:     spec_ty = createTBAANode("JRuntime", tbaa_root_); break;
-    case kTBAARuntimeInfo:  spec_ty = createTBAANode("RuntimeInfo", tbaa_root_); break;
-    case kTBAAShadowFrame:  spec_ty = createTBAANode("ShadowFrame", tbaa_root_); break;
+    case kTBAARuntimeInfo:  spec_ty = createTBAANode("RuntimeInfo",
+                                                     GetTBAASpecialType(kTBAAJRuntime)); break;
+    case kTBAAShadowFrame:  spec_ty = createTBAANode("ShadowFrame",
+                                                     GetTBAASpecialType(kTBAAJRuntime)); break;
     case kTBAAConstJObject: spec_ty = createTBAANode("ConstJObject", tbaa_root_, true); break;
     default:
       LOG(FATAL) << "Unknown TBAA special type: " << sty_id;

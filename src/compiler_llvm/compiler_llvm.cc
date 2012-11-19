@@ -31,6 +31,7 @@
 #include "stl_util.h"
 #include "stub_compiler.h"
 #include "utils_llvm.h"
+#include "verifier/method_verifier.h"
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
@@ -180,8 +181,10 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
     cunit->Materialize();
 
-    return new CompiledMethod(cunit->GetInstructionSet(),
-                              cunit->GetCompiledCode());
+    Compiler::MethodReference mref(dex_file_, method_idx_);
+    return new CompiledMethod(cunit_->GetInstructionSet(),
+                              cunit_->GetCompiledCode(),
+                              *verifier::MethodVerifier::GetDexGcMap(mref));
   }
 #else
   UniquePtr<MethodCompiler> method_compiler(

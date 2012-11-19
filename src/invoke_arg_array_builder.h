@@ -148,7 +148,7 @@ class ArgArray {
           arg_array_[i - 1].SetF(shadow_frame.GetVRegFloat(range_start + offset));
           break;
         case 'L':
-          arg_array_[i - 1].SetL(shadow_frame.GetReference(range_start + offset));
+          arg_array_[i - 1].SetL(shadow_frame.GetVRegReference(range_start + offset));
           break;
         case 'D':
           arg_array_[i - 1].SetD(shadow_frame.GetVRegDouble(range_start + offset));
@@ -185,7 +185,7 @@ class ArgArray {
           arg_array_[i - 1].SetF(shadow_frame.GetVRegFloat(arg_regs[offset]));
           break;
         case 'L':
-          arg_array_[i - 1].SetL(shadow_frame.GetReference(arg_regs[offset]));
+          arg_array_[i - 1].SetL(shadow_frame.GetVRegReference(arg_regs[offset]));
           break;
         case 'D':
           arg_array_[i - 1].SetD(shadow_frame.GetVRegDouble(arg_regs[offset]));

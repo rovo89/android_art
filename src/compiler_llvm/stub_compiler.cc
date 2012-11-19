@@ -148,7 +148,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
     irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,
                        accurate_func_type->getPointerTo()->getPointerTo());
 
-  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAAJRuntime);
+  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAARuntimeInfo);
 
   llvm::CallInst* retval = irb_.CreateCall(code_addr, args);
 #if defined(ART_USE_PORTABLE_COMPILER)

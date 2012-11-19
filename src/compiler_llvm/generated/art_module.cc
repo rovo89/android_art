@@ -44,11 +44,11 @@ if (!StructTy_ShadowFrame) {
 StructTy_ShadowFrame = StructType::create(mod->getContext(), "ShadowFrame");
 }
 std::vector<Type*>StructTy_ShadowFrame_fields;
+StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 PointerType* PointerTy_2 = PointerType::get(StructTy_ShadowFrame, 0);
 
 StructTy_ShadowFrame_fields.push_back(PointerTy_2);
 StructTy_ShadowFrame_fields.push_back(PointerTy_1);
-StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 if (StructTy_ShadowFrame->isOpaque()) {
 StructTy_ShadowFrame->setBody(StructTy_ShadowFrame_fields, /*isPacked=*/false);
@@ -93,8 +93,7 @@ std::vector<Type*>FuncTy_7_args;
 FuncTy_7_args.push_back(PointerTy_1);
 FuncTy_7_args.push_back(PointerTy_2);
 FuncTy_7_args.push_back(PointerTy_1);
-FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 16));
-FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 16));
+FuncTy_7_args.push_back(IntegerType::get(mod->getContext(), 32));
 FunctionType* FuncTy_7 = FunctionType::get(
  /*Result=*/PointerTy_2,
  /*Params=*/FuncTy_7_args,

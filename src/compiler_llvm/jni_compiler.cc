@@ -101,7 +101,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Shadow stack
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size, 0);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Store the dex pc
@@ -113,20 +113,20 @@ CompiledMethod* JniCompiler::Compile() {
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   llvm::Value* old_shadow_frame =
-      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size, 0);
+      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =
       irb_.Runtime().EmitLoadFromThreadOffset(Thread::JniEnvOffset().Int32Value(),
                                               irb_.getJObjectTy(),
-                                              kTBAAJRuntime);
+                                              kTBAARuntimeInfo);
 
   // Get callee code_addr
   llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
                                 AbstractMethod::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
-                                kTBAAJRuntime);
+                                kTBAARuntimeInfo);
 
   // Load actual parameters
   std::vector<llvm::Value*> args;
@@ -145,7 +145,8 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Store the "this object or class object" to SIRT
   gep_index[2] = irb_.getInt32(sirt_member_index++);
-  llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+                                                    irb_.getJObjectTy()->getPointerTo());
   irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAAShadowFrame);
   // Push the "this object or class object" to out args
   this_object_or_class_object = irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy());
@@ -155,7 +156,8 @@ CompiledMethod* JniCompiler::Compile() {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
       // Store the reference type arguments to SIRT
       gep_index[2] = irb_.getInt32(sirt_member_index++);
-      llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+      llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+                                                        irb_.getJObjectTy()->getPointerTo());
       irb_.CreateStore(arg_iter, sirt_field_addr, kTBAAShadowFrame);
       // Note null is placed in the SIRT but the jobject passed to the native code must be null
       // (not a pointer into the SIRT as with regular references).

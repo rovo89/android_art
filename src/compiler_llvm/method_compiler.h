@@ -289,7 +289,7 @@ class MethodCompiler {
 
   void EmitBranchExceptionLandingPad(uint32_t dex_pc);
 
-  void EmitGuard_GarbageCollectionSuspend();
+  void EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc);
 
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
@@ -461,9 +461,7 @@ class MethodCompiler {
   llvm::Function* func_;
 
   std::vector<DalvikReg*> regs_;
-  std::vector<llvm::Value*> shadow_frame_entries_;
   std::vector<llvm::Value*> vregs_;
-  std::vector<int32_t> reg_to_shadow_frame_index_;
   UniquePtr<DalvikReg> retval_reg_;
 
   llvm::BasicBlock* basic_block_alloca_;

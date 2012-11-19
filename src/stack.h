@@ -51,26 +51,34 @@ enum VRegKind {
   kUndefined,
 };
 
+// ShadowFrame has 3 possible layouts: portable (VRegs & references overlap),
+// interpreter (VRegs and separate references array), JNI (just VRegs, but where
+// VRegs really => references).
 class ShadowFrame {
  public:
-  static ShadowFrame* Create(uint16_t num_refs, uint16_t num_vregs, ShadowFrame* link,
+  // Create ShadowFrame for interpreter.
+  static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
                              AbstractMethod* method, uint32_t dex_pc) {
-    size_t sz = sizeof(ShadowFrame) + (sizeof(Object*) * num_refs) + (sizeof(uint32_t) * num_vregs);
+    size_t sz = sizeof(ShadowFrame) +
+                (sizeof(uint32_t) * num_vregs) +
+                (sizeof(Object*) * num_vregs);
     uint8_t* memory = new uint8_t[sz];
-    return new (memory) ShadowFrame(num_refs, num_vregs, link, method, dex_pc);
+    ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
+    return sf;
   }
   ~ShadowFrame() {}
 
-  uint32_t NumberOfReferences() const {
-    return number_of_references_;
+  bool HasReferenceArray() const {
+    return (number_of_vregs_ & kHasReferenceArray) != 0;
   }
 
-  void SetNumberOfReferences(uint16_t number_of_references) {
-    number_of_references_ = number_of_references;
+  uint32_t NumberOfVRegs() const {
+    return number_of_vregs_ & ~kHasReferenceArray;
   }
 
-  void SetNumberOfVRegs(uint16_t number_of_vregs) {
-    number_of_vregs_ = number_of_vregs;
+  void SetNumberOfVRegs(uint32_t number_of_vregs) {
+    DCHECK(number_of_vregs < kHasReferenceArray);
+    number_of_vregs_ = number_of_vregs | (number_of_vregs_ & kHasReferenceArray);
   }
 
   uint32_t GetDexPC() const {
@@ -90,67 +98,68 @@ class ShadowFrame {
     link_ = frame;
   }
 
-  Object* GetReference(size_t i) const {
-    DCHECK_LT(i, number_of_references_);
-    return references_[i];
-  }
-
-  void SetReference(size_t i, Object* object) {
-    DCHECK_LT(i, number_of_references_);
-    references_[i] = object;
-  }
-
   int32_t GetVReg(size_t i) const {
-    DCHECK_LT(i, number_of_vregs_);
-    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
-    return reinterpret_cast<const int32_t*>(vregs)[i];
+    DCHECK_LT(i, NumberOfVRegs());
+    const uint32_t* vreg = &vregs_[i];
+    return *reinterpret_cast<const int32_t*>(vreg);
   }
 
   float GetVRegFloat(size_t i) const {
-    DCHECK_LT(i, number_of_vregs_);
-    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
-    return reinterpret_cast<const float*>(vregs)[i];
+    DCHECK_LT(i, NumberOfVRegs());
+    // NOTE: Strict-aliasing?
+    const uint32_t* vreg = &vregs_[i];
+    return *reinterpret_cast<const float*>(vreg);
   }
 
   int64_t GetVRegLong(size_t i) const {
-    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
-    const int32_t* low_half = &reinterpret_cast<const int32_t*>(vregs)[i];
-    return *reinterpret_cast<const int64_t*>(low_half);
+    const uint32_t* vreg = &vregs_[i];
+    return *reinterpret_cast<const int64_t*>(vreg);
   }
 
   double GetVRegDouble(size_t i) const {
-    const int8_t* vregs = reinterpret_cast<const int8_t*>(this) + VRegsOffset();
-    const int32_t* low_half = &reinterpret_cast<const int32_t*>(vregs)[i];
-    return *reinterpret_cast<const double*>(low_half);
+    const uint32_t* vreg = &vregs_[i];
+    return *reinterpret_cast<const double*>(vreg);
+  }
+
+  Object* GetVRegReference(size_t i) const {
+    DCHECK_LT(i, NumberOfVRegs());
+    if (HasReferenceArray()) {
+      return References()[i];
+    } else {
+      const uint32_t* vreg = &vregs_[i];
+      return *reinterpret_cast<Object* const*>(vreg);
+    }
   }
 
   void SetVReg(size_t i, int32_t val) {
-    DCHECK_LT(i, number_of_vregs_);
-    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
-    reinterpret_cast<int32_t*>(vregs)[i] = val;
+    DCHECK_LT(i, NumberOfVRegs());
+    uint32_t* vreg = &vregs_[i];
+    *reinterpret_cast<int32_t*>(vreg) = val;
   }
 
   void SetVRegFloat(size_t i, float val) {
-    DCHECK_LT(i, number_of_vregs_);
-    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
-    reinterpret_cast<float*>(vregs)[i] = val;
+    DCHECK_LT(i, NumberOfVRegs());
+    uint32_t* vreg = &vregs_[i];
+    *reinterpret_cast<float*>(vreg) = val;
   }
 
   void SetVRegLong(size_t i, int64_t val) {
-    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
-    int32_t* low_half = &reinterpret_cast<int32_t*>(vregs)[i];
-    *reinterpret_cast<int64_t*>(low_half) = val;
+    uint32_t* vreg = &vregs_[i];
+    *reinterpret_cast<int64_t*>(vreg) = val;
   }
 
   void SetVRegDouble(size_t i, double val) {
-    int8_t* vregs = reinterpret_cast<int8_t*>(this) + VRegsOffset();
-    int32_t* low_half = &reinterpret_cast<int32_t*>(vregs)[i];
-    *reinterpret_cast<double*>(low_half) = val;
+    uint32_t* vreg = &vregs_[i];
+    *reinterpret_cast<double*>(vreg) = val;
   }
 
-  void SetReferenceAndVReg(size_t i, Object* val) {
-    SetReference(i, val);
-    SetVReg(i, reinterpret_cast<int32_t>(val));
+  void SetVRegReference(size_t i, Object* val) {
+    DCHECK_LT(i, NumberOfVRegs());
+    uint32_t* vreg = &vregs_[i];
+    *reinterpret_cast<Object**>(vreg) = val;
+    if (HasReferenceArray()) {
+      References()[i] = val;
+    }
   }
 
   AbstractMethod* GetMethod() const {
@@ -163,19 +172,14 @@ class ShadowFrame {
     method_ = method;
   }
 
-  bool Contains(Object** shadow_frame_entry) const {
-    return ((&references_[0] <= shadow_frame_entry) &&
-            (shadow_frame_entry <= (&references_[number_of_references_ - 1])));
-  }
-
-  template <typename Visitor>
-  void VisitRoots(const Visitor& visitor) {
-    size_t num_refs = NumberOfReferences();
-    for (size_t j = 0; j < num_refs; j++) {
-      Object* object = GetReference(j);
-      if (object != NULL) {
-        visitor(object, j);
-      }
+  bool Contains(Object** shadow_frame_entry_obj) const {
+    if (HasReferenceArray()) {
+      return ((&References()[0] <= shadow_frame_entry_obj) &&
+              (shadow_frame_entry_obj <= (&References()[NumberOfVRegs() - 1])));
+    } else {
+      uint32_t* shadow_frame_entry = reinterpret_cast<uint32_t*>(shadow_frame_entry_obj);
+      return ((&vregs_[0] <= shadow_frame_entry) &&
+              (shadow_frame_entry <= (&vregs_[NumberOfVRegs() - 1])));
     }
   }
 
@@ -191,43 +195,48 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, dex_pc_);
   }
 
-  static size_t NumberOfReferencesOffset() {
-    return OFFSETOF_MEMBER(ShadowFrame, number_of_references_);
-  }
-
   static size_t NumberOfVRegsOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, number_of_vregs_);
   }
 
-  static size_t ReferencesOffset() {
-    return OFFSETOF_MEMBER(ShadowFrame, references_);
-  }
-
-  size_t VRegsOffset() const {
-    return ReferencesOffset() + (sizeof(Object*) * NumberOfReferences());
+  static size_t VRegsOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, vregs_);
   }
 
  private:
-  ShadowFrame(uint16_t num_refs, uint16_t num_vregs, ShadowFrame* link, AbstractMethod* method,
-              uint32_t dex_pc)
-      : number_of_references_ (num_refs), number_of_vregs_(num_vregs), link_(link),
-        method_(method), dex_pc_(dex_pc) {
-    for (size_t i = 0; i < num_refs; ++i) {
-      SetReference(i, NULL);
+  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, AbstractMethod* method, uint32_t dex_pc,
+              bool has_reference_array)
+      : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
+    if (has_reference_array) {
+      number_of_vregs_ |= kHasReferenceArray;
+      for (size_t i = 0; i < num_vregs; ++i) {
+        SetVRegReference(i, NULL);
+      }
     }
     for (size_t i = 0; i < num_vregs; ++i) {
       SetVReg(i, 0);
     }
   }
 
+  Object* const* References() const {
+    const uint32_t* vreg_end = &vregs_[NumberOfVRegs()];
+    return reinterpret_cast<Object* const*>(vreg_end);
+  }
+
+  Object** References() {
+    return const_cast<Object**>(const_cast<const ShadowFrame*>(this)->References());
+  }
+
+  enum ShadowFrameFlag {
+    kHasReferenceArray = 1ul << 31
+  };
   // TODO: make the majority of these fields const.
-  uint16_t number_of_references_;
-  uint16_t number_of_vregs_;
+  uint32_t number_of_vregs_;
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
   AbstractMethod* method_;
   uint32_t dex_pc_;
-  Object* references_[0];
+  uint32_t vregs_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
 };
@@ -306,7 +315,7 @@ class PACKED(4) ManagedStack {
     return OFFSETOF_MEMBER(ManagedStack, top_shadow_frame_);
   }
 
-  size_t NumShadowFrameReferences() const;
+  size_t NumJniShadowFrameReferences() const;
 
   bool ShadowFramesContain(Object** shadow_frame_entry) const;
 

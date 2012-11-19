@@ -27,7 +27,7 @@ namespace greenland {
 
 InferredRegCategoryMap::InferredRegCategoryMap(uint32_t insns_size,
                                                uint16_t regs_size)
-: registers_size_(regs_size), can_be_object_(regs_size) {
+: registers_size_(regs_size) {
 }
 
 InferredRegCategoryMap::~InferredRegCategoryMap() {
@@ -52,14 +52,6 @@ void InferredRegCategoryMap::SetRegCategory(uint32_t dex_pc,
 
     lines_.Get(dex_pc)->SetRegCategory(reg_idx, cat);
   }
-}
-
-bool InferredRegCategoryMap::IsRegCanBeObject(uint16_t reg_idx) const {
-  return can_be_object_[reg_idx];
-}
-
-void InferredRegCategoryMap::SetRegCanBeObject(uint16_t reg_idx) {
-  can_be_object_[reg_idx] = true;
 }
 
 bool InferredRegCategoryMap::

@@ -377,7 +377,7 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   if (type == kStatic) {
     receiver = NULL;
   } else {
-    receiver = shadow_frame.GetReference(dec_insn.vC);
+    receiver = shadow_frame.GetVRegReference(dec_insn.vC);
     if (UNLIKELY(receiver == NULL)) {
       ThrowNullPointerExceptionForMethodAccess(shadow_frame.GetMethod(), dec_insn.vB, type);
       result->SetJ(0);
@@ -426,7 +426,7 @@ static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
     if (is_static) {
       obj = f->GetDeclaringClass();
     } else {
-      obj = shadow_frame.GetReference(dec_insn.vB);
+      obj = shadow_frame.GetVRegReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
         ThrowNullPointerExceptionForFieldAccess(f, true);
         return;
@@ -452,7 +452,7 @@ static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
         shadow_frame.SetVRegLong(dec_insn.vA, f->GetLong(obj));
         break;
       case Primitive::kPrimNot:
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, f->GetObject(obj));
+        shadow_frame.SetVRegReference(dec_insn.vA, f->GetObject(obj));
         break;
       default:
         LOG(FATAL) << "Unreachable: " << field_type;
@@ -473,7 +473,7 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
     if (is_static) {
       obj = f->GetDeclaringClass();
     } else {
-      obj = shadow_frame.GetReference(dec_insn.vB);
+      obj = shadow_frame.GetVRegReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
         ThrowNullPointerExceptionForFieldAccess(f, false);
         return;
@@ -499,7 +499,7 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
         f->SetLong(obj, shadow_frame.GetVRegLong(dec_insn.vA));
         break;
       case Primitive::kPrimNot:
-        f->SetObj(obj, shadow_frame.GetReference(dec_insn.vA));
+        f->SetObj(obj, shadow_frame.GetVRegReference(dec_insn.vA));
         break;
       default:
         LOG(FATAL) << "Unreachable: " << field_type;
@@ -567,8 +567,8 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       LOG(INFO) << PrettyMethod(shadow_frame.GetMethod())
                 << StringPrintf("\n0x%x: %s\nReferences:",
                                 inst->GetDexPc(insns), inst->DumpString(&mh.GetDexFile()).c_str());
-      for (size_t i = 0; i < shadow_frame.NumberOfReferences(); ++i) {
-        Object* o = shadow_frame.GetReference(i);
+      for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
+        Object* o = shadow_frame.GetVRegReference(i);
         if (o != NULL) {
           if (o->GetClass()->IsStringClass() && o->AsString()->GetCharArray() != NULL) {
             LOG(INFO) << i << ": java.lang.String " << static_cast<void*>(o)
@@ -581,7 +581,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         }
       }
       LOG(INFO) << "vregs:";
-      for (size_t i = 0; i < shadow_frame.NumberOfReferences(); ++i) {
+      for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
         LOG(INFO) << StringPrintf("%d: %08x", i, shadow_frame.GetVReg(i));
       }
     }
@@ -602,8 +602,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::MOVE_OBJECT:
       case Instruction::MOVE_OBJECT_FROM16:
       case Instruction::MOVE_OBJECT_16:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB));
-        shadow_frame.SetReference(dec_insn.vA, shadow_frame.GetReference(dec_insn.vB));
+        shadow_frame.SetVRegReference(dec_insn.vA, shadow_frame.GetVRegReference(dec_insn.vB));
         break;
       case Instruction::MOVE_RESULT:
         shadow_frame.SetVReg(dec_insn.vA, result_register.GetI());
@@ -612,12 +611,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetVRegLong(dec_insn.vA, result_register.GetJ());
         break;
       case Instruction::MOVE_RESULT_OBJECT:
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, result_register.GetL());
+        shadow_frame.SetVRegReference(dec_insn.vA, result_register.GetL());
         break;
       case Instruction::MOVE_EXCEPTION: {
         Throwable* exception = self->GetException();
         self->ClearException();
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, exception);
+        shadow_frame.SetVRegReference(dec_insn.vA, exception);
         break;
       }
       case Instruction::RETURN_VOID: {
@@ -639,14 +638,14 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::RETURN_OBJECT: {
         JValue result;
         result.SetJ(0);
-        result.SetL(shadow_frame.GetReference(dec_insn.vA));
+        result.SetL(shadow_frame.GetVRegReference(dec_insn.vA));
         return result;
       }
       case Instruction::CONST_4: {
         int32_t val = static_cast<int32_t>(dec_insn.vB << 28) >> 28;
         shadow_frame.SetVReg(dec_insn.vA, val);
         if (val == 0) {
-          shadow_frame.SetReference(dec_insn.vA, NULL);
+          shadow_frame.SetVRegReference(dec_insn.vA, NULL);
         }
         break;
       }
@@ -654,7 +653,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t val = static_cast<int16_t>(dec_insn.vB);
         shadow_frame.SetVReg(dec_insn.vA, val);
         if (val == 0) {
-          shadow_frame.SetReference(dec_insn.vA, NULL);
+          shadow_frame.SetVRegReference(dec_insn.vA, NULL);
         }
         break;
       }
@@ -662,7 +661,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t val = dec_insn.vB;
         shadow_frame.SetVReg(dec_insn.vA, val);
         if (val == 0) {
-          shadow_frame.SetReference(dec_insn.vA, NULL);
+          shadow_frame.SetVRegReference(dec_insn.vA, NULL);
         }
         break;
       }
@@ -670,7 +669,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t val = dec_insn.vB << 16;
         shadow_frame.SetVReg(dec_insn.vA, val);
         if (val == 0) {
-          shadow_frame.SetReference(dec_insn.vA, NULL);
+          shadow_frame.SetVRegReference(dec_insn.vA, NULL);
         }
         break;
       }
@@ -693,16 +692,16 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                                                                   true, true);
         }
         String* s = mh.ResolveString(dec_insn.vB);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, s);
+        shadow_frame.SetVRegReference(dec_insn.vA, s);
         break;
       }
       case Instruction::CONST_CLASS: {
         Class* c = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, c);
+        shadow_frame.SetVRegReference(dec_insn.vA, c);
         break;
       }
       case Instruction::MONITOR_ENTER: {
-        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
         } else {
@@ -711,7 +710,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MONITOR_EXIT: {
-        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
         } else {
@@ -724,7 +723,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         if (UNLIKELY(c == NULL)) {
           CHECK(self->IsExceptionPending());
         } else {
-          Object* obj = shadow_frame.GetReference(dec_insn.vA);
+          Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
           if (UNLIKELY(obj != NULL && !obj->InstanceOf(c))) {
             self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
                 "%s cannot be cast to %s",
@@ -739,13 +738,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         if (UNLIKELY(c == NULL)) {
           CHECK(self->IsExceptionPending());
         } else {
-          Object* obj = shadow_frame.GetReference(dec_insn.vB);
+          Object* obj = shadow_frame.GetVRegReference(dec_insn.vB);
           shadow_frame.SetVReg(dec_insn.vA, (obj != NULL && obj->InstanceOf(c)) ? 1 : 0);
         }
         break;
       }
       case Instruction::ARRAY_LENGTH:  {
-        Object* array = shadow_frame.GetReference(dec_insn.vB);
+        Object* array = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(array == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -755,13 +754,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::NEW_INSTANCE: {
         Object* obj = AllocObjectFromCode(dec_insn.vB, shadow_frame.GetMethod(), self, true);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, obj);
+        shadow_frame.SetVRegReference(dec_insn.vA, obj);
         break;
       }
       case Instruction::NEW_ARRAY: {
         int32_t length = shadow_frame.GetVReg(dec_insn.vB);
         Object* obj = AllocArrayFromCode(dec_insn.vC, shadow_frame.GetMethod(), length, self, true);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, obj);
+        shadow_frame.SetVRegReference(dec_insn.vA, obj);
         break;
       }
       case Instruction::FILLED_NEW_ARRAY:
@@ -861,7 +860,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::THROW: {
-        Throwable* t = shadow_frame.GetReference(dec_insn.vA)->AsThrowable();
+        Throwable* t = shadow_frame.GetVRegReference(dec_insn.vA)->AsThrowable();
         self->DeliverException(t);
         break;
       }
@@ -918,7 +917,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILL_ARRAY_DATA: {
-        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
           Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
               "null array in FILL_ARRAY_DATA");
@@ -1024,7 +1023,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_BOOLEAN: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1034,7 +1033,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_BYTE: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1044,7 +1043,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_CHAR: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1054,7 +1053,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_SHORT: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1064,7 +1063,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1074,7 +1073,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_WIDE:  {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1084,18 +1083,18 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_OBJECT: {
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, a->AsObjectArray<Object>()->Get(index));
+        shadow_frame.SetVRegReference(dec_insn.vA, a->AsObjectArray<Object>()->Get(index));
         break;
       }
       case Instruction::APUT_BOOLEAN: {
         uint8_t val = shadow_frame.GetVReg(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1106,7 +1105,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::APUT_BYTE: {
         int8_t val = shadow_frame.GetVReg(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1117,7 +1116,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::APUT_CHAR: {
         uint16_t val = shadow_frame.GetVReg(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1128,7 +1127,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::APUT_SHORT: {
         int16_t val = shadow_frame.GetVReg(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1139,7 +1138,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::APUT: {
         int32_t val = shadow_frame.GetVReg(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1150,7 +1149,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::APUT_WIDE: {
         int64_t val = shadow_frame.GetVRegLong(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1160,8 +1159,8 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_OBJECT: {
-        Object* val = shadow_frame.GetReference(dec_insn.vA);
-        Object* a = shadow_frame.GetReference(dec_insn.vB);
+        Object* val = shadow_frame.GetVRegReference(dec_insn.vA);
+        Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
@@ -1777,14 +1776,14 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   }
   // Set up shadow frame with matching number of reference slots to vregs.
   ShadowFrame* last_shadow_frame = self->GetManagedStack()->GetTopShadowFrame();
-  UniquePtr<ShadowFrame> shadow_frame(ShadowFrame::Create(num_regs, num_regs,
+  UniquePtr<ShadowFrame> shadow_frame(ShadowFrame::Create(num_regs,
                                                           (last_shadow_frame == NULL) ? NULL : last_shadow_frame->GetLink(),
                                                           method, 0));
   self->PushShadowFrame(shadow_frame.get());
   size_t cur_reg = num_regs - num_ins;
   if (!method->IsStatic()) {
     CHECK(receiver != NULL);
-    shadow_frame->SetReferenceAndVReg(cur_reg, receiver);
+    shadow_frame->SetVRegReference(cur_reg, receiver);
     ++cur_reg;
   } else if (!method->GetDeclaringClass()->IsInitializing()) {
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
@@ -1801,7 +1800,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     switch (shorty[arg_pos + 1]) {
       case 'L': {
         Object* o = args[arg_pos].GetL();
-        shadow_frame->SetReferenceAndVReg(cur_reg, o);
+        shadow_frame->SetVRegReference(cur_reg, o);
         break;
       }
       case 'J': case 'D':

@@ -524,17 +524,17 @@ class PACKED(4) Thread {
                         ManagedStack::TopShadowFrameOffset());
   }
 
-  // Number of references allocated in ShadowFrames on this thread
-  size_t NumShadowFrameReferences() const {
-    return managed_stack_.NumShadowFrameReferences();
+  // Number of references allocated in JNI ShadowFrames on this thread
+  size_t NumJniShadowFrameReferences() const {
+    return managed_stack_.NumJniShadowFrameReferences();
   }
 
   // Number of references in SIRTs on this thread
   size_t NumSirtReferences();
 
-  // Number of references allocated in SIRTs & shadow frames on this thread
+  // Number of references allocated in SIRTs & JNI shadow frames on this thread
   size_t NumStackReferences() {
-    return NumSirtReferences() + NumShadowFrameReferences();
+    return NumSirtReferences() + NumJniShadowFrameReferences();
   };
 
   // Is the given obj in this thread's stack indirect reference table?

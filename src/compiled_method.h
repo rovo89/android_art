@@ -99,6 +99,15 @@ class CompiledMethod : public CompiledCode {
 
   // Constructs a CompiledMethod for the LLVM compiler.
   CompiledMethod(InstructionSet instruction_set,
+                 const std::vector<uint8_t>& code,
+                 const std::vector<uint8_t>& gc_map)
+      : CompiledCode(instruction_set, code),
+        frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
+        fp_spill_mask_(0), native_gc_map_(gc_map) {
+  }
+
+  // Constructs a CompiledMethod for the LLVM JniCompiler.
+  CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint8_t>& code)
       : CompiledCode(instruction_set, code),
         frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),

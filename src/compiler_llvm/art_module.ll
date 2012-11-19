@@ -21,11 +21,10 @@
 
 %JavaObject = type opaque
 
-%ShadowFrame = type { %ShadowFrame*        ; Previous frame
+%ShadowFrame = type { i32                  ; Number of VRegs
+                    , %ShadowFrame*        ; Previous frame
                     , %JavaObject*         ; Method object pointer
                     , i32                  ; Line number for stack backtrace
-                    , i32                  ; Number of references
-                    ; [0 x %JavaObject*]   ; References
                     ; [0 x i32]            ; VRegs
                     }
 
@@ -45,7 +44,7 @@ declare void @art_unlock_object_from_code(%JavaObject*, %JavaObject*)
 declare void @art_test_suspend_from_code(%JavaObject*)
 
 declare %ShadowFrame* @art_push_shadow_frame_from_code(%JavaObject*, %ShadowFrame*,
-                                                       %JavaObject*, i16, i16)
+                                                       %JavaObject*, i32)
 declare void @art_pop_shadow_frame_from_code(%ShadowFrame*)
 
 

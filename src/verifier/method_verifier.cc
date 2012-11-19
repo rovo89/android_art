@@ -979,7 +979,6 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   return true;
 }
 
-#if !defined(ART_USE_LLVM_COMPILER)
 static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vector<uint8_t>& gc_map) {
   std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
   length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
@@ -997,7 +996,6 @@ static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vecto
                                 (length_prefixed_gc_map->at(3) << 0)));
   return length_prefixed_gc_map;
 }
-#endif
 
 bool MethodVerifier::VerifyCodeFlow() {
   uint16_t registers_size = code_item_->registers_size_;
@@ -1029,7 +1027,6 @@ bool MethodVerifier::VerifyCodeFlow() {
 
   Compiler::MethodReference ref(dex_file_, dex_method_idx_);
 
-#if !defined(ART_USE_LLVM_COMPILER)
 
   /* Generate a register map and add it to the method. */
   UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
@@ -1043,12 +1040,12 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
-#else  // defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
   const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
   verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
-
 #endif
+
 
   return true;
 }
@@ -3498,17 +3495,6 @@ const greenland::InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCate
   for (size_t i = 0; i < insns_size; ++i) {
     if (RegisterLine* line = reg_table_.GetLine(i)) {
       const Instruction* inst = Instruction::At(code_item_->insns_ + i);
-
-      // GC points
-      if (inst->IsBranch() || inst->IsInvoke()) {
-        for (size_t r = 0; r < regs_size; ++r) {
-          const RegType &rt = line->GetRegisterType(r);
-          if (rt.IsNonZeroReferenceTypes()) {
-            table->SetRegCanBeObject(r);
-          }
-        }
-      }
-
       /* We only use InferredRegCategoryMap in one case */
       if (inst->IsBranch()) {
         for (size_t r = 0; r < regs_size; ++r) {

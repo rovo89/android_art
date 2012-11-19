@@ -86,8 +86,8 @@ llvm::Value* RuntimeSupportBuilder::EmitSetCurrentThread(llvm::Value* thread) {
 /* ShadowFrame */
 
 llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_frame,
-                                                        llvm::Value* method, uint16_t num_refs,
-                                                        uint16_t num_vregs) {
+                                                        llvm::Value* method,
+                                                        uint32_t num_vregs) {
   Value* old_shadow_frame = EmitLoadFromThreadOffset(Thread::TopShadowFrameOffset().Int32Value(),
                                                      irb_.getArtFrameTy()->getPointerTo(),
                                                      kTBAARuntimeInfo);
@@ -101,16 +101,10 @@ llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_
                            method,
                            kTBAAShadowFrame);
 
-  // Store the number of the reference slots
-  irb_.StoreToObjectOffset(new_shadow_frame,
-                           ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getInt16(num_refs),
-                           kTBAAShadowFrame);
-
   // Store the number of vregs
   irb_.StoreToObjectOffset(new_shadow_frame,
                            ShadowFrame::NumberOfVRegsOffset(),
-                           irb_.getInt16(num_vregs),
+                           irb_.getInt32(num_vregs),
                            kTBAAShadowFrame);
 
   // Store the link to previous shadow frame
@@ -124,16 +118,15 @@ llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_
 
 llvm::Value*
 RuntimeSupportBuilder::EmitPushShadowFrameNoInline(llvm::Value* new_shadow_frame,
-                                                   llvm::Value* method, uint16_t num_refs,
-                                                   uint16_t num_vregs) {
+                                                   llvm::Value* method,
+                                                   uint32_t num_vregs) {
   Function* func = GetRuntimeSupportFunction(runtime_support::PushShadowFrame);
   llvm::CallInst* call_inst =
-      irb_.CreateCall5(func,
+      irb_.CreateCall4(func,
                        EmitGetCurrentThread(),
                        new_shadow_frame,
                        method,
-                       irb_.getInt16(num_refs),
-                       irb_.getInt16(num_vregs));
+                       irb_.getInt32(num_vregs));
   irb_.SetTBAA(call_inst, kTBAARuntimeInfo);
   return call_inst;
 }
@@ -156,7 +149,7 @@ llvm::Value* RuntimeSupportBuilder::EmitGetAndClearException() {
 llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
   Value* exception = EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
                                               irb_.getJObjectTy(),
-                                              kTBAAJRuntime);
+                                              kTBAARuntimeInfo);
   // If exception not null
   return irb_.CreateIsNotNull(exception);
 }
@@ -166,22 +159,8 @@ llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
 
 void RuntimeSupportBuilder::EmitTestSuspend() {
   Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
-  Value* suspend_count = EmitLoadFromThreadOffset(Thread::ThreadFlagsOffset().Int32Value(),
-                                                  irb_.getInt16Ty(),
-                                                  kTBAARuntimeInfo);
-  Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getInt16(0));
-
-  Function* parent_func = irb_.GetInsertBlock()->getParent();
-  BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", parent_func);
-  BasicBlock* basic_block_cont = BasicBlock::Create(context_, "suspend_cont", parent_func);
-  irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_cont, kUnlikely);
-
-  irb_.SetInsertPoint(basic_block_suspend);
   CallInst* call_inst = irb_.CreateCall(slow_func, EmitGetCurrentThread());
-  irb_.SetTBAA(call_inst, kTBAARuntimeInfo);
-  irb_.CreateBr(basic_block_cont);
-
-  irb_.SetInsertPoint(basic_block_cont);
+  irb_.SetTBAA(call_inst, kTBAAJRuntime);
 }
 
 

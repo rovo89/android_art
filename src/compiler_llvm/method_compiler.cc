@@ -60,8 +60,6 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     irb_(*cunit->GetIRBuilder()),
     func_(NULL),
     regs_(code_item_->registers_size_),
-    shadow_frame_entries_(code_item_->registers_size_),
-    reg_to_shadow_frame_index_(code_item_->registers_size_, -1),
     retval_reg_(NULL),
     basic_block_alloca_(NULL), basic_block_shadow_frame_(NULL),
     basic_block_reg_arg_init_(NULL),
@@ -69,7 +67,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL),
     shadow_frame_(NULL), old_shadow_frame_(NULL),
-    already_pushed_shadow_frame_(NULL), num_shadow_frame_refs_(0) {
+    already_pushed_shadow_frame_(NULL) {
 }
 
 
@@ -176,9 +174,6 @@ void MethodCompiler::EmitPrologue() {
     name = StringPrintf("%u", r);
 #endif
     regs_[r] = new DalvikReg(*this, name, GetVRegEntry(r));
-
-    // Cache shadow frame entry address
-    shadow_frame_entries_[r] = GetShadowFrameEntry(r);
   }
 
   std::string name;
@@ -256,7 +251,9 @@ void MethodCompiler::EmitPrologueLastBranch() {
     EmitStackOverflowCheck();
   }
   // Garbage collection safe-point
-  EmitGuard_GarbageCollectionSuspend();
+  if (method_info_.has_invoke) {
+    EmitGuard_GarbageCollectionSuspend(DexFile::kDexNoIndex);
+  }
   irb_.CreateBr(basic_block_shadow_frame_);
 
   irb_.SetInsertPoint(basic_block_shadow_frame_);
@@ -268,39 +265,13 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   irb_.SetInsertPoint(basic_block_alloca_);
 
   // Allocate the shadow frame now!
-  num_shadow_frame_refs_ = 0;
-  uint16_t arg_reg_start = code_item_->registers_size_ - code_item_->ins_size_;
-  if (method_info_.need_shadow_frame_entry) {
-    for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
-      if (i >= arg_reg_start && !method_info_.set_to_another_object[i]) {
-        // If we don't set argument registers to another object, we don't need the shadow frame
-        // entry for it. Because the arguments must have been in the caller's shadow frame.
-        continue;
-      }
-
-      if (IsRegCanBeObject(i)) {
-        reg_to_shadow_frame_index_[i] = num_shadow_frame_refs_++;
-      }
-    }
-  }
-
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(num_shadow_frame_refs_,
-                                                              code_item_->registers_size_);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(code_item_->registers_size_);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Alloca a pointer to old shadow frame
   old_shadow_frame_ = irb_.CreateAlloca(shadow_frame_type->getElementType(0)->getPointerTo());
 
   irb_.SetInsertPoint(basic_block_shadow_frame_);
-
-  // Zero-initialization of the shadow frame table
-  llvm::Value* shadow_frame_table = irb_.CreateConstGEP2_32(shadow_frame_, 0, 1);
-  llvm::Type* table_type = shadow_frame_type->getElementType(1);
-
-  llvm::ConstantAggregateZero* zero_initializer =
-    llvm::ConstantAggregateZero::get(table_type);
-
-  irb_.CreateStore(zero_initializer, shadow_frame_table, kTBAAShadowFrame);
 
   // Lazy pushing shadow frame
   if (method_info_.lazy_push_shadow_frame) {
@@ -1375,7 +1346,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
   llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
 
-  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
+  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
   if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
@@ -1444,7 +1415,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Value* type_field_addr =
       EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
 
-    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
+    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
     if (compiler_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
       return type_object_addr;
@@ -1522,6 +1493,8 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   if (!(method_info_.this_will_not_be_null && dec_insn.vA == method_info_.this_reg_idx)) {
     EmitGuard_NullPointerException(dex_pc, object_addr);
   }
+
+  EmitUpdateDexPC(dex_pc);
 
   irb_.Runtime().EmitLockObject(object_addr);
 
@@ -1914,6 +1887,11 @@ void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
 
   int32_t branch_offset = dec_insn.vA;
 
+  if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
   irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
 }
 
@@ -2044,6 +2022,11 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
 
   int32_t branch_offset = dec_insn.vC;
 
+  if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
@@ -2105,6 +2088,11 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
 
   int32_t branch_offset = dec_insn.vB;
 
+  if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+    // Garbage collection safe-point on backward branch
+    EmitGuard_GarbageCollectionSuspend(dex_pc);
+  }
+
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
@@ -2143,12 +2131,6 @@ greenland::RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
   const greenland::InferredRegCategoryMap* map = GetInferredRegCategoryMap();
 
   return map->GetRegCategory(dex_pc, reg_idx);
-}
-
-bool MethodCompiler::IsRegCanBeObject(uint16_t reg_idx) {
-  const greenland::InferredRegCategoryMap* map = GetInferredRegCategoryMap();
-
-  return map->IsRegCanBeObject(reg_idx);
 }
 
 
@@ -2442,7 +2424,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::Value* storage_field_addr =
     EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
 
-  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAAJRuntime);
+  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 
   llvm::BasicBlock* block_original = irb_.GetInsertBlock();
 
@@ -2809,7 +2791,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       irb_.LoadFromObjectOffset(callee_method_object_addr,
                                 AbstractMethod::GetCodeOffset().Int32Value(),
                                 GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
-                                kTBAAJRuntime);
+                                kTBAARuntimeInfo);
   }
 
   // Invoke callee
@@ -2835,7 +2817,7 @@ EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx) {
   llvm::Value* callee_method_object_field_addr =
     EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  return irb_.CreateLoad(callee_method_object_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(callee_method_object_field_addr, kTBAARuntimeInfo);
 }
 
 
@@ -3529,8 +3511,10 @@ CompiledMethod *MethodCompiler::Compile() {
 
   cunit_->Materialize();
 
+  Compiler::MethodReference mref(dex_file_, method_idx_);
   return new CompiledMethod(cunit_->GetInstructionSet(),
-                            cunit_->GetCompiledCode());
+                            cunit_->GetCompiledCode(),
+                            *verifier::MethodVerifier::GetDexGcMap(mref));
 }
 
 
@@ -3570,13 +3554,26 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc, bool can_ski
 }
 
 
-void MethodCompiler::EmitGuard_GarbageCollectionSuspend() {
-  // Loop suspend will be added by our llvm pass.
-  if (!method_info_.has_invoke) {
-    return;
-  }
+void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
+  llvm::Value* suspend_count =
+      irb_.Runtime().EmitLoadFromThreadOffset(Thread::ThreadFlagsOffset().Int32Value(),
+                                              irb_.getInt16Ty(),
+                                              kTBAARuntimeInfo);
+  llvm::Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getInt16(0));
 
+  llvm::BasicBlock* basic_block_suspend = CreateBasicBlockWithDexPC(dex_pc, "suspend");
+  llvm::BasicBlock* basic_block_cont = CreateBasicBlockWithDexPC(dex_pc, "suspend_cont");
+
+  irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_cont, kUnlikely);
+
+  irb_.SetInsertPoint(basic_block_suspend);
+  if (dex_pc != DexFile::kDexNoIndex) {
+    EmitUpdateDexPC(dex_pc);
+  }
   irb_.Runtime().EmitTestSuspend();
+  irb_.CreateBr(basic_block_cont);
+
+  irb_.SetInsertPoint(basic_block_cont);
 }
 
 
@@ -3766,49 +3763,7 @@ llvm::Value* MethodCompiler::AllocDalvikReg(RegCategory cat, const std::string& 
 }
 
 
-llvm::Value* MethodCompiler::GetShadowFrameEntry(uint32_t reg_idx) {
-  if (reg_to_shadow_frame_index_[reg_idx] == -1) {
-    // This register dosen't need ShadowFrame entry
-    return NULL;
-  }
-
-  if (!method_info_.need_shadow_frame_entry) {
-    return NULL;
-  }
-
-  std::string reg_name;
-
-#if !defined(NDEBUG)
-  StringAppendF(&reg_name, "s%u", reg_idx);
-#endif
-
-  // Save current IR builder insert point
-  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
-
-  irb_.SetInsertPoint(basic_block_shadow_frame_);
-
-  llvm::Value* gep_index[] = {
-    irb_.getInt32(0), // No pointer displacement
-    irb_.getInt32(1), // SIRT
-    irb_.getInt32(reg_to_shadow_frame_index_[reg_idx]) // Pointer field
-  };
-
-  llvm::Value* reg_addr = irb_.CreateGEP(shadow_frame_, gep_index, reg_name);
-
-  // Restore IRBuilder insert point
-  irb_.restoreIP(irb_ip_original);
-
-  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
-  return reg_addr;
-}
-
-
-// TODO: We will remove ShadowFrameEntry later, so I just copy/paste from ShadowFrameEntry.
 llvm::Value* MethodCompiler::GetVRegEntry(uint32_t reg_idx) {
-  if (!compiler_->IsDebuggingSupported()) {
-    return NULL;
-  }
-
   if (!method_info_.need_shadow_frame_entry) {
     return NULL;
   }
@@ -3826,7 +3781,7 @@ llvm::Value* MethodCompiler::GetVRegEntry(uint32_t reg_idx) {
 
   llvm::Value* gep_index[] = {
     irb_.getInt32(0), // No pointer displacement
-    irb_.getInt32(2), // VRegs
+    irb_.getInt32(1), // VRegs
     irb_.getInt32(reg_idx) // Pointer field
   };
 
@@ -3857,12 +3812,9 @@ void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   llvm::Value* result;
   if (is_inline) {
     result = irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr,
-                                                num_shadow_frame_refs_,
                                                 code_item_->registers_size_);
   } else {
-    DCHECK(num_shadow_frame_refs_ == 0);
     result = irb_.Runtime().EmitPushShadowFrameNoInline(shadow_frame_upcast, method_object_addr,
-                                                        num_shadow_frame_refs_,
                                                         code_item_->registers_size_);
   }
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
@@ -3932,9 +3884,6 @@ llvm::Value* MethodCompiler::EmitLoadDalvikReg(uint32_t reg_idx, char shorty,
 void MethodCompiler::EmitStoreDalvikReg(uint32_t reg_idx, JType jty,
                                         JTypeSpace space, llvm::Value* new_value) {
   regs_[reg_idx]->SetValue(jty, space, new_value);
-  if (jty == kObject && shadow_frame_entries_[reg_idx] != NULL) {
-    irb_.CreateStore(new_value, shadow_frame_entries_[reg_idx], kTBAAShadowFrame);
-  }
 }
 
 void MethodCompiler::EmitStoreDalvikReg(uint32_t reg_idx, char shorty,

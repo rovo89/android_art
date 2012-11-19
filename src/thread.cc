@@ -52,6 +52,7 @@
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "utils.h"
+#include "verifier/dex_gc_map.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -1853,8 +1854,39 @@ class ReferenceMapVisitor : public StackVisitor {
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
     if (shadow_frame != NULL) {
-      WrapperVisitor wrapperVisitor(visitor_, this);
-      shadow_frame->VisitRoots(wrapperVisitor);
+      AbstractMethod* m = shadow_frame->GetMethod();
+      size_t num_regs = shadow_frame->NumberOfVRegs();
+      if (m->IsNative() || shadow_frame->HasReferenceArray()) {
+        // SIRT for JNI or References for interpreter.
+        for (size_t reg = 0; reg < num_regs; ++reg) {
+          Object* ref = shadow_frame->GetVRegReference(reg);
+          if (ref != NULL) {
+            visitor_(ref, reg, this);
+          }
+        }
+      } else {
+        // Java method.
+        // Portable path use DexGcMap and store in Method.native_gc_map_.
+        const uint8_t* gc_map = m->GetNativeGcMap();
+        CHECK(gc_map != NULL) << PrettyMethod(m);
+        uint32_t gc_map_length = static_cast<uint32_t>((gc_map[0] << 24) |
+                                                       (gc_map[1] << 16) |
+                                                       (gc_map[2] << 8) |
+                                                       (gc_map[3] << 0));
+        verifier::DexPcToReferenceMap dex_gc_map(gc_map + 4, gc_map_length);
+        uint32_t dex_pc = GetDexPc();
+        const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
+        DCHECK(reg_bitmap != NULL);
+        num_regs = std::min(dex_gc_map.RegWidth() * 8, num_regs);
+        for (size_t reg = 0; reg < num_regs; ++reg) {
+          if (TestBitmap(reg, reg_bitmap)) {
+            Object* ref = shadow_frame->GetVRegReference(reg);
+            if (ref != NULL) {
+              visitor_(ref, reg, this);
+            }
+          }
+        }
+      }
     } else {
       AbstractMethod* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
@@ -1903,21 +1935,6 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
  private:
-
-  class WrapperVisitor {
-   public:
-    WrapperVisitor(const RootVisitor& root_visitor, const StackVisitor* stack_visitor)
-      : root_visitor_(root_visitor), stack_visitor_(stack_visitor) {}
-
-    void operator()(const Object* obj, size_t offset) const {
-      root_visitor_(obj, offset, stack_visitor_);
-    }
-
-   private:
-    const RootVisitor& root_visitor_;
-    const StackVisitor* const stack_visitor_;
-  };
-
   static bool TestBitmap(int reg, const uint8_t* reg_vector) {
     return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
   }

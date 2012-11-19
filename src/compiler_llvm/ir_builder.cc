@@ -151,8 +151,8 @@ llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
 }
 
 
-llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t sirt_size, uint32_t vreg_size) {
-  std::string name(StringPrintf("ShadowFrame%u_vreg%u", sirt_size, vreg_size));
+llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t vreg_size) {
+  std::string name(StringPrintf("ShadowFrame%u", vreg_size));
 
   // Try to find the existing struct type definition
   if (llvm::Type* type = module_->getTypeByName(name)) {
@@ -163,7 +163,6 @@ llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t sirt_size, uint32_t vreg_
   // Create new struct type definition
   llvm::Type* elem_types[] = {
     art_frame_type_,
-    llvm::ArrayType::get(jobject_type_, sirt_size),
     llvm::ArrayType::get(getInt32Ty(), vreg_size),
   };
 

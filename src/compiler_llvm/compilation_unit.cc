@@ -78,75 +78,6 @@
 
 #include <string>
 
-namespace {
-
-// TODO: We may need something to manage these passes.
-// TODO: We need high-level IR to analysis and do this at the IRBuilder level.
-class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
- public:
-  static char ID;
-
-  AddSuspendCheckToLoopLatchPass() : llvm::LoopPass(ID), irb_(NULL) {
-    LOG(FATAL) << "Unexpected instantiation of AddSuspendCheckToLoopLatchPass";
-    // NOTE: We have to declare this constructor for llvm::RegisterPass, but
-    // this constructor won't work because we have no information on
-    // IRBuilder.  Thus, we should place a LOG(FATAL) here.
-  }
-
-  AddSuspendCheckToLoopLatchPass(art::compiler_llvm::IRBuilder* irb)
-    : llvm::LoopPass(ID), irb_(irb) {
-  }
-
-  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-    AU.addRequired<llvm::LoopInfo>();
-    AU.addRequiredID(llvm::LoopSimplifyID);
-
-    AU.addPreserved<llvm::DominatorTree>();
-    AU.addPreserved<llvm::LoopInfo>();
-    AU.addPreservedID(llvm::LoopSimplifyID);
-    AU.addPreserved<llvm::ScalarEvolution>();
-    AU.addPreservedID(llvm::BreakCriticalEdgesID);
-  }
-
-  virtual bool runOnLoop(llvm::Loop *loop, llvm::LPPassManager &lpm) {
-    llvm::LoopInfo* loop_info = &getAnalysis<llvm::LoopInfo>();
-
-    CHECK_EQ(loop->getNumBackEdges(), 1U) << "Loop must be simplified!";
-    llvm::BasicBlock* bb = loop->getLoopLatch();
-    CHECK_NE(bb, static_cast<void*>(NULL)) << "A single loop latch must exist.";
-
-    llvm::BasicBlock* tb = bb->splitBasicBlock(bb->getTerminator(), "suspend_exit");
-    // Remove unconditional branch which is added by splitBasicBlock.
-    bb->getTerminator()->eraseFromParent();
-
-    irb_->SetInsertPoint(bb);
-    irb_->Runtime().EmitTestSuspend();
-    irb_->CreateBr(tb);
-
-    loop->addBasicBlockToLoop(tb, loop_info->getBase());
-    // EmitTestSuspend() creates some basic blocks. We should add them to using
-    // addBasicBlockToLoop(...) as above.
-    for (llvm::succ_iterator succ_iter = llvm::succ_begin(bb), succ_end = llvm::succ_end(bb);
-         succ_iter != succ_end;
-         succ_iter++) {
-      loop->addBasicBlockToLoop(*succ_iter, loop_info->getBase());
-    }
-
-    return true;
-  }
-
- private:
-  art::compiler_llvm::IRBuilder* irb_;
-};
-
-char AddSuspendCheckToLoopLatchPass::ID = 0;
-
-llvm::RegisterPass<AddSuspendCheckToLoopLatchPass> reg_add_suspend_check_to_loop_latch_pass_(
-  "add-suspend-check-to-loop-latch", "Add suspend check to loop latch pass", false, false);
-
-
-} // end anonymous namespace
-
 namespace art {
 namespace compiler_llvm {
 
@@ -328,30 +259,22 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   if (bitcode_filename_.empty()) {
     // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the
     // regular FunctionPass.
-#if defined(ART_USE_DEXLANG_FRONTEND)
-    fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
-#elif defined(ART_USE_PORTABLE_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
     fpm.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                   compiler_, oat_compilation_unit_));
 #endif
-    fpm.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
   } else {
-    // Run AddSuspendCheckToLoopLatchPass before we write the bitcode to file.
+#if defined(ART_USE_PORTABLE_COMPILER)
     llvm::FunctionPassManager fpm2(module_);
-#if defined(ART_USE_DEXLANG_FRONTEND)
-    fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
-#elif defined(ART_USE_PORTABLE_COMPILER)
     fpm2.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                    compiler_, oat_compilation_unit_));
-#endif
-    fpm2.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
     fpm2.doInitialization();
     for (llvm::Module::iterator F = module_->begin(), E = module_->end();
          F != E; ++F) {
       fpm2.run(*F);
     }
     fpm2.doFinalization();
-
+#endif
 
     // Write bitcode to file
     std::string errmsg;
