@@ -127,8 +127,8 @@ class RegType {
   bool CheckWidePair(const RegType& type_h) const {
     if (IsLowHalf()) {
       return (type_h.type_ == type_ + 1) ||
-          (IsPreciseConstantLo() && !type_h.IsPreciseConstantHi()) ||
-          (!IsPreciseConstantLo() && type_h.IsPreciseConstantHi());
+          (IsPreciseConstantLo() && type_h.IsImpreciseConstantHi()) ||
+          (IsImpreciseConstantLo() && type_h.IsPreciseConstantHi());
     }
     return false;
   }
@@ -141,14 +141,16 @@ class RegType {
     return type_ == kRegTypePreciseConst;
   }
   bool IsPreciseConstantLo() const {
-    bool result = (type_ == kRegTypePreciseConstLo);
-    DCHECK(result || (type_ == kRegTypeImpreciseConstLo));
-    return result;
+    return type_ == kRegTypePreciseConstLo;
   }
   bool IsPreciseConstantHi() const {
-    bool result = (type_ == kRegTypePreciseConstHi);
-    DCHECK(result || (type_ == kRegTypeImpreciseConstHi));
-    return result;
+    return type_ == kRegTypePreciseConstHi;
+  }
+  bool IsImpreciseConstantLo() const {
+    return type_ == kRegTypeImpreciseConstLo;
+  }
+  bool IsImpreciseConstantHi() const {
+    return type_ == kRegTypeImpreciseConstHi;
   }
   bool IsConstant() const {
     return type_ == kRegTypePreciseConst || type_ == kRegTypeImpreciseConst;
