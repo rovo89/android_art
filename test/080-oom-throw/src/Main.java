@@ -56,6 +56,8 @@ public class Main {
 
         int count = ArrayMemEater.blowup(holder, size);
         ArrayMemEater.confuseCompilerOptimization(holder);
+        // Ensure there is some reclaimable memory for println.
+        holder = null;
         if (count < size) {
             System.out.println("Array allocation failed");
         }
@@ -69,6 +71,8 @@ public class Main {
             lastMemEater = lastMemEater.next;
         } while (lastMemEater != null);
         memEater.confuseCompilerOptimization(memEater);
+        // Ensure there is some reclaimable memory for println.
+        memEater = null;
         System.out.println("Instance allocation failed");
     }
 
