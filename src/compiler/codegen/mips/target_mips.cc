@@ -481,10 +481,10 @@ bool oatArchVariantInit(void)
   return true;
 }
 
-void oatGenMemBarrier(CompilationUnit *cUnit, int barrierKind)
+void oatGenMemBarrier(CompilationUnit *cUnit, MemBarrierKind barrierKind)
 {
 #if ANDROID_SMP != 0
-  newLIR1(cUnit, kMipsSync, barrierKind);
+  newLIR1(cUnit, kMipsSync, 0 /* Only stype currently supported */);
 #endif
 }
 
@@ -653,6 +653,21 @@ bool oatArchInit()
   }
 
   return oatArchVariantInit();
+}
+
+uint64_t getTargetInstFlags(int opcode)
+{
+  return EncodingMap[opcode].flags;
+}
+
+const char* getTargetInstName(int opcode)
+{
+  return EncodingMap[opcode].name;
+}
+
+const char* getTargetInstFmt(int opcode)
+{
+  return EncodingMap[opcode].fmt;
 }
 
 } // namespace art

@@ -16,10 +16,14 @@
 
 #include "object_utils.h"
 
+#include "../compiler_internals.h"
 #include "local_optimizations.h"
+#include "codegen_util.h"
+#include "ralloc_util.h"
 
 namespace art {
 
+// TODO: unify badLoc
 const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG,
                             INVALID_SREG};
@@ -50,160 +54,6 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
     oatLockTemp(cUnit, res.lowReg);
   }
   return res;
-}
-
-// TODO: move to gen_invoke.cc
-void genInvoke(CompilationUnit* cUnit, CallInfo* info)
-{
-  if (genIntrinsic(cUnit, info)) {
-    return;
-  }
-  InvokeType originalType = info->type;  // avoiding mutation by ComputeInvokeInfo
-  int callState = 0;
-  LIR* nullCk;
-  LIR** pNullCk = NULL;
-  NextCallInsn nextCallInsn;
-  oatFlushAllRegs(cUnit);  /* Everything to home location */
-  // Explicit register usage
-  oatLockCallTemps(cUnit);
-
-  OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                           *cUnit->dex_file,
-                           cUnit->code_item, cUnit->method_idx,
-                           cUnit->access_flags);
-
-  uint32_t dexMethodIdx = info->index;
-  int vtableIdx;
-  uintptr_t directCode;
-  uintptr_t directMethod;
-  bool skipThis;
-  bool fastPath =
-    cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, info->type,
-                                       vtableIdx, directCode,
-                                       directMethod)
-    && !SLOW_INVOKE_PATH;
-  if (info->type == kInterface) {
-    if (fastPath) {
-      pNullCk = &nullCk;
-    }
-    nextCallInsn = fastPath ? nextInterfaceCallInsn
-                            : nextInterfaceCallInsnWithAccessCheck;
-    skipThis = false;
-  } else if (info->type == kDirect) {
-    if (fastPath) {
-      pNullCk = &nullCk;
-    }
-    nextCallInsn = fastPath ? nextSDCallInsn : nextDirectCallInsnSP;
-    skipThis = false;
-  } else if (info->type == kStatic) {
-    nextCallInsn = fastPath ? nextSDCallInsn : nextStaticCallInsnSP;
-    skipThis = false;
-  } else if (info->type == kSuper) {
-    DCHECK(!fastPath);  // Fast path is a direct call.
-    nextCallInsn = nextSuperCallInsnSP;
-    skipThis = false;
-  } else {
-    DCHECK_EQ(info->type, kVirtual);
-    nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
-    skipThis = fastPath;
-  }
-  if (!info->isRange) {
-    callState = genDalvikArgsNoRange(cUnit, info, callState, pNullCk,
-                                     nextCallInsn, dexMethodIdx,
-                                     vtableIdx, directCode, directMethod,
-                                     originalType, skipThis);
-  } else {
-    callState = genDalvikArgsRange(cUnit, info, callState, pNullCk,
-                                   nextCallInsn, dexMethodIdx, vtableIdx,
-                                   directCode, directMethod, originalType,
-                                   skipThis);
-  }
-  // Finish up any of the call sequence not interleaved in arg loading
-  while (callState >= 0) {
-    callState = nextCallInsn(cUnit, info, callState, dexMethodIdx,
-                             vtableIdx, directCode, directMethod,
-                             originalType);
-  }
-  if (cUnit->enableDebug & (1 << kDebugDisplayMissingTargets)) {
-    genShowTarget(cUnit);
-  }
-  LIR* callInst;
-  if (cUnit->instructionSet != kX86) {
-    callInst = opReg(cUnit, kOpBlx, targetReg(kInvokeTgt));
-  } else {
-    if (fastPath && info->type != kInterface) {
-      callInst = opMem(cUnit, kOpBlx, targetReg(kArg0),
-                       AbstractMethod::GetCodeOffset().Int32Value());
-    } else {
-      int trampoline = 0;
-      switch (info->type) {
-      case kInterface:
-        trampoline = fastPath ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
-            : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
-        break;
-      case kDirect:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
-        break;
-      case kStatic:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
-        break;
-      case kSuper:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
-        break;
-      case kVirtual:
-        trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
-        break;
-      default:
-        LOG(FATAL) << "Unexpected invoke type";
-      }
-      callInst = opThreadMem(cUnit, kOpBlx, trampoline);
-    }
-  }
-  markSafepointPC(cUnit, callInst);
-
-  oatClobberCalleeSave(cUnit);
-  if (info->result.location != kLocInvalid) {
-    // We have a following MOVE_RESULT - do it now.
-    if (info->result.wide) {
-      RegLocation retLoc = oatGetReturnWide(cUnit, info->result.fp);
-      storeValueWide(cUnit, info->result, retLoc);
-    } else {
-      RegLocation retLoc = oatGetReturn(cUnit, info->result.fp);
-      storeValue(cUnit, info->result, retLoc);
-    }
-  }
-}
-
-/*
- * Build an array of location records for the incoming arguments.
- * Note: one location record per word of arguments, with dummy
- * high-word loc for wide arguments.  Also pull up any following
- * MOVE_RESULT and incorporate it into the invoke.
- */
-//TODO: move to gen_invoke.cc or utils
-CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                         InvokeType type, bool isRange)
-{
-  CallInfo* info = static_cast<CallInfo*>(oatNew(cUnit, sizeof(CallInfo), true, kAllocMisc));
-  MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
-  if (moveResultMIR == NULL) {
-    info->result.location = kLocInvalid;
-  } else {
-    info->result = oatGetRawDest(cUnit, moveResultMIR);
-    moveResultMIR->dalvikInsn.opcode = Instruction::NOP;
-  }
-  info->numArgWords = mir->ssaRep->numUses;
-  info->args = (info->numArgWords == 0) ? NULL : static_cast<RegLocation*>
-      (oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc));
-  for (int i = 0; i < info->numArgWords; i++) {
-    info->args[i] = oatGetRawSrc(cUnit, mir, i);
-  }
-  info->optFlags = mir->optimizationFlags;
-  info->type = type;
-  info->isRange = isRange;
-  info->index = mir->dalvikInsn.vB;
-  info->offset = mir->offset;
-  return info;
 }
 
 /*

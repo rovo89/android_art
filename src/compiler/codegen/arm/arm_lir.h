@@ -232,8 +232,6 @@ enum ArmShiftEncodings {
   kArmRor = 0x3
 };
 
-#define isPseudoOpcode(opcode) (static_cast<int>(opcode) < 0)
-
 /*
  * The following enum defines the list of supported Thumb instructions by the
  * assembler. Their corresponding EncodingMap positions will be defined in

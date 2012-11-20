@@ -338,6 +338,16 @@ enum DataFlowAnalysisMode {
 
 std::ostream& operator<<(std::ostream& os, const DataFlowAnalysisMode& mode);
 
+// Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers")
+enum MemBarrierKind {
+  kLoadStore,
+  kLoadLoad,
+  kStoreStore,
+  kStoreLoad
+};
+
+std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
+
 }  // namespace art
 
 #endif // ART_SRC_COMPILER_COMPILERENUMS_H_

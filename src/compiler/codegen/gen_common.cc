@@ -15,6 +15,9 @@
  */
 
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "../compiler_ir.h"
+#include "ralloc_util.h"
+#include "codegen_util.h"
 
 namespace art {
 
@@ -610,9 +613,8 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
     } else {
       rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
     }
-//FIXME: need to generalize the barrier call
     if (isVolatile) {
-      oatGenMemBarrier(cUnit, kST);
+      oatGenMemBarrier(cUnit, kStoreStore);
     }
     if (isLongOrDouble) {
       storeBaseDispWide(cUnit, rBase, fieldOffset, rlSrc.lowReg,
@@ -621,7 +623,7 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
       storeWordDisp(cUnit, rBase, fieldOffset, rlSrc.lowReg);
     }
     if (isVolatile) {
-      oatGenMemBarrier(cUnit, kSY);
+      oatGenMemBarrier(cUnit, kStoreLoad);
     }
     if (isObject) {
       markGCCard(cUnit, rlSrc.lowReg, rBase);
@@ -698,7 +700,7 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
     // rBase now holds static storage base
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
     if (isVolatile) {
-      oatGenMemBarrier(cUnit, kSY);
+      oatGenMemBarrier(cUnit, kLoadLoad);
     }
     if (isLongOrDouble) {
       loadBaseDispWide(cUnit, rBase, fieldOffset, rlResult.lowReg,
@@ -894,7 +896,7 @@ void genIGet(CompilationUnit* cUnit, uint32_t fieldIdx, int optFlags, OpSize siz
         loadBaseDispWide(cUnit, rlObj.lowReg, fieldOffset, rlResult.lowReg,
                          rlResult.highReg, rlObj.sRegLow);
         if (isVolatile) {
-          oatGenMemBarrier(cUnit, kSY);
+          oatGenMemBarrier(cUnit, kLoadLoad);
         }
       } else {
         int regPtr = oatAllocTemp(cUnit);
@@ -902,7 +904,7 @@ void genIGet(CompilationUnit* cUnit, uint32_t fieldIdx, int optFlags, OpSize siz
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
         loadPair(cUnit, regPtr, rlResult.lowReg, rlResult.highReg);
         if (isVolatile) {
-          oatGenMemBarrier(cUnit, kSY);
+          oatGenMemBarrier(cUnit, kLoadLoad);
         }
         oatFreeTemp(cUnit, regPtr);
       }
@@ -913,7 +915,7 @@ void genIGet(CompilationUnit* cUnit, uint32_t fieldIdx, int optFlags, OpSize siz
       loadBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlResult.lowReg,
                    kWord, rlObj.sRegLow);
       if (isVolatile) {
-        oatGenMemBarrier(cUnit, kSY);
+        oatGenMemBarrier(cUnit, kLoadLoad);
       }
       storeValue(cUnit, rlDest, rlResult);
     }
@@ -951,22 +953,22 @@ void genIPut(CompilationUnit* cUnit, uint32_t fieldIdx, int optFlags, OpSize siz
       regPtr = oatAllocTemp(cUnit);
       opRegRegImm(cUnit, kOpAdd, regPtr, rlObj.lowReg, fieldOffset);
       if (isVolatile) {
-        oatGenMemBarrier(cUnit, kST);
+        oatGenMemBarrier(cUnit, kStoreStore);
       }
       storeBaseDispWide(cUnit, regPtr, 0, rlSrc.lowReg, rlSrc.highReg);
       if (isVolatile) {
-        oatGenMemBarrier(cUnit, kSY);
+        oatGenMemBarrier(cUnit, kLoadLoad);
       }
       oatFreeTemp(cUnit, regPtr);
     } else {
       rlSrc = loadValue(cUnit, rlSrc, regClass);
       genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, optFlags);
       if (isVolatile) {
-        oatGenMemBarrier(cUnit, kST);
+        oatGenMemBarrier(cUnit, kStoreStore);
       }
       storeBaseDisp(cUnit, rlObj.lowReg, fieldOffset, rlSrc.lowReg, kWord);
       if (isVolatile) {
-        oatGenMemBarrier(cUnit, kSY);
+        oatGenMemBarrier(cUnit, kLoadLoad);
       }
       if (isObject) {
         markGCCard(cUnit, rlSrc.lowReg, rlObj.lowReg);

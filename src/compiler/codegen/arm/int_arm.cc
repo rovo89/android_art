@@ -18,6 +18,9 @@
 
 #include "oat_compilation_unit.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "arm_lir.h"
+#include "../codegen_util.h"
+#include "../ralloc_util.h"
 
 namespace art {
 
@@ -378,8 +381,8 @@ bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_bar
   RegLocation rlDest = inlineTarget(cUnit, info);  // boolean place for result
 
 
-  // Release store semantics, get the barrier out of the way.
-  oatGenMemBarrier(cUnit, kSY);
+  // Release store semantics, get the barrier out of the way.  TODO: revisit
+  oatGenMemBarrier(cUnit, kStoreLoad);
 
   RegLocation rlObject = loadValue(cUnit, rlSrcObj, kCoreReg);
   RegLocation rlNewValue = loadValue(cUnit, rlSrcNewValue, kCoreReg);
@@ -474,10 +477,22 @@ LIR* opDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* t
   return opCondBranch(cUnit, cCode, target);
 }
 
-void oatGenMemBarrier(CompilationUnit* cUnit, int barrierKind)
+void oatGenMemBarrier(CompilationUnit* cUnit, MemBarrierKind barrierKind)
 {
 #if ANDROID_SMP != 0
-  LIR* dmb = newLIR1(cUnit, kThumb2Dmb, barrierKind);
+  int dmbFlavor;
+  // TODO: revisit Arm barrier kinds
+  switch (barrierKind) {
+    case kLoadStore: dmbFlavor = kSY; break;
+    case kLoadLoad: dmbFlavor = kSY; break;
+    case kStoreStore: dmbFlavor = kST; break;
+    case kStoreLoad: dmbFlavor = kSY; break;
+    default:
+      LOG(FATAL) << "Unexpected MemBarrierKind: " << barrierKind;
+      dmbFlavor = kSY;  // quiet gcc.
+      break;
+  }
+  LIR* dmb = newLIR1(cUnit, kThumb2Dmb, dmbFlavor);
   dmb->defMask = ENCODE_ALL;
 #endif
 }

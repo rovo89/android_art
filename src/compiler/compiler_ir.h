@@ -162,6 +162,8 @@ struct RegisterPool {
 #define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
                                  ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
 
+#define isPseudoOpcode(opcode) (static_cast<int>(opcode) < 0)
+
 struct LIR {
   int offset;                        // Offset of this instruction
   int dalvikOffset;                  // Offset of Dalvik opcode

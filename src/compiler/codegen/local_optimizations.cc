@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "../compiler_internals.h"
+
 namespace art {
 
 #define DEBUG_OPT(X)
@@ -86,20 +88,20 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
     /* Skip non-interesting instructions */
     if ((thisLIR->flags.isNop == true) ||
         isPseudoOpcode(thisLIR->opcode) ||
-        (EncodingMap[thisLIR->opcode].flags & IS_BRANCH) ||
-        !(EncodingMap[thisLIR->opcode].flags & (IS_LOAD | IS_STORE))) {
+        (getTargetInstFlags(thisLIR->opcode) & IS_BRANCH) ||
+        !(getTargetInstFlags(thisLIR->opcode) & (IS_LOAD | IS_STORE))) {
       continue;
     }
 
     int nativeRegId;
     if (cUnit->instructionSet == kX86) {
       // If x86, location differs depending on whether memory/reg operation.
-      nativeRegId = (EncodingMap[thisLIR->opcode].flags & IS_STORE) ? thisLIR->operands[2]
+      nativeRegId = (getTargetInstFlags(thisLIR->opcode) & IS_STORE) ? thisLIR->operands[2]
           : thisLIR->operands[0];
     } else {
       nativeRegId = thisLIR->operands[0];
     }
-    bool isThisLIRLoad = EncodingMap[thisLIR->opcode].flags & IS_LOAD;
+    bool isThisLIRLoad = getTargetInstFlags(thisLIR->opcode) & IS_LOAD;
     LIR* checkLIR;
     /* Use the mem mask to determine the rough memory location */
     uint64_t thisMemMask = (thisLIR->useMask | thisLIR->defMask) & ENCODE_MEM;
@@ -142,13 +144,13 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
        * Potential aliases seen - check the alias relations
        */
       if (checkMemMask != ENCODE_MEM && aliasCondition != 0) {
-        bool isCheckLIRLoad = EncodingMap[checkLIR->opcode].flags & IS_LOAD;
+        bool isCheckLIRLoad = getTargetInstFlags(checkLIR->opcode) & IS_LOAD;
         if  (aliasCondition == ENCODE_LITERAL) {
           /*
            * Should only see literal loads in the instruction
            * stream.
            */
-          DCHECK(!(EncodingMap[checkLIR->opcode].flags & IS_STORE));
+          DCHECK(!(getTargetInstFlags(checkLIR->opcode) & IS_STORE));
           /* Same value && same register type */
           if (checkLIR->aliasInfo == thisLIR->aliasInfo &&
               sameRegType(checkLIR->operands[0], nativeRegId)) {
@@ -231,7 +233,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
         if (cUnit->instructionSet == kX86) {
           // Prevent stores from being sunk between ops that generate ccodes and
           // ops that use them.
-          uint64_t flags = EncodingMap[checkLIR->opcode].flags;
+          uint64_t flags = getTargetInstFlags(checkLIR->opcode);
           if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
             checkLIR = PREV_LIR(checkLIR);
             sinkDistance--;
@@ -282,7 +284,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
     /* Skip non-interesting instructions */
     if ((thisLIR->flags.isNop == true) ||
         isPseudoOpcode(thisLIR->opcode) ||
-        !(EncodingMap[thisLIR->opcode].flags & IS_LOAD)) {
+        !(getTargetInstFlags(thisLIR->opcode) & IS_LOAD)) {
       continue;
     }
 
@@ -382,7 +384,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
       LIR* depLIR = prevInstList[nextSlot-1];
       /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
       if (!isPseudoOpcode(depLIR->opcode) &&
-        (EncodingMap[depLIR->opcode].flags & IS_LOAD)) {
+        (getTargetInstFlags(depLIR->opcode) & IS_LOAD)) {
         firstSlot -= LDLD_DISTANCE;
       }
       /*
@@ -399,7 +401,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
            */
-          if (EncodingMap[curLIR->opcode].flags & IS_LOAD) continue;
+          if (getTargetInstFlags(curLIR->opcode) & IS_LOAD) continue;
           /*
            * If the remaining number of slots is less than LD_LATENCY,
            * insert the hoisted load here.
@@ -419,7 +421,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
          * the remaining instructions are less than LD_LATENCY.
          */
         bool prevIsLoad = isPseudoOpcode(prevLIR->opcode) ? false :
-            (EncodingMap[prevLIR->opcode].flags & IS_LOAD);
+            (getTargetInstFlags(prevLIR->opcode) & IS_LOAD);
         if (((curLIR->useMask & prevLIR->defMask) && prevIsLoad) || (slot < LD_LATENCY)) {
           break;
         }

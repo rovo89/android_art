@@ -22,6 +22,13 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/compiler/ssa_transformation.cc \
 	src/compiler/compiler_utility.cc \
 	src/compiler/codegen/ralloc_util.cc \
+	src/compiler/codegen/codegen_util.cc \
+	src/compiler/codegen/gen_loadstore.cc \
+	src/compiler/codegen/gen_common.cc \
+	src/compiler/codegen/gen_invoke.cc \
+	src/compiler/codegen/method_bitcode.cc \
+	src/compiler/codegen/method_codegen_driver.cc \
+	src/compiler/codegen/local_optimizations.cc \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \
 	src/oat/jni/arm/calling_convention_arm.cc \
@@ -34,21 +41,30 @@ LIBART_COMPILER_arm_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/arm/target_arm.cc \
 	src/compiler/codegen/arm/assemble_arm.cc \
-	src/compiler/codegen/arm/backend_arm.cc \
+	src/compiler/codegen/arm/utility_arm.cc \
+	src/compiler/codegen/arm/call_arm.cc \
+	src/compiler/codegen/arm/fp_arm.cc \
+	src/compiler/codegen/arm/int_arm.cc \
 	src/oat/jni/arm/jni_internal_arm.cc
 
 LIBART_COMPILER_mips_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/mips/target_mips.cc \
 	src/compiler/codegen/mips/assemble_mips.cc \
-	src/compiler/codegen/mips/backend_mips.cc \
+	src/compiler/codegen/mips/utility_mips.cc \
+	src/compiler/codegen/mips/call_mips.cc \
+	src/compiler/codegen/mips/fp_mips.cc \
+	src/compiler/codegen/mips/int_mips.cc \
 	src/oat/jni/mips/jni_internal_mips.cc
 
 LIBART_COMPILER_x86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/x86/target_x86.cc \
 	src/compiler/codegen/x86/assemble_x86.cc \
-	src/compiler/codegen/x86/backend_x86.cc \
+	src/compiler/codegen/x86/utility_x86.cc \
+	src/compiler/codegen/x86/call_x86.cc \
+	src/compiler/codegen/x86/fp_x86.cc \
+	src/compiler/codegen/x86/int_x86.cc \
 	src/oat/jni/x86/jni_internal_x86.cc
 
 # $(1): target or host

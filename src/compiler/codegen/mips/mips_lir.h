@@ -303,8 +303,6 @@ enum MipsShiftEncodings {
 #define kST kSYNC0
 #define kSY kSYNC0
 
-#define isPseudoOpcode(opCode) (static_cast<int>(opCode) < 0)
-
 /*
  * The following enum defines the list of supported Thumb instructions by the
  * assembler. Their corresponding EncodingMap positions will be defined in

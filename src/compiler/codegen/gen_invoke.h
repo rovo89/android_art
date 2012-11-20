@@ -35,5 +35,7 @@ bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info);
 bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info, bool zeroBased);
 bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info);
 bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info);
+void genInvoke(CompilationUnit* cUnit, CallInfo* info);
+CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
 
 #endif // ART_SRC_COMPILER_CODEGEN_GENINVOKE_H_
