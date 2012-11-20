@@ -53,6 +53,7 @@ class Mutex;
 class Object;
 class Space;
 class SpaceTest;
+class StackVisitor;
 class Thread;
 class TimingLogger;
 
@@ -107,7 +108,7 @@ class Heap {
 
   typedef void (RootVisitor)(const Object* root, void* arg);
   typedef void (VerifyRootVisitor)(const Object* root, void* arg, size_t vreg,
-      const AbstractMethod* method);
+      const StackVisitor* visitor);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
 
   // Create a heap with the requested sizes. The possible empty

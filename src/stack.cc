@@ -149,6 +149,16 @@ size_t StackVisitor::ComputeNumFrames() const {
   return visitor.frames;
 }
 
+std::string StackVisitor::DescribeLocation() const {
+  std::string result("Visiting method '");
+  result += PrettyMethod(GetMethod());
+  result += StringPrintf("' at dex PC 0x%04zx", GetDexPc());
+  if (!IsShadowFrame()) {
+    result += StringPrintf(" (native PC %p)", reinterpret_cast<void*>(GetCurrentQuickFramePc()));
+  }
+  return result;
+}
+
 void StackVisitor::SanityCheckFrame() const {
 #ifndef NDEBUG
   AbstractMethod* method = GetMethod();

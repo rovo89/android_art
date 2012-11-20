@@ -1838,12 +1838,12 @@ bool Thread::HoldsLock(Object* object) {
   return object->GetThinLockId() == thin_lock_id_;
 }
 
-// Visitor parameters are: (const Object* obj, size_t vreg, const AbstractMethod* method).
-template <typename Visitor>
+// RootVisitor parameters are: (const Object* obj, size_t vreg, const StackVisitor* visitor).
+template <typename RootVisitor>
 class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
-                      Context* context, const Visitor& visitor)
+                      Context* context, const RootVisitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, context), visitor_(visitor) {}
 
@@ -1854,7 +1854,7 @@ class ReferenceMapVisitor : public StackVisitor {
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
     if (shadow_frame != NULL) {
-      WrapperVisitor wrapperVisitor(visitor_, shadow_frame->GetMethod());
+      WrapperVisitor wrapperVisitor(visitor_, this);
       shadow_frame->VisitRoots(wrapperVisitor);
     } else {
       AbstractMethod* m = GetMethod();
@@ -1893,7 +1893,7 @@ class ReferenceMapVisitor : public StackVisitor {
               }
 
               if (ref != NULL) {
-                visitor_(ref, reg, m);
+                visitor_(ref, reg, this);
               }
             }
           }
@@ -1907,19 +1907,16 @@ class ReferenceMapVisitor : public StackVisitor {
 
   class WrapperVisitor {
    public:
-    WrapperVisitor(const Visitor& visitor, AbstractMethod* method)
-        : visitor_(visitor),
-          method_(method) {
-
-    }
+    WrapperVisitor(const RootVisitor& root_visitor, const StackVisitor* stack_visitor)
+      : root_visitor_(root_visitor), stack_visitor_(stack_visitor) {}
 
     void operator()(const Object* obj, size_t offset) const {
-      visitor_(obj, offset, method_);
+      root_visitor_(obj, offset, stack_visitor_);
     }
 
    private:
-    const Visitor& visitor_;
-    AbstractMethod* method_;
+    const RootVisitor& root_visitor_;
+    const StackVisitor* const stack_visitor_;
   };
 
   static bool TestBitmap(int reg, const uint8_t* reg_vector) {
@@ -1927,7 +1924,7 @@ class ReferenceMapVisitor : public StackVisitor {
   }
 
   // Visitor for when we visit a root.
-  const Visitor& visitor_;
+  const RootVisitor& visitor_;
 
   // A method helper we keep around to avoid dex file/cache re-computations.
   MethodHelper mh_;
@@ -1939,7 +1936,7 @@ class RootCallbackVisitor {
 
   }
 
-  void operator()(const Object* obj, size_t, const AbstractMethod*) const {
+  void operator()(const Object* obj, size_t, const StackVisitor*) const {
     visitor_(obj, arg_);
   }
 
@@ -1953,16 +1950,15 @@ class VerifyCallbackVisitor {
   VerifyCallbackVisitor(Heap::VerifyRootVisitor* visitor, void* arg)
       : visitor_(visitor),
         arg_(arg) {
-
   }
 
-  void operator()(const Object* obj, size_t vreg, const AbstractMethod* method) const  {
-    visitor_(obj, arg_, vreg, method);
+  void operator()(const Object* obj, size_t vreg, const StackVisitor* visitor) const {
+    visitor_(obj, arg_, vreg, visitor);
   }
 
  private:
-  Heap::VerifyRootVisitor* visitor_;
-  void* arg_;
+  Heap::VerifyRootVisitor* const visitor_;
+  void* const arg_;
 };
 
 struct VerifyRootWrapperArg {
