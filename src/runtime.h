@@ -76,6 +76,7 @@ class Runtime {
     std::string jni_trace_;
     bool is_compiler_;
     bool is_zygote_;
+    bool interpreter_only_;
     bool is_concurrent_gc_enabled_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
@@ -110,6 +111,10 @@ class Runtime {
 
   bool IsZygote() const {
     return is_zygote_;
+  }
+
+  bool InterpreterOnly() const {
+    return interpreter_only_;
   }
 
   bool IsConcurrentGcEnabled() const {
@@ -377,6 +382,7 @@ class Runtime {
 
   bool is_compiler_;
   bool is_zygote_;
+  bool interpreter_only_;
   bool is_concurrent_gc_enabled_;
 
   // The host prefix is used during cross compilation. It is removed

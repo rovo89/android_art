@@ -288,13 +288,14 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   // we can handshake with the corresponding native thread when it's ready.) Check this native
   // thread hasn't been through here already...
   CHECK(Thread::Current() == NULL);
-
   SetUpAlternateSignalStack();
   InitCpu();
   InitFunctionPointers();
   InitCardTable();
   InitTid();
-
+  if (Runtime::Current()->InterpreterOnly()) {
+    AtomicSetFlag(kEnterInterpreter);
+  }
   // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
   // avoids pthread_self_ ever being invalid when discovered from Thread::Current().
   pthread_self_ = pthread_self();

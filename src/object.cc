@@ -657,33 +657,41 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
   // Pass everything as arguments.
   AbstractMethod::InvokeStub* stub = GetInvokeStub();
 
-
   if (UNLIKELY(!Runtime::Current()->IsStarted())){
-    LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started.";
+    LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
       result->SetJ(0);
     }
   } else {
-    if (GetCode() != NULL && stub != NULL) {
-      bool log = false;
-      if (log) {
-        LOG(INFO) << StringPrintf("invoking %s code=%p stub=%p",
+    bool interpret = self->ReadFlag(kEnterInterpreter);
+    const bool kLogInvocationStartAndReturn = false;
+    if (!interpret && GetCode() != NULL && stub != NULL) {
+      if (kLogInvocationStartAndReturn) {
+        LOG(INFO) << StringPrintf("Invoking '%s' code=%p stub=%p",
                                   PrettyMethod(this).c_str(), GetCode(), stub);
       }
       (*stub)(this, receiver, self, args, result);
-      if (log) {
-        LOG(INFO) << StringPrintf("returned %s code=%p stub=%p",
+      if (kLogInvocationStartAndReturn) {
+        LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
                                   PrettyMethod(this).c_str(), GetCode(), stub);
       }
     } else {
-      LOG(INFO) << "Not invoking " << PrettyMethod(this)
-          << " code=" << reinterpret_cast<const void*>(GetCode())
-          << " stub=" << reinterpret_cast<void*>(stub);
       const bool kInterpretMethodsWithNoCode = false;
-      if (kInterpretMethodsWithNoCode) {
+      if (interpret || kInterpretMethodsWithNoCode) {
+        if (kLogInvocationStartAndReturn) {
+          LOG(INFO) << "Interpreting " << PrettyMethod(this) << "'";
+        }
         art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args, result);
-      } else if (result != NULL) {
+        if (kLogInvocationStartAndReturn) {
+          LOG(INFO) << "Returned '" << PrettyMethod(this) << "'";
+        }
+      } else {
+        LOG(INFO) << "Not invoking '" << PrettyMethod(this)
+              << "' code=" << reinterpret_cast<const void*>(GetCode())
+              << " stub=" << reinterpret_cast<void*>(stub);
+        if (result != NULL) {
           result->SetJ(0);
+        }
       }
     }
   }

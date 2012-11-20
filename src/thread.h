@@ -96,10 +96,11 @@ enum ThreadState {
 };
 
 enum ThreadFlag {
-  kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0.
-  kExceptionPending = 2,  // If set implies that exception_ != NULL.
-  kEnterInterpreter = 4,  // Instruct managed code it should enter the interpreter.
-  kCheckpointRequest = 8, // Request that the thread do some set of work.
+  kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0 and the Thread should enter the
+                          // safepoint handler.
+  kCheckpointRequest = 2, // Request that the thread do some checkpoint work and then continue.
+  kExceptionPending = 4,  // If set implies that exception_ != NULL.
+  kEnterInterpreter = 8,  // Instruct managed code it should enter the interpreter.
 };
 
 class PACKED Thread {

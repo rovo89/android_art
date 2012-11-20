@@ -364,6 +364,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
+  parsed->interpreter_only_ = false;
   parsed->is_concurrent_gc_enabled_ = true;
 
   parsed->jni_globals_max_ = 0;
@@ -508,6 +509,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->is_compiler_ = true;
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
+    } else if (option == "-Xint") {
+      parsed->interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
       std::vector<std::string> gc_options;
       Split(option.substr(strlen("-Xgc:")), ',', gc_options);
@@ -756,6 +759,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
+  interpreter_only_ = options->interpreter_only_;
   is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
 
   vfprintf_ = options->hook_vfprintf_;
