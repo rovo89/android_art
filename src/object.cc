@@ -663,7 +663,7 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
       result->SetJ(0);
     }
   } else {
-    bool interpret = self->ReadFlag(kEnterInterpreter);
+    bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative();
     const bool kLogInvocationStartAndReturn = false;
     if (!interpret && GetCode() != NULL && stub != NULL) {
       if (kLogInvocationStartAndReturn) {

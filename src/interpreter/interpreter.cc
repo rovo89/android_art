@@ -190,8 +190,12 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
-      ScopedThreadStateChange tsc(self, kNative);
-      result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get())));
+      jobject jresult;
+      {
+        ScopedThreadStateChange tsc(self, kNative);
+        jresult = fn(soa.Env(), klass.get());
+      }
+      result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "V") {
       typedef void (fnptr)(JNIEnv*, jclass);
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
@@ -227,8 +231,12 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
                                    soa.AddLocalReference<jobject>(args[0].GetL()));
-      ScopedThreadStateChange tsc(self, kNative);
-      result->SetL(soa.Decode<Object*>(fn(soa.Env(), klass.get(), arg0.get())));
+      jobject jresult;
+      {
+        ScopedThreadStateChange tsc(self, kNative);
+        jresult = fn(soa.Env(), klass.get(), arg0.get());
+      }
+      result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "IIZ") {
       typedef jint (fnptr)(JNIEnv*, jclass, jint, jboolean);
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
@@ -312,8 +320,12 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
-      ScopedThreadStateChange tsc(self, kNative);
-      result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get())));
+      jobject jresult;
+      {
+        ScopedThreadStateChange tsc(self, kNative);
+        jresult = fn(soa.Env(), rcvr.get());
+      }
+      result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "LL") {
       typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
@@ -321,8 +333,14 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedLocalRef<jobject> arg0(soa.Env(),
                                    soa.AddLocalReference<jobject>(args[0].GetL()));
+      jobject jresult;
+      {
+        ScopedThreadStateChange tsc(self, kNative);
+        jresult = fn(soa.Env(), rcvr.get(), arg0.get());
+
+      }
+      result->SetL(soa.Decode<Object*>(jresult));
       ScopedThreadStateChange tsc(self, kNative);
-      result->SetL(soa.Decode<Object*>(fn(soa.Env(), rcvr.get(), arg0.get())));
     } else if (shorty == "III") {
       typedef jint (fnptr)(JNIEnv*, jobject, jint, jint);
       fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
@@ -780,17 +798,32 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         next_inst = Instruction::At(insns + dex_pc + dec_insn.vA);
         break;
       }
-      case Instruction::PACKED_SWITCH:
-        UNIMPLEMENTED(FATAL) << inst->DumpString(&mh.GetDexFile());
+      case Instruction::PACKED_SWITCH: {
+        uint32_t dex_pc = inst->GetDexPc(insns);
+        const uint16_t* switch_data = insns + dex_pc + dec_insn.vB;
+        int32_t test_val = shadow_frame.GetVReg(dec_insn.vA);
+        CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
+        uint16_t size = switch_data[1];
+        CHECK_GT(size, 0);
+        const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
+        CHECK(IsAligned<4>(keys));
+        int32_t first_key = keys[0];
+        const int32_t* targets = reinterpret_cast<const int32_t*>(&switch_data[4]);
+        CHECK(IsAligned<4>(targets));
+        int32_t index = test_val - first_key;
+        if (index >= 0 && index < size) {
+          next_inst = Instruction::At(insns + dex_pc + targets[index]);
+        }
         break;
+      }
       case Instruction::SPARSE_SWITCH: {
         uint32_t dex_pc = inst->GetDexPc(insns);
-        const uint16_t* switchData = insns + dex_pc + dec_insn.vB;
-        int32_t testVal = shadow_frame.GetVReg(dec_insn.vA);
-        CHECK_EQ(switchData[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
-        uint16_t size = switchData[1];
+        const uint16_t* switch_data = insns + dex_pc + dec_insn.vB;
+        int32_t test_val = shadow_frame.GetVReg(dec_insn.vA);
+        CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
+        uint16_t size = switch_data[1];
         CHECK_GT(size, 0);
-        const int32_t* keys = reinterpret_cast<const int32_t*>(&switchData[2]);
+        const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
         CHECK(IsAligned<4>(keys));
         const int32_t* entries = keys + size;
         CHECK(IsAligned<4>(entries));
@@ -799,9 +832,9 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         while (lo <= hi) {
           int mid = (lo + hi) / 2;
           int32_t foundVal = keys[mid];
-          if (testVal < foundVal) {
+          if (test_val < foundVal) {
             hi = mid - 1;
-          } else if (testVal > foundVal) {
+          } else if (test_val > foundVal) {
             lo = mid + 1;
           } else {
             next_inst = Instruction::At(insns + dex_pc + entries[mid]);
