@@ -8,6 +8,7 @@
 #   --debug       -- wait for debugger to attach
 #   --zygote      -- use the zygote (if so, all other options are ignored)
 #   --dev         -- development mode (print the vm invocation cmdline)
+#   --interpreter -- enable interpreter only mode (off by default)
 #   --no-verify   -- turn off verification (on by default)
 #   --no-optimize -- turn off optimization (on by default)
 #   --no-precise  -- turn off precise GC (on by default)
@@ -21,6 +22,7 @@ msg() {
 
 OATEXEC="oatexecd"
 DEBUG="n"
+INTERPRETER="n"
 VERIFY="y"
 OPTIMIZE="y"
 ZYGOTE=""
@@ -44,6 +46,9 @@ while true; do
         shift
     elif [ "x$1" = "x--dev" ]; then
         DEV_MODE="y"
+        shift
+    elif [ "x$1" = "x--interpreter" ]; then
+        INTERPRETER="y"
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
@@ -114,10 +119,14 @@ if [ "$DEBUG" = "y" ]; then
   DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
+if [ "$INTERPRETER" = "y" ]; then
+    INT_OPTS="-Xint"
+fi
+
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cmdline="cd $DEX_LOCATION && mkdir art-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $OATEXEC $ZYGOTE $JNI_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $OATEXEC $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

@@ -85,6 +85,9 @@ while true; do
     elif [ "x$1" = "x--zygote" ]; then
         run_args="${run_args} --zygote"
         shift
+    elif [ "x$1" = "x--interpreter" ]; then
+        run_args="${run_args} --interpreter"
+        shift
     elif [ "x$1" = "x--no-verify" ]; then
         run_args="${run_args} --no-verify"
         shift
@@ -167,6 +170,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --debug        Wait for a debugger to attach."
         #echo "    --gdb          Run under gdb; incompatible with some tests."
         echo "    --build-only   Build test files only (off by default)."
+        echo "    --interpreter  Enable interpreter only mode (off by default)."
         echo "    --no-verify    Turn off verification (on by default)."
         echo "    --no-optimize  Turn off optimization (on by default)."
         echo "    --no-precise   Turn off precise GC (on by default)."
