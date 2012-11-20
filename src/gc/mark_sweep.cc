@@ -167,7 +167,7 @@ void MarkSweep::InitializePhase() {
 }
 
 void MarkSweep::ProcessReferences(Thread* self) {
-  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   ProcessReferences(&soft_reference_list_, clear_soft_references_, &weak_reference_list_,
                     &finalizer_reference_list_, &phantom_reference_list_);
   timings_.AddSplit("ProcessReferences");
