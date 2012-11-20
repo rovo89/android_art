@@ -479,7 +479,7 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
     case kMipsBltz: opcode = kMipsBgez; break;
     case kMipsBnez: opcode = kMipsBeqz; break;
     default:
-      LOG(FATAL) << "Unexpected branch kind " << (int)opcode;
+      LOG(FATAL) << "Unexpected branch kind " << opcode;
   }
   LIR* hopTarget = NULL;
   if (!unconditional) {
@@ -492,11 +492,11 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
   oatInsertLIRBefore(lir, currPC);
   LIR* anchor = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
   LIR* deltaHi = rawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
-                        (uintptr_t)anchor, 0, 0, lir->target);
+                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
   oatInsertLIRBefore(lir, deltaHi);
   oatInsertLIRBefore(lir, anchor);
   LIR* deltaLo = rawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
-                        (uintptr_t)anchor, 0, 0, lir->target);
+                        reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
   oatInsertLIRBefore(lir, deltaLo);
   LIR* addu = rawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
   oatInsertLIRBefore(lir, addu);
@@ -515,12 +515,12 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
  * sequence or request that the trace be shortened and retried.
  */
 AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
-                    intptr_t startAddr)
+                    uintptr_t startAddr)
 {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -542,8 +542,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
          * and is found in lir->target.  If operands[3] is non-NULL,
          * then it is a Switch/Data table.
          */
-        int offset1 = ((LIR*)lir->operands[2])->offset;
-        SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
+        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
         int offset2 = tabRec ? tabRec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
@@ -555,35 +555,35 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
               rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
+          oatInsertLIRBefore(lir, newDeltaHi);
           LIR *newDeltaLo =
               rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
+          oatInsertLIRBefore(lir, newDeltaLo);
           LIR *newAddu =
               rawLIR(cUnit, lir->dalvikOffset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
-          oatInsertLIRBefore((LIR*)lir, (LIR*)newAddu);
+          oatInsertLIRBefore(lir, newAddu);
           lir->flags.isNop = true;
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {
-        int offset1 = ((LIR*)lir->operands[2])->offset;
-        SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
+        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
         int offset2 = tabRec ? tabRec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = delta & 0xffff;
       } else if (lir->opcode == kMipsDeltaHi) {
-        int offset1 = ((LIR*)lir->operands[2])->offset;
-        SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+        int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
+        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
         int offset2 = tabRec ? tabRec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = (delta >> 16) & 0xffff;
       } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
-        LIR *targetLIR = (LIR *) lir->target;
-        intptr_t pc = lir->offset + 4;
-        intptr_t target = targetLIR->offset;
+        LIR *targetLIR = lir->target;
+        uintptr_t pc = lir->offset + 4;
+        uintptr_t target = targetLIR->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -595,9 +595,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           lir->operands[0] = delta >> 2;
         }
       } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
-        LIR *targetLIR = (LIR *) lir->target;
-        intptr_t pc = lir->offset + 4;
-        intptr_t target = targetLIR->offset;
+        LIR *targetLIR = lir->target;
+        uintptr_t pc = lir->offset + 4;
+        uintptr_t target = targetLIR->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -609,9 +609,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           lir->operands[1] = delta >> 2;
         }
       } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
-        LIR *targetLIR = (LIR *) lir->target;
-        intptr_t pc = lir->offset + 4;
-        intptr_t target = targetLIR->offset;
+        LIR *targetLIR = lir->target;
+        uintptr_t pc = lir->offset + 4;
+        uintptr_t target = targetLIR->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -623,8 +623,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           lir->operands[2] = delta >> 2;
         }
       } else if (lir->opcode == kMipsJal) {
-        intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
-        intptr_t target = lir->operands[0];
+        uintptr_t curPC = (startAddr + lir->offset + 4) & ~3;
+        uintptr_t target = lir->operands[0];
         /* ensure PC-region branch can be used */
         DCHECK_EQ((curPC & 0xF0000000), (target & 0xF0000000));
         if (target & 0x3) {
@@ -632,12 +632,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
         lir->operands[0] =  target >> 2;
       } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
-        LIR *targetLIR = (LIR *) lir->target;
-        intptr_t target = startAddr + targetLIR->offset;
+        LIR *targetLIR = lir->target;
+        uintptr_t target = startAddr + targetLIR->offset;
         lir->operands[1] = target >> 16;
       } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
-        LIR *targetLIR = (LIR *) lir->target;
-        intptr_t target = startAddr + targetLIR->offset;
+        LIR *targetLIR = lir->target;
+        uintptr_t target = startAddr + targetLIR->offset;
         lir->operands[2] = lir->operands[2] + target;
       }
     }
@@ -689,8 +689,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           bits |= value;
           break;
         default:
-          LOG(FATAL) << "Bad encoder format: "
-                     << (int)encoder->fieldLoc[i].kind;
+          LOG(FATAL) << "Bad encoder format: " << encoder->fieldLoc[i].kind;
       }
     }
     // We only support little-endian MIPS.
@@ -724,9 +723,7 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit)
   LIR* mipsLIR;
   int offset = 0;
 
-  for (mipsLIR = (LIR *) cUnit->firstLIRInsn;
-    mipsLIR;
-    mipsLIR = NEXT_LIR(mipsLIR)) {
+  for (mipsLIR = cUnit->firstLIRInsn; mipsLIR; mipsLIR = NEXT_LIR(mipsLIR)) {
     mipsLIR->offset = offset;
     if (mipsLIR->opcode >= 0) {
       if (!mipsLIR->flags.isNop) {

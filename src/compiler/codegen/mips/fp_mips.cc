@@ -57,8 +57,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
   rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
   rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR3(cUnit, (MipsOpCode)op, rlResult.lowReg, rlSrc1.lowReg,
-          rlSrc2.lowReg);
+  newLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
   storeValue(cUnit, rlDest, rlResult);
 
   return false;
@@ -106,8 +105,7 @@ bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
   rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  newLIR3(cUnit, (MipsOpCode)op, s2d(rlResult.lowReg, rlResult.highReg),
-          s2d(rlSrc1.lowReg, rlSrc1.highReg),
+  newLIR3(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), s2d(rlSrc1.lowReg, rlSrc1.highReg),
           s2d(rlSrc2.lowReg, rlSrc2.highReg));
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
@@ -155,12 +153,11 @@ bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation
   }
   if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, (MipsOpCode)op, s2d(rlResult.lowReg, rlResult.highReg),
-            srcReg);
+    newLIR2(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, (MipsOpCode)op, rlResult.lowReg, srcReg);
+    newLIR2(cUnit, op, rlResult.lowReg, srcReg);
     storeValue(cUnit, rlDest, rlResult);
   }
   return false;

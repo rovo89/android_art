@@ -1,5 +1,5 @@
 ArmConditionCode oatArmConditionEncoding(ConditionCode code);
-AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit, intptr_t startAddr);
+AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit, uintptr_t startAddr);
 bool doubleReg(int reg);
 bool fpReg(int reg);
 bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2);
@@ -136,7 +136,7 @@ void opLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int
 void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi, int srcLo, int srcHi);
 void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffset);
 void opTlsCmp(CompilationUnit* cUnit, int offset, int val);
-void removeRedundantBranches(CompilationUnit* cUnit);
+bool branchUnconditional(LIR* lir);
 void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir);
 void spillCoreRegs(CompilationUnit* cUnit);
 void unSpillCoreRegs(CompilationUnit* cUnit);

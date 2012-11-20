@@ -106,7 +106,7 @@ struct GrowableList {
 
   size_t numAllocated;
   size_t numUsed;
-  intptr_t* elemList;
+  uintptr_t* elemList;
 #ifdef WITH_MEMSTATS
   oatListKind kind;
 #endif
@@ -140,7 +140,7 @@ struct ArenaBitVectorIterator {
   uint32_t bitSize;
 };
 
-#define GET_ELEM_N(LIST, TYPE, N) (((TYPE*) LIST->elemList)[N])
+#define GET_ELEM_N(LIST, TYPE, N) ((reinterpret_cast<TYPE*>(LIST->elemList)[N]))
 
 #define BLOCK_NAME_LEN 80
 
@@ -153,12 +153,12 @@ struct RegLocation;
 void oatInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
                          size_t initLength, oatListKind kind = kListMisc);
 void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
-                           intptr_t elem);
-void oatDeleteGrowableList(GrowableList* gList, intptr_t elem);
+                           uintptr_t elem);
+void oatDeleteGrowableList(GrowableList* gList, uintptr_t elem);
 void oatGrowableListIteratorInit(GrowableList* gList,
                                  GrowableListIterator* iterator);
-intptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator);
-intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx);
+uintptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator);
+uintptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx);
 
 ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
                                   unsigned int startBits, bool expandable,

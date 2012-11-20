@@ -54,7 +54,7 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
   oatFreeTemp(cUnit, t0);
   oatFreeTemp(cUnit, t1);
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branch->target = (LIR*)target;
+  branch->target = target;
   storeValue(cUnit, rlDest, rlResult);
 }
 
@@ -107,7 +107,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
       swapped = true;
       break;
     default:
-      LOG(FATAL) << "No support for ConditionCode: " << (int) cond;
+      LOG(FATAL) << "No support for ConditionCode: " << cond;
       return NULL;
   }
   if (cmpZero) {
@@ -177,7 +177,7 @@ LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
   LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
-  oatAppendLIR(cUnit, (LIR*)res);
+  oatAppendLIR(cUnit, res);
   return res;
 }
 

@@ -19,7 +19,7 @@
 
 namespace art {
 
-inline int32_t s4FromSwitchData(const void* switchData) { return *(int32_t*) switchData; }
+inline int32_t s4FromSwitchData(const void* switchData) { return *reinterpret_cast<const int32_t*>(switchData); }
 inline RegisterClass oatRegClassBySize(OpSize size) { return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte || size == kSignedByte ) ? kCoreReg : kAnyReg; }
 void oatAssembleLIR(CompilationUnit* cUnit);
 void setMemRefType(LIR* lir, bool isLoad, int memType);

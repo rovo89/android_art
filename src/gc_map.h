@@ -80,7 +80,7 @@ class NativePcOffsetToReferenceMap {
 
   // The number of bytes used to encode registers.
   size_t RegWidth() const {
-    return ((size_t)data_[0] | ((size_t)data_[1] << 8)) >> 3;
+    return (static_cast<size_t>(data_[0]) | (static_cast<size_t>(data_[1]) << 8)) >> 3;
   }
 
  private:

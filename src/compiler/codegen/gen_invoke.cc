@@ -113,13 +113,13 @@ void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** cod
   LIR* curTarget = cUnit->methodLiteralList;
   LIR* nextTarget = curTarget != NULL ? curTarget->next : NULL;
   while (curTarget != NULL && nextTarget != NULL) {
-    if (curTarget->operands[0] == (int)dexFile &&
-      nextTarget->operands[0] == (int)dexMethodIdx) {
+    if (curTarget->operands[0] == reinterpret_cast<intptr_t>(dexFile) &&
+      nextTarget->operands[0] == static_cast<int>(dexMethodIdx)) {
     *codeTarget = curTarget;
     *methodTarget = nextTarget;
     DCHECK((*codeTarget)->next == *methodTarget);
-    DCHECK_EQ((*codeTarget)->operands[0], (int)dexFile);
-    DCHECK_EQ((*methodTarget)->operands[0], (int)dexMethodIdx);
+    DCHECK_EQ((*codeTarget)->operands[0], reinterpret_cast<intptr_t>(dexFile));
+    DCHECK_EQ((*methodTarget)->operands[0], static_cast<int>(dexMethodIdx));
     break;
     }
     curTarget = nextTarget->next;
@@ -144,7 +144,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
   if (directCode != 0 && directMethod != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
-      if (directCode != (uintptr_t)-1) {
+      if (directCode != static_cast<unsigned int>(-1)) {
         loadConstant(cUnit, targetReg(kInvokeTgt), directCode);
       } else {
         LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
@@ -154,9 +154,9 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
         }
         LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kInvokeTgt), dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
-        DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
+        DCHECK_EQ(cUnit->instructionSet, kThumb2) << reinterpret_cast<void*>(dataTarget);
       }
-      if (directMethod != (uintptr_t)-1) {
+      if (directMethod != static_cast<unsigned int>(-1)) {
         loadConstant(cUnit, targetReg(kArg0), directMethod);
       } else {
         LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
@@ -166,7 +166,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
         }
         LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kArg0), dataTarget);
         oatAppendLIR(cUnit, loadPcRel);
-        DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
+        DCHECK_EQ(cUnit->instructionSet, kThumb2) << reinterpret_cast<void*>(dataTarget);
       }
       break;
     default:
@@ -183,7 +183,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
         AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), targetReg(kArg0));
       // Set up direct code if known.
       if (directCode != 0) {
-        if (directCode != (uintptr_t)-1) {
+        if (directCode != static_cast<unsigned int>(-1)) {
           loadConstant(cUnit, targetReg(kInvokeTgt), directCode);
         } else {
           LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
@@ -193,7 +193,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
           }
           LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kInvokeTgt), dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
-          DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
+          DCHECK_EQ(cUnit->instructionSet, kThumb2) << reinterpret_cast<void*>(dataTarget);
         }
       }
       break;
@@ -287,7 +287,7 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
           loadWordDisp(cUnit, targetReg(kSelf), trampoline, targetReg(kInvokeTgt));
         }
         // Get the interface Method* [sets kArg0]
-        if (directMethod != (uintptr_t)-1) {
+        if (directMethod != static_cast<unsigned int>(-1)) {
           loadConstant(cUnit, targetReg(kArg0), directMethod);
         } else {
           LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
@@ -297,7 +297,7 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
           }
           LIR* loadPcRel = opPcRelLoad(cUnit, targetReg(kArg0), dataTarget);
           oatAppendLIR(cUnit, loadPcRel);
-          DCHECK_EQ(cUnit->instructionSet, kThumb2) << (void*)dataTarget;
+          DCHECK_EQ(cUnit->instructionSet, kThumb2) << reinterpret_cast<void*>(dataTarget);
         }
         break;
       default:
@@ -509,8 +509,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
                           type, skipThis);
 
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, targetReg(kArg1),
-                             info->optFlags);
+    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, targetReg(kArg1), info->optFlags);
   }
   return callState;
 }
@@ -677,9 +676,9 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
     loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
     if (rangeCheck) {
       // Set up a launch pad to allow retry in case of bounds violation */
-      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
+      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
       oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-                            (intptr_t)launchPad);
+                            reinterpret_cast<uintptr_t>(launchPad));
       opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
       oatFreeTemp(cUnit, regMax);
       opCondBranch(cUnit, kCondCs, launchPad);
@@ -689,9 +688,9 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
       regMax = oatAllocTemp(cUnit);
       loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
       // Set up a launch pad to allow retry in case of bounds violation */
-      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
+      launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
       oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-                            (intptr_t)launchPad);
+                            reinterpret_cast<uintptr_t>(launchPad));
       opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
       oatFreeTemp(cUnit, regMax);
       opCondBranch(cUnit, kCondCc, launchPad);
@@ -865,9 +864,8 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   }
   int rTgt = (cUnit->instructionSet != kX86) ? loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf)) : 0;
   genNullCheck(cUnit, rlObj.sRegLow, regPtr, info->optFlags);
-  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
-  oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-              (intptr_t)launchPad);
+  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads, reinterpret_cast<uintptr_t>(launchPad));
   opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
   // NOTE: not a safepoint
   if (cUnit->instructionSet != kX86) {
@@ -876,7 +874,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
     opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pIndexOf));
   }
   LIR* resumeTgt = newLIR0(cUnit, kPseudoTargetLabel);
-  launchPad->operands[2] = (uintptr_t)resumeTgt;
+  launchPad->operands[2] = reinterpret_cast<uintptr_t>(resumeTgt);
   // Record that we've already inlined & null checked
   info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   RegLocation rlReturn = oatGetReturn(cUnit, false);
@@ -905,9 +903,8 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
       loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo)) : 0;
   genNullCheck(cUnit, rlThis.sRegLow, regThis, info->optFlags);
   //TUNING: check if rlCmp.sRegLow is already null checked
-  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
-  oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-                        (intptr_t)launchPad);
+  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, reinterpret_cast<uintptr_t>(info));
+  oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads, reinterpret_cast<uintptr_t>(launchPad));
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
   // NOTE: not a safepoint
   if (cUnit->instructionSet != kX86) {

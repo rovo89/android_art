@@ -221,10 +221,10 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 }
 
-ArmConditionCode oatArmConditionEncoding(ConditionCode code)
+ArmConditionCode oatArmConditionEncoding(ConditionCode ccode)
 {
   ArmConditionCode res;
-  switch (code) {
+  switch (ccode) {
     case kCondEq: res = kArmCondEq; break;
     case kCondNe: res = kArmCondNe; break;
     case kCondCs: res = kArmCondCs; break;
@@ -242,8 +242,8 @@ ArmConditionCode oatArmConditionEncoding(ConditionCode code)
     case kCondAl: res = kArmCondAl; break;
     case kCondNv: res = kArmCondNv; break;
     default:
-      LOG(FATAL) << "Bad condition code" << (int)code;
-      res = (ArmConditionCode)0;  // Quiet gcc
+      LOG(FATAL) << "Bad condition code " << ccode;
+      res = static_cast<ArmConditionCode>(0);  // Quiet gcc
   }
   return res;
 }
@@ -352,7 +352,7 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
         strcpy(tbuf, "!");
       } else {
          DCHECK_LT(fmt, fmtEnd);
-         DCHECK_LT((unsigned)(nc-'0'), 4U);
+         DCHECK_LT(static_cast<unsigned>(nc-'0'), 4U);
          operand = lir->operands[nc-'0'];
          switch (*fmt++) {
            case 'H':
@@ -432,18 +432,18 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
              break;
            case 't':
              sprintf(tbuf,"0x%08x (L%p)",
-                 (int) baseAddr + lir->offset + 4 +
+                 reinterpret_cast<uintptr_t>(baseAddr) + lir->offset + 4 +
                  (operand << 1),
                  lir->target);
              break;
            case 'u': {
              int offset_1 = lir->operands[0];
              int offset_2 = NEXT_LIR(lir)->operands[0];
-             intptr_t target =
-                 ((((intptr_t) baseAddr + lir->offset + 4) &
+             uintptr_t target =
+                 (((reinterpret_cast<uintptr_t>(baseAddr) + lir->offset + 4) &
                  ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
                  0xfffffffc;
-             sprintf(tbuf, "%p", (void *) target);
+             sprintf(tbuf, "%p", reinterpret_cast<void *>(target));
              break;
           }
 
@@ -473,11 +473,10 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
   return buf;
 }
 
-void oatDumpResourceMask(LIR* lir, uint64_t mask, const char* prefix)
+void oatDumpResourceMask(LIR* armLIR, uint64_t mask, const char* prefix)
 {
   char buf[256];
   buf[0] = 0;
-  LIR* armLIR = (LIR*) lir;
 
   if (mask == ENCODE_ALL) {
     strcpy(buf, "all");
@@ -520,46 +519,9 @@ void oatDumpResourceMask(LIR* lir, uint64_t mask, const char* prefix)
   }
 }
 
-/*
- * Nop any unconditional branches that go to the next instruction.
- * Note: new redundant branches may be inserted later, and we'll
- * use a check in final instruction assembly to nop those out.
- */
-void removeRedundantBranches(CompilationUnit* cUnit)
+bool branchUnconditional(LIR* lir)
 {
-  LIR* thisLIR;
-
-  for (thisLIR = (LIR*) cUnit->firstLIRInsn;
-     thisLIR != (LIR*) cUnit->lastLIRInsn;
-     thisLIR = NEXT_LIR(thisLIR)) {
-
-    /* Branch to the next instruction */
-    if ((thisLIR->opcode == kThumbBUncond) ||
-      (thisLIR->opcode == kThumb2BUncond)) {
-      LIR* nextLIR = thisLIR;
-
-      while (true) {
-        nextLIR = NEXT_LIR(nextLIR);
-
-        /*
-         * Is the branch target the next instruction?
-         */
-        if (nextLIR == (LIR*) thisLIR->target) {
-          thisLIR->flags.isNop = true;
-          break;
-        }
-
-        /*
-         * Found real useful stuff between the branch and the target.
-         * Need to explicitly check the lastLIRInsn here because it
-         * might be the last real instruction.
-         */
-        if (!isPseudoOpcode(nextLIR->opcode) ||
-          (nextLIR = (LIR*) cUnit->lastLIRInsn))
-          break;
-      }
-    }
-  }
+  return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
 /* Common initialization routine for an architecture family */
@@ -571,7 +533,7 @@ bool oatArchInit()
     if (EncodingMap[i].opcode != i) {
       LOG(FATAL) << "Encoding order for " << EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << (int)EncodingMap[i].opcode;
+                 << static_cast<int>(EncodingMap[i].opcode);
     }
   }
 
@@ -627,17 +589,15 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
   int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
   int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
   int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
-  RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
-                        kAllocRegAlloc);
+  RegisterPool *pool =
+      static_cast<RegisterPool*>(oatNew(cUnit, sizeof(*pool), true, kAllocRegAlloc));
   cUnit->regPool = pool;
   pool->numCoreRegs = numRegs;
-  pool->coreRegs = (RegisterInfo *)
-      oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
-             true, kAllocRegAlloc);
+  pool->coreRegs = reinterpret_cast<RegisterInfo*>
+      (oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs), true, kAllocRegAlloc));
   pool->numFPRegs = numFPRegs;
-  pool->FPRegs = (RegisterInfo *)
-      oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
-             kAllocRegAlloc);
+  pool->FPRegs = static_cast<RegisterInfo*>
+      (oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true, kAllocRegAlloc));
   oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
   oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
@@ -660,9 +620,8 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
   pool->nextCoreReg = r2;
 
   // Construct the alias map.
-  cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
-                                    sizeof(cUnit->phiAliasMap[0]), false,
-                                    kAllocDFInfo);
+  cUnit->phiAliasMap = static_cast<int*>
+      (oatNew(cUnit, cUnit->numSSARegs * sizeof(cUnit->phiAliasMap[0]), false, kAllocDFInfo));
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     cUnit->phiAliasMap[i] = i;
   }
@@ -835,12 +794,6 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
   oatFreeTemp(cUnit, r1);
   oatFreeTemp(cUnit, r2);
   oatFreeTemp(cUnit, r3);
-}
-
-/* Convert an instruction to a NOP */
-void oatNopLIR( LIR* lir)
-{
-  ((LIR*)lir)->flags.isNop = true;
 }
 
 int loadHelper(CompilationUnit* cUnit, int offset)

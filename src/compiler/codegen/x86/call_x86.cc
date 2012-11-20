@@ -38,8 +38,8 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     dumpSparseSwitchTable(table);
   }
   int entries = table[1];
-  int* keys = (int*)&table[2];
-  int* targets = &keys[entries];
+  const int* keys = reinterpret_cast<const int*>(&table[2]);
+  const int* targets = &keys[entries];
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
@@ -76,14 +76,13 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     dumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                                              true, kAllocData);
+  SwitchTable *tabRec =
+      static_cast<SwitchTable *>(oatNew(cUnit, sizeof(SwitchTable), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
-  tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
-                                   kAllocLIR);
-  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+  tabRec->targets = static_cast<LIR**>(oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR));
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
 
   // Get the switch value
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -107,7 +106,7 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
   // Load the displacement from the switch table
   int dispReg = oatAllocTemp(cUnit);
   newLIR5(cUnit, kX86PcRelLoadRA, dispReg, startOfMethodReg, keyReg, 2,
-          (intptr_t)tabRec);
+          reinterpret_cast<uintptr_t>(tabRec));
   // Add displacement to start of method
   opRegReg(cUnit, kOpAdd, startOfMethodReg, dispReg);
   // ..and go!
@@ -116,7 +115,7 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
 
   /* branchOver target here */
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
+  branchOver->target = target;
 }
 
 void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
@@ -136,25 +135,25 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
 {
   const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tabRec = (FillArrayData *)oatNew(cUnit, sizeof(FillArrayData),
-      true, kAllocData);
+  FillArrayData *tabRec =
+      static_cast<FillArrayData*>(oatNew(cUnit, sizeof(FillArrayData), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   uint16_t width = tabRec->table[1];
   uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
   tabRec->size = (size * width) + 8;
 
-  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
+  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
 
   // Making a call - use explicit registers
   oatFlushAllRegs(cUnit);   /* Everything to home location */
   loadValueDirectFixed(cUnit, rlSrc, rX86_ARG0);
   // Materialize a pointer to the fill data image
   newLIR1(cUnit, kX86StartOfMethod, rX86_ARG2);
-  newLIR2(cUnit, kX86PcRelAdr, rX86_ARG1, (intptr_t)tabRec);
+  newLIR2(cUnit, kX86PcRelAdr, rX86_ARG1, reinterpret_cast<uintptr_t>(tabRec));
   newLIR2(cUnit, kX86Add32RR, rX86_ARG1, rX86_ARG2);
-  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0, rX86_ARG1,
-                          true);
+  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0,
+                          rX86_ARG1, true);
 }
 
 void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
@@ -209,7 +208,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
   storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
   LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = (LIR*)target;
+  branchOver->target = target;
   oatFreeTemp(cUnit, regCardBase);
   oatFreeTemp(cUnit, regCardNo);
 }
@@ -235,7 +234,7 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
    * a leaf *and* our frame size < fudge factor.
    */
   bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
-                ((size_t)cUnit->frameSize <
+                (static_cast<size_t>(cUnit->frameSize) <
                 Thread::kStackOverflowReservedBytes));
   newLIR0(cUnit, kPseudoMethodEntry);
   /* Spill core callee saves */
@@ -248,7 +247,7 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
     opRegThreadMem(cUnit, kOpCmp, rX86_SP, Thread::StackEndOffset().Int32Value());
     opCondBranch(cUnit, kCondUlt, tgt);
     // Remember branch target - will process later
-    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
   }
 
   flushIns(cUnit, argLocs, rlMethod);

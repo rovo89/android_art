@@ -20,6 +20,7 @@
 namespace art {
 
 void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR);
+void removeRedundantBranches(CompilationUnit* cUnit);
 
 }  // namespace art
 

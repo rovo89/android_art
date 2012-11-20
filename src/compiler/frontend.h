@@ -105,16 +105,6 @@ enum OatMethodAttributes {
 #define METHOD_IS_SETTER        (1 << kIsSetter)
 #define METHOD_CANNOT_COMPILE   (1 << kCannotCompile)
 
-/* Customized node traversal orders for different needs */
-enum DataFlowAnalysisMode {
-  kAllNodes = 0,              // All nodes
-  kReachableNodes,            // All reachable nodes
-  kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
-  kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
-  kPostOrderDOMTraversal,     // Dominator tree / Post-Order
-  kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
-};
-
 class LLVMInfo {
   public:
     LLVMInfo();

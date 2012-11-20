@@ -67,8 +67,8 @@ void dumpRegPool(RegisterInfo* p, int numRegs)
     LOG(INFO) << StringPrintf(
         "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d, ST:%x, EN:%x",
         p[i].reg, p[i].isTemp, p[i].inUse, p[i].pair, p[i].partner,
-        p[i].live, p[i].dirty, p[i].sReg,(int)p[i].defStart,
-        (int)p[i].defEnd);
+        p[i].live, p[i].dirty, p[i].sReg, reinterpret_cast<uintptr_t>(p[i].defStart),
+        reinterpret_cast<uintptr_t>(p[i].defEnd));
   }
   LOG(INFO) << "================================================";
 }
@@ -1077,8 +1077,8 @@ void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
 /* qsort callback function, sort descending */
 int oatSortCounts(const void *val1, const void *val2)
 {
-  const RefCounts* op1 = (const RefCounts*)val1;
-  const RefCounts* op2 = (const RefCounts*)val2;
+  const RefCounts* op1 = reinterpret_cast<const RefCounts*>(val1);
+  const RefCounts* op2 = reinterpret_cast<const RefCounts*>(val2);
   return (op1->count == op2->count) ? 0 : (op1->count < op2->count ? 1 : -1);
 }
 
@@ -1115,10 +1115,10 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
    * TUNING: replace with linear scan once we have the ability
    * to describe register live ranges for GC.
    */
-  RefCounts *coreRegs = (RefCounts *)
-      oatNew(cUnit, sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
-  RefCounts *fpRegs = (RefCounts *)
-      oatNew(cUnit, sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
+  RefCounts *coreRegs = static_cast<RefCounts*>(oatNew(cUnit, sizeof(RefCounts) * numRegs,
+                                                       true, kAllocRegAlloc));
+  RefCounts *fpRegs = static_cast<RefCounts *>(oatNew(cUnit, sizeof(RefCounts) * numRegs,
+                                                      true, kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvikRegs; i++) {
     coreRegs[i].sReg = fpRegs[i].sReg = i;
@@ -1128,7 +1128,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
   fpRegs[dalvikRegs].sReg = cUnit->methodSReg;  // For consistecy
   // Set ssa names for compilerTemps
   for (int i = 1; i <= cUnit->numCompilerTemps; i++) {
-    CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
+    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cUnit->compilerTemps.elemList[i]);
     coreRegs[dalvikRegs + i].sReg = ct->sReg;
     fpRegs[dalvikRegs + i].sReg = ct->sReg;
   }
@@ -1137,7 +1137,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
   oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
   while (true) {
     BasicBlock* bb;
-    bb = (BasicBlock*)oatGrowableListIteratorNext(&iterator);
+    bb = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iterator));
     if (bb == NULL) break;
     oatCountRefs(cUnit, bb, coreRegs, fpRegs);
   }

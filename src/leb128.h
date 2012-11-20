@@ -46,7 +46,7 @@ static inline uint32_t DecodeUnsignedLeb128(const byte** data) {
     }
   }
   *data = ptr;
-  return (uint32_t)result;
+  return static_cast<uint32_t>(result);
 }
 
 // Reads an unsigned LEB128 + 1 value. updating the given pointer to point

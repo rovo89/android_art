@@ -244,7 +244,7 @@ class CardTable {
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
-    byte *card_addr = biased_begin_ + ((uintptr_t)addr >> kCardShift);
+    byte *card_addr = biased_begin_ + (reinterpret_cast<uintptr_t>(addr) >> kCardShift);
     // Sanity check the caller was asking for address covered by the card table
     DCHECK(IsValidCard(card_addr)) << "addr: " << addr
         << " card_addr: " << reinterpret_cast<void*>(card_addr);
