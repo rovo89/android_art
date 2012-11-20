@@ -28,9 +28,7 @@
 namespace art {
 
 void LargeObjectSpace::SwapBitmaps() {
-  SpaceSetMap* temp_live_objects = live_objects_.release();
-  live_objects_.reset(mark_objects_.release());
-  mark_objects_.reset(temp_live_objects);
+  live_objects_.swap(mark_objects_);
   // Swap names to get more descriptive diagnostics.
   std::string temp_name = live_objects_->GetName();
   live_objects_->SetName(mark_objects_->GetName());

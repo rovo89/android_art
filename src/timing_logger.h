@@ -31,8 +31,14 @@ class CumulativeLogger;
 
 class TimingLogger {
  public:
-  explicit TimingLogger(const char* name, bool precise = false)
+  explicit TimingLogger(const std::string& name, bool precise = false)
       : name_(name), precise_(precise) {
+    AddSplit("");
+  }
+
+  void Reset() {
+    times_.clear();
+    labels_.clear();
     AddSplit("");
   }
 
@@ -82,10 +88,14 @@ class TimingLogger {
 
 class CumulativeLogger {
  public:
-  explicit CumulativeLogger(const char* name = "", bool precise = false)
+  explicit CumulativeLogger(const std::string& name = "", bool precise = false)
     : name_(name),
       precise_(precise) {
     Reset();
+  }
+
+  void SetName(const std::string& name) {
+    name_ = name;
   }
 
   void Start() {

@@ -24,6 +24,9 @@ namespace art {
 
 class AtomicInteger {
  public:
+  // Default to uninitialized
+  AtomicInteger() { }
+
   AtomicInteger(int32_t value) : value_(value) { }
 
   // Unsafe = operator for non atomic operations on the integer.

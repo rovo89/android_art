@@ -153,7 +153,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAF
 size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Thread* self = Thread::Current();
   if (kIsDebugBuild) {
-    Locks::mutator_lock_->AssertNotHeld(self);
+    Locks::mutator_lock_->AssertNotExclusiveHeld(self);
     Locks::thread_list_lock_->AssertNotHeld(self);
     Locks::thread_suspend_count_lock_->AssertNotHeld(self);
     CHECK_NE(self->GetState(), kRunnable);

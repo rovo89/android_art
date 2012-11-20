@@ -151,12 +151,15 @@ LIBART_COMMON_SRC_FILES := \
 	src/file.cc \
 	src/file_linux.cc \
 	src/gc/card_table.cc \
+	src/gc/garbage_collector.cc \
 	src/gc/heap_bitmap.cc \
 	src/gc/large_object_space.cc \
 	src/gc/mark_sweep.cc \
 	src/gc/mod_union_table.cc \
+	src/gc/partial_mark_sweep.cc \
 	src/gc/space.cc \
 	src/gc/space_bitmap.cc \
+	src/gc/sticky_mark_sweep.cc \
 	src/heap.cc \
 	src/hprof/hprof.cc \
 	src/image.cc \
