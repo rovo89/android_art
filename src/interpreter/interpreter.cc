@@ -645,7 +645,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_CLASS:
-        shadow_frame.SetReference(dec_insn.vA, mh.ResolveClass(dec_insn.vB));
+        shadow_frame.SetReferenceAndVReg(dec_insn.vA, mh.ResolveClass(dec_insn.vB));
         break;
       case Instruction::MONITOR_ENTER:
         DoMonitorEnter(self, shadow_frame.GetReference(dec_insn.vA));
