@@ -25,6 +25,7 @@
 #include "oat/runtime/context.h"
 
 #include <stdint.h>
+#include <string>
 
 namespace art {
 
@@ -476,6 +477,8 @@ class StackVisitor {
     ++sp; // Skip Method*; SIRT comes next;
     return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
+
+  std::string DescribeLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   size_t ComputeNumFrames() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

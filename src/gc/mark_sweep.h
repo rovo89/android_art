@@ -295,9 +295,9 @@ class MarkSweep {
   void ExpandMarkStack();
 
   static void VerifyRootCallback(const Object* root, void* arg, size_t vreg,
-                                 const AbstractMethod* method);
+                                 const StackVisitor *visitor);
 
-  void VerifyRoot(const Object* root, size_t vreg, const AbstractMethod* method)
+  void VerifyRoot(const Object* root, size_t vreg, const StackVisitor* visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
   template <typename Visitor>

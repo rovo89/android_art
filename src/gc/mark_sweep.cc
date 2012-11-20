@@ -260,19 +260,18 @@ void MarkSweep::ReMarkObjectVisitor(const Object* root, void* arg) {
 }
 
 void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
-                                   const AbstractMethod* method) {
-  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, method);
+                                   const StackVisitor* visitor) {
+  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, visitor);
 }
 
-void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const AbstractMethod* method) {
+void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const StackVisitor* visitor) {
   // See if the root is on any space bitmap.
   if (GetHeap()->GetLiveBitmap()->GetSpaceBitmap(root) == NULL) {
     LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (!large_object_space->Contains(root)) {
       LOG(ERROR) << "Found invalid root: " << root;
-      LOG(ERROR) << "VReg: " << vreg;
-      if (method != NULL) {
-        LOG(ERROR) << "In method " << PrettyMethod(method, true);
+      if (visitor != NULL) {
+        LOG(ERROR) << visitor->DescribeLocation() << " in VReg: " << vreg;
       }
     }
   }
