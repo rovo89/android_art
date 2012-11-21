@@ -280,6 +280,20 @@ static inline void CheckReferenceResult(Object* o, Thread* self)
   }
 }
 
+static inline void CheckSuspend(Thread* thread)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  for (;;) {
+    if (thread->ReadFlag(kCheckpointRequest)) {
+      thread->RunCheckpointFunction();
+      thread->AtomicClearFlag(kCheckpointRequest);
+    } else if (thread->ReadFlag(kSuspendRequest)) {
+      thread->FullSuspendCheck();
+    } else {
+      break;
+    }
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

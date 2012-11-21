@@ -15,24 +15,11 @@
  */
 
 #include "callee_save_frame.h"
+#include "runtime_support.h"
 #include "thread.h"
 #include "thread_list.h"
 
 namespace art {
-
-static void CheckSuspend(Thread* thread)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  for (;;) {
-    if (thread->ReadFlag(kCheckpointRequest)) {
-      thread->RunCheckpointFunction();
-      thread->AtomicClearFlag(kCheckpointRequest);
-    } else if (thread->ReadFlag(kSuspendRequest)) {
-      thread->FullSuspendCheck();
-    } else {
-      break;
-    }
-  }
-}
 
 void CheckSuspendFromCode(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
