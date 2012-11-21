@@ -476,23 +476,18 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
         break;
       case Primitive::kPrimByte:
         f->SetByte(obj, shadow_frame.GetVReg(dec_insn.vA));
-        shadow_frame.SetVReg(dec_insn.vA, f->GetByte(obj));
         break;
       case Primitive::kPrimChar:
         f->SetChar(obj, shadow_frame.GetVReg(dec_insn.vA));
-        shadow_frame.SetVReg(dec_insn.vA, f->GetChar(obj));
         break;
       case Primitive::kPrimShort:
         f->SetShort(obj, shadow_frame.GetVReg(dec_insn.vA));
-        shadow_frame.SetVReg(dec_insn.vA, f->GetShort(obj));
         break;
       case Primitive::kPrimInt:
         f->SetInt(obj, shadow_frame.GetVReg(dec_insn.vA));
-        shadow_frame.SetVReg(dec_insn.vA, f->GetInt(obj));
         break;
       case Primitive::kPrimLong:
         f->SetLong(obj, shadow_frame.GetVRegLong(dec_insn.vA));
-        shadow_frame.SetVRegLong(dec_insn.vA, f->GetLong(obj));
         break;
       case Primitive::kPrimNot:
         f->SetObj(obj, shadow_frame.GetReference(dec_insn.vA));
@@ -753,7 +748,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t result;
         if (val1 == val2) {
           result = 0;
-        } else if (val1 < val2) {
+        } else if (val1 > val2) {
           result = 1;
         } else {
           result = -1;
@@ -768,7 +763,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t result;
         if (val1 == val2) {
           result = 0;
-        } else if (val1 > val2) {
+        } else if (val1 < val2) {
           result = -1;
         } else {
           result = 1;
