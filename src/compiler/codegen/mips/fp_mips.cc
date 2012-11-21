@@ -21,12 +21,12 @@
 
 namespace art {
 
-bool GenArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
-                     RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+                     RegLocation rl_src1, RegLocation rl_src2)
 {
 #ifdef __mips_hard_float
   int op = kMipsNop;
-  RegLocation rlResult;
+  RegLocation rl_result;
 
   /*
    * Don't attempt to optimize register usage since these opcodes call out to
@@ -52,29 +52,29 @@ bool GenArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
     case Instruction::NEG_FLOAT: {
-      return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpFloatPortable(cu, opcode, rl_dest, rl_src1, rl_src2);
     }
     default:
       return true;
   }
-  rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
-  rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
-  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-  NewLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-  StoreValue(cUnit, rlDest, rlResult);
+  rl_src1 = LoadValue(cu, rl_src1, kFPReg);
+  rl_src2 = LoadValue(cu, rl_src2, kFPReg);
+  rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+  NewLIR3(cu, op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
+  StoreValue(cu, rl_dest, rl_result);
 
   return false;
 #else
-  return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+  return GenArithOpFloatPortable(cu, opcode, rl_dest, rl_src1, rl_src2);
 #endif
 }
 
-bool GenArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
-                      RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+                      RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
 #ifdef __mips_hard_float
   int op = kMipsNop;
-  RegLocation rlResult;
+  RegLocation rl_result;
 
   switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
@@ -96,34 +96,34 @@ bool GenArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
     case Instruction::NEG_DOUBLE: {
-      return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpDoublePortable(cu, opcode, rl_dest, rl_src1, rl_src2);
     }
     default:
       return true;
   }
-  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
-  DCHECK(rlSrc1.wide);
-  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
-  DCHECK(rlSrc2.wide);
-  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-  DCHECK(rlDest.wide);
-  DCHECK(rlResult.wide);
-  NewLIR3(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), S2d(rlSrc1.lowReg, rlSrc1.highReg),
-          S2d(rlSrc2.lowReg, rlSrc2.highReg));
-  StoreValueWide(cUnit, rlDest, rlResult);
+  rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
+  DCHECK(rl_src1.wide);
+  rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
+  DCHECK(rl_src2.wide);
+  rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_result.wide);
+  NewLIR3(cu, op, S2d(rl_result.low_reg, rl_result.high_reg), S2d(rl_src1.low_reg, rl_src1.high_reg),
+          S2d(rl_src2.low_reg, rl_src2.high_reg));
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 #else
-  return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+  return GenArithOpDoublePortable(cu, opcode, rl_dest, rl_src1, rl_src2);
 #endif
 }
 
-bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
-                   RegLocation rlSrc)
+bool GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+                   RegLocation rl_src)
 {
 #ifdef __mips_hard_float
   int op = kMipsNop;
-  int srcReg;
-  RegLocation rlResult;
+  int src_reg;
+  RegLocation rl_result;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
       op = kMipsFcvtsw;
@@ -143,34 +143,34 @@ bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
+      return GenConversionPortable(cu, opcode, rl_dest, rl_src);
     default:
       return true;
   }
-  if (rlSrc.wide) {
-    rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
-    srcReg = S2d(rlSrc.lowReg, rlSrc.highReg);
+  if (rl_src.wide) {
+    rl_src = LoadValueWide(cu, rl_src, kFPReg);
+    src_reg = S2d(rl_src.low_reg, rl_src.high_reg);
   } else {
-    rlSrc = LoadValue(cUnit, rlSrc, kFPReg);
-    srcReg = rlSrc.lowReg;
+    rl_src = LoadValue(cu, rl_src, kFPReg);
+    src_reg = rl_src.low_reg;
   }
-  if (rlDest.wide) {
-    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-    NewLIR2(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), srcReg);
-    StoreValueWide(cUnit, rlDest, rlResult);
+  if (rl_dest.wide) {
+    rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+    NewLIR2(cu, op, S2d(rl_result.low_reg, rl_result.high_reg), src_reg);
+    StoreValueWide(cu, rl_dest, rl_result);
   } else {
-    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-    NewLIR2(cUnit, op, rlResult.lowReg, srcReg);
-    StoreValue(cUnit, rlDest, rlResult);
+    rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+    NewLIR2(cu, op, rl_result.low_reg, src_reg);
+    StoreValue(cu, rl_dest, rl_result);
   }
   return false;
 #else
-  return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
+  return GenConversionPortable(cu, opcode, rl_dest, rl_src);
 #endif
 }
 
-bool GenCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
-              RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+              RegLocation rl_src1, RegLocation rl_src2)
 {
   bool wide = true;
   int offset;
@@ -193,49 +193,49 @@ bool GenCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDe
     default:
       return true;
   }
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);
   if (wide) {
-    LoadValueDirectWideFixed(cUnit, rlSrc1, rMIPS_FARG0, rMIPS_FARG1);
-    LoadValueDirectWideFixed(cUnit, rlSrc2, rMIPS_FARG2, rMIPS_FARG3);
+    LoadValueDirectWideFixed(cu, rl_src1, rMIPS_FARG0, rMIPS_FARG1);
+    LoadValueDirectWideFixed(cu, rl_src2, rMIPS_FARG2, rMIPS_FARG3);
   } else {
-    LoadValueDirectFixed(cUnit, rlSrc1, rMIPS_FARG0);
-    LoadValueDirectFixed(cUnit, rlSrc2, rMIPS_FARG2);
+    LoadValueDirectFixed(cu, rl_src1, rMIPS_FARG0);
+    LoadValueDirectFixed(cu, rl_src2, rMIPS_FARG2);
   }
-  int rTgt = LoadHelper(cUnit, offset);
+  int r_tgt = LoadHelper(cu, offset);
   // NOTE: not a safepoint
-  OpReg(cUnit, kOpBlx, rTgt);
-  RegLocation rlResult = GetReturn(cUnit, false);
-  StoreValue(cUnit, rlDest, rlResult);
+  OpReg(cu, kOpBlx, r_tgt);
+  RegLocation rl_result = GetReturn(cu, false);
+  StoreValue(cu, rl_dest, rl_result);
   return false;
 }
 
-void GenFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                                bool gtBias, bool isDouble)
+void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                                bool gt_bias, bool is_double)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
-void GenNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  RegLocation rlResult;
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
-  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  OpRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
-  StoreValue(cUnit, rlDest, rlResult);
+  RegLocation rl_result;
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  OpRegRegImm(cu, kOpAdd, rl_result.low_reg, rl_src.low_reg, 0x80000000);
+  StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  RegLocation rlResult;
-  rlSrc = LoadValueWide(cUnit, rlSrc, kCoreReg);
-  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  OpRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
-  OpRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  RegLocation rl_result;
+  rl_src = LoadValueWide(cu, rl_src, kCoreReg);
+  rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  OpRegRegImm(cu, kOpAdd, rl_result.high_reg, rl_src.high_reg, 0x80000000);
+  OpRegCopy(cu, rl_result.low_reg, rl_src.low_reg);
+  StoreValueWide(cu, rl_dest, rl_result);
 }
 
-bool GenInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
+bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
 {
   // TODO: need Mips implementation
   return false;

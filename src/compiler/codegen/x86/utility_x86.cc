@@ -22,37 +22,35 @@ namespace art {
 
 /* This file contains codegen for the X86 ISA */
 
-void GenBarrier(CompilationUnit *cUnit);
-void LoadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
-LIR *LoadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
-                      int rDest);
-LIR *StoreWordDisp(CompilationUnit *cUnit, int rBase,
-                       int displacement, int rSrc);
-LIR *LoadConstant(CompilationUnit *cUnit, int rDest, int value);
+void GenBarrier(CompilationUnit *cu);
+void LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg);
+LIR *LoadWordDisp(CompilationUnit *cu, int rBase, int displacement, int r_dest);
+LIR *StoreWordDisp(CompilationUnit *cu, int rBase, int displacement, int r_src);
+LIR *LoadConstant(CompilationUnit *cu, int r_dest, int value);
 
-LIR *FpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR *FpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(X86_DOUBLEREG(rDest), X86_DOUBLEREG(rSrc));
-  if (X86_DOUBLEREG(rDest)) {
+  DCHECK_EQ(X86_DOUBLEREG(r_dest), X86_DOUBLEREG(r_src));
+  if (X86_DOUBLEREG(r_dest)) {
     opcode = kX86MovsdRR;
   } else {
-    if (X86_SINGLEREG(rDest)) {
-      if (X86_SINGLEREG(rSrc)) {
+    if (X86_SINGLEREG(r_dest)) {
+      if (X86_SINGLEREG(r_src)) {
         opcode = kX86MovssRR;
       } else {  // Fpr <- Gpr
         opcode = kX86MovdxrRR;
       }
     } else {  // Gpr <- Fpr
-      DCHECK(X86_SINGLEREG(rSrc));
+      DCHECK(X86_SINGLEREG(r_src));
       opcode = kX86MovdrxRR;
     }
   }
   DCHECK_NE((EncodingMap[opcode].flags & IS_BINARY_OP), 0ULL);
-  LIR* res = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
-  if (rDest == rSrc) {
-    res->flags.isNop = true;
+  LIR* res = RawLIR(cu, cu->current_dalvik_offset, opcode, r_dest, r_src);
+  if (r_dest == r_src) {
+    res->flags.is_nop = true;
   }
   return res;
 }
@@ -63,54 +61,54 @@ LIR *FpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
  * a high register, build constant into a low register and copy.
  *
  * No additional register clobbering operation performed. Use this version when
- * 1) rDest is freshly returned from AllocTemp or
+ * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR *LoadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
+LIR *LoadConstantNoClobber(CompilationUnit *cu, int r_dest, int value)
 {
-  int rDestSave = rDest;
-  if (X86_FPREG(rDest)) {
+  int r_dest_save = r_dest;
+  if (X86_FPREG(r_dest)) {
     if (value == 0) {
-      return NewLIR2(cUnit, kX86XorpsRR, rDest, rDest);
+      return NewLIR2(cu, kX86XorpsRR, r_dest, r_dest);
     }
-    DCHECK(X86_SINGLEREG(rDest));
-    rDest = AllocTemp(cUnit);
+    DCHECK(X86_SINGLEREG(r_dest));
+    r_dest = AllocTemp(cu);
   }
 
   LIR *res;
   if (value == 0) {
-    res = NewLIR2(cUnit, kX86Xor32RR, rDest, rDest);
+    res = NewLIR2(cu, kX86Xor32RR, r_dest, r_dest);
   } else {
     // Note, there is no byte immediate form of a 32 bit immediate move.
-    res = NewLIR2(cUnit, kX86Mov32RI, rDest, value);
+    res = NewLIR2(cu, kX86Mov32RI, r_dest, value);
   }
 
-  if (X86_FPREG(rDestSave)) {
-    NewLIR2(cUnit, kX86MovdxrRR, rDestSave, rDest);
-    FreeTemp(cUnit, rDest);
+  if (X86_FPREG(r_dest_save)) {
+    NewLIR2(cu, kX86MovdxrRR, r_dest_save, r_dest);
+    FreeTemp(cu, r_dest);
   }
 
   return res;
 }
 
-LIR* OpBranchUnconditional(CompilationUnit *cUnit, OpKind op)
+LIR* OpBranchUnconditional(CompilationUnit *cu, OpKind op)
 {
   CHECK_EQ(op, kOpUncondBr);
-  return NewLIR1(cUnit, kX86Jmp8, 0 /* offset to be patched */ );
+  return NewLIR1(cu, kX86Jmp8, 0 /* offset to be patched */ );
 }
 
-LIR *LoadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
+LIR *LoadMultiple(CompilationUnit *cu, int rBase, int r_mask);
 
 X86ConditionCode X86ConditionEncoding(ConditionCode cond);
-LIR* OpCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
+LIR* OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
 {
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0 /* offset to be patched */,
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0 /* offset to be patched */,
                         X86ConditionEncoding(cc));
   branch->target = target;
   return branch;
 }
 
-LIR *OpReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
+LIR *OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -120,48 +118,48 @@ LIR *OpReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
     default:
       LOG(FATAL) << "Bad case in OpReg " << op;
   }
-  return NewLIR1(cUnit, opcode, rDestSrc);
+  return NewLIR1(cu, opcode, r_dest_src);
 }
 
-LIR *OpRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value)
+LIR *OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int value)
 {
   X86OpCode opcode = kX86Bkpt;
-  bool byteImm = IS_SIMM8(value);
-  DCHECK(!X86_FPREG(rDestSrc1));
+  bool byte_imm = IS_SIMM8(value);
+  DCHECK(!X86_FPREG(r_dest_src1));
   switch (op) {
     case kOpLsl: opcode = kX86Sal32RI; break;
     case kOpLsr: opcode = kX86Shr32RI; break;
     case kOpAsr: opcode = kX86Sar32RI; break;
-    case kOpAdd: opcode = byteImm ? kX86Add32RI8 : kX86Add32RI; break;
-    case kOpOr:  opcode = byteImm ? kX86Or32RI8  : kX86Or32RI;  break;
-    case kOpAdc: opcode = byteImm ? kX86Adc32RI8 : kX86Adc32RI; break;
+    case kOpAdd: opcode = byte_imm ? kX86Add32RI8 : kX86Add32RI; break;
+    case kOpOr:  opcode = byte_imm ? kX86Or32RI8  : kX86Or32RI;  break;
+    case kOpAdc: opcode = byte_imm ? kX86Adc32RI8 : kX86Adc32RI; break;
     //case kOpSbb: opcode = kX86Sbb32RI; break;
-    case kOpAnd: opcode = byteImm ? kX86And32RI8 : kX86And32RI; break;
-    case kOpSub: opcode = byteImm ? kX86Sub32RI8 : kX86Sub32RI; break;
-    case kOpXor: opcode = byteImm ? kX86Xor32RI8 : kX86Xor32RI; break;
-    case kOpCmp: opcode = byteImm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
-    case kOpMov: return LoadConstantNoClobber(cUnit, rDestSrc1, value);
+    case kOpAnd: opcode = byte_imm ? kX86And32RI8 : kX86And32RI; break;
+    case kOpSub: opcode = byte_imm ? kX86Sub32RI8 : kX86Sub32RI; break;
+    case kOpXor: opcode = byte_imm ? kX86Xor32RI8 : kX86Xor32RI; break;
+    case kOpCmp: opcode = byte_imm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
+    case kOpMov: return LoadConstantNoClobber(cu, r_dest_src1, value);
     case kOpMul:
-      opcode = byteImm ? kX86Imul32RRI8 : kX86Imul32RRI;
-      return NewLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, value);
+      opcode = byte_imm ? kX86Imul32RRI8 : kX86Imul32RRI;
+      return NewLIR3(cu, opcode, r_dest_src1, r_dest_src1, value);
     default:
       LOG(FATAL) << "Bad case in OpRegImm " << op;
   }
-  return NewLIR2(cUnit, opcode, rDestSrc1, value);
+  return NewLIR2(cu, opcode, r_dest_src1, value);
 }
 
-LIR *OpRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
+LIR *OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r_src2)
 {
     X86OpCode opcode = kX86Nop;
     bool src2_must_be_cx = false;
     switch (op) {
         // X86 unary opcodes
       case kOpMvn:
-        OpRegCopy(cUnit, rDestSrc1, rSrc2);
-        return OpReg(cUnit, kOpNot, rDestSrc1);
+        OpRegCopy(cu, r_dest_src1, r_src2);
+        return OpReg(cu, kOpNot, r_dest_src1);
       case kOpNeg:
-        OpRegCopy(cUnit, rDestSrc1, rSrc2);
-        return OpReg(cUnit, kOpNeg, rDestSrc1);
+        OpRegCopy(cu, r_dest_src1, r_src2);
+        return OpReg(cu, kOpNeg, r_dest_src1);
         // X86 binary opcodes
       case kOpSub: opcode = kX86Sub32RR; break;
       case kOpSbc: opcode = kX86Sbb32RR; break;
@@ -177,10 +175,10 @@ LIR *OpRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
       case kOpXor: opcode = kX86Xor32RR; break;
       case kOp2Byte:
         // Use shifts instead of a byte operand if the source can't be byte accessed.
-        if (rSrc2 >= 4) {
-          NewLIR2(cUnit, kX86Mov32RR, rDestSrc1, rSrc2);
-          NewLIR2(cUnit, kX86Sal32RI, rDestSrc1, 24);
-          return NewLIR2(cUnit, kX86Sar32RI, rDestSrc1, 24);
+        if (r_src2 >= 4) {
+          NewLIR2(cu, kX86Mov32RR, r_dest_src1, r_src2);
+          NewLIR2(cu, kX86Sal32RI, r_dest_src1, 24);
+          return NewLIR2(cu, kX86Sar32RI, r_dest_src1, 24);
         } else {
           opcode = kX86Movsx8RR;
         }
@@ -192,11 +190,11 @@ LIR *OpRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
         LOG(FATAL) << "Bad case in OpRegReg " << op;
         break;
     }
-    CHECK(!src2_must_be_cx || rSrc2 == rCX);
-    return NewLIR2(cUnit, opcode, rDestSrc1, rSrc2);
+    CHECK(!src2_must_be_cx || r_src2 == rCX);
+    return NewLIR2(cu, opcode, r_dest_src1, r_src2);
 }
 
-LIR* OpRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
+LIR* OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
               int offset)
 {
   X86OpCode opcode = kX86Nop;
@@ -217,43 +215,43 @@ LIR* OpRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
-  return NewLIR3(cUnit, opcode, rDest, rBase, offset);
+  return NewLIR3(cu, opcode, r_dest, rBase, offset);
 }
 
-LIR* OpRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc1,
-                 int rSrc2)
+LIR* OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_src1,
+                 int r_src2)
 {
-  if (rDest != rSrc1 && rDest != rSrc2) {
+  if (r_dest != r_src1 && r_dest != r_src2) {
     if (op == kOpAdd) { // lea special case, except can't encode rbp as base
-      if (rSrc1 == rSrc2) {
-        OpRegCopy(cUnit, rDest, rSrc1);
-        return OpRegImm(cUnit, kOpLsl, rDest, 1);
-      } else if (rSrc1 != rBP) {
-        return NewLIR5(cUnit, kX86Lea32RA, rDest, rSrc1 /* base */,
-                       rSrc2 /* index */, 0 /* scale */, 0 /* disp */);
+      if (r_src1 == r_src2) {
+        OpRegCopy(cu, r_dest, r_src1);
+        return OpRegImm(cu, kOpLsl, r_dest, 1);
+      } else if (r_src1 != rBP) {
+        return NewLIR5(cu, kX86Lea32RA, r_dest, r_src1 /* base */,
+                       r_src2 /* index */, 0 /* scale */, 0 /* disp */);
       } else {
-        return NewLIR5(cUnit, kX86Lea32RA, rDest, rSrc2 /* base */,
-                       rSrc1 /* index */, 0 /* scale */, 0 /* disp */);
+        return NewLIR5(cu, kX86Lea32RA, r_dest, r_src2 /* base */,
+                       r_src1 /* index */, 0 /* scale */, 0 /* disp */);
       }
     } else {
-      OpRegCopy(cUnit, rDest, rSrc1);
-      return OpRegReg(cUnit, op, rDest, rSrc2);
+      OpRegCopy(cu, r_dest, r_src1);
+      return OpRegReg(cu, op, r_dest, r_src2);
     }
-  } else if (rDest == rSrc1) {
-    return OpRegReg(cUnit, op, rDest, rSrc2);
-  } else {  // rDest == rSrc2
+  } else if (r_dest == r_src1) {
+    return OpRegReg(cu, op, r_dest, r_src2);
+  } else {  // r_dest == r_src2
     switch (op) {
       case kOpSub:  // non-commutative
-        OpReg(cUnit, kOpNeg, rDest);
+        OpReg(cu, kOpNeg, r_dest);
         op = kOpAdd;
         break;
       case kOpSbc:
       case kOpLsl: case kOpLsr: case kOpAsr: case kOpRor: {
-        int tReg = AllocTemp(cUnit);
-        OpRegCopy(cUnit, tReg, rSrc1);
-        OpRegReg(cUnit, op, tReg, rSrc2);
-        LIR* res = OpRegCopy(cUnit, rDest, tReg);
-        FreeTemp(cUnit, tReg);
+        int t_reg = AllocTemp(cu);
+        OpRegCopy(cu, t_reg, r_src1);
+        OpRegReg(cu, op, t_reg, r_src2);
+        LIR* res = OpRegCopy(cu, r_dest, t_reg);
+        FreeTemp(cu, t_reg);
         return res;
       }
       case kOpAdd:  // commutative
@@ -265,38 +263,38 @@ LIR* OpRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc1,
       default:
         LOG(FATAL) << "Bad case in OpRegRegReg " << op;
     }
-    return OpRegReg(cUnit, op, rDest, rSrc1);
+    return OpRegReg(cu, op, r_dest, r_src1);
   }
 }
 
-LIR* OpRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc,
+LIR* OpRegRegImm(CompilationUnit *cu, OpKind op, int r_dest, int r_src,
                  int value)
 {
   if (op == kOpMul) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
-    return NewLIR3(cUnit, opcode, rDest, rSrc, value);
+    return NewLIR3(cu, opcode, r_dest, r_src, value);
   } else if (op == kOpAnd) {
-    if (value == 0xFF && rSrc < 4) {
-      return NewLIR2(cUnit, kX86Movzx8RR, rDest, rSrc);
+    if (value == 0xFF && r_src < 4) {
+      return NewLIR2(cu, kX86Movzx8RR, r_dest, r_src);
     } else if (value == 0xFFFF) {
-      return NewLIR2(cUnit, kX86Movzx16RR, rDest, rSrc);
+      return NewLIR2(cu, kX86Movzx16RR, r_dest, r_src);
     }
   }
-  if (rDest != rSrc) {
+  if (r_dest != r_src) {
     if (false && op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
       // TODO: fix bug in LEA encoding when disp == 0
-      return NewLIR5(cUnit, kX86Lea32RA, rDest,  r5sib_no_base /* base */,
-                     rSrc /* index */, value /* scale */, 0 /* disp */);
+      return NewLIR5(cu, kX86Lea32RA, r_dest,  r5sib_no_base /* base */,
+                     r_src /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) { // lea add special case
-      return NewLIR5(cUnit, kX86Lea32RA, rDest, rSrc /* base */,
+      return NewLIR5(cu, kX86Lea32RA, r_dest, r_src /* base */,
                      r4sib_no_index /* index */, 0 /* scale */, value /* disp */);
     }
-    OpRegCopy(cUnit, rDest, rSrc);
+    OpRegCopy(cu, r_dest, r_src);
   }
-  return OpRegImm(cUnit, op, rDest, value);
+  return OpRegImm(cu, op, r_dest, value);
 }
 
-LIR* OpThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
+LIR* OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -305,10 +303,10 @@ LIR* OpThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  return NewLIR1(cUnit, opcode, threadOffset);
+  return NewLIR1(cu, opcode, thread_offset);
 }
 
-LIR* OpMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
+LIR* OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -317,57 +315,55 @@ LIR* OpMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  return NewLIR2(cUnit, opcode, rBase, disp);
+  return NewLIR2(cu, opcode, rBase, disp);
 }
 
-LIR *LoadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
-                           int rDestHi, int valLo, int valHi)
+LIR *LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo,
+                           int r_dest_hi, int val_lo, int val_hi)
 {
     LIR *res;
-    if (X86_FPREG(rDestLo)) {
-      DCHECK(X86_FPREG(rDestHi));  // ignore rDestHi
-      if (valLo == 0 && valHi == 0) {
-        return NewLIR2(cUnit, kX86XorpsRR, rDestLo, rDestLo);
+    if (X86_FPREG(r_dest_lo)) {
+      DCHECK(X86_FPREG(r_dest_hi));  // ignore r_dest_hi
+      if (val_lo == 0 && val_hi == 0) {
+        return NewLIR2(cu, kX86XorpsRR, r_dest_lo, r_dest_lo);
       } else {
-        if (valLo == 0) {
-          res = NewLIR2(cUnit, kX86XorpsRR, rDestLo, rDestLo);
+        if (val_lo == 0) {
+          res = NewLIR2(cu, kX86XorpsRR, r_dest_lo, r_dest_lo);
         } else {
-          res = LoadConstantNoClobber(cUnit, rDestLo, valLo);
+          res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
         }
-        if (valHi != 0) {
-          LoadConstantNoClobber(cUnit, rDestHi, valHi);
-          NewLIR2(cUnit, kX86PsllqRI, rDestHi, 32);
-          NewLIR2(cUnit, kX86OrpsRR, rDestLo, rDestHi);
+        if (val_hi != 0) {
+          LoadConstantNoClobber(cu, r_dest_hi, val_hi);
+          NewLIR2(cu, kX86PsllqRI, r_dest_hi, 32);
+          NewLIR2(cu, kX86OrpsRR, r_dest_lo, r_dest_hi);
         }
       }
     } else {
-      res = LoadConstantNoClobber(cUnit, rDestLo, valLo);
-      LoadConstantNoClobber(cUnit, rDestHi, valHi);
+      res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
+      LoadConstantNoClobber(cu, r_dest_hi, val_hi);
     }
     return res;
 }
 
-LIR *LoadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *LoadMultiple(CompilationUnit *cu, int rBase, int r_mask)
 {
   UNIMPLEMENTED(FATAL) << "LoadMultiple";
-  NewLIR0(cUnit, kX86Bkpt);
+  NewLIR0(cu, kX86Bkpt);
   return NULL;
 }
 
-LIR *StoreMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *StoreMultiple(CompilationUnit *cu, int rBase, int r_mask)
 {
   UNIMPLEMENTED(FATAL) << "StoreMultiple";
-  NewLIR0(cUnit, kX86Bkpt);
+  NewLIR0(cu, kX86Bkpt);
   return NULL;
 }
 
-LIR* LoadBaseIndexedDisp(CompilationUnit *cUnit,
-                         int rBase, int rIndex, int scale, int displacement,
-                         int rDest, int rDestHi,
-                         OpSize size, int sReg) {
+LIR* LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+                         int displacement, int r_dest, int r_dest_hi, OpSize size, int s_reg) {
   LIR *load = NULL;
   LIR *load2 = NULL;
-  bool isArray = rIndex != INVALID_REG;
+  bool is_array = r_index != INVALID_REG;
   bool pair = false;
   bool is64bit = false;
   X86OpCode opcode = kX86Nop;
@@ -375,84 +371,84 @@ LIR* LoadBaseIndexedDisp(CompilationUnit *cUnit,
     case kLong:
     case kDouble:
       is64bit = true;
-      if (X86_FPREG(rDest)) {
-        opcode = isArray ? kX86MovsdRA : kX86MovsdRM;
-        if (X86_SINGLEREG(rDest)) {
-          DCHECK(X86_FPREG(rDestHi));
-          DCHECK_EQ(rDest, (rDestHi - 1));
-          rDest = S2d(rDest, rDestHi);
+      if (X86_FPREG(r_dest)) {
+        opcode = is_array ? kX86MovsdRA : kX86MovsdRM;
+        if (X86_SINGLEREG(r_dest)) {
+          DCHECK(X86_FPREG(r_dest_hi));
+          DCHECK_EQ(r_dest, (r_dest_hi - 1));
+          r_dest = S2d(r_dest, r_dest_hi);
         }
-        rDestHi = rDest + 1;
+        r_dest_hi = r_dest + 1;
       } else {
         pair = true;
-        opcode = isArray ? kX86Mov32RA  : kX86Mov32RM;
+        opcode = is_array ? kX86Mov32RA  : kX86Mov32RM;
       }
       // TODO: double store is to unaligned address
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
     case kSingle:
-      opcode = isArray ? kX86Mov32RA : kX86Mov32RM;
-      if (X86_FPREG(rDest)) {
-        opcode = isArray ? kX86MovssRA : kX86MovssRM;
-        DCHECK(X86_SINGLEREG(rDest));
+      opcode = is_array ? kX86Mov32RA : kX86Mov32RM;
+      if (X86_FPREG(r_dest)) {
+        opcode = is_array ? kX86MovssRA : kX86MovssRM;
+        DCHECK(X86_SINGLEREG(r_dest));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kUnsignedHalf:
-      opcode = isArray ? kX86Movzx16RA : kX86Movzx16RM;
+      opcode = is_array ? kX86Movzx16RA : kX86Movzx16RM;
       DCHECK_EQ((displacement & 0x1), 0);
       break;
     case kSignedHalf:
-      opcode = isArray ? kX86Movsx16RA : kX86Movsx16RM;
+      opcode = is_array ? kX86Movsx16RA : kX86Movsx16RM;
       DCHECK_EQ((displacement & 0x1), 0);
       break;
     case kUnsignedByte:
-      opcode = isArray ? kX86Movzx8RA : kX86Movzx8RM;
+      opcode = is_array ? kX86Movzx8RA : kX86Movzx8RM;
       break;
     case kSignedByte:
-      opcode = isArray ? kX86Movsx8RA : kX86Movsx8RM;
+      opcode = is_array ? kX86Movsx8RA : kX86Movsx8RM;
       break;
     default:
       LOG(FATAL) << "Bad case in LoadBaseIndexedDispBody";
   }
 
-  if (!isArray) {
+  if (!is_array) {
     if (!pair) {
-      load = NewLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
+      load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
     } else {
-      if (rBase == rDest) {
-        load2 = NewLIR3(cUnit, opcode, rDestHi, rBase,
+      if (rBase == r_dest) {
+        load2 = NewLIR3(cu, opcode, r_dest_hi, rBase,
                         displacement + HIWORD_OFFSET);
-        load = NewLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
+        load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
       } else {
-        load = NewLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
-        load2 = NewLIR3(cUnit, opcode, rDestHi, rBase,
+        load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
+        load2 = NewLIR3(cu, opcode, r_dest_hi, rBase,
                         displacement + HIWORD_OFFSET);
       }
     }
     if (rBase == rX86_SP) {
       AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0))
-                              >> 2, true /* isLoad */, is64bit);
+                              >> 2, true /* is_load */, is64bit);
       if (pair) {
         AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
-                                true /* isLoad */, is64bit);
+                                true /* is_load */, is64bit);
       }
     }
   } else {
     if (!pair) {
-      load = NewLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
+      load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
                      displacement + LOWORD_OFFSET);
     } else {
-      if (rBase == rDest) {
-        load2 = NewLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale,
+      if (rBase == r_dest) {
+        load2 = NewLIR5(cu, opcode, r_dest_hi, rBase, r_index, scale,
                         displacement + HIWORD_OFFSET);
-        load = NewLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
+        load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
                        displacement + LOWORD_OFFSET);
       } else {
-        load = NewLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
+        load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
                        displacement + LOWORD_OFFSET);
-        load2 = NewLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale,
+        load2 = NewLIR5(cu, opcode, r_dest_hi, rBase, r_index, scale,
                         displacement + HIWORD_OFFSET);
       }
     }
@@ -462,35 +458,29 @@ LIR* LoadBaseIndexedDisp(CompilationUnit *cUnit,
 }
 
 /* Load value from base + scaled index. */
-LIR *LoadBaseIndexed(CompilationUnit *cUnit, int rBase,
-                     int rIndex, int rDest, int scale, OpSize size) {
-  return LoadBaseIndexedDisp(cUnit, rBase, rIndex, scale, 0,
-                             rDest, INVALID_REG, size, INVALID_SREG);
+LIR *LoadBaseIndexed(CompilationUnit *cu, int rBase,
+                     int r_index, int r_dest, int scale, OpSize size) {
+  return LoadBaseIndexedDisp(cu, rBase, r_index, scale, 0,
+                             r_dest, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR *LoadBaseDisp(CompilationUnit *cUnit,
-                  int rBase, int displacement,
-                  int rDest,
-                  OpSize size, int sReg) {
-  return LoadBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
-                             rDest, INVALID_REG, size, sReg);
+LIR *LoadBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+                  int r_dest, OpSize size, int s_reg) {
+  return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+                             r_dest, INVALID_REG, size, s_reg);
 }
 
-LIR *LoadBaseDispWide(CompilationUnit *cUnit,
-                      int rBase, int displacement,
-                      int rDestLo, int rDestHi,
-                      int sReg) {
-  return LoadBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
-                             rDestLo, rDestHi, kLong, sReg);
+LIR *LoadBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+                      int r_dest_lo, int r_dest_hi, int s_reg) {
+  return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+                             r_dest_lo, r_dest_hi, kLong, s_reg);
 }
 
-LIR* StoreBaseIndexedDisp(CompilationUnit *cUnit,
-                          int rBase, int rIndex, int scale, int displacement,
-                          int rSrc, int rSrcHi,
-                          OpSize size, int sReg) {
+LIR* StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+                          int displacement, int r_src, int r_src_hi, OpSize size, int s_reg) {
   LIR *store = NULL;
   LIR *store2 = NULL;
-  bool isArray = rIndex != INVALID_REG;
+  bool is_array = r_index != INVALID_REG;
   bool pair = false;
   bool is64bit = false;
   X86OpCode opcode = kX86Nop;
@@ -498,67 +488,67 @@ LIR* StoreBaseIndexedDisp(CompilationUnit *cUnit,
     case kLong:
     case kDouble:
       is64bit = true;
-      if (X86_FPREG(rSrc)) {
-        opcode = isArray ? kX86MovsdAR : kX86MovsdMR;
-        if (X86_SINGLEREG(rSrc)) {
-          DCHECK(X86_FPREG(rSrcHi));
-          DCHECK_EQ(rSrc, (rSrcHi - 1));
-          rSrc = S2d(rSrc, rSrcHi);
+      if (X86_FPREG(r_src)) {
+        opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
+        if (X86_SINGLEREG(r_src)) {
+          DCHECK(X86_FPREG(r_src_hi));
+          DCHECK_EQ(r_src, (r_src_hi - 1));
+          r_src = S2d(r_src, r_src_hi);
         }
-        rSrcHi = rSrc + 1;
+        r_src_hi = r_src + 1;
       } else {
         pair = true;
-        opcode = isArray ? kX86Mov32AR  : kX86Mov32MR;
+        opcode = is_array ? kX86Mov32AR  : kX86Mov32MR;
       }
       // TODO: double store is to unaligned address
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
     case kSingle:
-      opcode = isArray ? kX86Mov32AR : kX86Mov32MR;
-      if (X86_FPREG(rSrc)) {
-        opcode = isArray ? kX86MovssAR : kX86MovssMR;
-        DCHECK(X86_SINGLEREG(rSrc));
+      opcode = is_array ? kX86Mov32AR : kX86Mov32MR;
+      if (X86_FPREG(r_src)) {
+        opcode = is_array ? kX86MovssAR : kX86MovssMR;
+        DCHECK(X86_SINGLEREG(r_src));
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kUnsignedHalf:
     case kSignedHalf:
-      opcode = isArray ? kX86Mov16AR : kX86Mov16MR;
+      opcode = is_array ? kX86Mov16AR : kX86Mov16MR;
       DCHECK_EQ((displacement & 0x1), 0);
       break;
     case kUnsignedByte:
     case kSignedByte:
-      opcode = isArray ? kX86Mov8AR : kX86Mov8MR;
+      opcode = is_array ? kX86Mov8AR : kX86Mov8MR;
       break;
     default:
       LOG(FATAL) << "Bad case in LoadBaseIndexedDispBody";
   }
 
-  if (!isArray) {
+  if (!is_array) {
     if (!pair) {
-      store = NewLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
+      store = NewLIR3(cu, opcode, rBase, displacement + LOWORD_OFFSET, r_src);
     } else {
-      store = NewLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
-      store2 = NewLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
+      store = NewLIR3(cu, opcode, rBase, displacement + LOWORD_OFFSET, r_src);
+      store2 = NewLIR3(cu, opcode, rBase, displacement + HIWORD_OFFSET, r_src_hi);
     }
     if (rBase == rX86_SP) {
       AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
-                              >> 2, false /* isLoad */, is64bit);
+                              >> 2, false /* is_load */, is64bit);
       if (pair) {
         AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
-                                false /* isLoad */, is64bit);
+                                false /* is_load */, is64bit);
       }
     }
   } else {
     if (!pair) {
-      store = NewLIR5(cUnit, opcode, rBase, rIndex, scale,
-                      displacement + LOWORD_OFFSET, rSrc);
+      store = NewLIR5(cu, opcode, rBase, r_index, scale,
+                      displacement + LOWORD_OFFSET, r_src);
     } else {
-      store = NewLIR5(cUnit, opcode, rBase, rIndex, scale,
-                      displacement + LOWORD_OFFSET, rSrc);
-      store2 = NewLIR5(cUnit, opcode, rBase, rIndex, scale,
-                       displacement + HIWORD_OFFSET, rSrcHi);
+      store = NewLIR5(cu, opcode, rBase, r_index, scale,
+                      displacement + LOWORD_OFFSET, r_src);
+      store2 = NewLIR5(cu, opcode, rBase, r_index, scale,
+                       displacement + HIWORD_OFFSET, r_src_hi);
     }
   }
 
@@ -566,31 +556,31 @@ LIR* StoreBaseIndexedDisp(CompilationUnit *cUnit,
 }
 
 /* store value base base + scaled index. */
-LIR *StoreBaseIndexed(CompilationUnit *cUnit, int rBase, int rIndex, int rSrc,
+LIR *StoreBaseIndexed(CompilationUnit *cu, int rBase, int r_index, int r_src,
                       int scale, OpSize size)
 {
-  return StoreBaseIndexedDisp(cUnit, rBase, rIndex, scale, 0,
-                              rSrc, INVALID_REG, size, INVALID_SREG);
+  return StoreBaseIndexedDisp(cu, rBase, r_index, scale, 0,
+                              r_src, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR *StoreBaseDisp(CompilationUnit *cUnit, int rBase, int displacement,
-                   int rSrc, OpSize size)
+LIR *StoreBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+                   int r_src, OpSize size)
 {
-    return StoreBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0,
-                                displacement, rSrc, INVALID_REG, size,
+    return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0,
+                                displacement, r_src, INVALID_REG, size,
                                 INVALID_SREG);
 }
 
-LIR *StoreBaseDispWide(CompilationUnit *cUnit, int rBase, int displacement,
-                       int rSrcLo, int rSrcHi)
+LIR *StoreBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+                       int r_src_lo, int r_src_hi)
 {
-  return StoreBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
-                              rSrcLo, rSrcHi, kLong, INVALID_SREG);
+  return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+                              r_src_lo, r_src_hi, kLong, INVALID_SREG);
 }
 
-void LoadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
+void LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg)
 {
-  LoadBaseDispWide(cUnit, base, 0, lowReg, highReg, INVALID_SREG);
+  LoadBaseDispWide(cu, base, 0, low_reg, high_reg, INVALID_SREG);
 }
 
 }  // namespace art

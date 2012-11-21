@@ -25,42 +25,42 @@ namespace art {
 static int EncodeImmSingle(int value)
 {
   int res;
-  int bitA =  (value & 0x80000000) >> 31;
-  int notBitB = (value & 0x40000000) >> 30;
-  int bitB =  (value & 0x20000000) >> 29;
-  int bSmear =  (value & 0x3e000000) >> 25;
+  int bit_a =  (value & 0x80000000) >> 31;
+  int not_bit_b = (value & 0x40000000) >> 30;
+  int bit_b =  (value & 0x20000000) >> 29;
+  int b_smear =  (value & 0x3e000000) >> 25;
   int slice =   (value & 0x01f80000) >> 19;
   int zeroes =  (value & 0x0007ffff);
   if (zeroes != 0)
     return -1;
-  if (bitB) {
-    if ((notBitB != 0) || (bSmear != 0x1f))
+  if (bit_b) {
+    if ((not_bit_b != 0) || (b_smear != 0x1f))
       return -1;
   } else {
-    if ((notBitB != 1) || (bSmear != 0x0))
+    if ((not_bit_b != 1) || (b_smear != 0x0))
       return -1;
   }
-  res = (bitA << 7) | (bitB << 6) | slice;
+  res = (bit_a << 7) | (bit_b << 6) | slice;
   return res;
 }
 
-static LIR* LoadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
+static LIR* LoadFPConstantValue(CompilationUnit* cu, int r_dest, int value)
 {
-  int encodedImm = EncodeImmSingle(value);
-  DCHECK(ARM_SINGLEREG(rDest));
-  if (encodedImm >= 0) {
-    return NewLIR2(cUnit, kThumb2Vmovs_IMM8, rDest, encodedImm);
+  int encoded_imm = EncodeImmSingle(value);
+  DCHECK(ARM_SINGLEREG(r_dest));
+  if (encoded_imm >= 0) {
+    return NewLIR2(cu, kThumb2Vmovs_IMM8, r_dest, encoded_imm);
   }
-  LIR* dataTarget = ScanLiteralPool(cUnit->literalList, value, 0);
-  if (dataTarget == NULL) {
-    dataTarget = AddWordData(cUnit, &cUnit->literalList, value);
+  LIR* data_target = ScanLiteralPool(cu->literal_list, value, 0);
+  if (data_target == NULL) {
+    data_target = AddWordData(cu, &cu->literal_list, value);
   }
-  LIR* loadPcRel = RawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrs,
-                          rDest, r15pc, 0, 0, 0, dataTarget);
-  SetMemRefType(loadPcRel, true, kLiteral);
-  loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
-  AppendLIR(cUnit, loadPcRel);
-  return loadPcRel;
+  LIR* load_pc_rel = RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrs,
+                          r_dest, r15pc, 0, 0, 0, data_target);
+  SetMemRefType(load_pc_rel, true, kLiteral);
+  load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
+  AppendLIR(cu, load_pc_rel);
+  return load_pc_rel;
 }
 
 static int LeadingZeros(uint32_t val)
@@ -88,8 +88,8 @@ static int LeadingZeros(uint32_t val)
  */
 int ModifiedImmediate(uint32_t value)
 {
-   int zLeading;
-   int zTrailing;
+   int z_leading;
+   int z_trailing;
    uint32_t b0 = value & 0xff;
 
    /* Note: case of value==0 must use 0:000:0:0000000 encoding */
@@ -103,17 +103,17 @@ int ModifiedImmediate(uint32_t value)
    if (value == ((b0 << 24) | (b0 << 8)))
      return (0x2 << 8) | b0; /* 0:010:a:bcdefgh */
    /* Can we do it with rotation? */
-   zLeading = LeadingZeros(value);
-   zTrailing = 32 - LeadingZeros(~value & (value - 1));
+   z_leading = LeadingZeros(value);
+   z_trailing = 32 - LeadingZeros(~value & (value - 1));
    /* A run of eight or fewer active bits? */
-   if ((zLeading + zTrailing) < 24)
+   if ((z_leading + z_trailing) < 24)
      return -1;  /* No - bail */
    /* left-justify the constant, discarding msb (known to be 1) */
-   value <<= zLeading + 1;
+   value <<= z_leading + 1;
    /* Create bcdefgh */
    value >>= 25;
    /* Put it all together */
-   return value | ((0x8 + zLeading) << 7); /* [01000..11111]:bcdefgh */
+   return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
 }
 
 /*
@@ -121,75 +121,75 @@ int ModifiedImmediate(uint32_t value)
  * grab from the per-translation literal pool.
  *
  * No additional register clobbering operation performed. Use this version when
- * 1) rDest is freshly returned from AllocTemp or
+ * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* LoadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
+LIR* LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int value)
 {
   LIR* res;
-  int modImm;
+  int mod_imm;
 
-  if (ARM_FPREG(rDest)) {
-    return LoadFPConstantValue(cUnit, rDest, value);
+  if (ARM_FPREG(r_dest)) {
+    return LoadFPConstantValue(cu, r_dest, value);
   }
 
   /* See if the value can be constructed cheaply */
-  if (ARM_LOWREG(rDest) && (value >= 0) && (value <= 255)) {
-    return NewLIR2(cUnit, kThumbMovImm, rDest, value);
+  if (ARM_LOWREG(r_dest) && (value >= 0) && (value <= 255)) {
+    return NewLIR2(cu, kThumbMovImm, r_dest, value);
   }
   /* Check Modified immediate special cases */
-  modImm = ModifiedImmediate(value);
-  if (modImm >= 0) {
-    res = NewLIR2(cUnit, kThumb2MovImmShift, rDest, modImm);
+  mod_imm = ModifiedImmediate(value);
+  if (mod_imm >= 0) {
+    res = NewLIR2(cu, kThumb2MovImmShift, r_dest, mod_imm);
     return res;
   }
-  modImm = ModifiedImmediate(~value);
-  if (modImm >= 0) {
-    res = NewLIR2(cUnit, kThumb2MvnImm12, rDest, modImm);
+  mod_imm = ModifiedImmediate(~value);
+  if (mod_imm >= 0) {
+    res = NewLIR2(cu, kThumb2MvnImm12, r_dest, mod_imm);
     return res;
   }
   /* 16-bit immediate? */
   if ((value & 0xffff) == value) {
-    res = NewLIR2(cUnit, kThumb2MovImm16, rDest, value);
+    res = NewLIR2(cu, kThumb2MovImm16, r_dest, value);
     return res;
   }
   /* No shortcut - go ahead and use literal pool */
-  LIR* dataTarget = ScanLiteralPool(cUnit->literalList, value, 0);
-  if (dataTarget == NULL) {
-    dataTarget = AddWordData(cUnit, &cUnit->literalList, value);
+  LIR* data_target = ScanLiteralPool(cu->literal_list, value, 0);
+  if (data_target == NULL) {
+    data_target = AddWordData(cu, &cu->literal_list, value);
   }
-  LIR* loadPcRel = RawLIR(cUnit, cUnit->currentDalvikOffset,
-                          kThumb2LdrPcRel12, rDest, 0, 0, 0, 0, dataTarget);
-  SetMemRefType(loadPcRel, true, kLiteral);
-  loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
-  res = loadPcRel;
-  AppendLIR(cUnit, loadPcRel);
+  LIR* load_pc_rel = RawLIR(cu, cu->current_dalvik_offset,
+                          kThumb2LdrPcRel12, r_dest, 0, 0, 0, 0, data_target);
+  SetMemRefType(load_pc_rel, true, kLiteral);
+  load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
+  res = load_pc_rel;
+  AppendLIR(cu, load_pc_rel);
 
   /*
    * To save space in the constant pool, we use the ADD_RRI8 instruction to
    * add up to 255 to an existing constant value.
    */
-  if (dataTarget->operands[0] != value) {
-    OpRegImm(cUnit, kOpAdd, rDest, value - dataTarget->operands[0]);
+  if (data_target->operands[0] != value) {
+    OpRegImm(cu, kOpAdd, r_dest, value - data_target->operands[0]);
   }
   return res;
 }
 
-LIR* OpBranchUnconditional(CompilationUnit* cUnit, OpKind op)
+LIR* OpBranchUnconditional(CompilationUnit* cu, OpKind op)
 {
   DCHECK_EQ(op, kOpUncondBr);
-  return NewLIR1(cUnit, kThumbBUncond, 0 /* offset to be patched */);
+  return NewLIR1(cu, kThumbBUncond, 0 /* offset to be patched */);
 }
 
-LIR* OpCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
+LIR* OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
 {
-  LIR* branch = NewLIR2(cUnit, kThumb2BCond, 0 /* offset to be patched */,
+  LIR* branch = NewLIR2(cu, kThumb2BCond, 0 /* offset to be patched */,
                         ArmConditionEncoding(cc));
   branch->target = target;
   return branch;
 }
 
-LIR* OpReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
+LIR* OpReg(CompilationUnit* cu, OpKind op, int r_dest_src)
 {
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
@@ -199,34 +199,34 @@ LIR* OpReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
     default:
       LOG(FATAL) << "Bad opcode " << op;
   }
-  return NewLIR1(cUnit, opcode, rDestSrc);
+  return NewLIR1(cu, opcode, r_dest_src);
 }
 
-LIR* OpRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                   int rSrc2, int shift)
+LIR* OpRegRegShift(CompilationUnit* cu, OpKind op, int r_dest_src1,
+                   int r_src2, int shift)
 {
-  bool thumbForm = ((shift == 0) && ARM_LOWREG(rDestSrc1) && ARM_LOWREG(rSrc2));
+  bool thumb_form = ((shift == 0) && ARM_LOWREG(r_dest_src1) && ARM_LOWREG(r_src2));
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
     case kOpAdc:
-      opcode = (thumbForm) ? kThumbAdcRR : kThumb2AdcRRR;
+      opcode = (thumb_form) ? kThumbAdcRR : kThumb2AdcRRR;
       break;
     case kOpAnd:
-      opcode = (thumbForm) ? kThumbAndRR : kThumb2AndRRR;
+      opcode = (thumb_form) ? kThumbAndRR : kThumb2AndRRR;
       break;
     case kOpBic:
-      opcode = (thumbForm) ? kThumbBicRR : kThumb2BicRRR;
+      opcode = (thumb_form) ? kThumbBicRR : kThumb2BicRRR;
       break;
     case kOpCmn:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbCmnRR : kThumb2CmnRR;
+      opcode = (thumb_form) ? kThumbCmnRR : kThumb2CmnRR;
       break;
     case kOpCmp:
-      if (thumbForm)
+      if (thumb_form)
         opcode = kThumbCmpRR;
-      else if ((shift == 0) && !ARM_LOWREG(rDestSrc1) && !ARM_LOWREG(rSrc2))
+      else if ((shift == 0) && !ARM_LOWREG(r_dest_src1) && !ARM_LOWREG(r_src2))
         opcode = kThumbCmpHH;
-      else if ((shift == 0) && ARM_LOWREG(rDestSrc1))
+      else if ((shift == 0) && ARM_LOWREG(r_dest_src1))
         opcode = kThumbCmpLH;
       else if (shift == 0)
         opcode = kThumbCmpHL;
@@ -234,107 +234,107 @@ LIR* OpRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
         opcode = kThumb2CmpRR;
       break;
     case kOpXor:
-      opcode = (thumbForm) ? kThumbEorRR : kThumb2EorRRR;
+      opcode = (thumb_form) ? kThumbEorRR : kThumb2EorRRR;
       break;
     case kOpMov:
       DCHECK_EQ(shift, 0);
-      if (ARM_LOWREG(rDestSrc1) && ARM_LOWREG(rSrc2))
+      if (ARM_LOWREG(r_dest_src1) && ARM_LOWREG(r_src2))
         opcode = kThumbMovRR;
-      else if (!ARM_LOWREG(rDestSrc1) && !ARM_LOWREG(rSrc2))
+      else if (!ARM_LOWREG(r_dest_src1) && !ARM_LOWREG(r_src2))
         opcode = kThumbMovRR_H2H;
-      else if (ARM_LOWREG(rDestSrc1))
+      else if (ARM_LOWREG(r_dest_src1))
         opcode = kThumbMovRR_H2L;
       else
         opcode = kThumbMovRR_L2H;
       break;
     case kOpMul:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbMul : kThumb2MulRRR;
+      opcode = (thumb_form) ? kThumbMul : kThumb2MulRRR;
       break;
     case kOpMvn:
-      opcode = (thumbForm) ? kThumbMvn : kThumb2MnvRR;
+      opcode = (thumb_form) ? kThumbMvn : kThumb2MnvRR;
       break;
     case kOpNeg:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbNeg : kThumb2NegRR;
+      opcode = (thumb_form) ? kThumbNeg : kThumb2NegRR;
       break;
     case kOpOr:
-      opcode = (thumbForm) ? kThumbOrr : kThumb2OrrRRR;
+      opcode = (thumb_form) ? kThumbOrr : kThumb2OrrRRR;
       break;
     case kOpSbc:
-      opcode = (thumbForm) ? kThumbSbc : kThumb2SbcRRR;
+      opcode = (thumb_form) ? kThumbSbc : kThumb2SbcRRR;
       break;
     case kOpTst:
-      opcode = (thumbForm) ? kThumbTst : kThumb2TstRR;
+      opcode = (thumb_form) ? kThumbTst : kThumb2TstRR;
       break;
     case kOpLsl:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbLslRR : kThumb2LslRRR;
+      opcode = (thumb_form) ? kThumbLslRR : kThumb2LslRRR;
       break;
     case kOpLsr:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbLsrRR : kThumb2LsrRRR;
+      opcode = (thumb_form) ? kThumbLsrRR : kThumb2LsrRRR;
       break;
     case kOpAsr:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbAsrRR : kThumb2AsrRRR;
+      opcode = (thumb_form) ? kThumbAsrRR : kThumb2AsrRRR;
       break;
     case kOpRor:
       DCHECK_EQ(shift, 0);
-      opcode = (thumbForm) ? kThumbRorRR : kThumb2RorRRR;
+      opcode = (thumb_form) ? kThumbRorRR : kThumb2RorRRR;
       break;
     case kOpAdd:
-      opcode = (thumbForm) ? kThumbAddRRR : kThumb2AddRRR;
+      opcode = (thumb_form) ? kThumbAddRRR : kThumb2AddRRR;
       break;
     case kOpSub:
-      opcode = (thumbForm) ? kThumbSubRRR : kThumb2SubRRR;
+      opcode = (thumb_form) ? kThumbSubRRR : kThumb2SubRRR;
       break;
     case kOp2Byte:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(cUnit, kThumb2Sbfx, rDestSrc1, rSrc2, 0, 8);
+      return NewLIR4(cu, kThumb2Sbfx, r_dest_src1, r_src2, 0, 8);
     case kOp2Short:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(cUnit, kThumb2Sbfx, rDestSrc1, rSrc2, 0, 16);
+      return NewLIR4(cu, kThumb2Sbfx, r_dest_src1, r_src2, 0, 16);
     case kOp2Char:
       DCHECK_EQ(shift, 0);
-      return NewLIR4(cUnit, kThumb2Ubfx, rDestSrc1, rSrc2, 0, 16);
+      return NewLIR4(cu, kThumb2Ubfx, r_dest_src1, r_src2, 0, 16);
     default:
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
   if (EncodingMap[opcode].flags & IS_BINARY_OP)
-    return NewLIR2(cUnit, opcode, rDestSrc1, rSrc2);
+    return NewLIR2(cu, opcode, r_dest_src1, r_src2);
   else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
-    if (EncodingMap[opcode].fieldLoc[2].kind == kFmtShift)
-      return NewLIR3(cUnit, opcode, rDestSrc1, rSrc2, shift);
+    if (EncodingMap[opcode].field_loc[2].kind == kFmtShift)
+      return NewLIR3(cu, opcode, r_dest_src1, r_src2, shift);
     else
-      return NewLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, rSrc2);
+      return NewLIR3(cu, opcode, r_dest_src1, r_dest_src1, r_src2);
   } else if (EncodingMap[opcode].flags & IS_QUAD_OP)
-    return NewLIR4(cUnit, opcode, rDestSrc1, rDestSrc1, rSrc2, shift);
+    return NewLIR4(cu, opcode, r_dest_src1, r_dest_src1, r_src2, shift);
   else {
     LOG(FATAL) << "Unexpected encoding operand count";
     return NULL;
   }
 }
 
-LIR* OpRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2)
+LIR* OpRegReg(CompilationUnit* cu, OpKind op, int r_dest_src1, int r_src2)
 {
-  return OpRegRegShift(cUnit, op, rDestSrc1, rSrc2, 0);
+  return OpRegRegShift(cu, op, r_dest_src1, r_src2, 0);
 }
 
-LIR* OpRegRegRegShift(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
-            int rSrc2, int shift)
+LIR* OpRegRegRegShift(CompilationUnit* cu, OpKind op, int r_dest, int r_src1,
+            int r_src2, int shift)
 {
   ArmOpcode opcode = kThumbBkpt;
-  bool thumbForm = (shift == 0) && ARM_LOWREG(rDest) && ARM_LOWREG(rSrc1) &&
-      ARM_LOWREG(rSrc2);
+  bool thumb_form = (shift == 0) && ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1) &&
+      ARM_LOWREG(r_src2);
   switch (op) {
     case kOpAdd:
-      opcode = (thumbForm) ? kThumbAddRRR : kThumb2AddRRR;
+      opcode = (thumb_form) ? kThumbAddRRR : kThumb2AddRRR;
       break;
     case kOpSub:
-      opcode = (thumbForm) ? kThumbSubRRR : kThumb2SubRRR;
+      opcode = (thumb_form) ? kThumbSubRRR : kThumb2SubRRR;
       break;
     case kOpRsub:
       opcode = kThumb2RsubRRR;
@@ -383,119 +383,119 @@ LIR* OpRegRegRegShift(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
   if (EncodingMap[opcode].flags & IS_QUAD_OP)
-    return NewLIR4(cUnit, opcode, rDest, rSrc1, rSrc2, shift);
+    return NewLIR4(cu, opcode, r_dest, r_src1, r_src2, shift);
   else {
     DCHECK(EncodingMap[opcode].flags & IS_TERTIARY_OP);
-    return NewLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
+    return NewLIR3(cu, opcode, r_dest, r_src1, r_src2);
   }
 }
 
-LIR* OpRegRegReg(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
-                 int rSrc2)
+LIR* OpRegRegReg(CompilationUnit* cu, OpKind op, int r_dest, int r_src1,
+                 int r_src2)
 {
-  return OpRegRegRegShift(cUnit, op, rDest, rSrc1, rSrc2, 0);
+  return OpRegRegRegShift(cu, op, r_dest, r_src1, r_src2, 0);
 }
 
-LIR* OpRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
+LIR* OpRegRegImm(CompilationUnit* cu, OpKind op, int r_dest, int r_src1,
                  int value)
 {
   LIR* res;
   bool neg = (value < 0);
-  int absValue = (neg) ? -value : value;
+  int abs_value = (neg) ? -value : value;
   ArmOpcode opcode = kThumbBkpt;
-  ArmOpcode altOpcode = kThumbBkpt;
-  bool allLowRegs = (ARM_LOWREG(rDest) && ARM_LOWREG(rSrc1));
-  int modImm = ModifiedImmediate(value);
-  int modImmNeg = ModifiedImmediate(-value);
+  ArmOpcode alt_opcode = kThumbBkpt;
+  bool all_low_regs = (ARM_LOWREG(r_dest) && ARM_LOWREG(r_src1));
+  int mod_imm = ModifiedImmediate(value);
+  int mod_imm_neg = ModifiedImmediate(-value);
 
   switch (op) {
     case kOpLsl:
-      if (allLowRegs)
-        return NewLIR3(cUnit, kThumbLslRRI5, rDest, rSrc1, value);
+      if (all_low_regs)
+        return NewLIR3(cu, kThumbLslRRI5, r_dest, r_src1, value);
       else
-        return NewLIR3(cUnit, kThumb2LslRRI5, rDest, rSrc1, value);
+        return NewLIR3(cu, kThumb2LslRRI5, r_dest, r_src1, value);
     case kOpLsr:
-      if (allLowRegs)
-        return NewLIR3(cUnit, kThumbLsrRRI5, rDest, rSrc1, value);
+      if (all_low_regs)
+        return NewLIR3(cu, kThumbLsrRRI5, r_dest, r_src1, value);
       else
-        return NewLIR3(cUnit, kThumb2LsrRRI5, rDest, rSrc1, value);
+        return NewLIR3(cu, kThumb2LsrRRI5, r_dest, r_src1, value);
     case kOpAsr:
-      if (allLowRegs)
-        return NewLIR3(cUnit, kThumbAsrRRI5, rDest, rSrc1, value);
+      if (all_low_regs)
+        return NewLIR3(cu, kThumbAsrRRI5, r_dest, r_src1, value);
       else
-        return NewLIR3(cUnit, kThumb2AsrRRI5, rDest, rSrc1, value);
+        return NewLIR3(cu, kThumb2AsrRRI5, r_dest, r_src1, value);
     case kOpRor:
-      return NewLIR3(cUnit, kThumb2RorRRI5, rDest, rSrc1, value);
+      return NewLIR3(cu, kThumb2RorRRI5, r_dest, r_src1, value);
     case kOpAdd:
-      if (ARM_LOWREG(rDest) && (rSrc1 == r13sp) &&
+      if (ARM_LOWREG(r_dest) && (r_src1 == r13sp) &&
         (value <= 1020) && ((value & 0x3)==0)) {
-        return NewLIR3(cUnit, kThumbAddSpRel, rDest, rSrc1, value >> 2);
-      } else if (ARM_LOWREG(rDest) && (rSrc1 == r15pc) &&
+        return NewLIR3(cu, kThumbAddSpRel, r_dest, r_src1, value >> 2);
+      } else if (ARM_LOWREG(r_dest) && (r_src1 == r15pc) &&
           (value <= 1020) && ((value & 0x3)==0)) {
-        return NewLIR3(cUnit, kThumbAddPcRel, rDest, rSrc1, value >> 2);
+        return NewLIR3(cu, kThumbAddPcRel, r_dest, r_src1, value >> 2);
       }
       // Note: intentional fallthrough
     case kOpSub:
-      if (allLowRegs && ((absValue & 0x7) == absValue)) {
+      if (all_low_regs && ((abs_value & 0x7) == abs_value)) {
         if (op == kOpAdd)
           opcode = (neg) ? kThumbSubRRI3 : kThumbAddRRI3;
         else
           opcode = (neg) ? kThumbAddRRI3 : kThumbSubRRI3;
-        return NewLIR3(cUnit, opcode, rDest, rSrc1, absValue);
-      } else if ((absValue & 0xff) == absValue) {
+        return NewLIR3(cu, opcode, r_dest, r_src1, abs_value);
+      } else if ((abs_value & 0xff) == abs_value) {
         if (op == kOpAdd)
           opcode = (neg) ? kThumb2SubRRI12 : kThumb2AddRRI12;
         else
           opcode = (neg) ? kThumb2AddRRI12 : kThumb2SubRRI12;
-        return NewLIR3(cUnit, opcode, rDest, rSrc1, absValue);
+        return NewLIR3(cu, opcode, r_dest, r_src1, abs_value);
       }
-      if (modImmNeg >= 0) {
+      if (mod_imm_neg >= 0) {
         op = (op == kOpAdd) ? kOpSub : kOpAdd;
-        modImm = modImmNeg;
+        mod_imm = mod_imm_neg;
       }
       if (op == kOpSub) {
         opcode = kThumb2SubRRI8;
-        altOpcode = kThumb2SubRRR;
+        alt_opcode = kThumb2SubRRR;
       } else {
         opcode = kThumb2AddRRI8;
-        altOpcode = kThumb2AddRRR;
+        alt_opcode = kThumb2AddRRR;
       }
       break;
     case kOpAdc:
       opcode = kThumb2AdcRRI8;
-      altOpcode = kThumb2AdcRRR;
+      alt_opcode = kThumb2AdcRRR;
       break;
     case kOpSbc:
       opcode = kThumb2SbcRRI8;
-      altOpcode = kThumb2SbcRRR;
+      alt_opcode = kThumb2SbcRRR;
       break;
     case kOpOr:
       opcode = kThumb2OrrRRI8;
-      altOpcode = kThumb2OrrRRR;
+      alt_opcode = kThumb2OrrRRR;
       break;
     case kOpAnd:
       opcode = kThumb2AndRRI8;
-      altOpcode = kThumb2AndRRR;
+      alt_opcode = kThumb2AndRRR;
       break;
     case kOpXor:
       opcode = kThumb2EorRRI8;
-      altOpcode = kThumb2EorRRR;
+      alt_opcode = kThumb2EorRRR;
       break;
     case kOpMul:
       //TUNING: power of 2, shift & add
-      modImm = -1;
-      altOpcode = kThumb2MulRRR;
+      mod_imm = -1;
+      alt_opcode = kThumb2MulRRR;
       break;
     case kOpCmp: {
-      int modImm = ModifiedImmediate(value);
+      int mod_imm = ModifiedImmediate(value);
       LIR* res;
-      if (modImm >= 0) {
-        res = NewLIR2(cUnit, kThumb2CmpRI8, rSrc1, modImm);
+      if (mod_imm >= 0) {
+        res = NewLIR2(cu, kThumb2CmpRI8, r_src1, mod_imm);
       } else {
-        int rTmp = AllocTemp(cUnit);
-        res = LoadConstant(cUnit, rTmp, value);
-        OpRegReg(cUnit, kOpCmp, rSrc1, rTmp);
-        FreeTemp(cUnit, rTmp);
+        int r_tmp = AllocTemp(cu);
+        res = LoadConstant(cu, r_tmp, value);
+        OpRegReg(cu, kOpCmp, r_src1, r_tmp);
+        FreeTemp(cu, r_tmp);
       }
       return res;
     }
@@ -503,63 +503,63 @@ LIR* OpRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
       LOG(FATAL) << "Bad opcode: " << op;
   }
 
-  if (modImm >= 0) {
-    return NewLIR3(cUnit, opcode, rDest, rSrc1, modImm);
+  if (mod_imm >= 0) {
+    return NewLIR3(cu, opcode, r_dest, r_src1, mod_imm);
   } else {
-    int rScratch = AllocTemp(cUnit);
-    LoadConstant(cUnit, rScratch, value);
-    if (EncodingMap[altOpcode].flags & IS_QUAD_OP)
-      res = NewLIR4(cUnit, altOpcode, rDest, rSrc1, rScratch, 0);
+    int r_scratch = AllocTemp(cu);
+    LoadConstant(cu, r_scratch, value);
+    if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
+      res = NewLIR4(cu, alt_opcode, r_dest, r_src1, r_scratch, 0);
     else
-      res = NewLIR3(cUnit, altOpcode, rDest, rSrc1, rScratch);
-    FreeTemp(cUnit, rScratch);
+      res = NewLIR3(cu, alt_opcode, r_dest, r_src1, r_scratch);
+    FreeTemp(cu, r_scratch);
     return res;
   }
 }
 
 /* Handle Thumb-only variants here - otherwise punt to OpRegRegImm */
-LIR* OpRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value)
+LIR* OpRegImm(CompilationUnit* cu, OpKind op, int r_dest_src1, int value)
 {
   bool neg = (value < 0);
-  int absValue = (neg) ? -value : value;
-  bool shortForm = (((absValue & 0xff) == absValue) && ARM_LOWREG(rDestSrc1));
+  int abs_value = (neg) ? -value : value;
+  bool short_form = (((abs_value & 0xff) == abs_value) && ARM_LOWREG(r_dest_src1));
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
     case kOpAdd:
-      if ( !neg && (rDestSrc1 == r13sp) && (value <= 508)) { /* sp */
+      if ( !neg && (r_dest_src1 == r13sp) && (value <= 508)) { /* sp */
         DCHECK_EQ((value & 0x3), 0);
-        return NewLIR1(cUnit, kThumbAddSpI7, value >> 2);
-      } else if (shortForm) {
+        return NewLIR1(cu, kThumbAddSpI7, value >> 2);
+      } else if (short_form) {
         opcode = (neg) ? kThumbSubRI8 : kThumbAddRI8;
       }
       break;
     case kOpSub:
-      if (!neg && (rDestSrc1 == r13sp) && (value <= 508)) { /* sp */
+      if (!neg && (r_dest_src1 == r13sp) && (value <= 508)) { /* sp */
         DCHECK_EQ((value & 0x3), 0);
-        return NewLIR1(cUnit, kThumbSubSpI7, value >> 2);
-      } else if (shortForm) {
+        return NewLIR1(cu, kThumbSubSpI7, value >> 2);
+      } else if (short_form) {
         opcode = (neg) ? kThumbAddRI8 : kThumbSubRI8;
       }
       break;
     case kOpCmp:
-      if (ARM_LOWREG(rDestSrc1) && shortForm)
-        opcode = (shortForm) ?  kThumbCmpRI8 : kThumbCmpRR;
-      else if (ARM_LOWREG(rDestSrc1))
+      if (ARM_LOWREG(r_dest_src1) && short_form)
+        opcode = (short_form) ?  kThumbCmpRI8 : kThumbCmpRR;
+      else if (ARM_LOWREG(r_dest_src1))
         opcode = kThumbCmpRR;
       else {
-        shortForm = false;
+        short_form = false;
         opcode = kThumbCmpHL;
       }
       break;
     default:
       /* Punt to OpRegRegImm - if bad case catch it there */
-      shortForm = false;
+      short_form = false;
       break;
   }
-  if (shortForm)
-    return NewLIR2(cUnit, opcode, rDestSrc1, absValue);
+  if (short_form)
+    return NewLIR2(cu, opcode, r_dest_src1, abs_value);
   else {
-    return OpRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
+    return OpRegRegImm(cu, op, r_dest_src1, r_dest_src1, value);
   }
 }
 
@@ -570,58 +570,58 @@ LIR* OpRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value)
 static int EncodeImmDoubleHigh(int value)
 {
   int res;
-  int bitA =  (value & 0x80000000) >> 31;
-  int notBitB = (value & 0x40000000) >> 30;
-  int bitB =  (value & 0x20000000) >> 29;
-  int bSmear =  (value & 0x3fc00000) >> 22;
+  int bit_a =  (value & 0x80000000) >> 31;
+  int not_bit_b = (value & 0x40000000) >> 30;
+  int bit_b =  (value & 0x20000000) >> 29;
+  int b_smear =  (value & 0x3fc00000) >> 22;
   int slice =   (value & 0x003f0000) >> 16;
   int zeroes =  (value & 0x0000ffff);
   if (zeroes != 0)
     return -1;
-  if (bitB) {
-    if ((notBitB != 0) || (bSmear != 0xff))
+  if (bit_b) {
+    if ((not_bit_b != 0) || (b_smear != 0xff))
       return -1;
   } else {
-    if ((notBitB != 1) || (bSmear != 0x0))
+    if ((not_bit_b != 1) || (b_smear != 0x0))
       return -1;
   }
-  res = (bitA << 7) | (bitB << 6) | slice;
+  res = (bit_a << 7) | (bit_b << 6) | slice;
   return res;
 }
 
-static int EncodeImmDouble(int valLo, int valHi)
+static int EncodeImmDouble(int val_lo, int val_hi)
 {
   int res = -1;
-  if (valLo == 0)
-    res = EncodeImmDoubleHigh(valHi);
+  if (val_lo == 0)
+    res = EncodeImmDoubleHigh(val_hi);
   return res;
 }
 
-LIR* LoadConstantValueWide(CompilationUnit* cUnit, int rDestLo, int rDestHi,
-               int valLo, int valHi)
+LIR* LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
+               int val_lo, int val_hi)
 {
-  int encodedImm = EncodeImmDouble(valLo, valHi);
+  int encoded_imm = EncodeImmDouble(val_lo, val_hi);
   LIR* res;
-  if (ARM_FPREG(rDestLo)) {
-    if (encodedImm >= 0) {
-      res = NewLIR2(cUnit, kThumb2Vmovd_IMM8, S2d(rDestLo, rDestHi),
-              encodedImm);
+  if (ARM_FPREG(r_dest_lo)) {
+    if (encoded_imm >= 0) {
+      res = NewLIR2(cu, kThumb2Vmovd_IMM8, S2d(r_dest_lo, r_dest_hi),
+              encoded_imm);
     } else {
-      LIR* dataTarget = ScanLiteralPoolWide(cUnit->literalList, valLo, valHi);
-      if (dataTarget == NULL) {
-        dataTarget = AddWideData(cUnit, &cUnit->literalList, valLo, valHi);
+      LIR* data_target = ScanLiteralPoolWide(cu->literal_list, val_lo, val_hi);
+      if (data_target == NULL) {
+        data_target = AddWideData(cu, &cu->literal_list, val_lo, val_hi);
       }
-      LIR* loadPcRel =
-          RawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrd,
-                 S2d(rDestLo, rDestHi), r15pc, 0, 0, 0, dataTarget);
-      SetMemRefType(loadPcRel, true, kLiteral);
-      loadPcRel->aliasInfo = reinterpret_cast<uintptr_t>(dataTarget);
-      AppendLIR(cUnit, loadPcRel);
-      res = loadPcRel;
+      LIR* load_pc_rel =
+          RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrd,
+                 S2d(r_dest_lo, r_dest_hi), r15pc, 0, 0, 0, data_target);
+      SetMemRefType(load_pc_rel, true, kLiteral);
+      load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
+      AppendLIR(cu, load_pc_rel);
+      res = load_pc_rel;
     }
   } else {
-    res = LoadConstantNoClobber(cUnit, rDestLo, valLo);
-    LoadConstantNoClobber(cUnit, rDestHi, valHi);
+    res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
+    LoadConstantNoClobber(cu, r_dest_hi, val_hi);
   }
   return res;
 }
@@ -630,24 +630,24 @@ int EncodeShift(int code, int amount) {
   return ((amount & 0x1f) << 2) | code;
 }
 
-LIR* LoadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
+LIR* LoadBaseIndexed(CompilationUnit* cu, int rBase, int r_index, int r_dest,
                      int scale, OpSize size)
 {
-  bool allLowRegs = ARM_LOWREG(rBase) && ARM_LOWREG(rIndex) && ARM_LOWREG(rDest);
+  bool all_low_regs = ARM_LOWREG(rBase) && ARM_LOWREG(r_index) && ARM_LOWREG(r_dest);
   LIR* load;
   ArmOpcode opcode = kThumbBkpt;
-  bool thumbForm = (allLowRegs && (scale == 0));
-  int regPtr;
+  bool thumb_form = (all_low_regs && (scale == 0));
+  int reg_ptr;
 
-  if (ARM_FPREG(rDest)) {
-    if (ARM_SINGLEREG(rDest)) {
+  if (ARM_FPREG(r_dest)) {
+    if (ARM_SINGLEREG(r_dest)) {
       DCHECK((size == kWord) || (size == kSingle));
       opcode = kThumb2Vldrs;
       size = kSingle;
     } else {
-      DCHECK(ARM_DOUBLEREG(rDest));
+      DCHECK(ARM_DOUBLEREG(r_dest));
       DCHECK((size == kLong) || (size == kDouble));
-      DCHECK_EQ((rDest & 0x1), 0);
+      DCHECK_EQ((r_dest & 0x1), 0);
       opcode = kThumb2Vldrd;
       size = kDouble;
     }
@@ -659,60 +659,60 @@ LIR* LoadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
   switch (size) {
     case kDouble: // fall-through
     case kSingle:
-      regPtr = AllocTemp(cUnit);
+      reg_ptr = AllocTemp(cu);
       if (scale) {
-        NewLIR4(cUnit, kThumb2AddRRR, regPtr, rBase, rIndex,
+        NewLIR4(cu, kThumb2AddRRR, reg_ptr, rBase, r_index,
                 EncodeShift(kArmLsl, scale));
       } else {
-        OpRegRegReg(cUnit, kOpAdd, regPtr, rBase, rIndex);
+        OpRegRegReg(cu, kOpAdd, reg_ptr, rBase, r_index);
       }
-      load = NewLIR3(cUnit, opcode, rDest, regPtr, 0);
-      FreeTemp(cUnit, regPtr);
+      load = NewLIR3(cu, opcode, r_dest, reg_ptr, 0);
+      FreeTemp(cu, reg_ptr);
       return load;
     case kWord:
-      opcode = (thumbForm) ? kThumbLdrRRR : kThumb2LdrRRR;
+      opcode = (thumb_form) ? kThumbLdrRRR : kThumb2LdrRRR;
       break;
     case kUnsignedHalf:
-      opcode = (thumbForm) ? kThumbLdrhRRR : kThumb2LdrhRRR;
+      opcode = (thumb_form) ? kThumbLdrhRRR : kThumb2LdrhRRR;
       break;
     case kSignedHalf:
-      opcode = (thumbForm) ? kThumbLdrshRRR : kThumb2LdrshRRR;
+      opcode = (thumb_form) ? kThumbLdrshRRR : kThumb2LdrshRRR;
       break;
     case kUnsignedByte:
-      opcode = (thumbForm) ? kThumbLdrbRRR : kThumb2LdrbRRR;
+      opcode = (thumb_form) ? kThumbLdrbRRR : kThumb2LdrbRRR;
       break;
     case kSignedByte:
-      opcode = (thumbForm) ? kThumbLdrsbRRR : kThumb2LdrsbRRR;
+      opcode = (thumb_form) ? kThumbLdrsbRRR : kThumb2LdrsbRRR;
       break;
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
-  if (thumbForm)
-    load = NewLIR3(cUnit, opcode, rDest, rBase, rIndex);
+  if (thumb_form)
+    load = NewLIR3(cu, opcode, r_dest, rBase, r_index);
   else
-    load = NewLIR4(cUnit, opcode, rDest, rBase, rIndex, scale);
+    load = NewLIR4(cu, opcode, r_dest, rBase, r_index, scale);
 
   return load;
 }
 
-LIR* StoreBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
+LIR* StoreBaseIndexed(CompilationUnit* cu, int rBase, int r_index, int r_src,
                       int scale, OpSize size)
 {
-  bool allLowRegs = ARM_LOWREG(rBase) && ARM_LOWREG(rIndex) && ARM_LOWREG(rSrc);
+  bool all_low_regs = ARM_LOWREG(rBase) && ARM_LOWREG(r_index) && ARM_LOWREG(r_src);
   LIR* store;
   ArmOpcode opcode = kThumbBkpt;
-  bool thumbForm = (allLowRegs && (scale == 0));
-  int regPtr;
+  bool thumb_form = (all_low_regs && (scale == 0));
+  int reg_ptr;
 
-  if (ARM_FPREG(rSrc)) {
-    if (ARM_SINGLEREG(rSrc)) {
+  if (ARM_FPREG(r_src)) {
+    if (ARM_SINGLEREG(r_src)) {
       DCHECK((size == kWord) || (size == kSingle));
       opcode = kThumb2Vstrs;
       size = kSingle;
     } else {
-      DCHECK(ARM_DOUBLEREG(rSrc));
+      DCHECK(ARM_DOUBLEREG(r_src));
       DCHECK((size == kLong) || (size == kDouble));
-      DCHECK_EQ((rSrc & 0x1), 0);
+      DCHECK_EQ((r_src & 0x1), 0);
       opcode = kThumb2Vstrd;
       size = kDouble;
     }
@@ -724,136 +724,136 @@ LIR* StoreBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
   switch (size) {
     case kDouble: // fall-through
     case kSingle:
-      regPtr = AllocTemp(cUnit);
+      reg_ptr = AllocTemp(cu);
       if (scale) {
-        NewLIR4(cUnit, kThumb2AddRRR, regPtr, rBase, rIndex,
+        NewLIR4(cu, kThumb2AddRRR, reg_ptr, rBase, r_index,
                 EncodeShift(kArmLsl, scale));
       } else {
-        OpRegRegReg(cUnit, kOpAdd, regPtr, rBase, rIndex);
+        OpRegRegReg(cu, kOpAdd, reg_ptr, rBase, r_index);
       }
-      store = NewLIR3(cUnit, opcode, rSrc, regPtr, 0);
-      FreeTemp(cUnit, regPtr);
+      store = NewLIR3(cu, opcode, r_src, reg_ptr, 0);
+      FreeTemp(cu, reg_ptr);
       return store;
     case kWord:
-      opcode = (thumbForm) ? kThumbStrRRR : kThumb2StrRRR;
+      opcode = (thumb_form) ? kThumbStrRRR : kThumb2StrRRR;
       break;
     case kUnsignedHalf:
     case kSignedHalf:
-      opcode = (thumbForm) ? kThumbStrhRRR : kThumb2StrhRRR;
+      opcode = (thumb_form) ? kThumbStrhRRR : kThumb2StrhRRR;
       break;
     case kUnsignedByte:
     case kSignedByte:
-      opcode = (thumbForm) ? kThumbStrbRRR : kThumb2StrbRRR;
+      opcode = (thumb_form) ? kThumbStrbRRR : kThumb2StrbRRR;
       break;
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
-  if (thumbForm)
-    store = NewLIR3(cUnit, opcode, rSrc, rBase, rIndex);
+  if (thumb_form)
+    store = NewLIR3(cu, opcode, r_src, rBase, r_index);
   else
-    store = NewLIR4(cUnit, opcode, rSrc, rBase, rIndex, scale);
+    store = NewLIR4(cu, opcode, r_src, rBase, r_index, scale);
 
   return store;
 }
 
 /*
  * Load value from base + displacement.  Optionally perform null check
- * on base (which must have an associated sReg and MIR).  If not
+ * on base (which must have an associated s_reg and MIR).  If not
  * performing null check, incoming MIR can be null.
  */
-LIR* LoadBaseDispBody(CompilationUnit* cUnit, int rBase,
-                      int displacement, int rDest, int rDestHi, OpSize size,
-                      int sReg)
+LIR* LoadBaseDispBody(CompilationUnit* cu, int rBase,
+                      int displacement, int r_dest, int r_dest_hi, OpSize size,
+                      int s_reg)
 {
   LIR* res;
   LIR* load;
   ArmOpcode opcode = kThumbBkpt;
-  bool shortForm = false;
+  bool short_form = false;
   bool thumb2Form = (displacement < 4092 && displacement >= 0);
-  bool allLowRegs = (ARM_LOWREG(rBase) && ARM_LOWREG(rDest));
-  int encodedDisp = displacement;
+  bool all_low_regs = (ARM_LOWREG(rBase) && ARM_LOWREG(r_dest));
+  int encoded_disp = displacement;
   bool is64bit = false;
   switch (size) {
     case kDouble:
     case kLong:
       is64bit = true;
-      if (ARM_FPREG(rDest)) {
-        if (ARM_SINGLEREG(rDest)) {
-          DCHECK(ARM_FPREG(rDestHi));
-          rDest = S2d(rDest, rDestHi);
+      if (ARM_FPREG(r_dest)) {
+        if (ARM_SINGLEREG(r_dest)) {
+          DCHECK(ARM_FPREG(r_dest_hi));
+          r_dest = S2d(r_dest, r_dest_hi);
         }
         opcode = kThumb2Vldrd;
         if (displacement <= 1020) {
-          shortForm = true;
-          encodedDisp >>= 2;
+          short_form = true;
+          encoded_disp >>= 2;
         }
         break;
       } else {
-        res = LoadBaseDispBody(cUnit, rBase, displacement, rDest,
-                               -1, kWord, sReg);
-        LoadBaseDispBody(cUnit, rBase, displacement + 4, rDestHi,
+        res = LoadBaseDispBody(cu, rBase, displacement, r_dest,
+                               -1, kWord, s_reg);
+        LoadBaseDispBody(cu, rBase, displacement + 4, r_dest_hi,
                          -1, kWord, INVALID_SREG);
         return res;
       }
     case kSingle:
     case kWord:
-      if (ARM_FPREG(rDest)) {
+      if (ARM_FPREG(r_dest)) {
         opcode = kThumb2Vldrs;
         if (displacement <= 1020) {
-          shortForm = true;
-          encodedDisp >>= 2;
+          short_form = true;
+          encoded_disp >>= 2;
         }
         break;
       }
-      if (ARM_LOWREG(rDest) && (rBase == r15pc) &&
+      if (ARM_LOWREG(r_dest) && (rBase == r15pc) &&
           (displacement <= 1020) && (displacement >= 0)) {
-        shortForm = true;
-        encodedDisp >>= 2;
+        short_form = true;
+        encoded_disp >>= 2;
         opcode = kThumbLdrPcRel;
-      } else if (ARM_LOWREG(rDest) && (rBase == r13sp) &&
+      } else if (ARM_LOWREG(r_dest) && (rBase == r13sp) &&
           (displacement <= 1020) && (displacement >= 0)) {
-        shortForm = true;
-        encodedDisp >>= 2;
+        short_form = true;
+        encoded_disp >>= 2;
         opcode = kThumbLdrSpRel;
-      } else if (allLowRegs && displacement < 128 && displacement >= 0) {
+      } else if (all_low_regs && displacement < 128 && displacement >= 0) {
         DCHECK_EQ((displacement & 0x3), 0);
-        shortForm = true;
-        encodedDisp >>= 2;
+        short_form = true;
+        encoded_disp >>= 2;
         opcode = kThumbLdrRRI5;
       } else if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2LdrRRI12;
       }
       break;
     case kUnsignedHalf:
-      if (allLowRegs && displacement < 64 && displacement >= 0) {
+      if (all_low_regs && displacement < 64 && displacement >= 0) {
         DCHECK_EQ((displacement & 0x1), 0);
-        shortForm = true;
-        encodedDisp >>= 1;
+        short_form = true;
+        encoded_disp >>= 1;
         opcode = kThumbLdrhRRI5;
       } else if (displacement < 4092 && displacement >= 0) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2LdrhRRI12;
       }
       break;
     case kSignedHalf:
       if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2LdrshRRI12;
       }
       break;
     case kUnsignedByte:
-      if (allLowRegs && displacement < 32 && displacement >= 0) {
-        shortForm = true;
+      if (all_low_regs && displacement < 32 && displacement >= 0) {
+        short_form = true;
         opcode = kThumbLdrbRRI5;
       } else if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2LdrbRRI12;
       }
       break;
     case kSignedByte:
       if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2LdrsbRRI12;
       }
       break;
@@ -861,199 +861,199 @@ LIR* LoadBaseDispBody(CompilationUnit* cUnit, int rBase,
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (shortForm) {
-    load = res = NewLIR3(cUnit, opcode, rDest, rBase, encodedDisp);
+  if (short_form) {
+    load = res = NewLIR3(cu, opcode, r_dest, rBase, encoded_disp);
   } else {
-    int regOffset = AllocTemp(cUnit);
-    res = LoadConstant(cUnit, regOffset, encodedDisp);
-    load = LoadBaseIndexed(cUnit, rBase, regOffset, rDest, 0, size);
-    FreeTemp(cUnit, regOffset);
+    int reg_offset = AllocTemp(cu);
+    res = LoadConstant(cu, reg_offset, encoded_disp);
+    load = LoadBaseIndexed(cu, rBase, reg_offset, r_dest, 0, size);
+    FreeTemp(cu, reg_offset);
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (rBase == rARM_SP) {
-    AnnotateDalvikRegAccess(load, displacement >> 2, true /* isLoad */, is64bit);
+    AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, is64bit);
   }
   return load;
 }
 
-LIR* LoadBaseDisp(CompilationUnit* cUnit, int rBase,
-                  int displacement, int rDest, OpSize size, int sReg)
+LIR* LoadBaseDisp(CompilationUnit* cu, int rBase,
+                  int displacement, int r_dest, OpSize size, int s_reg)
 {
-  return LoadBaseDispBody(cUnit, rBase, displacement, rDest, -1, size,
-                          sReg);
+  return LoadBaseDispBody(cu, rBase, displacement, r_dest, -1, size,
+                          s_reg);
 }
 
- LIR* LoadBaseDispWide(CompilationUnit* cUnit, int rBase,
-                       int displacement, int rDestLo, int rDestHi, int sReg)
+ LIR* LoadBaseDispWide(CompilationUnit* cu, int rBase,
+                       int displacement, int r_dest_lo, int r_dest_hi, int s_reg)
 {
-  return LoadBaseDispBody(cUnit, rBase, displacement, rDestLo, rDestHi,
-                          kLong, sReg);
+  return LoadBaseDispBody(cu, rBase, displacement, r_dest_lo, r_dest_hi,
+                          kLong, s_reg);
 }
 
 
-LIR* StoreBaseDispBody(CompilationUnit* cUnit, int rBase, int displacement,
-                       int rSrc, int rSrcHi, OpSize size)
+LIR* StoreBaseDispBody(CompilationUnit* cu, int rBase, int displacement,
+                       int r_src, int r_src_hi, OpSize size)
 {
   LIR* res, *store;
   ArmOpcode opcode = kThumbBkpt;
-  bool shortForm = false;
+  bool short_form = false;
   bool thumb2Form = (displacement < 4092 && displacement >= 0);
-  bool allLowRegs = (ARM_LOWREG(rBase) && ARM_LOWREG(rSrc));
-  int encodedDisp = displacement;
+  bool all_low_regs = (ARM_LOWREG(rBase) && ARM_LOWREG(r_src));
+  int encoded_disp = displacement;
   bool is64bit = false;
   switch (size) {
     case kLong:
     case kDouble:
       is64bit = true;
-      if (!ARM_FPREG(rSrc)) {
-        res = StoreBaseDispBody(cUnit, rBase, displacement, rSrc, -1, kWord);
-        StoreBaseDispBody(cUnit, rBase, displacement + 4, rSrcHi, -1, kWord);
+      if (!ARM_FPREG(r_src)) {
+        res = StoreBaseDispBody(cu, rBase, displacement, r_src, -1, kWord);
+        StoreBaseDispBody(cu, rBase, displacement + 4, r_src_hi, -1, kWord);
         return res;
       }
-      if (ARM_SINGLEREG(rSrc)) {
-        DCHECK(ARM_FPREG(rSrcHi));
-        rSrc = S2d(rSrc, rSrcHi);
+      if (ARM_SINGLEREG(r_src)) {
+        DCHECK(ARM_FPREG(r_src_hi));
+        r_src = S2d(r_src, r_src_hi);
       }
       opcode = kThumb2Vstrd;
       if (displacement <= 1020) {
-        shortForm = true;
-        encodedDisp >>= 2;
+        short_form = true;
+        encoded_disp >>= 2;
       }
       break;
     case kSingle:
     case kWord:
-      if (ARM_FPREG(rSrc)) {
-        DCHECK(ARM_SINGLEREG(rSrc));
+      if (ARM_FPREG(r_src)) {
+        DCHECK(ARM_SINGLEREG(r_src));
         opcode = kThumb2Vstrs;
         if (displacement <= 1020) {
-          shortForm = true;
-          encodedDisp >>= 2;
+          short_form = true;
+          encoded_disp >>= 2;
         }
       break;
       }
-      if (allLowRegs && displacement < 128 && displacement >= 0) {
+      if (all_low_regs && displacement < 128 && displacement >= 0) {
         DCHECK_EQ((displacement & 0x3), 0);
-        shortForm = true;
-        encodedDisp >>= 2;
+        short_form = true;
+        encoded_disp >>= 2;
         opcode = kThumbStrRRI5;
       } else if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2StrRRI12;
       }
       break;
     case kUnsignedHalf:
     case kSignedHalf:
-      if (allLowRegs && displacement < 64 && displacement >= 0) {
+      if (all_low_regs && displacement < 64 && displacement >= 0) {
         DCHECK_EQ((displacement & 0x1), 0);
-        shortForm = true;
-        encodedDisp >>= 1;
+        short_form = true;
+        encoded_disp >>= 1;
         opcode = kThumbStrhRRI5;
       } else if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2StrhRRI12;
       }
       break;
     case kUnsignedByte:
     case kSignedByte:
-      if (allLowRegs && displacement < 32 && displacement >= 0) {
-        shortForm = true;
+      if (all_low_regs && displacement < 32 && displacement >= 0) {
+        short_form = true;
         opcode = kThumbStrbRRI5;
       } else if (thumb2Form) {
-        shortForm = true;
+        short_form = true;
         opcode = kThumb2StrbRRI12;
       }
       break;
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
-  if (shortForm) {
-    store = res = NewLIR3(cUnit, opcode, rSrc, rBase, encodedDisp);
+  if (short_form) {
+    store = res = NewLIR3(cu, opcode, r_src, rBase, encoded_disp);
   } else {
-    int rScratch = AllocTemp(cUnit);
-    res = LoadConstant(cUnit, rScratch, encodedDisp);
-    store = StoreBaseIndexed(cUnit, rBase, rScratch, rSrc, 0, size);
-    FreeTemp(cUnit, rScratch);
+    int r_scratch = AllocTemp(cu);
+    res = LoadConstant(cu, r_scratch, encoded_disp);
+    store = StoreBaseIndexed(cu, rBase, r_scratch, r_src, 0, size);
+    FreeTemp(cu, r_scratch);
   }
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses
   if (rBase == rARM_SP) {
-    AnnotateDalvikRegAccess(store, displacement >> 2, false /* isLoad */,
+    AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */,
                             is64bit);
   }
   return res;
 }
 
-LIR* StoreBaseDisp(CompilationUnit* cUnit, int rBase, int displacement,
-                   int rSrc, OpSize size)
+LIR* StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement,
+                   int r_src, OpSize size)
 {
-  return StoreBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
+  return StoreBaseDispBody(cu, rBase, displacement, r_src, -1, size);
 }
 
-LIR* StoreBaseDispWide(CompilationUnit* cUnit, int rBase, int displacement,
-                       int rSrcLo, int rSrcHi)
+LIR* StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacement,
+                       int r_src_lo, int r_src_hi)
 {
-  return StoreBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
+  return StoreBaseDispBody(cu, rBase, displacement, r_src_lo, r_src_hi, kLong);
 }
 
-void LoadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
+void LoadPair(CompilationUnit* cu, int base, int low_reg, int high_reg)
 {
-  LoadBaseDispWide(cUnit, base, 0, lowReg, highReg, INVALID_SREG);
+  LoadBaseDispWide(cu, base, 0, low_reg, high_reg, INVALID_SREG);
 }
 
-LIR* FpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
+LIR* FpRegCopy(CompilationUnit* cu, int r_dest, int r_src)
 {
   int opcode;
-  DCHECK_EQ(ARM_DOUBLEREG(rDest), ARM_DOUBLEREG(rSrc));
-  if (ARM_DOUBLEREG(rDest)) {
+  DCHECK_EQ(ARM_DOUBLEREG(r_dest), ARM_DOUBLEREG(r_src));
+  if (ARM_DOUBLEREG(r_dest)) {
     opcode = kThumb2Vmovd;
   } else {
-    if (ARM_SINGLEREG(rDest)) {
-      opcode = ARM_SINGLEREG(rSrc) ? kThumb2Vmovs : kThumb2Fmsr;
+    if (ARM_SINGLEREG(r_dest)) {
+      opcode = ARM_SINGLEREG(r_src) ? kThumb2Vmovs : kThumb2Fmsr;
     } else {
-      DCHECK(ARM_SINGLEREG(rSrc));
+      DCHECK(ARM_SINGLEREG(r_src));
       opcode = kThumb2Fmrs;
     }
   }
-  LIR* res = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
-  if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
-    res->flags.isNop = true;
+  LIR* res = RawLIR(cu, cu->current_dalvik_offset, opcode, r_dest, r_src);
+  if (!(cu->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
+    res->flags.is_nop = true;
   }
   return res;
 }
 
-LIR* OpThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
+LIR* OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
 {
   LOG(FATAL) << "Unexpected use of OpThreadMem for Arm";
   return NULL;
 }
 
-LIR* OpMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
+LIR* OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
 {
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
   return NULL;
 }
 
-LIR* StoreBaseIndexedDisp(CompilationUnit *cUnit,
-                          int rBase, int rIndex, int scale, int displacement,
-                          int rSrc, int rSrcHi,
-                          OpSize size, int sReg)
+LIR* StoreBaseIndexedDisp(CompilationUnit *cu,
+                          int rBase, int r_index, int scale, int displacement,
+                          int r_src, int r_src_hi,
+                          OpSize size, int s_reg)
 {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for Arm";
   return NULL;
 }
 
-LIR* OpRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
+LIR* OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
               int offset)
 {
   LOG(FATAL) << "Unexpected use of OpRegMem for Arm";
   return NULL;
 }
 
-LIR* LoadBaseIndexedDisp(CompilationUnit *cUnit,
-                         int rBase, int rIndex, int scale, int displacement,
-                         int rDest, int rDestHi,
-                         OpSize size, int sReg)
+LIR* LoadBaseIndexedDisp(CompilationUnit *cu,
+                         int rBase, int r_index, int scale, int displacement,
+                         int r_dest, int r_dest_hi,
+                         OpSize size, int s_reg)
 {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for Arm";
   return NULL;

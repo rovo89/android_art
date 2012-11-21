@@ -19,33 +19,33 @@
 
 namespace art {
 
-inline int32_t s4FromSwitchData(const void* switchData) { return *reinterpret_cast<const int32_t*>(switchData); }
-inline RegisterClass oatRegClassBySize(OpSize size) { return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte || size == kSignedByte ) ? kCoreReg : kAnyReg; }
-void AssembleLIR(CompilationUnit* cUnit);
-void SetMemRefType(LIR* lir, bool isLoad, int memType);
-void AnnotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit);
-uint64_t GetRegMaskCommon(CompilationUnit* cUnit, int reg);
-void SetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg);
-void SetupResourceMasks(CompilationUnit* cUnit, LIR* lir);
-void DumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr);
-void DumpPromotionMap(CompilationUnit *cUnit);
-void CodegenDump(CompilationUnit* cUnit);
+inline int32_t s4FromSwitchData(const void* switch_data) { return *reinterpret_cast<const int32_t*>(switch_data); }
+inline RegisterClass oat_reg_class_by_size(OpSize size) { return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte || size == kSignedByte ) ? kCoreReg : kAnyReg; }
+void AssembleLIR(CompilationUnit* cu);
+void SetMemRefType(LIR* lir, bool is_load, int mem_type);
+void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
+uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg);
+void SetupRegMask(CompilationUnit* cu, uint64_t* mask, int reg);
+void SetupResourceMasks(CompilationUnit* cu, LIR* lir);
+void DumpLIRInsn(CompilationUnit* cu, LIR* arg, unsigned char* base_addr);
+void DumpPromotionMap(CompilationUnit *cu);
+void CodegenDump(CompilationUnit* cu);
 // TODO: remove default parameters
-LIR* RawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
-LIR* NewLIR0(CompilationUnit* cUnit, int opcode);
-LIR* NewLIR1(CompilationUnit* cUnit, int opcode, int dest);
-LIR* NewLIR2(CompilationUnit* cUnit, int opcode, int dest, int src1);
-LIR* NewLIR3(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2);
-LIR* NewLIR4(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info);
-LIR* NewLIR5(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info1, int info2);
-LIR* ScanLiteralPool(LIR* dataTarget, int value, unsigned int delta);
-LIR* ScanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi);
-LIR* AddWordData(CompilationUnit* cUnit, LIR* *constantListP, int value);
-LIR* AddWideData(CompilationUnit* cUnit, LIR* *constantListP, int valLo, int valHi);
-void ProcessSwitchTables(CompilationUnit* cUnit);
+LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
+LIR* NewLIR0(CompilationUnit* cu, int opcode);
+LIR* NewLIR1(CompilationUnit* cu, int opcode, int dest);
+LIR* NewLIR2(CompilationUnit* cu, int opcode, int dest, int src1);
+LIR* NewLIR3(CompilationUnit* cu, int opcode, int dest, int src1, int src2);
+LIR* NewLIR4(CompilationUnit* cu, int opcode, int dest, int src1, int src2, int info);
+LIR* NewLIR5(CompilationUnit* cu, int opcode, int dest, int src1, int src2, int info1, int info2);
+LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta);
+LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi);
+LIR* AddWordData(CompilationUnit* cu, LIR* *constant_list_p, int value);
+LIR* AddWideData(CompilationUnit* cu, LIR* *constant_list_p, int val_lo, int val_hi);
+void ProcessSwitchTables(CompilationUnit* cu);
 void DumpSparseSwitchTable(const uint16_t* table);
 void DumpPackedSwitchTable(const uint16_t* table);
-LIR* MarkBoundary(CompilationUnit* cUnit, int offset, const char* instStr);
+LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str);
 
 }  // namespace art
 

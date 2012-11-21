@@ -18,7 +18,7 @@
 
 namespace art {
 
-const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
+const char* extended_mir_op_names[kMirOpLast - kMirOpFirst] = {
   "kMirOpPhi",
   "kMirOpCopy",
   "kMirFusedCmplFloat",
@@ -35,17 +35,17 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
 
 #ifdef WITH_MEMSTATS
 struct Memstats {
-  uint32_t allocStats[kNumAllocKinds];
-  int listSizes[kNumListKinds];
-  int listWasted[kNumListKinds];
-  int listGrows[kNumListKinds];
-  int listMaxElems[kNumListKinds];
-  int bitMapSizes[kNumBitMapKinds];
-  int bitMapWasted[kNumBitMapKinds];
-  int bitMapGrows[kNumBitMapKinds];
+  uint32_t alloc_stats[kNumAllocKinds];
+  int list_sizes[kNumListKinds];
+  int list_wasted[kNumListKinds];
+  int list_grows[kNumListKinds];
+  int list_max_elems[kNumListKinds];
+  int bit_map_sizes[kNumBitMapKinds];
+  int bit_map_wasted[kNumBitMapKinds];
+  int bit_map_grows[kNumBitMapKinds];
 };
 
-const char* allocNames[kNumAllocKinds] = {
+const char* alloc_names[kNumAllocKinds] = {
   "Misc       ",
   "BasicBlock ",
   "LIR        ",
@@ -61,22 +61,22 @@ const char* allocNames[kNumAllocKinds] = {
   "Preds      ",
 };
 
-const char* listNames[kNumListKinds] = {
+const char* list_names[kNumListKinds] = {
   "Misc                  ",
-  "blockList             ",
+  "block_list             ",
   "SSAtoDalvik           ",
-  "dfsOrder              ",
-  "dfsPostOrder          ",
-  "domPostOrderTraversal ",
-  "throwLaunchPads       ",
-  "suspendLaunchPads     ",
-  "switchTables          ",
-  "fillArrayData         ",
+  "dfs_order              ",
+  "dfs_post_order          ",
+  "dom_post_order_traversal ",
+  "throw_launch_pads       ",
+  "suspend_launch_pads     ",
+  "switch_tables          ",
+  "fill_array_data         ",
   "SuccessorBlocks       ",
   "Predecessors          ",
 };
 
-const char* bitMapNames[kNumBitMapKinds] = {
+const char* bit_map_names[kNumBitMapKinds] = {
   "Misc                  ",
   "Use                   ",
   "Def                   ",
@@ -99,42 +99,42 @@ const char* bitMapNames[kNumBitMapKinds] = {
 #define kArenaBitVectorGrowth    4   /* increase by 4 uint32_ts when limit hit */
 
 /* Allocate the initial memory block for arena-based allocation */
-bool HeapInit(CompilationUnit* cUnit)
+bool HeapInit(CompilationUnit* cu)
 {
-  DCHECK(cUnit->arenaHead == NULL);
-  cUnit->arenaHead =
+  DCHECK(cu->arena_head == NULL);
+  cu->arena_head =
       static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock) + ARENA_DEFAULT_SIZE));
-  if (cUnit->arenaHead == NULL) {
+  if (cu->arena_head == NULL) {
     LOG(FATAL) << "No memory left to create compiler heap memory";
   }
-  cUnit->arenaHead->blockSize = ARENA_DEFAULT_SIZE;
-  cUnit->currentArena = cUnit->arenaHead;
-  cUnit->currentArena->bytesAllocated = 0;
-  cUnit->currentArena->next = NULL;
-  cUnit->numArenaBlocks = 1;
+  cu->arena_head->block_size = ARENA_DEFAULT_SIZE;
+  cu->current_arena = cu->arena_head;
+  cu->current_arena->bytes_allocated = 0;
+  cu->current_arena->next = NULL;
+  cu->num_arena_blocks = 1;
 #ifdef WITH_MEMSTATS
-  cUnit->mstats = (Memstats*) NewMem(cUnit, sizeof(Memstats), true,
+  cu->mstats = (Memstats*) NewMem(cu, sizeof(Memstats), true,
                    kAllocDebugInfo);
 #endif
   return true;
 }
 
 /* Arena-based malloc for compilation tasks */
-void* NewMem(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind)
+void* NewMem(CompilationUnit* cu, size_t size, bool zero, oat_alloc_kind kind)
 {
   size = (size + 3) & ~3;
 #ifdef WITH_MEMSTATS
-  if (cUnit->mstats != NULL) {
-    cUnit->mstats->allocStats[kind] += size;
+  if (cu->mstats != NULL) {
+    cu->mstats->alloc_stats[kind] += size;
   }
 #endif
 retry:
   /* Normal case - space is available in the current page */
-  if (size + cUnit->currentArena->bytesAllocated <=
-    cUnit->currentArena->blockSize) {
+  if (size + cu->current_arena->bytes_allocated <=
+    cu->current_arena->block_size) {
     void *ptr;
-    ptr = &cUnit->currentArena->ptr[cUnit->currentArena->bytesAllocated];
-    cUnit->currentArena->bytesAllocated += size;
+    ptr = &cu->current_arena->ptr[cu->current_arena->bytes_allocated];
+    cu->current_arena->bytes_allocated += size;
     if (zero) {
       memset(ptr, 0, size);
     }
@@ -144,180 +144,180 @@ retry:
      * See if there are previously allocated arena blocks before the last
      * reset
      */
-    if (cUnit->currentArena->next) {
-        cUnit->currentArena = cUnit->currentArena->next;
-        cUnit->currentArena->bytesAllocated = 0;
+    if (cu->current_arena->next) {
+        cu->current_arena = cu->current_arena->next;
+        cu->current_arena->bytes_allocated = 0;
         goto retry;
     }
 
-    size_t blockSize = (size < ARENA_DEFAULT_SIZE) ?  ARENA_DEFAULT_SIZE : size;
+    size_t block_size = (size < ARENA_DEFAULT_SIZE) ?  ARENA_DEFAULT_SIZE : size;
     /* Time to allocate a new arena */
-    ArenaMemBlock *newArena =
-        static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock) + blockSize));
-    if (newArena == NULL) {
+    ArenaMemBlock *new_arena =
+        static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock) + block_size));
+    if (new_arena == NULL) {
       LOG(FATAL) << "Arena allocation failure";
     }
-    newArena->blockSize = blockSize;
-    newArena->bytesAllocated = 0;
-    newArena->next = NULL;
-    cUnit->currentArena->next = newArena;
-    cUnit->currentArena = newArena;
-    cUnit->numArenaBlocks++;
-    if (cUnit->numArenaBlocks > 20000) {
-      LOG(INFO) << "Total arena pages: " << cUnit->numArenaBlocks;
+    new_arena->block_size = block_size;
+    new_arena->bytes_allocated = 0;
+    new_arena->next = NULL;
+    cu->current_arena->next = new_arena;
+    cu->current_arena = new_arena;
+    cu->num_arena_blocks++;
+    if (cu->num_arena_blocks > 20000) {
+      LOG(INFO) << "Total arena pages: " << cu->num_arena_blocks;
     }
     goto retry;
   }
 }
 
 /* Reclaim all the arena blocks allocated so far */
-void ArenaReset(CompilationUnit* cUnit)
+void ArenaReset(CompilationUnit* cu)
 {
-  ArenaMemBlock* head = cUnit->arenaHead;
+  ArenaMemBlock* head = cu->arena_head;
   while (head != NULL) {
     ArenaMemBlock* p = head;
     head = head->next;
     free(p);
   }
-  cUnit->arenaHead = NULL;
-  cUnit->currentArena = NULL;
+  cu->arena_head = NULL;
+  cu->current_arena = NULL;
 }
 
 /* Growable List initialization */
-void CompilerInitGrowableList(CompilationUnit* cUnit, GrowableList* gList,
-                       size_t initLength, oatListKind kind)
+void CompilerInitGrowableList(CompilationUnit* cu, GrowableList* g_list,
+                       size_t init_length, oat_list_kind kind)
 {
-  gList->numAllocated = initLength;
-  gList->numUsed = 0;
-  gList->elemList = static_cast<uintptr_t *>(NewMem(cUnit, sizeof(intptr_t) * initLength,
+  g_list->num_allocated = init_length;
+  g_list->num_used = 0;
+  g_list->elem_list = static_cast<uintptr_t *>(NewMem(cu, sizeof(intptr_t) * init_length,
                                              true, kAllocGrowableList));
 #ifdef WITH_MEMSTATS
-  cUnit->mstats->listSizes[kind] += sizeof(uintptr_t) * initLength;
-  gList->kind = kind;
-  if (static_cast<int>(initLength) > cUnit->mstats->listMaxElems[kind]) {
-    cUnit->mstats->listMaxElems[kind] = initLength;
+  cu->mstats->list_sizes[kind] += sizeof(uintptr_t) * init_length;
+  g_list->kind = kind;
+  if (static_cast<int>(init_length) > cu->mstats->list_max_elems[kind]) {
+    cu->mstats->list_max_elems[kind] = init_length;
   }
 #endif
 }
 
 /* Expand the capacity of a growable list */
-static void ExpandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
+static void ExpandGrowableList(CompilationUnit* cu, GrowableList* g_list)
 {
-  int newLength = gList->numAllocated;
-  if (newLength < 128) {
-    newLength <<= 1;
+  int new_length = g_list->num_allocated;
+  if (new_length < 128) {
+    new_length <<= 1;
   } else {
-    newLength += 128;
+    new_length += 128;
   }
-  uintptr_t *newArray =
-      static_cast<uintptr_t*>(NewMem(cUnit, sizeof(uintptr_t) * newLength, true,
+  uintptr_t *new_array =
+      static_cast<uintptr_t*>(NewMem(cu, sizeof(uintptr_t) * new_length, true,
                                      kAllocGrowableList));
-  memcpy(newArray, gList->elemList, sizeof(uintptr_t) * gList->numAllocated);
+  memcpy(new_array, g_list->elem_list, sizeof(uintptr_t) * g_list->num_allocated);
 #ifdef WITH_MEMSTATS
-  cUnit->mstats->listSizes[gList->kind] += sizeof(uintptr_t) * newLength;
-  cUnit->mstats->listWasted[gList->kind] +=
-      sizeof(uintptr_t) * gList->numAllocated;
-  cUnit->mstats->listGrows[gList->kind]++;
-  if (newLength > cUnit->mstats->listMaxElems[gList->kind]) {
-    cUnit->mstats->listMaxElems[gList->kind] = newLength;
+  cu->mstats->list_sizes[g_list->kind] += sizeof(uintptr_t) * new_length;
+  cu->mstats->list_wasted[g_list->kind] +=
+      sizeof(uintptr_t) * g_list->num_allocated;
+  cu->mstats->list_grows[g_list->kind]++;
+  if (new_length > cu->mstats->list_max_elems[g_list->kind]) {
+    cu->mstats->list_max_elems[g_list->kind] = new_length;
   }
 #endif
-  gList->numAllocated = newLength;
-  gList->elemList = newArray;
+  g_list->num_allocated = new_length;
+  g_list->elem_list = new_array;
 }
 
 /* Insert a new element into the growable list */
-void InsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+void InsertGrowableList(CompilationUnit* cu, GrowableList* g_list,
                            uintptr_t elem)
 {
-  DCHECK_NE(gList->numAllocated, 0U);
-  if (gList->numUsed == gList->numAllocated) {
-    ExpandGrowableList(cUnit, gList);
+  DCHECK_NE(g_list->num_allocated, 0U);
+  if (g_list->num_used == g_list->num_allocated) {
+    ExpandGrowableList(cu, g_list);
   }
-  gList->elemList[gList->numUsed++] = elem;
+  g_list->elem_list[g_list->num_used++] = elem;
 }
 
 /* Delete an element from a growable list. Element must be present */
-void DeleteGrowableList(GrowableList* gList, uintptr_t elem)
+void DeleteGrowableList(GrowableList* g_list, uintptr_t elem)
 {
   bool found = false;
-  for (unsigned int i = 0; i < gList->numUsed; i++) {
-    if (!found && gList->elemList[i] == elem) {
+  for (unsigned int i = 0; i < g_list->num_used; i++) {
+    if (!found && g_list->elem_list[i] == elem) {
       found = true;
     }
     if (found) {
-      gList->elemList[i] = gList->elemList[i+1];
+      g_list->elem_list[i] = g_list->elem_list[i+1];
     }
   }
   DCHECK_EQ(found, true);
-  gList->numUsed--;
+  g_list->num_used--;
 }
 
-void GrowableListIteratorInit(GrowableList* gList,
+void GrowableListIteratorInit(GrowableList* g_list,
                                GrowableListIterator* iterator)
 {
-  iterator->list = gList;
+  iterator->list = g_list;
   iterator->idx = 0;
-  iterator->size = gList->numUsed;
+  iterator->size = g_list->num_used;
 }
 
 uintptr_t GrowableListIteratorNext(GrowableListIterator* iterator)
 {
-  DCHECK_EQ(iterator->size, iterator->list->numUsed);
+  DCHECK_EQ(iterator->size, iterator->list->num_used);
   if (iterator->idx == iterator->size) return 0;
-  return iterator->list->elemList[iterator->idx++];
+  return iterator->list->elem_list[iterator->idx++];
 }
 
-uintptr_t GrowableListGetElement(const GrowableList* gList, size_t idx)
+uintptr_t GrowableListGetElement(const GrowableList* g_list, size_t idx)
 {
-  DCHECK_LT(idx, gList->numUsed);
-  return gList->elemList[idx];
+  DCHECK_LT(idx, g_list->num_used);
+  return g_list->elem_list[idx];
 }
 
 #ifdef WITH_MEMSTATS
 /* Dump memory usage stats */
-void DumpMemStats(CompilationUnit* cUnit)
+void DumpMemStats(CompilationUnit* cu)
 {
   uint32_t total = 0;
   for (int i = 0; i < kNumAllocKinds; i++) {
-    total += cUnit->mstats->allocStats[i];
+    total += cu->mstats->alloc_stats[i];
   }
   if (total > (10 * 1024 * 1024)) {
     LOG(INFO) << "MEMUSAGE: " << total << " : "
-        << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-    LOG(INFO) << "insnsSize: " << cUnit->insnsSize;
-    if (cUnit->disableDataflow) {
+        << PrettyMethod(cu->method_idx, *cu->dex_file);
+    LOG(INFO) << "insns_size: " << cu->insns_size;
+    if (cu->disable_dataflow) {
         LOG(INFO) << " ** Dataflow disabled ** ";
     }
     LOG(INFO) << "===== Overall allocations";
     for (int i = 0; i < kNumAllocKinds; i++) {
-        LOG(INFO) << allocNames[i] << std::setw(10) <<
-        cUnit->mstats->allocStats[i];
+        LOG(INFO) << alloc_names[i] << std::setw(10) <<
+        cu->mstats->alloc_stats[i];
     }
     LOG(INFO) << "===== GrowableList allocations";
     for (int i = 0; i < kNumListKinds; i++) {
-      LOG(INFO) << listNames[i]
-                << " S:" << cUnit->mstats->listSizes[i]
-                << ", W:" << cUnit->mstats->listWasted[i]
-                << ", G:" << cUnit->mstats->listGrows[i]
-                << ", E:" << cUnit->mstats->listMaxElems[i];
+      LOG(INFO) << list_names[i]
+                << " S:" << cu->mstats->list_sizes[i]
+                << ", W:" << cu->mstats->list_wasted[i]
+                << ", G:" << cu->mstats->list_grows[i]
+                << ", E:" << cu->mstats->list_max_elems[i];
     }
     LOG(INFO) << "===== GrowableBitMap allocations";
     for (int i = 0; i < kNumBitMapKinds; i++) {
-      LOG(INFO) << bitMapNames[i]
-                << " S:" << cUnit->mstats->bitMapSizes[i]
-                << ", W:" << cUnit->mstats->bitMapWasted[i]
-                << ", G:" << cUnit->mstats->bitMapGrows[i];
+      LOG(INFO) << bit_map_names[i]
+                << " S:" << cu->mstats->bit_map_sizes[i]
+                << ", W:" << cu->mstats->bit_map_wasted[i]
+                << ", G:" << cu->mstats->bit_map_grows[i];
     }
   }
 }
 #endif
 
 /* Debug Utility - dump a compilation unit */
-void DumpCompilationUnit(CompilationUnit* cUnit)
+void DumpCompilationUnit(CompilationUnit* cu)
 {
   BasicBlock* bb;
-  const char* blockTypeNames[] = {
+  const char* block_type_names[] = {
     "Entry Block",
     "Code Block",
     "Exit Block",
@@ -325,34 +325,34 @@ void DumpCompilationUnit(CompilationUnit* cUnit)
     "Catch Block"
   };
 
-  LOG(INFO) << "Compiling " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-  LOG(INFO) << cUnit->insns << " insns";
-  LOG(INFO) << cUnit->numBlocks << " blocks in total";
+  LOG(INFO) << "Compiling " << PrettyMethod(cu->method_idx, *cu->dex_file);
+  LOG(INFO) << cu->insns << " insns";
+  LOG(INFO) << cu->num_blocks << " blocks in total";
   GrowableListIterator iterator;
 
-  GrowableListIteratorInit(&cUnit->blockList, &iterator);
+  GrowableListIteratorInit(&cu->block_list, &iterator);
 
   while (true) {
     bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
     if (bb == NULL) break;
     LOG(INFO) << StringPrintf("Block %d (%s) (insn %04x - %04x%s)",
         bb->id,
-        blockTypeNames[bb->blockType],
-        bb->startOffset,
-        bb->lastMIRInsn ? bb->lastMIRInsn->offset : bb->startOffset,
-        bb->lastMIRInsn ? "" : " empty");
+        block_type_names[bb->block_type],
+        bb->start_offset,
+        bb->last_mir_insn ? bb->last_mir_insn->offset : bb->start_offset,
+        bb->last_mir_insn ? "" : " empty");
     if (bb->taken) {
       LOG(INFO) << "  Taken branch: block " << bb->taken->id
-                << "(0x" << std::hex << bb->taken->startOffset << ")";
+                << "(0x" << std::hex << bb->taken->start_offset << ")";
     }
-    if (bb->fallThrough) {
-      LOG(INFO) << "  Fallthrough : block " << bb->fallThrough->id
-                << " (0x" << std::hex << bb->fallThrough->startOffset << ")";
+    if (bb->fall_through) {
+      LOG(INFO) << "  Fallthrough : block " << bb->fall_through->id
+                << " (0x" << std::hex << bb->fall_through->start_offset << ")";
     }
   }
 }
 
-static uint32_t checkMasks[32] = {
+static uint32_t check_masks[32] = {
   0x00000001, 0x00000002, 0x00000004, 0x00000008, 0x00000010,
   0x00000020, 0x00000040, 0x00000080, 0x00000100, 0x00000200,
   0x00000400, 0x00000800, 0x00001000, 0x00002000, 0x00004000,
@@ -367,27 +367,27 @@ static uint32_t checkMasks[32] = {
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-ArenaBitVector* AllocBitVector(CompilationUnit* cUnit,
-                                unsigned int startBits, bool expandable,
-                                oatBitMapKind kind)
+ArenaBitVector* AllocBitVector(CompilationUnit* cu,
+                                unsigned int start_bits, bool expandable,
+                                oat_bit_map_kind kind)
 {
   ArenaBitVector* bv;
   unsigned int count;
 
   DCHECK_EQ(sizeof(bv->storage[0]), 4U);        /* assuming 32-bit units */
 
-  bv = static_cast<ArenaBitVector*>(NewMem(cUnit, sizeof(ArenaBitVector), false,
+  bv = static_cast<ArenaBitVector*>(NewMem(cu, sizeof(ArenaBitVector), false,
                                                 kAllocGrowableBitMap));
 
-  count = (startBits + 31) >> 5;
+  count = (start_bits + 31) >> 5;
 
-  bv->storageSize = count;
+  bv->storage_size = count;
   bv->expandable = expandable;
-  bv->storage = static_cast<uint32_t*>(NewMem(cUnit, count * sizeof(uint32_t), true,
+  bv->storage = static_cast<uint32_t*>(NewMem(cu, count * sizeof(uint32_t), true,
                                               kAllocGrowableBitMap));
 #ifdef WITH_MEMSTATS
   bv->kind = kind;
-  cUnit->mstats->bitMapSizes[kind] += count * sizeof(uint32_t);
+  cu->mstats->bit_map_sizes[kind] += count * sizeof(uint32_t);
 #endif
   return bv;
 }
@@ -395,21 +395,21 @@ ArenaBitVector* AllocBitVector(CompilationUnit* cUnit,
 /*
  * Determine whether or not the specified bit is set.
  */
-bool IsBitSet(const ArenaBitVector* pBits, unsigned int num)
+bool IsBitSet(const ArenaBitVector* p_bits, unsigned int num)
 {
-  DCHECK_LT(num, pBits->storageSize * sizeof(uint32_t) * 8);
+  DCHECK_LT(num, p_bits->storage_size * sizeof(uint32_t) * 8);
 
-  unsigned int val = pBits->storage[num >> 5] & checkMasks[num & 0x1f];
+  unsigned int val = p_bits->storage[num >> 5] & check_masks[num & 0x1f];
   return (val != 0);
 }
 
 /*
  * Mark all bits bit as "clear".
  */
-void ClearAllBits(ArenaBitVector* pBits)
+void ClearAllBits(ArenaBitVector* p_bits)
 {
-  unsigned int count = pBits->storageSize;
-  memset(pBits->storage, 0, count * sizeof(uint32_t));
+  unsigned int count = p_bits->storage_size;
+  memset(p_bits->storage, 0, count * sizeof(uint32_t));
 }
 
 /*
@@ -420,32 +420,32 @@ void ClearAllBits(ArenaBitVector* pBits)
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-bool SetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
+bool SetBit(CompilationUnit* cu, ArenaBitVector* p_bits, unsigned int num)
 {
-  if (num >= pBits->storageSize * sizeof(uint32_t) * 8) {
-    if (!pBits->expandable) {
+  if (num >= p_bits->storage_size * sizeof(uint32_t) * 8) {
+    if (!p_bits->expandable) {
       LOG(FATAL) << "Can't expand";
     }
 
     /* Round up to word boundaries for "num+1" bits */
-    unsigned int newSize = (num + 1 + 31) >> 5;
-    DCHECK_GT(newSize, pBits->storageSize);
-    uint32_t *newStorage = static_cast<uint32_t*>(NewMem(cUnit, newSize * sizeof(uint32_t), false,
+    unsigned int new_size = (num + 1 + 31) >> 5;
+    DCHECK_GT(new_size, p_bits->storage_size);
+    uint32_t *new_storage = static_cast<uint32_t*>(NewMem(cu, new_size * sizeof(uint32_t), false,
                                                          kAllocGrowableBitMap));
-    memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(uint32_t));
-    memset(&newStorage[pBits->storageSize], 0,
-           (newSize - pBits->storageSize) * sizeof(uint32_t));
+    memcpy(new_storage, p_bits->storage, p_bits->storage_size * sizeof(uint32_t));
+    memset(&new_storage[p_bits->storage_size], 0,
+           (new_size - p_bits->storage_size) * sizeof(uint32_t));
 #ifdef WITH_MEMSTATS
-    cUnit->mstats->bitMapWasted[pBits->kind] +=
-        pBits->storageSize * sizeof(uint32_t);
-    cUnit->mstats->bitMapSizes[pBits->kind] += newSize * sizeof(uint32_t);
-    cUnit->mstats->bitMapGrows[pBits->kind]++;
+    cu->mstats->bit_map_wasted[p_bits->kind] +=
+        p_bits->storage_size * sizeof(uint32_t);
+    cu->mstats->bit_map_sizes[p_bits->kind] += new_size * sizeof(uint32_t);
+    cu->mstats->bit_map_grows[p_bits->kind]++;
 #endif
-    pBits->storage = newStorage;
-    pBits->storageSize = newSize;
+    p_bits->storage = new_storage;
+    p_bits->storage_size = new_size;
   }
 
-  pBits->storage[num >> 5] |= checkMasks[num & 0x1f];
+  p_bits->storage[num >> 5] |= check_masks[num & 0x1f];
   return true;
 }
 
@@ -457,22 +457,22 @@ bool SetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-bool ClearBit(ArenaBitVector* pBits, unsigned int num)
+bool ClearBit(ArenaBitVector* p_bits, unsigned int num)
 {
-  if (num >= pBits->storageSize * sizeof(uint32_t) * 8) {
+  if (num >= p_bits->storage_size * sizeof(uint32_t) * 8) {
     LOG(FATAL) << "Attempt to clear a bit not set in the vector yet";;
   }
 
-  pBits->storage[num >> 5] &= ~checkMasks[num & 0x1f];
+  p_bits->storage[num >> 5] &= ~check_masks[num & 0x1f];
   return true;
 }
 
 /* Initialize the iterator structure */
-void BitVectorIteratorInit(ArenaBitVector* pBits,
+void BitVectorIteratorInit(ArenaBitVector* p_bits,
                             ArenaBitVectorIterator* iterator)
 {
-  iterator->pBits = pBits;
-  iterator->bitSize = pBits->storageSize * sizeof(uint32_t) * 8;
+  iterator->p_bits = p_bits;
+  iterator->bit_size = p_bits->storage_size * sizeof(uint32_t) * 8;
   iterator->idx = 0;
 }
 
@@ -481,9 +481,9 @@ void BitVectorIteratorInit(ArenaBitVector* pBits,
  */
 static void CheckSizes(const ArenaBitVector* bv1, const ArenaBitVector* bv2)
 {
-  if (bv1->storageSize != bv2->storageSize) {
-    LOG(FATAL) << "Mismatched vector sizes (" << bv1->storageSize
-               << ", " << bv2->storageSize << ")";
+  if (bv1->storage_size != bv2->storage_size) {
+    LOG(FATAL) << "Mismatched vector sizes (" << bv1->storage_size
+               << ", " << bv2->storage_size << ")";
   }
 }
 
@@ -496,7 +496,7 @@ void CopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
   /* if dest is expandable and < src, we could expand dest to match */
   CheckSizes(dest, src);
 
-  memcpy(dest->storage, src->storage, sizeof(uint32_t) * dest->storageSize);
+  memcpy(dest->storage, src->storage, sizeof(uint32_t) * dest->storage_size);
 }
 
 /*
@@ -508,14 +508,14 @@ bool IntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
 {
   DCHECK(src1 != NULL);
   DCHECK(src2 != NULL);
-  if (dest->storageSize != src1->storageSize ||
-      dest->storageSize != src2->storageSize ||
+  if (dest->storage_size != src1->storage_size ||
+      dest->storage_size != src2->storage_size ||
       dest->expandable != src1->expandable ||
       dest->expandable != src2->expandable)
     return false;
 
   unsigned int idx;
-  for (idx = 0; idx < dest->storageSize; idx++) {
+  for (idx = 0; idx < dest->storage_size; idx++) {
     dest->storage[idx] = src1->storage[idx] & src2->storage[idx];
   }
   return true;
@@ -529,14 +529,14 @@ bool UnifyBitVetors(ArenaBitVector* dest, const ArenaBitVector* src1,
 {
   DCHECK(src1 != NULL);
   DCHECK(src2 != NULL);
-  if (dest->storageSize != src1->storageSize ||
-      dest->storageSize != src2->storageSize ||
+  if (dest->storage_size != src1->storage_size ||
+      dest->storage_size != src2->storage_size ||
       dest->expandable != src1->expandable ||
       dest->expandable != src2->expandable)
     return false;
 
   unsigned int idx;
-  for (idx = 0; idx < dest->storageSize; idx++) {
+  for (idx = 0; idx < dest->storage_size; idx++) {
     dest->storage[idx] = src1->storage[idx] | src2->storage[idx];
   }
   return true;
@@ -548,8 +548,8 @@ bool UnifyBitVetors(ArenaBitVector* dest, const ArenaBitVector* src1,
 bool TestBitVectors(const ArenaBitVector* src1,
                      const ArenaBitVector* src2)
 {
-  DCHECK_EQ(src1->storageSize, src2->storageSize);
-  for (uint32_t idx = 0; idx < src1->storageSize; idx++) {
+  DCHECK_EQ(src1->storage_size, src2->storage_size);
+  for (uint32_t idx = 0; idx < src1->storage_size; idx++) {
     if (src1->storage[idx] & src2->storage[idx]) return true;
   }
   return false;
@@ -561,12 +561,12 @@ bool TestBitVectors(const ArenaBitVector* src1,
 bool CompareBitVectors(const ArenaBitVector* src1,
                         const ArenaBitVector* src2)
 {
-  if (src1->storageSize != src2->storageSize ||
+  if (src1->storage_size != src2->storage_size ||
       src1->expandable != src2->expandable)
     return true;
 
   unsigned int idx;
-  for (idx = 0; idx < src1->storageSize; idx++) {
+  for (idx = 0; idx < src1->storage_size; idx++) {
     if (src1->storage[idx] != src2->storage[idx]) return true;
   }
   return false;
@@ -575,13 +575,13 @@ bool CompareBitVectors(const ArenaBitVector* src1,
 /*
  * Count the number of bits that are set.
  */
-int CountSetBits(const ArenaBitVector* pBits)
+int CountSetBits(const ArenaBitVector* p_bits)
 {
   unsigned int word;
   unsigned int count = 0;
 
-  for (word = 0; word < pBits->storageSize; word++) {
-    uint32_t val = pBits->storage[word];
+  for (word = 0; word < p_bits->storage_size; word++) {
+    uint32_t val = p_bits->storage[word];
 
     if (val != 0) {
       if (val == 0xffffffff) {
@@ -602,39 +602,39 @@ int CountSetBits(const ArenaBitVector* pBits)
 /* Return the next position set to 1. -1 means end-of-element reached */
 int BitVectorIteratorNext(ArenaBitVectorIterator* iterator)
 {
-  ArenaBitVector* pBits = iterator->pBits;
-  uint32_t bitIndex = iterator->idx;
-  uint32_t bitSize = iterator->bitSize;
+  ArenaBitVector* p_bits = iterator->p_bits;
+  uint32_t bit_index = iterator->idx;
+  uint32_t bit_size = iterator->bit_size;
 
-  DCHECK_EQ(bitSize, pBits->storageSize * sizeof(uint32_t) * 8);
+  DCHECK_EQ(bit_size, p_bits->storage_size * sizeof(uint32_t) * 8);
 
-  if (bitIndex >= bitSize) return -1;
+  if (bit_index >= bit_size) return -1;
 
-  uint32_t wordIndex = bitIndex >> 5;
-  uint32_t endWordIndex = bitSize >> 5;
-  uint32_t* storage = pBits->storage;
-  uint32_t word = storage[wordIndex++];
+  uint32_t word_index = bit_index >> 5;
+  uint32_t end_word_index = bit_size >> 5;
+  uint32_t* storage = p_bits->storage;
+  uint32_t word = storage[word_index++];
 
   // Mask out any bits in the first word we've already considered
-  word &= ~((1 << (bitIndex & 0x1f))-1);
+  word &= ~((1 << (bit_index & 0x1f))-1);
 
-  for (; wordIndex <= endWordIndex;) {
-    uint32_t bitPos = bitIndex & 0x1f;
+  for (; word_index <= end_word_index;) {
+    uint32_t bit_pos = bit_index & 0x1f;
     if (word == 0) {
-      bitIndex += (32 - bitPos);
-      word = storage[wordIndex++];
+      bit_index += (32 - bit_pos);
+      word = storage[word_index++];
       continue;
     }
-    for (; bitPos < 32; bitPos++) {
-      if (word & (1 << bitPos)) {
-        iterator->idx = bitIndex + 1;
-        return bitIndex;
+    for (; bit_pos < 32; bit_pos++) {
+      if (word & (1 << bit_pos)) {
+        iterator->idx = bit_index + 1;
+        return bit_index;
       }
-      bitIndex++;
+      bit_index++;
     }
-    word = storage[wordIndex++];
+    word = storage[word_index++];
   }
-  iterator->idx = iterator->bitSize;
+  iterator->idx = iterator->bit_size;
   return -1;
 }
 
@@ -643,22 +643,22 @@ int BitVectorIteratorNext(ArenaBitVectorIterator* iterator)
  * since there might be unused bits - setting those to one will confuse the
  * iterator.
  */
-void SetInitialBits(ArenaBitVector* pBits, unsigned int numBits)
+void SetInitialBits(ArenaBitVector* p_bits, unsigned int num_bits)
 {
   unsigned int idx;
-  DCHECK_LE(((numBits + 31) >> 5), pBits->storageSize);
-  for (idx = 0; idx < (numBits >> 5); idx++) {
-    pBits->storage[idx] = -1;
+  DCHECK_LE(((num_bits + 31) >> 5), p_bits->storage_size);
+  for (idx = 0; idx < (num_bits >> 5); idx++) {
+    p_bits->storage[idx] = -1;
   }
-  unsigned int remNumBits = numBits & 0x1f;
-  if (remNumBits) {
-    pBits->storage[idx] = (1 << remNumBits) - 1;
+  unsigned int rem_num_bits = num_bits & 0x1f;
+  if (rem_num_bits) {
+    p_bits->storage[idx] = (1 << rem_num_bits) - 1;
   }
 }
 
 void GetBlockName(BasicBlock* bb, char* name)
 {
-  switch (bb->blockType) {
+  switch (bb->block_type) {
     case kEntryBlock:
       snprintf(name, BLOCK_NAME_LEN, "entry_%d", bb->id);
       break;
@@ -666,10 +666,10 @@ void GetBlockName(BasicBlock* bb, char* name)
       snprintf(name, BLOCK_NAME_LEN, "exit_%d", bb->id);
       break;
     case kDalvikByteCode:
-      snprintf(name, BLOCK_NAME_LEN, "block%04x_%d", bb->startOffset, bb->id);
+      snprintf(name, BLOCK_NAME_LEN, "block%04x_%d", bb->start_offset, bb->id);
       break;
     case kExceptionHandling:
-      snprintf(name, BLOCK_NAME_LEN, "exception%04x_%d", bb->startOffset,
+      snprintf(name, BLOCK_NAME_LEN, "exception%04x_%d", bb->start_offset,
                bb->id);
       break;
     default:
@@ -678,10 +678,10 @@ void GetBlockName(BasicBlock* bb, char* name)
   }
 }
 
-const char* GetShortyFromTargetIdx(CompilationUnit *cUnit, int targetIdx)
+const char* GetShortyFromTargetIdx(CompilationUnit *cu, int target_idx)
 {
-  const DexFile::MethodId& methodId = cUnit->dex_file->GetMethodId(targetIdx);
-  return cUnit->dex_file->GetShorty(methodId.proto_idx_);
+  const DexFile::MethodId& method_id = cu->dex_file->GetMethodId(target_idx);
+  return cu->dex_file->GetShorty(method_id.proto_idx_);
 }
 
 }  // namespace art

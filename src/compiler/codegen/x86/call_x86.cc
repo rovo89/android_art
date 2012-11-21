@@ -22,8 +22,8 @@
 
 namespace art {
 
-void GenSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                    SpecialCaseHandler specialCase)
+void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                    SpecialCaseHandler special_case)
 {
   // TODO
 }
@@ -32,98 +32,98 @@ void GenSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-BasicBlock *FindBlock(CompilationUnit* cUnit, unsigned int codeOffset,
-                      bool split, bool create, BasicBlock** immedPredBlockP);
-void GenSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc)
+BasicBlock *FindBlock(CompilationUnit* cu, unsigned int code_offset,
+                      bool split, bool create, BasicBlock** immed_pred_block_p);
+void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
+                     RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
-  if (cUnit->printMe) {
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
+  if (cu->verbose) {
     DumpSparseSwitchTable(table);
   }
   int entries = table[1];
   const int* keys = reinterpret_cast<const int*>(&table[2]);
   const int* targets = &keys[entries];
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
-    BasicBlock* case_block = FindBlock(cUnit,
-                                       cUnit->currentDalvikOffset + targets[i],
+    BasicBlock* case_block = FindBlock(cu,
+                                       cu->current_dalvik_offset + targets[i],
                                        false, false, NULL);
-    LIR* labelList = cUnit->blockLabelList;
-    OpCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key,
-                   &labelList[case_block->id]);
+    LIR* label_list = cu->block_label_list;
+    OpCmpImmBranch(cu, kCondEq, rl_src.low_reg, key,
+                   &label_list[case_block->id]);
   }
 }
 
 /*
  * Code pattern will look something like:
  *
- * mov  rVal, ..
+ * mov  r_val, ..
  * call 0
- * pop  rStartOfMethod
- * sub  rStartOfMethod, ..
- * mov  rKeyReg, rVal
- * sub  rKeyReg, lowKey
- * cmp  rKeyReg, size-1  ; bound check
+ * pop  r_start_of_method
+ * sub  r_start_of_method, ..
+ * mov  r_key_reg, r_val
+ * sub  r_key_reg, low_key
+ * cmp  r_key_reg, size-1  ; bound check
  * ja   done
- * mov  rDisp, [rStartOfMethod + rKeyReg * 4 + tableOffset]
- * add  rStartOfMethod, rDisp
- * jmp  rStartOfMethod
+ * mov  r_disp, [r_start_of_method + r_key_reg * 4 + table_offset]
+ * add  r_start_of_method, r_disp
+ * jmp  r_start_of_method
  * done:
  */
-void GenPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc)
+void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
+                     RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
-  if (cUnit->printMe) {
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
+  if (cu->verbose) {
     DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec =
-      static_cast<SwitchTable *>(NewMem(cUnit, sizeof(SwitchTable), true, kAllocData));
-  tabRec->table = table;
-  tabRec->vaddr = cUnit->currentDalvikOffset;
+  SwitchTable *tab_rec =
+      static_cast<SwitchTable *>(NewMem(cu, sizeof(SwitchTable), true, kAllocData));
+  tab_rec->table = table;
+  tab_rec->vaddr = cu->current_dalvik_offset;
   int size = table[1];
-  tabRec->targets = static_cast<LIR**>(NewMem(cUnit, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
+  tab_rec->targets = static_cast<LIR**>(NewMem(cu, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cu, &cu->switch_tables, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Get the switch value
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
-  int startOfMethodReg = AllocTemp(cUnit);
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  int start_of_method_reg = AllocTemp(cu);
   // Materialize a pointer to the switch table
-  //NewLIR0(cUnit, kX86Bkpt);
-  NewLIR1(cUnit, kX86StartOfMethod, startOfMethodReg);
-  int lowKey = s4FromSwitchData(&table[2]);
+  //NewLIR0(cu, kX86Bkpt);
+  NewLIR1(cu, kX86StartOfMethod, start_of_method_reg);
+  int low_key = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
-  if (lowKey == 0) {
-    keyReg = rlSrc.lowReg;
+  if (low_key == 0) {
+    keyReg = rl_src.low_reg;
   } else {
-    keyReg = AllocTemp(cUnit);
-    OpRegRegImm(cUnit, kOpSub, keyReg, rlSrc.lowReg, lowKey);
+    keyReg = AllocTemp(cu);
+    OpRegRegImm(cu, kOpSub, keyReg, rl_src.low_reg, low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
-  OpRegImm(cUnit, kOpCmp, keyReg, size-1);
-  LIR* branchOver = OpCondBranch(cUnit, kCondHi, NULL);
+  OpRegImm(cu, kOpCmp, keyReg, size-1);
+  LIR* branch_over = OpCondBranch(cu, kCondHi, NULL);
 
   // Load the displacement from the switch table
-  int dispReg = AllocTemp(cUnit);
-  NewLIR5(cUnit, kX86PcRelLoadRA, dispReg, startOfMethodReg, keyReg, 2,
-          reinterpret_cast<uintptr_t>(tabRec));
+  int disp_reg = AllocTemp(cu);
+  NewLIR5(cu, kX86PcRelLoadRA, disp_reg, start_of_method_reg, keyReg, 2,
+          reinterpret_cast<uintptr_t>(tab_rec));
   // Add displacement to start of method
-  OpRegReg(cUnit, kOpAdd, startOfMethodReg, dispReg);
+  OpRegReg(cu, kOpAdd, start_of_method_reg, disp_reg);
   // ..and go!
-  LIR* switchBranch = NewLIR1(cUnit, kX86JmpR, startOfMethodReg);
-  tabRec->anchor = switchBranch;
+  LIR* switch_branch = NewLIR1(cu, kX86JmpR, start_of_method_reg);
+  tab_rec->anchor = switch_branch;
 
-  /* branchOver target here */
-  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = target;
+  /* branch_over target here */
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  branch_over->target = target;
 }
 
-void CallRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
-                             int arg0, int arg1, bool safepointPC);
+void CallRuntimeHelperRegReg(CompilationUnit* cu, int helper_offset,
+                             int arg0, int arg1, bool safepoint_pc);
 /*
  * Array data table format:
  *  ushort ident = 0x0300   magic value
@@ -134,91 +134,91 @@ void CallRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void GenFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
-                      RegLocation rlSrc)
+void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
+                      RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tabRec =
-      static_cast<FillArrayData*>(NewMem(cUnit, sizeof(FillArrayData), true, kAllocData));
-  tabRec->table = table;
-  tabRec->vaddr = cUnit->currentDalvikOffset;
-  uint16_t width = tabRec->table[1];
-  uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
-  tabRec->size = (size * width) + 8;
+  FillArrayData *tab_rec =
+      static_cast<FillArrayData*>(NewMem(cu, sizeof(FillArrayData), true, kAllocData));
+  tab_rec->table = table;
+  tab_rec->vaddr = cu->current_dalvik_offset;
+  uint16_t width = tab_rec->table[1];
+  uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
+  tab_rec->size = (size * width) + 8;
 
-  InsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
+  InsertGrowableList(cu, &cu->fill_array_data, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Making a call - use explicit registers
-  FlushAllRegs(cUnit);   /* Everything to home location */
-  LoadValueDirectFixed(cUnit, rlSrc, rX86_ARG0);
+  FlushAllRegs(cu);   /* Everything to home location */
+  LoadValueDirectFixed(cu, rl_src, rX86_ARG0);
   // Materialize a pointer to the fill data image
-  NewLIR1(cUnit, kX86StartOfMethod, rX86_ARG2);
-  NewLIR2(cUnit, kX86PcRelAdr, rX86_ARG1, reinterpret_cast<uintptr_t>(tabRec));
-  NewLIR2(cUnit, kX86Add32RR, rX86_ARG1, rX86_ARG2);
-  CallRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0,
+  NewLIR1(cu, kX86StartOfMethod, rX86_ARG2);
+  NewLIR2(cu, kX86PcRelAdr, rX86_ARG1, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR2(cu, kX86Add32RR, rX86_ARG1, rX86_ARG2);
+  CallRuntimeHelperRegReg(cu, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rX86_ARG0,
                           rX86_ARG1, true);
 }
 
-void GenMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
-  FlushAllRegs(cUnit);
-  LoadValueDirectFixed(cUnit, rlSrc, rCX);  // Get obj
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  GenNullCheck(cUnit, rlSrc.sRegLow, rCX, optFlags);
+  FlushAllRegs(cu);
+  LoadValueDirectFixed(cu, rl_src, rCX);  // Get obj
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  GenNullCheck(cu, rl_src.s_reg_low, rCX, opt_flags);
   // If lock is unheld, try to grab it quickly with compare and exchange
   // TODO: copy and clear hash state?
-  NewLIR2(cUnit, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(cUnit, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR2(cUnit, kX86Xor32RR, rAX, rAX);
-  NewLIR3(cUnit, kX86LockCmpxchgMR, rCX, Object::MonitorOffset().Int32Value(), rDX);
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondEq);
+  NewLIR2(cu, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
+  NewLIR2(cu, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
+  NewLIR2(cu, kX86Xor32RR, rAX, rAX);
+  NewLIR3(cu, kX86LockCmpxchgMR, rCX, Object::MonitorOffset().Int32Value(), rDX);
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondEq);
   // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
-  CallRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
-  branch->target = NewLIR0(cUnit, kPseudoTargetLabel);
+  CallRuntimeHelperReg(cu, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
+  branch->target = NewLIR0(cu, kPseudoTargetLabel);
 }
 
-void GenMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
-  FlushAllRegs(cUnit);
-  LoadValueDirectFixed(cUnit, rlSrc, rAX);  // Get obj
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  GenNullCheck(cUnit, rlSrc.sRegLow, rAX, optFlags);
+  FlushAllRegs(cu);
+  LoadValueDirectFixed(cu, rl_src, rAX);  // Get obj
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  GenNullCheck(cu, rl_src.s_reg_low, rAX, opt_flags);
   // If lock is held by the current thread, clear it to quickly release it
   // TODO: clear hash state?
-  NewLIR2(cUnit, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
-  NewLIR2(cUnit, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR3(cUnit, kX86Mov32RM, rCX, rAX, Object::MonitorOffset().Int32Value());
-  OpRegReg(cUnit, kOpSub, rCX, rDX);
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondNe);
-  NewLIR3(cUnit, kX86Mov32MR, rAX, Object::MonitorOffset().Int32Value(), rCX);
-  LIR* branch2 = NewLIR1(cUnit, kX86Jmp8, 0);
-  branch->target = NewLIR0(cUnit, kPseudoTargetLabel);
+  NewLIR2(cu, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
+  NewLIR2(cu, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
+  NewLIR3(cu, kX86Mov32RM, rCX, rAX, Object::MonitorOffset().Int32Value());
+  OpRegReg(cu, kOpSub, rCX, rDX);
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondNe);
+  NewLIR3(cu, kX86Mov32MR, rAX, Object::MonitorOffset().Int32Value(), rCX);
+  LIR* branch2 = NewLIR1(cu, kX86Jmp8, 0);
+  branch->target = NewLIR0(cu, kPseudoTargetLabel);
   // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
-  CallRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX, true);
-  branch2->target = NewLIR0(cUnit, kPseudoTargetLabel);
+  CallRuntimeHelperReg(cu, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX, true);
+  branch2->target = NewLIR0(cu, kPseudoTargetLabel);
 }
 
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MarkGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
 {
-  int regCardBase = AllocTemp(cUnit);
-  int regCardNo = AllocTemp(cUnit);
-  LIR* branchOver = OpCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-  NewLIR2(cUnit, kX86Mov32RT, regCardBase, Thread::CardTableOffset().Int32Value());
-  OpRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
-  StoreBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+  int reg_card_base = AllocTemp(cu);
+  int reg_card_no = AllocTemp(cu);
+  LIR* branch_over = OpCmpImmBranch(cu, kCondEq, val_reg, 0, NULL);
+  NewLIR2(cu, kX86Mov32RT, reg_card_base, Thread::CardTableOffset().Int32Value());
+  OpRegRegImm(cu, kOpLsr, reg_card_no, tgt_addr_reg, CardTable::kCardShift);
+  StoreBaseIndexed(cu, reg_card_base, reg_card_no, reg_card_base, 0,
                    kUnsignedByte);
-  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = target;
-  FreeTemp(cUnit, regCardBase);
-  FreeTemp(cUnit, regCardNo);
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  branch_over->target = target;
+  FreeTemp(cu, reg_card_base);
+  FreeTemp(cu, reg_card_no);
 }
 
-void GenEntrySequence(CompilationUnit* cUnit, RegLocation* ArgLocs,
-                      RegLocation rlMethod)
+void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
+                      RegLocation rl_method)
 {
   /*
    * On entry, rX86_ARG0, rX86_ARG1, rX86_ARG2 are live.  Let the register
@@ -226,54 +226,54 @@ void GenEntrySequence(CompilationUnit* cUnit, RegLocation* ArgLocs,
    * expanding the frame or flushing.  This leaves the utility
    * code with no spare temps.
    */
-  LockTemp(cUnit, rX86_ARG0);
-  LockTemp(cUnit, rX86_ARG1);
-  LockTemp(cUnit, rX86_ARG2);
+  LockTemp(cu, rX86_ARG0);
+  LockTemp(cu, rX86_ARG1);
+  LockTemp(cu, rX86_ARG2);
 
   /* Build frame, return address already on stack */
-  OpRegImm(cUnit, kOpSub, rX86_SP, cUnit->frameSize - 4);
+  OpRegImm(cu, kOpSub, rX86_SP, cu->frame_size - 4);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
-                (static_cast<size_t>(cUnit->frameSize) <
+  bool skip_overflow_check = ((cu->attrs & METHOD_IS_LEAF) &&
+                (static_cast<size_t>(cu->frame_size) <
                 Thread::kStackOverflowReservedBytes));
-  NewLIR0(cUnit, kPseudoMethodEntry);
+  NewLIR0(cu, kPseudoMethodEntry);
   /* Spill core callee saves */
-  SpillCoreRegs(cUnit);
+  SpillCoreRegs(cu);
   /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
-  DCHECK_EQ(cUnit->numFPSpills, 0);
-  if (!skipOverflowCheck) {
+  DCHECK_EQ(cu->num_fp_spills, 0);
+  if (!skip_overflow_check) {
     // cmp rX86_SP, fs:[stack_end_]; jcc throw_launchpad
-    LIR* tgt = RawLIR(cUnit, 0, kPseudoThrowTarget, kThrowStackOverflow, 0, 0, 0, 0);
-    OpRegThreadMem(cUnit, kOpCmp, rX86_SP, Thread::StackEndOffset().Int32Value());
-    OpCondBranch(cUnit, kCondUlt, tgt);
+    LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kThrowStackOverflow, 0, 0, 0, 0);
+    OpRegThreadMem(cu, kOpCmp, rX86_SP, Thread::StackEndOffset().Int32Value());
+    OpCondBranch(cu, kCondUlt, tgt);
     // Remember branch target - will process later
-    InsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
+    InsertGrowableList(cu, &cu->throw_launchpads, reinterpret_cast<uintptr_t>(tgt));
   }
 
-  FlushIns(cUnit, ArgLocs, rlMethod);
+  FlushIns(cu, ArgLocs, rl_method);
 
-  FreeTemp(cUnit, rX86_ARG0);
-  FreeTemp(cUnit, rX86_ARG1);
-  FreeTemp(cUnit, rX86_ARG2);
+  FreeTemp(cu, rX86_ARG0);
+  FreeTemp(cu, rX86_ARG1);
+  FreeTemp(cu, rX86_ARG2);
 }
 
-void GenExitSequence(CompilationUnit* cUnit) {
+void GenExitSequence(CompilationUnit* cu) {
   /*
    * In the exit path, rX86_RET0/rX86_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  LockTemp(cUnit, rX86_RET0);
-  LockTemp(cUnit, rX86_RET1);
+  LockTemp(cu, rX86_RET0);
+  LockTemp(cu, rX86_RET1);
 
-  NewLIR0(cUnit, kPseudoMethodExit);
-  UnSpillCoreRegs(cUnit);
+  NewLIR0(cu, kPseudoMethodExit);
+  UnSpillCoreRegs(cu);
   /* Remove frame except for return address */
-  OpRegImm(cUnit, kOpAdd, rX86_SP, cUnit->frameSize - 4);
-  NewLIR0(cUnit, kX86Ret);
+  OpRegImm(cu, kOpAdd, rX86_SP, cu->frame_size - 4);
+  NewLIR0(cu, kX86Ret);
 }
 
 }  // namespace art

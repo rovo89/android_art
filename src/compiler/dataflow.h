@@ -112,24 +112,24 @@ enum DataFlowAttributePos {
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
 
-extern const int oatDataFlowAttributes[kMirOpLast];
+extern const int oat_data_flow_attributes[kMirOpLast];
 
 struct BasicBlockDataFlow {
-  ArenaBitVector* useV;
-  ArenaBitVector* defV;
-  ArenaBitVector* liveInV;
-  ArenaBitVector* phiV;
-  int* vRegToSSAMap;
-  ArenaBitVector* endingNullCheckV;
+  ArenaBitVector* use_v;
+  ArenaBitVector* def_v;
+  ArenaBitVector* live_in_v;
+  ArenaBitVector* phi_v;
+  int* vreg_to_ssa_map;
+  ArenaBitVector* ending_null_check_v;
 };
 
 struct SSARepresentation {
-  int numUses;
+  int num_uses;
   int* uses;
-  bool* fpUse;
-  int numDefs;
+  bool* fp_use;
+  int num_defs;
   int* defs;
-  bool* fpDef;
+  bool* fp_def;
 };
 
 /*
@@ -137,44 +137,44 @@ struct SSARepresentation {
  * induction variable.
  */
 struct InductionVariableInfo {
-  int ssaReg;
-  int basicSSAReg;
+  int ssa_reg;
+  int basic_ssa_reg;
   int m;      // multiplier
   int c;      // constant
   int inc;    // loop increment
 };
 
 struct ArrayAccessInfo {
-  int arrayReg;
-  int ivReg;
-  int maxC;                   // For DIV - will affect upper bound checking
-  int minC;                   // For DIV - will affect lower bound checking
+  int array_reg;
+  int iv_reg;
+  int max_c;                   // For DIV - will affect upper bound checking
+  int min_c;                   // For DIV - will affect lower bound checking
 };
 
 struct LoopInfo {
   BasicBlock* header;
-  GrowableList incomingBackEdges;
+  GrowableList incoming_back_edges;
   ArenaBitVector* blocks;
 };
 
-int SRegToVReg(const CompilationUnit* cUnit, int ssaReg);
-char* GetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn, const char* note);
-char* FullDisassembler(CompilationUnit* cUnit, const MIR* mir);
-char* GetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
-bool FindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
-bool DoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
-bool DoConstantPropogation(CompilationUnit* cUnit, BasicBlock* bb);
-void CompilerInitializeSSAConversion(CompilationUnit* cUnit);
-bool ClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb);
-void DataFlowAnalysisDispatcher(CompilationUnit* cUnit, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfaMode, bool isIterative);
-MIR* FindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
-void NullCheckElimination(CompilationUnit *cUnit);
-void BasicBlockCombine(CompilationUnit* cUnit);
-void CodeLayout(CompilationUnit* cUnit);
-void DumpCheckStats(CompilationUnit *cUnit);
-void BasicBlockOptimization(CompilationUnit *cUnit);
-void LoopDetection(CompilationUnit *cUnit);
-void MethodUseCount(CompilationUnit *cUnit);
+int SRegToVReg(const CompilationUnit* cu, int ssa_reg);
+char* GetDalvikDisassembly(CompilationUnit* cu, const DecodedInstruction& insn, const char* note);
+char* FullDisassembler(CompilationUnit* cu, const MIR* mir);
+char* GetSSAString(CompilationUnit* cu, SSARepresentation* ssa_rep);
+bool FindLocalLiveIn(CompilationUnit* cu, BasicBlock* bb);
+bool DoSSAConversion(CompilationUnit* cu, BasicBlock* bb);
+bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb);
+void CompilerInitializeSSAConversion(CompilationUnit* cu);
+bool ClearVisitedFlag(struct CompilationUnit* cu, struct BasicBlock* bb);
+void DataFlowAnalysisDispatcher(CompilationUnit* cu, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfa_mode, bool is_iterative);
+MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
+void NullCheckElimination(CompilationUnit *cu);
+void BasicBlockCombine(CompilationUnit* cu);
+void CodeLayout(CompilationUnit* cu);
+void DumpCheckStats(CompilationUnit *cu);
+void BasicBlockOptimization(CompilationUnit *cu);
+void LoopDetection(CompilationUnit *cu);
+void MethodUseCount(CompilationUnit *cu);
 
 }  // namespace art
 

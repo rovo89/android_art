@@ -23,8 +23,8 @@
 
 namespace art {
 
-void GenSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                    SpecialCaseHandler specialCase)
+void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                    SpecialCaseHandler special_case)
 {
     // TODO
 }
@@ -42,176 +42,176 @@ void GenSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  *
  * The test loop will look something like:
  *
- *   ori   rEnd, r_ZERO, #tableSize  ; size in bytes
+ *   ori   rEnd, r_ZERO, #table_size  ; size in bytes
  *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
  *   nop                     ; opportunistically fill
  * BaseLabel:
  *   addiu rBase, r_RA, <table> - <BaseLabel>  ; table relative to BaseLabel
      addu  rEnd, rEnd, rBase                   ; end of table
- *   lw    rVal, [rSP, vRegOff]                ; Test Value
+ *   lw    r_val, [rSP, v_reg_off]                ; Test Value
  * loop:
  *   beq   rBase, rEnd, done
- *   lw    rKey, 0(rBase)
+ *   lw    r_key, 0(rBase)
  *   addu  rBase, 8
- *   bne   rVal, rKey, loop
- *   lw    rDisp, -4(rBase)
- *   addu  r_RA, rDisp
+ *   bne   r_val, r_key, loop
+ *   lw    r_disp, -4(rBase)
+ *   addu  r_RA, r_disp
  *   jr    r_RA
  * done:
  *
  */
-void GenSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc)
+void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
+                     RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
-  if (cUnit->printMe) {
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
+  if (cu->verbose) {
     DumpSparseSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec =
-      static_cast<SwitchTable*>(NewMem(cUnit, sizeof(SwitchTable), true, kAllocData));
-  tabRec->table = table;
-  tabRec->vaddr = cUnit->currentDalvikOffset;
+  SwitchTable *tab_rec =
+      static_cast<SwitchTable*>(NewMem(cu, sizeof(SwitchTable), true, kAllocData));
+  tab_rec->table = table;
+  tab_rec->vaddr = cu->current_dalvik_offset;
   int elements = table[1];
-  tabRec->targets =
-      static_cast<LIR**>(NewMem(cUnit, elements * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
+  tab_rec->targets =
+      static_cast<LIR**>(NewMem(cu, elements * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cu, &cu->switch_tables, reinterpret_cast<uintptr_t>(tab_rec));
 
   // The table is composed of 8-byte key/disp pairs
-  int byteSize = elements * 8;
+  int byte_size = elements * 8;
 
-  int sizeHi = byteSize >> 16;
-  int sizeLo = byteSize & 0xffff;
+  int size_hi = byte_size >> 16;
+  int size_lo = byte_size & 0xffff;
 
-  int rEnd = AllocTemp(cUnit);
-  if (sizeHi) {
-    NewLIR2(cUnit, kMipsLui, rEnd, sizeHi);
+  int rEnd = AllocTemp(cu);
+  if (size_hi) {
+    NewLIR2(cu, kMipsLui, rEnd, size_hi);
   }
   // Must prevent code motion for the curr pc pair
-  GenBarrier(cUnit);  // Scheduling barrier
-  NewLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  GenBarrier(cu);  // Scheduling barrier
+  NewLIR0(cu, kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot
-  if (sizeHi) {
-    NewLIR3(cUnit, kMipsOri, rEnd, rEnd, sizeLo);
+  if (size_hi) {
+    NewLIR3(cu, kMipsOri, rEnd, rEnd, size_lo);
   } else {
-    NewLIR3(cUnit, kMipsOri, rEnd, r_ZERO, sizeLo);
+    NewLIR3(cu, kMipsOri, rEnd, r_ZERO, size_lo);
   }
-  GenBarrier(cUnit);  // Scheduling barrier
+  GenBarrier(cu);  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
-  LIR* baseLabel = NewLIR0(cUnit, kPseudoTargetLabel);
+  LIR* base_label = NewLIR0(cu, kPseudoTargetLabel);
   // Remember base label so offsets can be computed later
-  tabRec->anchor = baseLabel;
-  int rBase = AllocTemp(cUnit);
-  NewLIR4(cUnit, kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(baseLabel),
-          reinterpret_cast<uintptr_t>(tabRec));
-  OpRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
+  tab_rec->anchor = base_label;
+  int rBase = AllocTemp(cu);
+  NewLIR4(cu, kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(base_label),
+          reinterpret_cast<uintptr_t>(tab_rec));
+  OpRegRegReg(cu, kOpAdd, rEnd, rEnd, rBase);
 
   // Grab switch test value
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
 
   // Test loop
-  int rKey = AllocTemp(cUnit);
-  LIR* loopLabel = NewLIR0(cUnit, kPseudoTargetLabel);
-  LIR* exitBranch = OpCmpBranch(cUnit , kCondEq, rBase, rEnd, NULL);
-  LoadWordDisp(cUnit, rBase, 0, rKey);
-  OpRegImm(cUnit, kOpAdd, rBase, 8);
-  OpCmpBranch(cUnit, kCondNe, rlSrc.lowReg, rKey, loopLabel);
-  int rDisp = AllocTemp(cUnit);
-  LoadWordDisp(cUnit, rBase, -4, rDisp);
-  OpRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-  OpReg(cUnit, kOpBx, r_RA);
+  int r_key = AllocTemp(cu);
+  LIR* loop_label = NewLIR0(cu, kPseudoTargetLabel);
+  LIR* exit_branch = OpCmpBranch(cu , kCondEq, rBase, rEnd, NULL);
+  LoadWordDisp(cu, rBase, 0, r_key);
+  OpRegImm(cu, kOpAdd, rBase, 8);
+  OpCmpBranch(cu, kCondNe, rl_src.low_reg, r_key, loop_label);
+  int r_disp = AllocTemp(cu);
+  LoadWordDisp(cu, rBase, -4, r_disp);
+  OpRegRegReg(cu, kOpAdd, r_RA, r_RA, r_disp);
+  OpReg(cu, kOpBx, r_RA);
 
   // Loop exit
-  LIR* exitLabel = NewLIR0(cUnit, kPseudoTargetLabel);
-  exitBranch->target = exitLabel;
+  LIR* exit_label = NewLIR0(cu, kPseudoTargetLabel);
+  exit_branch->target = exit_label;
 }
 
 /*
  * Code pattern will look something like:
  *
- *   lw    rVal
+ *   lw    r_val
  *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
  *   nop                     ; opportunistically fill
- *   [subiu rVal, bias]      ; Remove bias if lowVal != 0
+ *   [subiu r_val, bias]      ; Remove bias if low_val != 0
  *   bound check -> done
- *   lw    rDisp, [r_RA, rVal]
- *   addu  r_RA, rDisp
+ *   lw    r_disp, [r_RA, r_val]
+ *   addu  r_RA, r_disp
  *   jr    r_RA
  * done:
  */
-void GenPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc)
+void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
+                     RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
-  if (cUnit->printMe) {
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
+  if (cu->verbose) {
     DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
-  SwitchTable *tabRec =
-      static_cast<SwitchTable*>(NewMem(cUnit, sizeof(SwitchTable), true, kAllocData));
-  tabRec->table = table;
-  tabRec->vaddr = cUnit->currentDalvikOffset;
+  SwitchTable *tab_rec =
+      static_cast<SwitchTable*>(NewMem(cu, sizeof(SwitchTable), true, kAllocData));
+  tab_rec->table = table;
+  tab_rec->vaddr = cu->current_dalvik_offset;
   int size = table[1];
-  tabRec->targets = static_cast<LIR**>(NewMem(cUnit, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
+  tab_rec->targets = static_cast<LIR**>(NewMem(cu, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cu, &cu->switch_tables, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Get the switch value
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
 
   // Prepare the bias.  If too big, handle 1st stage here
-  int lowKey = s4FromSwitchData(&table[2]);
-  bool largeBias = false;
-  int rKey;
-  if (lowKey == 0) {
-    rKey = rlSrc.lowReg;
-  } else if ((lowKey & 0xffff) != lowKey) {
-    rKey = AllocTemp(cUnit);
-    LoadConstant(cUnit, rKey, lowKey);
-    largeBias = true;
+  int low_key = s4FromSwitchData(&table[2]);
+  bool large_bias = false;
+  int r_key;
+  if (low_key == 0) {
+    r_key = rl_src.low_reg;
+  } else if ((low_key & 0xffff) != low_key) {
+    r_key = AllocTemp(cu);
+    LoadConstant(cu, r_key, low_key);
+    large_bias = true;
   } else {
-    rKey = AllocTemp(cUnit);
+    r_key = AllocTemp(cu);
   }
 
   // Must prevent code motion for the curr pc pair
-  GenBarrier(cUnit);
-  NewLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  GenBarrier(cu);
+  NewLIR0(cu, kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with bias strip
-  if (lowKey == 0) {
-    NewLIR0(cUnit, kMipsNop);
+  if (low_key == 0) {
+    NewLIR0(cu, kMipsNop);
   } else {
-    if (largeBias) {
-      OpRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
+    if (large_bias) {
+      OpRegRegReg(cu, kOpSub, r_key, rl_src.low_reg, r_key);
     } else {
-      OpRegRegImm(cUnit, kOpSub, rKey, rlSrc.lowReg, lowKey);
+      OpRegRegImm(cu, kOpSub, r_key, rl_src.low_reg, low_key);
     }
   }
-  GenBarrier(cUnit);  // Scheduling barrier
+  GenBarrier(cu);  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
-  LIR* baseLabel = NewLIR0(cUnit, kPseudoTargetLabel);
+  LIR* base_label = NewLIR0(cu, kPseudoTargetLabel);
   // Remember base label so offsets can be computed later
-  tabRec->anchor = baseLabel;
+  tab_rec->anchor = base_label;
 
   // Bounds check - if < 0 or >= size continue following switch
-  LIR* branchOver = OpCmpImmBranch(cUnit, kCondHi, rKey, size-1, NULL);
+  LIR* branch_over = OpCmpImmBranch(cu, kCondHi, r_key, size-1, NULL);
 
   // Materialize the table base pointer
-  int rBase = AllocTemp(cUnit);
-  NewLIR4(cUnit, kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(baseLabel),
-          reinterpret_cast<uintptr_t>(tabRec));
+  int rBase = AllocTemp(cu);
+  NewLIR4(cu, kMipsDelta, rBase, 0, reinterpret_cast<uintptr_t>(base_label),
+          reinterpret_cast<uintptr_t>(tab_rec));
 
   // Load the displacement from the switch table
-  int rDisp = AllocTemp(cUnit);
-  LoadBaseIndexed(cUnit, rBase, rKey, rDisp, 2, kWord);
+  int r_disp = AllocTemp(cu);
+  LoadBaseIndexed(cu, rBase, r_key, r_disp, 2, kWord);
 
   // Add to r_AP and go
-  OpRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-  OpReg(cUnit, kOpBx, r_RA);
+  OpRegRegReg(cu, kOpAdd, r_RA, r_RA, r_disp);
+  OpReg(cu, kOpBx, r_RA);
 
-  /* branchOver target here */
-  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = target;
+  /* branch_over target here */
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  branch_over->target = target;
 }
 
 /*
@@ -224,155 +224,155 @@ void GenPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void GenFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
-                      RegLocation rlSrc)
+void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
+                      RegLocation rl_src)
 {
-  const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   // Add the table to the list - we'll process it later
-  FillArrayData *tabRec =
-      reinterpret_cast<FillArrayData*>(NewMem(cUnit, sizeof(FillArrayData), true, kAllocData));
-  tabRec->table = table;
-  tabRec->vaddr = cUnit->currentDalvikOffset;
-  uint16_t width = tabRec->table[1];
-  uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
-  tabRec->size = (size * width) + 8;
+  FillArrayData *tab_rec =
+      reinterpret_cast<FillArrayData*>(NewMem(cu, sizeof(FillArrayData), true, kAllocData));
+  tab_rec->table = table;
+  tab_rec->vaddr = cu->current_dalvik_offset;
+  uint16_t width = tab_rec->table[1];
+  uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
+  tab_rec->size = (size * width) + 8;
 
-  InsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
+  InsertGrowableList(cu, &cu->fill_array_data, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Making a call - use explicit registers
-  FlushAllRegs(cUnit);   /* Everything to home location */
-  LockCallTemps(cUnit);
-  LoadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);
+  FlushAllRegs(cu);   /* Everything to home location */
+  LockCallTemps(cu);
+  LoadValueDirectFixed(cu, rl_src, rMIPS_ARG0);
 
   // Must prevent code motion for the curr pc pair
-  GenBarrier(cUnit);
-  NewLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  GenBarrier(cu);
+  NewLIR0(cu, kMipsCurrPC);  // Really a jal to .+8
   // Now, fill the branch delay slot with the helper load
-  int rTgt = LoadHelper(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
-  GenBarrier(cUnit);  // Scheduling barrier
+  int r_tgt = LoadHelper(cu, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
+  GenBarrier(cu);  // Scheduling barrier
 
   // Construct BaseLabel and set up table base register
-  LIR* baseLabel = NewLIR0(cUnit, kPseudoTargetLabel);
+  LIR* base_label = NewLIR0(cu, kPseudoTargetLabel);
 
   // Materialize a pointer to the fill data image
-  NewLIR4(cUnit, kMipsDelta, rMIPS_ARG1, 0, reinterpret_cast<uintptr_t>(baseLabel),
-          reinterpret_cast<uintptr_t>(tabRec));
+  NewLIR4(cu, kMipsDelta, rMIPS_ARG1, 0, reinterpret_cast<uintptr_t>(base_label),
+          reinterpret_cast<uintptr_t>(tab_rec));
 
   // And go...
-  ClobberCalleeSave(cUnit);
-  LIR* callInst = OpReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
-  MarkSafepointPC(cUnit, callInst);
+  ClobberCalleeSave(cu);
+  LIR* call_inst = OpReg(cu, kOpBlx, r_tgt); // ( array*, fill_data* )
+  MarkSafepointPC(cu, call_inst);
 }
 
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void GenMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
-  FlushAllRegs(cUnit);
-  LoadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);  // Get obj
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  GenNullCheck(cUnit, rlSrc.sRegLow, rMIPS_ARG0, optFlags);
+  FlushAllRegs(cu);
+  LoadValueDirectFixed(cu, rl_src, rMIPS_ARG0);  // Get obj
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  GenNullCheck(cu, rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
   // Go expensive route - artLockObjectFromCode(self, obj);
-  int rTgt = LoadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
-  ClobberCalleeSave(cUnit);
-  LIR* callInst = OpReg(cUnit, kOpBlx, rTgt);
-  MarkSafepointPC(cUnit, callInst);
+  int r_tgt = LoadHelper(cu, ENTRYPOINT_OFFSET(pLockObjectFromCode));
+  ClobberCalleeSave(cu);
+  LIR* call_inst = OpReg(cu, kOpBlx, r_tgt);
+  MarkSafepointPC(cu, call_inst);
 }
 
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void GenMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
-  FlushAllRegs(cUnit);
-  LoadValueDirectFixed(cUnit, rlSrc, rMIPS_ARG0);  // Get obj
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  GenNullCheck(cUnit, rlSrc.sRegLow, rMIPS_ARG0, optFlags);
+  FlushAllRegs(cu);
+  LoadValueDirectFixed(cu, rl_src, rMIPS_ARG0);  // Get obj
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  GenNullCheck(cu, rl_src.s_reg_low, rMIPS_ARG0, opt_flags);
   // Go expensive route - UnlockObjectFromCode(obj);
-  int rTgt = LoadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
-  ClobberCalleeSave(cUnit);
-  LIR* callInst = OpReg(cUnit, kOpBlx, rTgt);
-  MarkSafepointPC(cUnit, callInst);
+  int r_tgt = LoadHelper(cu, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
+  ClobberCalleeSave(cu);
+  LIR* call_inst = OpReg(cu, kOpBlx, r_tgt);
+  MarkSafepointPC(cu, call_inst);
 }
 
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MarkGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
 {
-  int regCardBase = AllocTemp(cUnit);
-  int regCardNo = AllocTemp(cUnit);
-  LIR* branchOver = OpCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-  LoadWordDisp(cUnit, rMIPS_SELF, Thread::CardTableOffset().Int32Value(), regCardBase);
-  OpRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
-  StoreBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+  int reg_card_base = AllocTemp(cu);
+  int reg_card_no = AllocTemp(cu);
+  LIR* branch_over = OpCmpImmBranch(cu, kCondEq, val_reg, 0, NULL);
+  LoadWordDisp(cu, rMIPS_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
+  OpRegRegImm(cu, kOpLsr, reg_card_no, tgt_addr_reg, CardTable::kCardShift);
+  StoreBaseIndexed(cu, reg_card_base, reg_card_no, reg_card_base, 0,
                    kUnsignedByte);
-  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
-  branchOver->target = target;
-  FreeTemp(cUnit, regCardBase);
-  FreeTemp(cUnit, regCardNo);
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  branch_over->target = target;
+  FreeTemp(cu, reg_card_base);
+  FreeTemp(cu, reg_card_no);
 }
-void GenEntrySequence(CompilationUnit* cUnit, RegLocation* ArgLocs,
-                      RegLocation rlMethod)
+void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
+                      RegLocation rl_method)
 {
-  int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
+  int spill_count = cu->num_core_spills + cu->num_fp_spills;
   /*
    * On entry, rMIPS_ARG0, rMIPS_ARG1, rMIPS_ARG2 & rMIPS_ARG3 are live.  Let the register
    * allocation mechanism know so it doesn't try to use any of them when
    * expanding the frame or flushing.  This leaves the utility
    * code with a single temp: r12.  This should be enough.
    */
-  LockTemp(cUnit, rMIPS_ARG0);
-  LockTemp(cUnit, rMIPS_ARG1);
-  LockTemp(cUnit, rMIPS_ARG2);
-  LockTemp(cUnit, rMIPS_ARG3);
+  LockTemp(cu, rMIPS_ARG0);
+  LockTemp(cu, rMIPS_ARG1);
+  LockTemp(cu, rMIPS_ARG2);
+  LockTemp(cu, rMIPS_ARG3);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
-      (static_cast<size_t>(cUnit->frameSize) < Thread::kStackOverflowReservedBytes));
-  NewLIR0(cUnit, kPseudoMethodEntry);
-  int checkReg = AllocTemp(cUnit);
-  int newSP = AllocTemp(cUnit);
-  if (!skipOverflowCheck) {
+  bool skip_overflow_check = ((cu->attrs & METHOD_IS_LEAF) &&
+      (static_cast<size_t>(cu->frame_size) < Thread::kStackOverflowReservedBytes));
+  NewLIR0(cu, kPseudoMethodEntry);
+  int check_reg = AllocTemp(cu);
+  int new_sp = AllocTemp(cu);
+  if (!skip_overflow_check) {
     /* Load stack limit */
-    LoadWordDisp(cUnit, rMIPS_SELF, Thread::StackEndOffset().Int32Value(), checkReg);
+    LoadWordDisp(cu, rMIPS_SELF, Thread::StackEndOffset().Int32Value(), check_reg);
   }
   /* Spill core callee saves */
-  SpillCoreRegs(cUnit);
+  SpillCoreRegs(cu);
   /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
-  DCHECK_EQ(cUnit->numFPSpills, 0);
-  if (!skipOverflowCheck) {
-    OpRegRegImm(cUnit, kOpSub, newSP, rMIPS_SP, cUnit->frameSize - (spillCount * 4));
-    GenRegRegCheck(cUnit, kCondCc, newSP, checkReg, kThrowStackOverflow);
-    OpRegCopy(cUnit, rMIPS_SP, newSP);     // Establish stack
+  DCHECK_EQ(cu->num_fp_spills, 0);
+  if (!skip_overflow_check) {
+    OpRegRegImm(cu, kOpSub, new_sp, rMIPS_SP, cu->frame_size - (spill_count * 4));
+    GenRegRegCheck(cu, kCondCc, new_sp, check_reg, kThrowStackOverflow);
+    OpRegCopy(cu, rMIPS_SP, new_sp);     // Establish stack
   } else {
-    OpRegImm(cUnit, kOpSub, rMIPS_SP, cUnit->frameSize - (spillCount * 4));
+    OpRegImm(cu, kOpSub, rMIPS_SP, cu->frame_size - (spill_count * 4));
   }
 
-  FlushIns(cUnit, ArgLocs, rlMethod);
+  FlushIns(cu, ArgLocs, rl_method);
 
-  FreeTemp(cUnit, rMIPS_ARG0);
-  FreeTemp(cUnit, rMIPS_ARG1);
-  FreeTemp(cUnit, rMIPS_ARG2);
-  FreeTemp(cUnit, rMIPS_ARG3);
+  FreeTemp(cu, rMIPS_ARG0);
+  FreeTemp(cu, rMIPS_ARG1);
+  FreeTemp(cu, rMIPS_ARG2);
+  FreeTemp(cu, rMIPS_ARG3);
 }
 
-void GenExitSequence(CompilationUnit* cUnit)
+void GenExitSequence(CompilationUnit* cu)
 {
   /*
    * In the exit path, rMIPS_RET0/rMIPS_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  LockTemp(cUnit, rMIPS_RET0);
-  LockTemp(cUnit, rMIPS_RET1);
+  LockTemp(cu, rMIPS_RET0);
+  LockTemp(cu, rMIPS_RET1);
 
-  NewLIR0(cUnit, kPseudoMethodExit);
-  UnSpillCoreRegs(cUnit);
-  OpReg(cUnit, kOpBx, r_RA);
+  NewLIR0(cu, kPseudoMethodExit);
+  UnSpillCoreRegs(cu);
+  OpReg(cu, kOpBx, r_RA);
 }
 
 }  // namespace art

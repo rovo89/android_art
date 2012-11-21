@@ -50,7 +50,7 @@ namespace greenland {
 #define MAX_ASSEMBLER_RETRIES 50
 
 /* Suppress optimization if corresponding bit set */
-enum optControlVector {
+enum opt_control_vector {
   kLoadStoreElimination = 0,
   kLoadHoisting,
   kSuppressLoads,
@@ -136,7 +136,7 @@ class LLVMInfo {
 struct CompilationUnit;
 struct BasicBlock;
 
-BasicBlock* FindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
+BasicBlock* FindBlock(CompilationUnit* cu, unsigned int code_offset);
 void ReplaceSpecialChars(std::string& str);
 
 }  // namespace art

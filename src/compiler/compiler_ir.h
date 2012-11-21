@@ -29,14 +29,14 @@
 
 namespace art {
 
-#define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
-#define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
-#define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
-#define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
-#define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
+#define SLOW_FIELD_PATH (cu->enable_debug & (1 << kDebugSlowFieldPath))
+#define SLOW_INVOKE_PATH (cu->enable_debug & (1 << kDebugSlowInvokePath))
+#define SLOW_STRING_PATH (cu->enable_debug & (1 << kDebugSlowStringPath))
+#define SLOW_TYPE_PATH (cu->enable_debug & (1 << kDebugSlowTypePath))
+#define EXERCISE_SLOWEST_STRING_PATH (cu->enable_debug & \
   (1 << kDebugSlowestStringPath))
 
-// Minimum field size to contain Dalvik vReg number
+// Minimum field size to contain Dalvik v_reg number
 #define VREG_NUM_WIDTH 16
 
 struct ArenaBitVector;
@@ -44,48 +44,48 @@ struct LIR;
 class LLVMInfo;
 
 struct PromotionMap {
-  RegLocationType coreLocation:3;
-  uint8_t coreReg;
-  RegLocationType fpLocation:3;
+  RegLocationType core_location:3;
+  uint8_t core_reg;
+  RegLocationType fp_location:3;
   uint8_t FpReg;
-  bool firstInPair;
+  bool first_in_pair;
 };
 
 struct RegLocation {
   RegLocationType location:3;
   unsigned wide:1;
   unsigned defined:1;   // Do we know the type?
-  unsigned isConst:1;   // Constant, value in cUnit->constantValues[]
+  unsigned is_const:1;   // Constant, value in cu->constant_values[]
   unsigned fp:1;        // Floating point?
   unsigned core:1;      // Non-floating point?
   unsigned ref:1;       // Something GC cares about
-  unsigned highWord:1;  // High word of pair?
+  unsigned high_word:1;  // High word of pair?
   unsigned home:1;      // Does this represent the home location?
-  uint8_t lowReg;            // First physical register
-  uint8_t highReg;           // 2nd physical register (if wide)
-  int32_t sRegLow;      // SSA name for low Dalvik word
-  int32_t origSReg;     // TODO: remove after Bitcode gen complete
-                        // and consolodate usage w/ sRegLow
+  uint8_t low_reg;            // First physical register
+  uint8_t high_reg;           // 2nd physical register (if wide)
+  int32_t s_reg_low;      // SSA name for low Dalvik word
+  int32_t orig_sreg;     // TODO: remove after Bitcode gen complete
+                        // and consolodate usage w/ s_reg_low
 };
 
 struct CompilerTemp {
-  int sReg;
+  int s_reg;
   ArenaBitVector* bv;
 };
 
 struct CallInfo {
-  int numArgWords;      // Note: word count, not arg count
+  int num_arg_words;      // Note: word count, not arg count
   RegLocation* args;    // One for each word of arguments
   RegLocation result;   // Eventual target of MOVE_RESULT
-  int optFlags;
+  int opt_flags;
   InvokeType type;
-  uint32_t dexIdx;
+  uint32_t dex_idx;
   uint32_t index;       // Method idx for invokes, type idx for FilledNewArray
-  uintptr_t directCode;
-  uintptr_t directMethod;
+  uintptr_t direct_code;
+  uintptr_t direct_method;
   RegLocation target;    // Target of following move_result
-  bool skipThis;
-  bool isRange;
+  bool skip_this;
+  bool is_range;
   int offset;            // Dalvik offset
 };
 
@@ -97,24 +97,24 @@ struct CallInfo {
  */
 struct RegisterInfo {
   int reg;                    // Reg number
-  bool inUse;                 // Has it been allocated?
-  bool isTemp;                // Can allocate as temp?
+  bool in_use;                 // Has it been allocated?
+  bool is_temp;                // Can allocate as temp?
   bool pair;                  // Part of a register pair?
   int partner;                // If pair, other reg of pair
   bool live;                  // Is there an associated SSA name?
   bool dirty;                 // If live, is it dirty?
-  int sReg;                   // Name of live value
-  LIR *defStart;              // Starting inst in last def sequence
-  LIR *defEnd;                // Ending inst in last def sequence
+  int s_reg;                   // Name of live value
+  LIR *def_start;              // Starting inst in last def sequence
+  LIR *def_end;                // Ending inst in last def sequence
 };
 
 struct RegisterPool {
-  int numCoreRegs;
-  RegisterInfo *coreRegs;
-  int nextCoreReg;
-  int numFPRegs;
+  int num_core_regs;
+  RegisterInfo *core_regs;
+  int next_core_reg;
+  int num_fp_regs;
   RegisterInfo *FPRegs;
-  int nextFPReg;
+  int next_fp_reg;
 };
 
 #define INVALID_SREG (-1)
@@ -142,7 +142,7 @@ struct RegisterPool {
 #define NEXT_LIR(lir) (lir->next)
 #define PREV_LIR(lir) (lir->prev)
 
-/* Defines for aliasInfo (tracks Dalvik register references) */
+/* Defines for alias_info (tracks Dalvik register references) */
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE_FLAG     (0x80000000)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & DECODE_ALIAS_INFO_WIDE_FLAG) ? 1 : 0)
@@ -162,28 +162,28 @@ struct RegisterPool {
 #define ENCODE_MEM              (ENCODE_DALVIK_REG | ENCODE_LITERAL | \
                                  ENCODE_HEAP_REF | ENCODE_MUST_NOT_ALIAS)
 
-#define isPseudoOpcode(opcode) (static_cast<int>(opcode) < 0)
+#define is_pseudo_opcode(opcode) (static_cast<int>(opcode) < 0)
 
 struct LIR {
   int offset;                        // Offset of this instruction
-  int dalvikOffset;                  // Offset of Dalvik opcode
+  int dalvik_offset;                  // Offset of Dalvik opcode
   LIR* next;
   LIR* prev;
   LIR* target;
   int opcode;
   int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
   struct {
-    bool isNop:1;           // LIR is optimized away
+    bool is_nop:1;           // LIR is optimized away
     bool pcRelFixup:1;      // May need pc-relative fixup
     unsigned int size:5;    // in bytes
     unsigned int unused:25;
   } flags;
-  int aliasInfo;              // For Dalvik register & litpool disambiguation
-  uint64_t useMask;           // Resource mask for use
-  uint64_t defMask;           // Resource mask for def
+  int alias_info;              // For Dalvik register & litpool disambiguation
+  uint64_t use_mask;           // Resource mask for use
+  uint64_t def_mask;           // Resource mask for def
 };
 
-extern const char* extendedMIROpNames[kMirOpLast - kMirOpFirst];
+extern const char* extended_mir_op_names[kMirOpLast - kMirOpFirst];
 
 struct SSARepresentation;
 
@@ -199,10 +199,10 @@ struct SSARepresentation;
 #define MIR_MARK                        (1 << kMIRMark)
 
 struct Checkstats {
-  int nullChecks;
-  int nullChecksEliminated;
-  int rangeChecks;
-  int rangeChecksEliminated;
+  int null_checks;
+  int null_checks_eliminated;
+  int range_checks;
+  int range_checks_eliminated;
 };
 
 struct MIR {
@@ -211,13 +211,13 @@ struct MIR {
   unsigned int offset;
   MIR* prev;
   MIR* next;
-  SSARepresentation* ssaRep;
-  int optimizationFlags;
+  SSARepresentation* ssa_rep;
+  int optimization_flags;
   union {
     // Used to quickly locate all Phi opcodes
-    MIR* phiNext;
+    MIR* phi_next;
     // Establish link between two halves of throwing instructions
-    MIR* throwInsn;
+    MIR* throw_insn;
   } meta;
 };
 
@@ -225,34 +225,34 @@ struct BasicBlockDataFlow;
 
 struct BasicBlock {
   int id;
-  int dfsId;
+  int dfs_id;
   bool visited;
   bool hidden;
-  bool catchEntry;
-  bool explicitThrow;
-  bool conditionalBranch;
-  bool hasReturn;
-  uint16_t startOffset;
-  uint16_t nestingDepth;
-  BBType blockType;
-  MIR* firstMIRInsn;
-  MIR* lastMIRInsn;
-  BasicBlock* fallThrough;
+  bool catch_entry;
+  bool explicit_throw;
+  bool conditional_branch;
+  bool has_return;
+  uint16_t start_offset;
+  uint16_t nesting_depth;
+  BBType block_type;
+  MIR* first_mir_insn;
+  MIR* last_mir_insn;
+  BasicBlock* fall_through;
   BasicBlock* taken;
-  BasicBlock* iDom;            // Immediate dominator
-  BasicBlockDataFlow* dataFlowInfo;
+  BasicBlock* i_dom;            // Immediate dominator
+  BasicBlockDataFlow* data_flow_info;
   GrowableList* predecessors;
   ArenaBitVector* dominators;
-  ArenaBitVector* iDominated;         // Set nodes being immediately dominated
-  ArenaBitVector* domFrontier;        // Dominance frontier
+  ArenaBitVector* i_dominated;         // Set nodes being immediately dominated
+  ArenaBitVector* dom_frontier;        // Dominance frontier
   struct {                            // For one-to-many successors like
-    BlockListType blockListType;    // switch and exception handling
+    BlockListType block_list_type;    // switch and exception handling
     GrowableList blocks;
-  } successorBlockList;
+  } successor_block_list;
 };
 
 /*
- * The "blocks" field in "successorBlockList" points to an array of
+ * The "blocks" field in "successor_block_list" points to an array of
  * elements with the type "SuccessorBlockInfo".
  * For catch blocks, key is type index for the exception.
  * For swtich blocks, key is the case value.
@@ -271,7 +271,7 @@ struct Memstats;
 
 struct CompilationUnit {
   CompilationUnit()
-    : numBlocks(0),
+    : num_blocks(0),
       compiler(NULL),
       class_linker(NULL),
       dex_file(NULL),
@@ -281,89 +281,89 @@ struct CompilationUnit {
       access_flags(0),
       invoke_type(kDirect),
       shorty(NULL),
-      firstLIRInsn(NULL),
-      lastLIRInsn(NULL),
-      literalList(NULL),
-      methodLiteralList(NULL),
-      codeLiteralList(NULL),
-      disableOpt(0),
-      enableDebug(0),
-      dataOffset(0),
-      totalSize(0),
-      assemblerStatus(kSuccess),
-      assemblerRetries(0),
-      printMe(false),
-      hasLoop(false),
-      hasInvoke(false),
-      qdMode(false),
-      regPool(NULL),
-      instructionSet(kNone),
-      numSSARegs(0),
-      ssaBaseVRegs(NULL),
-      ssaSubscripts(NULL),
-      ssaStrings(NULL),
-      vRegToSSAMap(NULL),
-      SSALastDefs(NULL),
-      isConstantV(NULL),
-      constantValues(NULL),
-      phiAliasMap(NULL),
-      phiList(NULL),
-      regLocation(NULL),
-      promotionMap(NULL),
-      methodSReg(0),
-      numReachableBlocks(0),
-      numDalvikRegisters(0),
-      entryBlock(NULL),
-      exitBlock(NULL),
-      curBlock(NULL),
-      iDomList(NULL),
-      tryBlockAddr(NULL),
-      defBlockMatrix(NULL),
-      tempBlockV(NULL),
-      tempDalvikRegisterV(NULL),
-      tempSSARegisterV(NULL),
-      tempSSABlockIdV(NULL),
-      blockLabelList(NULL),
-      numIns(0),
-      numOuts(0),
-      numRegs(0),
-      numCoreSpills(0),
-      numFPSpills(0),
-      numCompilerTemps(0),
-      frameSize(0),
-      coreSpillMask(0U),
-      fpSpillMask(0U),
+      first_lir_insn(NULL),
+      last_lir_insn(NULL),
+      literal_list(NULL),
+      method_literal_list(NULL),
+      code_literal_list(NULL),
+      disable_opt(0),
+      enable_debug(0),
+      data_offset(0),
+      total_size(0),
+      assembler_status(kSuccess),
+      assembler_retries(0),
+      verbose(false),
+      has_loop(false),
+      has_invoke(false),
+      qd_mode(false),
+      reg_pool(NULL),
+      instruction_set(kNone),
+      num_ssa_regs(0),
+      ssa_base_vregs(NULL),
+      ssa_subscripts(NULL),
+      ssa_strings(NULL),
+      vreg_to_ssa_map(NULL),
+      ssa_last_defs(NULL),
+      is_constant_v(NULL),
+      constant_values(NULL),
+      phi_alias_map(NULL),
+      phi_list(NULL),
+      reg_location(NULL),
+      promotion_map(NULL),
+      method_sreg(0),
+      num_reachable_blocks(0),
+      num_dalvik_registers(0),
+      entry_block(NULL),
+      exit_block(NULL),
+      cur_block(NULL),
+      i_dom_list(NULL),
+      try_block_addr(NULL),
+      def_block_matrix(NULL),
+      temp_block_v(NULL),
+      temp_dalvik_register_v(NULL),
+      temp_ssa_register_v(NULL),
+      temp_ssa_block_id_v(NULL),
+      block_label_list(NULL),
+      num_ins(0),
+      num_outs(0),
+      num_regs(0),
+      num_core_spills(0),
+      num_fp_spills(0),
+      num_compiler_temps(0),
+      frame_size(0),
+      core_spill_mask(0U),
+      fp_spill_mask(0U),
       attrs(0U),
-      currentDalvikOffset(0),
+      current_dalvik_offset(0),
       insns(NULL),
-      insnsSize(0U),
-      disableDataflow(false),
-      defCount(0),
-      compilerFlipMatch(false),
-      arenaHead(NULL),
-      currentArena(NULL),
-      numArenaBlocks(0),
+      insns_size(0U),
+      disable_dataflow(false),
+      def_count(0),
+      compiler_flip_match(false),
+      arena_head(NULL),
+      current_arena(NULL),
+      num_arena_blocks(0),
       mstats(NULL),
       checkstats(NULL),
-      genBitcode(false),
+      gen_bitcode(false),
       context(NULL),
       module(NULL),
       func(NULL),
       intrinsic_helper(NULL),
       irb(NULL),
-      placeholderBB(NULL),
-      entryBB(NULL),
-      entryTargetBB(NULL),
-      tempName(0),
-      numShadowFrameEntries(0),
-      shadowMap(NULL),
+      placeholder_bb(NULL),
+      entry_bb(NULL),
+      entryTarget_bb(NULL),
+      temp_name(0),
+      num_shadow_frame_entries(0),
+      shadow_map(NULL),
 #ifndef NDEBUG
-      liveSReg(0),
+      live_sreg(0),
 #endif
-      opcodeCount(NULL) {}
+      opcode_count(NULL) {}
 
-  int numBlocks;
-  GrowableList blockList;
+  int num_blocks;
+  GrowableList block_list;
   Compiler* compiler;            // Compiler driving this compiler
   ClassLinker* class_linker;     // Linker to resolve fields and methods
   const DexFile* dex_file;       // DexFile containing the method being compiled
@@ -373,18 +373,18 @@ struct CompilationUnit {
   uint32_t access_flags;              // compiling method's access flags
   InvokeType invoke_type;             // compiling method's invocation type
   const char* shorty;                 // compiling method's shorty
-  LIR* firstLIRInsn;
-  LIR* lastLIRInsn;
-  LIR* literalList;                   // Constants
-  LIR* methodLiteralList;             // Method literals requiring patching
-  LIR* codeLiteralList;               // Code literals requiring patching
-  uint32_t disableOpt;                // optControlVector flags
-  uint32_t enableDebug;               // debugControlVector flags
-  int dataOffset;                     // starting offset of literal pool
-  int totalSize;                      // header + code size
-  AssemblerStatus assemblerStatus;    // Success or fix and retry
-  int assemblerRetries;
-  std::vector<uint8_t> codeBuffer;
+  LIR* first_lir_insn;
+  LIR* last_lir_insn;
+  LIR* literal_list;                   // Constants
+  LIR* method_literal_list;             // Method literals requiring patching
+  LIR* code_literal_list;               // Code literals requiring patching
+  uint32_t disable_opt;                // opt_control_vector flags
+  uint32_t enable_debug;               // debugControlVector flags
+  int data_offset;                     // starting offset of literal pool
+  int total_size;                      // header + code size
+  AssemblerStatus assembler_status;    // Success or fix and retry
+  int assembler_retries;
+  std::vector<uint8_t> code_buffer;
   /*
    * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
    * Native PC is on the return address of the safepointed operation.  Dex PC is for
@@ -396,84 +396,84 @@ struct CompilationUnit {
    * immediately preceed the instruction.
    */
   std::vector<uint32_t> dex2pcMappingTable;
-  std::vector<uint32_t> combinedMappingTable;
-  std::vector<uint32_t> coreVmapTable;
-  std::vector<uint32_t> fpVmapTable;
-  std::vector<uint8_t> nativeGcMap;
-  bool printMe;
-  bool hasLoop;                       // Contains a loop
-  bool hasInvoke;                     // Contains an invoke instruction
-  bool qdMode;                        // Compile for code size/compile time
-  RegisterPool* regPool;
-  InstructionSet instructionSet;
-  /* Number of total regs used in the whole cUnit after SSA transformation */
-  int numSSARegs;
+  std::vector<uint32_t> combined_mapping_table;
+  std::vector<uint32_t> core_vmap_table;
+  std::vector<uint32_t> fp_vmap_table;
+  std::vector<uint8_t> native_gc_map;
+  bool verbose;
+  bool has_loop;                       // Contains a loop
+  bool has_invoke;                     // Contains an invoke instruction
+  bool qd_mode;                        // Compile for code size/compile time
+  RegisterPool* reg_pool;
+  InstructionSet instruction_set;
+  /* Number of total regs used in the whole cu after SSA transformation */
+  int num_ssa_regs;
   /* Map SSA reg i to the base virtual register/subscript */
-  GrowableList* ssaBaseVRegs;
-  GrowableList* ssaSubscripts;
-  GrowableList* ssaStrings;
+  GrowableList* ssa_base_vregs;
+  GrowableList* ssa_subscripts;
+  GrowableList* ssa_strings;
 
   /* The following are new data structures to support SSA representations */
   /* Map original Dalvik virtual reg i to the current SSA name */
-  int* vRegToSSAMap;                  // length == method->registersSize
-  int* SSALastDefs;                   // length == method->registersSize
-  ArenaBitVector* isConstantV;        // length == numSSAReg
-  int* constantValues;                // length == numSSAReg
-  int* phiAliasMap;                   // length == numSSAReg
-  MIR* phiList;
+  int* vreg_to_ssa_map;                  // length == method->registers_size
+  int* ssa_last_defs;                   // length == method->registers_size
+  ArenaBitVector* is_constant_v;        // length == num_ssa_reg
+  int* constant_values;                // length == num_ssa_reg
+  int* phi_alias_map;                   // length == num_ssa_reg
+  MIR* phi_list;
 
   /* Use counts of ssa names */
-  GrowableList useCounts;             // Weighted by nesting depth
-  GrowableList rawUseCounts;          // Not weighted
+  GrowableList use_counts;             // Weighted by nesting depth
+  GrowableList raw_use_counts;          // Not weighted
 
   /* Optimization support */
-  GrowableList loopHeaders;
+  GrowableList loop_headers;
 
   /* Map SSA names to location */
-  RegLocation* regLocation;
+  RegLocation* reg_location;
 
-  /* Keep track of Dalvik vReg to physical register mappings */
-  PromotionMap* promotionMap;
+  /* Keep track of Dalvik v_reg to physical register mappings */
+  PromotionMap* promotion_map;
 
   /* SSA name for Method* */
-  int methodSReg;
-  RegLocation methodLoc;            // Describes location of method*
+  int method_sreg;
+  RegLocation method_loc;            // Describes location of method*
 
-  int numReachableBlocks;
-  int numDalvikRegisters;             // method->registersSize
-  BasicBlock* entryBlock;
-  BasicBlock* exitBlock;
-  BasicBlock* curBlock;
-  GrowableList dfsOrder;
-  GrowableList dfsPostOrder;
-  GrowableList domPostOrderTraversal;
-  GrowableList throwLaunchpads;
-  GrowableList suspendLaunchpads;
-  GrowableList intrinsicLaunchpads;
-  GrowableList compilerTemps;
-  int* iDomList;
-  ArenaBitVector* tryBlockAddr;
-  ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
-  ArenaBitVector* tempBlockV;
-  ArenaBitVector* tempDalvikRegisterV;
-  ArenaBitVector* tempSSARegisterV;   // numSSARegs
-  int* tempSSABlockIdV;               // working storage for Phi labels
-  LIR* blockLabelList;
+  int num_reachable_blocks;
+  int num_dalvik_registers;             // method->registers_size
+  BasicBlock* entry_block;
+  BasicBlock* exit_block;
+  BasicBlock* cur_block;
+  GrowableList dfs_order;
+  GrowableList dfs_post_order;
+  GrowableList dom_post_order_traversal;
+  GrowableList throw_launchpads;
+  GrowableList suspend_launchpads;
+  GrowableList intrinsic_launchpads;
+  GrowableList compiler_temps;
+  int* i_dom_list;
+  ArenaBitVector* try_block_addr;
+  ArenaBitVector** def_block_matrix;    // num_dalvik_register x num_blocks
+  ArenaBitVector* temp_block_v;
+  ArenaBitVector* temp_dalvik_register_v;
+  ArenaBitVector* temp_ssa_register_v;   // num_ssa_regs
+  int* temp_ssa_block_id_v;               // working storage for Phi labels
+  LIR* block_label_list;
   /*
    * Frame layout details.
    * NOTE: for debug support it will be necessary to add a structure
    * to map the Dalvik virtual registers to the promoted registers.
    * NOTE: "num" fields are in 4-byte words, "Size" and "Offset" in bytes.
    */
-  int numIns;
-  int numOuts;
-  int numRegs;            // Unlike numDalvikRegisters, does not include ins
-  int numCoreSpills;
-  int numFPSpills;
-  int numCompilerTemps;
-  int frameSize;
-  unsigned int coreSpillMask;
-  unsigned int fpSpillMask;
+  int num_ins;
+  int num_outs;
+  int num_regs;            // Unlike num_dalvik_registers, does not include ins
+  int num_core_spills;
+  int num_fp_spills;
+  int num_compiler_temps;
+  int frame_size;
+  unsigned int core_spill_mask;
+  unsigned int fp_spill_mask;
   unsigned int attrs;
   /*
    * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
@@ -485,55 +485,55 @@ struct CompilationUnit {
    * The low-level LIR creation utilites will pull it from here.  Should
    * be rewritten.
    */
-  int currentDalvikOffset;
-  GrowableList switchTables;
-  GrowableList fillArrayData;
+  int current_dalvik_offset;
+  GrowableList switch_tables;
+  GrowableList fill_array_data;
   const uint16_t* insns;
-  uint32_t insnsSize;
-  bool disableDataflow; // Skip dataflow analysis if possible
-  SafeMap<unsigned int, BasicBlock*> blockMap; // FindBlock lookup cache
-  SafeMap<unsigned int, unsigned int> blockIdMap; // Block collapse lookup cache
-  SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
-  int defCount;         // Used to estimate number of SSA names
+  uint32_t insns_size;
+  bool disable_dataflow; // Skip dataflow analysis if possible
+  SafeMap<unsigned int, BasicBlock*> block_map; // FindBlock lookup cache
+  SafeMap<unsigned int, unsigned int> block_id_map; // Block collapse lookup cache
+  SafeMap<unsigned int, LIR*> boundary_map; // boundary lookup cache
+  int def_count;         // Used to estimate number of SSA names
 
   // If non-empty, apply optimizer/debug flags only to matching methods.
-  std::string compilerMethodMatch;
-  // Flips sense of compilerMethodMatch - apply flags if doesn't match.
-  bool compilerFlipMatch;
-  ArenaMemBlock* arenaHead;
-  ArenaMemBlock* currentArena;
-  int numArenaBlocks;
+  std::string compiler_method_match;
+  // Flips sense of compiler_method_match - apply flags if doesn't match.
+  bool compiler_flip_match;
+  ArenaMemBlock* arena_head;
+  ArenaMemBlock* current_arena;
+  int num_arena_blocks;
   Memstats* mstats;
   Checkstats* checkstats;
-  bool genBitcode;
+  bool gen_bitcode;
   LLVMInfo* llvm_info;
   llvm::LLVMContext* context;
   llvm::Module* module;
   llvm::Function* func;
   greenland::IntrinsicHelper* intrinsic_helper;
   greenland::IRBuilder* irb;
-  llvm::BasicBlock* placeholderBB;
-  llvm::BasicBlock* entryBB;
-  llvm::BasicBlock* entryTargetBB;
+  llvm::BasicBlock* placeholder_bb;
+  llvm::BasicBlock* entry_bb;
+  llvm::BasicBlock* entryTarget_bb;
   std::string bitcode_filename;
-  GrowableList llvmValues;
-  int32_t tempName;
-  SafeMap<llvm::BasicBlock*, LIR*> blockToLabelMap; // llvm bb -> LIR label
-  SafeMap<int32_t, llvm::BasicBlock*> idToBlockMap; // block id -> llvm bb
-  SafeMap<llvm::Value*, RegLocation> locMap; // llvm Value to loc rec
-  int numShadowFrameEntries;
-  int* shadowMap;
-  std::set<llvm::BasicBlock*> llvmBlocks;
+  GrowableList llvm_values;
+  int32_t temp_name;
+  SafeMap<llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label
+  SafeMap<int32_t, llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb
+  SafeMap<llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec
+  int num_shadow_frame_entries;
+  int* shadow_map;
+  std::set<llvm::BasicBlock*> llvm_blocks;
 #ifndef NDEBUG
   /*
    * Sanity checking for the register temp tracking.  The same ssa
    * name should never be associated with one temp register per
    * instruction compilation.
    */
-  int liveSReg;
+  int live_sreg;
 #endif
   std::set<uint32_t> catches;
-  int* opcodeCount;    // Count Dalvik opcodes for tuning
+  int* opcode_count;    // Count Dalvik opcodes for tuning
 };
 
 struct SwitchTable {
@@ -555,10 +555,10 @@ struct FillArrayData {
 
 struct CodePattern {
   const Instruction::Code opcodes[MAX_PATTERN_LEN];
-  const SpecialCaseHandler handlerCode;
+  const SpecialCaseHandler handler_code;
 };
 
-static const CodePattern specialPatterns[] = {
+static const CodePattern special_patterns[] = {
   {{Instruction::RETURN_VOID}, kNullMethod},
   {{Instruction::CONST, Instruction::RETURN}, kConstFunction},
   {{Instruction::CONST_4, Instruction::RETURN}, kConstFunction},
@@ -583,23 +583,23 @@ static const CodePattern specialPatterns[] = {
   {{Instruction::RETURN_WIDE}, kIdentity},
 };
 
-BasicBlock* NewMemBB(CompilationUnit* cUnit, BBType blockType, int blockId);
+BasicBlock* NewMemBB(CompilationUnit* cu, BBType block_type, int block_id);
 
 void AppendMIR(BasicBlock* bb, MIR* mir);
 
 void PrependMIR(BasicBlock* bb, MIR* mir);
 
-void InsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR);
+void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
 
-void AppendLIR(CompilationUnit* cUnit, LIR* lir);
+void AppendLIR(CompilationUnit* cu, LIR* lir);
 
-void InsertLIRBefore(LIR* currentLIR, LIR* newLIR);
+void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
 
-void InsertLIRAfter(LIR* currentLIR, LIR* newLIR);
+void InsertLIRAfter(LIR* current_lir, LIR* new_lir);
 
-MIR* FindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
+MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
 /* Debug Utilities */
-void DumpCompilationUnit(CompilationUnit* cUnit);
+void DumpCompilationUnit(CompilationUnit* cu);
 
 }  // namespace art
 

@@ -24,29 +24,29 @@ namespace art {
 
 /*
  * Load an immediate value into a fixed or temp register.  Target
- * register is clobbered, and marked inUse.
+ * register is clobbered, and marked in_use.
  */
-LIR* LoadConstant(CompilationUnit* cUnit, int rDest, int value)
+LIR* LoadConstant(CompilationUnit* cu, int r_dest, int value)
 {
-  if (IsTemp(cUnit, rDest)) {
-    Clobber(cUnit, rDest);
-    MarkInUse(cUnit, rDest);
+  if (IsTemp(cu, r_dest)) {
+    Clobber(cu, r_dest);
+    MarkInUse(cu, r_dest);
   }
-  return LoadConstantNoClobber(cUnit, rDest, value);
+  return LoadConstantNoClobber(cu, r_dest, value);
 }
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-LIR* LoadWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
-                  int rDest)
+LIR* LoadWordDisp(CompilationUnit* cu, int rBase, int displacement,
+                  int r_dest)
 {
-  return LoadBaseDisp(cUnit, rBase, displacement, rDest, kWord,
+  return LoadBaseDisp(cu, rBase, displacement, r_dest, kWord,
                       INVALID_SREG);
 }
 
-LIR* StoreWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
-                   int rSrc)
+LIR* StoreWordDisp(CompilationUnit* cu, int rBase, int displacement,
+                   int r_src)
 {
-  return StoreBaseDisp(cUnit, rBase, displacement, rSrc, kWord);
+  return StoreBaseDisp(cu, rBase, displacement, r_src, kWord);
 }
 
 /*
@@ -54,15 +54,15 @@ LIR* StoreWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void LoadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
+void LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_dest)
 {
-  rlSrc = UpdateLoc(cUnit, rlSrc);
-  if (rlSrc.location == kLocPhysReg) {
-    OpRegCopy(cUnit, rDest, rlSrc.lowReg);
+  rl_src = UpdateLoc(cu, rl_src);
+  if (rl_src.location == kLocPhysReg) {
+    OpRegCopy(cu, r_dest, rl_src.low_reg);
   } else {
-    DCHECK((rlSrc.location == kLocDalvikFrame) ||
-           (rlSrc.location == kLocCompilerTemp));
-    LoadWordDisp(cUnit, TargetReg(kSp), SRegOffset(cUnit, rlSrc.sRegLow), rDest);
+    DCHECK((rl_src.location == kLocDalvikFrame) ||
+           (rl_src.location == kLocCompilerTemp));
+    LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
   }
 }
 
@@ -71,11 +71,11 @@ void LoadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-void LoadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
+void LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int r_dest)
 {
-  Clobber(cUnit, rDest);
-  MarkInUse(cUnit, rDest);
-  LoadValueDirect(cUnit, rlSrc, rDest);
+  Clobber(cu, r_dest);
+  MarkInUse(cu, r_dest);
+  LoadValueDirect(cu, rl_src, r_dest);
 }
 
 /*
@@ -83,17 +83,17 @@ void LoadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void LoadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
-             int regHi)
+void LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
+             int reg_hi)
 {
-  rlSrc = UpdateLocWide(cUnit, rlSrc);
-  if (rlSrc.location == kLocPhysReg) {
-    OpRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
+  rl_src = UpdateLocWide(cu, rl_src);
+  if (rl_src.location == kLocPhysReg) {
+    OpRegCopyWide(cu, reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
   } else {
-    DCHECK((rlSrc.location == kLocDalvikFrame) ||
-           (rlSrc.location == kLocCompilerTemp));
-    LoadBaseDispWide(cUnit, TargetReg(kSp), SRegOffset(cUnit, rlSrc.sRegLow),
-                     regLo, regHi, INVALID_SREG);
+    DCHECK((rl_src.location == kLocDalvikFrame) ||
+           (rl_src.location == kLocCompilerTemp));
+    LoadBaseDispWide(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low),
+                     reg_lo, reg_hi, INVALID_SREG);
   }
 }
 
@@ -102,31 +102,31 @@ void LoadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
  * registers.  Should be used when loading to a fixed registers (for example,
  * loading arguments to an out of line call.
  */
-void LoadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
-                              int regLo, int regHi)
+void LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src,
+                              int reg_lo, int reg_hi)
 {
-  Clobber(cUnit, regLo);
-  Clobber(cUnit, regHi);
-  MarkInUse(cUnit, regLo);
-  MarkInUse(cUnit, regHi);
-  LoadValueDirectWide(cUnit, rlSrc, regLo, regHi);
+  Clobber(cu, reg_lo);
+  Clobber(cu, reg_hi);
+  MarkInUse(cu, reg_lo);
+  MarkInUse(cu, reg_hi);
+  LoadValueDirectWide(cu, rl_src, reg_lo, reg_hi);
 }
 
-RegLocation LoadValue(CompilationUnit* cUnit, RegLocation rlSrc,
-                      RegisterClass opKind)
+RegLocation LoadValue(CompilationUnit* cu, RegLocation rl_src,
+                      RegisterClass op_kind)
 {
-  rlSrc = EvalLoc(cUnit, rlSrc, opKind, false);
-  if (rlSrc.location != kLocPhysReg) {
-    DCHECK((rlSrc.location == kLocDalvikFrame) ||
-           (rlSrc.location == kLocCompilerTemp));
-    LoadValueDirect(cUnit, rlSrc, rlSrc.lowReg);
-    rlSrc.location = kLocPhysReg;
-    MarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
+  rl_src = EvalLoc(cu, rl_src, op_kind, false);
+  if (rl_src.location != kLocPhysReg) {
+    DCHECK((rl_src.location == kLocDalvikFrame) ||
+           (rl_src.location == kLocCompilerTemp));
+    LoadValueDirect(cu, rl_src, rl_src.low_reg);
+    rl_src.location = kLocPhysReg;
+    MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
   }
-  return rlSrc;
+  return rl_src;
 }
 
-void StoreValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
+void StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
 #ifndef NDEBUG
   /*
@@ -134,70 +134,70 @@ void StoreValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
    * ssa name during the compilation of a single instruction
    * without an intervening ClobberSReg().
    */
-  DCHECK((cUnit->liveSReg == INVALID_SREG) ||
-         (rlDest.sRegLow != cUnit->liveSReg));
-  cUnit->liveSReg = rlDest.sRegLow;
+  DCHECK((cu->live_sreg == INVALID_SREG) ||
+         (rl_dest.s_reg_low != cu->live_sreg));
+  cu->live_sreg = rl_dest.s_reg_low;
 #endif
-  LIR* defStart;
-  LIR* defEnd;
-  DCHECK(!rlDest.wide);
-  DCHECK(!rlSrc.wide);
-  rlSrc = UpdateLoc(cUnit, rlSrc);
-  rlDest = UpdateLoc(cUnit, rlDest);
-  if (rlSrc.location == kLocPhysReg) {
-    if (IsLive(cUnit, rlSrc.lowReg) ||
-      IsPromoted(cUnit, rlSrc.lowReg) ||
-      (rlDest.location == kLocPhysReg)) {
+  LIR* def_start;
+  LIR* def_end;
+  DCHECK(!rl_dest.wide);
+  DCHECK(!rl_src.wide);
+  rl_src = UpdateLoc(cu, rl_src);
+  rl_dest = UpdateLoc(cu, rl_dest);
+  if (rl_src.location == kLocPhysReg) {
+    if (IsLive(cu, rl_src.low_reg) ||
+      IsPromoted(cu, rl_src.low_reg) ||
+      (rl_dest.location == kLocPhysReg)) {
       // Src is live/promoted or Dest has assigned reg.
-      rlDest = EvalLoc(cUnit, rlDest, kAnyReg, false);
-      OpRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
+      rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
+      OpRegCopy(cu, rl_dest.low_reg, rl_src.low_reg);
     } else {
       // Just re-assign the registers.  Dest gets Src's regs
-      rlDest.lowReg = rlSrc.lowReg;
-      Clobber(cUnit, rlSrc.lowReg);
+      rl_dest.low_reg = rl_src.low_reg;
+      Clobber(cu, rl_src.low_reg);
     }
   } else {
     // Load Src either into promoted Dest or temps allocated for Dest
-    rlDest = EvalLoc(cUnit, rlDest, kAnyReg, false);
-    LoadValueDirect(cUnit, rlSrc, rlDest.lowReg);
+    rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
+    LoadValueDirect(cu, rl_src, rl_dest.low_reg);
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
-  MarkDirty(cUnit, rlDest);
+  MarkLive(cu, rl_dest.low_reg, rl_dest.s_reg_low);
+  MarkDirty(cu, rl_dest);
 
 
-  ResetDefLoc(cUnit, rlDest);
-  if (IsDirty(cUnit, rlDest.lowReg) &&
-      oatLiveOut(cUnit, rlDest.sRegLow)) {
-    defStart = cUnit->lastLIRInsn;
-    StoreBaseDisp(cUnit, TargetReg(kSp), SRegOffset(cUnit, rlDest.sRegLow),
-                  rlDest.lowReg, kWord);
-    MarkClean(cUnit, rlDest);
-    defEnd = cUnit->lastLIRInsn;
-    MarkDef(cUnit, rlDest, defStart, defEnd);
+  ResetDefLoc(cu, rl_dest);
+  if (IsDirty(cu, rl_dest.low_reg) &&
+      oat_live_out(cu, rl_dest.s_reg_low)) {
+    def_start = cu->last_lir_insn;
+    StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low),
+                  rl_dest.low_reg, kWord);
+    MarkClean(cu, rl_dest);
+    def_end = cu->last_lir_insn;
+    MarkDef(cu, rl_dest, def_start, def_end);
   }
 }
 
-RegLocation LoadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
-              RegisterClass opKind)
+RegLocation LoadValueWide(CompilationUnit* cu, RegLocation rl_src,
+              RegisterClass op_kind)
 {
-  DCHECK(rlSrc.wide);
-  rlSrc = EvalLoc(cUnit, rlSrc, opKind, false);
-  if (rlSrc.location != kLocPhysReg) {
-    DCHECK((rlSrc.location == kLocDalvikFrame) ||
-        (rlSrc.location == kLocCompilerTemp));
-    LoadValueDirectWide(cUnit, rlSrc, rlSrc.lowReg, rlSrc.highReg);
-    rlSrc.location = kLocPhysReg;
-    MarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
-    MarkLive(cUnit, rlSrc.highReg,
-                oatSRegHi(rlSrc.sRegLow));
+  DCHECK(rl_src.wide);
+  rl_src = EvalLoc(cu, rl_src, op_kind, false);
+  if (rl_src.location != kLocPhysReg) {
+    DCHECK((rl_src.location == kLocDalvikFrame) ||
+        (rl_src.location == kLocCompilerTemp));
+    LoadValueDirectWide(cu, rl_src, rl_src.low_reg, rl_src.high_reg);
+    rl_src.location = kLocPhysReg;
+    MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
+    MarkLive(cu, rl_src.high_reg,
+                GetSRegHi(rl_src.s_reg_low));
   }
-  return rlSrc;
+  return rl_src;
 }
 
-void StoreValueWide(CompilationUnit* cUnit, RegLocation rlDest,
-          RegLocation rlSrc)
+void StoreValueWide(CompilationUnit* cu, RegLocation rl_dest,
+          RegLocation rl_src)
 {
 #ifndef NDEBUG
   /*
@@ -205,70 +205,70 @@ void StoreValueWide(CompilationUnit* cUnit, RegLocation rlDest,
    * ssa name during the compilation of a single instruction
    * without an intervening ClobberSReg().
    */
-  DCHECK((cUnit->liveSReg == INVALID_SREG) ||
-      (rlDest.sRegLow != cUnit->liveSReg));
-  cUnit->liveSReg = rlDest.sRegLow;
+  DCHECK((cu->live_sreg == INVALID_SREG) ||
+      (rl_dest.s_reg_low != cu->live_sreg));
+  cu->live_sreg = rl_dest.s_reg_low;
 #endif
-  LIR* defStart;
-  LIR* defEnd;
-  DCHECK_EQ(FpReg(rlSrc.lowReg), FpReg(rlSrc.highReg));
-  DCHECK(rlDest.wide);
-  DCHECK(rlSrc.wide);
-  if (rlSrc.location == kLocPhysReg) {
-    if (IsLive(cUnit, rlSrc.lowReg) ||
-        IsLive(cUnit, rlSrc.highReg) ||
-        IsPromoted(cUnit, rlSrc.lowReg) ||
-        IsPromoted(cUnit, rlSrc.highReg) ||
-        (rlDest.location == kLocPhysReg)) {
+  LIR* def_start;
+  LIR* def_end;
+  DCHECK_EQ(FpReg(rl_src.low_reg), FpReg(rl_src.high_reg));
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_src.wide);
+  if (rl_src.location == kLocPhysReg) {
+    if (IsLive(cu, rl_src.low_reg) ||
+        IsLive(cu, rl_src.high_reg) ||
+        IsPromoted(cu, rl_src.low_reg) ||
+        IsPromoted(cu, rl_src.high_reg) ||
+        (rl_dest.location == kLocPhysReg)) {
       // Src is live or promoted or Dest has assigned reg.
-      rlDest = EvalLoc(cUnit, rlDest, kAnyReg, false);
-      OpRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
-                    rlSrc.lowReg, rlSrc.highReg);
+      rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
+      OpRegCopyWide(cu, rl_dest.low_reg, rl_dest.high_reg,
+                    rl_src.low_reg, rl_src.high_reg);
     } else {
       // Just re-assign the registers.  Dest gets Src's regs
-      rlDest.lowReg = rlSrc.lowReg;
-      rlDest.highReg = rlSrc.highReg;
-      Clobber(cUnit, rlSrc.lowReg);
-      Clobber(cUnit, rlSrc.highReg);
+      rl_dest.low_reg = rl_src.low_reg;
+      rl_dest.high_reg = rl_src.high_reg;
+      Clobber(cu, rl_src.low_reg);
+      Clobber(cu, rl_src.high_reg);
     }
   } else {
     // Load Src either into promoted Dest or temps allocated for Dest
-    rlDest = EvalLoc(cUnit, rlDest, kAnyReg, false);
-    LoadValueDirectWide(cUnit, rlSrc, rlDest.lowReg, rlDest.highReg);
+    rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
+    LoadValueDirectWide(cu, rl_src, rl_dest.low_reg, rl_dest.high_reg);
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
-  MarkLive(cUnit, rlDest.highReg, oatSRegHi(rlDest.sRegLow));
-  MarkDirty(cUnit, rlDest);
-  MarkPair(cUnit, rlDest.lowReg, rlDest.highReg);
+  MarkLive(cu, rl_dest.low_reg, rl_dest.s_reg_low);
+  MarkLive(cu, rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
+  MarkDirty(cu, rl_dest);
+  MarkPair(cu, rl_dest.low_reg, rl_dest.high_reg);
 
 
-  ResetDefLocWide(cUnit, rlDest);
-  if ((IsDirty(cUnit, rlDest.lowReg) ||
-      IsDirty(cUnit, rlDest.highReg)) &&
-      (oatLiveOut(cUnit, rlDest.sRegLow) ||
-      oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
-    defStart = cUnit->lastLIRInsn;
-    DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
-              SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
-    StoreBaseDispWide(cUnit, TargetReg(kSp), SRegOffset(cUnit, rlDest.sRegLow),
-                      rlDest.lowReg, rlDest.highReg);
-    MarkClean(cUnit, rlDest);
-    defEnd = cUnit->lastLIRInsn;
-    MarkDefWide(cUnit, rlDest, defStart, defEnd);
+  ResetDefLocWide(cu, rl_dest);
+  if ((IsDirty(cu, rl_dest.low_reg) ||
+      IsDirty(cu, rl_dest.high_reg)) &&
+      (oat_live_out(cu, rl_dest.s_reg_low) ||
+      oat_live_out(cu, GetSRegHi(rl_dest.s_reg_low)))) {
+    def_start = cu->last_lir_insn;
+    DCHECK_EQ((SRegToVReg(cu, rl_dest.s_reg_low)+1),
+              SRegToVReg(cu, GetSRegHi(rl_dest.s_reg_low)));
+    StoreBaseDispWide(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low),
+                      rl_dest.low_reg, rl_dest.high_reg);
+    MarkClean(cu, rl_dest);
+    def_end = cu->last_lir_insn;
+    MarkDefWide(cu, rl_dest, def_start, def_end);
   }
 }
 
 /* Utilities to load the current Method* */
-void LoadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
+void LoadCurrMethodDirect(CompilationUnit *cu, int r_tgt)
 {
-  LoadValueDirectFixed(cUnit, cUnit->methodLoc, rTgt);
+  LoadValueDirectFixed(cu, cu->method_loc, r_tgt);
 }
 
-RegLocation LoadCurrMethod(CompilationUnit *cUnit)
+RegLocation LoadCurrMethod(CompilationUnit *cu)
 {
-  return LoadValue(cUnit, cUnit->methodLoc, kCoreReg);
+  return LoadValue(cu, cu->method_loc, kCoreReg);
 }
 
 }  // namespace art
