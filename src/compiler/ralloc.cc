@@ -20,7 +20,7 @@
 
 namespace art {
 
-bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
+static bool SetFp(CompilationUnit* cUnit, int index, bool isFP) {
   bool change = false;
   if (isFP && !cUnit->regLocation[index].fp) {
     cUnit->regLocation[index].fp = true;
@@ -30,7 +30,7 @@ bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
   return change;
 }
 
-bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
+static bool SetCore(CompilationUnit* cUnit, int index, bool isCore) {
   bool change = false;
   if (isCore && !cUnit->regLocation[index].defined) {
     cUnit->regLocation[index].core = true;
@@ -40,7 +40,7 @@ bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
   return change;
 }
 
-bool setRef(CompilationUnit* cUnit, int index, bool isRef) {
+static bool SetRef(CompilationUnit* cUnit, int index, bool isRef) {
   bool change = false;
   if (isRef && !cUnit->regLocation[index].defined) {
     cUnit->regLocation[index].ref = true;
@@ -50,7 +50,7 @@ bool setRef(CompilationUnit* cUnit, int index, bool isRef) {
   return change;
 }
 
-bool setWide(CompilationUnit* cUnit, int index, bool isWide) {
+static bool SetWide(CompilationUnit* cUnit, int index, bool isWide) {
   bool change = false;
   if (isWide && !cUnit->regLocation[index].wide) {
     cUnit->regLocation[index].wide = true;
@@ -59,7 +59,7 @@ bool setWide(CompilationUnit* cUnit, int index, bool isWide) {
   return change;
 }
 
-bool setHigh(CompilationUnit* cUnit, int index, bool isHigh) {
+static bool SetHigh(CompilationUnit* cUnit, int index, bool isHigh) {
   bool change = false;
   if (isHigh && !cUnit->regLocation[index].highWord) {
     cUnit->regLocation[index].highWord = true;
@@ -68,7 +68,7 @@ bool setHigh(CompilationUnit* cUnit, int index, bool isHigh) {
   return change;
 }
 
-bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
+static bool RemapNames(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
       bb->blockType != kExitBlock)
@@ -93,7 +93,7 @@ bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
  * as it doesn't propagate.  We're guaranteed at least one pass through
  * the cfg.
  */
-bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
+static bool InferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 {
   MIR *mir;
   bool changed = false;   // Did anything change?
@@ -110,10 +110,10 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       // Handle defs
       if (attrs & DF_DA) {
         if (attrs & DF_CORE_A) {
-          changed |= setCore(cUnit, ssaRep->defs[0], true);
+          changed |= SetCore(cUnit, ssaRep->defs[0], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= setRef(cUnit, ssaRep->defs[0], true);
+          changed |= SetRef(cUnit, ssaRep->defs[0], true);
         }
         if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->defs[0]].wide = true;
@@ -128,10 +128,10 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       int next = 0;
       if (attrs & DF_UA) {
         if (attrs & DF_CORE_A) {
-          changed |= setCore(cUnit, ssaRep->uses[next], true);
+          changed |= SetCore(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= setRef(cUnit, ssaRep->uses[next], true);
+          changed |= SetRef(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
@@ -146,10 +146,10 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       }
       if (attrs & DF_UB) {
         if (attrs & DF_CORE_B) {
-          changed |= setCore(cUnit, ssaRep->uses[next], true);
+          changed |= SetCore(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_REF_B) {
-          changed |= setRef(cUnit, ssaRep->uses[next], true);
+          changed |= SetRef(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_B_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
@@ -164,10 +164,10 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       }
       if (attrs & DF_UC) {
         if (attrs & DF_CORE_C) {
-          changed |= setCore(cUnit, ssaRep->uses[next], true);
+          changed |= SetCore(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_REF_C) {
-          changed |= setRef(cUnit, ssaRep->uses[next], true);
+          changed |= SetRef(cUnit, ssaRep->uses[next], true);
         }
         if (attrs & DF_C_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
@@ -184,27 +184,27 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
           (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
         switch(cUnit->shorty[0]) {
             case 'I':
-              changed |= setCore(cUnit, ssaRep->uses[0], true);
+              changed |= SetCore(cUnit, ssaRep->uses[0], true);
               break;
             case 'J':
-              changed |= setCore(cUnit, ssaRep->uses[0], true);
-              changed |= setCore(cUnit, ssaRep->uses[1], true);
+              changed |= SetCore(cUnit, ssaRep->uses[0], true);
+              changed |= SetCore(cUnit, ssaRep->uses[1], true);
               cUnit->regLocation[ssaRep->uses[0]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].highWord = true;
               break;
             case 'F':
-              changed |= setFp(cUnit, ssaRep->uses[0], true);
+              changed |= SetFp(cUnit, ssaRep->uses[0], true);
               break;
             case 'D':
-              changed |= setFp(cUnit, ssaRep->uses[0], true);
-              changed |= setFp(cUnit, ssaRep->uses[1], true);
+              changed |= SetFp(cUnit, ssaRep->uses[0], true);
+              changed |= SetFp(cUnit, ssaRep->uses[1], true);
               cUnit->regLocation[ssaRep->uses[0]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].highWord = true;
               break;
             case 'L':
-              changed |= setRef(cUnit, ssaRep->uses[0], true);
+              changed |= SetRef(cUnit, ssaRep->uses[0], true);
               break;
             default: break;
         }
@@ -218,20 +218,20 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
           (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
         DCHECK_EQ(next, 0);
         int target_idx = mir->dalvikInsn.vB;
-        const char* shorty = oatGetShortyFromTargetIdx(cUnit, target_idx);
+        const char* shorty = GetShortyFromTargetIdx(cUnit, target_idx);
         // Handle result type if floating point
         if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
-          MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
+          MIR* moveResultMIR = FindMoveResult(cUnit, bb, mir);
           // Result might not be used at all, so no move-result
           if (moveResultMIR && (moveResultMIR->dalvikInsn.opcode !=
               Instruction::MOVE_RESULT_OBJECT)) {
             SSARepresentation* tgtRep = moveResultMIR->ssaRep;
             DCHECK(tgtRep != NULL);
             tgtRep->fpDef[0] = true;
-            changed |= setFp(cUnit, tgtRep->defs[0], true);
+            changed |= SetFp(cUnit, tgtRep->defs[0], true);
             if (shorty[0] == 'D') {
               tgtRep->fpDef[1] = true;
-              changed |= setFp(cUnit, tgtRep->defs[1], true);
+              changed |= SetFp(cUnit, tgtRep->defs[1], true);
             }
           }
         }
@@ -264,17 +264,17 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 cUnit->regLocation[ssaRep->uses[i+1]].highWord = true;
                 DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[i])+1,
                                      SRegToVReg(cUnit, ssaRep->uses[i+1]));
-                changed |= setCore(cUnit, ssaRep->uses[i],true);
+                changed |= SetCore(cUnit, ssaRep->uses[i],true);
                 i++;
                 break;
               case 'F':
                 ssaRep->fpUse[i] = true;
                 break;
               case 'L':
-                changed |= setRef(cUnit,ssaRep->uses[i], true);
+                changed |= SetRef(cUnit,ssaRep->uses[i], true);
                 break;
               default:
-                changed |= setCore(cUnit,ssaRep->uses[i], true);
+                changed |= SetCore(cUnit,ssaRep->uses[i], true);
                 break;
             }
             i++;
@@ -284,11 +284,11 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 
       for (int i=0; ssaRep->fpUse && i< ssaRep->numUses; i++) {
         if (ssaRep->fpUse[i])
-          changed |= setFp(cUnit, ssaRep->uses[i], true);
+          changed |= SetFp(cUnit, ssaRep->uses[i], true);
         }
       for (int i=0; ssaRep->fpDef && i< ssaRep->numDefs; i++) {
         if (ssaRep->fpDef[i])
-          changed |= setFp(cUnit, ssaRep->defs[i], true);
+          changed |= SetFp(cUnit, ssaRep->defs[i], true);
         }
       // Special-case handling for moves & Phi
       if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
@@ -335,26 +335,26 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                        << " has both fp and core/ref uses for same def.";
           cUnit->disableOpt |= (1 << kPromoteRegs);
         }
-        changed |= setFp(cUnit, ssaRep->defs[0], definedFP);
-        changed |= setCore(cUnit, ssaRep->defs[0], definedCore);
-        changed |= setRef(cUnit, ssaRep->defs[0], definedRef);
-        changed |= setWide(cUnit, ssaRep->defs[0], isWide);
-        changed |= setHigh(cUnit, ssaRep->defs[0], isHigh);
+        changed |= SetFp(cUnit, ssaRep->defs[0], definedFP);
+        changed |= SetCore(cUnit, ssaRep->defs[0], definedCore);
+        changed |= SetRef(cUnit, ssaRep->defs[0], definedRef);
+        changed |= SetWide(cUnit, ssaRep->defs[0], isWide);
+        changed |= SetHigh(cUnit, ssaRep->defs[0], isHigh);
         if (attrs & DF_A_WIDE) {
-          changed |= setWide(cUnit, ssaRep->defs[1], true);
-          changed |= setHigh(cUnit, ssaRep->defs[1], true);
+          changed |= SetWide(cUnit, ssaRep->defs[1], true);
+          changed |= SetHigh(cUnit, ssaRep->defs[1], true);
         }
         for (int i = 0; i < ssaRep->numUses; i++) {
-          changed |= setFp(cUnit, ssaRep->uses[i], definedFP);
-          changed |= setCore(cUnit, ssaRep->uses[i], definedCore);
-          changed |= setRef(cUnit, ssaRep->uses[i], definedRef);
-          changed |= setWide(cUnit, ssaRep->uses[i], isWide);
-          changed |= setHigh(cUnit, ssaRep->uses[i], isHigh);
+          changed |= SetFp(cUnit, ssaRep->uses[i], definedFP);
+          changed |= SetCore(cUnit, ssaRep->uses[i], definedCore);
+          changed |= SetRef(cUnit, ssaRep->uses[i], definedRef);
+          changed |= SetWide(cUnit, ssaRep->uses[i], isWide);
+          changed |= SetHigh(cUnit, ssaRep->uses[i], isHigh);
         }
         if (attrs & DF_A_WIDE) {
           DCHECK_EQ(ssaRep->numUses, 2);
-          changed |= setWide(cUnit, ssaRep->uses[1], true);
-          changed |= setHigh(cUnit, ssaRep->uses[1], true);
+          changed |= SetWide(cUnit, ssaRep->uses[1], true);
+          changed |= SetHigh(cUnit, ssaRep->uses[1], true);
         }
       }
     }
@@ -364,7 +364,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 
 static const char* storageName[] = {" Frame ", "PhysReg", " Spill "};
 
-void oatDumpRegLocTable(RegLocation* table, int count)
+static void DumpRegLocTable(RegLocation* table, int count)
 {
   for (int i = 0; i < count; i++) {
     LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
@@ -372,22 +372,18 @@ void oatDumpRegLocTable(RegLocation* table, int count)
         table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
         table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
         table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
-        oatIsFpReg(table[i].lowReg) ? 's' : 'r',
-        table[i].lowReg & oatFpRegMask(),
-        oatIsFpReg(table[i].highReg) ? 's' : 'r',
-        table[i].highReg & oatFpRegMask(), table[i].sRegLow);
+        IsFpReg(table[i].lowReg) ? 's' : 'r',
+        table[i].lowReg & FpRegMask(),
+        IsFpReg(table[i].highReg) ? 's' : 'r',
+        table[i].highReg & FpRegMask(), table[i].sRegLow);
   }
-}
-
-void oatDumpRegLoc(RegLocation loc) {
-  oatDumpRegLocTable(&loc, 1);
 }
 
 static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG,
                                      INVALID_SREG};
 
-int oatComputeFrameSize(CompilationUnit* cUnit) {
+int ComputeFrameSize(CompilationUnit* cUnit) {
   /* Figure out the frame size */
   static const uint32_t kAlignMask = kStackAlignment - 1;
   uint32_t size = (cUnit->numCoreSpills + cUnit->numFPSpills +
@@ -404,18 +400,18 @@ int oatComputeFrameSize(CompilationUnit* cUnit) {
  * allocation is done on the fly.  We also do some initialization and
  * type inference here.
  */
-void oatSimpleRegAlloc(CompilationUnit* cUnit)
+void SimpleRegAlloc(CompilationUnit* cUnit)
 {
   int i;
   RegLocation* loc;
 
   /* Allocate the location map */
-  loc = static_cast<RegLocation*>(oatNew(cUnit, cUnit->numSSARegs * sizeof(*loc),
+  loc = static_cast<RegLocation*>(NewMem(cUnit, cUnit->numSSARegs * sizeof(*loc),
                                   true, kAllocRegAlloc));
   for (i=0; i< cUnit->numSSARegs; i++) {
     loc[i] = freshLoc;
     loc[i].sRegLow = i;
-    loc[i].isConst = oatIsBitSet(cUnit->isConstantV, i);
+    loc[i].isConst = IsBitSet(cUnit->isConstantV, i);
   }
 
   /* Patch up the locations for Method* and the compiler temps */
@@ -432,7 +428,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
   /* Allocation the promotion map */
   int numRegs = cUnit->numDalvikRegisters;
   cUnit->promotionMap = static_cast<PromotionMap*>
-      (oatNew(cUnit, (numRegs + cUnit->numCompilerTemps + 1) * sizeof(cUnit->promotionMap[0]),
+      (NewMem(cUnit, (numRegs + cUnit->numCompilerTemps + 1) * sizeof(cUnit->promotionMap[0]),
               true, kAllocRegAlloc));
 
   /* Add types of incoming arguments based on signature */
@@ -485,13 +481,13 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
   if (!cUnit->genBitcode) {
     /* Remap names */
-    oatDataFlowAnalysisDispatcher(cUnit, remapNames,
+    DataFlowAnalysisDispatcher(cUnit, RemapNames,
                                   kPreOrderDFSTraversal,
                                   false /* isIterative */);
   }
 
   /* Do type & size inference pass */
-  oatDataFlowAnalysisDispatcher(cUnit, inferTypeAndSize,
+  DataFlowAnalysisDispatcher(cUnit, InferTypeAndSize,
                                 kPreOrderDFSTraversal,
                                 true /* isIterative */);
 
@@ -512,18 +508,18 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
   cUnit->fpSpillMask = 0;
   cUnit->numCoreSpills = 0;
 
-  oatDoPromotion(cUnit);
+  DoPromotion(cUnit);
 
   /* Get easily-accessable post-promotion copy of RegLocation for Method* */
   cUnit->methodLoc = cUnit->regLocation[cUnit->methodSReg];
 
   if (cUnit->printMe && !(cUnit->disableOpt & (1 << kPromoteRegs))) {
     LOG(INFO) << "After Promotion";
-    oatDumpRegLocTable(cUnit->regLocation, cUnit->numSSARegs);
+    DumpRegLocTable(cUnit->regLocation, cUnit->numSSARegs);
   }
 
   /* Set the frame size */
-  cUnit->frameSize = oatComputeFrameSize(cUnit);
+  cUnit->frameSize = ComputeFrameSize(cUnit);
 }
 
 }  // namespace art

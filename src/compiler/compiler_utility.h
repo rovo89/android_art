@@ -84,7 +84,7 @@ enum oatBitMapKind {
 };
 
 /* Allocate the initial memory block for arena-based allocation */
-bool oatHeapInit(CompilationUnit* cUnit);
+bool HeapInit(CompilationUnit* cUnit);
 
 /* Collect memory usage statistics */
 //#define WITH_MEMSTATS
@@ -96,9 +96,9 @@ struct ArenaMemBlock {
   char ptr[0];
 };
 
-void* oatNew(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind);
+void* NewMem(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind);
 
-void oatArenaReset(CompilationUnit *cUnit);
+void ArenaReset(CompilationUnit *cUnit);
 
 struct GrowableList {
   GrowableList() : numAllocated(0), numUsed(0), elemList(NULL) {
@@ -150,48 +150,46 @@ struct CompilationUnit;
 struct LIR;
 struct RegLocation;
 
-void oatInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
+void CompilerInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
                          size_t initLength, oatListKind kind = kListMisc);
-void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+void InsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
                            uintptr_t elem);
-void oatDeleteGrowableList(GrowableList* gList, uintptr_t elem);
-void oatGrowableListIteratorInit(GrowableList* gList,
+void DeleteGrowableList(GrowableList* gList, uintptr_t elem);
+void GrowableListIteratorInit(GrowableList* gList,
                                  GrowableListIterator* iterator);
-uintptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator);
-uintptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx);
+uintptr_t GrowableListIteratorNext(GrowableListIterator* iterator);
+uintptr_t GrowableListGetElement(const GrowableList* gList, size_t idx);
 
-ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
+ArenaBitVector* AllocBitVector(CompilationUnit* cUnit,
                                   unsigned int startBits, bool expandable,
                                   oatBitMapKind = kBitMapMisc);
-void oatBitVectorIteratorInit(ArenaBitVector* pBits,
+void BitVectorIteratorInit(ArenaBitVector* pBits,
                               ArenaBitVectorIterator* iterator);
-int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator);
-bool oatSetBit(CompilationUnit *cUnit, ArenaBitVector* pBits, unsigned int num);
-bool oatClearBit(ArenaBitVector* pBits, unsigned int num);
-void oatMarkAllBits(ArenaBitVector* pBits, bool set);
-void oatDebugBitVector(char* msg, const ArenaBitVector* bv, int length);
-bool oatIsBitSet(const ArenaBitVector* pBits, unsigned int num);
-void oatClearAllBits(ArenaBitVector* pBits);
-void oatSetInitialBits(ArenaBitVector* pBits, unsigned int numBits);
-void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src);
-bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
+int BitVectorIteratorNext(ArenaBitVectorIterator* iterator);
+bool SetBit(CompilationUnit *cUnit, ArenaBitVector* pBits, unsigned int num);
+bool ClearBit(ArenaBitVector* pBits, unsigned int num);
+void MarkAllBits(ArenaBitVector* pBits, bool set);
+void DebugBitVector(char* msg, const ArenaBitVector* bv, int length);
+bool IsBitSet(const ArenaBitVector* pBits, unsigned int num);
+void ClearAllBits(ArenaBitVector* pBits);
+void SetInitialBits(ArenaBitVector* pBits, unsigned int numBits);
+void CopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src);
+bool IntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                             const ArenaBitVector* src2);
-bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
+bool UnifyBitVetors(ArenaBitVector* dest, const ArenaBitVector* src1,
                         const ArenaBitVector* src2);
-bool oatCompareBitVectors(const ArenaBitVector* src1,
+bool CompareBitVectors(const ArenaBitVector* src1,
                           const ArenaBitVector* src2);
-bool oatTestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
-int oatCountSetBits(const ArenaBitVector* pBits);
+bool TestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
+int CountSetBits(const ArenaBitVector* pBits);
 
-void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr);
-void oatDumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
-void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
+void DumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr);
+void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
+void DumpBlockBitVector(const GrowableList* blocks, char* msg,
                            const ArenaBitVector* bv, int length);
-void oatGetBlockName(BasicBlock* bb, char* name);
-const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
-void oatDumpRegLocTable(RegLocation*, int);
-void oatDumpMemStats(CompilationUnit* cUnit);
-void oatDumpRegLoc(RegLocation loc);
+void GetBlockName(BasicBlock* bb, char* name);
+const char* GetShortyFromTargetIdx(CompilationUnit*, int);
+void DumpMemStats(CompilationUnit* cUnit);
 
 }  // namespace art
 

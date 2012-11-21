@@ -21,7 +21,7 @@
 
 namespace art {
 
-bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
+bool GenArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
 #ifdef __mips_hard_float
@@ -52,24 +52,24 @@ bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
     case Instruction::NEG_FLOAT: {
-      return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
   }
-  rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-  rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-  storeValue(cUnit, rlDest, rlResult);
+  rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
+  rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+  NewLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
+  StoreValue(cUnit, rlDest, rlResult);
 
   return false;
 #else
-  return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+  return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
-bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
+bool GenArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
                       RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
 #ifdef __mips_hard_float
@@ -96,28 +96,28 @@ bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
     case Instruction::NEG_DOUBLE: {
-      return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
   }
-  rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
   DCHECK(rlSrc1.wide);
-  rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
+  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
   DCHECK(rlSrc2.wide);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  newLIR3(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), s2d(rlSrc1.lowReg, rlSrc1.highReg),
-          s2d(rlSrc2.lowReg, rlSrc2.highReg));
-  storeValueWide(cUnit, rlDest, rlResult);
+  NewLIR3(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), S2d(rlSrc1.lowReg, rlSrc1.highReg),
+          S2d(rlSrc2.lowReg, rlSrc2.highReg));
+  StoreValueWide(cUnit, rlDest, rlResult);
   return false;
 #else
-  return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+  return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
-bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
+bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
                    RegLocation rlSrc)
 {
 #ifdef __mips_hard_float
@@ -143,33 +143,33 @@ bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
     case Instruction::DOUBLE_TO_LONG:
-      return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
+      return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
     default:
       return true;
   }
   if (rlSrc.wide) {
-    rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-    srcReg = s2d(rlSrc.lowReg, rlSrc.highReg);
+    rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
+    srcReg = S2d(rlSrc.lowReg, rlSrc.highReg);
   } else {
-    rlSrc = loadValue(cUnit, rlSrc, kFPReg);
+    rlSrc = LoadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
   if (rlDest.wide) {
-    rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), srcReg);
-    storeValueWide(cUnit, rlDest, rlResult);
+    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+    NewLIR2(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), srcReg);
+    StoreValueWide(cUnit, rlDest, rlResult);
   } else {
-    rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, op, rlResult.lowReg, srcReg);
-    storeValue(cUnit, rlDest, rlResult);
+    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+    NewLIR2(cUnit, op, rlResult.lowReg, srcReg);
+    StoreValue(cUnit, rlDest, rlResult);
   }
   return false;
 #else
-  return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
+  return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
 #endif
 }
 
-bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
+bool GenCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
               RegLocation rlSrc1, RegLocation rlSrc2)
 {
   bool wide = true;
@@ -193,49 +193,49 @@ bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDe
     default:
       return true;
   }
-  oatFlushAllRegs(cUnit);
-  oatLockCallTemps(cUnit);
+  FlushAllRegs(cUnit);
+  LockCallTemps(cUnit);
   if (wide) {
-    loadValueDirectWideFixed(cUnit, rlSrc1, rMIPS_FARG0, rMIPS_FARG1);
-    loadValueDirectWideFixed(cUnit, rlSrc2, rMIPS_FARG2, rMIPS_FARG3);
+    LoadValueDirectWideFixed(cUnit, rlSrc1, rMIPS_FARG0, rMIPS_FARG1);
+    LoadValueDirectWideFixed(cUnit, rlSrc2, rMIPS_FARG2, rMIPS_FARG3);
   } else {
-    loadValueDirectFixed(cUnit, rlSrc1, rMIPS_FARG0);
-    loadValueDirectFixed(cUnit, rlSrc2, rMIPS_FARG2);
+    LoadValueDirectFixed(cUnit, rlSrc1, rMIPS_FARG0);
+    LoadValueDirectFixed(cUnit, rlSrc2, rMIPS_FARG2);
   }
-  int rTgt = loadHelper(cUnit, offset);
+  int rTgt = LoadHelper(cUnit, offset);
   // NOTE: not a safepoint
-  opReg(cUnit, kOpBlx, rTgt);
-  RegLocation rlResult = oatGetReturn(cUnit, false);
-  storeValue(cUnit, rlDest, rlResult);
+  OpReg(cUnit, kOpBlx, rTgt);
+  RegLocation rlResult = GetReturn(cUnit, false);
+  StoreValue(cUnit, rlDest, rlResult);
   return false;
 }
 
-void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+void GenFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                                 bool gtBias, bool isDouble)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
-void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   RegLocation rlResult;
-  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
-  storeValue(cUnit, rlDest, rlResult);
+  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+  OpRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
+  StoreValue(cUnit, rlDest, rlResult);
 }
 
-void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   RegLocation rlResult;
-  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
-  opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
-  storeValueWide(cUnit, rlDest, rlResult);
+  rlSrc = LoadValueWide(cUnit, rlSrc, kCoreReg);
+  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+  OpRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
+  OpRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+  StoreValueWide(cUnit, rlDest, rlResult);
 }
 
-bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
+bool GenInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
 {
   // TODO: need Mips implementation
   return false;

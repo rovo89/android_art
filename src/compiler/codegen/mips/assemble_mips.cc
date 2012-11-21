@@ -458,7 +458,7 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
  * NOTE: An out-of-range bal isn't supported because it should
  * never happen with the current PIC model.
  */
-void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
+void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
 {
   // For conditional branches we'll need to reverse the sense
   bool unconditional = false;
@@ -483,27 +483,27 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
   }
   LIR* hopTarget = NULL;
   if (!unconditional) {
-    hopTarget = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
-    LIR* hopBranch = rawLIR(cUnit, dalvikOffset, opcode, lir->operands[0],
+    hopTarget = RawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
+    LIR* hopBranch = RawLIR(cUnit, dalvikOffset, opcode, lir->operands[0],
                             lir->operands[1], 0, 0, 0, hopTarget);
-    oatInsertLIRBefore(lir, hopBranch);
+    InsertLIRBefore(lir, hopBranch);
   }
-  LIR* currPC = rawLIR(cUnit, dalvikOffset, kMipsCurrPC);
-  oatInsertLIRBefore(lir, currPC);
-  LIR* anchor = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
-  LIR* deltaHi = rawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
+  LIR* currPC = RawLIR(cUnit, dalvikOffset, kMipsCurrPC);
+  InsertLIRBefore(lir, currPC);
+  LIR* anchor = RawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
+  LIR* deltaHi = RawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
-  oatInsertLIRBefore(lir, deltaHi);
-  oatInsertLIRBefore(lir, anchor);
-  LIR* deltaLo = rawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
+  InsertLIRBefore(lir, deltaHi);
+  InsertLIRBefore(lir, anchor);
+  LIR* deltaLo = RawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
-  oatInsertLIRBefore(lir, deltaLo);
-  LIR* addu = rawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
-  oatInsertLIRBefore(lir, addu);
-  LIR* jr = rawLIR(cUnit, dalvikOffset, kMipsJr, r_AT);
-  oatInsertLIRBefore(lir, jr);
+  InsertLIRBefore(lir, deltaLo);
+  LIR* addu = RawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
+  InsertLIRBefore(lir, addu);
+  LIR* jr = RawLIR(cUnit, dalvikOffset, kMipsJr, r_AT);
+  InsertLIRBefore(lir, jr);
   if (!unconditional) {
-    oatInsertLIRBefore(lir, hopTarget);
+    InsertLIRBefore(lir, hopTarget);
   }
   lir->flags.isNop = true;
 }
@@ -514,7 +514,7 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
+AssemblerStatus AssembleInstructions(CompilationUnit *cUnit,
                     uintptr_t startAddr)
 {
   LIR *lir;
@@ -552,19 +552,19 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         } else {
           // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
           LIR *newDeltaHi =
-              rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
+              RawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          oatInsertLIRBefore(lir, newDeltaHi);
+          InsertLIRBefore(lir, newDeltaHi);
           LIR *newDeltaLo =
-              rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
+              RawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          oatInsertLIRBefore(lir, newDeltaLo);
+          InsertLIRBefore(lir, newDeltaLo);
           LIR *newAddu =
-              rawLIR(cUnit, lir->dalvikOffset, kMipsAddu,
+              RawLIR(cUnit, lir->dalvikOffset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
-          oatInsertLIRBefore(lir, newAddu);
+          InsertLIRBefore(lir, newAddu);
           lir->flags.isNop = true;
           res = kRetryAll;
         }
@@ -590,7 +590,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          convertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cUnit, lir);
         } else {
           lir->operands[0] = delta >> 2;
         }
@@ -604,7 +604,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          convertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cUnit, lir);
         } else {
           lir->operands[1] = delta >> 2;
         }
@@ -618,7 +618,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          convertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cUnit, lir);
         } else {
           lir->operands[2] = delta >> 2;
         }
@@ -710,7 +710,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
   return res;
 }
 
-int oatGetInsnSize(LIR* lir)
+int GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }
@@ -718,7 +718,7 @@ int oatGetInsnSize(LIR* lir)
  * Target-dependent offset assignment.
  * independent.
  */
-int oatAssignInsnOffsets(CompilationUnit* cUnit)
+int AssignInsnOffsets(CompilationUnit* cUnit)
 {
   LIR* mipsLIR;
   int offset = 0;

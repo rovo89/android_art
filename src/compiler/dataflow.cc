@@ -848,14 +848,14 @@ int SRegToSubscript(const CompilationUnit* cUnit, int ssaReg)
   return GET_ELEM_N(cUnit->ssaSubscripts, int, ssaReg);
 }
 
-int getSSAUseCount(CompilationUnit* cUnit, int sReg)
+static int GetSSAUseCount(CompilationUnit* cUnit, int sReg)
 {
   DCHECK(sReg < static_cast<int>(cUnit->rawUseCounts.numUsed));
   return cUnit->rawUseCounts.elemList[sReg];
 }
 
 
-char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
+char* GetDalvikDisassembly(CompilationUnit* cUnit,
                               const DecodedInstruction& insn, const char* note)
 {
   std::string str;
@@ -931,12 +931,12 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
     }
   }
   int length = str.length() + 1;
-  ret = static_cast<char*>(oatNew(cUnit, length, false, kAllocDFInfo));
+  ret = static_cast<char*>(NewMem(cUnit, length, false, kAllocDFInfo));
   strncpy(ret, str.c_str(), length);
   return ret;
 }
 
-std::string getSSAName(const CompilationUnit* cUnit, int ssaReg)
+static std::string GetSSAName(const CompilationUnit* cUnit, int ssaReg)
 {
   return StringPrintf("v%d_%d", SRegToVReg(cUnit, ssaReg),
                      SRegToSubscript(cUnit, ssaReg));
@@ -945,7 +945,7 @@ std::string getSSAName(const CompilationUnit* cUnit, int ssaReg)
 /*
  * Dalvik instruction disassembler with optional SSA printing.
  */
-char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
+char* FullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 {
   std::string str;
   const DecodedInstruction* insn = &mir->dalvikInsn;
@@ -958,13 +958,13 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
     if (opcode == kMirOpPhi) {
       int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
       str.append(StringPrintf("PHI %s = (%s",
-                 getSSAName(cUnit, mir->ssaRep->defs[0]).c_str(),
-                 getSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
+                 GetSSAName(cUnit, mir->ssaRep->defs[0]).c_str(),
+                 GetSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
       str.append(StringPrintf(":%d",incoming[0]));
       int i;
       for (i = 1; i < mir->ssaRep->numUses; i++) {
         str.append(StringPrintf(", %s:%d",
-                                getSSAName(cUnit, mir->ssaRep->uses[i]).c_str(),
+                                GetSSAName(cUnit, mir->ssaRep->uses[i]).c_str(),
                                 incoming[i]));
       }
       str.append(")");
@@ -988,13 +988,13 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
     switch (dalvikFormat) {
       case Instruction::k21t:
         str.append(StringPrintf(" %s, ",
-                   getSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
+                   GetSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
         delta = insn->vB;
         break;
       case Instruction::k22t:
         str.append(StringPrintf(" %s, %s, ",
-                 getSSAName(cUnit, mir->ssaRep->uses[0]).c_str(),
-                 getSSAName(cUnit, mir->ssaRep->uses[1]).c_str()));
+                 GetSSAName(cUnit, mir->ssaRep->uses[0]).c_str(),
+                 GetSSAName(cUnit, mir->ssaRep->uses[1]).c_str()));
         delta = insn->vC;
         break;
       case Instruction::k10t:
@@ -1011,7 +1011,7 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
     for (i = 0; i < insn->vA; i++) {
       if (i != 0) str.append(",");
         str.append(" ");
-        str.append(getSSAName(cUnit, mir->ssaRep->uses[i]));
+        str.append(GetSSAName(cUnit, mir->ssaRep->uses[i]));
     }
   } else {
     int udIdx;
@@ -1019,17 +1019,17 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 
       for (udIdx = 0; udIdx < mir->ssaRep->numDefs; udIdx++) {
         str.append(" ");
-        str.append(getSSAName(cUnit, mir->ssaRep->defs[udIdx]));
+        str.append(GetSSAName(cUnit, mir->ssaRep->defs[udIdx]));
       }
       str.append(",");
     }
     if (mir->ssaRep->numUses) {
       /* No leading ',' for the first use */
       str.append(" ");
-      str.append(getSSAName(cUnit, mir->ssaRep->uses[0]));
+      str.append(GetSSAName(cUnit, mir->ssaRep->uses[0]));
       for (udIdx = 1; udIdx < mir->ssaRep->numUses; udIdx++) {
         str.append(", ");
-        str.append(getSSAName(cUnit, mir->ssaRep->uses[udIdx]));
+        str.append(GetSSAName(cUnit, mir->ssaRep->uses[udIdx]));
         }
       }
       if (static_cast<int>(opcode) < static_cast<int>(kMirOpFirst)) {
@@ -1062,12 +1062,12 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 
 done:
   length = str.length() + 1;
-  ret = static_cast<char*>(oatNew(cUnit, length, false, kAllocDFInfo));
+  ret = static_cast<char*>(NewMem(cUnit, length, false, kAllocDFInfo));
   strncpy(ret, str.c_str(), length);
   return ret;
 }
 
-char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
+char* GetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 {
   std::string str;
   char* ret;
@@ -1091,34 +1091,32 @@ char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
   }
 
   int length = str.length() + 1;
-  ret = static_cast<char*>(oatNew(cUnit, length, false, kAllocDFInfo));
+  ret = static_cast<char*>(NewMem(cUnit, length, false, kAllocDFInfo));
   strncpy(ret, str.c_str(), length);
   return ret;
 }
 
 /* Any register that is used before being defined is considered live-in */
-inline void handleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
-                            ArenaBitVector* defV, ArenaBitVector* liveInV,
-                            int dalvikRegId)
+static inline void HandleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
+                                   ArenaBitVector* defV, ArenaBitVector* liveInV, int dalvikRegId)
 {
-  oatSetBit(cUnit, useV, dalvikRegId);
-  if (!oatIsBitSet(defV, dalvikRegId)) {
-    oatSetBit(cUnit, liveInV, dalvikRegId);
+  SetBit(cUnit, useV, dalvikRegId);
+  if (!IsBitSet(defV, dalvikRegId)) {
+    SetBit(cUnit, liveInV, dalvikRegId);
   }
 }
 
 /* Mark a reg as being defined */
-inline void handleDef(CompilationUnit* cUnit, ArenaBitVector* defV,
-                      int dalvikRegId)
+static inline void HandleDef(CompilationUnit* cUnit, ArenaBitVector* defV, int dalvikRegId)
 {
-  oatSetBit(cUnit, defV, dalvikRegId);
+  SetBit(cUnit, defV, dalvikRegId);
 }
 
 /*
  * Find out live-in variables for natural loops. Variables that are live-in in
  * the main loop body are considered to be defined in the entry block.
  */
-bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
+bool FindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
 {
   MIR* mir;
   ArenaBitVector *useV, *defV, *liveInV;
@@ -1126,11 +1124,11 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
   if (bb->dataFlowInfo == NULL) return false;
 
   useV = bb->dataFlowInfo->useV =
-      oatAllocBitVector(cUnit, cUnit->numDalvikRegisters, false, kBitMapUse);
+      AllocBitVector(cUnit, cUnit->numDalvikRegisters, false, kBitMapUse);
   defV = bb->dataFlowInfo->defV =
-      oatAllocBitVector(cUnit, cUnit->numDalvikRegisters, false, kBitMapDef);
+      AllocBitVector(cUnit, cUnit->numDalvikRegisters, false, kBitMapDef);
   liveInV = bb->dataFlowInfo->liveInV =
-      oatAllocBitVector(cUnit, cUnit->numDalvikRegisters, false,
+      AllocBitVector(cUnit, cUnit->numDalvikRegisters, false,
                         kBitMapLiveIn);
 
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
@@ -1139,122 +1137,120 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (dfAttributes & DF_HAS_USES) {
       if (dfAttributes & DF_UA) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA);
+        HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA);
         if (dfAttributes & DF_A_WIDE) {
-          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA+1);
+          HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA+1);
         }
       }
       if (dfAttributes & DF_UB) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB);
+        HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB);
         if (dfAttributes & DF_B_WIDE) {
-          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB+1);
+          HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB+1);
         }
       }
       if (dfAttributes & DF_UC) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC);
+        HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC);
         if (dfAttributes & DF_C_WIDE) {
-          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+1);
+          HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+1);
         }
       }
     }
     if (dfAttributes & DF_FORMAT_35C) {
       for (unsigned int i = 0; i < dInsn->vA; i++) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->arg[i]);
+        HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->arg[i]);
       }
     }
     if (dfAttributes & DF_FORMAT_3RC) {
       for (unsigned int i = 0; i < dInsn->vA; i++) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+i);
+        HandleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+i);
       }
     }
     if (dfAttributes & DF_HAS_DEFS) {
-      handleDef(cUnit, defV, dInsn->vA);
+      HandleDef(cUnit, defV, dInsn->vA);
       if (dfAttributes & DF_A_WIDE) {
-        handleDef(cUnit, defV, dInsn->vA+1);
+        HandleDef(cUnit, defV, dInsn->vA+1);
       }
     }
   }
   return true;
 }
 
-int addNewSReg(CompilationUnit* cUnit, int vReg)
+static int AddNewSReg(CompilationUnit* cUnit, int vReg)
 {
   // Compiler temps always have a subscript of 0
   int subscript = (vReg < 0) ? 0 : ++cUnit->SSALastDefs[vReg];
   int ssaReg = cUnit->numSSARegs++;
-  oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, vReg);
-  oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, subscript);
-  std::string ssaName = getSSAName(cUnit, ssaReg);
-  char* name = static_cast<char*>(oatNew(cUnit, ssaName.length() + 1, false, kAllocDFInfo));
+  InsertGrowableList(cUnit, cUnit->ssaBaseVRegs, vReg);
+  InsertGrowableList(cUnit, cUnit->ssaSubscripts, subscript);
+  std::string ssaName = GetSSAName(cUnit, ssaReg);
+  char* name = static_cast<char*>(NewMem(cUnit, ssaName.length() + 1, false, kAllocDFInfo));
   strncpy(name, ssaName.c_str(), ssaName.length() + 1);
-  oatInsertGrowableList(cUnit, cUnit->ssaStrings, reinterpret_cast<uintptr_t>(name));
+  InsertGrowableList(cUnit, cUnit->ssaStrings, reinterpret_cast<uintptr_t>(name));
   DCHECK_EQ(cUnit->ssaBaseVRegs->numUsed, cUnit->ssaSubscripts->numUsed);
   return ssaReg;
 }
 
 /* Find out the latest SSA register for a given Dalvik register */
-void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
-                  int regIndex)
+static void HandleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg, int regIndex)
 {
   DCHECK((dalvikReg >= 0) && (dalvikReg < cUnit->numDalvikRegisters));
   uses[regIndex] = cUnit->vRegToSSAMap[dalvikReg];
 }
 
 /* Setup a new SSA register for a given Dalvik register */
-void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
-                  int regIndex)
+static void HandleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg, int regIndex)
 {
   DCHECK((dalvikReg >= 0) && (dalvikReg < cUnit->numDalvikRegisters));
-  int ssaReg = addNewSReg(cUnit, dalvikReg);
+  int ssaReg = AddNewSReg(cUnit, dalvikReg);
   cUnit->vRegToSSAMap[dalvikReg] = ssaReg;
   defs[regIndex] = ssaReg;
 }
 
 /* Look up new SSA names for format_35c instructions */
-void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
+static void DataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 {
   DecodedInstruction *dInsn = &mir->dalvikInsn;
   int numUses = dInsn->vA;
   int i;
 
   mir->ssaRep->numUses = numUses;
-  mir->ssaRep->uses = static_cast<int*>(oatNew(cUnit, sizeof(int) * numUses, true, kAllocDFInfo));
+  mir->ssaRep->uses = static_cast<int*>(NewMem(cUnit, sizeof(int) * numUses, true, kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssaRep->fpUse = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * numUses, true,
+  mir->ssaRep->fpUse = static_cast<bool*>(NewMem(cUnit, sizeof(bool) * numUses, true,
                                                  kAllocDFInfo));
 
   for (i = 0; i < numUses; i++) {
-    handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->arg[i], i);
+    HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->arg[i], i);
   }
 }
 
 /* Look up new SSA names for format_3rc instructions */
-void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
+static void DataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
 {
   DecodedInstruction *dInsn = &mir->dalvikInsn;
   int numUses = dInsn->vA;
   int i;
 
   mir->ssaRep->numUses = numUses;
-  mir->ssaRep->uses = static_cast<int*>(oatNew(cUnit, sizeof(int) * numUses, true, kAllocDFInfo));
+  mir->ssaRep->uses = static_cast<int*>(NewMem(cUnit, sizeof(int) * numUses, true, kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssaRep->fpUse = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * numUses, true,
+  mir->ssaRep->fpUse = static_cast<bool*>(NewMem(cUnit, sizeof(bool) * numUses, true,
                                                  kAllocDFInfo));
 
   for (i = 0; i < numUses; i++) {
-    handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+i, i);
+    HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+i, i);
   }
 }
 
 /* Entry function to convert a block into SSA representation */
-bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
+bool DoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
   MIR* mir;
 
   if (bb->dataFlowInfo == NULL) return false;
 
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
-    mir->ssaRep = static_cast<struct SSARepresentation *>(oatNew(cUnit, sizeof(SSARepresentation),
+    mir->ssaRep = static_cast<struct SSARepresentation *>(NewMem(cUnit, sizeof(SSARepresentation),
                                                                  true, kAllocDFInfo));
 
     int dfAttributes = oatDataFlowAttributes[mir->dalvikInsn.opcode];
@@ -1276,12 +1272,12 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
     int numUses = 0;
 
     if (dfAttributes & DF_FORMAT_35C) {
-      dataFlowSSAFormat35C(cUnit, mir);
+      DataFlowSSAFormat35C(cUnit, mir);
       continue;
     }
 
     if (dfAttributes & DF_FORMAT_3RC) {
-      dataFlowSSAFormat3RC(cUnit, mir);
+      DataFlowSSAFormat3RC(cUnit, mir);
       continue;
     }
 
@@ -1308,9 +1304,9 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (numUses) {
       mir->ssaRep->numUses = numUses;
-      mir->ssaRep->uses = static_cast<int*>(oatNew(cUnit, sizeof(int) * numUses, false,
+      mir->ssaRep->uses = static_cast<int*>(NewMem(cUnit, sizeof(int) * numUses, false,
                                                    kAllocDFInfo));
-      mir->ssaRep->fpUse = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * numUses, false,
+      mir->ssaRep->fpUse = static_cast<bool*>(NewMem(cUnit, sizeof(bool) * numUses, false,
                                                      kAllocDFInfo));
     }
 
@@ -1325,9 +1321,9 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (numDefs) {
       mir->ssaRep->numDefs = numDefs;
-      mir->ssaRep->defs = static_cast<int*>(oatNew(cUnit, sizeof(int) * numDefs, false,
+      mir->ssaRep->defs = static_cast<int*>(NewMem(cUnit, sizeof(int) * numDefs, false,
                                                    kAllocDFInfo));
-      mir->ssaRep->fpDef = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * numDefs, false,
+      mir->ssaRep->fpDef = static_cast<bool*>(NewMem(cUnit, sizeof(bool) * numDefs, false,
                                                      kAllocDFInfo));
     }
 
@@ -1337,35 +1333,35 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
       numUses = 0;
       if (dfAttributes & DF_UA) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA, numUses++);
+        HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA, numUses++);
         if (dfAttributes & DF_A_WIDE) {
           mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
-          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA+1, numUses++);
+          HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA+1, numUses++);
         }
       }
       if (dfAttributes & DF_UB) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB, numUses++);
+        HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB, numUses++);
         if (dfAttributes & DF_B_WIDE) {
           mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
-          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB+1, numUses++);
+          HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB+1, numUses++);
         }
       }
       if (dfAttributes & DF_UC) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC, numUses++);
+        HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC, numUses++);
         if (dfAttributes & DF_C_WIDE) {
           mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
-          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+1, numUses++);
+          HandleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+1, numUses++);
         }
       }
     }
     if (dfAttributes & DF_HAS_DEFS) {
       mir->ssaRep->fpDef[0] = dfAttributes & DF_FP_A;
-      handleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA, 0);
+      HandleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA, 0);
       if (dfAttributes & DF_A_WIDE) {
         mir->ssaRep->fpDef[1] = dfAttributes & DF_FP_A;
-        handleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA+1, 1);
+        HandleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA+1, 1);
       }
     }
   }
@@ -1377,7 +1373,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
      * predecessor blocks.
      */
     bb->dataFlowInfo->vRegToSSAMap =
-        static_cast<int*>(oatNew(cUnit, sizeof(int) * cUnit->numDalvikRegisters, false,
+        static_cast<int*>(NewMem(cUnit, sizeof(int) * cUnit->numDalvikRegisters, false,
                                  kAllocDFInfo));
 
     memcpy(bb->dataFlowInfo->vRegToSSAMap, cUnit->vRegToSSAMap,
@@ -1387,13 +1383,13 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-void setConstant(CompilationUnit* cUnit, int ssaReg, int value)
+static void SetConstant(CompilationUnit* cUnit, int ssaReg, int value)
 {
-  oatSetBit(cUnit, cUnit->isConstantV, ssaReg);
+  SetBit(cUnit, cUnit->isConstantV, ssaReg);
   cUnit->constantValues[ssaReg] = value;
 }
 
-bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
+bool DoConstantPropogation(CompilationUnit* cUnit, BasicBlock* bb)
 {
   MIR* mir;
   ArenaBitVector *isConstantV = cUnit->isConstantV;
@@ -1412,23 +1408,23 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
           case Instruction::CONST_4:
           case Instruction::CONST_16:
           case Instruction::CONST:
-            setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
+            SetConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
             break;
           case Instruction::CONST_HIGH16:
-            setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB << 16);
+            SetConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB << 16);
             break;
           case Instruction::CONST_WIDE_16:
           case Instruction::CONST_WIDE_32:
-            setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
-            setConstant(cUnit, mir->ssaRep->defs[1], 0);
+            SetConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
+            SetConstant(cUnit, mir->ssaRep->defs[1], 0);
             break;
           case Instruction::CONST_WIDE:
-            setConstant(cUnit, mir->ssaRep->defs[0], static_cast<int>(dInsn->vB_wide));
-            setConstant(cUnit, mir->ssaRep->defs[1], static_cast<int>(dInsn->vB_wide >> 32));
+            SetConstant(cUnit, mir->ssaRep->defs[0], static_cast<int>(dInsn->vB_wide));
+            SetConstant(cUnit, mir->ssaRep->defs[1], static_cast<int>(dInsn->vB_wide >> 32));
             break;
           case Instruction::CONST_WIDE_HIGH16:
-            setConstant(cUnit, mir->ssaRep->defs[0], 0);
-            setConstant(cUnit, mir->ssaRep->defs[1], dInsn->vB << 16);
+            SetConstant(cUnit, mir->ssaRep->defs[0], 0);
+            SetConstant(cUnit, mir->ssaRep->defs[1], dInsn->vB << 16);
             break;
           default:
             break;
@@ -1439,14 +1435,14 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
       int i;
 
       for (i = 0; i < mir->ssaRep->numUses; i++) {
-        if (!oatIsBitSet(isConstantV, mir->ssaRep->uses[i])) break;
+        if (!IsBitSet(isConstantV, mir->ssaRep->uses[i])) break;
       }
       /* Move a register holding a constant to another register */
       if (i == mir->ssaRep->numUses) {
-        setConstant(cUnit, mir->ssaRep->defs[0],
+        SetConstant(cUnit, mir->ssaRep->defs[0],
                     cUnit->constantValues[mir->ssaRep->uses[0]]);
         if (dfAttributes & DF_A_WIDE) {
-          setConstant(cUnit, mir->ssaRep->defs[1],
+          SetConstant(cUnit, mir->ssaRep->defs[1],
                       cUnit->constantValues[mir->ssaRep->uses[1]]);
         }
       }
@@ -1457,25 +1453,25 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Setup the basic data structures for SSA conversion */
-void oatInitializeSSAConversion(CompilationUnit* cUnit)
+void CompilerInitializeSSAConversion(CompilationUnit* cUnit)
 {
   int i;
   int numDalvikReg = cUnit->numDalvikRegisters;
 
   cUnit->ssaBaseVRegs =
-      static_cast<GrowableList*>(oatNew(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
+      static_cast<GrowableList*>(NewMem(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
   cUnit->ssaSubscripts =
-      static_cast<GrowableList*>(oatNew(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
+      static_cast<GrowableList*>(NewMem(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
   cUnit->ssaStrings =
-      static_cast<GrowableList*>(oatNew(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
+      static_cast<GrowableList*>(NewMem(cUnit, sizeof(GrowableList), false, kAllocDFInfo));
   // Create the ssa mappings, estimating the max size
-  oatInitGrowableList(cUnit, cUnit->ssaBaseVRegs,
+  CompilerInitGrowableList(cUnit, cUnit->ssaBaseVRegs,
                       numDalvikReg + cUnit->defCount + 128,
                       kListSSAtoDalvikMap);
-  oatInitGrowableList(cUnit, cUnit->ssaSubscripts,
+  CompilerInitGrowableList(cUnit, cUnit->ssaSubscripts,
                       numDalvikReg + cUnit->defCount + 128,
                       kListSSAtoDalvikMap);
-  oatInitGrowableList(cUnit, cUnit->ssaStrings,
+  CompilerInitGrowableList(cUnit, cUnit->ssaStrings,
                       numDalvikReg + cUnit->defCount + 128,
                       kListSSAtoDalvikMap);
   /*
@@ -1490,12 +1486,12 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
    * into "(0 << 16) | i"
    */
   for (i = 0; i < numDalvikReg; i++) {
-    oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, i);
-    oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, 0);
-    std::string ssaName = getSSAName(cUnit, i);
-    char* name = static_cast<char*>(oatNew(cUnit, ssaName.length() + 1, true, kAllocDFInfo));
+    InsertGrowableList(cUnit, cUnit->ssaBaseVRegs, i);
+    InsertGrowableList(cUnit, cUnit->ssaSubscripts, 0);
+    std::string ssaName = GetSSAName(cUnit, i);
+    char* name = static_cast<char*>(NewMem(cUnit, ssaName.length() + 1, true, kAllocDFInfo));
     strncpy(name, ssaName.c_str(), ssaName.length() + 1);
-    oatInsertGrowableList(cUnit, cUnit->ssaStrings, reinterpret_cast<uintptr_t>(name));
+    InsertGrowableList(cUnit, cUnit->ssaStrings, reinterpret_cast<uintptr_t>(name));
   }
 
   /*
@@ -1503,10 +1499,10 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
    * Dalvik register, and the SSA names for those are the same.
    */
   cUnit->vRegToSSAMap =
-      static_cast<int*>(oatNew(cUnit, sizeof(int) * numDalvikReg, false, kAllocDFInfo));
+      static_cast<int*>(NewMem(cUnit, sizeof(int) * numDalvikReg, false, kAllocDFInfo));
   /* Keep track of the higest def for each dalvik reg */
   cUnit->SSALastDefs =
-      static_cast<int*>(oatNew(cUnit, sizeof(int) * numDalvikReg, false, kAllocDFInfo));
+      static_cast<int*>(NewMem(cUnit, sizeof(int) * numDalvikReg, false, kAllocDFInfo));
 
   for (i = 0; i < numDalvikReg; i++) {
     cUnit->vRegToSSAMap[i] = i;
@@ -1514,36 +1510,36 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
   }
 
   /* Add ssa reg for Method* */
-  cUnit->methodSReg = addNewSReg(cUnit, SSA_METHOD_BASEREG);
+  cUnit->methodSReg = AddNewSReg(cUnit, SSA_METHOD_BASEREG);
 
   /*
    * Allocate the BasicBlockDataFlow structure for the entry and code blocks
    */
   GrowableListIterator iterator;
 
-  oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+  GrowableListIteratorInit(&cUnit->blockList, &iterator);
 
   while (true) {
-    BasicBlock* bb = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iterator));
+    BasicBlock* bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
     if (bb == NULL) break;
     if (bb->hidden == true) continue;
     if (bb->blockType == kDalvikByteCode ||
       bb->blockType == kEntryBlock ||
       bb->blockType == kExitBlock) {
-      bb->dataFlowInfo = static_cast<BasicBlockDataFlow*>(oatNew(cUnit, sizeof(BasicBlockDataFlow),
+      bb->dataFlowInfo = static_cast<BasicBlockDataFlow*>(NewMem(cUnit, sizeof(BasicBlockDataFlow),
                                                                  true, kAllocDFInfo));
       }
   }
 }
 
 /* Clear the visited flag for each BB */
-bool oatClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+bool ClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   bb->visited = false;
   return true;
 }
 
-void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
+void DataFlowAnalysisDispatcher(CompilationUnit* cUnit,
                                    bool (*func)(CompilationUnit*, BasicBlock*),
                                    DataFlowAnalysisMode dfaMode,
                                    bool isIterative)
@@ -1558,9 +1554,9 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
       case kAllNodes:
         {
           GrowableListIterator iterator;
-          oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+          GrowableListIteratorInit(&cUnit->blockList, &iterator);
           while (true) {
-            BasicBlock* bb = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iterator));
+            BasicBlock* bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
             if (bb == NULL) break;
             if (bb->hidden == true) continue;
               change |= (*func)(cUnit, bb);
@@ -1577,7 +1573,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
           for (idx = 0; idx < numReachableBlocks; idx++) {
             int blockIdx = cUnit->dfsOrder.elemList[idx];
             BasicBlock* bb =
-                reinterpret_cast<BasicBlock*>( oatGrowableListGetElement(blockList, blockIdx));
+                reinterpret_cast<BasicBlock*>( GrowableListGetElement(blockList, blockIdx));
             change |= (*func)(cUnit, bb);
           }
         }
@@ -1593,7 +1589,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
           for (idx = 0; idx < numReachableBlocks; idx++) {
             int dfsIdx = cUnit->dfsOrder.elemList[idx];
             BasicBlock* bb =
-                reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, dfsIdx));
+                reinterpret_cast<BasicBlock*>(GrowableListGetElement(blockList, dfsIdx));
             change |= (*func)(cUnit, bb);
             }
         }
@@ -1608,7 +1604,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
           for (idx = numReachableBlocks - 1; idx >= 0; idx--) {
             int dfsIdx = cUnit->dfsOrder.elemList[idx];
             BasicBlock* bb =
-                reinterpret_cast<BasicBlock *>( oatGrowableListGetElement(blockList, dfsIdx));
+                reinterpret_cast<BasicBlock *>( GrowableListGetElement(blockList, dfsIdx));
             change |= (*func)(cUnit, bb);
             }
         }
@@ -1623,7 +1619,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
           for (idx = 0; idx < numReachableBlocks; idx++) {
             int domIdx = cUnit->domPostOrderTraversal.elemList[idx];
             BasicBlock* bb =
-                reinterpret_cast<BasicBlock*>( oatGrowableListGetElement(blockList, domIdx));
+                reinterpret_cast<BasicBlock*>( GrowableListGetElement(blockList, domIdx));
             change |= (*func)(cUnit, bb);
           }
         }
@@ -1638,7 +1634,7 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
           for (idx = numReachableBlocks - 1; idx >= 0; idx--) {
             int revIdx = cUnit->dfsPostOrder.elemList[idx];
             BasicBlock* bb =
-                reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(blockList, revIdx));
+                reinterpret_cast<BasicBlock*>(GrowableListGetElement(blockList, revIdx));
             change |= (*func)(cUnit, bb);
             }
         }
@@ -1652,8 +1648,8 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
-MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir,
-                ArenaBitVector* bv, bool clearMark) {
+static MIR* AdvanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir,
+                       ArenaBitVector* bv, bool clearMark) {
   BasicBlock* bb = *pBb;
   if (mir != NULL) {
     mir = mir->next;
@@ -1663,7 +1659,7 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir,
         mir = NULL;
       } else {
         if (bv) {
-          oatSetBit(cUnit, bv, bb->id);
+          SetBit(cUnit, bv, bb->id);
         }
       *pBb = bb;
       mir = bb->firstMIRInsn;
@@ -1683,10 +1679,10 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir,
  * opcodes or incoming arcs.  However, if the result of the invoke is not
  * used, a move-result may not be present.
  */
-MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+MIR* FindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
   BasicBlock* tbb = bb;
-  mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
+  mir = AdvanceMIR(cUnit, &tbb, mir, NULL, false);
   while (mir != NULL) {
     int opcode = mir->dalvikInsn.opcode;
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
@@ -1698,17 +1694,17 @@ MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
     if (opcode < kNumPackedOpcodes) {
       mir = NULL;
     } else {
-      mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
+      mir = AdvanceMIR(cUnit, &tbb, mir, NULL, false);
     }
   }
   return mir;
 }
 
-void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
-                        int arraySreg, int indexSreg)
+static void SquashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
+                                 int arraySreg, int indexSreg)
 {
   while (true) {
-    mir = advanceMIR(cUnit, pBp, mir, NULL, false);
+    mir = AdvanceMIR(cUnit, pBp, mir, NULL, false);
     if (!mir) {
       break;
     }
@@ -1756,55 +1752,8 @@ void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
   }
 }
 
-/* Allocate a compiler temp, return Sreg.  Reuse existing if no conflict */
-int allocCompilerTempSreg(CompilationUnit* cUnit, ArenaBitVector* bv)
-{
-  for (int i = 0; i < cUnit->numCompilerTemps; i++) {
-    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cUnit->compilerTemps.elemList[i]);
-    ArenaBitVector* tBv = ct->bv;
-    if (!oatTestBitVectors(bv, tBv)) {
-      // Combine live maps and reuse existing temp
-      oatUnifyBitVectors(tBv, tBv, bv);
-      return ct->sReg;
-    }
-  }
-
-  // Create a new compiler temp & associated live bitmap
-  CompilerTemp* ct =
-      static_cast<CompilerTemp*>(oatNew(cUnit, sizeof(CompilerTemp), true, kAllocMisc));
-  ArenaBitVector *nBv = oatAllocBitVector(cUnit, cUnit->numBlocks, true,
-                                          kBitMapMisc);
-  oatCopyBitVector(nBv, bv);
-  ct->bv = nBv;
-  ct->sReg = addNewSReg(cUnit, SSA_CTEMP_BASEREG - cUnit->numCompilerTemps);
-  cUnit->numCompilerTemps++;
-  oatInsertGrowableList(cUnit, &cUnit->compilerTemps, reinterpret_cast<uintptr_t>(ct));
-  DCHECK_EQ(cUnit->numCompilerTemps, static_cast<int>(cUnit->compilerTemps.numUsed));
-  return ct->sReg;
-}
-
-/* Creata a new MIR node for a new pseudo op. */
-MIR* rawMIR(CompilationUnit* cUnit, Instruction::Code opcode, int defs,
-            int uses)
-{
-  MIR* res = static_cast<MIR*>(oatNew(cUnit, sizeof(MIR), true, kAllocMIR));
-  res->ssaRep = static_cast<struct SSARepresentation*>
-      (oatNew(cUnit, sizeof(SSARepresentation), true, kAllocDFInfo));
-  if (uses) {
-    res->ssaRep->numUses = uses;
-    res->ssaRep->uses = static_cast<int*>(oatNew(cUnit, sizeof(int) * uses, false, kAllocDFInfo));
-  }
-  if (defs) {
-    res->ssaRep->numDefs = defs;
-    res->ssaRep->defs = static_cast<int*>(oatNew(cUnit, sizeof(int) * defs, false, kAllocDFInfo));
-    res->ssaRep->fpDef = static_cast<bool*>(oatNew(cUnit, sizeof(bool) * defs, true, kAllocDFInfo));
-  }
-  res->dalvikInsn.opcode = opcode;
-  return res;
-}
-
 /* Do some MIR-level basic block optimizations */
-bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
+static bool BasicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
 {
   int numTemps = 0;
 
@@ -1823,7 +1772,7 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
           int arrSreg = mir->ssaRep->uses[0];
           int idxSreg = mir->ssaRep->uses[1];
           BasicBlock* tbb = bb;
-          squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
+          SquashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
         }
         break;
       case Instruction::APUT:
@@ -1838,7 +1787,7 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
           int arrSreg = mir->ssaRep->uses[start];
           int idxSreg = mir->ssaRep->uses[start + 1];
           BasicBlock* tbb = bb;
-          squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
+          SquashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
         }
         break;
       case Instruction::CMPL_FLOAT:
@@ -1879,7 +1828,7 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
           // Make sure result of cmp is used by next insn and nowhere else
           if ((ccode != kCondNv) &&
               (mir->ssaRep->defs[0] == mirNext->ssaRep->uses[0]) &&
-              (getSSAUseCount(cUnit, mir->ssaRep->defs[0]) == 1)) {
+              (GetSSAUseCount(cUnit, mir->ssaRep->defs[0]) == 1)) {
             mirNext->dalvikInsn.arg[0] = ccode;
             switch(opcode) {
               case Instruction::CMPL_FLOAT:
@@ -1925,18 +1874,17 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
   return true;
 }
 
-bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
-                              struct BasicBlock* bb)
+static bool NullCheckEliminationInit(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   if (bb->dataFlowInfo == NULL) return false;
   bb->dataFlowInfo->endingNullCheckV =
-      oatAllocBitVector(cUnit, cUnit->numSSARegs, false, kBitMapNullCheck);
-  oatClearAllBits(bb->dataFlowInfo->endingNullCheckV);
+      AllocBitVector(cUnit, cUnit->numSSARegs, false, kBitMapNullCheck);
+  ClearAllBits(bb->dataFlowInfo->endingNullCheckV);
   return true;
 }
 
 /* Collect stats on number of checks removed */
-bool countChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool CountChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   if (bb->dataFlowInfo == NULL) return false;
   for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
@@ -1961,7 +1909,7 @@ bool countChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 }
 
 /* Try to make common case the fallthrough path */
-bool layoutBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool LayoutBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
   if (!bb->explicitThrow) {
@@ -2009,7 +1957,7 @@ bool layoutBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 }
 
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
-bool combineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool CombineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   // Loop here to allow combining a sequence of blocks
   while (true) {
@@ -2073,7 +2021,7 @@ bool combineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 }
 
 /* Eliminate unnecessary null checks for a basic block. */
-bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool EliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   if (bb->dataFlowInfo == NULL) return false;
 
@@ -2083,28 +2031,28 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
    * status (except for "this").
    */
   if ((bb->blockType == kEntryBlock) | bb->catchEntry) {
-    oatClearAllBits(cUnit->tempSSARegisterV);
+    ClearAllBits(cUnit->tempSSARegisterV);
     if ((cUnit->access_flags & kAccStatic) == 0) {
       // If non-static method, mark "this" as non-null
       int thisReg = cUnit->numDalvikRegisters - cUnit->numIns;
-      oatSetBit(cUnit, cUnit->tempSSARegisterV, thisReg);
+      SetBit(cUnit, cUnit->tempSSARegisterV, thisReg);
     }
   } else {
     // Starting state is intesection of all incoming arcs
     GrowableListIterator iter;
-    oatGrowableListIteratorInit(bb->predecessors, &iter);
-    BasicBlock* predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
+    GrowableListIteratorInit(bb->predecessors, &iter);
+    BasicBlock* predBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter));
     DCHECK(predBB != NULL);
-    oatCopyBitVector(cUnit->tempSSARegisterV,
+    CopyBitVector(cUnit->tempSSARegisterV,
                      predBB->dataFlowInfo->endingNullCheckV);
     while (true) {
-      predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter));
+      predBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter));
       if (!predBB) break;
       if ((predBB->dataFlowInfo == NULL) ||
           (predBB->dataFlowInfo->endingNullCheckV == NULL)) {
         continue;
       }
-      oatIntersectBitVectors(cUnit->tempSSARegisterV,
+      IntersectBitVectors(cUnit->tempSSARegisterV,
                              cUnit->tempSSARegisterV,
                              predBB->dataFlowInfo->endingNullCheckV);
     }
@@ -2119,7 +2067,7 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 
     // Mark target of NEW* as non-null
     if (dfAttributes & DF_NON_NULL_DST) {
-      oatSetBit(cUnit, cUnit->tempSSARegisterV, mir->ssaRep->defs[0]);
+      SetBit(cUnit, cUnit->tempSSARegisterV, mir->ssaRep->defs[0]);
     }
 
     // Mark non-null returns from invoke-style NEW*
@@ -2129,7 +2077,7 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
       if (nextMir &&
           nextMir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         // Mark as null checked
-        oatSetBit(cUnit, cUnit->tempSSARegisterV, nextMir->ssaRep->defs[0]);
+        SetBit(cUnit, cUnit->tempSSARegisterV, nextMir->ssaRep->defs[0]);
       } else {
         if (nextMir) {
           LOG(WARNING) << "Unexpected opcode following new: " << nextMir->dalvikInsn.opcode;
@@ -2144,7 +2092,7 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
             // First non-pseudo should be MOVE_RESULT_OBJECT
             if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
               // Mark as null checked
-              oatSetBit(cUnit, cUnit->tempSSARegisterV, tmir->ssaRep->defs[0]);
+              SetBit(cUnit, cUnit->tempSSARegisterV, tmir->ssaRep->defs[0]);
             } else {
               LOG(WARNING) << "Unexpected op after new: " << tmir->dalvikInsn.opcode;
             }
@@ -2165,11 +2113,11 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
           mir->ssaRep->numUses;
       bool nullChecked = true;
       for (int i = 0; i < operands; i++) {
-        nullChecked &= oatIsBitSet(cUnit->tempSSARegisterV,
+        nullChecked &= IsBitSet(cUnit->tempSSARegisterV,
         mir->ssaRep->uses[i]);
       }
       if (nullChecked) {
-        oatSetBit(cUnit, cUnit->tempSSARegisterV, tgtSreg);
+        SetBit(cUnit, cUnit->tempSSARegisterV, tgtSreg);
       }
     }
 
@@ -2184,54 +2132,54 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
         srcIdx = 0;
       }
       int srcSreg = mir->ssaRep->uses[srcIdx];
-        if (oatIsBitSet(cUnit->tempSSARegisterV, srcSreg)) {
+        if (IsBitSet(cUnit->tempSSARegisterV, srcSreg)) {
           // Eliminate the null check
           mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
         } else {
           // Mark sReg as null-checked
-          oatSetBit(cUnit, cUnit->tempSSARegisterV, srcSreg);
+          SetBit(cUnit, cUnit->tempSSARegisterV, srcSreg);
         }
      }
   }
 
   // Did anything change?
-  bool res = oatCompareBitVectors(bb->dataFlowInfo->endingNullCheckV,
+  bool res = CompareBitVectors(bb->dataFlowInfo->endingNullCheckV,
                                   cUnit->tempSSARegisterV);
   if (res) {
-    oatCopyBitVector(bb->dataFlowInfo->endingNullCheckV,
+    CopyBitVector(bb->dataFlowInfo->endingNullCheckV,
                      cUnit->tempSSARegisterV);
   }
   return res;
 }
 
-void oatMethodNullCheckElimination(CompilationUnit *cUnit)
+void NullCheckElimination(CompilationUnit *cUnit)
 {
   if (!(cUnit->disableOpt & (1 << kNullCheckElimination))) {
     DCHECK(cUnit->tempSSARegisterV != NULL);
-    oatDataFlowAnalysisDispatcher(cUnit, nullCheckEliminationInit, kAllNodes,
+    DataFlowAnalysisDispatcher(cUnit, NullCheckEliminationInit, kAllNodes,
                                   false /* isIterative */);
-    oatDataFlowAnalysisDispatcher(cUnit, eliminateNullChecks,
+    DataFlowAnalysisDispatcher(cUnit, EliminateNullChecks,
                                   kPreOrderDFSTraversal,
                                   true /* isIterative */);
   }
 }
 
-void oatMethodBasicBlockCombine(CompilationUnit* cUnit)
+void BasicBlockCombine(CompilationUnit* cUnit)
 {
-  oatDataFlowAnalysisDispatcher(cUnit, combineBlocks, kPreOrderDFSTraversal, false);
+  DataFlowAnalysisDispatcher(cUnit, CombineBlocks, kPreOrderDFSTraversal, false);
 }
 
-void oatMethodCodeLayout(CompilationUnit* cUnit)
+void CodeLayout(CompilationUnit* cUnit)
 {
-  oatDataFlowAnalysisDispatcher(cUnit, layoutBlocks, kAllNodes, false);
+  DataFlowAnalysisDispatcher(cUnit, LayoutBlocks, kAllNodes, false);
 }
 
-void oatDumpCheckStats(CompilationUnit *cUnit)
+void DumpCheckStats(CompilationUnit *cUnit)
 {
   Checkstats* stats =
-      static_cast<Checkstats*>(oatNew(cUnit, sizeof(Checkstats), true, kAllocDFInfo));
+      static_cast<Checkstats*>(NewMem(cUnit, sizeof(Checkstats), true, kAllocDFInfo));
   cUnit->checkstats = stats;
-  oatDataFlowAnalysisDispatcher(cUnit, countChecks, kAllNodes, false /* isIterative */);
+  DataFlowAnalysisDispatcher(cUnit, CountChecks, kAllNodes, false /* isIterative */);
   if (stats->nullChecks > 0) {
     float eliminated = static_cast<float>(stats->nullChecksEliminated);
     float checks = static_cast<float>(stats->nullChecks);
@@ -2248,37 +2196,37 @@ void oatDumpCheckStats(CompilationUnit *cUnit)
   }
 }
 
-void oatMethodBasicBlockOptimization(CompilationUnit *cUnit)
+void BasicBlockOptimization(CompilationUnit *cUnit)
 {
   if (!(cUnit->disableOpt & (1 << kBBOpt))) {
-    oatInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
+    CompilerInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
     DCHECK_EQ(cUnit->numCompilerTemps, 0);
-    oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
+    DataFlowAnalysisDispatcher(cUnit, BasicBlockOpt,
                                   kAllNodes, false /* isIterative */);
   }
 }
 
-void addLoopHeader(CompilationUnit* cUnit, BasicBlock* header,
-                 BasicBlock* backEdge)
+static void AddLoopHeader(CompilationUnit* cUnit, BasicBlock* header,
+                          BasicBlock* backEdge)
 {
   GrowableListIterator iter;
-  oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
-  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter));
-      (loop != NULL); loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter))) {
+  GrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
+      (loop != NULL); loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     if (loop->header == header) {
-      oatInsertGrowableList(cUnit, &loop->incomingBackEdges,
+      InsertGrowableList(cUnit, &loop->incomingBackEdges,
                             reinterpret_cast<uintptr_t>(backEdge));
       return;
     }
   }
-  LoopInfo* info = static_cast<LoopInfo*>(oatNew(cUnit, sizeof(LoopInfo), true, kAllocDFInfo));
+  LoopInfo* info = static_cast<LoopInfo*>(NewMem(cUnit, sizeof(LoopInfo), true, kAllocDFInfo));
   info->header = header;
-  oatInitGrowableList(cUnit, &info->incomingBackEdges, 2, kListMisc);
-  oatInsertGrowableList(cUnit, &info->incomingBackEdges, reinterpret_cast<uintptr_t>(backEdge));
-  oatInsertGrowableList(cUnit, &cUnit->loopHeaders, reinterpret_cast<uintptr_t>(info));
+  CompilerInitGrowableList(cUnit, &info->incomingBackEdges, 2, kListMisc);
+  InsertGrowableList(cUnit, &info->incomingBackEdges, reinterpret_cast<uintptr_t>(backEdge));
+  InsertGrowableList(cUnit, &cUnit->loopHeaders, reinterpret_cast<uintptr_t>(info));
 }
 
-bool findBackEdges(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool FindBackEdges(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   if ((bb->dataFlowInfo == NULL) || (bb->lastMIRInsn == NULL)) {
     return false;
@@ -2287,58 +2235,58 @@ bool findBackEdges(struct CompilationUnit* cUnit, struct BasicBlock* bb)
   if (Instruction::FlagsOf(opcode) & Instruction::kBranch) {
     if (bb->taken && (bb->taken->startOffset <= bb->startOffset)) {
       DCHECK(bb->dominators != NULL);
-      if (oatIsBitSet(bb->dominators, bb->taken->id)) {
+      if (IsBitSet(bb->dominators, bb->taken->id)) {
         if (cUnit->printMe) {
           LOG(INFO) << "Loop backedge from 0x"
                     << std::hex << bb->lastMIRInsn->offset
                     << " to 0x" << std::hex << bb->taken->startOffset;
         }
-        addLoopHeader(cUnit, bb->taken, bb);
+        AddLoopHeader(cUnit, bb->taken, bb);
       }
     }
   }
   return false;
 }
 
-void addBlocksToLoop(CompilationUnit* cUnit, ArenaBitVector* blocks,
-                   BasicBlock* bb, int headId)
+static void AddBlocksToLoop(CompilationUnit* cUnit, ArenaBitVector* blocks,
+                            BasicBlock* bb, int headId)
 {
-  if (!oatIsBitSet(bb->dominators, headId) ||
-    oatIsBitSet(blocks, bb->id)) {
+  if (!IsBitSet(bb->dominators, headId) ||
+    IsBitSet(blocks, bb->id)) {
     return;
   }
-  oatSetBit(cUnit, blocks, bb->id);
+  SetBit(cUnit, blocks, bb->id);
   GrowableListIterator iter;
-  oatGrowableListIteratorInit(bb->predecessors, &iter);
+  GrowableListIteratorInit(bb->predecessors, &iter);
   BasicBlock* predBB;
-  for (predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter)); predBB;
-       predBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter))) {
-    addBlocksToLoop(cUnit, blocks, predBB, headId);
+  for (predBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); predBB;
+       predBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
+    AddBlocksToLoop(cUnit, blocks, predBB, headId);
   }
 }
 
-void oatDumpLoops(CompilationUnit *cUnit)
+static void DumpLoops(CompilationUnit *cUnit)
 {
   GrowableListIterator iter;
-  oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
-  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter));
-      (loop != NULL); loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter))) {
+  GrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
+      (loop != NULL); loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     LOG(INFO) << "Loop head block id " << loop->header->id
               << ", offset 0x" << std::hex << loop->header->startOffset
               << ", Depth: " << loop->header->nestingDepth;
     GrowableListIterator iter;
-    oatGrowableListIteratorInit(&loop->incomingBackEdges, &iter);
+    GrowableListIteratorInit(&loop->incomingBackEdges, &iter);
     BasicBlock* edgeBB;
-    for (edgeBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter)); edgeBB;
-         edgeBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter))) {
+    for (edgeBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edgeBB;
+         edgeBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
       LOG(INFO) << "    Backedge block id " << edgeBB->id
                 << ", offset 0x" << std::hex << edgeBB->startOffset;
       ArenaBitVectorIterator bIter;
-      oatBitVectorIteratorInit(loop->blocks, &bIter);
-      for (int bbId = oatBitVectorIteratorNext(&bIter); bbId != -1;
-           bbId = oatBitVectorIteratorNext(&bIter)) {
+      BitVectorIteratorInit(loop->blocks, &bIter);
+      for (int bbId = BitVectorIteratorNext(&bIter); bbId != -1;
+           bbId = BitVectorIteratorNext(&bIter)) {
         BasicBlock *bb;
-        bb = reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(&cUnit->blockList, bbId));
+        bb = reinterpret_cast<BasicBlock*>(GrowableListGetElement(&cUnit->blockList, bbId));
         LOG(INFO) << "        (" << bb->id << ", 0x" << std::hex
                   << bb->startOffset << ")";
       }
@@ -2346,60 +2294,60 @@ void oatDumpLoops(CompilationUnit *cUnit)
   }
 }
 
-void oatMethodLoopDetection(CompilationUnit *cUnit)
+void LoopDetection(CompilationUnit *cUnit)
 {
   if (cUnit->disableOpt & (1 << kPromoteRegs)) {
     return;
   }
-  oatInitGrowableList(cUnit, &cUnit->loopHeaders, 6, kListMisc);
+  CompilerInitGrowableList(cUnit, &cUnit->loopHeaders, 6, kListMisc);
   // Find the loop headers
-  oatDataFlowAnalysisDispatcher(cUnit, findBackEdges, kAllNodes, false /* isIterative */);
+  DataFlowAnalysisDispatcher(cUnit, FindBackEdges, kAllNodes, false /* isIterative */);
   GrowableListIterator iter;
-  oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+  GrowableListIteratorInit(&cUnit->loopHeaders, &iter);
   // Add blocks to each header
-  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter));
-       loop; loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter))) {
-    loop->blocks = oatAllocBitVector(cUnit, cUnit->numBlocks, true,
+  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
+       loop; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
+    loop->blocks = AllocBitVector(cUnit, cUnit->numBlocks, true,
                                      kBitMapMisc);
-    oatSetBit(cUnit, loop->blocks, loop->header->id);
+    SetBit(cUnit, loop->blocks, loop->header->id);
     GrowableListIterator iter;
-    oatGrowableListIteratorInit(&loop->incomingBackEdges, &iter);
+    GrowableListIteratorInit(&loop->incomingBackEdges, &iter);
     BasicBlock* edgeBB;
-    for (edgeBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter)); edgeBB;
-         edgeBB = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iter))) {
-      addBlocksToLoop(cUnit, loop->blocks, edgeBB, loop->header->id);
+    for (edgeBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edgeBB;
+         edgeBB = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
+      AddBlocksToLoop(cUnit, loop->blocks, edgeBB, loop->header->id);
     }
   }
   // Compute the nesting depth of each header
-  oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
-  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter));
-       loop; loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter))) {
+  GrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
+       loop; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     GrowableListIterator iter2;
-    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter2);
+    GrowableListIteratorInit(&cUnit->loopHeaders, &iter2);
     LoopInfo* loop2;
-    for (loop2 = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter2));
-         loop2; loop2 = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter2))) {
-      if (oatIsBitSet(loop2->blocks, loop->header->id)) {
+    for (loop2 = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter2));
+         loop2; loop2 = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter2))) {
+      if (IsBitSet(loop2->blocks, loop->header->id)) {
          loop->header->nestingDepth++;
       }
     }
   }
   // Assign nesting depth to each block in all loops
-  oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
-  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter));
-       (loop != NULL); loop = reinterpret_cast<LoopInfo*>(oatGrowableListIteratorNext(&iter))) {
+  GrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+  for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
+       (loop != NULL); loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     ArenaBitVectorIterator bIter;
-    oatBitVectorIteratorInit(loop->blocks, &bIter);
-    for (int bbId = oatBitVectorIteratorNext(&bIter); bbId != -1;
-        bbId = oatBitVectorIteratorNext(&bIter)) {
+    BitVectorIteratorInit(loop->blocks, &bIter);
+    for (int bbId = BitVectorIteratorNext(&bIter); bbId != -1;
+        bbId = BitVectorIteratorNext(&bIter)) {
       BasicBlock *bb;
-      bb = reinterpret_cast<BasicBlock*>(oatGrowableListGetElement(&cUnit->blockList, bbId));
+      bb = reinterpret_cast<BasicBlock*>(GrowableListGetElement(&cUnit->blockList, bbId));
       bb->nestingDepth = std::max(bb->nestingDepth,
                                   loop->header->nestingDepth);
     }
   }
   if (cUnit->printMe) {
-    oatDumpLoops(cUnit);
+    DumpLoops(cUnit);
   }
 }
 
@@ -2409,7 +2357,7 @@ void oatMethodLoopDetection(CompilationUnit *cUnit)
  * and attempting to do would involve more complexity than it's
  * worth.
  */
-bool invokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
+static bool InvokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
 {
   InvokeType type;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
@@ -2460,7 +2408,7 @@ bool invokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
  * counts explicitly used sRegs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.
  */
-bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+static bool CountUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
   if (bb->blockType != kDalvikByteCode) {
     return false;
@@ -2482,14 +2430,14 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
       if (dfAttributes & DF_UMS) {
         /*
          * Some invokes will not use Method* - need to perform test similar
-         * to that found in genInvoke() to decide whether to count refs
+         * to that found in GenInvoke() to decide whether to count refs
          * for Method* on invoke-class opcodes.
-         * TODO: refactor for common test here, save results for genInvoke
+         * TODO: refactor for common test here, save results for GenInvoke
          */
         int usesMethodStar = true;
         if ((dfAttributes & (DF_FORMAT_35C | DF_FORMAT_3RC)) &&
             !(dfAttributes & DF_NON_NULL_RET)) {
-          usesMethodStar &= invokeUsesMethodStar(cUnit, mir);
+          usesMethodStar &= InvokeUsesMethodStar(cUnit, mir);
         }
         if (usesMethodStar) {
           cUnit->rawUseCounts.elemList[cUnit->methodSReg]++;
@@ -2501,19 +2449,19 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
   return false;
 }
 
-void oatMethodUseCount(CompilationUnit *cUnit)
+void MethodUseCount(CompilationUnit *cUnit)
 {
-  oatInitGrowableList(cUnit, &cUnit->useCounts, cUnit->numSSARegs + 32, kListMisc);
-  oatInitGrowableList(cUnit, &cUnit->rawUseCounts, cUnit->numSSARegs + 32, kListMisc);
+  CompilerInitGrowableList(cUnit, &cUnit->useCounts, cUnit->numSSARegs + 32, kListMisc);
+  CompilerInitGrowableList(cUnit, &cUnit->rawUseCounts, cUnit->numSSARegs + 32, kListMisc);
   // Initialize list
   for (int i = 0; i < cUnit->numSSARegs; i++) {
-    oatInsertGrowableList(cUnit, &cUnit->useCounts, 0);
-    oatInsertGrowableList(cUnit, &cUnit->rawUseCounts, 0);
+    InsertGrowableList(cUnit, &cUnit->useCounts, 0);
+    InsertGrowableList(cUnit, &cUnit->rawUseCounts, 0);
   }
   if (cUnit->disableOpt & (1 << kPromoteRegs)) {
     return;
   }
-  oatDataFlowAnalysisDispatcher(cUnit, countUses,
+  DataFlowAnalysisDispatcher(cUnit, CountUses,
                                 kAllNodes, false /* isIterative */);
 }
 

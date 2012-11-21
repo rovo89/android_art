@@ -18,12 +18,12 @@
 #define ART_SRC_COMPILER_CODEGEN_METHODCODEGENDRIVER_H_
 
 namespace art {
-// TODO: move genInvoke to gen_invoke.cc
-void genInvoke(CompilationUnit* cUnit, CallInfo* info);
-// TODO: move genInvoke to gen_invoke.cc or utils
-CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
-void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase);
-void oatMethodMIR2LIR(CompilationUnit* cUnit);
+// TODO: move GenInvoke to gen_invoke.cc
+void GenInvoke(CompilationUnit* cUnit, CallInfo* info);
+// TODO: move GenInvoke to gen_invoke.cc or utils
+CallInfo* NewMemCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
+void SpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase);
+void MethodMIR2LIR(CompilationUnit* cUnit);
 
 
 }  // namespace art

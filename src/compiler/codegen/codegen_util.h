@@ -21,32 +21,32 @@ namespace art {
 
 inline int32_t s4FromSwitchData(const void* switchData) { return *reinterpret_cast<const int32_t*>(switchData); }
 inline RegisterClass oatRegClassBySize(OpSize size) { return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte || size == kSignedByte ) ? kCoreReg : kAnyReg; }
-void oatAssembleLIR(CompilationUnit* cUnit);
-void setMemRefType(LIR* lir, bool isLoad, int memType);
-void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit);
-uint64_t oatGetRegMaskCommon(CompilationUnit* cUnit, int reg);
-void oatSetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg);
-void setupResourceMasks(CompilationUnit* cUnit, LIR* lir);
-void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr);
-void oatDumpPromotionMap(CompilationUnit *cUnit);
-void dumpMappingTable(const char* table_name, const std::string& descriptor, const std::string& name, const std::string& signature, const std::vector<uint32_t>& v);
-void oatCodegenDump(CompilationUnit* cUnit);
+void AssembleLIR(CompilationUnit* cUnit);
+void SetMemRefType(LIR* lir, bool isLoad, int memType);
+void AnnotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit);
+uint64_t GetRegMaskCommon(CompilationUnit* cUnit, int reg);
+void SetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg);
+void SetupResourceMasks(CompilationUnit* cUnit, LIR* lir);
+void DumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr);
+void DumpPromotionMap(CompilationUnit *cUnit);
+void DumpMappingTable(const char* table_name, const std::string& descriptor, const std::string& name, const std::string& signature, const std::vector<uint32_t>& v);
+void CodegenDump(CompilationUnit* cUnit);
 // TODO: remove default parameters
-LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
-LIR* newLIR0(CompilationUnit* cUnit, int opcode);
-LIR* newLIR1(CompilationUnit* cUnit, int opcode, int dest);
-LIR* newLIR2(CompilationUnit* cUnit, int opcode, int dest, int src1);
-LIR* newLIR3(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2);
-LIR* newLIR4(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info);
-LIR* newLIR5(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info1, int info2);
-LIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta);
-LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi);
-LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP, int value);
-LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP, int valLo, int valHi);
-void oatProcessSwitchTables(CompilationUnit* cUnit);
-void dumpSparseSwitchTable(const uint16_t* table);
-void dumpPackedSwitchTable(const uint16_t* table);
-LIR* markBoundary(CompilationUnit* cUnit, int offset, const char* instStr);
+LIR* RawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
+LIR* NewLIR0(CompilationUnit* cUnit, int opcode);
+LIR* NewLIR1(CompilationUnit* cUnit, int opcode, int dest);
+LIR* NewLIR2(CompilationUnit* cUnit, int opcode, int dest, int src1);
+LIR* NewLIR3(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2);
+LIR* NewLIR4(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info);
+LIR* NewLIR5(CompilationUnit* cUnit, int opcode, int dest, int src1, int src2, int info1, int info2);
+LIR* ScanLiteralPool(LIR* dataTarget, int value, unsigned int delta);
+LIR* ScanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi);
+LIR* AddWordData(CompilationUnit* cUnit, LIR* *constantListP, int value);
+LIR* AddWideData(CompilationUnit* cUnit, LIR* *constantListP, int valLo, int valHi);
+void ProcessSwitchTables(CompilationUnit* cUnit);
+void DumpSparseSwitchTable(const uint16_t* table);
+void DumpPackedSwitchTable(const uint16_t* table);
+LIR* MarkBoundary(CompilationUnit* cUnit, int offset, const char* instStr);
 
 }  // namespace art
 

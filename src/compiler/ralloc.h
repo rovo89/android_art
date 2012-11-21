@@ -21,7 +21,7 @@
 
 namespace art {
 
-void oatSimpleRegAlloc(CompilationUnit* cUnit);
+void SimpleRegAlloc(CompilationUnit* cUnit);
 
 }  // namespace art
 

@@ -329,7 +329,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4 }, "PcRelAdr",      "!0r,!1d" },
 };
 
-static size_t computeSize(X86EncodingMap* entry, int displacement, bool has_sib) {
+static size_t ComputeSize(X86EncodingMap* entry, int displacement, bool has_sib) {
   size_t size = 0;
   if (entry->skeleton.prefix1 > 0) {
     ++size;
@@ -358,7 +358,7 @@ static size_t computeSize(X86EncodingMap* entry, int displacement, bool has_sib)
   return size;
 }
 
-int oatGetInsnSize(LIR* lir) {
+int GetInsnSize(LIR* lir) {
   X86EncodingMap* entry = &EncodingMap[lir->opcode];
   switch (entry->kind) {
     case kData:
@@ -368,48 +368,48 @@ int oatGetInsnSize(LIR* lir) {
     case kNullary:
       return 1;  // 1 byte of opcode
     case kReg:  // lir operands - 0: reg
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kMem: { // lir operands - 0: base, 1: disp
       int base = lir->operands[0];
       int disp = lir->operands[1];
       // SP requires a special extra SIB byte. BP requires explicit disp,
       // so add a byte for disp 0 which would normally be omitted.
-      return computeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
+      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
     }
     case kArray:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
-      return computeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[3], true);
     case kMemReg: { // lir operands - 0: base, 1: disp, 2: reg
       int base = lir->operands[0];
       int disp = lir->operands[1];
       // SP requires a special extra SIB byte. BP requires explicit disp,
       // so add a byte for disp 0 which would normally be omitted.
-      return computeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
+      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
     }
     case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-      return computeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[3], true);
     case kThreadReg:  // lir operands - 0: disp, 1: reg
-      return computeSize(entry, lir->operands[0], false);
+      return ComputeSize(entry, lir->operands[0], false);
     case kRegReg:
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kRegRegStore:
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kRegMem: { // lir operands - 0: reg, 1: base, 2: disp
       int base = lir->operands[1];
       int disp = lir->operands[2];
       // SP requires a special extra SIB byte. BP requires explicit disp,
       // so add a byte for disp 0 which would normally be omitted.
-      return computeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
+      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
     }
     case kRegArray:  { // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
       int base = lir->operands[1];
       int disp = lir->operands[4];
       // BP requires explicit disp, so add a byte for disp 0 which would normally be omitted.
-      return computeSize(entry, disp, true) + ((base == rBP && disp == 0) ? 1 : 0);
+      return ComputeSize(entry, disp, true) + ((base == rBP && disp == 0) ? 1 : 0);
     }
     case kRegThread:  // lir operands - 0: reg, 1: disp
-      return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+      return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
     case kRegImm: {  // lir operands - 0: reg, 1: immediate
-      size_t size = computeSize(entry, 0, false);
+      size_t size = ComputeSize(entry, 0, false);
       if (entry->skeleton.ax_opcode == 0) {
         return size;
       } else {
@@ -420,44 +420,44 @@ int oatGetInsnSize(LIR* lir) {
     }
     case kMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
       CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return computeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[1], false);
     case kArrayImm:  // lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
-      return computeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[3], true);
     case kThreadImm:  // lir operands - 0: disp, 1: imm
-      return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+      return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
     case kRegRegImm:  // lir operands - 0: reg, 1: reg, 2: imm
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kRegMemImm:  // lir operands - 0: reg, 1: base, 2: disp, 3: imm
       CHECK_NE(lir->operands[1], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return computeSize(entry, lir->operands[2], false);
+      return ComputeSize(entry, lir->operands[2], false);
     case kRegArrayImm:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp, 5: imm
-      return computeSize(entry, lir->operands[4], true);
+      return ComputeSize(entry, lir->operands[4], true);
     case kMovRegImm:  // lir operands - 0: reg, 1: immediate
       return 1 + entry->skeleton.immediate_bytes;
     case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
       // Shift by immediate one has a shorter opcode.
-      return computeSize(entry, 0, false) - (lir->operands[1] == 1 ? 1 : 0);
+      return ComputeSize(entry, 0, false) - (lir->operands[1] == 1 ? 1 : 0);
     case kShiftMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
       CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
       // Shift by immediate one has a shorter opcode.
-      return computeSize(entry, lir->operands[1], false) - (lir->operands[2] == 1 ? 1 : 0);
+      return ComputeSize(entry, lir->operands[1], false) - (lir->operands[2] == 1 ? 1 : 0);
     case kShiftArrayImm:  // lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
       // Shift by immediate one has a shorter opcode.
-      return computeSize(entry, lir->operands[3], true) - (lir->operands[4] == 1 ? 1 : 0);
+      return ComputeSize(entry, lir->operands[3], true) - (lir->operands[4] == 1 ? 1 : 0);
     case kShiftRegCl:
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kShiftMemCl:  // lir operands - 0: base, 1: disp, 2: cl
       CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return computeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[1], false);
     case kShiftArrayCl:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-      return computeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[3], true);
     case kRegCond:  // lir operands - 0: reg, 1: cond
-      return computeSize(entry, 0, false);
+      return ComputeSize(entry, 0, false);
     case kMemCond:  // lir operands - 0: base, 1: disp, 2: cond
       CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return computeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[1], false);
     case kArrayCond:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: cond
-      return computeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[3], true);
     case kJcc:
       if (lir->opcode == kX86Jcc8) {
         return 2;  // opcode + rel8
@@ -478,11 +478,11 @@ int oatGetInsnSize(LIR* lir) {
       switch (lir->opcode) {
         case kX86CallR: return 2;  // opcode modrm
         case kX86CallM:  // lir operands - 0: base, 1: disp
-          return computeSize(entry, lir->operands[1], false);
+          return ComputeSize(entry, lir->operands[1], false);
         case kX86CallA:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
-          return computeSize(entry, lir->operands[3], true);
+          return ComputeSize(entry, lir->operands[3], true);
         case kX86CallT:  // lir operands - 0: disp
-          return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+          return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
         default:
           break;
       }
@@ -490,7 +490,7 @@ int oatGetInsnSize(LIR* lir) {
     case kPcRel:
       if (entry->opcode == kX86PcRelLoadRA) {
         // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
-        return computeSize(entry, 0x12345678, true);
+        return ComputeSize(entry, 0x12345678, true);
       } else {
         DCHECK(entry->opcode == kX86PcRelAdr);
         return 5; // opcode with reg + 4 byte immediate
@@ -498,7 +498,7 @@ int oatGetInsnSize(LIR* lir) {
     case kMacro:
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
       return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          computeSize(&EncodingMap[kX86Sub32RI], 0, false) -
+          ComputeSize(&EncodingMap[kX86Sub32RI], 0, false) -
           (lir->operands[0] == rAX  ? 1 : 0);  // shorter ax encoding
     default:
       break;
@@ -507,7 +507,7 @@ int oatGetInsnSize(LIR* lir) {
   return 0;
 }
 
-static uint8_t modrmForDisp(int base, int disp) {
+static uint8_t ModrmForDisp(int base, int disp) {
   // BP requires an explicit disp, so do not omit it in the 0 case
   if (disp == 0 && base != rBP) {
     return 0;
@@ -518,7 +518,7 @@ static uint8_t modrmForDisp(int base, int disp) {
   }
 }
 
-static void emitDisp(CompilationUnit* cUnit, int base, int disp) {
+static void EmitDisp(CompilationUnit* cUnit, int base, int disp) {
   // BP requires an explicit disp, so do not omit it in the 0 case
   if (disp == 0 && base != rBP) {
     return;
@@ -532,7 +532,7 @@ static void emitDisp(CompilationUnit* cUnit, int base, int disp) {
   }
 }
 
-static void emitOpReg(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg) {
+static void EmitOpReg(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
@@ -567,7 +567,7 @@ static void emitOpReg(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitOpMem(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t base, int disp) {
+static void EmitOpMem(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t base, int disp) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
@@ -581,14 +581,14 @@ static void emitOpMem(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
   DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   DCHECK_LT(entry->skeleton.modrm_opcode, 8);
   DCHECK_LT(base, 8);
-  uint8_t modrm = (modrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
+  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
   cUnit->codeBuffer.push_back(modrm);
-  emitDisp(cUnit, base, disp);
+  EmitDisp(cUnit, base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitMemReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitMemReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t base, int disp, uint8_t reg) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -619,25 +619,25 @@ static void emitMemReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
   DCHECK_LT(reg, 8);
   DCHECK_LT(base, 8);
-  uint8_t modrm = (modrmForDisp(base, disp) << 6) | (reg << 3) | base;
+  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg << 3) | base;
   cUnit->codeBuffer.push_back(modrm);
   if (base == rX86_SP) {
     // Special SIB for SP base
     cUnit->codeBuffer.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
   }
-  emitDisp(cUnit, base, disp);
+  EmitDisp(cUnit, base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitRegMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg, uint8_t base, int disp) {
   // Opcode will flip operands.
-  emitMemReg(cUnit, entry, base, disp, reg);
+  EmitMemReg(cUnit, entry, base, disp, reg);
 }
 
-static void emitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg,
+static void EmitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg,
                          uint8_t base, uint8_t index, int scale, int disp) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -663,26 +663,26 @@ static void emitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, ui
     reg = reg & X86_FP_REG_MASK;
   }
   DCHECK_LT(reg, 8);
-  uint8_t modrm = (modrmForDisp(base, disp) << 6) | (reg << 3) | rX86_SP;
+  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg << 3) | rX86_SP;
   cUnit->codeBuffer.push_back(modrm);
   DCHECK_LT(scale, 4);
   DCHECK_LT(index, 8);
   DCHECK_LT(base, 8);
   uint8_t sib = (scale << 6) | (index << 3) | base;
   cUnit->codeBuffer.push_back(sib);
-  emitDisp(cUnit, base, disp);
+  EmitDisp(cUnit, base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitArrayReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitArrayReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
                          uint8_t base, uint8_t index, int scale, int disp, uint8_t reg) {
   // Opcode will flip operands.
-  emitRegArray(cUnit, entry, reg, base, index, scale, disp);
+  EmitRegArray(cUnit, entry, reg, base, index, scale, disp);
 }
 
-static void emitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
                           uint8_t reg, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
   cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -720,7 +720,7 @@ static void emitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg1, uint8_t reg2) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -757,7 +757,7 @@ static void emitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitRegRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                           uint8_t reg1, uint8_t reg2, int32_t imm) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -814,7 +814,7 @@ static void emitRegRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
-static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg, int imm) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -868,7 +868,7 @@ static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
-static void emitThreadImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitThreadImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                           int disp, int imm) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -920,7 +920,7 @@ static void emitThreadImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(entry->skeleton.ax_opcode, 0);
 }
 
-static void emitMovRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitMovRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg, int imm) {
   DCHECK_LT(reg, 8);
   cUnit->codeBuffer.push_back(0xB8 + reg);
@@ -930,7 +930,7 @@ static void emitMovRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   cUnit->codeBuffer.push_back((imm >> 24) & 0xFF);
 }
 
-static void emitShiftRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitShiftRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                             uint8_t reg, int imm) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -971,7 +971,7 @@ static void emitShiftRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
-static void emitShiftRegCl(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitShiftRegCl(CompilationUnit* cUnit, const X86EncodingMap* entry,
                            uint8_t reg, uint8_t cl) {
   DCHECK_EQ(cl, static_cast<uint8_t>(rCX));
   if (entry->skeleton.prefix1 != 0) {
@@ -992,7 +992,7 @@ static void emitShiftRegCl(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitRegCond(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitRegCond(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg, uint8_t condition) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -1014,7 +1014,7 @@ static void emitRegCond(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(entry->skeleton.immediate_bytes, 0);
 }
 
-static void emitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel) {
+static void EmitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel) {
   if (entry->opcode == kX86Jmp8) {
     DCHECK(IS_SIMM8(rel));
     cUnit->codeBuffer.push_back(0xEB);
@@ -1035,7 +1035,7 @@ static void emitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel
   }
 }
 
-static void emitJcc(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitJcc(CompilationUnit* cUnit, const X86EncodingMap* entry,
                     int rel, uint8_t cc) {
   DCHECK_LT(cc, 16);
   if (entry->opcode == kX86Jcc8) {
@@ -1053,7 +1053,7 @@ static void emitJcc(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
-static void emitCallMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitCallMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
                         uint8_t base, int disp) {
   if (entry->skeleton.prefix1 != 0) {
     cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
@@ -1075,18 +1075,18 @@ static void emitCallMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
-  uint8_t modrm = (modrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
+  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
   cUnit->codeBuffer.push_back(modrm);
   if (base == rX86_SP) {
     // Special SIB for SP base
     cUnit->codeBuffer.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
   }
-  emitDisp(cUnit, base, disp);
+  EmitDisp(cUnit, base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitCallThread(CompilationUnit* cUnit, const X86EncodingMap* entry, int disp) {
+static void EmitCallThread(CompilationUnit* cUnit, const X86EncodingMap* entry, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
   cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
   if (entry->skeleton.prefix2 != 0) {
@@ -1114,7 +1114,7 @@ static void emitCallThread(CompilationUnit* cUnit, const X86EncodingMap* entry, 
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void emitPcRel(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg,
+static void EmitPcRel(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8_t reg,
                       int base_or_table, uint8_t index, int scale, int table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
@@ -1161,7 +1161,7 @@ static void emitPcRel(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
 }
 
-static void emitMacro(CompilationUnit* cUnit, const X86EncodingMap* entry,
+static void EmitMacro(CompilationUnit* cUnit, const X86EncodingMap* entry,
                       uint8_t reg, int offset) {
   DCHECK(entry->opcode == kX86StartOfMethod) << entry->name;
   cUnit->codeBuffer.push_back(0xE8);  // call +0
@@ -1173,12 +1173,12 @@ static void emitMacro(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_LT(reg, 8);
   cUnit->codeBuffer.push_back(0x58 + reg);  // pop reg
 
-  emitRegImm(cUnit, &EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
+  EmitRegImm(cUnit, &EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
 }
 
-void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
-  UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " " << buildInsnString(entry->fmt, lir, 0);
-  for (int i = 0; i < oatGetInsnSize(lir); ++i) {
+void EmitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
+  UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " " << BuildInsnString(entry->fmt, lir, 0);
+  for (int i = 0; i < GetInsnSize(lir); ++i) {
     cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3
   }
 }
@@ -1189,7 +1189,7 @@ void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR*
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startAddr) {
+AssemblerStatus AssembleInstructions(CompilationUnit *cUnit, uintptr_t startAddr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1223,14 +1223,14 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startA
                   << " delta: " << delta << " old delta: " << lir->operands[0];
             }
             lir->opcode = kX86Jcc32;
-            oatSetupResourceMasks(cUnit, lir);
+            SetupResourceMasks(cUnit, lir);
             res = kRetryAll;
           }
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
-            oatDumpLIRInsn(cUnit, lir, 0);
+            DumpLIRInsn(cUnit, lir, 0);
             LOG(INFO) << "Target:";
-            oatDumpLIRInsn(cUnit, targetLIR, 0);
+            DumpLIRInsn(cUnit, targetLIR, 0);
             LOG(INFO) << "Delta " << delta;
           }
           lir->operands[0] = delta;
@@ -1244,9 +1244,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startA
           int delta = target - pc;
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
-            oatDumpLIRInsn(cUnit, lir, 0);
+            DumpLIRInsn(cUnit, lir, 0);
             LOG(INFO) << "Target:";
-            oatDumpLIRInsn(cUnit, targetLIR, 0);
+            DumpLIRInsn(cUnit, targetLIR, 0);
             LOG(INFO) << "Delta " << delta;
           }
           lir->operands[0] = delta;
@@ -1276,7 +1276,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startA
               LOG(INFO) << "Retry for JMP growth at " << lir->offset;
             }
             lir->opcode = kX86Jmp32;
-            oatSetupResourceMasks(cUnit, lir);
+            SetupResourceMasks(cUnit, lir);
             res = kRetryAll;
           }
           lir->operands[0] = delta;
@@ -1328,86 +1328,86 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startA
         DCHECK_EQ(0, entry->skeleton.immediate_bytes);
         break;
       case kReg:  // lir operands - 0: reg
-        emitOpReg(cUnit, entry, lir->operands[0]);
+        EmitOpReg(cUnit, entry, lir->operands[0]);
         break;
       case kMem:  // lir operands - 0: base, 1: disp
-        emitOpMem(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitOpMem(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
-        emitMemReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitMemReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-        emitArrayReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitArrayReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
         break;
       case kRegMem:  // lir operands - 0: reg, 1: base, 2: disp
-        emitRegMem(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitRegMem(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegArray:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
-        emitRegArray(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitRegArray(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
         break;
       case kRegThread:  // lir operands - 0: reg, 1: disp
-        emitRegThread(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitRegThread(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegReg:  // lir operands - 0: reg1, 1: reg2
-        emitRegReg(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitRegReg(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegRegStore:  // lir operands - 0: reg2, 1: reg1
-        emitRegReg(cUnit, entry, lir->operands[1], lir->operands[0]);
+        EmitRegReg(cUnit, entry, lir->operands[1], lir->operands[0]);
         break;
       case kRegRegImm:
-        emitRegRegImm(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitRegRegImm(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegImm:  // lir operands - 0: reg, 1: immediate
-        emitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kThreadImm:  // lir operands - 0: disp, 1: immediate
-        emitThreadImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitThreadImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kMovRegImm:  // lir operands - 0: reg, 1: immediate
-        emitMovRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitMovRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
-        emitShiftRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitShiftRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kShiftRegCl: // lir operands - 0: reg, 1: cl
-        emitShiftRegCl(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitShiftRegCl(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition
-        emitRegCond(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitRegCond(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kJmp:  // lir operands - 0: rel
-        emitJmp(cUnit, entry, lir->operands[0]);
+        EmitJmp(cUnit, entry, lir->operands[0]);
         break;
       case kJcc:  // lir operands - 0: rel, 1: CC, target assigned
-        emitJcc(cUnit, entry, lir->operands[0], lir->operands[1]);
+        EmitJcc(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kCall:
         switch (entry->opcode) {
           case kX86CallM:  // lir operands - 0: base, 1: disp
-            emitCallMem(cUnit, entry, lir->operands[0], lir->operands[1]);
+            EmitCallMem(cUnit, entry, lir->operands[0], lir->operands[1]);
             break;
           case kX86CallT:  // lir operands - 0: disp
-            emitCallThread(cUnit, entry, lir->operands[0]);
+            EmitCallThread(cUnit, entry, lir->operands[0]);
             break;
           default:
-            emitUnimplemented(cUnit, entry, lir);
+            EmitUnimplemented(cUnit, entry, lir);
             break;
         }
         break;
       case kPcRel:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
-        emitPcRel(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitPcRel(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
                   lir->operands[3], lir->operands[4]);
         break;
       case kMacro:
-        emitMacro(cUnit, entry, lir->operands[0], lir->offset);
+        EmitMacro(cUnit, entry, lir->operands[0], lir->offset);
         break;
       default:
-        emitUnimplemented(cUnit, entry, lir);
+        EmitUnimplemented(cUnit, entry, lir);
         break;
     }
-    CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),
+    CHECK_EQ(static_cast<size_t>(GetInsnSize(lir)),
              cUnit->codeBuffer.size() - starting_cbuf_size)
         << "Instruction size mismatch for entry: " << EncodingMap[lir->opcode].name;
   }
@@ -1418,7 +1418,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, uintptr_t startA
  * Target-dependent offset assignment.
  * independent.
  */
-int oatAssignInsnOffsets(CompilationUnit* cUnit)
+int AssignInsnOffsets(CompilationUnit* cUnit)
 {
     LIR* x86LIR;
     int offset = 0;

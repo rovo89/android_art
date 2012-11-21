@@ -47,7 +47,7 @@ struct PromotionMap {
   RegLocationType coreLocation:3;
   uint8_t coreReg;
   RegLocationType fpLocation:3;
-  uint8_t fpReg;
+  uint8_t FpReg;
   bool firstInPair;
 };
 
@@ -491,7 +491,7 @@ struct CompilationUnit {
   const uint16_t* insns;
   uint32_t insnsSize;
   bool disableDataflow; // Skip dataflow analysis if possible
-  SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+  SafeMap<unsigned int, BasicBlock*> blockMap; // FindBlock lookup cache
   SafeMap<unsigned int, unsigned int> blockIdMap; // Block collapse lookup cache
   SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
   int defCount;         // Used to estimate number of SSA names
@@ -583,23 +583,23 @@ static const CodePattern specialPatterns[] = {
   {{Instruction::RETURN_WIDE}, kIdentity},
 };
 
-BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
+BasicBlock* NewMemBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 
-void oatAppendMIR(BasicBlock* bb, MIR* mir);
+void AppendMIR(BasicBlock* bb, MIR* mir);
 
-void oatPrependMIR(BasicBlock* bb, MIR* mir);
+void PrependMIR(BasicBlock* bb, MIR* mir);
 
-void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR);
+void InsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR);
 
-void oatAppendLIR(CompilationUnit* cUnit, LIR* lir);
+void AppendLIR(CompilationUnit* cUnit, LIR* lir);
 
-void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR);
+void InsertLIRBefore(LIR* currentLIR, LIR* newLIR);
 
-void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR);
+void InsertLIRAfter(LIR* currentLIR, LIR* newLIR);
 
-MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
+MIR* FindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
 /* Debug Utilities */
-void oatDumpCompilationUnit(CompilationUnit* cUnit);
+void DumpCompilationUnit(CompilationUnit* cUnit);
 
 }  // namespace art
 

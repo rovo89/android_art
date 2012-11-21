@@ -22,16 +22,16 @@ namespace art {
 
 /* This file contains codegen for the MIPS32 ISA. */
 
-void genBarrier(CompilationUnit *cUnit);
-void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
-LIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
+void GenBarrier(CompilationUnit *cUnit);
+void LoadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
+LIR *LoadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
                       int rDest);
-LIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
+LIR *StoreWordDisp(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrc);
-LIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
+LIR *LoadConstant(CompilationUnit *cUnit, int rDest, int value);
 
 #ifdef __mips_hard_float
-LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR *FpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
@@ -54,7 +54,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
       opcode = kMipsMfc1;
     }
   }
-  LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
+  LIR* res = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
   if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
     res->flags.isNop = true;
   }
@@ -68,10 +68,10 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
  * a high register, build constant into a low register and copy.
  *
  * No additional register clobbering operation performed. Use this version when
- * 1) rDest is freshly returned from oatAllocTemp or
+ * 1) rDest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
+LIR *LoadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
 {
   LIR *res;
 
@@ -80,42 +80,42 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value)
   int isFpReg = MIPS_FPREG(rDest);
   if (isFpReg) {
     DCHECK(MIPS_SINGLEREG(rDest));
-    rDest = oatAllocTemp(cUnit);
+    rDest = AllocTemp(cUnit);
   }
 #endif
 
   /* See if the value can be constructed cheaply */
   if (value == 0) {
-    res = newLIR2(cUnit, kMipsMove, rDest, r_ZERO);
+    res = NewLIR2(cUnit, kMipsMove, rDest, r_ZERO);
   } else if ((value > 0) && (value <= 65535)) {
-    res = newLIR3(cUnit, kMipsOri, rDest, r_ZERO, value);
+    res = NewLIR3(cUnit, kMipsOri, rDest, r_ZERO, value);
   } else if ((value < 0) && (value >= -32768)) {
-    res = newLIR3(cUnit, kMipsAddiu, rDest, r_ZERO, value);
+    res = NewLIR3(cUnit, kMipsAddiu, rDest, r_ZERO, value);
   } else {
-    res = newLIR2(cUnit, kMipsLui, rDest, value>>16);
+    res = NewLIR2(cUnit, kMipsLui, rDest, value>>16);
     if (value & 0xffff)
-      newLIR3(cUnit, kMipsOri, rDest, rDest, value);
+      NewLIR3(cUnit, kMipsOri, rDest, rDest, value);
   }
 
 #ifdef __mips_hard_float
   if (isFpReg) {
-    newLIR2(cUnit, kMipsMtc1, rDest, rDestSave);
-    oatFreeTemp(cUnit, rDest);
+    NewLIR2(cUnit, kMipsMtc1, rDest, rDestSave);
+    FreeTemp(cUnit, rDest);
   }
 #endif
 
   return res;
 }
 
-LIR *opBranchUnconditional(CompilationUnit *cUnit, OpKind op)
+LIR *OpBranchUnconditional(CompilationUnit *cUnit, OpKind op)
 {
   DCHECK_EQ(op, kOpUncondBr);
-  return newLIR1(cUnit, kMipsB, 0 /* offset to be patched */ );
+  return NewLIR1(cUnit, kMipsB, 0 /* offset to be patched */ );
 }
 
-LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
+LIR *LoadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
-LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
+LIR *OpReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
 {
   MipsOpCode opcode = kMipsNop;
   switch (op) {
@@ -123,17 +123,17 @@ LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
       opcode = kMipsJalr;
       break;
     case kOpBx:
-      return newLIR1(cUnit, kMipsJr, rDestSrc);
+      return NewLIR1(cUnit, kMipsJr, rDestSrc);
       break;
     default:
-      LOG(FATAL) << "Bad case in opReg";
+      LOG(FATAL) << "Bad case in OpReg";
   }
-  return newLIR2(cUnit, opcode, r_RA, rDestSrc);
+  return NewLIR2(cUnit, opcode, r_RA, rDestSrc);
 }
 
-LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *OpRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
            int rSrc1, int value);
-LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
+LIR *OpRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
           int value)
 {
   LIR *res;
@@ -143,29 +143,29 @@ LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
   MipsOpCode opcode = kMipsNop;
   switch (op) {
     case kOpAdd:
-      return opRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
+      return OpRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
       break;
     case kOpSub:
-      return opRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
+      return OpRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
       break;
     default:
-      LOG(FATAL) << "Bad case in opRegImm";
+      LOG(FATAL) << "Bad case in OpRegImm";
       break;
   }
   if (shortForm)
-    res = newLIR2(cUnit, opcode, rDestSrc1, absValue);
+    res = NewLIR2(cUnit, opcode, rDestSrc1, absValue);
   else {
-    int rScratch = oatAllocTemp(cUnit);
-    res = loadConstant(cUnit, rScratch, value);
+    int rScratch = AllocTemp(cUnit);
+    res = LoadConstant(cUnit, rScratch, value);
     if (op == kOpCmp)
-      newLIR2(cUnit, opcode, rDestSrc1, rScratch);
+      NewLIR2(cUnit, opcode, rDestSrc1, rScratch);
     else
-      newLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, rScratch);
+      NewLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, rScratch);
   }
   return res;
 }
 
-LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *OpRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
                  int rSrc1, int rSrc2)
 {
   MipsOpCode opcode = kMipsNop;
@@ -202,13 +202,13 @@ LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
       LOG(FATAL) << "No carry bit on MIPS";
       break;
     default:
-      LOG(FATAL) << "bad case in opRegRegReg";
+      LOG(FATAL) << "bad case in OpRegRegReg";
       break;
   }
-  return newLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
+  return NewLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
 }
 
-LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *OpRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
                  int rSrc1, int value)
 {
   LIR *res;
@@ -279,26 +279,26 @@ LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
       opcode = kMipsMul;
       break;
     default:
-      LOG(FATAL) << "Bad case in opRegRegImm";
+      LOG(FATAL) << "Bad case in OpRegRegImm";
       break;
   }
 
   if (shortForm)
-    res = newLIR3(cUnit, opcode, rDest, rSrc1, value);
+    res = NewLIR3(cUnit, opcode, rDest, rSrc1, value);
   else {
     if (rDest != rSrc1) {
-      res = loadConstant(cUnit, rDest, value);
-      newLIR3(cUnit, opcode, rDest, rSrc1, rDest);
+      res = LoadConstant(cUnit, rDest, value);
+      NewLIR3(cUnit, opcode, rDest, rSrc1, rDest);
     } else {
-      int rScratch = oatAllocTemp(cUnit);
-      res = loadConstant(cUnit, rScratch, value);
-      newLIR3(cUnit, opcode, rDest, rSrc1, rScratch);
+      int rScratch = AllocTemp(cUnit);
+      res = LoadConstant(cUnit, rScratch, value);
+      NewLIR3(cUnit, opcode, rDest, rSrc1, rScratch);
     }
   }
   return res;
 }
 
-LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
+LIR *OpRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
 {
   MipsOpCode opcode = kMipsNop;
   LIR *res;
@@ -307,58 +307,58 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
       opcode = kMipsMove;
       break;
     case kOpMvn:
-      return newLIR3(cUnit, kMipsNor, rDestSrc1, rSrc2, r_ZERO);
+      return NewLIR3(cUnit, kMipsNor, rDestSrc1, rSrc2, r_ZERO);
     case kOpNeg:
-      return newLIR3(cUnit, kMipsSubu, rDestSrc1, r_ZERO, rSrc2);
+      return NewLIR3(cUnit, kMipsSubu, rDestSrc1, r_ZERO, rSrc2);
     case kOpAdd:
     case kOpAnd:
     case kOpMul:
     case kOpOr:
     case kOpSub:
     case kOpXor:
-      return opRegRegReg(cUnit, op, rDestSrc1, rDestSrc1, rSrc2);
+      return OpRegRegReg(cUnit, op, rDestSrc1, rDestSrc1, rSrc2);
     case kOp2Byte:
 #if __mips_isa_rev>=2
-      res = newLIR2(cUnit, kMipsSeb, rDestSrc1, rSrc2);
+      res = NewLIR2(cUnit, kMipsSeb, rDestSrc1, rSrc2);
 #else
-      res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 24);
-      opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 24);
+      res = OpRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 24);
+      OpRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 24);
 #endif
       return res;
     case kOp2Short:
 #if __mips_isa_rev>=2
-      res = newLIR2(cUnit, kMipsSeh, rDestSrc1, rSrc2);
+      res = NewLIR2(cUnit, kMipsSeh, rDestSrc1, rSrc2);
 #else
-      res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 16);
-      opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 16);
+      res = OpRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 16);
+      OpRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 16);
 #endif
       return res;
     case kOp2Char:
-       return newLIR3(cUnit, kMipsAndi, rDestSrc1, rSrc2, 0xFFFF);
+       return NewLIR3(cUnit, kMipsAndi, rDestSrc1, rSrc2, 0xFFFF);
     default:
-      LOG(FATAL) << "Bad case in opRegReg";
+      LOG(FATAL) << "Bad case in OpRegReg";
       break;
   }
-  return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
+  return NewLIR2(cUnit, opcode, rDestSrc1, rSrc2);
 }
 
-LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
+LIR *LoadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
                            int rDestHi, int valLo, int valHi)
 {
   LIR *res;
-  res = loadConstantNoClobber(cUnit, rDestLo, valLo);
-  loadConstantNoClobber(cUnit, rDestHi, valHi);
+  res = LoadConstantNoClobber(cUnit, rDestLo, valLo);
+  LoadConstantNoClobber(cUnit, rDestHi, valHi);
   return res;
 }
 
 /* Load value from base + scaled index. */
-LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
+LIR *LoadBaseIndexed(CompilationUnit *cUnit, int rBase,
                      int rIndex, int rDest, int scale, OpSize size)
 {
   LIR *first = NULL;
   LIR *res;
   MipsOpCode opcode = kMipsNop;
-  int tReg = oatAllocTemp(cUnit);
+  int tReg = AllocTemp(cUnit);
 
 #ifdef __mips_hard_float
   if (MIPS_FPREG(rDest)) {
@@ -372,10 +372,10 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 #endif
 
   if (!scale) {
-    first = newLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
+    first = NewLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
   } else {
-    first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-    newLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
+    first = OpRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
+    NewLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
   }
 
   switch (size) {
@@ -400,22 +400,22 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
       opcode = kMipsLb;
       break;
     default:
-      LOG(FATAL) << "Bad case in loadBaseIndexed";
+      LOG(FATAL) << "Bad case in LoadBaseIndexed";
   }
 
-  res = newLIR3(cUnit, opcode, rDest, 0, tReg);
-  oatFreeTemp(cUnit, tReg);
+  res = NewLIR3(cUnit, opcode, rDest, 0, tReg);
+  FreeTemp(cUnit, tReg);
   return (first) ? first : res;
 }
 
 /* store value base base + scaled index. */
-LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
+LIR *StoreBaseIndexed(CompilationUnit *cUnit, int rBase,
                       int rIndex, int rSrc, int scale, OpSize size)
 {
   LIR *first = NULL;
   MipsOpCode opcode = kMipsNop;
   int rNewIndex = rIndex;
-  int tReg = oatAllocTemp(cUnit);
+  int tReg = AllocTemp(cUnit);
 
 #ifdef __mips_hard_float
   if (MIPS_FPREG(rSrc)) {
@@ -429,10 +429,10 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
 #endif
 
   if (!scale) {
-    first = newLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
+    first = NewLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
   } else {
-    first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-    newLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
+    first = OpRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
+    NewLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
   }
 
   switch (size) {
@@ -453,58 +453,58 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
       opcode = kMipsSb;
       break;
     default:
-      LOG(FATAL) << "Bad case in storeBaseIndexed";
+      LOG(FATAL) << "Bad case in StoreBaseIndexed";
   }
-  newLIR3(cUnit, opcode, rSrc, 0, tReg);
-  oatFreeTemp(cUnit, rNewIndex);
+  NewLIR3(cUnit, opcode, rSrc, 0, tReg);
+  FreeTemp(cUnit, rNewIndex);
   return first;
 }
 
-LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *LoadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
   int i;
   int loadCnt = 0;
   LIR *res = NULL ;
-  genBarrier(cUnit);
+  GenBarrier(cUnit);
 
   for (i = 0; i < 8; i++, rMask >>= 1) {
     if (rMask & 0x1) { /* map r0 to MIPS r_A0 */
-      newLIR3(cUnit, kMipsLw, i+r_A0, loadCnt*4, rBase);
+      NewLIR3(cUnit, kMipsLw, i+r_A0, loadCnt*4, rBase);
       loadCnt++;
     }
   }
 
   if (loadCnt) {/* increment after */
-    newLIR3(cUnit, kMipsAddiu, rBase, rBase, loadCnt*4);
+    NewLIR3(cUnit, kMipsAddiu, rBase, rBase, loadCnt*4);
   }
 
-  genBarrier(cUnit);
+  GenBarrier(cUnit);
   return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *StoreMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
   int i;
   int storeCnt = 0;
   LIR *res = NULL ;
-  genBarrier(cUnit);
+  GenBarrier(cUnit);
 
   for (i = 0; i < 8; i++, rMask >>= 1) {
     if (rMask & 0x1) { /* map r0 to MIPS r_A0 */
-      newLIR3(cUnit, kMipsSw, i+r_A0, storeCnt*4, rBase);
+      NewLIR3(cUnit, kMipsSw, i+r_A0, storeCnt*4, rBase);
       storeCnt++;
     }
   }
 
   if (storeCnt) { /* increment after */
-    newLIR3(cUnit, kMipsAddiu, rBase, rBase, storeCnt*4);
+    NewLIR3(cUnit, kMipsAddiu, rBase, rBase, storeCnt*4);
   }
 
-  genBarrier(cUnit);
+  GenBarrier(cUnit);
   return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
+LIR *LoadBaseDispBody(CompilationUnit *cUnit, int rBase,
                       int displacement, int rDest, int rDestHi,
                       OpSize size, int sReg)
 /*
@@ -569,61 +569,61 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, int rBase,
       opcode = kMipsLb;
       break;
     default:
-      LOG(FATAL) << "Bad case in loadBaseIndexedBody";
+      LOG(FATAL) << "Bad case in LoadBaseIndexedBody";
   }
 
   if (shortForm) {
     if (!pair) {
-      load = res = newLIR3(cUnit, opcode, rDest, displacement, rBase);
+      load = res = NewLIR3(cUnit, opcode, rDest, displacement, rBase);
     } else {
-      load = res = newLIR3(cUnit, opcode, rDest,
+      load = res = NewLIR3(cUnit, opcode, rDest,
                            displacement + LOWORD_OFFSET, rBase);
-      load2 = newLIR3(cUnit, opcode, rDestHi,
+      load2 = NewLIR3(cUnit, opcode, rDestHi,
                       displacement + HIWORD_OFFSET, rBase);
     }
   } else {
     if (pair) {
-      int rTmp = oatAllocFreeTemp(cUnit);
-      res = opRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
-      load = newLIR3(cUnit, opcode, rDest, LOWORD_OFFSET, rTmp);
-      load2 = newLIR3(cUnit, opcode, rDestHi, HIWORD_OFFSET, rTmp);
-      oatFreeTemp(cUnit, rTmp);
+      int rTmp = AllocFreeTemp(cUnit);
+      res = OpRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
+      load = NewLIR3(cUnit, opcode, rDest, LOWORD_OFFSET, rTmp);
+      load2 = NewLIR3(cUnit, opcode, rDestHi, HIWORD_OFFSET, rTmp);
+      FreeTemp(cUnit, rTmp);
     } else {
-      int rTmp = (rBase == rDest) ? oatAllocFreeTemp(cUnit) : rDest;
-      res = opRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
-      load = newLIR3(cUnit, opcode, rDest, 0, rTmp);
+      int rTmp = (rBase == rDest) ? AllocFreeTemp(cUnit) : rDest;
+      res = OpRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
+      load = NewLIR3(cUnit, opcode, rDest, 0, rTmp);
       if (rTmp != rDest)
-        oatFreeTemp(cUnit, rTmp);
+        FreeTemp(cUnit, rTmp);
     }
   }
 
   if (rBase == rMIPS_SP) {
-    annotateDalvikRegAccess(load,
+    AnnotateDalvikRegAccess(load,
                             (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             true /* isLoad */, pair /* is64bit */);
     if (pair) {
-      annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
+      AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
                               true /* isLoad */, pair /* is64bit */);
     }
   }
   return load;
 }
 
-LIR *loadBaseDisp(CompilationUnit *cUnit, int rBase,
+LIR *LoadBaseDisp(CompilationUnit *cUnit, int rBase,
                   int displacement, int rDest, OpSize size, int sReg)
 {
-  return loadBaseDispBody(cUnit, rBase, displacement, rDest, -1,
+  return LoadBaseDispBody(cUnit, rBase, displacement, rDest, -1,
                           size, sReg);
 }
 
-LIR *loadBaseDispWide(CompilationUnit *cUnit, int rBase,
+LIR *LoadBaseDispWide(CompilationUnit *cUnit, int rBase,
                       int displacement, int rDestLo, int rDestHi, int sReg)
 {
-  return loadBaseDispBody(cUnit, rBase, displacement, rDestLo, rDestHi,
+  return LoadBaseDispBody(cUnit, rBase, displacement, rDestLo, rDestHi,
                           kLong, sReg);
 }
 
-LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
+LIR *StoreBaseDispBody(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrc, int rSrcHi, OpSize size)
 {
   LIR *res;
@@ -674,35 +674,35 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
       opcode = kMipsSb;
       break;
     default:
-      LOG(FATAL) << "Bad case in storeBaseIndexedBody";
+      LOG(FATAL) << "Bad case in StoreBaseIndexedBody";
   }
 
   if (shortForm) {
     if (!pair) {
-      store = res = newLIR3(cUnit, opcode, rSrc, displacement, rBase);
+      store = res = NewLIR3(cUnit, opcode, rSrc, displacement, rBase);
     } else {
-      store = res = newLIR3(cUnit, opcode, rSrc, displacement + LOWORD_OFFSET,
+      store = res = NewLIR3(cUnit, opcode, rSrc, displacement + LOWORD_OFFSET,
                             rBase);
-      store2 = newLIR3(cUnit, opcode, rSrcHi, displacement + HIWORD_OFFSET,
+      store2 = NewLIR3(cUnit, opcode, rSrcHi, displacement + HIWORD_OFFSET,
                        rBase);
     }
   } else {
-    int rScratch = oatAllocTemp(cUnit);
-    res = opRegRegImm(cUnit, kOpAdd, rScratch, rBase, displacement);
+    int rScratch = AllocTemp(cUnit);
+    res = OpRegRegImm(cUnit, kOpAdd, rScratch, rBase, displacement);
     if (!pair) {
-      store =  newLIR3(cUnit, opcode, rSrc, 0, rScratch);
+      store =  NewLIR3(cUnit, opcode, rSrc, 0, rScratch);
     } else {
-      store =  newLIR3(cUnit, opcode, rSrc, LOWORD_OFFSET, rScratch);
-      store2 = newLIR3(cUnit, opcode, rSrcHi, HIWORD_OFFSET, rScratch);
+      store =  NewLIR3(cUnit, opcode, rSrc, LOWORD_OFFSET, rScratch);
+      store2 = NewLIR3(cUnit, opcode, rSrcHi, HIWORD_OFFSET, rScratch);
     }
-    oatFreeTemp(cUnit, rScratch);
+    FreeTemp(cUnit, rScratch);
   }
 
   if (rBase == rMIPS_SP) {
-    annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
+    AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
                             >> 2, false /* isLoad */, pair /* is64bit */);
     if (pair) {
-      annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
+      AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
                               false /* isLoad */, pair /* is64bit */);
     }
   }
@@ -710,64 +710,64 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
   return res;
 }
 
-LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,
+LIR *StoreBaseDisp(CompilationUnit *cUnit, int rBase,
                    int displacement, int rSrc, OpSize size)
 {
-  return storeBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
+  return StoreBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
 }
 
-LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
+LIR *StoreBaseDispWide(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrcLo, int rSrcHi)
 {
-  return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
+  return StoreBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
 }
 
-void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
+void LoadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
-  loadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
-  loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
+  LoadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
+  LoadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
 }
 
-LIR* opThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
+LIR* OpThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset)
 {
-  LOG(FATAL) << "Unexpected use of opThreadMem for MIPS";
+  LOG(FATAL) << "Unexpected use of OpThreadMem for MIPS";
   return NULL;
 }
 
-LIR* opMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
+LIR* OpMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp)
 {
-  LOG(FATAL) << "Unexpected use of opMem for MIPS";
+  LOG(FATAL) << "Unexpected use of OpMem for MIPS";
   return NULL;
 }
 
-LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
+LIR* StoreBaseIndexedDisp(CompilationUnit *cUnit,
                           int rBase, int rIndex, int scale, int displacement,
                           int rSrc, int rSrcHi,
                           OpSize size, int sReg)
 {
-  LOG(FATAL) << "Unexpected use of storeBaseIndexedDisp for MIPS";
+  LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }
 
-LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
+LIR* OpRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
               int offset)
 {
-  LOG(FATAL) << "Unexpected use of opRegMem for MIPS";
+  LOG(FATAL) << "Unexpected use of OpRegMem for MIPS";
   return NULL;
 }
 
-LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
+LIR* LoadBaseIndexedDisp(CompilationUnit *cUnit,
                          int rBase, int rIndex, int scale, int displacement,
                          int rDest, int rDestHi,
                          OpSize size, int sReg)
 {
-  LOG(FATAL) << "Unexpected use of loadBaseIndexedDisp for MIPS";
+  LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
   return NULL;
 }
 
-LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
+LIR* OpCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
 {
-  LOG(FATAL) << "Unexpected use of opCondBranch for MIPS";
+  LOG(FATAL) << "Unexpected use of OpCondBranch for MIPS";
   return NULL;
 }
 

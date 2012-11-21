@@ -19,14 +19,14 @@
 namespace art {
 
 /* Allocate a new basic block */
-BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
+BasicBlock* NewMemBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 {
-  BasicBlock* bb = static_cast<BasicBlock*>(oatNew(cUnit, sizeof(BasicBlock), true, kAllocBB));
+  BasicBlock* bb = static_cast<BasicBlock*>(NewMem(cUnit, sizeof(BasicBlock), true, kAllocBB));
   bb->blockType = blockType;
   bb->id = blockId;
   bb->predecessors = static_cast<GrowableList*>
-      (oatNew(cUnit, sizeof(GrowableList), false, kAllocPredecessors));
-  oatInitGrowableList(cUnit, bb->predecessors,
+      (NewMem(cUnit, sizeof(GrowableList), false, kAllocPredecessors));
+  CompilerInitGrowableList(cUnit, bb->predecessors,
                       (blockType == kExitBlock) ? 2048 : 2,
                       kListPredecessors);
   cUnit->blockIdMap.Put(blockId, blockId);
@@ -34,7 +34,7 @@ BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 }
 
 /* Insert an MIR instruction to the end of a basic block */
-void oatAppendMIR(BasicBlock* bb, MIR* mir)
+void AppendMIR(BasicBlock* bb, MIR* mir)
 {
   if (bb->firstMIRInsn == NULL) {
     DCHECK(bb->lastMIRInsn == NULL);
@@ -49,7 +49,7 @@ void oatAppendMIR(BasicBlock* bb, MIR* mir)
 }
 
 /* Insert an MIR instruction to the head of a basic block */
-void oatPrependMIR(BasicBlock* bb, MIR* mir)
+void PrependMIR(BasicBlock* bb, MIR* mir)
 {
   if (bb->firstMIRInsn == NULL) {
     DCHECK(bb->lastMIRInsn == NULL);
@@ -64,7 +64,7 @@ void oatPrependMIR(BasicBlock* bb, MIR* mir)
 }
 
 /* Insert a MIR instruction after the specified MIR */
-void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
+void InsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
 {
   newMIR->prev = currentMIR;
   newMIR->next = currentMIR->next;
@@ -83,7 +83,7 @@ void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
  * Append an LIR instruction to the LIR list maintained by a compilation
  * unit
  */
-void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
+void AppendLIR(CompilationUnit *cUnit, LIR* lir)
 {
   if (cUnit->firstLIRInsn == NULL) {
     DCHECK(cUnit->lastLIRInsn == NULL);
@@ -103,7 +103,7 @@ void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
  *
  * prevLIR <-> newLIR <-> currentLIR
  */
-void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR)
+void InsertLIRBefore(LIR* currentLIR, LIR* newLIR)
 {
   DCHECK(currentLIR->prev != NULL);
   LIR *prevLIR = currentLIR->prev;
@@ -120,7 +120,7 @@ void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR)
  *
  * currentLIR -> newLIR -> oldNext
  */
-void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR)
+void InsertLIRAfter(LIR* currentLIR, LIR* newLIR)
 {
   newLIR->prev = currentLIR;
   newLIR->next = currentLIR->next;

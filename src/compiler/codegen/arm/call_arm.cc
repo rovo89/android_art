@@ -26,7 +26,7 @@ namespace art {
 
 
 /* Return the position of an ssa name within the argument list */
-int inPosition(CompilationUnit* cUnit, int sReg)
+int InPosition(CompilationUnit* cUnit, int sReg)
 {
   int vReg = SRegToVReg(cUnit, sReg);
   return vReg - cUnit->numRegs;
@@ -37,9 +37,9 @@ int inPosition(CompilationUnit* cUnit, int sReg)
  * there.  NOTE: all live arg registers must be locked prior to this call
  * to avoid having them allocated as a temp by downstream utilities.
  */
-RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc)
+RegLocation ArgLoc(CompilationUnit* cUnit, RegLocation loc)
 {
-  int argNum = inPosition(cUnit, loc.sRegLow);
+  int argNum = InPosition(cUnit, loc.sRegLow);
   if (loc.wide) {
     if (argNum == 2) {
       // Bad case - half in register, half in frame.  Just punt
@@ -64,18 +64,18 @@ RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc)
 
 /*
  * Load an argument.  If already in a register, just return.  If in
- * the frame, we can't use the normal loadValue() because it assumed
+ * the frame, we can't use the normal LoadValue() because it assumed
  * a proper frame - and we're frameless.
  */
-RegLocation loadArg(CompilationUnit* cUnit, RegLocation loc)
+RegLocation LoadArg(CompilationUnit* cUnit, RegLocation loc)
 {
   if (loc.location == kLocDalvikFrame) {
-    int start = (inPosition(cUnit, loc.sRegLow) + 1) * sizeof(uint32_t);
-    loc.lowReg = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rARM_SP, start, loc.lowReg);
+    int start = (InPosition(cUnit, loc.sRegLow) + 1) * sizeof(uint32_t);
+    loc.lowReg = AllocTemp(cUnit);
+    LoadWordDisp(cUnit, rARM_SP, start, loc.lowReg);
     if (loc.wide) {
-      loc.highReg = oatAllocTemp(cUnit);
-      loadWordDisp(cUnit, rARM_SP, start + sizeof(uint32_t), loc.highReg);
+      loc.highReg = AllocTemp(cUnit);
+      LoadWordDisp(cUnit, rARM_SP, start + sizeof(uint32_t), loc.highReg);
     }
     loc.location = kLocPhysReg;
   }
@@ -83,21 +83,21 @@ RegLocation loadArg(CompilationUnit* cUnit, RegLocation loc)
 }
 
 /* Lock any referenced arguments that arrive in registers */
-void lockLiveArgs(CompilationUnit* cUnit, MIR* mir)
+void LockLiveArgs(CompilationUnit* cUnit, MIR* mir)
 {
   int firstIn = cUnit->numRegs;
   const int numArgRegs = 3;  // TODO: generalize & move to RegUtil.cc
   for (int i = 0; i < mir->ssaRep->numUses; i++) {
     int vReg = SRegToVReg(cUnit, mir->ssaRep->uses[i]);
-    int inPosition = vReg - firstIn;
-    if (inPosition < numArgRegs) {
-      oatLockTemp(cUnit, rARM_ARG1 + inPosition);
+    int InPosition = vReg - firstIn;
+    if (InPosition < numArgRegs) {
+      LockTemp(cUnit, rARM_ARG1 + InPosition);
     }
   }
 }
 
 /* Find the next MIR, which may be in a following basic block */
-MIR* getNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
+MIR* GetNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
 {
   BasicBlock* bb = *pBb;
   MIR* origMir = mir;
@@ -122,107 +122,107 @@ MIR* getNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
 }
 
 /* Used for the "printMe" listing */
-void genPrintLabel(CompilationUnit *cUnit, MIR* mir)
+void GenPrintLabel(CompilationUnit *cUnit, MIR* mir)
 {
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* instStr = cUnit->printMe ?
-     oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
-  markBoundary(cUnit, mir->offset, instStr);
+     GetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
+  MarkBoundary(cUnit, mir->offset, instStr);
   /* Don't generate the SSA annotation unless verbose mode is on */
   if (cUnit->printMe && mir->ssaRep) {
-    char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-    newLIR1(cUnit, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssaString));
+    char* ssaString = GetSSAString(cUnit, mir->ssaRep);
+    NewLIR1(cUnit, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssaString));
   }
 }
 
-MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+MIR* SpecialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
                  OpSize size, bool longOrDouble, bool isObject)
 {
   int fieldOffset;
   bool isVolatile;
   uint32_t fieldIdx = mir->dalvikInsn.vC;
-  bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile, false);
+  bool fastPath = FastInstance(cUnit, fieldIdx, fieldOffset, isVolatile, false);
   if (!fastPath || !(mir->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
-  RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
-  lockLiveArgs(cUnit, mir);
-  rlObj = argLoc(cUnit, rlObj);
+  RegLocation rlObj = GetSrc(cUnit, mir, 0);
+  LockLiveArgs(cUnit, mir);
+  rlObj = ArgLoc(cUnit, rlObj);
   RegLocation rlDest;
   if (longOrDouble) {
-    rlDest = oatGetReturnWide(cUnit, false);
+    rlDest = GetReturnWide(cUnit, false);
   } else {
-    rlDest = oatGetReturn(cUnit, false);
+    rlDest = GetReturn(cUnit, false);
   }
   // Point of no return - no aborts after this
-  genPrintLabel(cUnit, mir);
-  rlObj = loadArg(cUnit, rlObj);
-  genIGet(cUnit, fieldIdx, mir->optimizationFlags, size, rlDest, rlObj,
+  GenPrintLabel(cUnit, mir);
+  rlObj = LoadArg(cUnit, rlObj);
+  GenIGet(cUnit, fieldIdx, mir->optimizationFlags, size, rlDest, rlObj,
           longOrDouble, isObject);
-  return getNextMir(cUnit, bb, mir);
+  return GetNextMir(cUnit, bb, mir);
 }
 
-MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+MIR* SpecialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
                  OpSize size, bool longOrDouble, bool isObject)
 {
   int fieldOffset;
   bool isVolatile;
   uint32_t fieldIdx = mir->dalvikInsn.vC;
-  bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile, false);
+  bool fastPath = FastInstance(cUnit, fieldIdx, fieldOffset, isVolatile, false);
   if (!fastPath || !(mir->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
   RegLocation rlSrc;
   RegLocation rlObj;
-  lockLiveArgs(cUnit, mir);
+  LockLiveArgs(cUnit, mir);
   if (longOrDouble) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0);
-    rlObj = oatGetSrc(cUnit, mir, 2);
+    rlSrc = GetSrcWide(cUnit, mir, 0);
+    rlObj = GetSrc(cUnit, mir, 2);
   } else {
-    rlSrc = oatGetSrc(cUnit, mir, 0);
-    rlObj = oatGetSrc(cUnit, mir, 1);
+    rlSrc = GetSrc(cUnit, mir, 0);
+    rlObj = GetSrc(cUnit, mir, 1);
   }
-  rlSrc = argLoc(cUnit, rlSrc);
-  rlObj = argLoc(cUnit, rlObj);
+  rlSrc = ArgLoc(cUnit, rlSrc);
+  rlObj = ArgLoc(cUnit, rlObj);
   // Reject if source is split across registers & frame
   if (rlObj.location == kLocInvalid) {
-    oatResetRegPool(cUnit);
+    ResetRegPool(cUnit);
     return NULL;
   }
   // Point of no return - no aborts after this
-  genPrintLabel(cUnit, mir);
-  rlObj = loadArg(cUnit, rlObj);
-  rlSrc = loadArg(cUnit, rlSrc);
-  genIPut(cUnit, fieldIdx, mir->optimizationFlags, size, rlSrc, rlObj,
+  GenPrintLabel(cUnit, mir);
+  rlObj = LoadArg(cUnit, rlObj);
+  rlSrc = LoadArg(cUnit, rlSrc);
+  GenIPut(cUnit, fieldIdx, mir->optimizationFlags, size, rlSrc, rlObj,
           longOrDouble, isObject);
-  return getNextMir(cUnit, bb, mir);
+  return GetNextMir(cUnit, bb, mir);
 }
 
-MIR* specialIdentity(CompilationUnit* cUnit, MIR* mir)
+MIR* SpecialIdentity(CompilationUnit* cUnit, MIR* mir)
 {
   RegLocation rlSrc;
   RegLocation rlDest;
   bool wide = (mir->ssaRep->numUses == 2);
   if (wide) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0);
-    rlDest = oatGetReturnWide(cUnit, false);
+    rlSrc = GetSrcWide(cUnit, mir, 0);
+    rlDest = GetReturnWide(cUnit, false);
   } else {
-    rlSrc = oatGetSrc(cUnit, mir, 0);
-    rlDest = oatGetReturn(cUnit, false);
+    rlSrc = GetSrc(cUnit, mir, 0);
+    rlDest = GetReturn(cUnit, false);
   }
-  lockLiveArgs(cUnit, mir);
-  rlSrc = argLoc(cUnit, rlSrc);
+  LockLiveArgs(cUnit, mir);
+  rlSrc = ArgLoc(cUnit, rlSrc);
   if (rlSrc.location == kLocInvalid) {
-    oatResetRegPool(cUnit);
+    ResetRegPool(cUnit);
     return NULL;
   }
   // Point of no return - no aborts after this
-  genPrintLabel(cUnit, mir);
-  rlSrc = loadArg(cUnit, rlSrc);
+  GenPrintLabel(cUnit, mir);
+  rlSrc = LoadArg(cUnit, rlSrc);
   if (wide) {
-    storeValueWide(cUnit, rlDest, rlSrc);
+    StoreValueWide(cUnit, rlDest, rlSrc);
   } else {
-    storeValue(cUnit, rlDest, rlSrc);
+    StoreValue(cUnit, rlDest, rlSrc);
   }
   return mir;
 }
@@ -230,7 +230,7 @@ MIR* specialIdentity(CompilationUnit* cUnit, MIR* mir)
 /*
  * Special-case code genration for simple non-throwing leaf methods.
  */
-void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+void GenSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
           SpecialCaseHandler specialCase)
 {
    cUnit->currentDalvikOffset = mir->offset;
@@ -241,50 +241,50 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
        nextMir = mir;
        break;
      case kConstFunction:
-       genPrintLabel(cUnit, mir);
-       loadConstant(cUnit, rARM_RET0, mir->dalvikInsn.vB);
-       nextMir = getNextMir(cUnit, &bb, mir);
+       GenPrintLabel(cUnit, mir);
+       LoadConstant(cUnit, rARM_RET0, mir->dalvikInsn.vB);
+       nextMir = GetNextMir(cUnit, &bb, mir);
        break;
      case kIGet:
-       nextMir = specialIGet(cUnit, &bb, mir, kWord, false, false);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kWord, false, false);
        break;
      case kIGetBoolean:
      case kIGetByte:
-       nextMir = specialIGet(cUnit, &bb, mir, kUnsignedByte, false, false);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kUnsignedByte, false, false);
        break;
      case kIGetObject:
-       nextMir = specialIGet(cUnit, &bb, mir, kWord, false, true);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kWord, false, true);
        break;
      case kIGetChar:
-       nextMir = specialIGet(cUnit, &bb, mir, kUnsignedHalf, false, false);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kUnsignedHalf, false, false);
        break;
      case kIGetShort:
-       nextMir = specialIGet(cUnit, &bb, mir, kSignedHalf, false, false);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kSignedHalf, false, false);
        break;
      case kIGetWide:
-       nextMir = specialIGet(cUnit, &bb, mir, kLong, true, false);
+       nextMir = SpecialIGet(cUnit, &bb, mir, kLong, true, false);
        break;
      case kIPut:
-       nextMir = specialIPut(cUnit, &bb, mir, kWord, false, false);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kWord, false, false);
        break;
      case kIPutBoolean:
      case kIPutByte:
-       nextMir = specialIPut(cUnit, &bb, mir, kUnsignedByte, false, false);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kUnsignedByte, false, false);
        break;
      case kIPutObject:
-       nextMir = specialIPut(cUnit, &bb, mir, kWord, false, true);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kWord, false, true);
        break;
      case kIPutChar:
-       nextMir = specialIPut(cUnit, &bb, mir, kUnsignedHalf, false, false);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kUnsignedHalf, false, false);
        break;
      case kIPutShort:
-       nextMir = specialIPut(cUnit, &bb, mir, kSignedHalf, false, false);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kSignedHalf, false, false);
        break;
      case kIPutWide:
-       nextMir = specialIPut(cUnit, &bb, mir, kLong, true, false);
+       nextMir = SpecialIPut(cUnit, &bb, mir, kLong, true, false);
        break;
      case kIdentity:
-       nextMir = specialIdentity(cUnit, mir);
+       nextMir = SpecialIdentity(cUnit, mir);
        break;
      default:
        return;
@@ -292,9 +292,9 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
    if (nextMir != NULL) {
     cUnit->currentDalvikOffset = nextMir->offset;
     if (specialCase != kIdentity) {
-      genPrintLabel(cUnit, nextMir);
+      GenPrintLabel(cUnit, nextMir);
     }
-    newLIR1(cUnit, kThumbBx, rARM_LR);
+    NewLIR1(cUnit, kThumbBx, rARM_LR);
     cUnit->coreSpillMask = 0;
     cUnit->numCoreSpills = 0;
     cUnit->fpSpillMask = 0;
@@ -324,28 +324,28 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  *   add   rARM_PC, rDisp   ; This is the branch from which we compute displacement
  *   cbnz  rIdx, lp
  */
-void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+void GenSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
                      RegLocation rlSrc)
 {
   const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
-    dumpSparseSwitchTable(table);
+    DumpSparseSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tabRec =
-      static_cast<SwitchTable*>(oatNew(cUnit, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(NewMem(cUnit, sizeof(SwitchTable), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
-  tabRec->targets = static_cast<LIR**>(oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR));
-  oatInsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
+  tabRec->targets = static_cast<LIR**>(NewMem(cUnit, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
 
   // Get the switch value
-  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-  int rBase = oatAllocTemp(cUnit);
+  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  int rBase = AllocTemp(cUnit);
   /* Allocate key and disp temps */
-  int rKey = oatAllocTemp(cUnit);
-  int rDisp = oatAllocTemp(cUnit);
+  int rKey = AllocTemp(cUnit);
+  int rDisp = AllocTemp(cUnit);
   // Make sure rKey's register number is less than rDisp's number for ldmia
   if (rKey > rDisp) {
     int tmp = rDisp;
@@ -353,69 +353,69 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     rKey = tmp;
   }
   // Materialize a pointer to the switch table
-  newLIR3(cUnit, kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tabRec));
+  NewLIR3(cUnit, kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tabRec));
   // Set up rIdx
-  int rIdx = oatAllocTemp(cUnit);
-  loadConstant(cUnit, rIdx, size);
+  int rIdx = AllocTemp(cUnit);
+  LoadConstant(cUnit, rIdx, size);
   // Establish loop branch target
-  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
   // Load next key/disp
-  newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
-  opRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
+  NewLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
+  OpRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-  opIT(cUnit, kArmCondEq, "");
-  LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, rDisp);
+  OpIT(cUnit, kArmCondEq, "");
+  LIR* switchBranch = NewLIR1(cUnit, kThumb2AddPCR, rDisp);
   tabRec->anchor = switchBranch;
   // Needs to use setflags encoding here
-  newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-  opCondBranch(cUnit, kCondNe, target);
+  NewLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
+  OpCondBranch(cUnit, kCondNe, target);
 }
 
 
-void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+void GenPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
                      RegLocation rlSrc)
 {
   const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
-    dumpPackedSwitchTable(table);
+    DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tabRec =
-      static_cast<SwitchTable*>(oatNew(cUnit, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(NewMem(cUnit, sizeof(SwitchTable), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
-  tabRec->targets = static_cast<LIR**>(oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR));
-  oatInsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
+  tabRec->targets = static_cast<LIR**>(NewMem(cUnit, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cUnit, &cUnit->switchTables, reinterpret_cast<uintptr_t>(tabRec));
 
   // Get the switch value
-  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-  int tableBase = oatAllocTemp(cUnit);
+  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
+  int tableBase = AllocTemp(cUnit);
   // Materialize a pointer to the switch table
-  newLIR3(cUnit, kThumb2Adr, tableBase, 0, reinterpret_cast<uintptr_t>(tabRec));
+  NewLIR3(cUnit, kThumb2Adr, tableBase, 0, reinterpret_cast<uintptr_t>(tabRec));
   int lowKey = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
   if (lowKey == 0) {
     keyReg = rlSrc.lowReg;
   } else {
-    keyReg = oatAllocTemp(cUnit);
-    opRegRegImm(cUnit, kOpSub, keyReg, rlSrc.lowReg, lowKey);
+    keyReg = AllocTemp(cUnit);
+    OpRegRegImm(cUnit, kOpSub, keyReg, rlSrc.lowReg, lowKey);
   }
   // Bounds check - if < 0 or >= size continue following switch
-  opRegImm(cUnit, kOpCmp, keyReg, size-1);
-  LIR* branchOver = opCondBranch(cUnit, kCondHi, NULL);
+  OpRegImm(cUnit, kOpCmp, keyReg, size-1);
+  LIR* branchOver = OpCondBranch(cUnit, kCondHi, NULL);
 
   // Load the displacement from the switch table
-  int dispReg = oatAllocTemp(cUnit);
-  loadBaseIndexed(cUnit, tableBase, keyReg, dispReg, 2, kWord);
+  int dispReg = AllocTemp(cUnit);
+  LoadBaseIndexed(cUnit, tableBase, keyReg, dispReg, 2, kWord);
 
   // ..and go! NOTE: No instruction set switch here - must stay Thumb2
-  LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, dispReg);
+  LIR* switchBranch = NewLIR1(cUnit, kThumb2AddPCR, dispReg);
   tabRec->anchor = switchBranch;
 
   /* branchOver target here */
-  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
   branchOver->target = target;
 }
 
@@ -429,30 +429,30 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation rlSrc)
+void GenFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation rlSrc)
 {
   const uint16_t* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
   FillArrayData *tabRec =
-      static_cast<FillArrayData*>(oatNew(cUnit, sizeof(FillArrayData), true, kAllocData));
+      static_cast<FillArrayData*>(NewMem(cUnit, sizeof(FillArrayData), true, kAllocData));
   tabRec->table = table;
   tabRec->vaddr = cUnit->currentDalvikOffset;
   uint16_t width = tabRec->table[1];
   uint32_t size = tabRec->table[2] | ((static_cast<uint32_t>(tabRec->table[3])) << 16);
   tabRec->size = (size * width) + 8;
 
-  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
+  InsertGrowableList(cUnit, &cUnit->fillArrayData, reinterpret_cast<uintptr_t>(tabRec));
 
   // Making a call - use explicit registers
-  oatFlushAllRegs(cUnit);   /* Everything to home location */
-  loadValueDirectFixed(cUnit, rlSrc, r0);
-  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
+  FlushAllRegs(cUnit);   /* Everything to home location */
+  LoadValueDirectFixed(cUnit, rlSrc, r0);
+  LoadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
                rARM_LR);
   // Materialize a pointer to the fill data image
-  newLIR3(cUnit, kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tabRec));
-  oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
-  markSafepointPC(cUnit, callInst);
+  NewLIR3(cUnit, kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tabRec));
+  ClobberCalleeSave(cUnit);
+  LIR* callInst = OpReg(cUnit, kOpBlx, rARM_LR);
+  MarkSafepointPC(cUnit, callInst);
 }
 
 /*
@@ -481,33 +481,33 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
  * preserved.
  *
  */
-void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
-  oatFlushAllRegs(cUnit);
+  FlushAllRegs(cUnit);
   DCHECK_EQ(LW_SHAPE_THIN, 0);
-  loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
-  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
-  loadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
-  newLIR3(cUnit, kThumb2Ldrex, r1, r0,
+  LoadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
+  LockCallTemps(cUnit);  // Prepare for explicit register usage
+  GenNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
+  LoadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  NewLIR3(cUnit, kThumb2Ldrex, r1, r0,
           Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
   // Align owner
-  opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
+  OpRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
   // Is lock unheld on lock or held by us (==threadId) on unlock?
-  newLIR4(cUnit, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
-  newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-  opRegImm(cUnit, kOpCmp, r1, 0);
-  opIT(cUnit, kArmCondEq, "");
-  newLIR4(cUnit, kThumb2Strex, r1, r2, r0,
+  NewLIR4(cUnit, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
+  NewLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+  OpRegImm(cUnit, kOpCmp, r1, 0);
+  OpIT(cUnit, kArmCondEq, "");
+  NewLIR4(cUnit, kThumb2Strex, r1, r2, r0,
           Object::MonitorOffset().Int32Value() >> 2);
-  opRegImm(cUnit, kOpCmp, r1, 0);
-  opIT(cUnit, kArmCondNe, "T");
+  OpRegImm(cUnit, kOpCmp, r1, 0);
+  OpIT(cUnit, kArmCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
-  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
-  oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
-  markSafepointPC(cUnit, callInst);
-  oatGenMemBarrier(cUnit, kLoadLoad);
+  LoadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
+  ClobberCalleeSave(cUnit);
+  LIR* callInst = OpReg(cUnit, kOpBlx, rARM_LR);
+  MarkSafepointPC(cUnit, callInst);
+  GenMemBarrier(cUnit, kLoadLoad);
 }
 
 /*
@@ -516,51 +516,51 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void GenMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   DCHECK_EQ(LW_SHAPE_THIN, 0);
-  oatFlushAllRegs(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
-  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
-  loadWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
-  loadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  FlushAllRegs(cUnit);
+  LoadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
+  LockCallTemps(cUnit);  // Prepare for explicit register usage
+  GenNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
+  LoadWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
+  LoadWordDisp(cUnit, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==threadId) on unlock?
-  opRegRegImm(cUnit, kOpAnd, r3, r1,
+  OpRegRegImm(cUnit, kOpAnd, r3, r1,
               (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
   // Align owner
-  opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
-  newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-  opRegReg(cUnit, kOpSub, r1, r2);
-  opIT(cUnit, kArmCondEq, "EE");
-  storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
+  OpRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
+  NewLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+  OpRegReg(cUnit, kOpSub, r1, r2);
+  OpIT(cUnit, kArmCondEq, "EE");
+  StoreWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
-  loadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
-  oatClobberCalleeSave(cUnit);
-  LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
-  markSafepointPC(cUnit, callInst);
-  oatGenMemBarrier(cUnit, kStoreLoad);
+  LoadWordDisp(cUnit, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
+  ClobberCalleeSave(cUnit);
+  LIR* callInst = OpReg(cUnit, kOpBlx, rARM_LR);
+  MarkSafepointPC(cUnit, callInst);
+  GenMemBarrier(cUnit, kStoreLoad);
 }
 
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+void MarkGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-  int regCardBase = oatAllocTemp(cUnit);
-  int regCardNo = oatAllocTemp(cUnit);
-  LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
-  loadWordDisp(cUnit, rARM_SELF, Thread::CardTableOffset().Int32Value(), regCardBase);
-  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
-  storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+  int regCardBase = AllocTemp(cUnit);
+  int regCardNo = AllocTemp(cUnit);
+  LIR* branchOver = OpCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
+  LoadWordDisp(cUnit, rARM_SELF, Thread::CardTableOffset().Int32Value(), regCardBase);
+  OpRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, CardTable::kCardShift);
+  StoreBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                    kUnsignedByte);
-  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
   branchOver->target = target;
-  oatFreeTemp(cUnit, regCardBase);
-  oatFreeTemp(cUnit, regCardNo);
+  FreeTemp(cUnit, regCardBase);
+  FreeTemp(cUnit, regCardNo);
 }
 
-void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
+void GenEntrySequence(CompilationUnit* cUnit, RegLocation* ArgLocs,
                       RegLocation rlMethod)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
@@ -570,10 +570,10 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
    * expanding the frame or flushing.  This leaves the utility
    * code with a single temp: r12.  This should be enough.
    */
-  oatLockTemp(cUnit, r0);
-  oatLockTemp(cUnit, r1);
-  oatLockTemp(cUnit, r2);
-  oatLockTemp(cUnit, r3);
+  LockTemp(cUnit, r0);
+  LockTemp(cUnit, r1);
+  LockTemp(cUnit, r2);
+  LockTemp(cUnit, r3);
 
   /*
    * We can safely skip the stack overflow check if we're
@@ -582,13 +582,13 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
   bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
                             (static_cast<size_t>(cUnit->frameSize) <
                             Thread::kStackOverflowReservedBytes));
-  newLIR0(cUnit, kPseudoMethodEntry);
+  NewLIR0(cUnit, kPseudoMethodEntry);
   if (!skipOverflowCheck) {
     /* Load stack limit */
-    loadWordDisp(cUnit, rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
+    LoadWordDisp(cUnit, rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
   }
   /* Spill core callee saves */
-  newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
+  NewLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
   /* Need to spill any FP regs? */
   if (cUnit->numFPSpills) {
     /*
@@ -596,49 +596,49 @@ void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
      * they are pushed as a contiguous block.  When promoting from
      * the fp set, we must allocate all singles from s16..highest-promoted
      */
-    newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
+    NewLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
   }
   if (!skipOverflowCheck) {
-    opRegRegImm(cUnit, kOpSub, rARM_LR, rARM_SP, cUnit->frameSize - (spillCount * 4));
-    genRegRegCheck(cUnit, kCondCc, rARM_LR, r12, kThrowStackOverflow);
-    opRegCopy(cUnit, rARM_SP, rARM_LR);     // Establish stack
+    OpRegRegImm(cUnit, kOpSub, rARM_LR, rARM_SP, cUnit->frameSize - (spillCount * 4));
+    GenRegRegCheck(cUnit, kCondCc, rARM_LR, r12, kThrowStackOverflow);
+    OpRegCopy(cUnit, rARM_SP, rARM_LR);     // Establish stack
   } else {
-    opRegImm(cUnit, kOpSub, rARM_SP, cUnit->frameSize - (spillCount * 4));
+    OpRegImm(cUnit, kOpSub, rARM_SP, cUnit->frameSize - (spillCount * 4));
   }
 
-  flushIns(cUnit, argLocs, rlMethod);
+  FlushIns(cUnit, ArgLocs, rlMethod);
 
-  oatFreeTemp(cUnit, r0);
-  oatFreeTemp(cUnit, r1);
-  oatFreeTemp(cUnit, r2);
-  oatFreeTemp(cUnit, r3);
+  FreeTemp(cUnit, r0);
+  FreeTemp(cUnit, r1);
+  FreeTemp(cUnit, r2);
+  FreeTemp(cUnit, r3);
 }
 
-void genExitSequence(CompilationUnit* cUnit)
+void GenExitSequence(CompilationUnit* cUnit)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
    * In the exit path, r0/r1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  oatLockTemp(cUnit, r0);
-  oatLockTemp(cUnit, r1);
+  LockTemp(cUnit, r0);
+  LockTemp(cUnit, r1);
 
-  newLIR0(cUnit, kPseudoMethodExit);
-  opRegImm(cUnit, kOpAdd, rARM_SP, cUnit->frameSize - (spillCount * 4));
+  NewLIR0(cUnit, kPseudoMethodExit);
+  OpRegImm(cUnit, kOpAdd, rARM_SP, cUnit->frameSize - (spillCount * 4));
   /* Need to restore any FP callee saves? */
   if (cUnit->numFPSpills) {
-    newLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
+    NewLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
   }
   if (cUnit->coreSpillMask & (1 << rARM_LR)) {
     /* Unspill rARM_LR to rARM_PC */
     cUnit->coreSpillMask &= ~(1 << rARM_LR);
     cUnit->coreSpillMask |= (1 << rARM_PC);
   }
-  newLIR1(cUnit, kThumb2Pop, cUnit->coreSpillMask);
+  NewLIR1(cUnit, kThumb2Pop, cUnit->coreSpillMask);
   if (!(cUnit->coreSpillMask & (1 << rARM_PC))) {
     /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
-    newLIR1(cUnit, kThumbBx, rARM_LR);
+    NewLIR1(cUnit, kThumbBx, rARM_LR);
   }
 }
 
