@@ -343,4 +343,28 @@ Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* referrer,
   return klass;
 }
 
+void ThrowStackOverflowError(Thread* self) {
+  CHECK(!self->IsHandlingStackOverflow()) << "Recursive stack overflow.";
+  // Remove extra entry pushed onto second stack during method tracing.
+  if (Runtime::Current()->IsMethodTracingActive()) {
+    InstrumentationMethodUnwindFromCode(self);
+  }
+  self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
+  JNIEnvExt* env = self->GetJniEnv();
+  std::string msg("stack size ");
+  msg += PrettySize(self->GetStackSize());
+  // Use low-level JNI routine and pre-baked error class to avoid class linking operations that
+  // would consume more stack.
+  int rc = ::art::ThrowNewException(env, WellKnownClasses::java_lang_StackOverflowError,
+                                    msg.c_str(), NULL);
+  if (rc != JNI_OK) {
+    // TODO: ThrowNewException failed presumably because of an OOME, we continue to throw the OOME
+    //       or die in the CHECK below. We may want to throw a pre-baked StackOverflowError
+    //       instead.
+    LOG(ERROR) << "Couldn't throw new StackOverflowError because JNI ThrowNew failed.";
+    CHECK(self->IsExceptionPending());
+  }
+  self->ResetDefaultStackEnd();  // Return to default stack size.
+}
+
 }  // namespace art

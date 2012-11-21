@@ -106,11 +106,7 @@ enum ThreadFlag {
 class PACKED Thread {
  public:
   // Space to throw a StackOverflowError in.
-#if !defined(ART_USE_LLVM_COMPILER)
-  static const size_t kStackOverflowReservedBytes = 4 * KB;
-#else  // LLVM_x86 requires more memory to throw stack overflow exception.
-  static const size_t kStackOverflowReservedBytes = 8 * KB;
-#endif
+  static const size_t kStackOverflowReservedBytes = 10 * KB;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -448,8 +444,12 @@ class PACKED Thread {
   }
 
   // Size of stack less any space reserved for stack overflow
-  size_t GetStackSize() {
+  size_t GetStackSize() const {
     return stack_size_ - (stack_end_ - stack_begin_);
+  }
+
+  byte* GetStackEnd() const {
+    return stack_end_;
   }
 
   // Set the stack end to that to be used during a stack overflow

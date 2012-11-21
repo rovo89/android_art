@@ -233,37 +233,37 @@ void Field::SetOffset(MemberOffset num_bytes) {
 
 uint32_t Field::Get32(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField32(GetOffset(), IsVolatile());
 }
 
 void Field::Set32(Object* object, uint32_t new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField32(GetOffset(), new_value, IsVolatile());
 }
 
 uint64_t Field::Get64(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetField64(GetOffset(), IsVolatile());
 }
 
 void Field::Set64(Object* object, uint64_t new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetField64(GetOffset(), new_value, IsVolatile());
 }
 
 Object* Field::GetObj(const Object* object) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   return object->GetFieldObject<Object*>(GetOffset(), IsVolatile());
 }
 
 void Field::SetObj(Object* object, const Object* new_value) const {
   DCHECK(object != NULL) << PrettyField(this);
-  DCHECK(IsStatic() == (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
+  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   object->SetFieldObject(GetOffset(), new_value, IsVolatile());
 }
 
@@ -663,7 +663,7 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
       result->SetJ(0);
     }
   } else {
-    bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative();
+    bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative() && !IsProxyMethod();
     const bool kLogInvocationStartAndReturn = false;
     if (!interpret && GetCode() != NULL && stub != NULL) {
       if (kLogInvocationStartAndReturn) {

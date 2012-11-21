@@ -150,13 +150,7 @@ void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
 void art_throw_stack_overflow_from_code()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
-  if (Runtime::Current()->IsMethodTracingActive()) {
-    InstrumentationMethodUnwindFromCode(thread);
-  }
-  thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
-  thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;", "stack size %s",
-                             PrettySize(thread->GetStackSize()).c_str());
-  thread->ResetDefaultStackEnd();  // Return to default stack size.
+  ThrowStackOverflowError(thread);
 }
 
 void art_throw_exception_from_code(Object* exception)
