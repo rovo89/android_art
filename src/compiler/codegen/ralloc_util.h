@@ -60,164 +60,164 @@ inline int oatSSASrc(MIR* mir, int num) {
   return mir->ssaRep->uses[num];
 }
 
-extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
+extern RegLocation EvalLoc(CompilationUnit* cUnit, RegLocation loc,
                               int regClass, bool update);
 /* Mark a temp register as dead.  Does not affect allocation state. */
-extern void oatClobber(CompilationUnit* cUnit, int reg);
-extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc);
+extern void Clobber(CompilationUnit* cUnit, int reg);
+extern RegLocation UpdateLoc(CompilationUnit* cUnit, RegLocation loc);
 
 /* see comments for updateLoc */
-extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc);
+extern RegLocation UpdateLocWide(CompilationUnit* cUnit, RegLocation loc);
 
-extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit, RegLocation loc);
+extern RegLocation UpdateRawLoc(CompilationUnit* cUnit, RegLocation loc);
 
-extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg);
+extern void MarkLive(CompilationUnit* cUnit, int reg, int sReg);
 
-extern void oatMarkTemp(CompilationUnit* cUnit, int reg);
+extern void MarkTemp(CompilationUnit* cUnit, int reg);
 
-extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg);
+extern void UnmarkTemp(CompilationUnit* cUnit, int reg);
 
-extern void oatMarkDirty(CompilationUnit* cUnit, RegLocation loc);
+extern void MarkDirty(CompilationUnit* cUnit, RegLocation loc);
 
-extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg);
+extern void MarkPair(CompilationUnit* cUnit, int lowReg, int highReg);
 
-extern void oatMarkClean(CompilationUnit* cUnit, RegLocation loc);
+extern void MarkClean(CompilationUnit* cUnit, RegLocation loc);
 
-extern void oatResetDef(CompilationUnit* cUnit, int reg);
+extern void ResetDef(CompilationUnit* cUnit, int reg);
 
-extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl);
+extern void ResetDefLoc(CompilationUnit* cUnit, RegLocation rl);
 
 /* Set up temp & preserved register pools specialized by target */
-extern void oatInitPool(RegisterInfo* regs, int* regNums, int num);
+extern void CompilerInitPool(RegisterInfo* regs, int* regNums, int num);
 
 /*
  * Mark the beginning and end LIR of a def sequence.  Note that
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl, LIR* start,
+extern void MarkDef(CompilationUnit* cUnit, RegLocation rl, LIR* start,
                        LIR* finish);
 /*
  * Mark the beginning and end LIR of a def sequence.  Note that
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
+extern void MarkDefWide(CompilationUnit* cUnit, RegLocation rl,
                            LIR* start, LIR* finish);
 
 
 // Get the LocRecord associated with an SSA name use.
-extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num);
-extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir, int low);
+extern RegLocation GetSrc(CompilationUnit* cUnit, MIR* mir, int num);
+extern RegLocation GetSrcWide(CompilationUnit* cUnit, MIR* mir, int low);
 // Non-width checking version
-extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num);
+extern RegLocation GetRawSrc(CompilationUnit* cUnit, MIR* mir, int num);
 
 // Get the LocRecord associated with an SSA name def.
-extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir);
-extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir);
+extern RegLocation GetDest(CompilationUnit* cUnit, MIR* mir);
+extern RegLocation GetDestWide(CompilationUnit* cUnit, MIR* mir);
 // Non-width checking version
-extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir);
+extern RegLocation GetRawDest(CompilationUnit* cUnit, MIR* mir);
 
-extern RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble);
+extern RegLocation GetReturnWide(CompilationUnit* cUnit, bool isDouble);
 
 /* Clobber all regs that might be used by an external C call */
-extern void oatClobberCalleeSave(CompilationUnit* cUnit);
+extern void ClobberCalleeSave(CompilationUnit* cUnit);
 
-extern RegisterInfo *oatIsTemp(CompilationUnit* cUnit, int reg);
+extern RegisterInfo *IsTemp(CompilationUnit* cUnit, int reg);
 
-extern RegisterInfo *oatIsPromoted(CompilationUnit* cUnit, int reg);
+extern RegisterInfo *IsPromoted(CompilationUnit* cUnit, int reg);
 
-extern bool oatIsDirty(CompilationUnit* cUnit, int reg);
+extern bool IsDirty(CompilationUnit* cUnit, int reg);
 
-extern void oatMarkInUse(CompilationUnit* cUnit, int reg);
+extern void MarkInUse(CompilationUnit* cUnit, int reg);
 
-extern int oatAllocTemp(CompilationUnit* cUnit);
+extern int AllocTemp(CompilationUnit* cUnit);
 
-extern int oatAllocTempFloat(CompilationUnit* cUnit);
+extern int AllocTempFloat(CompilationUnit* cUnit);
 
 //REDO: too many assumptions.
-extern int oatAllocTempDouble(CompilationUnit* cUnit);
+extern int AllocTempDouble(CompilationUnit* cUnit);
 
-extern void oatFreeTemp(CompilationUnit* cUnit, int reg);
+extern void FreeTemp(CompilationUnit* cUnit, int reg);
 
-extern void oatResetDefLocWide(CompilationUnit* cUnit, RegLocation rl);
+extern void ResetDefLocWide(CompilationUnit* cUnit, RegLocation rl);
 
-extern void oatResetDefTracking(CompilationUnit* cUnit);
+extern void ResetDefTracking(CompilationUnit* cUnit);
 
-extern RegisterInfo *oatIsLive(CompilationUnit* cUnit, int reg);
+extern RegisterInfo *IsLive(CompilationUnit* cUnit, int reg);
 
 /* To be used when explicitly managing register use */
-extern void oatLockCallTemps(CompilationUnit* cUnit);
+extern void LockCallTemps(CompilationUnit* cUnit);
 
-extern void oatFreeCallTemps(CompilationUnit* cUnit);
+extern void FreeCallTemps(CompilationUnit* cUnit);
 
-extern void oatFlushAllRegs(CompilationUnit* cUnit);
+extern void FlushAllRegs(CompilationUnit* cUnit);
 
-extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit);
+extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit);
 
-extern RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat);
+extern RegLocation GetReturn(CompilationUnit* cUnit, bool isFloat);
 
-extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit);
+extern RegLocation GetReturnAlt(CompilationUnit* cUnit);
 
 /* Clobber any temp associated with an sReg.  Could be in either class */
-extern void oatClobberSReg(CompilationUnit* cUnit, int sReg);
+extern void ClobberSReg(CompilationUnit* cUnit, int sReg);
 
 /* Return a temp if one is available, -1 otherwise */
-extern int oatAllocFreeTemp(CompilationUnit* cUnit);
+extern int AllocFreeTemp(CompilationUnit* cUnit);
 
 /* Attempt to allocate a callee-save register */
-extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sreg);
-extern int oatAllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
+extern int AllocPreservedCoreReg(CompilationUnit* cUnit, int sreg);
+extern int AllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
                                   bool doubleStart);
 
 /*
- * Similar to oatAllocTemp(), but forces the allocation of a specific
+ * Similar to AllocTemp(), but forces the allocation of a specific
  * register.  No check is made to see if the register was previously
  * allocated.  Use with caution.
  */
-extern void oatLockTemp(CompilationUnit* cUnit, int reg);
+extern void LockTemp(CompilationUnit* cUnit, int reg);
 
-extern RegLocation oatWideToNarrow(CompilationUnit* cUnit, RegLocation rl);
+extern RegLocation WideToNarrow(CompilationUnit* cUnit, RegLocation rl);
 
 /*
  * Free all allocated temps in the temp pools.  Note that this does
  * not affect the "liveness" of a temp register, which will stay
  * live until it is either explicitly killed or reallocated.
  */
-extern void oatResetRegPool(CompilationUnit* cUnit);
+extern void ResetRegPool(CompilationUnit* cUnit);
 
-extern void oatClobberAllRegs(CompilationUnit* cUnit);
+extern void ClobberAllRegs(CompilationUnit* cUnit);
 
-extern void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2);
+extern void FlushRegWide(CompilationUnit* cUnit, int reg1, int reg2);
 
-extern void oatFlushReg(CompilationUnit* cUnit, int reg);
+extern void FlushReg(CompilationUnit* cUnit, int reg);
 
-extern void oatDoPromotion(CompilationUnit* cUnit);
-extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
-extern int oatSRegOffset(CompilationUnit* cUnit, int reg);
-extern void oatCountRefs(CompilationUnit*, BasicBlock*, RefCounts*, RefCounts*);
-extern int oatSortCounts(const void *val1, const void *val2);
-extern void oatDumpCounts(const RefCounts* arr, int size, const char* msg);
-extern void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg);
-extern void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg);
+extern void DoPromotion(CompilationUnit* cUnit);
+extern int VRegOffset(CompilationUnit* cUnit, int reg);
+extern int SRegOffset(CompilationUnit* cUnit, int reg);
+extern void CountRefs(CompilationUnit*, BasicBlock*, RefCounts*, RefCounts*);
+extern int SortCounts(const void *val1, const void *val2);
+extern void DumpCounts(const RefCounts* arr, int size, const char* msg);
+extern void RecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg);
+extern void RecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg);
 
 
 /* Architecture-dependent register allocation routines. */
-extern int oatAllocTypedTempPair(CompilationUnit* cUnit,
+extern int AllocTypedTempPair(CompilationUnit* cUnit,
                                  bool fpHint, int regClass);
 
-extern int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass);
+extern int AllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass);
 
-extern void oatDumpCoreRegPool(CompilationUnit* cUint);
+extern void DumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
-extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
-extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg);
-extern void oatNopLIR(LIR* lir);
+extern bool CheckCorePoolSanity(CompilationUnit* cUnit);
+extern RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg);
+extern void NopLIR(LIR* lir);
 extern bool oatIsFPReg(int reg);
 extern uint32_t oatFPRegMask(void);
-extern void oatAdjustSpillMask(CompilationUnit* cUnit);
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg);
-int oatComputeFrameSize(CompilationUnit* cUnit);
+extern void AdjustSpillMask(CompilationUnit* cUnit);
+void MarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg);
+int ComputeFrameSize(CompilationUnit* cUnit);
 
 }  // namespace art
 

@@ -21,7 +21,7 @@
 
 namespace art {
 
-void oatMethodSSATransformation(CompilationUnit* cUnit);
+void SSATransformation(CompilationUnit* cUnit);
 
 }  // namespace art
 

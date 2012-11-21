@@ -136,8 +136,8 @@ class LLVMInfo {
 struct CompilationUnit;
 struct BasicBlock;
 
-BasicBlock* oatFindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
-void oatReplaceSpecialChars(std::string& str);
+BasicBlock* FindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
+void ReplaceSpecialChars(std::string& str);
 
 }  // namespace art
 

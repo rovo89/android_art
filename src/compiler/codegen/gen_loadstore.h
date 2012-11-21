@@ -17,19 +17,19 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_GENLOADSTORE_H_
 #define ART_SRC_COMPILER_CODEGEN_GENLOADSTORE_H_
 
-LIR* loadConstant(CompilationUnit* cUnit, int rDest, int value);
-LIR* loadWordDisp(CompilationUnit* cUnit, int rBase, int displacement, int rDest);
-LIR* storeWordDisp(CompilationUnit* cUnit, int rBase, int displacement, int rSrc);
-void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest);
-void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest);
-void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo, int regHi);
-void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc, int regLo, int regHi);
-RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc, RegisterClass opKind);
-void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc);
-RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc, RegisterClass opKind);
-void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc);
-void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt);
-RegLocation loadCurrMethod(CompilationUnit *cUnit);
-bool methodStarInReg(CompilationUnit* cUnit);
+LIR* LoadConstant(CompilationUnit* cUnit, int rDest, int value);
+LIR* LoadWordDisp(CompilationUnit* cUnit, int rBase, int displacement, int rDest);
+LIR* StoreWordDisp(CompilationUnit* cUnit, int rBase, int displacement, int rSrc);
+void LoadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest);
+void LoadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest);
+void LoadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo, int regHi);
+void LoadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc, int regLo, int regHi);
+RegLocation LoadValue(CompilationUnit* cUnit, RegLocation rlSrc, RegisterClass opKind);
+void StoreValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc);
+RegLocation LoadValueWide(CompilationUnit* cUnit, RegLocation rlSrc, RegisterClass opKind);
+void StoreValueWide(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc);
+void LoadCurrMethodDirect(CompilationUnit *cUnit, int rTgt);
+RegLocation LoadCurrMethod(CompilationUnit *cUnit);
+bool MethodStarInReg(CompilationUnit* cUnit);
 
 #endif // ART_SRC_COMPILER_CODEGEN_GENLOADSTORE_H_

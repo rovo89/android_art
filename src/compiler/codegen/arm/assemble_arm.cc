@@ -987,7 +987,7 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
+AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
                     uintptr_t startAddr)
 {
   LIR* lir;
@@ -1057,9 +1057,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             lir->operands[0] : rARM_LR;
 
           // Add new Adr to generate the address
-          LIR* newAdr = rawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
+          LIR* newAdr = RawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
                      baseReg, 0, 0, 0, 0, lir->target);
-          oatInsertLIRBefore(lir, newAdr);
+          InsertLIRBefore(lir, newAdr);
 
           // Convert to normal load
           if (lir->opcode == kThumb2LdrPcRel12) {
@@ -1068,7 +1068,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           // Change the load to be relative to the new Adr base
           lir->operands[1] = baseReg;
           lir->operands[2] = 0;
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           if ((lir->opcode == kThumb2Vldrs) ||
@@ -1090,16 +1090,16 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
            * Make new branch instruction and insert after
            */
           LIR* newInst =
-            rawLIR(cUnit, lir->dalvikOffset, kThumbBCond, 0,
+            RawLIR(cUnit, lir->dalvikOffset, kThumbBCond, 0,
                    (lir->opcode == kThumb2Cbz) ? kArmCondEq : kArmCondNe,
                    0, 0, 0, lir->target);
-          oatInsertLIRAfter(lir, newInst);
+          InsertLIRAfter(lir, newInst);
           /* Convert the cb[n]z to a cmp rx, #0 ] */
           lir->opcode = kThumbCmpRI8;
           /* operand[0] is src1 in both cb[n]z & CmpRI8 */
           lir->operands[1] = 0;
           lir->target = 0;
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           lir->operands[1] = delta >> 1;
@@ -1124,7 +1124,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             }
           }
           lir->operands[0] = reg;
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBCond || lir->opcode == kThumb2BCond) {
@@ -1136,7 +1136,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
         delta = target - pc;
         if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
           lir->opcode = kThumb2BCond;
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
         lir->operands[0] = delta >> 1;
@@ -1160,7 +1160,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           // Convert to Thumb2BCond w/ kArmCondAl
           lir->opcode = kThumb2BUncond;
           lir->operands[0] = 0;
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         } else {
           lir->operands[0] = delta >> 1;
@@ -1207,19 +1207,19 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
         } else {
           // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
           LIR *newMov16L =
-              rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16LST,
+              RawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16LST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
                      reinterpret_cast<uintptr_t>(tabRec), 0, lir->target);
-          oatInsertLIRBefore(lir, newMov16L);
+          InsertLIRBefore(lir, newMov16L);
           LIR *newMov16H =
-              rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16HST,
+              RawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16HST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
                      reinterpret_cast<uintptr_t>(tabRec), 0, lir->target);
-          oatInsertLIRBefore(lir, newMov16H);
+          InsertLIRBefore(lir, newMov16H);
           lir->opcode = kThumb2AddRRR;
           lir->operands[1] = rARM_PC;
           lir->operands[2] = lir->operands[0];
-          oatSetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cUnit, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumb2MovImm16LST) {
@@ -1361,7 +1361,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
   return res;
 }
 
-int oatGetInsnSize(LIR* lir)
+int GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }
@@ -1369,7 +1369,7 @@ int oatGetInsnSize(LIR* lir)
 /*
  * Target-dependent offset assignment.
  */
-int oatAssignInsnOffsets(CompilationUnit* cUnit)
+int AssignInsnOffsets(CompilationUnit* cUnit)
 {
   LIR* armLIR;
   int offset = 0;

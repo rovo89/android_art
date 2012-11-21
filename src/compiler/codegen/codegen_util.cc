@@ -24,16 +24,16 @@
 namespace art {
 
 /* Convert an instruction to a NOP */
-void oatNopLIR( LIR* lir)
+void NopLIR( LIR* lir)
 {
   lir->flags.isNop = true;
 }
 
-void setMemRefType(LIR* lir, bool isLoad, int memType)
+void SetMemRefType(LIR* lir, bool isLoad, int memType)
 {
   uint64_t *maskPtr;
   uint64_t mask = ENCODE_MEM;;
-  DCHECK(getTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
+  DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   if (isLoad) {
     maskPtr = &lir->useMask;
   } else {
@@ -55,7 +55,7 @@ void setMemRefType(LIR* lir, bool isLoad, int memType)
       break;
     case kMustNotAlias:
       /* Currently only loads can be marked as kMustNotAlias */
-      DCHECK(!(getTargetInstFlags(lir->opcode) & IS_STORE));
+      DCHECK(!(GetTargetInstFlags(lir->opcode) & IS_STORE));
       *maskPtr |= ENCODE_MUST_NOT_ALIAS;
       break;
     default:
@@ -66,9 +66,9 @@ void setMemRefType(LIR* lir, bool isLoad, int memType)
 /*
  * Mark load/store instructions that access Dalvik registers through the stack.
  */
-void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
+void AnnotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
 {
-  setMemRefType(lir, isLoad, kDalvikReg);
+  SetMemRefType(lir, isLoad, kDalvikReg);
 
   /*
    * Store the Dalvik register id in aliasInfo. Mark the MSB if it is a 64-bit
@@ -77,29 +77,18 @@ void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad, bool is64bit)
   lir->aliasInfo = ENCODE_ALIAS_INFO(regId, is64bit);
 }
 
-uint64_t oatGetRegMaskCommon(CompilationUnit* cUnit, int reg)
-{
-  return getRegMaskCommon(cUnit, reg);
-}
-
 /*
  * Mark the corresponding bit(s).
  */
-inline void setupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg)
+void SetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg)
 {
-  *mask |= getRegMaskCommon(cUnit, reg);
-}
-
-/* Exported version of setupRegMask */
-void oatSetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg)
-{
-  setupRegMask(cUnit, mask, reg);
+  *mask |= GetRegMaskCommon(cUnit, reg);
 }
 
 /*
  * Set up the proper fields in the resource mask
  */
-void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
+void SetupResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   int opcode = lir->opcode;
 
@@ -108,19 +97,19 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
     return;
   }
 
-  uint64_t flags = getTargetInstFlags(opcode);
+  uint64_t flags = GetTargetInstFlags(opcode);
 
   if (flags & NEEDS_FIXUP) {
     lir->flags.pcRelFixup = true;
   }
 
   /* Get the starting size of the instruction's template */
-  lir->flags.size = oatGetInsnSize(lir);
+  lir->flags.size = GetInsnSize(lir);
 
   /* Set up the mask for resources that are updated */
   if (flags & (IS_LOAD | IS_STORE)) {
     /* Default to heap - will catch specialized classes later */
-    setMemRefType(lir, flags & IS_LOAD, kHeapRef);
+    SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
   }
 
   /*
@@ -133,11 +122,11 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 
   if (flags & REG_DEF0) {
-    setupRegMask(cUnit, &lir->defMask, lir->operands[0]);
+    SetupRegMask(cUnit, &lir->defMask, lir->operands[0]);
   }
 
   if (flags & REG_DEF1) {
-    setupRegMask(cUnit, &lir->defMask, lir->operands[1]);
+    SetupRegMask(cUnit, &lir->defMask, lir->operands[1]);
   }
 
 
@@ -150,7 +139,7 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
 
     for (i = 0; i < 4; i++) {
       if (flags & (1 << (kRegUse0 + i))) {
-        setupRegMask(cUnit, &lir->useMask, lir->operands[i]);
+        SetupRegMask(cUnit, &lir->useMask, lir->operands[i]);
       }
     }
   }
@@ -160,7 +149,7 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 
   // Handle target-specific actions
-  setupTargetResourceMasks(cUnit, lir);
+  SetupTargetResourceMasks(cUnit, lir);
 }
 
 /*
@@ -170,7 +159,7 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
 #define DUMP_SSA_REP(X)
 
 /* Pretty-print a LIR instruction */
-void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr)
+void DumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr)
 {
   int offset = lir->offset;
   int dest = lir->operands[0];
@@ -239,9 +228,9 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr)
       if (lir->flags.isNop && !dumpNop) {
         break;
       } else {
-        std::string op_name(buildInsnString(getTargetInstName(lir->opcode),
+        std::string op_name(BuildInsnString(GetTargetInstName(lir->opcode),
                                             lir, baseAddr));
-        std::string op_operands(buildInsnString(getTargetInstFmt(lir->opcode),
+        std::string op_operands(BuildInsnString(GetTargetInstFmt(lir->opcode),
                                                 lir, baseAddr));
         LOG(INFO) << StringPrintf("%05x: %-9s%s%s",
                                   reinterpret_cast<unsigned int>(baseAddr + offset),
@@ -252,21 +241,21 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr)
   }
 
   if (lir->useMask && (!lir->flags.isNop || dumpNop)) {
-    DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir, lir->useMask, "use"));
+    DUMP_RESOURCE_MASK(DumpResourceMask((LIR* ) lir, lir->useMask, "use"));
   }
   if (lir->defMask && (!lir->flags.isNop || dumpNop)) {
-    DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir, lir->defMask, "def"));
+    DUMP_RESOURCE_MASK(DumpResourceMask((LIR* ) lir, lir->defMask, "def"));
   }
 }
 
-void oatDumpPromotionMap(CompilationUnit *cUnit)
+void DumpPromotionMap(CompilationUnit *cUnit)
 {
   int numRegs = cUnit->numDalvikRegisters + cUnit->numCompilerTemps + 1;
   for (int i = 0; i < numRegs; i++) {
     PromotionMap vRegMap = cUnit->promotionMap[i];
     std::string buf;
     if (vRegMap.fpLocation == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", vRegMap.fpReg & fpRegMask());
+      StringAppendF(&buf, " : s%d", vRegMap.FpReg & FpRegMask());
     }
 
     std::string buf3;
@@ -281,13 +270,13 @@ void oatDumpPromotionMap(CompilationUnit *cUnit)
     LOG(INFO) << StringPrintf("V[%s] -> %s%d%s", buf3.c_str(),
                               vRegMap.coreLocation == kLocPhysReg ?
                               "r" : "SP+", vRegMap.coreLocation == kLocPhysReg ?
-                              vRegMap.coreReg : oatSRegOffset(cUnit, i),
+                              vRegMap.coreReg : SRegOffset(cUnit, i),
                               buf.c_str());
   }
 }
 
 /* Dump a mapping table */
-void dumpMappingTable(const char* table_name, const std::string& descriptor,
+void DumpMappingTable(const char* table_name, const std::string& descriptor,
                       const std::string& name, const std::string& signature,
                       const std::vector<uint32_t>& v) {
   if (v.size() > 0) {
@@ -304,7 +293,7 @@ void dumpMappingTable(const char* table_name, const std::string& descriptor,
 }
 
 /* Dump instructions and constant pool contents */
-void oatCodegenDump(CompilationUnit* cUnit)
+void CodegenDump(CompilationUnit* cUnit)
 {
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
@@ -322,9 +311,9 @@ void oatCodegenDump(CompilationUnit* cUnit)
     " bytes, Dalvik size is " << insnsSize * 2;
   LOG(INFO) << "expansion factor: "
             << static_cast<float>(cUnit->totalSize) / static_cast<float>(insnsSize * 2);
-  oatDumpPromotionMap(cUnit);
+  DumpPromotionMap(cUnit);
   for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
-    oatDumpLIRInsn(cUnit, lirInsn, 0);
+    DumpLIRInsn(cUnit, lirInsn, 0);
   }
   for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
     LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)", lirInsn->offset, lirInsn->offset,
@@ -338,15 +327,15 @@ void oatCodegenDump(CompilationUnit* cUnit)
   std::string descriptor(cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
   // Dump mapping tables
-  dumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, cUnit->pc2dexMappingTable);
-  dumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, cUnit->dex2pcMappingTable);
+  DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, cUnit->pc2dexMappingTable);
+  DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, cUnit->dex2pcMappingTable);
 }
 
 
-LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
+LIR* RawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
       int op1, int op2, int op3, int op4, LIR* target)
 {
-  LIR* insn = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
+  LIR* insn = static_cast<LIR*>(NewMem(cUnit, sizeof(LIR), true, kAllocLIR));
   insn->dalvikOffset = dalvikOffset;
   insn->opcode = opcode;
   insn->operands[0] = op0;
@@ -355,7 +344,7 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
   insn->operands[3] = op3;
   insn->operands[4] = op4;
   insn->target = target;
-  oatSetupResourceMasks(cUnit, insn);
+  SetupResourceMasks(cUnit, insn);
   if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
       (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
@@ -368,74 +357,74 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
-LIR* newLIR0(CompilationUnit* cUnit, int opcode)
+LIR* NewLIR0(CompilationUnit* cUnit, int opcode)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & NO_OPERAND))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
-LIR* newLIR1(CompilationUnit* cUnit, int opcode,
+LIR* NewLIR1(CompilationUnit* cUnit, int opcode,
                int dest)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_UNARY_OP))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
-LIR* newLIR2(CompilationUnit* cUnit, int opcode,
+LIR* NewLIR2(CompilationUnit* cUnit, int opcode,
                int dest, int src1)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_BINARY_OP))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
-LIR* newLIR3(CompilationUnit* cUnit, int opcode,
+LIR* NewLIR3(CompilationUnit* cUnit, int opcode,
                int dest, int src1, int src2)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_TERTIARY_OP))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
-LIR* newLIR4(CompilationUnit* cUnit, int opcode,
+LIR* NewLIR4(CompilationUnit* cUnit, int opcode,
       int dest, int src1, int src2, int info)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_QUAD_OP))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
-LIR* newLIR5(CompilationUnit* cUnit, int opcode,
+LIR* NewLIR5(CompilationUnit* cUnit, int opcode,
        int dest, int src1, int src2, int info1, int info2)
 {
-  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_QUIN_OP))
-      << getTargetInstName(opcode) << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
-  LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info1, info2);
-  oatAppendLIR(cUnit, insn);
+  LIR* insn = RawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info1, info2);
+  AppendLIR(cUnit, insn);
   return insn;
 }
 
@@ -443,7 +432,7 @@ LIR* newLIR5(CompilationUnit* cUnit, int opcode,
  * Search the existing constants in the literal pool for an exact or close match
  * within specified delta (greater or equal to 0).
  */
-LIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
+LIR* ScanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
 {
   while (dataTarget) {
     if ((static_cast<unsigned>(value - dataTarget->operands[0])) <= delta)
@@ -454,7 +443,7 @@ LIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
 }
 
 /* Search the existing constants in the literal pool for an exact wide match */
-LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
+LIR* ScanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
 {
   bool loMatch = false;
   LIR* loTarget = NULL;
@@ -478,11 +467,11 @@ LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
  */
 
 /* Add a 32-bit constant either in the constant pool */
-LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP, int value)
+LIR* AddWordData(CompilationUnit* cUnit, LIR* *constantListP, int value)
 {
   /* Add the constant to the literal pool */
   if (constantListP) {
-    LIR* newValue = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocData));
+    LIR* newValue = static_cast<LIR*>(NewMem(cUnit, sizeof(LIR), true, kAllocData));
     newValue->operands[0] = value;
     newValue->next = *constantListP;
     *constantListP = newValue;
@@ -492,21 +481,21 @@ LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP, int value)
 }
 
 /* Add a 64-bit constant to the constant pool or mixed with code */
-LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
+LIR* AddWideData(CompilationUnit* cUnit, LIR* *constantListP,
                int valLo, int valHi)
 {
-  addWordData(cUnit, constantListP, valHi);
-  return addWordData(cUnit, constantListP, valLo);
+  AddWordData(cUnit, constantListP, valHi);
+  return AddWordData(cUnit, constantListP, valLo);
 }
 
-void pushWord(std::vector<uint8_t>&buf, int data) {
+void PushWord(std::vector<uint8_t>&buf, int data) {
   buf.push_back( data & 0xff);
   buf.push_back( (data >> 8) & 0xff);
   buf.push_back( (data >> 16) & 0xff);
   buf.push_back( (data >> 24) & 0xff);
 }
 
-void alignBuffer(std::vector<uint8_t>&buf, size_t offset) {
+void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
   while (buf.size() < offset) {
     buf.push_back(0);
   }
@@ -518,12 +507,12 @@ bool IsDirect(int invokeType) {
 }
 
 /* Write the literal pool to the output stream */
-void installLiteralPools(CompilationUnit* cUnit)
+void InstallLiteralPools(CompilationUnit* cUnit)
 {
-  alignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
+  AlignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
   LIR* dataLIR = cUnit->literalList;
   while (dataLIR != NULL) {
-    pushWord(cUnit->codeBuffer, dataLIR->operands[0]);
+    PushWord(cUnit->codeBuffer, dataLIR->operands[0]);
     dataLIR = NEXT_LIR(dataLIR);
   }
   // Push code and method literals, record offsets for the compiler to patch.
@@ -539,7 +528,7 @@ void installLiteralPools(CompilationUnit* cUnit)
     const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    pushWord(cUnit->codeBuffer, unique_patch_value);
+    PushWord(cUnit->codeBuffer, unique_patch_value);
     dataLIR = NEXT_LIR(dataLIR);
   }
   dataLIR = cUnit->methodLiteralList;
@@ -554,20 +543,20 @@ void installLiteralPools(CompilationUnit* cUnit)
     const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    pushWord(cUnit->codeBuffer, unique_patch_value);
+    PushWord(cUnit->codeBuffer, unique_patch_value);
     dataLIR = NEXT_LIR(dataLIR);
   }
 }
 
 /* Write the switch tables to the output stream */
-void installSwitchTables(CompilationUnit* cUnit)
+void InstallSwitchTables(CompilationUnit* cUnit)
 {
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
+  GrowableListIteratorInit(&cUnit->switchTables, &iterator);
   while (true) {
-    SwitchTable* tabRec = reinterpret_cast<SwitchTable*>(oatGrowableListIteratorNext( &iterator));
+    SwitchTable* tabRec = reinterpret_cast<SwitchTable*>(GrowableListIteratorNext( &iterator));
     if (tabRec == NULL) break;
-    alignBuffer(cUnit->codeBuffer, tabRec->offset);
+    AlignBuffer(cUnit->codeBuffer, tabRec->offset);
     /*
      * For Arm, our reference point is the address of the bx
      * instruction that does the launch, so we have to subtract
@@ -599,8 +588,8 @@ void installSwitchTables(CompilationUnit* cUnit)
                     << std::hex << keys[elems] << ", disp: 0x"
                     << std::hex << disp;
         }
-        pushWord(cUnit->codeBuffer, keys[elems]);
-        pushWord(cUnit->codeBuffer,
+        PushWord(cUnit->codeBuffer, keys[elems]);
+        PushWord(cUnit->codeBuffer,
           tabRec->targets[elems]->offset - bxOffset);
       }
     } else {
@@ -612,22 +601,22 @@ void installSwitchTables(CompilationUnit* cUnit)
           LOG(INFO) << "  Case[" << elems << "] disp: 0x"
                     << std::hex << disp;
         }
-        pushWord(cUnit->codeBuffer, tabRec->targets[elems]->offset - bxOffset);
+        PushWord(cUnit->codeBuffer, tabRec->targets[elems]->offset - bxOffset);
       }
     }
   }
 }
 
 /* Write the fill array dta to the output stream */
-void installFillArrayData(CompilationUnit* cUnit)
+void InstallFillArrayData(CompilationUnit* cUnit)
 {
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
+  GrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
   while (true) {
     FillArrayData *tabRec =
-        reinterpret_cast<FillArrayData*>(oatGrowableListIteratorNext( &iterator));
+        reinterpret_cast<FillArrayData*>(GrowableListIteratorNext( &iterator));
     if (tabRec == NULL) break;
-    alignBuffer(cUnit->codeBuffer, tabRec->offset);
+    AlignBuffer(cUnit->codeBuffer, tabRec->offset);
     for (int i = 0; i < (tabRec->size + 1) / 2; i++) {
       cUnit->codeBuffer.push_back( tabRec->table[i] & 0xFF);
       cUnit->codeBuffer.push_back( (tabRec->table[i] >> 8) & 0xFF);
@@ -635,7 +624,7 @@ void installFillArrayData(CompilationUnit* cUnit)
   }
 }
 
-int assignLiteralOffsetCommon(LIR* lir, int offset)
+int AssignLiteralOffsetCommon(LIR* lir, int offset)
 {
   for (;lir != NULL; lir = lir->next) {
     lir->offset = offset;
@@ -645,7 +634,7 @@ int assignLiteralOffsetCommon(LIR* lir, int offset)
 }
 
 // Make sure we have a code address for every declared catch entry
-bool verifyCatchEntries(CompilationUnit* cUnit)
+bool VerifyCatchEntries(CompilationUnit* cUnit)
 {
   bool success = true;
   for (std::set<uint32_t>::const_iterator it = cUnit->catches.begin(); it != cUnit->catches.end(); ++it) {
@@ -678,7 +667,7 @@ bool verifyCatchEntries(CompilationUnit* cUnit)
   return success;
 }
 
-void createMappingTables(CompilationUnit* cUnit)
+void CreateMappingTables(CompilationUnit* cUnit)
 {
   for (LIR* tgtLIR = cUnit->firstLIRInsn; tgtLIR != NULL; tgtLIR = NEXT_LIR(tgtLIR)) {
     if (!tgtLIR->flags.isNop && (tgtLIR->opcode == kPseudoSafepointPC)) {
@@ -690,7 +679,7 @@ void createMappingTables(CompilationUnit* cUnit)
       cUnit->dex2pcMappingTable.push_back(tgtLIR->dalvikOffset);
     }
   }
-  DCHECK(verifyCatchEntries(cUnit));
+  DCHECK(VerifyCatchEntries(cUnit));
   cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size() +
                                         cUnit->dex2pcMappingTable.size());
   cUnit->combinedMappingTable.push_back(cUnit->pc2dexMappingTable.size());
@@ -780,7 +769,7 @@ class NativePcToReferenceMapBuilder {
   std::vector<uint8_t>* const table_;
 };
 
-static void createNativeGcMap(CompilationUnit* cUnit) {
+static void CreateNativeGcMap(CompilationUnit* cUnit) {
   const std::vector<uint32_t>& mapping_table = cUnit->pc2dexMappingTable;
   uint32_t max_native_offset = 0;
   for (size_t i = 0; i < mapping_table.size(); i += 2) {
@@ -807,20 +796,20 @@ static void createNativeGcMap(CompilationUnit* cUnit) {
 }
 
 /* Determine the offset of each literal field */
-int assignLiteralOffset(CompilationUnit* cUnit, int offset)
+int AssignLiteralOffset(CompilationUnit* cUnit, int offset)
 {
-  offset = assignLiteralOffsetCommon(cUnit->literalList, offset);
-  offset = assignLiteralOffsetCommon(cUnit->codeLiteralList, offset);
-  offset = assignLiteralOffsetCommon(cUnit->methodLiteralList, offset);
+  offset = AssignLiteralOffsetCommon(cUnit->literalList, offset);
+  offset = AssignLiteralOffsetCommon(cUnit->codeLiteralList, offset);
+  offset = AssignLiteralOffsetCommon(cUnit->methodLiteralList, offset);
   return offset;
 }
 
-int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
+int AssignSiwtchTablesOffset(CompilationUnit* cUnit, int offset)
 {
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
+  GrowableListIteratorInit(&cUnit->switchTables, &iterator);
   while (true) {
-    SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(oatGrowableListIteratorNext(&iterator));
+    SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tabRec == NULL) break;
     tabRec->offset = offset;
     if (tabRec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -834,13 +823,13 @@ int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
   return offset;
 }
 
-int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
+int AssignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
 {
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
+  GrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
   while (true) {
     FillArrayData *tabRec =
-        reinterpret_cast<FillArrayData*>(oatGrowableListIteratorNext(&iterator));
+        reinterpret_cast<FillArrayData*>(GrowableListIteratorNext(&iterator));
     if (tabRec == NULL) break;
     tabRec->offset = offset;
     offset += tabRec->size;
@@ -854,9 +843,9 @@ int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
  * Walk the compilation unit and assign offsets to instructions
  * and literals and compute the total size of the compiled unit.
  */
-void oatAssignOffsets(CompilationUnit* cUnit)
+void AssignOffsets(CompilationUnit* cUnit)
 {
-  int offset = oatAssignInsnOffsets(cUnit);
+  int offset = AssignInsnOffsets(cUnit);
 
   /* Const values have to be word aligned */
   offset = (offset + 3) & ~3;
@@ -864,11 +853,11 @@ void oatAssignOffsets(CompilationUnit* cUnit)
   /* Set up offsets for literals */
   cUnit->dataOffset = offset;
 
-  offset = assignLiteralOffset(cUnit, offset);
+  offset = AssignLiteralOffset(cUnit, offset);
 
-  offset = assignSwitchTablesOffset(cUnit, offset);
+  offset = AssignSiwtchTablesOffset(cUnit, offset);
 
-  offset = assignFillArrayDataOffset(cUnit, offset);
+  offset = AssignFillArrayDataOffset(cUnit, offset);
 
   cUnit->totalSize = offset;
 }
@@ -878,43 +867,43 @@ void oatAssignOffsets(CompilationUnit* cUnit)
  * before sending them off to the assembler. If out-of-range branch distance is
  * seen rearrange the instructions a bit to correct it.
  */
-void oatAssembleLIR(CompilationUnit* cUnit)
+void AssembleLIR(CompilationUnit* cUnit)
 {
-  oatAssignOffsets(cUnit);
+  AssignOffsets(cUnit);
   /*
    * Assemble here.  Note that we generate code with optimistic assumptions
    * and if found now to work, we'll have to redo the sequence and retry.
    */
 
   while (true) {
-    AssemblerStatus res = oatAssembleInstructions(cUnit, 0);
+    AssemblerStatus res = AssembleInstructions(cUnit, 0);
     if (res == kSuccess) {
       break;
     } else {
       cUnit->assemblerRetries++;
       if (cUnit->assemblerRetries > MAX_ASSEMBLER_RETRIES) {
-        oatCodegenDump(cUnit);
+        CodegenDump(cUnit);
         LOG(FATAL) << "Assembler error - too many retries";
       }
       // Redo offsets and try again
-      oatAssignOffsets(cUnit);
+      AssignOffsets(cUnit);
       cUnit->codeBuffer.clear();
     }
   }
 
   // Install literals
-  installLiteralPools(cUnit);
+  InstallLiteralPools(cUnit);
 
   // Install switch tables
-  installSwitchTables(cUnit);
+  InstallSwitchTables(cUnit);
 
   // Install fill array data
-  installFillArrayData(cUnit);
+  InstallFillArrayData(cUnit);
 
   // Create the mapping table and native offset to reference map.
-  createMappingTables(cUnit);
+  CreateMappingTables(cUnit);
 
-  createNativeGcMap(cUnit);
+  CreateNativeGcMap(cUnit);
 }
 
 /*
@@ -924,22 +913,22 @@ void oatAssembleLIR(CompilationUnit* cUnit)
  * all resource flags on this to prevent code motion across
  * target boundaries.  KeyVal is just there for debugging.
  */
-LIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
+LIR* InsertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 {
   SafeMap<unsigned int, LIR*>::iterator it;
   it = cUnit->boundaryMap.find(vaddr);
   if (it == cUnit->boundaryMap.end()) {
     LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
   }
-  LIR* newLabel = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
+  LIR* newLabel = static_cast<LIR*>(NewMem(cUnit, sizeof(LIR), true, kAllocLIR));
   newLabel->dalvikOffset = vaddr;
   newLabel->opcode = kPseudoCaseLabel;
   newLabel->operands[0] = keyVal;
-  oatInsertLIRAfter(it->second, newLabel);
+  InsertLIRAfter(it->second, newLabel);
   return newLabel;
 }
 
-void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+void MarkPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
   const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;
@@ -947,11 +936,11 @@ void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
   int entries = table[1];
   int lowKey = s4FromSwitchData(&table[2]);
   for (int i = 0; i < entries; i++) {
-    tabRec->targets[i] = insertCaseLabel(cUnit, baseVaddr + targets[i], i + lowKey);
+    tabRec->targets[i] = InsertCaseLabel(cUnit, baseVaddr + targets[i], i + lowKey);
   }
 }
 
-void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+void MarkSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
   const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;
@@ -959,29 +948,29 @@ void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
   const int* keys = reinterpret_cast<const int*>(&table[2]);
   const int* targets = &keys[entries];
   for (int i = 0; i < entries; i++) {
-    tabRec->targets[i] = insertCaseLabel(cUnit, baseVaddr + targets[i], keys[i]);
+    tabRec->targets[i] = InsertCaseLabel(cUnit, baseVaddr + targets[i], keys[i]);
   }
 }
 
-void oatProcessSwitchTables(CompilationUnit* cUnit)
+void ProcessSwitchTables(CompilationUnit* cUnit)
 {
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
+  GrowableListIteratorInit(&cUnit->switchTables, &iterator);
   while (true) {
     SwitchTable *tabRec =
-        reinterpret_cast<SwitchTable*>(oatGrowableListIteratorNext(&iterator));
+        reinterpret_cast<SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tabRec == NULL) break;
     if (tabRec->table[0] == Instruction::kPackedSwitchSignature) {
-      markPackedCaseLabels(cUnit, tabRec);
+      MarkPackedCaseLabels(cUnit, tabRec);
     } else if (tabRec->table[0] == Instruction::kSparseSwitchSignature) {
-      markSparseCaseLabels(cUnit, tabRec);
+      MarkSparseCaseLabels(cUnit, tabRec);
     } else {
       LOG(FATAL) << "Invalid switch table";
     }
   }
 }
 
-void dumpSparseSwitchTable(const uint16_t* table)
+void DumpSparseSwitchTable(const uint16_t* table)
   /*
    * Sparse switch data format:
    *  ushort ident = 0x0200   magic value
@@ -1003,7 +992,7 @@ void dumpSparseSwitchTable(const uint16_t* table)
   }
 }
 
-void dumpPackedSwitchTable(const uint16_t* table)
+void DumpPackedSwitchTable(const uint16_t* table)
   /*
    * Packed switch data format:
    *  ushort ident = 0x0100   magic value
@@ -1032,9 +1021,9 @@ void dumpPackedSwitchTable(const uint16_t* table)
  * which we split a single Dalvik instruction, only the first MIR op
  * associated with a Dalvik PC should be entered into the map.
  */
-LIR* markBoundary(CompilationUnit* cUnit, int offset, const char* instStr)
+LIR* MarkBoundary(CompilationUnit* cUnit, int offset, const char* instStr)
 {
-  LIR* res = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(instStr));
+  LIR* res = NewLIR1(cUnit, kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(instStr));
   if (cUnit->boundaryMap.find(offset) == cUnit->boundaryMap.end()) {
     cUnit->boundaryMap.Put(offset, res);
   }

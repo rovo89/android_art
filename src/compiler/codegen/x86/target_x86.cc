@@ -30,9 +30,9 @@ namespace art {
   r8, r9, r10, r11, r12, r13, r14, 15
 #endif
 };
-/*static*/ int reservedRegs[] = {rX86_SP};
+/*static*/ int ReservedRegs[] = {rX86_SP};
 /*static*/ int coreTemps[] = {rAX, rCX, rDX, rBX};
-/*static*/ int fpRegs[] = {
+/*static*/ int FpRegs[] = {
   fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
 #ifdef TARGET_REX_SUPPORT
   fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
@@ -45,32 +45,32 @@ namespace art {
 #endif
 };
 
-RegLocation locCReturn()
+RegLocation LocCReturn()
 {
   RegLocation res = X86_LOC_C_RETURN;
   return res;
 }
 
-RegLocation locCReturnWide()
+RegLocation LocCReturnWide()
 {
   RegLocation res = X86_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation locCReturnFloat()
+RegLocation LocCReturnFloat()
 {
   RegLocation res = X86_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation locCReturnDouble()
+RegLocation LocCReturnDouble()
 {
   RegLocation res = X86_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int targetReg(SpecialTargetRegister reg) {
+int TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rX86_SELF; break;
@@ -95,37 +95,37 @@ int targetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int s2d(int lowReg, int highReg)
+int S2d(int lowReg, int highReg)
 {
   return X86_S2D(lowReg, highReg);
 }
 
 // Is reg a single or double?
-bool fpReg(int reg)
+bool FpReg(int reg)
 {
   return X86_FPREG(reg);
 }
 
 // Is reg a single?
-bool singleReg(int reg)
+bool SingleReg(int reg)
 {
   return X86_SINGLEREG(reg);
 }
 
 // Is reg a double?
-bool doubleReg(int reg)
+bool DoubleReg(int reg)
 {
   return X86_DOUBLEREG(reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t fpRegMask()
+uint32_t FpRegMask()
 {
   return X86_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool sameRegType(int reg1, int reg2)
+bool SameRegType(int reg1, int reg2)
 {
   return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
 }
@@ -133,7 +133,7 @@ bool sameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg)
+uint64_t GetRegMaskCommon(CompilationUnit* cUnit, int reg)
 {
   uint64_t seed;
   int shift;
@@ -149,17 +149,17 @@ uint64_t getRegMaskCommon(CompilationUnit* cUnit, int reg)
   return (seed << shift);
 }
 
-uint64_t getPCUseDefEncoding()
+uint64_t GetPCUseDefEncoding()
 {
   /*
    * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
    * able to clean up some of the x86/Arm_Mips differences
    */
-  LOG(FATAL) << "Unexpected call to getPCUseDefEncoding for x86";
+  LOG(FATAL) << "Unexpected call to GetPCUseDefEncoding for x86";
   return 0ULL;
 }
 
-void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
+void SetupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
 {
   DCHECK_EQ(cUnit->instructionSet, kX86);
 
@@ -175,22 +175,22 @@ void setupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
   }
 
   if (flags & REG_DEFA) {
-    oatSetupRegMask(cUnit, &lir->defMask, rAX);
+    SetupRegMask(cUnit, &lir->defMask, rAX);
   }
 
   if (flags & REG_DEFD) {
-    oatSetupRegMask(cUnit, &lir->defMask, rDX);
+    SetupRegMask(cUnit, &lir->defMask, rDX);
   }
   if (flags & REG_USEA) {
-    oatSetupRegMask(cUnit, &lir->useMask, rAX);
+    SetupRegMask(cUnit, &lir->useMask, rAX);
   }
 
   if (flags & REG_USEC) {
-    oatSetupRegMask(cUnit, &lir->useMask, rCX);
+    SetupRegMask(cUnit, &lir->useMask, rCX);
   }
 
   if (flags & REG_USED) {
-    oatSetupRegMask(cUnit, &lir->useMask, rDX);
+    SetupRegMask(cUnit, &lir->useMask, rDX);
   }
 }
 
@@ -223,7 +223,7 @@ static const char* x86CondName[] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.cc.
  */
-std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) {
+std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) {
   std::string buf;
   size_t i = 0;
   size_t fmt_len = strlen(fmt);
@@ -281,7 +281,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
   return buf;
 }
 
-void oatDumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
+void DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -322,7 +322,7 @@ void oatDumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
     LOG(INFO) << prefix << ": " <<  buf;
   }
 }
-void oatAdjustSpillMask(CompilationUnit* cUnit) {
+void AdjustSpillMask(CompilationUnit* cUnit) {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
   cUnit->coreSpillMask |= (1 << rRET);
   cUnit->numCoreSpills++;
@@ -334,18 +334,18 @@ void oatAdjustSpillMask(CompilationUnit* cUnit) {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
+void MarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 {
-  UNIMPLEMENTED(WARNING) << "oatMarkPreservedSingle";
+  UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
 #if 0
   LOG(FATAL) << "No support yet for promoted FP regs";
 #endif
 }
 
-void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
+void FlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 {
-  RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
-  RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
+  RegisterInfo* info1 = GetRegInfo(cUnit, reg1);
+  RegisterInfo* info2 = GetRegInfo(cUnit, reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
          (info1->partner == info2->reg) &&
          (info2->partner == info1->reg));
@@ -360,109 +360,96 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
     if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
       info1 = info2;
     int vReg = SRegToVReg(cUnit, info1->sReg);
-    storeBaseDispWide(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), info1->reg, info1->partner);
+    StoreBaseDispWide(cUnit, rX86_SP, VRegOffset(cUnit, vReg), info1->reg, info1->partner);
   }
 }
 
-void oatFlushReg(CompilationUnit* cUnit, int reg)
+void FlushReg(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* info = GetRegInfo(cUnit, reg);
   if (info->live && info->dirty) {
     info->dirty = false;
     int vReg = SRegToVReg(cUnit, info->sReg);
-    storeBaseDisp(cUnit, rX86_SP, oatVRegOffset(cUnit, vReg), reg, kWord);
+    StoreBaseDisp(cUnit, rX86_SP, VRegOffset(cUnit, vReg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool oatIsFpReg(int reg) {
+bool IsFpReg(int reg) {
   return X86_FPREG(reg);
 }
 
-uint32_t oatFpRegMask() {
-  return X86_FP_REG_MASK;
-}
-
 /* Clobber all regs that might be used by an external C call */
-extern void oatClobberCalleeSave(CompilationUnit *cUnit)
+extern void ClobberCalleeSave(CompilationUnit *cUnit)
 {
-  oatClobber(cUnit, rAX);
-  oatClobber(cUnit, rCX);
-  oatClobber(cUnit, rDX);
+  Clobber(cUnit, rAX);
+  Clobber(cUnit, rCX);
+  Clobber(cUnit, rDX);
 }
 
-extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
-  RegLocation res = locCReturnWide();
+extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit) {
+  RegLocation res = LocCReturnWide();
   CHECK(res.lowReg == rAX);
   CHECK(res.highReg == rDX);
-  oatClobber(cUnit, rAX);
-  oatClobber(cUnit, rDX);
-  oatMarkInUse(cUnit, rAX);
-  oatMarkInUse(cUnit, rDX);
-  oatMarkPair(cUnit, res.lowReg, res.highReg);
+  Clobber(cUnit, rAX);
+  Clobber(cUnit, rDX);
+  MarkInUse(cUnit, rAX);
+  MarkInUse(cUnit, rDX);
+  MarkPair(cUnit, res.lowReg, res.highReg);
   return res;
 }
 
-extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
+extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
 {
-  RegLocation res = locCReturn();
+  RegLocation res = LocCReturn();
   res.lowReg = rDX;
-  oatClobber(cUnit, rDX);
-  oatMarkInUse(cUnit, rDX);
+  Clobber(cUnit, rDX);
+  MarkInUse(cUnit, rDX);
   return res;
 }
 
-extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
+extern RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
 {
   return X86_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & X86_FP_REG_MASK]
                     : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
-extern void oatLockCallTemps(CompilationUnit* cUnit)
+extern void LockCallTemps(CompilationUnit* cUnit)
 {
-  oatLockTemp(cUnit, rX86_ARG0);
-  oatLockTemp(cUnit, rX86_ARG1);
-  oatLockTemp(cUnit, rX86_ARG2);
-  oatLockTemp(cUnit, rX86_ARG3);
+  LockTemp(cUnit, rX86_ARG0);
+  LockTemp(cUnit, rX86_ARG1);
+  LockTemp(cUnit, rX86_ARG2);
+  LockTemp(cUnit, rX86_ARG3);
 }
 
 /* To be used when explicitly managing register use */
-extern void oatFreeCallTemps(CompilationUnit* cUnit)
+extern void FreeCallTemps(CompilationUnit* cUnit)
 {
-  oatFreeTemp(cUnit, rX86_ARG0);
-  oatFreeTemp(cUnit, rX86_ARG1);
-  oatFreeTemp(cUnit, rX86_ARG2);
-  oatFreeTemp(cUnit, rX86_ARG3);
-}
-
-/*
- * Determine the initial instruction set to be used for this trace.
- * Later components may decide to change this.
- */
-InstructionSet oatInstructionSet()
-{
-  return kX86;
+  FreeTemp(cUnit, rX86_ARG0);
+  FreeTemp(cUnit, rX86_ARG1);
+  FreeTemp(cUnit, rX86_ARG2);
+  FreeTemp(cUnit, rX86_ARG3);
 }
 
 /* Architecture-specific initializations and checks go here */
-bool oatArchVariantInit(void)
+bool ArchVariantInit(void)
 {
   return true;
 }
 
-void oatGenMemBarrier(CompilationUnit *cUnit, MemBarrierKind barrierKind)
+void GenMemBarrier(CompilationUnit *cUnit, MemBarrierKind barrierKind)
 {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
-  newLIR0(cUnit, kX86Mfence);
+  NewLIR0(cUnit, kX86Mfence);
 #endif
 }
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int oatAllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
+int AllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
                           int regClass)
 {
   int highReg;
@@ -470,58 +457,58 @@ int oatAllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
   int res = 0;
 
   if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
-    lowReg = oatAllocTempDouble(cUnit);
+    lowReg = AllocTempDouble(cUnit);
     highReg = lowReg + 1;
     res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
     return res;
   }
 
-  lowReg = oatAllocTemp(cUnit);
-  highReg = oatAllocTemp(cUnit);
+  lowReg = AllocTemp(cUnit);
+  highReg = AllocTemp(cUnit);
   res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
   return res;
 }
 
-int oatAllocTypedTemp(CompilationUnit *cUnit, bool fpHint, int regClass) {
+int AllocTypedTemp(CompilationUnit *cUnit, bool fpHint, int regClass) {
   if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
-    return oatAllocTempFloat(cUnit);
+    return AllocTempFloat(cUnit);
   }
-  return oatAllocTemp(cUnit);
+  return AllocTemp(cUnit);
 }
 
-void oatInitializeRegAlloc(CompilationUnit* cUnit) {
+void CompilerInitializeRegAlloc(CompilationUnit* cUnit) {
   int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
-  int numReserved = sizeof(reservedRegs)/sizeof(*reservedRegs);
+  int numReserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
-  int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
+  int numFPRegs = sizeof(FpRegs)/sizeof(*FpRegs);
   int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
   RegisterPool *pool =
-      static_cast<RegisterPool*>(oatNew(cUnit, sizeof(*pool), true, kAllocRegAlloc));
+      static_cast<RegisterPool*>(NewMem(cUnit, sizeof(*pool), true, kAllocRegAlloc));
   cUnit->regPool = pool;
   pool->numCoreRegs = numRegs;
   pool->coreRegs =
-      static_cast<RegisterInfo*>(oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+      static_cast<RegisterInfo*>(NewMem(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
                                              true, kAllocRegAlloc));
   pool->numFPRegs = numFPRegs;
   pool->FPRegs =
-      static_cast<RegisterInfo *>(oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs),
+      static_cast<RegisterInfo *>(NewMem(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs),
                                               true, kAllocRegAlloc));
-  oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
-  oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
+  CompilerInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
+  CompilerInitPool(pool->FPRegs, FpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
   for (int i = 0; i < numReserved; i++) {
-    oatMarkInUse(cUnit, reservedRegs[i]);
+    MarkInUse(cUnit, ReservedRegs[i]);
   }
   // Mark temp regs - all others not in use can be used for promotion
   for (int i = 0; i < numTemps; i++) {
-    oatMarkTemp(cUnit, coreTemps[i]);
+    MarkTemp(cUnit, coreTemps[i]);
   }
   for (int i = 0; i < numFPTemps; i++) {
-    oatMarkTemp(cUnit, fpTemps[i]);
+    MarkTemp(cUnit, fpTemps[i]);
   }
   // Construct the alias map.
   cUnit->phiAliasMap = static_cast<int*>
-      (oatNew(cUnit, cUnit->numSSARegs * sizeof(cUnit->phiAliasMap[0]), false, kAllocDFInfo));
+      (NewMem(cUnit, cUnit->numSSARegs * sizeof(cUnit->phiAliasMap[0]), false, kAllocDFInfo));
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     cUnit->phiAliasMap[i] = i;
   }
@@ -537,18 +524,18 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit) {
   }
 }
 
-void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
+void FreeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
                      RegLocation rlFree)
 {
   if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
       (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
     // No overlap, free both
-    oatFreeTemp(cUnit, rlFree.lowReg);
-    oatFreeTemp(cUnit, rlFree.highReg);
+    FreeTemp(cUnit, rlFree.lowReg);
+    FreeTemp(cUnit, rlFree.highReg);
   }
 }
 
-void spillCoreRegs(CompilationUnit* cUnit) {
+void SpillCoreRegs(CompilationUnit* cUnit) {
   if (cUnit->numCoreSpills == 0) {
     return;
   }
@@ -557,13 +544,13 @@ void spillCoreRegs(CompilationUnit* cUnit) {
   int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      storeWordDisp(cUnit, rX86_SP, offset, reg);
+      StoreWordDisp(cUnit, rX86_SP, offset, reg);
       offset += 4;
     }
   }
 }
 
-void unSpillCoreRegs(CompilationUnit* cUnit) {
+void UnSpillCoreRegs(CompilationUnit* cUnit) {
   if (cUnit->numCoreSpills == 0) {
     return;
   }
@@ -572,19 +559,19 @@ void unSpillCoreRegs(CompilationUnit* cUnit) {
   int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      loadWordDisp(cUnit, rX86_SP, offset, reg);
+      LoadWordDisp(cUnit, rX86_SP, offset, reg);
       offset += 4;
     }
   }
 }
 
-bool branchUnconditional(LIR* lir)
+bool BranchUnconditional(LIR* lir)
 {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
 /* Common initialization routine for an architecture family */
-bool oatArchInit() {
+bool ArchInit() {
   int i;
 
   for (i = 0; i < kX86Last; i++) {
@@ -595,27 +582,27 @@ bool oatArchInit() {
     }
   }
 
-  return oatArchVariantInit();
+  return ArchVariantInit();
 }
 
 // Not used in x86
-int loadHelper(CompilationUnit* cUnit, int offset)
+int LoadHelper(CompilationUnit* cUnit, int offset)
 {
-  LOG(FATAL) << "Unexpected use of loadHelper in x86";
+  LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;
 }
 
-uint64_t getTargetInstFlags(int opcode)
+uint64_t GetTargetInstFlags(int opcode)
 {
   return EncodingMap[opcode].flags;
 }
 
-const char* getTargetInstName(int opcode)
+const char* GetTargetInstName(int opcode)
 {
   return EncodingMap[opcode].name;
 }
 
-const char* getTargetInstFmt(int opcode)
+const char* GetTargetInstFmt(int opcode)
 {
   return EncodingMap[opcode].fmt;
 }

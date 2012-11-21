@@ -29,7 +29,7 @@ namespace art {
 #define LDLD_DISTANCE 4
 #define LD_LATENCY 2
 
-inline bool isDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
+inline bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 {
   int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->aliasInfo);
   int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->aliasInfo);
@@ -40,19 +40,19 @@ inline bool isDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-void convertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
+void ConvertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
                           int src)
 {
   /* Insert a move to replace the load */
   LIR* moveLIR;
-  moveLIR = opRegCopyNoInsert( cUnit, dest, src);
+  moveLIR = OpRegCopyNoInsert( cUnit, dest, src);
   /*
    * Insert the converted instruction after the original since the
    * optimization is scannng in the top-down order and the new instruction
    * will need to be re-checked (eg the new dest clobbers the src used in
    * thisLIR).
    */
-  oatInsertLIRAfter(origLIR, moveLIR);
+  InsertLIRAfter(origLIR, moveLIR);
 }
 
 /*
@@ -73,7 +73,7 @@ void convertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
-void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
+void ApplyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
                                LIR* tailLIR)
 {
   LIR* thisLIR;
@@ -88,20 +88,20 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
     /* Skip non-interesting instructions */
     if ((thisLIR->flags.isNop == true) ||
         isPseudoOpcode(thisLIR->opcode) ||
-        (getTargetInstFlags(thisLIR->opcode) & IS_BRANCH) ||
-        !(getTargetInstFlags(thisLIR->opcode) & (IS_LOAD | IS_STORE))) {
+        (GetTargetInstFlags(thisLIR->opcode) & IS_BRANCH) ||
+        !(GetTargetInstFlags(thisLIR->opcode) & (IS_LOAD | IS_STORE))) {
       continue;
     }
 
     int nativeRegId;
     if (cUnit->instructionSet == kX86) {
       // If x86, location differs depending on whether memory/reg operation.
-      nativeRegId = (getTargetInstFlags(thisLIR->opcode) & IS_STORE) ? thisLIR->operands[2]
+      nativeRegId = (GetTargetInstFlags(thisLIR->opcode) & IS_STORE) ? thisLIR->operands[2]
           : thisLIR->operands[0];
     } else {
       nativeRegId = thisLIR->operands[0];
     }
-    bool isThisLIRLoad = getTargetInstFlags(thisLIR->opcode) & IS_LOAD;
+    bool isThisLIRLoad = GetTargetInstFlags(thisLIR->opcode) & IS_LOAD;
     LIR* checkLIR;
     /* Use the mem mask to determine the rough memory location */
     uint64_t thisMemMask = (thisLIR->useMask | thisLIR->defMask) & ENCODE_MEM;
@@ -123,7 +123,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
        * region bits since stopMask is used to check data/control
        * dependencies.
        */
-        stopUseRegMask = (getPCUseDefEncoding() | thisLIR->useMask) & ~ENCODE_MEM;
+        stopUseRegMask = (GetPCUseDefEncoding() | thisLIR->useMask) & ~ENCODE_MEM;
     }
 
     for (checkLIR = NEXT_LIR(thisLIR);
@@ -144,22 +144,22 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
        * Potential aliases seen - check the alias relations
        */
       if (checkMemMask != ENCODE_MEM && aliasCondition != 0) {
-        bool isCheckLIRLoad = getTargetInstFlags(checkLIR->opcode) & IS_LOAD;
+        bool isCheckLIRLoad = GetTargetInstFlags(checkLIR->opcode) & IS_LOAD;
         if  (aliasCondition == ENCODE_LITERAL) {
           /*
            * Should only see literal loads in the instruction
            * stream.
            */
-          DCHECK(!(getTargetInstFlags(checkLIR->opcode) & IS_STORE));
+          DCHECK(!(GetTargetInstFlags(checkLIR->opcode) & IS_STORE));
           /* Same value && same register type */
           if (checkLIR->aliasInfo == thisLIR->aliasInfo &&
-              sameRegType(checkLIR->operands[0], nativeRegId)) {
+              SameRegType(checkLIR->operands[0], nativeRegId)) {
             /*
              * Different destination register - insert
              * a move
              */
             if (checkLIR->operands[0] != nativeRegId) {
-              convertMemOpIntoMove(cUnit, checkLIR, checkLIR->operands[0],
+              ConvertMemOpIntoMove(cUnit, checkLIR, checkLIR->operands[0],
                                    nativeRegId);
             }
             checkLIR->flags.isNop = true;
@@ -168,7 +168,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
           /* Must alias */
           if (checkLIR->aliasInfo == thisLIR->aliasInfo) {
             /* Only optimize compatible registers */
-            bool regCompatible = sameRegType(checkLIR->operands[0], nativeRegId);
+            bool regCompatible = SameRegType(checkLIR->operands[0], nativeRegId);
             if ((isThisLIRLoad && isCheckLIRLoad) ||
                 (!isThisLIRLoad && isCheckLIRLoad)) {
               /* RAR or RAW */
@@ -179,7 +179,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
                  */
                 if (checkLIR->operands[0] !=
                   nativeRegId) {
-                  convertMemOpIntoMove(cUnit, checkLIR, checkLIR->operands[0],
+                  ConvertMemOpIntoMove(cUnit, checkLIR, checkLIR->operands[0],
                                        nativeRegId);
                 }
                 checkLIR->flags.isNop = true;
@@ -200,7 +200,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
               stopHere = true;
             }
           /* Partial overlap */
-          } else if (isDalvikRegisterClobbered(thisLIR, checkLIR)) {
+          } else if (IsDalvikRegisterClobbered(thisLIR, checkLIR)) {
             /*
              * It is actually ok to continue if checkLIR
              * is a read. But it is hard to make a test
@@ -233,7 +233,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
         if (cUnit->instructionSet == kX86) {
           // Prevent stores from being sunk between ops that generate ccodes and
           // ops that use them.
-          uint64_t flags = getTargetInstFlags(checkLIR->opcode);
+          uint64_t flags = GetTargetInstFlags(checkLIR->opcode);
           if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
             checkLIR = PREV_LIR(checkLIR);
             sinkDistance--;
@@ -242,14 +242,14 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
         DEBUG_OPT(dumpDependentInsnPair(thisLIR, checkLIR, "REG CLOBBERED"));
         /* Only sink store instructions */
         if (sinkDistance && !isThisLIRLoad) {
-          LIR* newStoreLIR = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
+          LIR* newStoreLIR = static_cast<LIR*>(NewMem(cUnit, sizeof(LIR), true, kAllocLIR));
           *newStoreLIR = *thisLIR;
           /*
            * Stop point found - insert *before* the checkLIR
            * since the instruction list is scanned in the
            * top-down order.
            */
-          oatInsertLIRBefore(checkLIR, newStoreLIR);
+          InsertLIRBefore(checkLIR, newStoreLIR);
           thisLIR->flags.isNop = true;
         }
         break;
@@ -264,7 +264,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
  * Perform a pass of bottom-up walk, from the second instruction in the
  * superblock, to try to hoist loads to earlier slots.
  */
-void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
+void ApplyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
 {
   LIR* thisLIR, *checkLIR;
   /*
@@ -284,7 +284,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
     /* Skip non-interesting instructions */
     if ((thisLIR->flags.isNop == true) ||
         isPseudoOpcode(thisLIR->opcode) ||
-        !(getTargetInstFlags(thisLIR->opcode) & IS_LOAD)) {
+        !(GetTargetInstFlags(thisLIR->opcode) & IS_LOAD)) {
       continue;
     }
 
@@ -298,7 +298,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
        * conservatively here.
        */
       if (stopUseAllMask & ENCODE_HEAP_REF) {
-        stopUseAllMask |= getPCUseDefEncoding();
+        stopUseAllMask |= GetPCUseDefEncoding();
       }
     }
 
@@ -330,7 +330,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
         if (aliasCondition == ENCODE_DALVIK_REG) {
           /* Must alias or partually overlap */
           if ((checkLIR->aliasInfo == thisLIR->aliasInfo) ||
-            isDalvikRegisterClobbered(thisLIR, checkLIR)) {
+            IsDalvikRegisterClobbered(thisLIR, checkLIR)) {
             stopHere = true;
           }
         /* Conservatively treat all heap refs as may-alias */
@@ -384,7 +384,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
       LIR* depLIR = prevInstList[nextSlot-1];
       /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
       if (!isPseudoOpcode(depLIR->opcode) &&
-        (getTargetInstFlags(depLIR->opcode) & IS_LOAD)) {
+        (GetTargetInstFlags(depLIR->opcode) & IS_LOAD)) {
         firstSlot -= LDLD_DISTANCE;
       }
       /*
@@ -401,7 +401,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
            */
-          if (getTargetInstFlags(curLIR->opcode) & IS_LOAD) continue;
+          if (GetTargetInstFlags(curLIR->opcode) & IS_LOAD) continue;
           /*
            * If the remaining number of slots is less than LD_LATENCY,
            * insert the hoisted load here.
@@ -421,7 +421,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
          * the remaining instructions are less than LD_LATENCY.
          */
         bool prevIsLoad = isPseudoOpcode(prevLIR->opcode) ? false :
-            (getTargetInstFlags(prevLIR->opcode) & IS_LOAD);
+            (GetTargetInstFlags(prevLIR->opcode) & IS_LOAD);
         if (((curLIR->useMask & prevLIR->defMask) && prevIsLoad) || (slot < LD_LATENCY)) {
           break;
         }
@@ -430,27 +430,27 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
       /* Found a slot to hoist to */
       if (slot >= 0) {
         LIR* curLIR = prevInstList[slot];
-        LIR* newLoadLIR = static_cast<LIR*>(oatNew(cUnit, sizeof(LIR), true, kAllocLIR));
+        LIR* newLoadLIR = static_cast<LIR*>(NewMem(cUnit, sizeof(LIR), true, kAllocLIR));
         *newLoadLIR = *thisLIR;
         /*
          * Insertion is guaranteed to succeed since checkLIR
          * is never the first LIR on the list
          */
-        oatInsertLIRBefore(curLIR, newLoadLIR);
+        InsertLIRBefore(curLIR, newLoadLIR);
         thisLIR->flags.isNop = true;
       }
     }
   }
 }
 
-void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
+void ApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
                     LIR* tailLIR)
 {
   if (!(cUnit->disableOpt & (1 << kLoadStoreElimination))) {
-    applyLoadStoreElimination(cUnit, headLIR, tailLIR);
+    ApplyLoadStoreElimination(cUnit, headLIR, tailLIR);
   }
   if (!(cUnit->disableOpt & (1 << kLoadHoisting))) {
-    applyLoadHoisting(cUnit, headLIR, tailLIR);
+    ApplyLoadHoisting(cUnit, headLIR, tailLIR);
   }
 }
 
@@ -459,14 +459,14 @@ void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
  * Note: new redundant branches may be inserted later, and we'll
  * use a check in final instruction assembly to nop those out.
  */
-void removeRedundantBranches(CompilationUnit* cUnit)
+void RemoveRedundantBranches(CompilationUnit* cUnit)
 {
   LIR* thisLIR;
 
   for (thisLIR = cUnit->firstLIRInsn; thisLIR != cUnit->lastLIRInsn; thisLIR = NEXT_LIR(thisLIR)) {
 
     /* Branch to the next instruction */
-    if (branchUnconditional(thisLIR)) {
+    if (BranchUnconditional(thisLIR)) {
       LIR* nextLIR = thisLIR;
 
       while (true) {

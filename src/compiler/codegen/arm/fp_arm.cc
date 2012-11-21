@@ -20,7 +20,7 @@
 
 namespace art {
 
-bool genArithOpFloat(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
+bool GenArithOpFloat(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
   int op = kThumbBkpt;
@@ -50,20 +50,20 @@ bool genArithOpFloat(CompilationUnit* cUnit, Instruction::Code opcode, RegLocati
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
     case Instruction::NEG_FLOAT: {
-      return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
   }
-  rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-  rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-  storeValue(cUnit, rlDest, rlResult);
+  rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
+  rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+  NewLIR3(cUnit, op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
+  StoreValue(cUnit, rlDest, rlResult);
   return false;
 }
 
-bool genArithOpDouble(CompilationUnit* cUnit, Instruction::Code opcode,
+bool GenArithOpDouble(CompilationUnit* cUnit, Instruction::Code opcode,
                       RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
   int op = kThumbBkpt;
@@ -89,26 +89,26 @@ bool genArithOpDouble(CompilationUnit* cUnit, Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
     case Instruction::NEG_DOUBLE: {
-      return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
   }
 
-  rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
   DCHECK(rlSrc1.wide);
-  rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
+  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
   DCHECK(rlSrc2.wide);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
   DCHECK(rlDest.wide);
   DCHECK(rlResult.wide);
-  newLIR3(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), s2d(rlSrc1.lowReg, rlSrc1.highReg),
-          s2d(rlSrc2.lowReg, rlSrc2.highReg));
-  storeValueWide(cUnit, rlDest, rlResult);
+  NewLIR3(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), S2d(rlSrc1.lowReg, rlSrc1.highReg),
+          S2d(rlSrc2.lowReg, rlSrc2.highReg));
+  StoreValueWide(cUnit, rlDest, rlResult);
   return false;
 }
 
-bool genConversion(CompilationUnit* cUnit, Instruction::Code opcode,
+bool GenConversion(CompilationUnit* cUnit, Instruction::Code opcode,
                    RegLocation rlDest, RegLocation rlSrc)
 {
   int op = kThumbBkpt;
@@ -138,30 +138,30 @@ bool genConversion(CompilationUnit* cUnit, Instruction::Code opcode,
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
     case Instruction::DOUBLE_TO_LONG:
-      return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
+      return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
     default:
       return true;
   }
   if (rlSrc.wide) {
-    rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-    srcReg = s2d(rlSrc.lowReg, rlSrc.highReg);
+    rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
+    srcReg = S2d(rlSrc.lowReg, rlSrc.highReg);
   } else {
-    rlSrc = loadValue(cUnit, rlSrc, kFPReg);
+    rlSrc = LoadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
   if (rlDest.wide) {
-    rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, op, s2d(rlResult.lowReg, rlResult.highReg), srcReg);
-    storeValueWide(cUnit, rlDest, rlResult);
+    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+    NewLIR2(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), srcReg);
+    StoreValueWide(cUnit, rlDest, rlResult);
   } else {
-    rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR2(cUnit, op, rlResult.lowReg, srcReg);
-    storeValue(cUnit, rlDest, rlResult);
+    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+    NewLIR2(cUnit, op, rlResult.lowReg, srcReg);
+    StoreValue(cUnit, rlDest, rlResult);
   }
   return false;
 }
 
-void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+void GenFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                          bool gtBias, bool isDouble)
 {
   LIR* labelList = cUnit->blockLabelList;
@@ -169,20 +169,20 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   RegLocation rlSrc1;
   RegLocation rlSrc2;
   if (isDouble) {
-    rlSrc1 = oatGetSrcWide(cUnit, mir, 0);
-    rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    newLIR2(cUnit, kThumb2Vcmpd, s2d(rlSrc1.lowReg, rlSrc2.highReg),
-            s2d(rlSrc2.lowReg, rlSrc2.highReg));
+    rlSrc1 = GetSrcWide(cUnit, mir, 0);
+    rlSrc2 = GetSrcWide(cUnit, mir, 2);
+    rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
+    NewLIR2(cUnit, kThumb2Vcmpd, S2d(rlSrc1.lowReg, rlSrc2.highReg),
+            S2d(rlSrc2.lowReg, rlSrc2.highReg));
   } else {
-    rlSrc1 = oatGetSrc(cUnit, mir, 0);
-    rlSrc2 = oatGetSrc(cUnit, mir, 1);
-    rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
-    newLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
+    rlSrc1 = GetSrc(cUnit, mir, 0);
+    rlSrc2 = GetSrc(cUnit, mir, 1);
+    rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
+    NewLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
   }
-  newLIR0(cUnit, kThumb2Fmstat);
+  NewLIR0(cUnit, kThumb2Fmstat);
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   switch(ccode) {
     case kCondEq:
@@ -211,11 +211,11 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
-  opCondBranch(cUnit, ccode, target);
+  OpCondBranch(cUnit, ccode, target);
 }
 
 
-bool genCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
+bool GenCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
         RegLocation rlSrc1, RegLocation rlSrc2)
 {
   bool isDouble;
@@ -243,77 +243,77 @@ bool genCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDe
       return true;
   }
   if (isDouble) {
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
-    oatClobberSReg(cUnit, rlDest.sRegLow);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadConstant(cUnit, rlResult.lowReg, defaultResult);
-    newLIR2(cUnit, kThumb2Vcmpd, s2d(rlSrc1.lowReg, rlSrc2.highReg),
-            s2d(rlSrc2.lowReg, rlSrc2.highReg));
+    rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
+    ClobberSReg(cUnit, rlDest.sRegLow);
+    rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+    LoadConstant(cUnit, rlResult.lowReg, defaultResult);
+    NewLIR2(cUnit, kThumb2Vcmpd, S2d(rlSrc1.lowReg, rlSrc2.highReg),
+            S2d(rlSrc2.lowReg, rlSrc2.highReg));
   } else {
-    rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
-    oatClobberSReg(cUnit, rlDest.sRegLow);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    loadConstant(cUnit, rlResult.lowReg, defaultResult);
-    newLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
+    rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
+    ClobberSReg(cUnit, rlDest.sRegLow);
+    rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+    LoadConstant(cUnit, rlResult.lowReg, defaultResult);
+    NewLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
   }
   DCHECK(!ARM_FPREG(rlResult.lowReg));
-  newLIR0(cUnit, kThumb2Fmstat);
+  NewLIR0(cUnit, kThumb2Fmstat);
 
-  opIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");
-  newLIR2(cUnit, kThumb2MovImmShift, rlResult.lowReg,
-          modifiedImmediate(-defaultResult)); // Must not alter ccodes
-  genBarrier(cUnit);
+  OpIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");
+  NewLIR2(cUnit, kThumb2MovImmShift, rlResult.lowReg,
+          ModifiedImmediate(-defaultResult)); // Must not alter ccodes
+  GenBarrier(cUnit);
 
-  opIT(cUnit, kArmCondEq, "");
-  loadConstant(cUnit, rlResult.lowReg, 0);
-  genBarrier(cUnit);
+  OpIT(cUnit, kArmCondEq, "");
+  LoadConstant(cUnit, rlResult.lowReg, 0);
+  GenBarrier(cUnit);
 
-  storeValue(cUnit, rlDest, rlResult);
+  StoreValue(cUnit, rlDest, rlResult);
   return false;
 }
 
-void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   RegLocation rlResult;
-  rlSrc = loadValue(cUnit, rlSrc, kFPReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vnegs, rlResult.lowReg, rlSrc.lowReg);
-  storeValue(cUnit, rlDest, rlResult);
+  rlSrc = LoadValue(cUnit, rlSrc, kFPReg);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+  NewLIR2(cUnit, kThumb2Vnegs, rlResult.lowReg, rlSrc.lowReg);
+  StoreValue(cUnit, rlDest, rlResult);
 }
 
-void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   RegLocation rlResult;
-  rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-  rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vnegd, s2d(rlResult.lowReg, rlResult.highReg),
-          s2d(rlSrc.lowReg, rlSrc.highReg));
-  storeValueWide(cUnit, rlDest, rlResult);
+  rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
+  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+  NewLIR2(cUnit, kThumb2Vnegd, S2d(rlResult.lowReg, rlResult.highReg),
+          S2d(rlSrc.lowReg, rlSrc.highReg));
+  StoreValueWide(cUnit, rlDest, rlResult);
 }
 
-bool genInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
+bool GenInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
   DCHECK_EQ(cUnit->instructionSet, kThumb2);
   LIR *branch;
   RegLocation rlSrc = info->args[0];
-  RegLocation rlDest = inlineTargetWide(cUnit, info);  // double place for result
-  rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  newLIR2(cUnit, kThumb2Vsqrtd, s2d(rlResult.lowReg, rlResult.highReg),
-          s2d(rlSrc.lowReg, rlSrc.highReg));
-  newLIR2(cUnit, kThumb2Vcmpd, s2d(rlResult.lowReg, rlResult.highReg),
-          s2d(rlResult.lowReg, rlResult.highReg));
-  newLIR0(cUnit, kThumb2Fmstat);
-  branch = newLIR2(cUnit, kThumbBCond, 0, kArmCondEq);
-  oatClobberCalleeSave(cUnit);
-  oatLockCallTemps(cUnit);  // Using fixed registers
-  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pSqrt));
-  newLIR3(cUnit, kThumb2Fmrrd, r0, r1, s2d(rlSrc.lowReg, rlSrc.highReg));
-  newLIR1(cUnit, kThumbBlxR, rTgt);
-  newLIR3(cUnit, kThumb2Fmdrr, s2d(rlResult.lowReg, rlResult.highReg), r0, r1);
-  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
-  storeValueWide(cUnit, rlDest, rlResult);
+  RegLocation rlDest = InlineTargetWide(cUnit, info);  // double place for result
+  rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
+  RegLocation rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
+  NewLIR2(cUnit, kThumb2Vsqrtd, S2d(rlResult.lowReg, rlResult.highReg),
+          S2d(rlSrc.lowReg, rlSrc.highReg));
+  NewLIR2(cUnit, kThumb2Vcmpd, S2d(rlResult.lowReg, rlResult.highReg),
+          S2d(rlResult.lowReg, rlResult.highReg));
+  NewLIR0(cUnit, kThumb2Fmstat);
+  branch = NewLIR2(cUnit, kThumbBCond, 0, kArmCondEq);
+  ClobberCalleeSave(cUnit);
+  LockCallTemps(cUnit);  // Using fixed registers
+  int rTgt = LoadHelper(cUnit, ENTRYPOINT_OFFSET(pSqrt));
+  NewLIR3(cUnit, kThumb2Fmrrd, r0, r1, S2d(rlSrc.lowReg, rlSrc.highReg));
+  NewLIR1(cUnit, kThumbBlxR, rTgt);
+  NewLIR3(cUnit, kThumb2Fmdrr, S2d(rlResult.lowReg, rlResult.highReg), r0, r1);
+  branch->target = NewLIR0(cUnit, kPseudoTargetLabel);
+  StoreValueWide(cUnit, rlDest, rlResult);
   return true;
 }
 

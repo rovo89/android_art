@@ -21,21 +21,21 @@ typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dexIdx,
                             uint32_t methodIdx, uintptr_t directCode,
                             uintptr_t directMethod, InvokeType type);
 
-void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod);
-int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info, int callState, LIR** pcrLabel, NextCallInsn nextCallInsn, uint32_t dexIdx, uint32_t methodIdx, uintptr_t directCode, uintptr_t directMethod, InvokeType type, bool skipThis);
-int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState, LIR** pcrLabel, NextCallInsn nextCallInsn, uint32_t dexIdx, uint32_t methodIdx, uintptr_t directCode, uintptr_t directMethod, InvokeType type, bool skipThis);
-RegLocation inlineTarget(CompilationUnit* cUnit, CallInfo* info);
-RegLocation inlineTargetWide(CompilationUnit* cUnit, CallInfo* info);
-bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info);
-bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info, bool isEmpty);
-bool genInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info);
-bool genInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info);
-bool genInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info);
-bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info);
-bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info, bool zeroBased);
-bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info);
-bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info);
-void genInvoke(CompilationUnit* cUnit, CallInfo* info);
-CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
+void FlushIns(CompilationUnit* cUnit, RegLocation* ArgLocs, RegLocation rlMethod);
+int GenDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info, int callState, LIR** pcrLabel, NextCallInsn nextCallInsn, uint32_t dexIdx, uint32_t methodIdx, uintptr_t directCode, uintptr_t directMethod, InvokeType type, bool skipThis);
+int GenDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState, LIR** pcrLabel, NextCallInsn nextCallInsn, uint32_t dexIdx, uint32_t methodIdx, uintptr_t directCode, uintptr_t directMethod, InvokeType type, bool skipThis);
+RegLocation InlineTarget(CompilationUnit* cUnit, CallInfo* info);
+RegLocation InlineTargetWide(CompilationUnit* cUnit, CallInfo* info);
+bool GenInlinedCharAt(CompilationUnit* cUnit, CallInfo* info);
+bool GenInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info, bool isEmpty);
+bool GenInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info);
+bool GenInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info);
+bool GenInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info);
+bool GenInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info);
+bool GenInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info, bool zeroBased);
+bool GenInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info);
+bool GenIntrinsic(CompilationUnit* cUnit, CallInfo* info);
+void GenInvoke(CompilationUnit* cUnit, CallInfo* info);
+CallInfo* NewMemCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
 
 #endif // ART_SRC_COMPILER_CODEGEN_GENINVOKE_H_

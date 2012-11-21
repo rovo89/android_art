@@ -158,24 +158,23 @@ struct LoopInfo {
 };
 
 int SRegToVReg(const CompilationUnit* cUnit, int ssaReg);
-char* oatGetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn, const char* note);
-char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir);
-char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
-bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
-bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
-bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb);
-void oatInitializeSSAConversion(CompilationUnit* cUnit);
-bool oatClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb);
-void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfaMode, bool isIterative);
-MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
-void oatMethodNullCheckElimination(CompilationUnit *cUnit);
-void oatMethodBasicBlockCombine(CompilationUnit* cUnit);
-void oatMethodCodeLayout(CompilationUnit* cUnit);
-void oatDumpCheckStats(CompilationUnit *cUnit);
-void oatMethodBasicBlockOptimization(CompilationUnit *cUnit);
-void oatDumpLoops(CompilationUnit *cUnit);
-void oatMethodLoopDetection(CompilationUnit *cUnit);
-void oatMethodUseCount(CompilationUnit *cUnit);
+char* GetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn, const char* note);
+char* FullDisassembler(CompilationUnit* cUnit, const MIR* mir);
+char* GetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
+bool FindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
+bool DoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
+bool DoConstantPropogation(CompilationUnit* cUnit, BasicBlock* bb);
+void CompilerInitializeSSAConversion(CompilationUnit* cUnit);
+bool ClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb);
+void DataFlowAnalysisDispatcher(CompilationUnit* cUnit, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfaMode, bool isIterative);
+MIR* FindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
+void NullCheckElimination(CompilationUnit *cUnit);
+void BasicBlockCombine(CompilationUnit* cUnit);
+void CodeLayout(CompilationUnit* cUnit);
+void DumpCheckStats(CompilationUnit *cUnit);
+void BasicBlockOptimization(CompilationUnit *cUnit);
+void LoopDetection(CompilationUnit *cUnit);
+void MethodUseCount(CompilationUnit *cUnit);
 
 }  // namespace art
 

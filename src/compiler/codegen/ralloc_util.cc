@@ -29,7 +29,7 @@ namespace art {
  * not affect the "liveness" of a temp register, which will stay
  * live until it is either explicitly killed or reallocated.
  */
-extern void oatResetRegPool(CompilationUnit* cUnit)
+extern void ResetRegPool(CompilationUnit* cUnit)
 {
   int i;
   for (i=0; i < cUnit->regPool->numCoreRegs; i++) {
@@ -46,7 +46,7 @@ extern void oatResetRegPool(CompilationUnit* cUnit)
   * Set up temp & preserved register pools specialized by target.
   * Note: numRegs may be zero.
   */
-extern void oatInitPool(RegisterInfo* regs, int* regNums, int num)
+extern void CompilerInitPool(RegisterInfo* regs, int* regNums, int num)
 {
   int i;
   for (i=0; i < num; i++) {
@@ -60,7 +60,7 @@ extern void oatInitPool(RegisterInfo* regs, int* regNums, int num)
   }
 }
 
-void dumpRegPool(RegisterInfo* p, int numRegs)
+void DumpRegPool(RegisterInfo* p, int numRegs)
 {
   LOG(INFO) << "================================================";
   for (int i = 0; i < numRegs; i++) {
@@ -73,18 +73,18 @@ void dumpRegPool(RegisterInfo* p, int numRegs)
   LOG(INFO) << "================================================";
 }
 
-void oatDumpCoreRegPool(CompilationUnit* cUnit)
+void DumpCoreRegPool(CompilationUnit* cUnit)
 {
-  dumpRegPool(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs);
+  DumpRegPool(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs);
 }
 
-void oatDumpFpRegPool(CompilationUnit* cUnit)
+void DumpFpRegPool(CompilationUnit* cUnit)
 {
-  dumpRegPool(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs);
+  DumpRegPool(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs);
 }
 
 /* Mark a temp register as dead.  Does not affect allocation state. */
-static inline void clobberBody(CompilationUnit *cUnit, RegisterInfo* p)
+static inline void ClobberBody(CompilationUnit *cUnit, RegisterInfo* p)
 {
   if (p->isTemp) {
     DCHECK(!(p->live && p->dirty))  << "Live & dirty temp in clobber";
@@ -94,18 +94,18 @@ static inline void clobberBody(CompilationUnit *cUnit, RegisterInfo* p)
     p->defEnd = NULL;
     if (p->pair) {
       p->pair = false;
-      oatClobber(cUnit, p->partner);
+      Clobber(cUnit, p->partner);
     }
   }
 }
 
 /* Mark a temp register as dead.  Does not affect allocation state. */
-void oatClobber(CompilationUnit* cUnit, int reg)
+void Clobber(CompilationUnit* cUnit, int reg)
 {
-  clobberBody(cUnit, oatGetRegInfo(cUnit, reg));
+  ClobberBody(cUnit, GetRegInfo(cUnit, reg));
 }
 
-void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
+void ClobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
 {
   int i;
   for (i=0; i< numRegs; i++) {
@@ -120,7 +120,7 @@ void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
 }
 
 /* Clobber any temp associated with an sReg.  Could be in either class */
-extern void oatClobberSReg(CompilationUnit* cUnit, int sReg)
+extern void ClobberSReg(CompilationUnit* cUnit, int sReg)
 {
 #ifndef NDEBUG
   /* Reset live temp tracking sanity checker */
@@ -128,8 +128,8 @@ extern void oatClobberSReg(CompilationUnit* cUnit, int sReg)
     cUnit->liveSReg = INVALID_SREG;
   }
 #endif
-  clobberSRegBody(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs, sReg);
-  clobberSRegBody(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs, sReg);
+  ClobberSRegBody(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs, sReg);
+  ClobberSRegBody(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs, sReg);
 }
 
 /*
@@ -156,11 +156,11 @@ int SRegToPMap(CompilationUnit* cUnit, int sReg)
   }
 }
 
-void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg)
+void RecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg)
 {
   int pMapIdx = SRegToPMap(cUnit, sReg);
   int vReg = SRegToVReg(cUnit, sReg);
-  oatGetRegInfo(cUnit, reg)->inUse = true;
+  GetRegInfo(cUnit, reg)->inUse = true;
   cUnit->coreSpillMask |= (1 << reg);
   // Include reg for later sort
   cUnit->coreVmapTable.push_back(reg << VREG_NUM_WIDTH |
@@ -171,28 +171,28 @@ void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg)
 }
 
 /* Reserve a callee-save register.  Return -1 if none available */
-extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
+extern int AllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
 {
   int res = -1;
   RegisterInfo* coreRegs = cUnit->regPool->coreRegs;
   for (int i = 0; i < cUnit->regPool->numCoreRegs; i++) {
     if (!coreRegs[i].isTemp && !coreRegs[i].inUse) {
       res = coreRegs[i].reg;
-      oatRecordCorePromotion(cUnit, res, sReg);
+      RecordCorePromotion(cUnit, res, sReg);
       break;
     }
   }
   return res;
 }
 
-void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg)
+void RecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg)
 {
   int pMapIdx = SRegToPMap(cUnit, sReg);
   int vReg = SRegToVReg(cUnit, sReg);
-  oatGetRegInfo(cUnit, reg)->inUse = true;
-  oatMarkPreservedSingle(cUnit, vReg, reg);
+  GetRegInfo(cUnit, reg)->inUse = true;
+  MarkPreservedSingle(cUnit, vReg, reg);
   cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
-  cUnit->promotionMap[pMapIdx].fpReg = reg;
+  cUnit->promotionMap[pMapIdx].FpReg = reg;
 }
 
 /*
@@ -200,7 +200,7 @@ void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg)
  * even/odd  allocation, but go ahead and allocate anything if not
  * available.  If nothing's available, return -1.
  */
-int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
+int AllocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
 {
   int res = -1;
   RegisterInfo* FPRegs = cUnit->regPool->FPRegs;
@@ -208,7 +208,7 @@ int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
     if (!FPRegs[i].isTemp && !FPRegs[i].inUse &&
       ((FPRegs[i].reg & 0x1) == 0) == even) {
       res = FPRegs[i].reg;
-      oatRecordFpPromotion(cUnit, res, sReg);
+      RecordFpPromotion(cUnit, res, sReg);
       break;
     }
   }
@@ -223,20 +223,20 @@ int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
  * allocate if we can't meet the requirements for the pair of
  * sReg<=sX[even] & (sReg+1)<= sX+1.
  */
-int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
+int AllocPreservedDouble(CompilationUnit* cUnit, int sReg)
 {
   int res = -1; // Assume failure
   int vReg = SRegToVReg(cUnit, sReg);
   int pMapIdx = SRegToPMap(cUnit, sReg);
   if (cUnit->promotionMap[pMapIdx+1].fpLocation == kLocPhysReg) {
     // Upper reg is already allocated.  Can we fit?
-    int highReg = cUnit->promotionMap[pMapIdx+1].fpReg;
+    int highReg = cUnit->promotionMap[pMapIdx+1].FpReg;
     if ((highReg & 1) == 0) {
       // High reg is even - fail.
       return res;
     }
     // Is the low reg of the pair free?
-    RegisterInfo* p = oatGetRegInfo(cUnit, highReg-1);
+    RegisterInfo* p = GetRegInfo(cUnit, highReg-1);
     if (p->inUse || p->isTemp) {
       // Already allocated or not preserved - fail.
       return res;
@@ -245,7 +245,7 @@ int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
     res = p->reg;
     p->inUse = true;
     DCHECK_EQ((res & 1), 0);
-    oatMarkPreservedSingle(cUnit, vReg, res);
+    MarkPreservedSingle(cUnit, vReg, res);
   } else {
     RegisterInfo* FPRegs = cUnit->regPool->FPRegs;
     for (int i = 0; i < cUnit->regPool->numFPRegs; i++) {
@@ -256,19 +256,19 @@ int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
         (FPRegs[i].reg + 1) == FPRegs[i+1].reg) {
         res = FPRegs[i].reg;
         FPRegs[i].inUse = true;
-        oatMarkPreservedSingle(cUnit, vReg, res);
+        MarkPreservedSingle(cUnit, vReg, res);
         FPRegs[i+1].inUse = true;
         DCHECK_EQ(res + 1, FPRegs[i+1].reg);
-        oatMarkPreservedSingle(cUnit, vReg+1, res+1);
+        MarkPreservedSingle(cUnit, vReg+1, res+1);
         break;
       }
     }
   }
   if (res != -1) {
     cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
-    cUnit->promotionMap[pMapIdx].fpReg = res;
+    cUnit->promotionMap[pMapIdx].FpReg = res;
     cUnit->promotionMap[pMapIdx+1].fpLocation = kLocPhysReg;
-    cUnit->promotionMap[pMapIdx+1].fpReg = res + 1;
+    cUnit->promotionMap[pMapIdx+1].FpReg = res + 1;
   }
   return res;
 }
@@ -280,22 +280,22 @@ int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
  * single regs (but if can't still attempt to allocate a single, preferring
  * first to allocate an odd register.
  */
-extern int oatAllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
+extern int AllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
                   bool doubleStart)
 {
   int res = -1;
   if (doubleStart) {
-    res = allocPreservedDouble(cUnit, sReg);
+    res = AllocPreservedDouble(cUnit, sReg);
   }
   if (res == -1) {
-    res = allocPreservedSingle(cUnit, sReg, false /* try odd # */);
+    res = AllocPreservedSingle(cUnit, sReg, false /* try odd # */);
   }
   if (res == -1)
-    res = allocPreservedSingle(cUnit, sReg, true /* try even # */);
+    res = AllocPreservedSingle(cUnit, sReg, true /* try even # */);
   return res;
 }
 
-int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
+int AllocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
           int* nextTemp, bool required)
 {
   int i;
@@ -304,7 +304,7 @@ int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
     if (next >= numRegs)
       next = 0;
     if (p[next].isTemp && !p[next].inUse && !p[next].live) {
-      oatClobber(cUnit, p[next].reg);
+      Clobber(cUnit, p[next].reg);
       p[next].inUse = true;
       p[next].pair = false;
       *nextTemp = next + 1;
@@ -317,7 +317,7 @@ int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
     if (next >= numRegs)
       next = 0;
     if (p[next].isTemp && !p[next].inUse) {
-      oatClobber(cUnit, p[next].reg);
+      Clobber(cUnit, p[next].reg);
       p[next].inUse = true;
       p[next].pair = false;
       *nextTemp = next + 1;
@@ -326,8 +326,8 @@ int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
     next++;
   }
   if (required) {
-    oatCodegenDump(cUnit);
-    dumpRegPool(cUnit->regPool->coreRegs,
+    CodegenDump(cUnit);
+    DumpRegPool(cUnit->regPool->coreRegs,
           cUnit->regPool->numCoreRegs);
     LOG(FATAL) << "No free temp registers";
   }
@@ -335,7 +335,7 @@ int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
 }
 
 //REDO: too many assumptions.
-extern int oatAllocTempDouble(CompilationUnit* cUnit)
+extern int AllocTempDouble(CompilationUnit* cUnit)
 {
   RegisterInfo* p = cUnit->regPool->FPRegs;
   int numRegs = cUnit->regPool->numFPRegs;
@@ -348,8 +348,8 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
       next = 0;
     if ((p[next].isTemp && !p[next].inUse && !p[next].live) &&
       (p[next+1].isTemp && !p[next+1].inUse && !p[next+1].live)) {
-      oatClobber(cUnit, p[next].reg);
-      oatClobber(cUnit, p[next+1].reg);
+      Clobber(cUnit, p[next].reg);
+      Clobber(cUnit, p[next+1].reg);
       p[next].inUse = true;
       p[next+1].inUse = true;
       DCHECK_EQ((p[next].reg+1), p[next+1].reg);
@@ -370,8 +370,8 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
       next = 0;
     if (p[next].isTemp && !p[next].inUse && p[next+1].isTemp &&
       !p[next+1].inUse) {
-      oatClobber(cUnit, p[next].reg);
-      oatClobber(cUnit, p[next+1].reg);
+      Clobber(cUnit, p[next].reg);
+      Clobber(cUnit, p[next+1].reg);
       p[next].inUse = true;
       p[next+1].inUse = true;
       DCHECK_EQ((p[next].reg+1), p[next+1].reg);
@@ -389,28 +389,28 @@ extern int oatAllocTempDouble(CompilationUnit* cUnit)
 }
 
 /* Return a temp if one is available, -1 otherwise */
-extern int oatAllocFreeTemp(CompilationUnit* cUnit)
+extern int AllocFreeTemp(CompilationUnit* cUnit)
 {
-  return allocTempBody(cUnit, cUnit->regPool->coreRegs,
+  return AllocTempBody(cUnit, cUnit->regPool->coreRegs,
              cUnit->regPool->numCoreRegs,
              &cUnit->regPool->nextCoreReg, true);
 }
 
-extern int oatAllocTemp(CompilationUnit* cUnit)
+extern int AllocTemp(CompilationUnit* cUnit)
 {
-  return allocTempBody(cUnit, cUnit->regPool->coreRegs,
+  return AllocTempBody(cUnit, cUnit->regPool->coreRegs,
              cUnit->regPool->numCoreRegs,
              &cUnit->regPool->nextCoreReg, true);
 }
 
-extern int oatAllocTempFloat(CompilationUnit* cUnit)
+extern int AllocTempFloat(CompilationUnit* cUnit)
 {
-  return allocTempBody(cUnit, cUnit->regPool->FPRegs,
+  return AllocTempBody(cUnit, cUnit->regPool->FPRegs,
              cUnit->regPool->numFPRegs,
              &cUnit->regPool->nextFPReg, true);
 }
 
-RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
+RegisterInfo* AllocLiveBody(RegisterInfo* p, int numRegs, int sReg)
 {
   int i;
   if (sReg == -1)
@@ -425,22 +425,22 @@ RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
   return NULL;
 }
 
-RegisterInfo* allocLive(CompilationUnit* cUnit, int sReg, int regClass)
+RegisterInfo* AllocLive(CompilationUnit* cUnit, int sReg, int regClass)
 {
   RegisterInfo* res = NULL;
   switch (regClass) {
     case kAnyReg:
-      res = allocLiveBody(cUnit->regPool->FPRegs,
+      res = AllocLiveBody(cUnit->regPool->FPRegs,
                 cUnit->regPool->numFPRegs, sReg);
       if (res)
         break;
       /* Intentional fallthrough */
     case kCoreReg:
-      res = allocLiveBody(cUnit->regPool->coreRegs,
+      res = AllocLiveBody(cUnit->regPool->coreRegs,
                 cUnit->regPool->numCoreRegs, sReg);
       break;
     case kFPReg:
-      res = allocLiveBody(cUnit->regPool->FPRegs,
+      res = AllocLiveBody(cUnit->regPool->FPRegs,
                 cUnit->regPool->numFPRegs, sReg);
       break;
     default:
@@ -449,7 +449,7 @@ RegisterInfo* allocLive(CompilationUnit* cUnit, int sReg, int regClass)
   return res;
 }
 
-extern void oatFreeTemp(CompilationUnit* cUnit, int reg)
+extern void FreeTemp(CompilationUnit* cUnit, int reg)
 {
   RegisterInfo* p = cUnit->regPool->coreRegs;
   int numRegs = cUnit->regPool->numCoreRegs;
@@ -477,7 +477,7 @@ extern void oatFreeTemp(CompilationUnit* cUnit, int reg)
   LOG(FATAL) << "Tried to free a non-existant temp: r" << reg;
 }
 
-extern RegisterInfo* oatIsLive(CompilationUnit* cUnit, int reg)
+extern RegisterInfo* IsLive(CompilationUnit* cUnit, int reg)
 {
   RegisterInfo* p = cUnit->regPool->coreRegs;
   int numRegs = cUnit->regPool->numCoreRegs;
@@ -497,30 +497,30 @@ extern RegisterInfo* oatIsLive(CompilationUnit* cUnit, int reg)
   return NULL;
 }
 
-extern RegisterInfo* oatIsTemp(CompilationUnit* cUnit, int reg)
+extern RegisterInfo* IsTemp(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* p = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* p = GetRegInfo(cUnit, reg);
   return (p->isTemp) ? p : NULL;
 }
 
-extern RegisterInfo* oatIsPromoted(CompilationUnit* cUnit, int reg)
+extern RegisterInfo* IsPromoted(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* p = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* p = GetRegInfo(cUnit, reg);
   return (p->isTemp) ? NULL : p;
 }
 
-extern bool oatIsDirty(CompilationUnit* cUnit, int reg)
+extern bool IsDirty(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* p = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* p = GetRegInfo(cUnit, reg);
   return p->dirty;
 }
 
 /*
- * Similar to oatAllocTemp(), but forces the allocation of a specific
+ * Similar to AllocTemp(), but forces the allocation of a specific
  * register.  No check is made to see if the register was previously
  * allocated.  Use with caution.
  */
-extern void oatLockTemp(CompilationUnit* cUnit, int reg)
+extern void LockTemp(CompilationUnit* cUnit, int reg)
 {
   RegisterInfo* p = cUnit->regPool->coreRegs;
   int numRegs = cUnit->regPool->numCoreRegs;
@@ -546,25 +546,25 @@ extern void oatLockTemp(CompilationUnit* cUnit, int reg)
   LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
 }
 
-static inline void resetDefBody(RegisterInfo* p)
+static inline void ResetDefBody(RegisterInfo* p)
 {
   p->defStart = NULL;
   p->defEnd = NULL;
 }
 
-extern void oatResetDef(CompilationUnit* cUnit, int reg)
+extern void ResetDef(CompilationUnit* cUnit, int reg)
 {
-  resetDefBody(oatGetRegInfo(cUnit, reg));
+  ResetDefBody(GetRegInfo(cUnit, reg));
 }
 
-void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
+void NullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
              int sReg1, int sReg2)
 {
   if (start && finish) {
     LIR *p;
     DCHECK_EQ(sReg1, sReg2);
     for (p = start; ;p = p->next) {
-      oatNopLIR(p);
+      NopLIR(p);
       if (p == finish)
         break;
     }
@@ -576,13 +576,13 @@ void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
+extern void MarkDef(CompilationUnit* cUnit, RegLocation rl,
              LIR *start, LIR *finish)
 {
   DCHECK(!rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = oatGetRegInfo(cUnit, rl.lowReg);
+  RegisterInfo* p = GetRegInfo(cUnit, rl.lowReg);
   p->defStart = start->next;
   p->defEnd = finish;
 }
@@ -592,24 +592,24 @@ extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
+extern void MarkDefWide(CompilationUnit* cUnit, RegLocation rl,
                LIR *start, LIR *finish)
 {
   DCHECK(rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = oatGetRegInfo(cUnit, rl.lowReg);
-  oatResetDef(cUnit, rl.highReg);  // Only track low of pair
+  RegisterInfo* p = GetRegInfo(cUnit, rl.lowReg);
+  ResetDef(cUnit, rl.highReg);  // Only track low of pair
   p->defStart = start->next;
   p->defEnd = finish;
 }
 
-extern RegLocation oatWideToNarrow(CompilationUnit* cUnit, RegLocation rl)
+extern RegLocation WideToNarrow(CompilationUnit* cUnit, RegLocation rl)
 {
   DCHECK(rl.wide);
   if (rl.location == kLocPhysReg) {
-    RegisterInfo* infoLo = oatGetRegInfo(cUnit, rl.lowReg);
-    RegisterInfo* infoHi = oatGetRegInfo(cUnit, rl.highReg);
+    RegisterInfo* infoLo = GetRegInfo(cUnit, rl.lowReg);
+    RegisterInfo* infoHi = GetRegInfo(cUnit, rl.highReg);
     if (infoLo->isTemp) {
       infoLo->pair = false;
       infoLo->defStart = NULL;
@@ -625,100 +625,100 @@ extern RegLocation oatWideToNarrow(CompilationUnit* cUnit, RegLocation rl)
   return rl;
 }
 
-extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl)
+extern void ResetDefLoc(CompilationUnit* cUnit, RegLocation rl)
 {
   DCHECK(!rl.wide);
-  RegisterInfo* p = oatIsTemp(cUnit, rl.lowReg);
+  RegisterInfo* p = IsTemp(cUnit, rl.lowReg);
   if (p && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
     DCHECK(!p->pair);
-    nullifyRange(cUnit, p->defStart, p->defEnd, p->sReg, rl.sRegLow);
+    NullifyRange(cUnit, p->defStart, p->defEnd, p->sReg, rl.sRegLow);
   }
-  oatResetDef(cUnit, rl.lowReg);
+  ResetDef(cUnit, rl.lowReg);
 }
 
-extern void oatResetDefLocWide(CompilationUnit* cUnit, RegLocation rl)
+extern void ResetDefLocWide(CompilationUnit* cUnit, RegLocation rl)
 {
   DCHECK(rl.wide);
-  RegisterInfo* pLow = oatIsTemp(cUnit, rl.lowReg);
-  RegisterInfo* pHigh = oatIsTemp(cUnit, rl.highReg);
+  RegisterInfo* pLow = IsTemp(cUnit, rl.lowReg);
+  RegisterInfo* pHigh = IsTemp(cUnit, rl.highReg);
   if (pLow && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
     DCHECK(pLow->pair);
-    nullifyRange(cUnit, pLow->defStart, pLow->defEnd, pLow->sReg, rl.sRegLow);
+    NullifyRange(cUnit, pLow->defStart, pLow->defEnd, pLow->sReg, rl.sRegLow);
   }
   if (pHigh && !(cUnit->disableOpt & (1 << kSuppressLoads))) {
     DCHECK(pHigh->pair);
   }
-  oatResetDef(cUnit, rl.lowReg);
-  oatResetDef(cUnit, rl.highReg);
+  ResetDef(cUnit, rl.lowReg);
+  ResetDef(cUnit, rl.highReg);
 }
 
-extern void oatResetDefTracking(CompilationUnit* cUnit)
+extern void ResetDefTracking(CompilationUnit* cUnit)
 {
   int i;
   for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-    resetDefBody(&cUnit->regPool->coreRegs[i]);
+    ResetDefBody(&cUnit->regPool->coreRegs[i]);
   }
   for (i=0; i< cUnit->regPool->numFPRegs; i++) {
-    resetDefBody(&cUnit->regPool->FPRegs[i]);
+    ResetDefBody(&cUnit->regPool->FPRegs[i]);
   }
 }
 
-extern void oatClobberAllRegs(CompilationUnit* cUnit)
+extern void ClobberAllRegs(CompilationUnit* cUnit)
 {
   int i;
   for (i=0; i< cUnit->regPool->numCoreRegs; i++) {
-    clobberBody(cUnit, &cUnit->regPool->coreRegs[i]);
+    ClobberBody(cUnit, &cUnit->regPool->coreRegs[i]);
   }
   for (i=0; i< cUnit->regPool->numFPRegs; i++) {
-    clobberBody(cUnit, &cUnit->regPool->FPRegs[i]);
+    ClobberBody(cUnit, &cUnit->regPool->FPRegs[i]);
   }
 }
 
 // Make sure nothing is live and dirty
-void flushAllRegsBody(CompilationUnit* cUnit, RegisterInfo* info,
+void FlushAllRegsBody(CompilationUnit* cUnit, RegisterInfo* info,
                int numRegs)
 {
   int i;
   for (i=0; i < numRegs; i++) {
     if (info[i].live && info[i].dirty) {
       if (info[i].pair) {
-        oatFlushRegWide(cUnit, info[i].reg, info[i].partner);
+        FlushRegWide(cUnit, info[i].reg, info[i].partner);
       } else {
-        oatFlushReg(cUnit, info[i].reg);
+        FlushReg(cUnit, info[i].reg);
       }
     }
   }
 }
 
-extern void oatFlushAllRegs(CompilationUnit* cUnit)
+extern void FlushAllRegs(CompilationUnit* cUnit)
 {
-  flushAllRegsBody(cUnit, cUnit->regPool->coreRegs,
+  FlushAllRegsBody(cUnit, cUnit->regPool->coreRegs,
            cUnit->regPool->numCoreRegs);
-  flushAllRegsBody(cUnit, cUnit->regPool->FPRegs,
+  FlushAllRegsBody(cUnit, cUnit->regPool->FPRegs,
            cUnit->regPool->numFPRegs);
-  oatClobberAllRegs(cUnit);
+  ClobberAllRegs(cUnit);
 }
 
 
 //TUNING: rewrite all of this reg stuff.  Probably use an attribute table
-bool regClassMatches(int regClass, int reg)
+bool RegClassMatches(int regClass, int reg)
 {
   if (regClass == kAnyReg) {
     return true;
   } else if (regClass == kCoreReg) {
-    return !oatIsFpReg(reg);
+    return !IsFpReg(reg);
   } else {
-    return oatIsFpReg(reg);
+    return IsFpReg(reg);
   }
 }
 
-extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg)
+extern void MarkLive(CompilationUnit* cUnit, int reg, int sReg)
 {
-  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* info = GetRegInfo(cUnit, reg);
   if ((info->reg == reg) && (info->sReg == sReg) && info->live) {
     return;  /* already live */
   } else if (sReg != INVALID_SREG) {
-    oatClobberSReg(cUnit, sReg);
+    ClobberSReg(cUnit, sReg);
     if (info->isTemp) {
       info->live = true;
     }
@@ -730,61 +730,61 @@ extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg)
   info->sReg = sReg;
 }
 
-extern void oatMarkTemp(CompilationUnit* cUnit, int reg)
+extern void MarkTemp(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* info = GetRegInfo(cUnit, reg);
   info->isTemp = true;
 }
 
-extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg)
+extern void UnmarkTemp(CompilationUnit* cUnit, int reg)
 {
-  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  RegisterInfo* info = GetRegInfo(cUnit, reg);
   info->isTemp = false;
 }
 
-extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg)
+extern void MarkPair(CompilationUnit* cUnit, int lowReg, int highReg)
 {
-  RegisterInfo* infoLo = oatGetRegInfo(cUnit, lowReg);
-  RegisterInfo* infoHi = oatGetRegInfo(cUnit, highReg);
+  RegisterInfo* infoLo = GetRegInfo(cUnit, lowReg);
+  RegisterInfo* infoHi = GetRegInfo(cUnit, highReg);
   infoLo->pair = infoHi->pair = true;
   infoLo->partner = highReg;
   infoHi->partner = lowReg;
 }
 
-extern void oatMarkClean(CompilationUnit* cUnit, RegLocation loc)
+extern void MarkClean(CompilationUnit* cUnit, RegLocation loc)
 {
-  RegisterInfo* info = oatGetRegInfo(cUnit, loc.lowReg);
+  RegisterInfo* info = GetRegInfo(cUnit, loc.lowReg);
   info->dirty = false;
   if (loc.wide) {
-    info = oatGetRegInfo(cUnit, loc.highReg);
+    info = GetRegInfo(cUnit, loc.highReg);
     info->dirty = false;
   }
 }
 
-extern void oatMarkDirty(CompilationUnit* cUnit, RegLocation loc)
+extern void MarkDirty(CompilationUnit* cUnit, RegLocation loc)
 {
   if (loc.home) {
     // If already home, can't be dirty
     return;
   }
-  RegisterInfo* info = oatGetRegInfo(cUnit, loc.lowReg);
+  RegisterInfo* info = GetRegInfo(cUnit, loc.lowReg);
   info->dirty = true;
   if (loc.wide) {
-    info = oatGetRegInfo(cUnit, loc.highReg);
+    info = GetRegInfo(cUnit, loc.highReg);
     info->dirty = true;
   }
 }
 
-extern void oatMarkInUse(CompilationUnit* cUnit, int reg)
+extern void MarkInUse(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+    RegisterInfo* info = GetRegInfo(cUnit, reg);
     info->inUse = true;
 }
 
-void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
+void CopyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 {
-  RegisterInfo* newInfo = oatGetRegInfo(cUnit, newReg);
-  RegisterInfo* oldInfo = oatGetRegInfo(cUnit, oldReg);
+  RegisterInfo* newInfo = GetRegInfo(cUnit, newReg);
+  RegisterInfo* oldInfo = GetRegInfo(cUnit, oldReg);
   // Target temp status must not change
   bool isTemp = newInfo->isTemp;
   *newInfo = *oldInfo;
@@ -803,19 +803,19 @@ void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
  * if it's worthwhile trying to be more clever here.
  */
 
-extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc)
+extern RegLocation UpdateLoc(CompilationUnit* cUnit, RegLocation loc)
 {
   DCHECK(!loc.wide);
-  DCHECK(oatCheckCorePoolSanity(cUnit));
+  DCHECK(CheckCorePoolSanity(cUnit));
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
-    RegisterInfo* infoLo = allocLive(cUnit, loc.sRegLow, kAnyReg);
+    RegisterInfo* infoLo = AllocLive(cUnit, loc.sRegLow, kAnyReg);
     if (infoLo) {
       if (infoLo->pair) {
-        oatClobber(cUnit, infoLo->reg);
-        oatClobber(cUnit, infoLo->partner);
-        oatFreeTemp(cUnit, infoLo->reg);
+        Clobber(cUnit, infoLo->reg);
+        Clobber(cUnit, infoLo->partner);
+        FreeTemp(cUnit, infoLo->reg);
       } else {
         loc.lowReg = infoLo->reg;
         loc.location = kLocPhysReg;
@@ -826,14 +826,14 @@ extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc)
   return loc;
 }
 
-bool oatCheckCorePoolSanity(CompilationUnit* cUnit)
+bool CheckCorePoolSanity(CompilationUnit* cUnit)
 {
    for (static int i = 0; i < cUnit->regPool->numCoreRegs; i++) {
      if (cUnit->regPool->coreRegs[i].pair) {
        static int myReg = cUnit->regPool->coreRegs[i].reg;
        static int mySreg = cUnit->regPool->coreRegs[i].sReg;
        static int partnerReg = cUnit->regPool->coreRegs[i].partner;
-       static RegisterInfo* partner = oatGetRegInfo(cUnit, partnerReg);
+       static RegisterInfo* partner = GetRegInfo(cUnit, partnerReg);
        DCHECK(partner != NULL);
        DCHECK(partner->pair);
        DCHECK_EQ(myReg, partner->partner);
@@ -854,24 +854,24 @@ bool oatCheckCorePoolSanity(CompilationUnit* cUnit)
 }
 
 /* see comments for updateLoc */
-extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc)
+extern RegLocation UpdateLocWide(CompilationUnit* cUnit, RegLocation loc)
 {
   DCHECK(loc.wide);
-  DCHECK(oatCheckCorePoolSanity(cUnit));
+  DCHECK(CheckCorePoolSanity(cUnit));
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
     // Are the dalvik regs already live in physical registers?
-    RegisterInfo* infoLo = allocLive(cUnit, loc.sRegLow, kAnyReg);
-    RegisterInfo* infoHi = allocLive(cUnit,
+    RegisterInfo* infoLo = AllocLive(cUnit, loc.sRegLow, kAnyReg);
+    RegisterInfo* infoHi = AllocLive(cUnit,
         oatSRegHi(loc.sRegLow), kAnyReg);
     bool match = true;
     match = match && (infoLo != NULL);
     match = match && (infoHi != NULL);
     // Are they both core or both FP?
-    match = match && (oatIsFpReg(infoLo->reg) == oatIsFpReg(infoHi->reg));
+    match = match && (IsFpReg(infoLo->reg) == IsFpReg(infoHi->reg));
     // If a pair of floating point singles, are they properly aligned?
-    if (match && oatIsFpReg(infoLo->reg)) {
+    if (match && IsFpReg(infoLo->reg)) {
       match &= ((infoLo->reg & 0x1) == 0);
       match &= ((infoHi->reg - infoLo->reg) == 1);
     }
@@ -886,22 +886,22 @@ extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc)
       loc.lowReg = infoLo->reg;
       loc.highReg = infoHi->reg;
       loc.location = kLocPhysReg;
-      oatMarkPair(cUnit, loc.lowReg, loc.highReg);
-      DCHECK(!oatIsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
+      MarkPair(cUnit, loc.lowReg, loc.highReg);
+      DCHECK(!IsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
       return loc;
     }
     // Can't easily reuse - clobber and free any overlaps
     if (infoLo) {
-      oatClobber(cUnit, infoLo->reg);
-      oatFreeTemp(cUnit, infoLo->reg);
+      Clobber(cUnit, infoLo->reg);
+      FreeTemp(cUnit, infoLo->reg);
       if (infoLo->pair)
-        oatClobber(cUnit, infoLo->partner);
+        Clobber(cUnit, infoLo->partner);
     }
     if (infoHi) {
-      oatClobber(cUnit, infoHi->reg);
-      oatFreeTemp(cUnit, infoHi->reg);
+      Clobber(cUnit, infoHi->reg);
+      FreeTemp(cUnit, infoHi->reg);
       if (infoHi->pair)
-        oatClobber(cUnit, infoHi->partner);
+        Clobber(cUnit, infoHi->partner);
     }
   }
   return loc;
@@ -909,15 +909,15 @@ extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc)
 
 
 /* For use in cases we don't know (or care) width */
-extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit, RegLocation loc)
+extern RegLocation UpdateRawLoc(CompilationUnit* cUnit, RegLocation loc)
 {
   if (loc.wide)
-    return oatUpdateLocWide(cUnit, loc);
+    return UpdateLocWide(cUnit, loc);
   else
-    return oatUpdateLoc(cUnit, loc);
+    return UpdateLoc(cUnit, loc);
 }
 
-RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
+RegLocation EvalLocWide(CompilationUnit* cUnit, RegLocation loc,
             int regClass, bool update)
 {
   DCHECK(loc.wide);
@@ -925,27 +925,27 @@ RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
   int lowReg;
   int highReg;
 
-  loc = oatUpdateLocWide(cUnit, loc);
+  loc = UpdateLocWide(cUnit, loc);
 
   /* If already in registers, we can assume proper form.  Right reg class? */
   if (loc.location == kLocPhysReg) {
-    DCHECK_EQ(oatIsFpReg(loc.lowReg), oatIsFpReg(loc.highReg));
-    DCHECK(!oatIsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
-    if (!regClassMatches(regClass, loc.lowReg)) {
+    DCHECK_EQ(IsFpReg(loc.lowReg), IsFpReg(loc.highReg));
+    DCHECK(!IsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
+    if (!RegClassMatches(regClass, loc.lowReg)) {
       /* Wrong register class.  Reallocate and copy */
-      newRegs = oatAllocTypedTempPair(cUnit, loc.fp, regClass);
+      newRegs = AllocTypedTempPair(cUnit, loc.fp, regClass);
       lowReg = newRegs & 0xff;
       highReg = (newRegs >> 8) & 0xff;
-      opRegCopyWide(cUnit, lowReg, highReg, loc.lowReg,
+      OpRegCopyWide(cUnit, lowReg, highReg, loc.lowReg,
                     loc.highReg);
-      copyRegInfo(cUnit, lowReg, loc.lowReg);
-      copyRegInfo(cUnit, highReg, loc.highReg);
-      oatClobber(cUnit, loc.lowReg);
-      oatClobber(cUnit, loc.highReg);
+      CopyRegInfo(cUnit, lowReg, loc.lowReg);
+      CopyRegInfo(cUnit, highReg, loc.highReg);
+      Clobber(cUnit, loc.lowReg);
+      Clobber(cUnit, loc.highReg);
       loc.lowReg = lowReg;
       loc.highReg = highReg;
-      oatMarkPair(cUnit, loc.lowReg, loc.highReg);
-      DCHECK(!oatIsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
+      MarkPair(cUnit, loc.lowReg, loc.highReg);
+      DCHECK(!IsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
     }
     return loc;
   }
@@ -953,37 +953,37 @@ RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
   DCHECK_NE(loc.sRegLow, INVALID_SREG);
   DCHECK_NE(oatSRegHi(loc.sRegLow), INVALID_SREG);
 
-  newRegs = oatAllocTypedTempPair(cUnit, loc.fp, regClass);
+  newRegs = AllocTypedTempPair(cUnit, loc.fp, regClass);
   loc.lowReg = newRegs & 0xff;
   loc.highReg = (newRegs >> 8) & 0xff;
 
-  oatMarkPair(cUnit, loc.lowReg, loc.highReg);
+  MarkPair(cUnit, loc.lowReg, loc.highReg);
   if (update) {
     loc.location = kLocPhysReg;
-    oatMarkLive(cUnit, loc.lowReg, loc.sRegLow);
-    oatMarkLive(cUnit, loc.highReg, oatSRegHi(loc.sRegLow));
+    MarkLive(cUnit, loc.lowReg, loc.sRegLow);
+    MarkLive(cUnit, loc.highReg, oatSRegHi(loc.sRegLow));
   }
-  DCHECK(!oatIsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
+  DCHECK(!IsFpReg(loc.lowReg) || ((loc.lowReg & 0x1) == 0));
   return loc;
 }
 
-extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
+extern RegLocation EvalLoc(CompilationUnit* cUnit, RegLocation loc,
                 int regClass, bool update)
 {
   int newReg;
 
   if (loc.wide)
-    return evalLocWide(cUnit, loc, regClass, update);
+    return EvalLocWide(cUnit, loc, regClass, update);
 
-  loc = oatUpdateLoc(cUnit, loc);
+  loc = UpdateLoc(cUnit, loc);
 
   if (loc.location == kLocPhysReg) {
-    if (!regClassMatches(regClass, loc.lowReg)) {
+    if (!RegClassMatches(regClass, loc.lowReg)) {
       /* Wrong register class.  Realloc, copy and transfer ownership */
-      newReg = oatAllocTypedTemp(cUnit, loc.fp, regClass);
-      opRegCopy(cUnit, newReg, loc.lowReg);
-      copyRegInfo(cUnit, newReg, loc.lowReg);
-      oatClobber(cUnit, loc.lowReg);
+      newReg = AllocTypedTemp(cUnit, loc.fp, regClass);
+      OpRegCopy(cUnit, newReg, loc.lowReg);
+      CopyRegInfo(cUnit, newReg, loc.lowReg);
+      Clobber(cUnit, loc.lowReg);
       loc.lowReg = newReg;
     }
     return loc;
@@ -991,61 +991,61 @@ extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
 
   DCHECK_NE(loc.sRegLow, INVALID_SREG);
 
-  newReg = oatAllocTypedTemp(cUnit, loc.fp, regClass);
+  newReg = AllocTypedTemp(cUnit, loc.fp, regClass);
   loc.lowReg = newReg;
 
   if (update) {
     loc.location = kLocPhysReg;
-    oatMarkLive(cUnit, loc.lowReg, loc.sRegLow);
+    MarkLive(cUnit, loc.lowReg, loc.sRegLow);
   }
   return loc;
 }
 
-extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
+extern RegLocation GetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
   DCHECK(num < mir->ssaRep->numUses);
   RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
   return res;
 }
 
-extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir)
+extern RegLocation GetRawDest(CompilationUnit* cUnit, MIR* mir)
 {
   DCHECK_GT(mir->ssaRep->numDefs, 0);
   RegLocation res = cUnit->regLocation[mir->ssaRep->defs[0]];
   return res;
 }
 
-extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir)
+extern RegLocation GetDest(CompilationUnit* cUnit, MIR* mir)
 {
-  RegLocation res = oatGetRawDest(cUnit, mir);
+  RegLocation res = GetRawDest(cUnit, mir);
   DCHECK(!res.wide);
   return res;
 }
 
-extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num)
+extern RegLocation GetSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
-  RegLocation res = oatGetRawSrc(cUnit, mir, num);
+  RegLocation res = GetRawSrc(cUnit, mir, num);
   DCHECK(!res.wide);
   return res;
 }
 
-extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir)
+extern RegLocation GetDestWide(CompilationUnit* cUnit, MIR* mir)
 {
-  RegLocation res = oatGetRawDest(cUnit, mir);
+  RegLocation res = GetRawDest(cUnit, mir);
   DCHECK(res.wide);
   return res;
 }
 
-extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
+extern RegLocation GetSrcWide(CompilationUnit* cUnit, MIR* mir,
                  int low)
 {
-  RegLocation res = oatGetRawSrc(cUnit, mir, low);
+  RegLocation res = GetRawSrc(cUnit, mir, low);
   DCHECK(res.wide);
   return res;
 }
 
 /* USE SSA names to count references of base Dalvik vRegs. */
-void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
+void CountRefs(CompilationUnit *cUnit, BasicBlock* bb,
           RefCounts* coreCounts, RefCounts* fpCounts)
 {
   if ((cUnit->disableOpt & (1 << kPromoteRegs)) ||
@@ -1075,14 +1075,14 @@ void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
 }
 
 /* qsort callback function, sort descending */
-int oatSortCounts(const void *val1, const void *val2)
+int SortCounts(const void *val1, const void *val2)
 {
   const RefCounts* op1 = reinterpret_cast<const RefCounts*>(val1);
   const RefCounts* op2 = reinterpret_cast<const RefCounts*>(val2);
   return (op1->count == op2->count) ? 0 : (op1->count < op2->count ? 1 : -1);
 }
 
-void oatDumpCounts(const RefCounts* arr, int size, const char* msg)
+void DumpCounts(const RefCounts* arr, int size, const char* msg)
 {
   LOG(INFO) << msg;
   for (int i = 0; i < size; i++) {
@@ -1094,7 +1094,7 @@ void oatDumpCounts(const RefCounts* arr, int size, const char* msg)
  * Note: some portions of this code required even if the kPromoteRegs
  * optimization is disabled.
  */
-extern void oatDoPromotion(CompilationUnit* cUnit)
+extern void DoPromotion(CompilationUnit* cUnit)
 {
   int regBias = cUnit->numCompilerTemps + 1;
   int dalvikRegs = cUnit->numDalvikRegisters;
@@ -1102,7 +1102,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
   const int promotionThreshold = 2;
 
   // Allow target code to add any special registers
-  oatAdjustSpillMask(cUnit);
+  AdjustSpillMask(cUnit);
 
   /*
    * Simple register promotion. Just do a static count of the uses
@@ -1115,31 +1115,31 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
    * TUNING: replace with linear scan once we have the ability
    * to describe register live ranges for GC.
    */
-  RefCounts *coreRegs = static_cast<RefCounts*>(oatNew(cUnit, sizeof(RefCounts) * numRegs,
+  RefCounts *coreRegs = static_cast<RefCounts*>(NewMem(cUnit, sizeof(RefCounts) * numRegs,
                                                        true, kAllocRegAlloc));
-  RefCounts *fpRegs = static_cast<RefCounts *>(oatNew(cUnit, sizeof(RefCounts) * numRegs,
+  RefCounts *FpRegs = static_cast<RefCounts *>(NewMem(cUnit, sizeof(RefCounts) * numRegs,
                                                       true, kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvikRegs; i++) {
-    coreRegs[i].sReg = fpRegs[i].sReg = i;
+    coreRegs[i].sReg = FpRegs[i].sReg = i;
   }
   // Set ssa name for Method*
   coreRegs[dalvikRegs].sReg = cUnit->methodSReg;
-  fpRegs[dalvikRegs].sReg = cUnit->methodSReg;  // For consistecy
+  FpRegs[dalvikRegs].sReg = cUnit->methodSReg;  // For consistecy
   // Set ssa names for compilerTemps
   for (int i = 1; i <= cUnit->numCompilerTemps; i++) {
     CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cUnit->compilerTemps.elemList[i]);
     coreRegs[dalvikRegs + i].sReg = ct->sReg;
-    fpRegs[dalvikRegs + i].sReg = ct->sReg;
+    FpRegs[dalvikRegs + i].sReg = ct->sReg;
   }
 
   GrowableListIterator iterator;
-  oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
+  GrowableListIteratorInit(&cUnit->blockList, &iterator);
   while (true) {
     BasicBlock* bb;
-    bb = reinterpret_cast<BasicBlock*>(oatGrowableListIteratorNext(&iterator));
+    bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
     if (bb == NULL) break;
-    oatCountRefs(cUnit, bb, coreRegs, fpRegs);
+    CountRefs(cUnit, bb, coreRegs, FpRegs);
   }
 
   /*
@@ -1148,28 +1148,28 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
    * used as the start of a pair first.
    */
   for (int i = 0; i < numRegs; i++) {
-    if (fpRegs[i].doubleStart) {
-      fpRegs[i].count *= 2;
+    if (FpRegs[i].doubleStart) {
+      FpRegs[i].count *= 2;
     }
   }
 
   // Sort the count arrays
-  qsort(coreRegs, numRegs, sizeof(RefCounts), oatSortCounts);
-  qsort(fpRegs, numRegs, sizeof(RefCounts), oatSortCounts);
+  qsort(coreRegs, numRegs, sizeof(RefCounts), SortCounts);
+  qsort(FpRegs, numRegs, sizeof(RefCounts), SortCounts);
 
   if (cUnit->printMe) {
-    oatDumpCounts(coreRegs, numRegs, "Core regs after sort");
-    oatDumpCounts(fpRegs, numRegs, "Fp regs after sort");
+    DumpCounts(coreRegs, numRegs, "Core regs after sort");
+    DumpCounts(FpRegs, numRegs, "Fp regs after sort");
   }
 
   if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
-    // Promote fpRegs
+    // Promote FpRegs
     for (int i = 0; (i < numRegs) &&
-            (fpRegs[i].count >= promotionThreshold ); i++) {
-      int pMapIdx = SRegToPMap(cUnit, fpRegs[i].sReg);
+            (FpRegs[i].count >= promotionThreshold ); i++) {
+      int pMapIdx = SRegToPMap(cUnit, FpRegs[i].sReg);
       if (cUnit->promotionMap[pMapIdx].fpLocation != kLocPhysReg) {
-        int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
-          fpRegs[i].doubleStart);
+        int reg = AllocPreservedFPReg(cUnit, FpRegs[i].sReg,
+          FpRegs[i].doubleStart);
         if (reg < 0) {
           break;  // No more left
         }
@@ -1182,16 +1182,16 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
       int pMapIdx = SRegToPMap(cUnit, coreRegs[i].sReg);
       if (cUnit->promotionMap[pMapIdx].coreLocation !=
           kLocPhysReg) {
-        int reg = oatAllocPreservedCoreReg(cUnit, coreRegs[i].sReg);
+        int reg = AllocPreservedCoreReg(cUnit, coreRegs[i].sReg);
         if (reg < 0) {
            break;  // No more left
         }
       }
     }
   } else if (cUnit->qdMode) {
-    oatAllocPreservedCoreReg(cUnit, cUnit->methodSReg);
+    AllocPreservedCoreReg(cUnit, cUnit->methodSReg);
     for (int i = 0; i < numRegs; i++) {
-      int reg = oatAllocPreservedCoreReg(cUnit, i);
+      int reg = AllocPreservedCoreReg(cUnit, i);
       if (reg < 0) {
          break;  // No more left
       }
@@ -1207,7 +1207,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
       if (curr->fp) {
         if (cUnit->promotionMap[pMapIdx].fpLocation == kLocPhysReg) {
           curr->location = kLocPhysReg;
-          curr->lowReg = cUnit->promotionMap[pMapIdx].fpReg;
+          curr->lowReg = cUnit->promotionMap[pMapIdx].FpReg;
           curr->home = true;
         }
       } else {
@@ -1226,8 +1226,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         if ((cUnit->promotionMap[pMapIdx].fpLocation == kLocPhysReg) &&
           (cUnit->promotionMap[pMapIdx+1].fpLocation ==
           kLocPhysReg)) {
-          int lowReg = cUnit->promotionMap[pMapIdx].fpReg;
-          int highReg = cUnit->promotionMap[pMapIdx+1].fpReg;
+          int lowReg = cUnit->promotionMap[pMapIdx].FpReg;
+          int highReg = cUnit->promotionMap[pMapIdx+1].FpReg;
           // Doubles require pair of singles starting at even reg
           if (((lowReg & 0x1) == 0) && ((lowReg + 1) == highReg)) {
             curr->location = kLocPhysReg;
@@ -1249,21 +1249,21 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     }
   }
   if (cUnit->printMe) {
-    oatDumpPromotionMap(cUnit);
+    DumpPromotionMap(cUnit);
   }
 }
 
 /* Returns sp-relative offset in bytes for a VReg */
-extern int oatVRegOffset(CompilationUnit* cUnit, int vReg)
+extern int VRegOffset(CompilationUnit* cUnit, int vReg)
 {
   return StackVisitor::GetVRegOffset(cUnit->code_item, cUnit->coreSpillMask,
                                      cUnit->fpSpillMask, cUnit->frameSize, vReg);
 }
 
 /* Returns sp-relative offset in bytes for a SReg */
-extern int oatSRegOffset(CompilationUnit* cUnit, int sReg)
+extern int SRegOffset(CompilationUnit* cUnit, int sReg)
 {
-  return oatVRegOffset(cUnit, SRegToVReg(cUnit, sReg));
+  return VRegOffset(cUnit, SRegToVReg(cUnit, sReg));
 }
 
 }  // namespace art

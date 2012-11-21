@@ -40,7 +40,7 @@
 
 #if defined(ART_USE_PORTABLE_COMPILER)
 namespace art {
-void oatCompileMethod(Compiler& compiler,
+void CompileOneMethod(Compiler& compiler,
                       const CompilerBackend compilerBackend,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
@@ -164,7 +164,7 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
     return method_compiler->Compile();
   } else {
     // TODO: consolidate ArtCompileMethods
-    oatCompileMethod(*compiler_,
+    CompileOneMethod(*compiler_,
                      kPortable,
                      oat_compilation_unit->GetCodeItem(),
                      oat_compilation_unit->access_flags_,
