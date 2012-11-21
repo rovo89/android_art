@@ -34,6 +34,11 @@
 namespace art {
 namespace interpreter {
 
+static const int32_t kMaxInt = std::numeric_limits<int32_t>::max();
+static const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
+static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
+
 static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
                                    Object* receiver, JValue* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -502,7 +507,6 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
 
 static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
@@ -514,7 +518,6 @@ static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_r
 
 static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
@@ -526,7 +529,6 @@ static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resul
 
 static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
@@ -538,7 +540,6 @@ static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_
 
 static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinLong = std::numeric_limits<int64_t>::min();
   if (UNLIKELY(divisor == 0)) {
     self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
@@ -696,27 +697,47 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::CONST_CLASS:
         shadow_frame.SetReferenceAndVReg(dec_insn.vA, mh.ResolveClass(dec_insn.vB));
         break;
-      case Instruction::MONITOR_ENTER:
-        DoMonitorEnter(self, shadow_frame.GetReference(dec_insn.vA));
+      case Instruction::MONITOR_ENTER: {
+        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        if (UNLIKELY(obj == NULL)) {
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+        } else {
+          DoMonitorEnter(self, obj);
+        }
         break;
-      case Instruction::MONITOR_EXIT:
-        DoMonitorExit(self, shadow_frame.GetReference(dec_insn.vA));
+      }
+      case Instruction::MONITOR_EXIT: {
+        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        if (UNLIKELY(obj == NULL)) {
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+        } else {
+          DoMonitorExit(self, obj);
+        }
         break;
+      }
       case Instruction::CHECK_CAST: {
         Class* c = mh.ResolveClass(dec_insn.vB);
-        Object* obj = shadow_frame.GetReference(dec_insn.vA);
-        if (UNLIKELY(obj != NULL && !obj->InstanceOf(c))) {
-          self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-              "%s cannot be cast to %s",
-              PrettyDescriptor(obj->GetClass()).c_str(),
-              PrettyDescriptor(c).c_str());
+        if (UNLIKELY(c == NULL)) {
+          CHECK(self->IsExceptionPending());
+        } else {
+          Object* obj = shadow_frame.GetReference(dec_insn.vA);
+          if (UNLIKELY(obj != NULL && !obj->InstanceOf(c))) {
+            self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+                "%s cannot be cast to %s",
+                PrettyDescriptor(obj->GetClass()).c_str(),
+                PrettyDescriptor(c).c_str());
+          }
         }
         break;
       }
       case Instruction::INSTANCE_OF: {
         Class* c = mh.ResolveClass(dec_insn.vC);
-        Object* obj = shadow_frame.GetReference(dec_insn.vB);
-        shadow_frame.SetVReg(dec_insn.vA, (obj != NULL && obj->InstanceOf(c)) ? 1 : 0);
+        if (UNLIKELY(c == NULL)) {
+          CHECK(self->IsExceptionPending());
+        } else {
+          Object* obj = shadow_frame.GetReference(dec_insn.vB);
+          shadow_frame.SetVReg(dec_insn.vA, (obj != NULL && obj->InstanceOf(c)) ? 1 : 0);
+        }
         break;
       }
       case Instruction::ARRAY_LENGTH:  {
@@ -825,7 +846,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int64_t val1 = shadow_frame.GetVRegLong(dec_insn.vB);
         int64_t val2 = shadow_frame.GetVRegLong(dec_insn.vC);
         int32_t result;
-        if (val1 < val2) {
+        if (val1 > val2) {
           result = 1;
         } else if (val1 == val2) {
           result = 0;
@@ -1295,21 +1316,61 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::LONG_TO_DOUBLE:
         shadow_frame.SetVRegDouble(dec_insn.vA, shadow_frame.GetVRegLong(dec_insn.vB));
         break;
-      case Instruction::FLOAT_TO_INT:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVRegFloat(dec_insn.vB));
+      case Instruction::FLOAT_TO_INT: {
+        float val = shadow_frame.GetVRegFloat(dec_insn.vB);
+        if (val != val) {
+          shadow_frame.SetVReg(dec_insn.vA, 0);
+        } else if (val > static_cast<float>(kMaxInt)) {
+          shadow_frame.SetVReg(dec_insn.vA, kMaxInt);
+        } else if (val < static_cast<float>(kMinInt)) {
+          shadow_frame.SetVReg(dec_insn.vA, kMinInt);
+        } else {
+          shadow_frame.SetVReg(dec_insn.vA, val);
+        }
         break;
-      case Instruction::FLOAT_TO_LONG:
-        shadow_frame.SetVRegLong(dec_insn.vA, shadow_frame.GetVRegFloat(dec_insn.vB));
+      }
+      case Instruction::FLOAT_TO_LONG: {
+        float val = shadow_frame.GetVRegFloat(dec_insn.vB);
+        if (val != val) {
+          shadow_frame.SetVRegLong(dec_insn.vA, 0);
+        } else if (val > static_cast<float>(kMaxLong)) {
+          shadow_frame.SetVRegLong(dec_insn.vA, kMaxLong);
+        } else if (val < static_cast<float>(kMinLong)) {
+          shadow_frame.SetVRegLong(dec_insn.vA, kMinLong);
+        } else {
+          shadow_frame.SetVRegLong(dec_insn.vA, val);
+        }
         break;
+      }
       case Instruction::FLOAT_TO_DOUBLE:
         shadow_frame.SetVRegDouble(dec_insn.vA, shadow_frame.GetVRegFloat(dec_insn.vB));
         break;
-      case Instruction::DOUBLE_TO_INT:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVRegDouble(dec_insn.vB));
+      case Instruction::DOUBLE_TO_INT: {
+        double val = shadow_frame.GetVRegDouble(dec_insn.vB);
+        if (val != val) {
+          shadow_frame.SetVReg(dec_insn.vA, 0);
+        } else if (val > static_cast<double>(kMaxInt)) {
+          shadow_frame.SetVReg(dec_insn.vA, kMaxInt);
+        } else if (val < static_cast<double>(kMinInt)) {
+          shadow_frame.SetVReg(dec_insn.vA, kMinInt);
+        } else {
+          shadow_frame.SetVReg(dec_insn.vA, val);
+        }
         break;
-      case Instruction::DOUBLE_TO_LONG:
-        shadow_frame.SetVRegLong(dec_insn.vA, shadow_frame.GetVRegDouble(dec_insn.vB));
+      }
+      case Instruction::DOUBLE_TO_LONG: {
+        double val = shadow_frame.GetVRegDouble(dec_insn.vB);
+        if (val != val) {
+          shadow_frame.SetVRegLong(dec_insn.vA, 0);
+        } else if (val > static_cast<double>(kMaxLong)) {
+          shadow_frame.SetVRegLong(dec_insn.vA, kMaxLong);
+        } else if (val < static_cast<double>(kMinLong)) {
+          shadow_frame.SetVRegLong(dec_insn.vA, kMinLong);
+        } else {
+          shadow_frame.SetVRegLong(dec_insn.vA, val);
+        }
         break;
+      }
       case Instruction::DOUBLE_TO_FLOAT:
         shadow_frame.SetVRegFloat(dec_insn.vA, shadow_frame.GetVRegDouble(dec_insn.vB));
         break;
