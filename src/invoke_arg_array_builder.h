@@ -130,32 +130,32 @@ class ArgArray {
     for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset].SetZ(shadow_frame.GetVReg(range_start + offset));
+          arg_array_[i - 1].SetZ(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'B':
-          arg_array_[offset].SetB(shadow_frame.GetVReg(range_start + offset));
+          arg_array_[i - 1].SetB(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'C':
-          arg_array_[offset].SetC(shadow_frame.GetVReg(range_start + offset));
+          arg_array_[i - 1].SetC(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'S':
-          arg_array_[offset].SetS(shadow_frame.GetVReg(range_start + offset));
+          arg_array_[i - 1].SetS(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'I':
-          arg_array_[offset].SetI(shadow_frame.GetVReg(range_start + offset));
+          arg_array_[i - 1].SetI(shadow_frame.GetVReg(range_start + offset));
           break;
         case 'F':
-          arg_array_[offset].SetF(shadow_frame.GetVRegFloat(range_start + offset));
+          arg_array_[i - 1].SetF(shadow_frame.GetVRegFloat(range_start + offset));
           break;
         case 'L':
-          arg_array_[offset].SetL(shadow_frame.GetReference(range_start + offset));
+          arg_array_[i - 1].SetL(shadow_frame.GetReference(range_start + offset));
           break;
         case 'D':
-          arg_array_[offset].SetD(shadow_frame.GetVRegDouble(range_start + offset));
+          arg_array_[i - 1].SetD(shadow_frame.GetVRegDouble(range_start + offset));
           offset++;
           break;
         case 'J':
-          arg_array_[offset].SetJ(shadow_frame.GetVRegLong(range_start + offset));
+          arg_array_[i - 1].SetJ(shadow_frame.GetVRegLong(range_start + offset));
           offset++;
           break;
       }
@@ -167,32 +167,32 @@ class ArgArray {
     for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset].SetZ(shadow_frame.GetVReg(arg_regs[offset]));
+          arg_array_[i - 1].SetZ(shadow_frame.GetVReg(arg_regs[offset]));
           break;
         case 'B':
-          arg_array_[offset].SetB(shadow_frame.GetVReg(arg_regs[offset]));
+          arg_array_[i - 1].SetB(shadow_frame.GetVReg(arg_regs[offset]));
           break;
         case 'C':
-          arg_array_[offset].SetC(shadow_frame.GetVReg(arg_regs[offset]));
+          arg_array_[i - 1].SetC(shadow_frame.GetVReg(arg_regs[offset]));
           break;
         case 'S':
-          arg_array_[offset].SetS(shadow_frame.GetVReg(arg_regs[offset]));
+          arg_array_[i - 1].SetS(shadow_frame.GetVReg(arg_regs[offset]));
           break;
         case 'I':
-          arg_array_[offset].SetI(shadow_frame.GetVReg(arg_regs[offset]));
+          arg_array_[i - 1].SetI(shadow_frame.GetVReg(arg_regs[offset]));
           break;
         case 'F':
-          arg_array_[offset].SetF(shadow_frame.GetVRegFloat(arg_regs[offset]));
+          arg_array_[i - 1].SetF(shadow_frame.GetVRegFloat(arg_regs[offset]));
           break;
         case 'L':
-          arg_array_[offset].SetL(shadow_frame.GetReference(arg_regs[offset]));
+          arg_array_[i - 1].SetL(shadow_frame.GetReference(arg_regs[offset]));
           break;
         case 'D':
-          arg_array_[offset].SetD(shadow_frame.GetVRegDouble(arg_regs[offset]));
+          arg_array_[i - 1].SetD(shadow_frame.GetVRegDouble(arg_regs[offset]));
           offset++;
           break;
         case 'J':
-          arg_array_[offset].SetJ(shadow_frame.GetVRegLong(arg_regs[offset]));
+          arg_array_[i - 1].SetJ(shadow_frame.GetVRegLong(arg_regs[offset]));
           offset++;
           break;
       }
