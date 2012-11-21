@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include "common_throws.h"
+#include "debugger.h"
 #include "dex_instruction.h"
 #include "invoke_arg_array_builder.h"
 #include "logging.h"
@@ -508,7 +509,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
   JValue result_register;
   while (true) {
-    shadow_frame.SetDexPC(inst->GetDexPc(insns));
+    CheckSuspend(self);
+    uint32_t dex_pc = inst->GetDexPc(insns);
+    shadow_frame.SetDexPC(dex_pc);
+    Dbg::UpdateDebugger(dex_pc, self);
     DecodedInstruction dec_insn(inst);
     const bool kTracing = false;
     if (kTracing) {
