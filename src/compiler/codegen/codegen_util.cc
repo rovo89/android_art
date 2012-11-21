@@ -276,9 +276,9 @@ void DumpPromotionMap(CompilationUnit *cUnit)
 }
 
 /* Dump a mapping table */
-void DumpMappingTable(const char* table_name, const std::string& descriptor,
-                      const std::string& name, const std::string& signature,
-                      const std::vector<uint32_t>& v) {
+static void DumpMappingTable(const char* table_name, const std::string& descriptor,
+                             const std::string& name, const std::string& signature,
+                             const std::vector<uint32_t>& v) {
   if (v.size() > 0) {
     std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
                      descriptor.c_str(), name.c_str(), signature.c_str(), v.size()));
@@ -488,26 +488,21 @@ LIR* AddWideData(CompilationUnit* cUnit, LIR* *constantListP,
   return AddWordData(cUnit, constantListP, valLo);
 }
 
-void PushWord(std::vector<uint8_t>&buf, int data) {
+static void PushWord(std::vector<uint8_t>&buf, int data) {
   buf.push_back( data & 0xff);
   buf.push_back( (data >> 8) & 0xff);
   buf.push_back( (data >> 16) & 0xff);
   buf.push_back( (data >> 24) & 0xff);
 }
 
-void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
+static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
   while (buf.size() < offset) {
     buf.push_back(0);
   }
 }
 
-bool IsDirect(int invokeType) {
-  InvokeType type = static_cast<InvokeType>(invokeType);
-  return type == kStatic || type == kDirect;
-}
-
 /* Write the literal pool to the output stream */
-void InstallLiteralPools(CompilationUnit* cUnit)
+static void InstallLiteralPools(CompilationUnit* cUnit)
 {
   AlignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
   LIR* dataLIR = cUnit->literalList;
@@ -549,7 +544,7 @@ void InstallLiteralPools(CompilationUnit* cUnit)
 }
 
 /* Write the switch tables to the output stream */
-void InstallSwitchTables(CompilationUnit* cUnit)
+static void InstallSwitchTables(CompilationUnit* cUnit)
 {
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -608,7 +603,7 @@ void InstallSwitchTables(CompilationUnit* cUnit)
 }
 
 /* Write the fill array dta to the output stream */
-void InstallFillArrayData(CompilationUnit* cUnit)
+static void InstallFillArrayData(CompilationUnit* cUnit)
 {
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
@@ -624,7 +619,7 @@ void InstallFillArrayData(CompilationUnit* cUnit)
   }
 }
 
-int AssignLiteralOffsetCommon(LIR* lir, int offset)
+static int AssignLiteralOffsetCommon(LIR* lir, int offset)
 {
   for (;lir != NULL; lir = lir->next) {
     lir->offset = offset;
@@ -634,7 +629,7 @@ int AssignLiteralOffsetCommon(LIR* lir, int offset)
 }
 
 // Make sure we have a code address for every declared catch entry
-bool VerifyCatchEntries(CompilationUnit* cUnit)
+static bool VerifyCatchEntries(CompilationUnit* cUnit)
 {
   bool success = true;
   for (std::set<uint32_t>::const_iterator it = cUnit->catches.begin(); it != cUnit->catches.end(); ++it) {
@@ -667,7 +662,7 @@ bool VerifyCatchEntries(CompilationUnit* cUnit)
   return success;
 }
 
-void CreateMappingTables(CompilationUnit* cUnit)
+static void CreateMappingTables(CompilationUnit* cUnit)
 {
   for (LIR* tgtLIR = cUnit->firstLIRInsn; tgtLIR != NULL; tgtLIR = NEXT_LIR(tgtLIR)) {
     if (!tgtLIR->flags.isNop && (tgtLIR->opcode == kPseudoSafepointPC)) {
@@ -796,7 +791,7 @@ static void CreateNativeGcMap(CompilationUnit* cUnit) {
 }
 
 /* Determine the offset of each literal field */
-int AssignLiteralOffset(CompilationUnit* cUnit, int offset)
+static int AssignLiteralOffset(CompilationUnit* cUnit, int offset)
 {
   offset = AssignLiteralOffsetCommon(cUnit->literalList, offset);
   offset = AssignLiteralOffsetCommon(cUnit->codeLiteralList, offset);
@@ -804,7 +799,7 @@ int AssignLiteralOffset(CompilationUnit* cUnit, int offset)
   return offset;
 }
 
-int AssignSiwtchTablesOffset(CompilationUnit* cUnit, int offset)
+static int AssignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
 {
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -823,7 +818,7 @@ int AssignSiwtchTablesOffset(CompilationUnit* cUnit, int offset)
   return offset;
 }
 
-int AssignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
+static int AssignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
 {
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
@@ -843,7 +838,7 @@ int AssignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
  * Walk the compilation unit and assign offsets to instructions
  * and literals and compute the total size of the compiled unit.
  */
-void AssignOffsets(CompilationUnit* cUnit)
+static void AssignOffsets(CompilationUnit* cUnit)
 {
   int offset = AssignInsnOffsets(cUnit);
 
@@ -855,7 +850,7 @@ void AssignOffsets(CompilationUnit* cUnit)
 
   offset = AssignLiteralOffset(cUnit, offset);
 
-  offset = AssignSiwtchTablesOffset(cUnit, offset);
+  offset = AssignSwitchTablesOffset(cUnit, offset);
 
   offset = AssignFillArrayDataOffset(cUnit, offset);
 
@@ -913,7 +908,7 @@ void AssembleLIR(CompilationUnit* cUnit)
  * all resource flags on this to prevent code motion across
  * target boundaries.  KeyVal is just there for debugging.
  */
-LIR* InsertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
+static LIR* InsertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 {
   SafeMap<unsigned int, LIR*>::iterator it;
   it = cUnit->boundaryMap.find(vaddr);
@@ -928,7 +923,7 @@ LIR* InsertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
   return newLabel;
 }
 
-void MarkPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+static void MarkPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
   const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;
@@ -940,7 +935,7 @@ void MarkPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
   }
 }
 
-void MarkSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+static void MarkSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
 {
   const uint16_t* table = tabRec->table;
   int baseVaddr = tabRec->vaddr;

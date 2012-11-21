@@ -68,8 +68,6 @@ void GenArrayPut(CompilationUnit* cUnit, int optFlags, OpSize size, RegLocation 
 void GenLong3Addr(CompilationUnit* cUnit, OpKind firstOp, OpKind secondOp, RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2);
 bool GenShiftOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest, RegLocation rlSrc1, RegLocation rlShift);
 bool GenArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2);
-bool HandleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode, RegLocation rlSrc, RegLocation rlDest, int lit);
-bool HandleEasyMultiply(CompilationUnit* cUnit, RegLocation rlSrc, RegLocation rlDest, int lit);
 bool GenArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest, RegLocation rlSrc, int lit);
 bool GenArithOpLong(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2);
 bool GenConversionCall(CompilationUnit* cUnit, int funcOffset, RegLocation rlDest, RegLocation rlSrc);

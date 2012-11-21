@@ -43,20 +43,20 @@ namespace art {
 const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG,
                             INVALID_SREG};
-RegLocation GetLoc(CompilationUnit* cUnit, llvm::Value* val);
+static RegLocation GetLoc(CompilationUnit* cUnit, llvm::Value* val);
 
-llvm::BasicBlock* GetLLVMBlock(CompilationUnit* cUnit, int id)
+static llvm::BasicBlock* GetLLVMBlock(CompilationUnit* cUnit, int id)
 {
   return cUnit->idToBlockMap.Get(id);
 }
 
-llvm::Value* GetLLVMValue(CompilationUnit* cUnit, int sReg)
+static llvm::Value* GetLLVMValue(CompilationUnit* cUnit, int sReg)
 {
   return reinterpret_cast<llvm::Value*>(GrowableListGetElement(&cUnit->llvmValues, sReg));
 }
 
 // Replace the placeholder value with the real definition
-void DefineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
+static void DefineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
 {
   llvm::Value* placeholder = GetLLVMValue(cUnit, sReg);
   if (placeholder == NULL) {
@@ -83,7 +83,7 @@ void DefineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
   }
 }
 
-llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
+static llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
 {
   llvm::Type* res = NULL;
   if (loc.wide) {
@@ -105,7 +105,7 @@ llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
 }
 
 /* Create an in-memory RegLocation from an llvm Value. */
-void CreateLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
+static void CreateLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
 {
   // NOTE: llvm takes shortcuts with c_str() - get to std::string firstt
   std::string s(val->getName().str());
@@ -186,7 +186,8 @@ void CreateLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
   }
   cUnit->locMap.Put(val, loc);
 }
-void InitIR(CompilationUnit* cUnit)
+
+static void InitIR(CompilationUnit* cUnit)
 {
   LLVMInfo* llvmInfo = cUnit->llvm_info;
   if (llvmInfo == NULL) {
@@ -204,7 +205,7 @@ void InitIR(CompilationUnit* cUnit)
   cUnit->irb = llvmInfo->GetIRBuilder();
 }
 
-const char* LlvmSSAName(CompilationUnit* cUnit, int ssaReg) {
+static const char* LlvmSSAName(CompilationUnit* cUnit, int ssaReg) {
   return GET_ELEM_N(cUnit->ssaStrings, char*, ssaReg);
 }
 
@@ -215,8 +216,8 @@ llvm::BasicBlock* FindCaseTarget(CompilationUnit* cUnit, uint32_t vaddr)
   return GetLLVMBlock(cUnit, bb->id);
 }
 
-void ConvertPackedSwitch(CompilationUnit* cUnit, BasicBlock* bb,
-                         int32_t tableOffset, RegLocation rlSrc)
+static void ConvertPackedSwitch(CompilationUnit* cUnit, BasicBlock* bb,
+                                int32_t tableOffset, RegLocation rlSrc)
 {
   const Instruction::PackedSwitchPayload* payload =
       reinterpret_cast<const Instruction::PackedSwitchPayload*>(
@@ -240,8 +241,8 @@ void ConvertPackedSwitch(CompilationUnit* cUnit, BasicBlock* bb,
   bb->fallThrough = NULL;
 }
 
-void ConvertSparseSwitch(CompilationUnit* cUnit, BasicBlock* bb,
-                         int32_t tableOffset, RegLocation rlSrc)
+static void ConvertSparseSwitch(CompilationUnit* cUnit, BasicBlock* bb,
+                                int32_t tableOffset, RegLocation rlSrc)
 {
   const Instruction::SparseSwitchPayload* payload =
       reinterpret_cast<const Instruction::SparseSwitchPayload*>(
@@ -268,9 +269,8 @@ void ConvertSparseSwitch(CompilationUnit* cUnit, BasicBlock* bb,
   bb->fallThrough = NULL;
 }
 
-void ConvertSget(CompilationUnit* cUnit, int32_t fieldIndex,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlDest)
+static void ConvertSget(CompilationUnit* cUnit, int32_t fieldIndex,
+                        greenland::IntrinsicHelper::IntrinsicId id, RegLocation rlDest)
 {
   llvm::Constant* fieldIdx = cUnit->irb->getInt32(fieldIndex);
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
@@ -278,9 +278,8 @@ void ConvertSget(CompilationUnit* cUnit, int32_t fieldIndex,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertSput(CompilationUnit* cUnit, int32_t fieldIndex,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlSrc)
+static void ConvertSput(CompilationUnit* cUnit, int32_t fieldIndex,
+                        greenland::IntrinsicHelper::IntrinsicId id, RegLocation rlSrc)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(fieldIndex));
@@ -289,8 +288,7 @@ void ConvertSput(CompilationUnit* cUnit, int32_t fieldIndex,
   cUnit->irb->CreateCall(intr, args);
 }
 
-void ConvertFillArrayData(CompilationUnit* cUnit, int32_t offset,
-                          RegLocation rlArray)
+static void ConvertFillArrayData(CompilationUnit* cUnit, int32_t offset, RegLocation rlArray)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::HLFillArrayData;
@@ -301,8 +299,8 @@ void ConvertFillArrayData(CompilationUnit* cUnit, int32_t offset,
   cUnit->irb->CreateCall(intr, args);
 }
 
-llvm::Value* EmitConst(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
-                       RegLocation loc)
+static llvm::Value* EmitConst(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
+                              RegLocation loc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
@@ -324,15 +322,15 @@ llvm::Value* EmitConst(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
   return cUnit->irb->CreateCall(intr, src);
 }
 
-void EmitPopShadowFrame(CompilationUnit* cUnit)
+static void EmitPopShadowFrame(CompilationUnit* cUnit)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(
       greenland::IntrinsicHelper::PopShadowFrame);
   cUnit->irb->CreateCall(intr);
 }
 
-llvm::Value* EmitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
-                      RegLocation loc)
+static llvm::Value* EmitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
+                             RegLocation loc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
@@ -354,7 +352,7 @@ llvm::Value* EmitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
   return cUnit->irb->CreateCall(intr, src);
 }
 
-void ConvertMoveException(CompilationUnit* cUnit, RegLocation rlDest)
+static void ConvertMoveException(CompilationUnit* cUnit, RegLocation rlDest)
 {
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
       greenland::IntrinsicHelper::GetException);
@@ -362,7 +360,7 @@ void ConvertMoveException(CompilationUnit* cUnit, RegLocation rlDest)
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
+static void ConvertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
 {
   llvm::Value* src = GetLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
@@ -370,9 +368,9 @@ void ConvertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
   cUnit->irb->CreateCall(func, src);
 }
 
-void ConvertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
-                             greenland::IntrinsicHelper::IntrinsicId id,
-                             RegLocation rlSrc)
+static void ConvertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
+                                    greenland::IntrinsicHelper::IntrinsicId id,
+                                    RegLocation rlSrc)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -381,8 +379,8 @@ void ConvertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
   cUnit->irb->CreateCall(func, args);
 }
 
-void ConvertArrayLength(CompilationUnit* cUnit, int optFlags,
-                        RegLocation rlDest, RegLocation rlSrc)
+static void ConvertArrayLength(CompilationUnit* cUnit, int optFlags,
+                               RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -393,7 +391,7 @@ void ConvertArrayLength(CompilationUnit* cUnit, int optFlags,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void EmitSuspendCheck(CompilationUnit* cUnit)
+static void EmitSuspendCheck(CompilationUnit* cUnit)
 {
   greenland::IntrinsicHelper::IntrinsicId id =
       greenland::IntrinsicHelper::CheckSuspend;
@@ -401,8 +399,8 @@ void EmitSuspendCheck(CompilationUnit* cUnit)
   cUnit->irb->CreateCall(intr);
 }
 
-llvm::Value* ConvertCompare(CompilationUnit* cUnit, ConditionCode cc,
-                            llvm::Value* src1, llvm::Value* src2)
+static llvm::Value* ConvertCompare(CompilationUnit* cUnit, ConditionCode cc,
+                                   llvm::Value* src1, llvm::Value* src2)
 {
   llvm::Value* res = NULL;
   DCHECK_EQ(src1->getType(), src2->getType());
@@ -418,9 +416,8 @@ llvm::Value* ConvertCompare(CompilationUnit* cUnit, ConditionCode cc,
   return res;
 }
 
-void ConvertCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                             ConditionCode cc, RegLocation rlSrc1,
-                             RegLocation rlSrc2)
+static void ConvertCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                                    ConditionCode cc, RegLocation rlSrc1, RegLocation rlSrc2)
 {
   if (bb->taken->startOffset <= mir->offset) {
     EmitSuspendCheck(cUnit);
@@ -435,8 +432,8 @@ void ConvertCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   bb->fallThrough = NULL;
 }
 
-void ConvertCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
-                                 MIR* mir, ConditionCode cc, RegLocation rlSrc1)
+static void ConvertCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
+                                        MIR* mir, ConditionCode cc, RegLocation rlSrc1)
 {
   if (bb->taken->startOffset <= mir->offset) {
     EmitSuspendCheck(cUnit);
@@ -455,8 +452,8 @@ void ConvertCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
   bb->fallThrough = NULL;
 }
 
-llvm::Value* GenDivModOp(CompilationUnit* cUnit, bool isDiv, bool isLong,
-                         llvm::Value* src1, llvm::Value* src2)
+static llvm::Value* GenDivModOp(CompilationUnit* cUnit, bool isDiv, bool isLong,
+                                llvm::Value* src1, llvm::Value* src2)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   if (isLong) {
@@ -479,8 +476,8 @@ llvm::Value* GenDivModOp(CompilationUnit* cUnit, bool isDiv, bool isLong,
   return cUnit->irb->CreateCall(intr, args);
 }
 
-llvm::Value* GenArithOp(CompilationUnit* cUnit, OpKind op, bool isLong,
-                        llvm::Value* src1, llvm::Value* src2)
+static llvm::Value* GenArithOp(CompilationUnit* cUnit, OpKind op, bool isLong,
+                               llvm::Value* src1, llvm::Value* src2)
 {
   llvm::Value* res = NULL;
   switch(op) {
@@ -502,8 +499,8 @@ llvm::Value* GenArithOp(CompilationUnit* cUnit, OpKind op, bool isLong,
   return res;
 }
 
-void ConvertFPArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
-                      RegLocation rlSrc1, RegLocation rlSrc2)
+static void ConvertFPArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
+                             RegLocation rlSrc1, RegLocation rlSrc2)
 {
   llvm::Value* src1 = GetLLVMValue(cUnit, rlSrc1.origSReg);
   llvm::Value* src2 = GetLLVMValue(cUnit, rlSrc2.origSReg);
@@ -520,9 +517,8 @@ void ConvertFPArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertShift(CompilationUnit* cUnit,
-                  greenland::IntrinsicHelper::IntrinsicId id,
-                  RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
+static void ConvertShift(CompilationUnit* cUnit, greenland::IntrinsicHelper::IntrinsicId id,
+                         RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2>args;
@@ -532,9 +528,8 @@ void ConvertShift(CompilationUnit* cUnit,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertShiftLit(CompilationUnit* cUnit,
-                     greenland::IntrinsicHelper::IntrinsicId id,
-                     RegLocation rlDest, RegLocation rlSrc, int shiftAmount)
+static void ConvertShiftLit(CompilationUnit* cUnit, greenland::IntrinsicHelper::IntrinsicId id,
+                            RegLocation rlDest, RegLocation rlSrc, int shiftAmount)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2>args;
@@ -544,8 +539,8 @@ void ConvertShiftLit(CompilationUnit* cUnit,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
-                    RegLocation rlSrc1, RegLocation rlSrc2)
+static void ConvertArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
+                           RegLocation rlSrc1, RegLocation rlSrc2)
 {
   llvm::Value* src1 = GetLLVMValue(cUnit, rlSrc1.origSReg);
   llvm::Value* src2 = GetLLVMValue(cUnit, rlSrc2.origSReg);
@@ -554,7 +549,7 @@ void ConvertArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void SetShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
+static void SetShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
 {
   int index = -1;
   DCHECK(newVal != NULL);
@@ -582,8 +577,8 @@ void SetShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
   cUnit->irb->CreateCall(func, args);
 }
 
-void ConvertArithOpLit(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
-                       RegLocation rlSrc1, int32_t imm)
+static void ConvertArithOpLit(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
+                              RegLocation rlSrc1, int32_t imm)
 {
   llvm::Value* src1 = GetLLVMValue(cUnit, rlSrc1.origSReg);
   llvm::Value* src2 = cUnit->irb->getInt32(imm);
@@ -596,8 +591,8 @@ void ConvertArithOpLit(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
  * collect and process arguments for NEW_FILLED_ARRAY and NEW_FILLED_ARRAY_RANGE.
  * The requirements are similar.
  */
-void ConvertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                   InvokeType invokeType, bool isRange, bool isFilledNewArray)
+static void ConvertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                          InvokeType invokeType, bool isRange, bool isFilledNewArray)
 {
   CallInfo* info = NewMemCallInfo(cUnit, bb, mir, invokeType, isRange);
   llvm::SmallVector<llvm::Value*, 10> args;
@@ -649,9 +644,8 @@ void ConvertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   }
 }
 
-void ConvertConstObject(CompilationUnit* cUnit, uint32_t idx,
-                        greenland::IntrinsicHelper::IntrinsicId id,
-                        RegLocation rlDest)
+static void ConvertConstObject(CompilationUnit* cUnit, uint32_t idx,
+                               greenland::IntrinsicHelper::IntrinsicId id, RegLocation rlDest)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* index = cUnit->irb->getInt32(idx);
@@ -659,8 +653,7 @@ void ConvertConstObject(CompilationUnit* cUnit, uint32_t idx,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertCheckCast(CompilationUnit* cUnit, uint32_t type_idx,
-                      RegLocation rlSrc)
+static void ConvertCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::HLCheckCast;
@@ -671,8 +664,7 @@ void ConvertCheckCast(CompilationUnit* cUnit, uint32_t type_idx,
   cUnit->irb->CreateCall(intr, args);
 }
 
-void ConvertNewInstance(CompilationUnit* cUnit, uint32_t type_idx,
-                        RegLocation rlDest)
+static void ConvertNewInstance(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::NewInstance;
@@ -682,8 +674,8 @@ void ConvertNewInstance(CompilationUnit* cUnit, uint32_t type_idx,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertNewArray(CompilationUnit* cUnit, uint32_t type_idx,
-                     RegLocation rlDest, RegLocation rlSrc)
+static void ConvertNewArray(CompilationUnit* cUnit, uint32_t type_idx,
+                            RegLocation rlDest, RegLocation rlSrc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::NewArray;
@@ -695,9 +687,9 @@ void ConvertNewArray(CompilationUnit* cUnit, uint32_t type_idx,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertAget(CompilationUnit* cUnit, int optFlags,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlDest, RegLocation rlArray, RegLocation rlIndex)
+static void ConvertAget(CompilationUnit* cUnit, int optFlags,
+                        greenland::IntrinsicHelper::IntrinsicId id,
+                        RegLocation rlDest, RegLocation rlArray, RegLocation rlIndex)
 {
   llvm::SmallVector<llvm::Value*, 3> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -708,9 +700,9 @@ void ConvertAget(CompilationUnit* cUnit, int optFlags,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertAput(CompilationUnit* cUnit, int optFlags,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlSrc, RegLocation rlArray, RegLocation rlIndex)
+static void ConvertAput(CompilationUnit* cUnit, int optFlags,
+                        greenland::IntrinsicHelper::IntrinsicId id,
+                        RegLocation rlSrc, RegLocation rlArray, RegLocation rlIndex)
 {
   llvm::SmallVector<llvm::Value*, 4> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -721,9 +713,9 @@ void ConvertAput(CompilationUnit* cUnit, int optFlags,
   cUnit->irb->CreateCall(intr, args);
 }
 
-void ConvertIget(CompilationUnit* cUnit, int optFlags,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlDest, RegLocation rlObj, int fieldIndex)
+static void ConvertIget(CompilationUnit* cUnit, int optFlags,
+                        greenland::IntrinsicHelper::IntrinsicId id,
+                        RegLocation rlDest, RegLocation rlObj, int fieldIndex)
 {
   llvm::SmallVector<llvm::Value*, 3> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -734,9 +726,9 @@ void ConvertIget(CompilationUnit* cUnit, int optFlags,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertIput(CompilationUnit* cUnit, int optFlags,
-                 greenland::IntrinsicHelper::IntrinsicId id,
-                 RegLocation rlSrc, RegLocation rlObj, int fieldIndex)
+static void ConvertIput(CompilationUnit* cUnit, int optFlags,
+                        greenland::IntrinsicHelper::IntrinsicId id,
+                        RegLocation rlSrc, RegLocation rlObj, int fieldIndex)
 {
   llvm::SmallVector<llvm::Value*, 4> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
@@ -747,8 +739,8 @@ void ConvertIput(CompilationUnit* cUnit, int optFlags,
   cUnit->irb->CreateCall(intr, args);
 }
 
-void ConvertInstanceOf(CompilationUnit* cUnit, uint32_t type_idx,
-                       RegLocation rlDest, RegLocation rlSrc)
+static void ConvertInstanceOf(CompilationUnit* cUnit, uint32_t type_idx,
+                              RegLocation rlDest, RegLocation rlSrc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::InstanceOf;
@@ -760,41 +752,37 @@ void ConvertInstanceOf(CompilationUnit* cUnit, uint32_t type_idx,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertIntToLong(CompilationUnit* cUnit, RegLocation rlDest,
-                      RegLocation rlSrc)
+static void ConvertIntToLong(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* res = cUnit->irb->CreateSExt(GetLLVMValue(cUnit, rlSrc.origSReg),
                                             cUnit->irb->getInt64Ty());
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertLongToInt(CompilationUnit* cUnit, RegLocation rlDest,
-                      RegLocation rlSrc)
+static void ConvertLongToInt(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* src = GetLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Value* res = cUnit->irb->CreateTrunc(src, cUnit->irb->getInt32Ty());
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertFloatToDouble(CompilationUnit* cUnit, RegLocation rlDest,
-                          RegLocation rlSrc)
+static void ConvertFloatToDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* src = GetLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Value* res = cUnit->irb->CreateFPExt(src, cUnit->irb->getDoubleTy());
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertDoubleToFloat(CompilationUnit* cUnit, RegLocation rlDest,
-                          RegLocation rlSrc)
+static void ConvertDoubleToFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* src = GetLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Value* res = cUnit->irb->CreateFPTrunc(src, cUnit->irb->getFloatTy());
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertWideComparison(CompilationUnit* cUnit,
-                           greenland::IntrinsicHelper::IntrinsicId id,
-                           RegLocation rlDest, RegLocation rlSrc1,
+static void ConvertWideComparison(CompilationUnit* cUnit,
+                                  greenland::IntrinsicHelper::IntrinsicId id,
+                                  RegLocation rlDest, RegLocation rlSrc1,
                            RegLocation rlSrc2)
 {
   DCHECK_EQ(rlSrc1.fp, rlSrc2.fp);
@@ -807,9 +795,8 @@ void ConvertWideComparison(CompilationUnit* cUnit,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertIntNarrowing(CompilationUnit* cUnit, RegLocation rlDest,
-                         RegLocation rlSrc,
-                         greenland::IntrinsicHelper::IntrinsicId id)
+static void ConvertIntNarrowing(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc,
+                                greenland::IntrinsicHelper::IntrinsicId id)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* res =
@@ -817,24 +804,22 @@ void ConvertIntNarrowing(CompilationUnit* cUnit, RegLocation rlDest,
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertNeg(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc)
+static void ConvertNeg(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* res = cUnit->irb->CreateNeg(GetLLVMValue(cUnit, rlSrc.origSReg));
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertIntToFP(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
-                    RegLocation rlSrc)
+static void ConvertIntToFP(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
+                           RegLocation rlSrc)
 {
   llvm::Value* res =
       cUnit->irb->CreateSIToFP(GetLLVMValue(cUnit, rlSrc.origSReg), ty);
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertFPToInt(CompilationUnit* cUnit,
-                    greenland::IntrinsicHelper::IntrinsicId id,
-                    RegLocation rlDest,
+static void ConvertFPToInt(CompilationUnit* cUnit, greenland::IntrinsicHelper::IntrinsicId id,
+                           RegLocation rlDest,
                     RegLocation rlSrc)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
@@ -843,16 +828,14 @@ void ConvertFPToInt(CompilationUnit* cUnit,
 }
 
 
-void ConvertNegFP(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc)
+static void ConvertNegFP(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* res =
       cUnit->irb->CreateFNeg(GetLLVMValue(cUnit, rlSrc.origSReg));
   DefineValue(cUnit, res, rlDest.origSReg);
 }
 
-void ConvertNot(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc)
+static void ConvertNot(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::Value* src = GetLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Value* res = cUnit->irb->CreateXor(src, static_cast<uint64_t>(-1));
@@ -864,8 +847,8 @@ void ConvertNot(CompilationUnit* cUnit, RegLocation rlDest,
  * load/store utilities here, or target-dependent genXX() handlers
  * when necessary.
  */
-bool ConvertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
-                    llvm::BasicBlock* llvmBB, LIR* labelList)
+static bool ConvertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
+                           llvm::BasicBlock* llvmBB, LIR* labelList)
 {
   bool res = false;   // Assume success
   RegLocation rlSrc[3];
@@ -1691,8 +1674,8 @@ bool ConvertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 }
 
 /* Extended MIR instructions like PHI */
-void ConvertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                        llvm::BasicBlock* llvmBB)
+static void ConvertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                               llvm::BasicBlock* llvmBB)
 {
 
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
@@ -1762,7 +1745,7 @@ void ConvertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   }
 }
 
-void SetDexOffset(CompilationUnit* cUnit, int32_t offset)
+static void SetDexOffset(CompilationUnit* cUnit, int32_t offset)
 {
   cUnit->currentDalvikOffset = offset;
   llvm::SmallVector<llvm::Value*, 1> arrayRef;
@@ -1772,7 +1755,7 @@ void SetDexOffset(CompilationUnit* cUnit, int32_t offset)
 }
 
 // Attach method info as metadata to special intrinsic
-void SetMethodInfo(CompilationUnit* cUnit)
+static void SetMethodInfo(CompilationUnit* cUnit)
 {
   // We don't want dex offset on this
   cUnit->irb->SetDexOffset(NULL);
@@ -1805,7 +1788,7 @@ void SetMethodInfo(CompilationUnit* cUnit)
 }
 
 /* Handle the content in each basic block */
-bool MethodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
+static bool BlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
   llvm::BasicBlock* llvmBB = GetLLVMBlock(cUnit, bb->id);
@@ -1964,7 +1947,7 @@ char RemapShorty(char shortyType) {
   return shortyType;
 }
 
-llvm::FunctionType* GetFunctionType(CompilationUnit* cUnit) {
+static llvm::FunctionType* GetFunctionType(CompilationUnit* cUnit) {
 
   // Get return type
   llvm::Type* ret_type = cUnit->irb->GetJType(RemapShorty(cUnit->shorty[0]),
@@ -1989,7 +1972,7 @@ llvm::FunctionType* GetFunctionType(CompilationUnit* cUnit) {
   return llvm::FunctionType::get(ret_type, args_type, false);
 }
 
-bool CreateFunction(CompilationUnit* cUnit) {
+static bool CreateFunction(CompilationUnit* cUnit) {
   std::string func_name(PrettyMethod(cUnit->method_idx, *cUnit->dex_file,
                                      /* with_signature */ false));
   llvm::FunctionType* func_type = GetFunctionType(cUnit);
@@ -2018,7 +2001,7 @@ bool CreateFunction(CompilationUnit* cUnit) {
   return true;
 }
 
-bool CreateLLVMBasicBlock(CompilationUnit* cUnit, BasicBlock* bb)
+static bool CreateLLVMBasicBlock(CompilationUnit* cUnit, BasicBlock* bb)
 {
   // Skip the exit block
   if ((bb->blockType == kDead) ||(bb->blockType == kExitBlock)) {
@@ -2088,7 +2071,7 @@ void MethodMIR2Bitcode(CompilationUnit* cUnit)
     }
   }
 
-  DataFlowAnalysisDispatcher(cUnit, MethodBlockBitcodeConversion,
+  DataFlowAnalysisDispatcher(cUnit, BlockBitcodeConversion,
                                 kPreOrderDFSTraversal, false /* Iterative */);
 
   /*
@@ -2160,7 +2143,7 @@ void MethodMIR2Bitcode(CompilationUnit* cUnit)
   }
 }
 
-RegLocation GetLoc(CompilationUnit* cUnit, llvm::Value* val) {
+static RegLocation GetLoc(CompilationUnit* cUnit, llvm::Value* val) {
   RegLocation res;
   DCHECK(val != NULL);
   SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
@@ -2196,7 +2179,7 @@ RegLocation GetLoc(CompilationUnit* cUnit, llvm::Value* val) {
   return res;
 }
 
-Instruction::Code GetDalvikOpcode(OpKind op, bool isConst, bool isWide)
+static Instruction::Code GetDalvikOpcode(OpKind op, bool isConst, bool isWide)
 {
   Instruction::Code res = Instruction::NOP;
   if (isWide) {
@@ -2248,7 +2231,7 @@ Instruction::Code GetDalvikOpcode(OpKind op, bool isConst, bool isWide)
   return res;
 }
 
-Instruction::Code GetDalvikFPOpcode(OpKind op, bool isConst, bool isWide)
+static Instruction::Code GetDalvikFPOpcode(OpKind op, bool isConst, bool isWide)
 {
   Instruction::Code res = Instruction::NOP;
   if (isWide) {
@@ -2273,7 +2256,7 @@ Instruction::Code GetDalvikFPOpcode(OpKind op, bool isConst, bool isWide)
   return res;
 }
 
-void CvtBinFPOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
+static void CvtBinFPOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   /*
@@ -2305,7 +2288,7 @@ void CvtBinFPOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
   }
 }
 
-void CvtIntNarrowing(CompilationUnit* cUnit, llvm::Instruction* inst,
+static void CvtIntNarrowing(CompilationUnit* cUnit, llvm::Instruction* inst,
                      Instruction::Code opcode)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
@@ -2313,7 +2296,7 @@ void CvtIntNarrowing(CompilationUnit* cUnit, llvm::Instruction* inst,
   GenIntNarrowing(cUnit, opcode, rlDest, rlSrc);
 }
 
-void CvtIntToFP(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtIntToFP(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   RegLocation rlSrc = GetLoc(cUnit, inst->getOperand(0));
@@ -2334,7 +2317,7 @@ void CvtIntToFP(CompilationUnit* cUnit, llvm::Instruction* inst)
   GenConversion(cUnit, opcode, rlDest, rlSrc);
 }
 
-void CvtFPToInt(CompilationUnit* cUnit, llvm::CallInst* call_inst)
+static void CvtFPToInt(CompilationUnit* cUnit, llvm::CallInst* call_inst)
 {
   RegLocation rlDest = GetLoc(cUnit, call_inst);
   RegLocation rlSrc = GetLoc(cUnit, call_inst->getOperand(0));
@@ -2355,14 +2338,14 @@ void CvtFPToInt(CompilationUnit* cUnit, llvm::CallInst* call_inst)
   GenConversion(cUnit, opcode, rlDest, rlSrc);
 }
 
-void CvtFloatToDouble(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtFloatToDouble(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   RegLocation rlSrc = GetLoc(cUnit, inst->getOperand(0));
   GenConversion(cUnit, Instruction::FLOAT_TO_DOUBLE, rlDest, rlSrc);
 }
 
-void CvtTrunc(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtTrunc(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   RegLocation rlSrc = GetLoc(cUnit, inst->getOperand(0));
@@ -2371,7 +2354,7 @@ void CvtTrunc(CompilationUnit* cUnit, llvm::Instruction* inst)
   StoreValue(cUnit, rlDest, rlSrc);
 }
 
-void CvtDoubleToFloat(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtDoubleToFloat(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   RegLocation rlSrc = GetLoc(cUnit, inst->getOperand(0));
@@ -2379,7 +2362,7 @@ void CvtDoubleToFloat(CompilationUnit* cUnit, llvm::Instruction* inst)
 }
 
 
-void CvtIntExt(CompilationUnit* cUnit, llvm::Instruction* inst, bool isSigned)
+static void CvtIntExt(CompilationUnit* cUnit, llvm::Instruction* inst, bool isSigned)
 {
   // TODO: evaluate src/tgt types and add general support for more than int to long
   RegLocation rlDest = GetLoc(cUnit, inst);
@@ -2402,7 +2385,7 @@ void CvtIntExt(CompilationUnit* cUnit, llvm::Instruction* inst, bool isSigned)
   StoreValueWide(cUnit, rlDest, rlResult);
 }
 
-void CvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
+static void CvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
 {
   RegLocation rlDest = GetLoc(cUnit, inst);
   llvm::Value* lhs = inst->getOperand(0);
@@ -2446,8 +2429,7 @@ void CvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
   }
 }
 
-void CvtShiftOp(CompilationUnit* cUnit, Instruction::Code opcode,
-                llvm::CallInst* callInst)
+static void CvtShiftOp(CompilationUnit* cUnit, Instruction::Code opcode, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   RegLocation rlDest = GetLoc(cUnit, callInst);
@@ -2466,7 +2448,7 @@ void CvtShiftOp(CompilationUnit* cUnit, Instruction::Code opcode,
   }
 }
 
-void CvtBr(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtBr(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   llvm::BranchInst* brInst = llvm::dyn_cast<llvm::BranchInst>(inst);
   DCHECK(brInst != NULL);
@@ -2475,12 +2457,12 @@ void CvtBr(CompilationUnit* cUnit, llvm::Instruction* inst)
   OpUnconditionalBranch(cUnit, cUnit->blockToLabelMap.Get(targetBB));
 }
 
-void CvtPhi(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtPhi(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   // Nop - these have already been processed
 }
 
-void CvtRet(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtRet(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   llvm::ReturnInst* retInst = llvm::dyn_cast<llvm::ReturnInst>(inst);
   llvm::Value* retVal = retInst->getReturnValue();
@@ -2495,7 +2477,7 @@ void CvtRet(CompilationUnit* cUnit, llvm::Instruction* inst)
   GenExitSequence(cUnit);
 }
 
-ConditionCode GetCond(llvm::ICmpInst::Predicate llvmCond)
+static ConditionCode GetCond(llvm::ICmpInst::Predicate llvmCond)
 {
   ConditionCode res = kCondAl;
   switch(llvmCond) {
@@ -2510,13 +2492,13 @@ ConditionCode GetCond(llvm::ICmpInst::Predicate llvmCond)
   return res;
 }
 
-void CvtICmp(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtICmp(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   // GenCmpLong(cUnit, rlDest, rlSrc1, rlSrc2)
   UNIMPLEMENTED(FATAL);
 }
 
-void CvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
+static void CvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
                llvm::BranchInst* brInst)
 {
   // Get targets
@@ -2553,13 +2535,7 @@ void CvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
   OpUnconditionalBranch(cUnit, fallThrough);
 }
 
-void CvtCall(CompilationUnit* cUnit, llvm::CallInst* callInst,
-             llvm::Function* callee)
-{
-  UNIMPLEMENTED(FATAL);
-}
-
-void CvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   RegLocation rlSrc = GetLoc(cUnit, callInst->getArgOperand(0));
@@ -2574,7 +2550,7 @@ void CvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
 }
 
 // Note: Immediate arg is a ConstantInt regardless of result type
-void CvtConst(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtConst(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* src =
@@ -2592,8 +2568,7 @@ void CvtConst(CompilationUnit* cUnit, llvm::CallInst* callInst)
   }
 }
 
-void CvtConstObject(CompilationUnit* cUnit, llvm::CallInst* callInst,
-                    bool isString)
+static void CvtConstObject(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isString)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* idxVal =
@@ -2607,7 +2582,7 @@ void CvtConstObject(CompilationUnit* cUnit, llvm::CallInst* callInst,
   }
 }
 
-void CvtFillArrayData(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtFillArrayData(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* offsetVal =
@@ -2616,7 +2591,7 @@ void CvtFillArrayData(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenFillArrayData(cUnit, offsetVal->getSExtValue(), rlSrc);
 }
 
-void CvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* typeIdxVal =
@@ -2626,7 +2601,7 @@ void CvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenNewInstance(cUnit, typeIdx, rlDest);
 }
 
-void CvtNewArray(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtNewArray(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* typeIdxVal =
@@ -2638,7 +2613,7 @@ void CvtNewArray(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenNewArray(cUnit, typeIdx, rlDest, rlLen);
 }
 
-void CvtInstanceOf(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtInstanceOf(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* typeIdxVal =
@@ -2650,7 +2625,7 @@ void CvtInstanceOf(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenInstanceof(cUnit, typeIdx, rlDest, rlSrc);
 }
 
-void CvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::Value* src = callInst->getArgOperand(0);
@@ -2658,7 +2633,7 @@ void CvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenThrow(cUnit, rlSrc);
 }
 
-void CvtMonitorEnterExit(CompilationUnit* cUnit, bool isEnter,
+static void CvtMonitorEnterExit(CompilationUnit* cUnit, bool isEnter,
                          llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
@@ -2673,7 +2648,7 @@ void CvtMonitorEnterExit(CompilationUnit* cUnit, bool isEnter,
   }
 }
 
-void CvtArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* optFlags =
@@ -2689,14 +2664,13 @@ void CvtArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
   StoreValue(cUnit, rlDest, rlResult);
 }
 
-void CvtMoveException(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtMoveException(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   RegLocation rlDest = GetLoc(cUnit, callInst);
   GenMoveException(cUnit, rlDest);
 }
 
-void CvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
-             bool isObject)
+static void CvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide, bool isObject)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* typeIdxVal =
@@ -2706,8 +2680,7 @@ void CvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
   GenSget(cUnit, typeIdx, rlDest, isWide, isObject);
 }
 
-void CvtSput(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
-             bool isObject)
+static void CvtSput(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide, bool isObject)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* typeIdxVal =
@@ -2718,8 +2691,7 @@ void CvtSput(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
   GenSput(cUnit, typeIdx, rlSrc, isWide, isObject);
 }
 
-void CvtAget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
-             int scale)
+static void CvtAget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size, int scale)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 3U);
   llvm::ConstantInt* optFlags =
@@ -2731,8 +2703,8 @@ void CvtAget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
               rlDest, scale);
 }
 
-void CvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
-             int scale, bool isObject)
+static void CvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
+                    int scale, bool isObject)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 4U);
   llvm::ConstantInt* optFlags =
@@ -2749,19 +2721,19 @@ void CvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
   }
 }
 
-void CvtAputObj(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtAputObj(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   CvtAput(cUnit, callInst, kWord, 2, true /* isObject */);
 }
 
-void CvtAputPrimitive(CompilationUnit* cUnit, llvm::CallInst* callInst,
+static void CvtAputPrimitive(CompilationUnit* cUnit, llvm::CallInst* callInst,
                       OpSize size, int scale)
 {
   CvtAput(cUnit, callInst, size, scale, false /* isObject */);
 }
 
-void CvtIget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
-             bool isWide, bool isObj)
+static void CvtIget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
+                    bool isWide, bool isObj)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 3U);
   llvm::ConstantInt* optFlags =
@@ -2774,8 +2746,8 @@ void CvtIget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
           size, rlDest, rlObj, isWide, isObj);
 }
 
-void CvtIput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
-             bool isWide, bool isObj)
+static void CvtIput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
+                    bool isWide, bool isObj)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 4U);
   llvm::ConstantInt* optFlags =
@@ -2788,7 +2760,7 @@ void CvtIput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
           size, rlSrc, rlObj, isWide, isObj);
 }
 
-void CvtCheckCast(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtCheckCast(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* typeIdx =
@@ -2797,8 +2769,8 @@ void CvtCheckCast(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenCheckCast(cUnit, typeIdx->getZExtValue(), rlSrc);
 }
 
-void CvtFPCompare(CompilationUnit* cUnit, llvm::CallInst* callInst,
-                  Instruction::Code opcode)
+static void CvtFPCompare(CompilationUnit* cUnit, llvm::CallInst* callInst,
+                         Instruction::Code opcode)
 {
   RegLocation rlSrc1 = GetLoc(cUnit, callInst->getArgOperand(0));
   RegLocation rlSrc2 = GetLoc(cUnit, callInst->getArgOperand(1));
@@ -2806,7 +2778,7 @@ void CvtFPCompare(CompilationUnit* cUnit, llvm::CallInst* callInst,
   GenCmpFP(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
 }
 
-void CvtLongCompare(CompilationUnit* cUnit, llvm::CallInst* callInst)
+static void CvtLongCompare(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   RegLocation rlSrc1 = GetLoc(cUnit, callInst->getArgOperand(0));
   RegLocation rlSrc2 = GetLoc(cUnit, callInst->getArgOperand(1));
@@ -2814,7 +2786,7 @@ void CvtLongCompare(CompilationUnit* cUnit, llvm::CallInst* callInst)
   GenCmpLong(cUnit, rlDest, rlSrc1, rlSrc2);
 }
 
-void CvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
+static void CvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
 {
   llvm::SwitchInst* swInst = llvm::dyn_cast<llvm::SwitchInst>(inst);
   DCHECK(swInst != NULL);
@@ -2835,8 +2807,8 @@ void CvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
   }
 }
 
-void CvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
-               bool isVoid, bool isFilledNewArray)
+static void CvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isVoid,
+                      bool isFilledNewArray)
 {
   CallInfo* info = static_cast<CallInfo*>(NewMem(cUnit, sizeof(CallInfo), true, kAllocMisc));
   if (isVoid) {
@@ -2885,14 +2857,14 @@ void CvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
 }
 
 /* Look up the RegLocation associated with a Value.  Must already be defined */
-RegLocation ValToLoc(CompilationUnit* cUnit, llvm::Value* val)
+static RegLocation ValToLoc(CompilationUnit* cUnit, llvm::Value* val)
 {
   SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
   DCHECK(it != cUnit->locMap.end()) << "Missing definition";
   return it->second;
 }
 
-bool MethodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
+static bool BitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
 {
   while (cUnit->llvmBlocks.find(bb) == cUnit->llvmBlocks.end()) {
     llvm::BasicBlock* nextBB = NULL;
@@ -3528,7 +3500,7 @@ void MethodBitcode2LIR(CompilationUnit* cUnit)
   // Walk the blocks, generating code.
   for (llvm::Function::iterator i = cUnit->func->begin(),
        e = cUnit->func->end(); i != e; ++i) {
-    MethodBitcodeBlockCodeGen(cUnit, static_cast<llvm::BasicBlock*>(i));
+    BitcodeBlockCodeGen(cUnit, static_cast<llvm::BasicBlock*>(i));
   }
 
   HandleSuspendLaunchPads(cUnit);

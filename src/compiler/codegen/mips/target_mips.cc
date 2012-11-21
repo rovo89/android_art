@@ -381,7 +381,7 @@ bool IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-extern void ClobberCalleeSave(CompilationUnit *cUnit)
+void ClobberCalleeSave(CompilationUnit *cUnit)
 {
   Clobber(cUnit, r_ZERO);
   Clobber(cUnit, r_AT);
@@ -424,28 +424,28 @@ extern void ClobberCalleeSave(CompilationUnit *cUnit)
   Clobber(cUnit, r_F15);
 }
 
-extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit)
+RegLocation GetReturnWideAlt(CompilationUnit* cUnit)
 {
   UNIMPLEMENTED(FATAL) << "No GetReturnWideAlt for MIPS";
   RegLocation res = LocCReturnWide();
   return res;
 }
 
-extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
+RegLocation GetReturnAlt(CompilationUnit* cUnit)
 {
   UNIMPLEMENTED(FATAL) << "No GetReturnAlt for MIPS";
   RegLocation res = LocCReturn();
   return res;
 }
 
-extern RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
+RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
 {
   return MIPS_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & MIPS_FP_REG_MASK]
             : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
-extern void LockCallTemps(CompilationUnit* cUnit)
+void LockCallTemps(CompilationUnit* cUnit)
 {
   LockTemp(cUnit, rMIPS_ARG0);
   LockTemp(cUnit, rMIPS_ARG1);
@@ -454,7 +454,7 @@ extern void LockCallTemps(CompilationUnit* cUnit)
 }
 
 /* To be used when explicitly managing register use */
-extern void FreeCallTemps(CompilationUnit* cUnit)
+void FreeCallTemps(CompilationUnit* cUnit)
 {
   FreeTemp(cUnit, rMIPS_ARG0);
   FreeTemp(cUnit, rMIPS_ARG1);

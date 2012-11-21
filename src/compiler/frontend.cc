@@ -98,7 +98,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugVerifyBitcode) |
   0;
 
-static inline bool ContentIsInsn(const uint16_t* codePtr) {
+static bool ContentIsInsn(const uint16_t* codePtr) {
   uint16_t instr = *codePtr;
   Instruction::Code opcode = static_cast<Instruction::Code>(instr & 0xff);
 
@@ -112,8 +112,8 @@ static inline bool ContentIsInsn(const uint16_t* codePtr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-static inline int ParseInsn(CompilationUnit* cUnit, const uint16_t* codePtr,
-                            DecodedInstruction* decoded_instruction, bool printMe)
+static int ParseInsn(CompilationUnit* cUnit, const uint16_t* codePtr,
+                     DecodedInstruction* decoded_instruction, bool printMe)
 {
   // Don't parse instruction data
   if (!ContentIsInsn(codePtr)) {
@@ -133,17 +133,6 @@ static inline int ParseInsn(CompilationUnit* cUnit, const uint16_t* codePtr,
 }
 
 #define UNKNOWN_TARGET 0xffffffff
-
-static inline bool IsGoto(MIR* insn) {
-  switch (insn->dalvikInsn.opcode) {
-    case Instruction::GOTO:
-    case Instruction::GOTO_16:
-    case Instruction::GOTO_32:
-      return true;
-    default:
-      return false;
-  }
-}
 
 /* Split an existing block from the specified code offset into two */
 static BasicBlock *SplitBlock(CompilationUnit* cUnit, unsigned int codeOffset,

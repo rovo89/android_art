@@ -29,7 +29,7 @@ namespace art {
 #define LDLD_DISTANCE 4
 #define LD_LATENCY 2
 
-inline bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
+static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 {
   int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->aliasInfo);
   int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->aliasInfo);
@@ -40,8 +40,7 @@ inline bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-void ConvertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
-                          int src)
+static void ConvertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest, int src)
 {
   /* Insert a move to replace the load */
   LIR* moveLIR;
@@ -73,8 +72,7 @@ void ConvertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
-void ApplyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
-                               LIR* tailLIR)
+static void ApplyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
 {
   LIR* thisLIR;
 

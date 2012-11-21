@@ -271,10 +271,4 @@ RegLocation LoadCurrMethod(CompilationUnit *cUnit)
   return LoadValue(cUnit, cUnit->methodLoc, kCoreReg);
 }
 
-bool MethodStarInReg(CompilationUnit* cUnit)
-{
-   return (cUnit->methodLoc.location == kLocPhysReg);
-}
-
-
 }  // namespace art

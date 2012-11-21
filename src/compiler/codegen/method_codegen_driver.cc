@@ -61,8 +61,8 @@ RegLocation GetReturn(CompilationUnit* cUnit, bool isFloat)
  * load/store utilities here, or target-dependent genXX() handlers
  * when necessary.
  */
-bool CompileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
-                              BasicBlock* bb, LIR* labelList)
+static bool CompileDalvikInstruction(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
+                                     LIR* labelList)
 {
   bool res = false;   // Assume success
   RegLocation rlSrc[3];
@@ -644,7 +644,7 @@ bool CompileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 }
 
 /* Extended MIR instructions like PHI */
-void HandleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+static void HandleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
   int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
   char* msg = NULL;
@@ -692,7 +692,7 @@ void HandleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 }
 
 /* Handle the content in each basic block */
-bool MethodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
+static bool MethodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
   cUnit->currentDalvikOffset = bb->startOffset;
@@ -803,20 +803,6 @@ bool MethodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
       OpUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
     }
   }
-  return false;
-}
-
-/* Set basic block labels */
-bool LabelBlocks(CompilationUnit* cUnit, BasicBlock* bb)
-{
-  LIR* labelList = cUnit->blockLabelList;
-  int blockId = bb->id;
-
-  cUnit->curBlock = bb;
-  labelList[blockId].operands[0] = bb->startOffset;
-
-  /* Insert the block label */
-  labelList[blockId].opcode = kPseudoNormalBlockLabel;
   return false;
 }
 

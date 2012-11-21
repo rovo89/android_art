@@ -458,7 +458,7 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
  * NOTE: An out-of-range bal isn't supported because it should
  * never happen with the current PIC model.
  */
-void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
+static void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
 {
   // For conditional branches we'll need to reverse the sense
   bool unconditional = false;

@@ -29,7 +29,6 @@ void SetupRegMask(CompilationUnit* cUnit, uint64_t* mask, int reg);
 void SetupResourceMasks(CompilationUnit* cUnit, LIR* lir);
 void DumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr);
 void DumpPromotionMap(CompilationUnit *cUnit);
-void DumpMappingTable(const char* table_name, const std::string& descriptor, const std::string& name, const std::string& signature, const std::vector<uint32_t>& v);
 void CodegenDump(CompilationUnit* cUnit);
 // TODO: remove default parameters
 LIR* RawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);

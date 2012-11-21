@@ -22,7 +22,7 @@ namespace art {
 // Make sure iterative dfs recording matches old recursive version
 //#define TEST_DFS
 
-static inline BasicBlock* NeedsVisit(BasicBlock* bb) {
+static BasicBlock* NeedsVisit(BasicBlock* bb) {
   if (bb != NULL) {
     if (bb->visited || bb->hidden) {
       bb = NULL;

@@ -110,34 +110,14 @@ void FlushIns(CompilationUnit* cUnit, RegLocation* ArgLocs, RegLocation rlMethod
   }
 }
 
-void ScanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** codeTarget,
-                           const DexFile* dexFile, uint32_t dexMethodIdx)
-{
-  LIR* curTarget = cUnit->methodLiteralList;
-  LIR* nextTarget = curTarget != NULL ? curTarget->next : NULL;
-  while (curTarget != NULL && nextTarget != NULL) {
-    if (curTarget->operands[0] == reinterpret_cast<intptr_t>(dexFile) &&
-      nextTarget->operands[0] == static_cast<int>(dexMethodIdx)) {
-    *codeTarget = curTarget;
-    *methodTarget = nextTarget;
-    DCHECK((*codeTarget)->next == *methodTarget);
-    DCHECK_EQ((*codeTarget)->operands[0], reinterpret_cast<intptr_t>(dexFile));
-    DCHECK_EQ((*methodTarget)->operands[0], static_cast<int>(dexMethodIdx));
-    break;
-    }
-    curTarget = nextTarget->next;
-    nextTarget = curTarget != NULL ? curTarget->next : NULL;
-  }
-}
-
 /*
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-int NextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
-                   int state, uint32_t dexIdx, uint32_t unused,
-                   uintptr_t directCode, uintptr_t directMethod,
-                   InvokeType type)
+static int NextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
+                          int state, uint32_t dexIdx, uint32_t unused,
+                          uintptr_t directCode, uintptr_t directMethod,
+                          InvokeType type)
 {
   if (cUnit->instructionSet != kThumb2) {
     // Disable sharpening
@@ -227,9 +207,9 @@ int NextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
  * Note also that we'll load the first argument ("this") into
  * kArg1 here rather than the standard LoadArgRegs.
  */
-int NextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
-                  int state, uint32_t dexIdx, uint32_t methodIdx,
-                  uintptr_t unused, uintptr_t unused2, InvokeType unused3)
+static int NextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
+                         int state, uint32_t dexIdx, uint32_t methodIdx,
+                         uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
   /*
    * This is the fast path in which the target virtual method is
@@ -272,9 +252,9 @@ int NextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
  * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
  * which will locate the target and continue on via a tail call.
  */
-int NextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
-                          uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
-                          uintptr_t directMethod, InvokeType unused4)
+static int NextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
+                                 uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
+                                 uintptr_t directMethod, InvokeType unused4)
 {
   if (cUnit->instructionSet != kThumb2) {
     // Disable sharpening
@@ -333,8 +313,8 @@ int NextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
   return state + 1;
 }
 
-int NextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
-                     int state, uint32_t dexIdx, uint32_t methodIdx)
+static int NextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
+                            int state, uint32_t dexIdx, uint32_t methodIdx)
 {
   /*
    * This handles the case in which the base method is not fully
@@ -352,41 +332,41 @@ int NextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
   return -1;
 }
 
-int NextStaticCallInsnSP(CompilationUnit* cUnit, CallInfo* info,
-                         int state, uint32_t dexIdx, uint32_t methodIdx,
-                         uintptr_t unused, uintptr_t unused2,
+static int NextStaticCallInsnSP(CompilationUnit* cUnit, CallInfo* info,
+                                int state, uint32_t dexIdx, uint32_t methodIdx,
+                                uintptr_t unused, uintptr_t unused2,
                          InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int NextDirectCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
-                         uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
-                         uintptr_t unused2, InvokeType unused3)
+static int NextDirectCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
+                                uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
+                                uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int NextSuperCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
-                        uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
+static int NextSuperCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
+                               uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                         uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int NextVCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
-                    uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
-                    uintptr_t unused2, InvokeType unused3)
+static int NextVCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
+                           uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
+                           uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
-                                         CallInfo* info, int state,
+static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
+                                                CallInfo* info, int state,
                                          uint32_t dexIdx, uint32_t unused,
                                          uintptr_t unused2, uintptr_t unused3,
                                          InvokeType unused4)
@@ -395,10 +375,10 @@ int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
   return NextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int LoadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
-                NextCallInsn nextCallInsn, uint32_t dexIdx,
-                uint32_t methodIdx, uintptr_t directCode,
-                uintptr_t directMethod, InvokeType type, bool skipThis)
+static int LoadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
+                       NextCallInsn nextCallInsn, uint32_t dexIdx,
+                       uint32_t methodIdx, uintptr_t directCode,
+                       uintptr_t directMethod, InvokeType type, bool skipThis)
 {
   int lastArgReg = TargetReg(kArg3);
   int nextReg = TargetReg(kArg1);

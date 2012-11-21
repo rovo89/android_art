@@ -380,14 +380,14 @@ bool IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-extern void ClobberCalleeSave(CompilationUnit *cUnit)
+void ClobberCalleeSave(CompilationUnit *cUnit)
 {
   Clobber(cUnit, rAX);
   Clobber(cUnit, rCX);
   Clobber(cUnit, rDX);
 }
 
-extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit) {
+RegLocation GetReturnWideAlt(CompilationUnit* cUnit) {
   RegLocation res = LocCReturnWide();
   CHECK(res.lowReg == rAX);
   CHECK(res.highReg == rDX);
@@ -399,7 +399,7 @@ extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit) {
   return res;
 }
 
-extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
+RegLocation GetReturnAlt(CompilationUnit* cUnit)
 {
   RegLocation res = LocCReturn();
   res.lowReg = rDX;
@@ -408,14 +408,14 @@ extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
   return res;
 }
 
-extern RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
+RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
 {
   return X86_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & X86_FP_REG_MASK]
                     : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
-extern void LockCallTemps(CompilationUnit* cUnit)
+void LockCallTemps(CompilationUnit* cUnit)
 {
   LockTemp(cUnit, rX86_ARG0);
   LockTemp(cUnit, rX86_ARG1);
@@ -424,7 +424,7 @@ extern void LockCallTemps(CompilationUnit* cUnit)
 }
 
 /* To be used when explicitly managing register use */
-extern void FreeCallTemps(CompilationUnit* cUnit)
+void FreeCallTemps(CompilationUnit* cUnit)
 {
   FreeTemp(cUnit, rX86_ARG0);
   FreeTemp(cUnit, rX86_ARG1);

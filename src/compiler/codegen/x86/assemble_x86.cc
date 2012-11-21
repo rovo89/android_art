@@ -1176,7 +1176,7 @@ static void EmitMacro(CompilationUnit* cUnit, const X86EncodingMap* entry,
   EmitRegImm(cUnit, &EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
 }
 
-void EmitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
+static void EmitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
   UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " " << BuildInsnString(entry->fmt, lir, 0);
   for (int i = 0; i < GetInsnSize(lir); ++i) {
     cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3

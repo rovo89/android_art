@@ -1097,8 +1097,8 @@ char* GetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 }
 
 /* Any register that is used before being defined is considered live-in */
-static inline void HandleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
-                                   ArenaBitVector* defV, ArenaBitVector* liveInV, int dalvikRegId)
+static void HandleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV, ArenaBitVector* defV,
+                            ArenaBitVector* liveInV, int dalvikRegId)
 {
   SetBit(cUnit, useV, dalvikRegId);
   if (!IsBitSet(defV, dalvikRegId)) {
@@ -1107,7 +1107,7 @@ static inline void HandleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
 }
 
 /* Mark a reg as being defined */
-static inline void HandleDef(CompilationUnit* cUnit, ArenaBitVector* defV, int dalvikRegId)
+static void HandleDef(CompilationUnit* cUnit, ArenaBitVector* defV, int dalvikRegId)
 {
   SetBit(cUnit, defV, dalvikRegId);
 }

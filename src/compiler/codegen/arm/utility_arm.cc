@@ -22,7 +22,7 @@ namespace art {
 
 /* This file contains codegen for the Thumb ISA. */
 
-int EncodeImmSingle(int value)
+static int EncodeImmSingle(int value)
 {
   int res;
   int bitA =  (value & 0x80000000) >> 31;
@@ -44,7 +44,7 @@ int EncodeImmSingle(int value)
   return res;
 }
 
-LIR* LoadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
+static LIR* LoadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
 {
   int encodedImm = EncodeImmSingle(value);
   DCHECK(ARM_SINGLEREG(rDest));
@@ -63,7 +63,7 @@ LIR* LoadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
   return loadPcRel;
 }
 
-int LeadingZeros(uint32_t val)
+static int LeadingZeros(uint32_t val)
 {
   uint32_t alt;
   int n;
@@ -567,7 +567,7 @@ LIR* OpRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value)
  * Determine whether value can be encoded as a Thumb2 floating point
  * immediate.  If not, return -1.  If so return encoded 8-bit value.
  */
-int EncodeImmDoubleHigh(int value)
+static int EncodeImmDoubleHigh(int value)
 {
   int res;
   int bitA =  (value & 0x80000000) >> 31;
@@ -589,7 +589,7 @@ int EncodeImmDoubleHigh(int value)
   return res;
 }
 
-int EncodeImmDouble(int valLo, int valHi)
+static int EncodeImmDouble(int valLo, int valHi)
 {
   int res = -1;
   if (valLo == 0)

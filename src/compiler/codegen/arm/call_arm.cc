@@ -26,7 +26,7 @@ namespace art {
 
 
 /* Return the position of an ssa name within the argument list */
-int InPosition(CompilationUnit* cUnit, int sReg)
+static int InPosition(CompilationUnit* cUnit, int sReg)
 {
   int vReg = SRegToVReg(cUnit, sReg);
   return vReg - cUnit->numRegs;
@@ -83,7 +83,7 @@ RegLocation LoadArg(CompilationUnit* cUnit, RegLocation loc)
 }
 
 /* Lock any referenced arguments that arrive in registers */
-void LockLiveArgs(CompilationUnit* cUnit, MIR* mir)
+static void LockLiveArgs(CompilationUnit* cUnit, MIR* mir)
 {
   int firstIn = cUnit->numRegs;
   const int numArgRegs = 3;  // TODO: generalize & move to RegUtil.cc
@@ -97,7 +97,7 @@ void LockLiveArgs(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Find the next MIR, which may be in a following basic block */
-MIR* GetNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
+static MIR* GetNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
 {
   BasicBlock* bb = *pBb;
   MIR* origMir = mir;
@@ -135,8 +135,8 @@ void GenPrintLabel(CompilationUnit *cUnit, MIR* mir)
   }
 }
 
-MIR* SpecialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
-                 OpSize size, bool longOrDouble, bool isObject)
+static MIR* SpecialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+                        OpSize size, bool longOrDouble, bool isObject)
 {
   int fieldOffset;
   bool isVolatile;
@@ -162,8 +162,8 @@ MIR* SpecialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
   return GetNextMir(cUnit, bb, mir);
 }
 
-MIR* SpecialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
-                 OpSize size, bool longOrDouble, bool isObject)
+static MIR* SpecialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+                        OpSize size, bool longOrDouble, bool isObject)
 {
   int fieldOffset;
   bool isVolatile;
@@ -198,7 +198,7 @@ MIR* SpecialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
   return GetNextMir(cUnit, bb, mir);
 }
 
-MIR* SpecialIdentity(CompilationUnit* cUnit, MIR* mir)
+static MIR* SpecialIdentity(CompilationUnit* cUnit, MIR* mir)
 {
   RegLocation rlSrc;
   RegLocation rlDest;

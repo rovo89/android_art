@@ -275,7 +275,7 @@ static const char* shiftNames[4] = {
   "ror"};
 
 /* Decode and print a ARM register name */
-char* DecodeRegList(int opcode, int vector, char* buf)
+static char* DecodeRegList(int opcode, int vector, char* buf)
 {
   int i;
   bool printed = false;
@@ -299,7 +299,7 @@ char* DecodeRegList(int opcode, int vector, char* buf)
   return buf;
 }
 
-char*  DecodeFPCSRegList(int count, int base, char* buf)
+static char*  DecodeFPCSRegList(int count, int base, char* buf)
 {
   sprintf(buf, "s%d", base);
   for (int i = 1; i < count; i++) {
@@ -308,7 +308,7 @@ char*  DecodeFPCSRegList(int count, int base, char* buf)
   return buf;
 }
 
-int ExpandImmediate(int value)
+static int ExpandImmediate(int value)
 {
   int mode = (value & 0xf00) >> 8;
   uint32_t bits = value & 0xff;
@@ -738,7 +738,7 @@ void ClobberCalleeSave(CompilationUnit *cUnit)
   Clobber(cUnit, fr15);
 }
 
-extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit)
+RegLocation GetReturnWideAlt(CompilationUnit* cUnit)
 {
   RegLocation res = LocCReturnWide();
   res.lowReg = r2;
@@ -751,7 +751,7 @@ extern RegLocation GetReturnWideAlt(CompilationUnit* cUnit)
   return res;
 }
 
-extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
+RegLocation GetReturnAlt(CompilationUnit* cUnit)
 {
   RegLocation res = LocCReturn();
   res.lowReg = r1;
@@ -760,14 +760,14 @@ extern RegLocation GetReturnAlt(CompilationUnit* cUnit)
   return res;
 }
 
-extern RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
+RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
 {
   return ARM_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & ARM_FP_REG_MASK]
       : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
-extern void LockCallTemps(CompilationUnit* cUnit)
+void LockCallTemps(CompilationUnit* cUnit)
 {
   LockTemp(cUnit, r0);
   LockTemp(cUnit, r1);
@@ -776,7 +776,7 @@ extern void LockCallTemps(CompilationUnit* cUnit)
 }
 
 /* To be used when explicitly managing register use */
-extern void FreeCallTemps(CompilationUnit* cUnit)
+void FreeCallTemps(CompilationUnit* cUnit)
 {
   FreeTemp(cUnit, r0);
   FreeTemp(cUnit, r1);

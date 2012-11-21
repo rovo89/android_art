@@ -1767,20 +1767,20 @@ bool GenArithOpInt(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation
  * or produce corresponding Thumb instructions directly.
  */
 
-bool IsPowerOfTwo(int x)
+static bool IsPowerOfTwo(int x)
 {
   return (x & (x - 1)) == 0;
 }
 
 // Returns true if no more than two bits are set in 'x'.
-bool IsPopCountLE2(unsigned int x)
+static bool IsPopCountLE2(unsigned int x)
 {
   x &= x - 1;
   return (x & (x - 1)) == 0;
 }
 
 // Returns the index of the lowest set bit in 'x'.
-int LowestSetBit(unsigned int x) {
+static int LowestSetBit(unsigned int x) {
   int bit_posn = 0;
   while ((x & 0xf) == 0) {
     bit_posn += 4;
@@ -1795,8 +1795,8 @@ int LowestSetBit(unsigned int x) {
 
 // Returns true if it added instructions to 'cUnit' to divide 'rlSrc' by 'lit'
 // and store the result in 'rlDest'.
-bool HandleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
-            RegLocation rlSrc, RegLocation rlDest, int lit)
+static bool HandleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
+                             RegLocation rlSrc, RegLocation rlDest, int lit)
 {
   if ((lit < 2) || ((cUnit->instructionSet != kThumb2) && !IsPowerOfTwo(lit))) {
     return false;
@@ -1849,8 +1849,8 @@ bool HandleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
 
 // Returns true if it added instructions to 'cUnit' to multiply 'rlSrc' by 'lit'
 // and store the result in 'rlDest'.
-bool HandleEasyMultiply(CompilationUnit* cUnit, RegLocation rlSrc,
-                        RegLocation rlDest, int lit)
+static bool HandleEasyMultiply(CompilationUnit* cUnit, RegLocation rlSrc,
+                               RegLocation rlDest, int lit)
 {
   // Can we simplify this multiplication?
   bool powerOfTwo = false;
