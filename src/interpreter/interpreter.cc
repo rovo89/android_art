@@ -500,6 +500,54 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
+static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+    int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  if (UNLIKELY(divisor == 0)) {
+    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+  } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
+    shadow_frame.SetVReg(result_reg, kMinInt);
+  } else {
+    shadow_frame.SetVReg(result_reg, dividend / divisor);
+  }
+}
+
+static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+    int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  if (UNLIKELY(divisor == 0)) {
+    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+  } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
+    shadow_frame.SetVReg(result_reg, 0);
+  } else {
+    shadow_frame.SetVReg(result_reg, dividend % divisor);
+  }
+}
+
+static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+    int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinLong = std::numeric_limits<int64_t>::min();
+  if (UNLIKELY(divisor == 0)) {
+    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+  } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
+    shadow_frame.SetVRegLong(result_reg, kMinLong);
+  } else {
+    shadow_frame.SetVRegLong(result_reg, dividend / divisor);
+  }
+}
+
+static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+    int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const int32_t kMinLong = std::numeric_limits<int64_t>::min();
+  if (UNLIKELY(divisor == 0)) {
+    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+  } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
+    shadow_frame.SetVRegLong(result_reg, 0);
+  } else {
+    shadow_frame.SetVRegLong(result_reg, dividend % divisor);
+  }
+}
+
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const uint16_t* insns = code_item->insns_;
@@ -1287,12 +1335,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                              shadow_frame.GetVReg(dec_insn.vB) * shadow_frame.GetVReg(dec_insn.vC));
         break;
       case Instruction::REM_INT:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vB) % shadow_frame.GetVReg(dec_insn.vC));
+        DoIntRemainder(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB),
+                       shadow_frame.GetVReg(dec_insn.vC));
         break;
       case Instruction::DIV_INT:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vB) / shadow_frame.GetVReg(dec_insn.vC));
+        DoIntDivide(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB),
+                    shadow_frame.GetVReg(dec_insn.vC));
         break;
       case Instruction::SHL_INT:
         shadow_frame.SetVReg(dec_insn.vA,
@@ -1335,14 +1383,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                                  shadow_frame.GetVRegLong(dec_insn.vC));
         break;
       case Instruction::DIV_LONG:
-        shadow_frame.SetVRegLong(dec_insn.vA,
-                                 shadow_frame.GetVRegLong(dec_insn.vB) /
-                                 shadow_frame.GetVRegLong(dec_insn.vC));
+        DoLongDivide(self, shadow_frame, dec_insn.vA, shadow_frame.GetVRegLong(dec_insn.vB),
+                    shadow_frame.GetVRegLong(dec_insn.vC));
         break;
       case Instruction::REM_LONG:
-        shadow_frame.SetVRegLong(dec_insn.vA,
-                                 shadow_frame.GetVRegLong(dec_insn.vB) %
-                                 shadow_frame.GetVRegLong(dec_insn.vC));
+        DoLongRemainder(self, shadow_frame, dec_insn.vA, shadow_frame.GetVRegLong(dec_insn.vB),
+                        shadow_frame.GetVRegLong(dec_insn.vC));
         break;
       case Instruction::AND_LONG:
         shadow_frame.SetVRegLong(dec_insn.vA,
@@ -1437,8 +1483,8 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                              shadow_frame.GetVReg(dec_insn.vA) * shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::REM_INT_2ADDR:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vA) % shadow_frame.GetVReg(dec_insn.vB));
+        DoIntRemainder(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vA),
+                       shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::SHL_INT_2ADDR:
         shadow_frame.SetVReg(dec_insn.vA,
@@ -1466,8 +1512,8 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                              shadow_frame.GetVReg(dec_insn.vA) ^ shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::DIV_INT_2ADDR:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vA) / shadow_frame.GetVReg(dec_insn.vB));
+        DoIntDivide(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vA),
+                    shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::ADD_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
@@ -1485,14 +1531,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                                  shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::DIV_LONG_2ADDR:
-        shadow_frame.SetVRegLong(dec_insn.vA,
-                                 shadow_frame.GetVRegLong(dec_insn.vA) /
-                                 shadow_frame.GetVRegLong(dec_insn.vB));
+        DoLongDivide(self, shadow_frame, dec_insn.vA, shadow_frame.GetVRegLong(dec_insn.vA),
+                    shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::REM_LONG_2ADDR:
-        shadow_frame.SetVRegLong(dec_insn.vA,
-                                 shadow_frame.GetVRegLong(dec_insn.vA) %
-                                 shadow_frame.GetVRegLong(dec_insn.vB));
+        DoLongRemainder(self, shadow_frame, dec_insn.vA, shadow_frame.GetVRegLong(dec_insn.vA),
+                        shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::AND_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
@@ -1588,11 +1632,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       case Instruction::DIV_INT_LIT16:
       case Instruction::DIV_INT_LIT8:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) / dec_insn.vC);
+        DoIntDivide(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB),
+                    dec_insn.vC);
         break;
       case Instruction::REM_INT_LIT16:
       case Instruction::REM_INT_LIT8:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) % dec_insn.vC);
+        DoIntRemainder(self, shadow_frame, dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB),
+                       dec_insn.vC);
         break;
       case Instruction::AND_INT_LIT16:
       case Instruction::AND_INT_LIT8:
