@@ -176,6 +176,13 @@ test-art-host-run-test-$(1): test-art-host-dependencies
 	@echo test-art-host-run-test-$(1) PASSED
 
 TEST_ART_HOST_RUN_TEST_TARGETS += test-art-host-run-test-$(1)
+
+.PHONY: test-art-host-interpreter-run-test-$(1)
+test-art-host-interpreter-run-test-$(1): test-art-host-dependencies
+	art/test/run-test --host --interpreter $(1)
+	@echo test-art-host-interpreter-run-test-$(1) PASSED
+
+TEST_ART_HOST_INTERPRETER_RUN_TEST_TARGETS += test-art-host-interpreter-run-test-$(1)
 endef
 
 $(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
@@ -183,6 +190,10 @@ $(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host
 .PHONY: test-art-host-run-test
 test-art-host-run-test: $(TEST_ART_HOST_RUN_TEST_TARGETS)
 	@echo test-art-host-run-test PASSED
+
+.PHONY: test-art-host-interpreter-run-test
+test-art-host-interpreter-run-test: $(TEST_ART_HOST_INTERPRETER_RUN_TEST_TARGETS)
+	@echo test-art-host-interpreter-run-test PASSED
 
 ########################################################################
 # target test targets
