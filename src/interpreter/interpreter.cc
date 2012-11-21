@@ -422,6 +422,7 @@ static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
       obj = shadow_frame.GetReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
         ThrowNullPointerExceptionForFieldAccess(f, true);
+        return;
       }
     }
     switch (field_type) {
@@ -468,6 +469,7 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
       obj = shadow_frame.GetReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
         ThrowNullPointerExceptionForFieldAccess(f, false);
+        return;
       }
     }
     switch (field_type) {
