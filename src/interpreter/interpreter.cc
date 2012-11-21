@@ -405,7 +405,9 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   } else {
     UnstartedRuntimeInvoke(self, target_method, receiver, arg_array.get(), result);
   }
-  if (!mh.GetReturnType()->IsPrimitive() && result->GetL() != NULL) {
+  // Check the return type if the result is non-null. We do the GetReturnType
+  // after the null check to avoid resolution when there's an exception pending.
+  if (result->GetL() != NULL && !mh.GetReturnType()->IsPrimitive()) {
     CHECK(mh.GetReturnType()->IsAssignableFrom(result->GetL()->GetClass()));
   }
   mh.ChangeMethod(shadow_frame.GetMethod());
@@ -1747,6 +1749,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
                                 JValue* args, JValue* result) {
   DCHECK_EQ(self, Thread::Current());
+  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+    ThrowStackOverflowError(self);
+    return;
+  }
+
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint16_t num_regs;

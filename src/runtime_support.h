@@ -231,6 +231,8 @@ extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* re
                                      bool can_run_clinit, bool verify_access)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 static inline String* ResolveStringFromCode(const AbstractMethod* referrer, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
