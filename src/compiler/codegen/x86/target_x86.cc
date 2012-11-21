@@ -451,7 +451,7 @@ bool oatArchVariantInit(void)
   return true;
 }
 
-void oatGenMemBarrier(CompilationUnit *cUnit, int /* barrierKind */)
+void oatGenMemBarrier(CompilationUnit *cUnit, MemBarrierKind barrierKind)
 {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
@@ -603,6 +603,21 @@ int loadHelper(CompilationUnit* cUnit, int offset)
 {
   LOG(FATAL) << "Unexpected use of loadHelper in x86";
   return INVALID_REG;
+}
+
+uint64_t getTargetInstFlags(int opcode)
+{
+  return EncodingMap[opcode].flags;
+}
+
+const char* getTargetInstName(int opcode)
+{
+  return EncodingMap[opcode].name;
+}
+
+const char* getTargetInstFmt(int opcode)
+{
+  return EncodingMap[opcode].fmt;
 }
 
 } // namespace art

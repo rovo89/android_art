@@ -27,8 +27,11 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
 
+#include "../compiler_internals.h"
 #include "method_codegen_driver.h"
 #include "local_optimizations.h"
+#include "codegen_util.h"
+#include "ralloc_util.h"
 
 static const char* kLabelFormat = "%c0x%x_%d";
 static const char kInvalidBlock = 0xff;
@@ -36,7 +39,10 @@ static const char kNormalBlock = 'L';
 static const char kCatchBlock = 'C';
 
 namespace art {
-extern const RegLocation badLoc;
+// TODO: unify badLoc
+const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
+                            INVALID_REG, INVALID_REG, INVALID_SREG,
+                            INVALID_SREG};
 RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val);
 
 llvm::BasicBlock* getLLVMBlock(CompilationUnit* cUnit, int id)

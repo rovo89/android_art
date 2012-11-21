@@ -37,25 +37,35 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \
-    src/compiler/dataflow.cc \
-    src/compiler/frontend.cc \
-    src/compiler/intermediate_rep.cc \
-    src/compiler/ralloc.cc \
-    src/compiler/ssa_transformation.cc \
-    src/compiler/compiler_utility.cc \
-    src/compiler/codegen/ralloc_util.cc \
-    src/compiler/codegen/arm/target_arm.cc \
-    src/compiler/codegen/arm/assemble_arm.cc \
-    src/compiler/codegen/arm/backend_arm.cc \
-    src/compiler_llvm/dalvik_reg.cc \
-    src/compiler_llvm/gbc_expander.cc \
-    src/compiler_llvm/method_compiler.cc \
-    src/greenland/intrinsic_helper.cc \
-    src/greenland/ir_builder.cc
+	src/compiler/dataflow.cc \
+	src/compiler/frontend.cc \
+	src/compiler/intermediate_rep.cc \
+	src/compiler/ralloc.cc \
+	src/compiler/ssa_transformation.cc \
+	src/compiler/compiler_utility.cc \
+	src/compiler/codegen/ralloc_util.cc \
+	src/compiler/codegen/codegen_util.cc \
+	src/compiler/codegen/gen_loadstore.cc \
+	src/compiler/codegen/gen_common.cc \
+	src/compiler/codegen/gen_invoke.cc \
+	src/compiler/codegen/method_bitcode.cc \
+	src/compiler/codegen/method_codegen_driver.cc \
+	src/compiler/codegen/local_optimizations.cc \
+	src/compiler/codegen/arm/target_arm.cc \
+	src/compiler/codegen/arm/assemble_arm.cc \
+	src/compiler/codegen/arm/utility_arm.cc \
+	src/compiler/codegen/arm/call_arm.cc \
+	src/compiler/codegen/arm/fp_arm.cc \
+	src/compiler/codegen/arm/int_arm.cc \
+	src/compiler_llvm/dalvik_reg.cc \
+	src/compiler_llvm/gbc_expander.cc \
+	src/compiler_llvm/method_compiler.cc \
+	src/greenland/intrinsic_helper.cc \
+	src/greenland/ir_builder.cc
 else
   LIBART_COMPILER_LLVM_SRC_FILES += \
-    src/compiler_llvm/dalvik_reg.cc \
-    src/compiler_llvm/method_compiler.cc
+	src/compiler_llvm/dalvik_reg.cc \
+	src/compiler_llvm/method_compiler.cc
 endif
 
 # $(1): target or host

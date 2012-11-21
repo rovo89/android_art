@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include "mips_lir.h"
+#include "../codegen_util.h"
+#include "../ralloc_util.h"
+
 namespace art {
 
 /* This file contains codegen for the MIPS32 ISA. */

@@ -18,6 +18,9 @@
 
 #include "oat_compilation_unit.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "arm_lir.h"
+#include "../codegen_util.h"
+#include "../ralloc_util.h"
 
 namespace art {
 
@@ -504,7 +507,7 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   oatClobberCalleeSave(cUnit);
   LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
-  oatGenMemBarrier(cUnit, kSY);
+  oatGenMemBarrier(cUnit, kLoadLoad);
 }
 
 /*
@@ -536,7 +539,7 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   oatClobberCalleeSave(cUnit);
   LIR* callInst = opReg(cUnit, kOpBlx, rARM_LR);
   markSafepointPC(cUnit, callInst);
-  oatGenMemBarrier(cUnit, kSY);
+  oatGenMemBarrier(cUnit, kStoreLoad);
 }
 
 /*

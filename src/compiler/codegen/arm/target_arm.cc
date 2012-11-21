@@ -802,4 +802,19 @@ int loadHelper(CompilationUnit* cUnit, int offset)
   return rARM_LR;
 }
 
+uint64_t getTargetInstFlags(int opcode)
+{
+  return EncodingMap[opcode].flags;
+}
+
+const char* getTargetInstName(int opcode)
+{
+  return EncodingMap[opcode].name;
+}
+
+const char* getTargetInstFmt(int opcode)
+{
+  return EncodingMap[opcode].fmt;
+}
+
 }  // namespace art

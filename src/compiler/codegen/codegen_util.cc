@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+#include "../compiler_internals.h"
 #include "gc_map.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
+#include "ralloc_util.h"
 #include "codegen_util.h"
 
 namespace art {
@@ -31,7 +33,7 @@ void setMemRefType(LIR* lir, bool isLoad, int memType)
 {
   uint64_t *maskPtr;
   uint64_t mask = ENCODE_MEM;;
-  DCHECK(EncodingMap[lir->opcode].flags & (IS_LOAD | IS_STORE));
+  DCHECK(getTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   if (isLoad) {
     maskPtr = &lir->useMask;
   } else {
@@ -53,7 +55,7 @@ void setMemRefType(LIR* lir, bool isLoad, int memType)
       break;
     case kMustNotAlias:
       /* Currently only loads can be marked as kMustNotAlias */
-      DCHECK(!(EncodingMap[lir->opcode].flags & IS_STORE));
+      DCHECK(!(getTargetInstFlags(lir->opcode) & IS_STORE));
       *maskPtr |= ENCODE_MUST_NOT_ALIAS;
       break;
     default:
@@ -106,7 +108,7 @@ void setupResourceMasks(CompilationUnit* cUnit, LIR* lir)
     return;
   }
 
-  uint64_t flags = EncodingMap[opcode].flags;
+  uint64_t flags = getTargetInstFlags(opcode);
 
   if (flags & NEEDS_FIXUP) {
     lir->flags.pcRelFixup = true;
@@ -237,10 +239,10 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr)
       if (lir->flags.isNop && !dumpNop) {
         break;
       } else {
-        std::string op_name(buildInsnString(EncodingMap[lir->opcode].name,
+        std::string op_name(buildInsnString(getTargetInstName(lir->opcode),
                                             lir, baseAddr));
-        std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt
-                                              , lir, baseAddr));
+        std::string op_operands(buildInsnString(getTargetInstFmt(lir->opcode),
+                                                lir, baseAddr));
         LOG(INFO) << StringPrintf("%05x: %-9s%s%s",
                                   reinterpret_cast<unsigned int>(baseAddr + offset),
                                   op_name.c_str(), op_operands.c_str(),
@@ -368,8 +370,8 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
  */
 LIR* newLIR0(CompilationUnit* cUnit, int opcode)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & NO_OPERAND))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode);
@@ -380,8 +382,8 @@ LIR* newLIR0(CompilationUnit* cUnit, int opcode)
 LIR* newLIR1(CompilationUnit* cUnit, int opcode,
                int dest)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_UNARY_OP))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest);
@@ -392,8 +394,8 @@ LIR* newLIR1(CompilationUnit* cUnit, int opcode,
 LIR* newLIR2(CompilationUnit* cUnit, int opcode,
                int dest, int src1)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_BINARY_OP))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_BINARY_OP))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1);
@@ -404,8 +406,8 @@ LIR* newLIR2(CompilationUnit* cUnit, int opcode,
 LIR* newLIR3(CompilationUnit* cUnit, int opcode,
                int dest, int src1, int src2)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_TERTIARY_OP))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_TERTIARY_OP))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2);
@@ -416,8 +418,8 @@ LIR* newLIR3(CompilationUnit* cUnit, int opcode,
 LIR* newLIR4(CompilationUnit* cUnit, int opcode,
       int dest, int src1, int src2, int info)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_QUAD_OP))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_QUAD_OP))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info);
@@ -428,8 +430,8 @@ LIR* newLIR4(CompilationUnit* cUnit, int opcode,
 LIR* newLIR5(CompilationUnit* cUnit, int opcode,
        int dest, int src1, int src2, int info1, int info2)
 {
-  DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_QUIN_OP))
-      << EncodingMap[opcode].name << " " << opcode << " "
+  DCHECK(isPseudoOpcode(opcode) || (getTargetInstFlags(opcode) & IS_QUIN_OP))
+      << getTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
       << cUnit->currentDalvikOffset;
   LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1, src2, info1, info2);

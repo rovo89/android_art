@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include "x86_lir.h"
+#include "../codegen_util.h"
+#include "../ralloc_util.h"
+
 namespace art {
 
 bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
