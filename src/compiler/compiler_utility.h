@@ -28,7 +28,7 @@ struct CompilationUnit;
 #define ARENA_DEFAULT_SIZE ((2 * 1024 * 1024) - 256)
 
 /* Type of allocation for memory tuning */
-enum oatAllocKind {
+enum oat_alloc_kind {
   kAllocMisc,
   kAllocBB,
   kAllocLIR,
@@ -46,7 +46,7 @@ enum oatAllocKind {
 };
 
 /* Type of growable list for memory tuning */
-enum oatListKind {
+enum oat_list_kind {
   kListMisc = 0,
   kListBlockList,
   kListSSAtoDalvikMap,
@@ -63,7 +63,7 @@ enum oatListKind {
 };
 
 /* Type of growable bitmap for memory tuning */
-enum oatBitMapKind {
+enum oat_bit_map_kind {
   kBitMapMisc = 0,
   kBitMapUse,
   kBitMapDef,
@@ -84,31 +84,31 @@ enum oatBitMapKind {
 };
 
 /* Allocate the initial memory block for arena-based allocation */
-bool HeapInit(CompilationUnit* cUnit);
+bool HeapInit(CompilationUnit* cu);
 
 /* Collect memory usage statistics */
 //#define WITH_MEMSTATS
 
 struct ArenaMemBlock {
-  size_t blockSize;
-  size_t bytesAllocated;
+  size_t block_size;
+  size_t bytes_allocated;
   ArenaMemBlock *next;
   char ptr[0];
 };
 
-void* NewMem(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind);
+void* NewMem(CompilationUnit* cu, size_t size, bool zero, oat_alloc_kind kind);
 
-void ArenaReset(CompilationUnit *cUnit);
+void ArenaReset(CompilationUnit *cu);
 
 struct GrowableList {
-  GrowableList() : numAllocated(0), numUsed(0), elemList(NULL) {
+  GrowableList() : num_allocated(0), num_used(0), elem_list(NULL) {
   }
 
-  size_t numAllocated;
-  size_t numUsed;
-  uintptr_t* elemList;
+  size_t num_allocated;
+  size_t num_used;
+  uintptr_t* elem_list;
 #ifdef WITH_MEMSTATS
-  oatListKind kind;
+  oat_list_kind kind;
 #endif
 };
 
@@ -126,21 +126,21 @@ struct GrowableListIterator {
  */
 struct ArenaBitVector {
   bool       expandable;     /* expand bitmap if we run out? */
-  uint32_t   storageSize;    /* current size, in 32-bit words */
+  uint32_t   storage_size;    /* current size, in 32-bit words */
   uint32_t*  storage;
 #ifdef WITH_MEMSTATS
-  oatBitMapKind kind;      /* for memory use tuning */
+  oat_bit_map_kind kind;      /* for memory use tuning */
 #endif
 };
 
 /* Handy iterator to walk through the bit positions set to 1 */
 struct ArenaBitVectorIterator {
-  ArenaBitVector* pBits;
+  ArenaBitVector* p_bits;
   uint32_t idx;
-  uint32_t bitSize;
+  uint32_t bit_size;
 };
 
-#define GET_ELEM_N(LIST, TYPE, N) ((reinterpret_cast<TYPE*>(LIST->elemList)[N]))
+#define GET_ELEM_N(LIST, TYPE, N) ((reinterpret_cast<TYPE*>(LIST->elem_list)[N]))
 
 #define BLOCK_NAME_LEN 80
 
@@ -150,29 +150,29 @@ struct CompilationUnit;
 struct LIR;
 struct RegLocation;
 
-void CompilerInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
-                         size_t initLength, oatListKind kind = kListMisc);
-void InsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+void CompilerInitGrowableList(CompilationUnit* cu, GrowableList* g_list,
+                         size_t init_length, oat_list_kind kind = kListMisc);
+void InsertGrowableList(CompilationUnit* cu, GrowableList* g_list,
                            uintptr_t elem);
-void DeleteGrowableList(GrowableList* gList, uintptr_t elem);
-void GrowableListIteratorInit(GrowableList* gList,
+void DeleteGrowableList(GrowableList* g_list, uintptr_t elem);
+void GrowableListIteratorInit(GrowableList* g_list,
                                  GrowableListIterator* iterator);
 uintptr_t GrowableListIteratorNext(GrowableListIterator* iterator);
-uintptr_t GrowableListGetElement(const GrowableList* gList, size_t idx);
+uintptr_t GrowableListGetElement(const GrowableList* g_list, size_t idx);
 
-ArenaBitVector* AllocBitVector(CompilationUnit* cUnit,
-                                  unsigned int startBits, bool expandable,
-                                  oatBitMapKind = kBitMapMisc);
-void BitVectorIteratorInit(ArenaBitVector* pBits,
+ArenaBitVector* AllocBitVector(CompilationUnit* cu,
+                                  unsigned int start_bits, bool expandable,
+                                  oat_bit_map_kind = kBitMapMisc);
+void BitVectorIteratorInit(ArenaBitVector* p_bits,
                               ArenaBitVectorIterator* iterator);
 int BitVectorIteratorNext(ArenaBitVectorIterator* iterator);
-bool SetBit(CompilationUnit *cUnit, ArenaBitVector* pBits, unsigned int num);
-bool ClearBit(ArenaBitVector* pBits, unsigned int num);
-void MarkAllBits(ArenaBitVector* pBits, bool set);
+bool SetBit(CompilationUnit *cu, ArenaBitVector* p_bits, unsigned int num);
+bool ClearBit(ArenaBitVector* p_bits, unsigned int num);
+void MarkAllBits(ArenaBitVector* p_bits, bool set);
 void DebugBitVector(char* msg, const ArenaBitVector* bv, int length);
-bool IsBitSet(const ArenaBitVector* pBits, unsigned int num);
-void ClearAllBits(ArenaBitVector* pBits);
-void SetInitialBits(ArenaBitVector* pBits, unsigned int numBits);
+bool IsBitSet(const ArenaBitVector* p_bits, unsigned int num);
+void ClearAllBits(ArenaBitVector* p_bits);
+void SetInitialBits(ArenaBitVector* p_bits, unsigned int num_bits);
 void CopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src);
 bool IntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                             const ArenaBitVector* src2);
@@ -181,15 +181,15 @@ bool UnifyBitVetors(ArenaBitVector* dest, const ArenaBitVector* src1,
 bool CompareBitVectors(const ArenaBitVector* src1,
                           const ArenaBitVector* src2);
 bool TestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
-int CountSetBits(const ArenaBitVector* pBits);
+int CountSetBits(const ArenaBitVector* p_bits);
 
-void DumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr);
+void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr);
 void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
 void DumpBlockBitVector(const GrowableList* blocks, char* msg,
                            const ArenaBitVector* bv, int length);
 void GetBlockName(BasicBlock* bb, char* name);
 const char* GetShortyFromTargetIdx(CompilationUnit*, int);
-void DumpMemStats(CompilationUnit* cUnit);
+void DumpMemStats(CompilationUnit* cu);
 
 }  // namespace art
 

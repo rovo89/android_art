@@ -21,7 +21,7 @@
 
 namespace art {
 
-void SSATransformation(CompilationUnit* cUnit);
+void SSATransformation(CompilationUnit* cu);
 
 }  // namespace art
 

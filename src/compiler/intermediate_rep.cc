@@ -19,63 +19,63 @@
 namespace art {
 
 /* Allocate a new basic block */
-BasicBlock* NewMemBB(CompilationUnit* cUnit, BBType blockType, int blockId)
+BasicBlock* NewMemBB(CompilationUnit* cu, BBType block_type, int block_id)
 {
-  BasicBlock* bb = static_cast<BasicBlock*>(NewMem(cUnit, sizeof(BasicBlock), true, kAllocBB));
-  bb->blockType = blockType;
-  bb->id = blockId;
+  BasicBlock* bb = static_cast<BasicBlock*>(NewMem(cu, sizeof(BasicBlock), true, kAllocBB));
+  bb->block_type = block_type;
+  bb->id = block_id;
   bb->predecessors = static_cast<GrowableList*>
-      (NewMem(cUnit, sizeof(GrowableList), false, kAllocPredecessors));
-  CompilerInitGrowableList(cUnit, bb->predecessors,
-                      (blockType == kExitBlock) ? 2048 : 2,
+      (NewMem(cu, sizeof(GrowableList), false, kAllocPredecessors));
+  CompilerInitGrowableList(cu, bb->predecessors,
+                      (block_type == kExitBlock) ? 2048 : 2,
                       kListPredecessors);
-  cUnit->blockIdMap.Put(blockId, blockId);
+  cu->block_id_map.Put(block_id, block_id);
   return bb;
 }
 
 /* Insert an MIR instruction to the end of a basic block */
 void AppendMIR(BasicBlock* bb, MIR* mir)
 {
-  if (bb->firstMIRInsn == NULL) {
-    DCHECK(bb->lastMIRInsn == NULL);
-    bb->lastMIRInsn = bb->firstMIRInsn = mir;
+  if (bb->first_mir_insn == NULL) {
+    DCHECK(bb->last_mir_insn == NULL);
+    bb->last_mir_insn = bb->first_mir_insn = mir;
     mir->prev = mir->next = NULL;
   } else {
-    bb->lastMIRInsn->next = mir;
-    mir->prev = bb->lastMIRInsn;
+    bb->last_mir_insn->next = mir;
+    mir->prev = bb->last_mir_insn;
     mir->next = NULL;
-    bb->lastMIRInsn = mir;
+    bb->last_mir_insn = mir;
   }
 }
 
 /* Insert an MIR instruction to the head of a basic block */
 void PrependMIR(BasicBlock* bb, MIR* mir)
 {
-  if (bb->firstMIRInsn == NULL) {
-    DCHECK(bb->lastMIRInsn == NULL);
-    bb->lastMIRInsn = bb->firstMIRInsn = mir;
+  if (bb->first_mir_insn == NULL) {
+    DCHECK(bb->last_mir_insn == NULL);
+    bb->last_mir_insn = bb->first_mir_insn = mir;
     mir->prev = mir->next = NULL;
   } else {
-    bb->firstMIRInsn->prev = mir;
-    mir->next = bb->firstMIRInsn;
+    bb->first_mir_insn->prev = mir;
+    mir->next = bb->first_mir_insn;
     mir->prev = NULL;
-    bb->firstMIRInsn = mir;
+    bb->first_mir_insn = mir;
   }
 }
 
 /* Insert a MIR instruction after the specified MIR */
-void InsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
+void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir)
 {
-  newMIR->prev = currentMIR;
-  newMIR->next = currentMIR->next;
-  currentMIR->next = newMIR;
+  new_mir->prev = current_mir;
+  new_mir->next = current_mir->next;
+  current_mir->next = new_mir;
 
-  if (newMIR->next) {
+  if (new_mir->next) {
     /* Is not the last MIR in the block */
-    newMIR->next->prev = newMIR;
+    new_mir->next->prev = new_mir;
   } else {
     /* Is the last MIR in the block */
-    bb->lastMIRInsn = newMIR;
+    bb->last_mir_insn = new_mir;
   }
 }
 
@@ -83,17 +83,17 @@ void InsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
  * Append an LIR instruction to the LIR list maintained by a compilation
  * unit
  */
-void AppendLIR(CompilationUnit *cUnit, LIR* lir)
+void AppendLIR(CompilationUnit *cu, LIR* lir)
 {
-  if (cUnit->firstLIRInsn == NULL) {
-    DCHECK(cUnit->lastLIRInsn == NULL);
-     cUnit->lastLIRInsn = cUnit->firstLIRInsn = lir;
+  if (cu->first_lir_insn == NULL) {
+    DCHECK(cu->last_lir_insn == NULL);
+     cu->last_lir_insn = cu->first_lir_insn = lir;
     lir->prev = lir->next = NULL;
   } else {
-    cUnit->lastLIRInsn->next = lir;
-    lir->prev = cUnit->lastLIRInsn;
+    cu->last_lir_insn->next = lir;
+    lir->prev = cu->last_lir_insn;
     lir->next = NULL;
-    cUnit->lastLIRInsn = lir;
+    cu->last_lir_insn = lir;
   }
 }
 
@@ -101,31 +101,31 @@ void AppendLIR(CompilationUnit *cUnit, LIR* lir)
  * Insert an LIR instruction before the current instruction, which cannot be the
  * first instruction.
  *
- * prevLIR <-> newLIR <-> currentLIR
+ * prev_lir <-> new_lir <-> current_lir
  */
-void InsertLIRBefore(LIR* currentLIR, LIR* newLIR)
+void InsertLIRBefore(LIR* current_lir, LIR* new_lir)
 {
-  DCHECK(currentLIR->prev != NULL);
-  LIR *prevLIR = currentLIR->prev;
+  DCHECK(current_lir->prev != NULL);
+  LIR *prev_lir = current_lir->prev;
 
-  prevLIR->next = newLIR;
-  newLIR->prev = prevLIR;
-  newLIR->next = currentLIR;
-  currentLIR->prev = newLIR;
+  prev_lir->next = new_lir;
+  new_lir->prev = prev_lir;
+  new_lir->next = current_lir;
+  current_lir->prev = new_lir;
 }
 
 /*
  * Insert an LIR instruction after the current instruction, which cannot be the
  * first instruction.
  *
- * currentLIR -> newLIR -> oldNext
+ * current_lir -> new_lir -> old_next
  */
-void InsertLIRAfter(LIR* currentLIR, LIR* newLIR)
+void InsertLIRAfter(LIR* current_lir, LIR* new_lir)
 {
-  newLIR->prev = currentLIR;
-  newLIR->next = currentLIR->next;
-  currentLIR->next = newLIR;
-  newLIR->next->prev = newLIR;
+  new_lir->prev = current_lir;
+  new_lir->next = current_lir->next;
+  current_lir->next = new_lir;
+  new_lir->next->prev = new_lir;
 }
 
 }  // namespace art

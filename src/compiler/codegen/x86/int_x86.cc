@@ -25,15 +25,15 @@ namespace art {
 /*
  * Perform register memory operation.
  */
-LIR* GenRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
+LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
                     int reg1, int base, int offset, ThrowKind kind)
 {
-  LIR* tgt = RawLIR(cUnit, 0, kPseudoThrowTarget, kind,
-                    cUnit->currentDalvikOffset, reg1, base, offset);
-  OpRegMem(cUnit, kOpCmp, reg1, base, offset);
-  LIR* branch = OpCondBranch(cUnit, cCode, tgt);
+  LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
+                    cu->current_dalvik_offset, reg1, base, offset);
+  OpRegMem(cu, kOpCmp, reg1, base, offset);
+  LIR* branch = OpCondBranch(cu, c_code, tgt);
   // Remember branch target - will process later
-  InsertGrowableList(cUnit, &cUnit->throwLaunchpads, reinterpret_cast<uintptr_t>(tgt));
+  InsertGrowableList(cu, &cu->throw_launchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
 }
 
@@ -53,25 +53,25 @@ LIR* GenRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
  * finish:
  *
  */
-void GenCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) - (r3:r2)
-  OpRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
-  NewLIR2(cUnit, kX86Set8R, r2, kX86CondL);  // r2 = (r1:r0) < (r3:r2) ? 1 : 0
-  NewLIR2(cUnit, kX86Movzx8RR, r2, r2);
-  OpReg(cUnit, kOpNeg, r2);         // r2 = -r2
-  OpRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
-  NewLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r3:r2) ? 1 : 0
-  NewLIR2(cUnit, kX86Movzx8RR, r0, r0);
-  OpRegReg(cUnit, kOpOr, r0, r2);   // r0 = r0 | r2
-  RegLocation rlResult = LocCReturn();
-  StoreValue(cUnit, rlDest, rlResult);
+  OpRegReg(cu, kOpSub, r0, r2);  // r0 = r0 - r2
+  OpRegReg(cu, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+  NewLIR2(cu, kX86Set8R, r2, kX86CondL);  // r2 = (r1:r0) < (r3:r2) ? 1 : 0
+  NewLIR2(cu, kX86Movzx8RR, r2, r2);
+  OpReg(cu, kOpNeg, r2);         // r2 = -r2
+  OpRegReg(cu, kOpOr, r0, r1);   // r0 = high | low - sets ZF
+  NewLIR2(cu, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r3:r2) ? 1 : 0
+  NewLIR2(cu, kX86Movzx8RR, r0, r0);
+  OpRegReg(cu, kOpOr, r0, r2);   // r0 = r0 | r2
+  RegLocation rl_result = LocCReturn();
+  StoreValue(cu, rl_dest, rl_result);
 }
 
 X86ConditionCode X86ConditionEncoding(ConditionCode cond) {
@@ -96,111 +96,111 @@ X86ConditionCode X86ConditionEncoding(ConditionCode cond) {
   return kX86CondO;
 }
 
-LIR* OpCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
+LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
                  int src2, LIR* target)
 {
-  NewLIR2(cUnit, kX86Cmp32RR, src1, src2);
+  NewLIR2(cu, kX86Cmp32RR, src1, src2);
   X86ConditionCode cc = X86ConditionEncoding(cond);
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ ,
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0 /* lir operand for Jcc offset */ ,
                         cc);
   branch->target = target;
   return branch;
 }
 
-LIR* OpCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-                    int checkValue, LIR* target)
+LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
+                    int check_value, LIR* target)
 {
-  if ((checkValue == 0) && (cond == kCondEq || cond == kCondNe)) {
-    // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
-    NewLIR2(cUnit, kX86Test32RR, reg, reg);
+  if ((check_value == 0) && (cond == kCondEq || cond == kCondNe)) {
+    // TODO: when check_value == 0 and reg is rCX, use the jcxz/nz opcode
+    NewLIR2(cu, kX86Test32RR, reg, reg);
   } else {
-    NewLIR2(cUnit, IS_SIMM8(checkValue) ? kX86Cmp32RI8 : kX86Cmp32RI, reg, checkValue);
+    NewLIR2(cu, IS_SIMM8(check_value) ? kX86Cmp32RI8 : kX86Cmp32RI, reg, check_value);
   }
   X86ConditionCode cc = X86ConditionEncoding(cond);
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
   branch->target = target;
   return branch;
 }
 
-LIR* OpRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
 {
-  if (X86_FPREG(rDest) || X86_FPREG(rSrc))
-    return FpRegCopy(cUnit, rDest, rSrc);
-  LIR* res = RawLIR(cUnit, cUnit->currentDalvikOffset, kX86Mov32RR,
-                    rDest, rSrc);
-  if (rDest == rSrc) {
-    res->flags.isNop = true;
+  if (X86_FPREG(r_dest) || X86_FPREG(r_src))
+    return FpRegCopy(cu, r_dest, r_src);
+  LIR* res = RawLIR(cu, cu->current_dalvik_offset, kX86Mov32RR,
+                    r_dest, r_src);
+  if (r_dest == r_src) {
+    res->flags.is_nop = true;
   }
   return res;
 }
 
-LIR* OpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
-  LIR *res = OpRegCopyNoInsert(cUnit, rDest, rSrc);
-  AppendLIR(cUnit, res);
+  LIR *res = OpRegCopyNoInsert(cu, r_dest, r_src);
+  AppendLIR(cu, res);
   return res;
 }
 
-void OpRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-                   int srcLo, int srcHi)
+void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
+                   int src_lo, int src_hi)
 {
-  bool destFP = X86_FPREG(destLo) && X86_FPREG(destHi);
-  bool srcFP = X86_FPREG(srcLo) && X86_FPREG(srcHi);
-  assert(X86_FPREG(srcLo) == X86_FPREG(srcHi));
-  assert(X86_FPREG(destLo) == X86_FPREG(destHi));
-  if (destFP) {
-    if (srcFP) {
-      OpRegCopy(cUnit, S2d(destLo, destHi), S2d(srcLo, srcHi));
+  bool dest_fp = X86_FPREG(dest_lo) && X86_FPREG(dest_hi);
+  bool src_fp = X86_FPREG(src_lo) && X86_FPREG(src_hi);
+  assert(X86_FPREG(src_lo) == X86_FPREG(src_hi));
+  assert(X86_FPREG(dest_lo) == X86_FPREG(dest_hi));
+  if (dest_fp) {
+    if (src_fp) {
+      OpRegCopy(cu, S2d(dest_lo, dest_hi), S2d(src_lo, src_hi));
     } else {
       // TODO: Prevent this from happening in the code. The result is often
       // unused or could have been loaded more easily from memory.
-      NewLIR2(cUnit, kX86MovdxrRR, destLo, srcLo);
-      NewLIR2(cUnit, kX86MovdxrRR, destHi, srcHi);
-      NewLIR2(cUnit, kX86PsllqRI, destHi, 32);
-      NewLIR2(cUnit, kX86OrpsRR, destLo, destHi);
+      NewLIR2(cu, kX86MovdxrRR, dest_lo, src_lo);
+      NewLIR2(cu, kX86MovdxrRR, dest_hi, src_hi);
+      NewLIR2(cu, kX86PsllqRI, dest_hi, 32);
+      NewLIR2(cu, kX86OrpsRR, dest_lo, dest_hi);
     }
   } else {
-    if (srcFP) {
-      NewLIR2(cUnit, kX86MovdrxRR, destLo, srcLo);
-      NewLIR2(cUnit, kX86PsrlqRI, srcLo, 32);
-      NewLIR2(cUnit, kX86MovdrxRR, destHi, srcLo);
+    if (src_fp) {
+      NewLIR2(cu, kX86MovdrxRR, dest_lo, src_lo);
+      NewLIR2(cu, kX86PsrlqRI, src_lo, 32);
+      NewLIR2(cu, kX86MovdrxRR, dest_hi, src_lo);
     } else {
       // Handle overlap
-      if (srcHi == destLo) {
-        OpRegCopy(cUnit, destHi, srcHi);
-        OpRegCopy(cUnit, destLo, srcLo);
+      if (src_hi == dest_lo) {
+        OpRegCopy(cu, dest_hi, src_hi);
+        OpRegCopy(cu, dest_lo, src_lo);
       } else {
-        OpRegCopy(cUnit, destLo, srcLo);
-        OpRegCopy(cUnit, destHi, srcHi);
+        OpRegCopy(cu, dest_lo, src_lo);
+        OpRegCopy(cu, dest_hi, src_hi);
       }
     }
   }
 }
 
-void GenFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir) {
-  LIR* labelList = cUnit->blockLabelList;
-  LIR* taken = &labelList[bb->taken->id];
-  RegLocation rlSrc1 = GetSrcWide(cUnit, mir, 0);
-  RegLocation rlSrc2 = GetSrcWide(cUnit, mir, 2);
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) {
+  LIR* label_list = cu->block_label_list;
+  LIR* taken = &label_list[bb->taken->id];
+  RegLocation rl_src1 = GetSrcWide(cu, mir, 0);
+  RegLocation rl_src2 = GetSrcWide(cu, mir, 2);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   // Swap operands and condition code to prevent use of zero flag.
   if (ccode == kCondLe || ccode == kCondGt) {
     // Compute (r3:r2) = (r3:r2) - (r1:r0)
-    OpRegReg(cUnit, kOpSub, r2, r0);  // r2 = r2 - r0
-    OpRegReg(cUnit, kOpSbc, r3, r1);  // r3 = r3 - r1 - CF
+    OpRegReg(cu, kOpSub, r2, r0);  // r2 = r2 - r0
+    OpRegReg(cu, kOpSbc, r3, r1);  // r3 = r3 - r1 - CF
   } else {
     // Compute (r1:r0) = (r1:r0) - (r3:r2)
-    OpRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
-    OpRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+    OpRegReg(cu, kOpSub, r0, r2);  // r0 = r0 - r2
+    OpRegReg(cu, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
   }
   switch (ccode) {
     case kCondEq:
     case kCondNe:
-      OpRegReg(cUnit, kOpOr, r0, r1);  // r0 = r0 | r1
+      OpRegReg(cu, kOpOr, r0, r1);  // r0 = r0 | r1
       break;
     case kCondLe:
       ccode = kCondGe;
@@ -214,217 +214,217 @@ void GenFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir) {
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
-  OpCondBranch(cUnit, ccode, taken);
+  OpCondBranch(cu, ccode, taken);
 }
-RegLocation GenDivRemLit(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int lit, bool isDiv)
+RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int lit, bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for x86";
-  return rlDest;
+  return rl_dest;
 }
 
-RegLocation GenDivRem(CompilationUnit* cUnit, RegLocation rlDest, int regLo, int regHi, bool isDiv)
+RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRem for x86";
-  return rlDest;
+  return rl_dest;
 }
 
-bool GenInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
+bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
 {
-  DCHECK_EQ(cUnit->instructionSet, kX86);
-  RegLocation rlSrc1 = info->args[0];
-  RegLocation rlSrc2 = info->args[1];
-  rlSrc1 = LoadValue(cUnit, rlSrc1, kCoreReg);
-  rlSrc2 = LoadValue(cUnit, rlSrc2, kCoreReg);
-  RegLocation rlDest = InlineTarget(cUnit, info);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  OpRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
-  DCHECK_EQ(cUnit->instructionSet, kX86);
-  LIR* branch = NewLIR2(cUnit, kX86Jcc8, 0, isMin ? kX86CondG : kX86CondL);
-  OpRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
-  LIR* branch2 = NewLIR1(cUnit, kX86Jmp8, 0);
-  branch->target = NewLIR0(cUnit, kPseudoTargetLabel);
-  OpRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
-  branch2->target = NewLIR0(cUnit, kPseudoTargetLabel);
-  StoreValue(cUnit, rlDest, rlResult);
+  DCHECK_EQ(cu->instruction_set, kX86);
+  RegLocation rl_src1 = info->args[0];
+  RegLocation rl_src2 = info->args[1];
+  rl_src1 = LoadValue(cu, rl_src1, kCoreReg);
+  rl_src2 = LoadValue(cu, rl_src2, kCoreReg);
+  RegLocation rl_dest = InlineTarget(cu, info);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  OpRegReg(cu, kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
+  DCHECK_EQ(cu->instruction_set, kX86);
+  LIR* branch = NewLIR2(cu, kX86Jcc8, 0, is_min ? kX86CondG : kX86CondL);
+  OpRegReg(cu, kOpMov, rl_result.low_reg, rl_src1.low_reg);
+  LIR* branch2 = NewLIR1(cu, kX86Jmp8, 0);
+  branch->target = NewLIR0(cu, kPseudoTargetLabel);
+  OpRegReg(cu, kOpMov, rl_result.low_reg, rl_src2.low_reg);
+  branch2->target = NewLIR0(cu, kPseudoTargetLabel);
+  StoreValue(cu, rl_dest, rl_result);
   return true;
 }
 
-void OpLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int offset)
+void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
 {
-  NewLIR5(cUnit, kX86Lea32RA, rBase, reg1, reg2, scale, offset);
+  NewLIR5(cu, kX86Lea32RA, rBase, reg1, reg2, scale, offset);
 }
 
-void OpTlsCmp(CompilationUnit* cUnit, int offset, int val)
+void OpTlsCmp(CompilationUnit* cu, int offset, int val)
 {
-  NewLIR2(cUnit, kX86Cmp16TI8, offset, val);
+  NewLIR2(cu, kX86Cmp16TI8, offset, val);
 }
 
-bool GenInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
-  DCHECK_NE(cUnit->instructionSet, kThumb2);
+bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
+  DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-LIR* OpPcRelLoad(CompilationUnit* cUnit, int reg, LIR* target) {
+LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for x86";
   return NULL;
 }
 
-LIR* OpVldm(CompilationUnit* cUnit, int rBase, int count)
+LIR* OpVldm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVldm for x86";
   return NULL;
 }
 
-LIR* OpVstm(CompilationUnit* cUnit, int rBase, int count)
+LIR* OpVstm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVstm for x86";
   return NULL;
 }
 
-void GenMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
-                                   RegLocation rlResult, int lit,
-                                   int firstBit, int secondBit)
+void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
+                                   RegLocation rl_result, int lit,
+                                   int first_bit, int second_bit)
 {
-  int tReg = AllocTemp(cUnit);
-  OpRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, secondBit - firstBit);
-  OpRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, tReg);
-  FreeTemp(cUnit, tReg);
-  if (firstBit != 0) {
-    OpRegRegImm(cUnit, kOpLsl, rlResult.lowReg, rlResult.lowReg, firstBit);
+  int t_reg = AllocTemp(cu);
+  OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
+  OpRegRegReg(cu, kOpAdd, rl_result.low_reg, rl_src.low_reg, t_reg);
+  FreeTemp(cu, t_reg);
+  if (first_bit != 0) {
+    OpRegRegImm(cu, kOpLsl, rl_result.low_reg, rl_result.low_reg, first_bit);
   }
 }
 
-void GenDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
+void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 {
-  int tReg = AllocTemp(cUnit);
-  OpRegRegReg(cUnit, kOpOr, tReg, regLo, regHi);
-  GenImmedCheck(cUnit, kCondEq, tReg, 0, kThrowDivZero);
-  FreeTemp(cUnit, tReg);
+  int t_reg = AllocTemp(cu);
+  OpRegRegReg(cu, kOpOr, t_reg, reg_lo, reg_hi);
+  GenImmedCheck(cu, kCondEq, t_reg, 0, kThrowDivZero);
+  FreeTemp(cu, t_reg);
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* OpTestSuspend(CompilationUnit* cUnit, LIR* target)
+LIR* OpTestSuspend(CompilationUnit* cu, LIR* target)
 {
-  OpTlsCmp(cUnit, Thread::ThreadFlagsOffset().Int32Value(), 0);
-  return OpCondBranch(cUnit, (target == NULL) ? kCondNe : kCondEq, target);
+  OpTlsCmp(cu, Thread::ThreadFlagsOffset().Int32Value(), 0);
+  return OpCondBranch(cu, (target == NULL) ? kCondNe : kCondEq, target);
 }
 
 // Decrement register and branch on condition
-LIR* OpDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* target)
+LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
 {
-  OpRegImm(cUnit, kOpSub, reg, 1);
-  return OpCmpImmBranch(cUnit, cCode, reg, 0, target);
+  OpRegImm(cu, kOpSub, reg, 1);
+  return OpCmpImmBranch(cu, c_code, reg, 0, target);
 }
 
-bool SmallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
-                        RegLocation rlSrc, RegLocation rlDest, int lit)
+bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
+                        RegLocation rl_src, RegLocation rl_dest, int lit)
 {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in x86";
   return false;
 }
 
-LIR* OpIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide)
+LIR* OpIT(CompilationUnit* cu, ArmConditionCode cond, const char* guide)
 {
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   return NULL;
 }
-bool GenAddLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cUnit, kOpAdd, r0, r2);  // r0 = r0 + r2
-  OpRegReg(cUnit, kOpAdc, r1, r3);  // r1 = r1 + r3 + CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpAdd, r0, r2);  // r0 = r0 + r2
+  OpRegReg(cu, kOpAdc, r1, r3);  // r1 = r1 + r3 + CF
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenSubLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpSub, r0, r2);  // r0 = r0 - r2
+  OpRegReg(cu, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenAndLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cUnit, kOpAnd, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cUnit, kOpAnd, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpAnd, r0, r2);  // r0 = r0 - r2
+  OpRegReg(cu, kOpAnd, r1, r3);  // r1 = r1 - r3 - CF
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenOrLong(CompilationUnit* cUnit, RegLocation rlDest,
-               RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
+               RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cUnit, kOpOr, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cUnit, kOpOr, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpOr, r0, r2);  // r0 = r0 - r2
+  OpRegReg(cu, kOpOr, r1, r3);  // r1 = r1 - r3 - CF
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenXorLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  LoadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
+  LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cUnit, kOpXor, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cUnit, kOpXor, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpXor, r0, r2);  // r0 = r0 - r2
+  OpRegReg(cu, kOpXor, r1, r3);  // r1 = r1 - r3 - CF
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenNegLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc)
+bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src)
 {
-  FlushAllRegs(cUnit);
-  LockCallTemps(cUnit);  // Prepare for explicit register usage
-  LoadValueDirectWideFixed(cUnit, rlSrc, r0, r1);
+  FlushAllRegs(cu);
+  LockCallTemps(cu);  // Prepare for explicit register usage
+  LoadValueDirectWideFixed(cu, rl_src, r0, r1);
   // Compute (r1:r0) = -(r1:r0)
-  OpRegReg(cUnit, kOpNeg, r0, r0);  // r0 = -r0
-  OpRegImm(cUnit, kOpAdc, r1, 0);   // r1 = r1 + CF
-  OpRegReg(cUnit, kOpNeg, r1, r1);  // r1 = -r1
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
+  OpRegReg(cu, kOpNeg, r0, r0);  // r0 = -r0
+  OpRegImm(cu, kOpAdc, r1, 0);   // r1 = r1 + CF
+  OpRegReg(cu, kOpNeg, r1, r1);  // r1 = -r1
+  RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
-  StoreValueWide(cUnit, rlDest, rlResult);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-void OpRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffset) {
+void OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;
@@ -432,7 +432,7 @@ void OpRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffs
     LOG(FATAL) << "Bad opcode: " << op;
     break;
   }
-  NewLIR2(cUnit, opcode, rDest, threadOffset);
+  NewLIR2(cu, opcode, r_dest, thread_offset);
 }
 
 }  // namespace art

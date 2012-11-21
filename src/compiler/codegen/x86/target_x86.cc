@@ -24,21 +24,21 @@
 namespace art {
 
 //FIXME: restore "static" when usage uncovered
-/*static*/ int coreRegs[] = {
+/*static*/ int core_regs[] = {
   rAX, rCX, rDX, rBX, rX86_SP, rBP, rSI, rDI
 #ifdef TARGET_REX_SUPPORT
   r8, r9, r10, r11, r12, r13, r14, 15
 #endif
 };
 /*static*/ int ReservedRegs[] = {rX86_SP};
-/*static*/ int coreTemps[] = {rAX, rCX, rDX, rBX};
+/*static*/ int core_temps[] = {rAX, rCX, rDX, rBX};
 /*static*/ int FpRegs[] = {
   fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
 #ifdef TARGET_REX_SUPPORT
   fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
 #endif
 };
-/*static*/ int fpTemps[] = {
+/*static*/ int fp_temps[] = {
   fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
 #ifdef TARGET_REX_SUPPORT
   fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
@@ -95,9 +95,9 @@ int TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int S2d(int lowReg, int highReg)
+int S2d(int low_reg, int high_reg)
 {
-  return X86_S2D(lowReg, highReg);
+  return X86_S2D(low_reg, high_reg);
 }
 
 // Is reg a single or double?
@@ -133,19 +133,19 @@ bool SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t GetRegMaskCommon(CompilationUnit* cUnit, int reg)
+uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
 {
   uint64_t seed;
   int shift;
-  int regId;
+  int reg_id;
 
-  regId = reg & 0xf;
+  reg_id = reg & 0xf;
   /* Double registers in x86 are just a single FP register */
   seed = 1;
   /* FP register starts at bit position 16 */
   shift = X86_FPREG(reg) ? kX86FPReg0 : 0;
   /* Expand the double register id into single offset */
-  shift += regId;
+  shift += reg_id;
   return (seed << shift);
 }
 
@@ -159,38 +159,38 @@ uint64_t GetPCUseDefEncoding()
   return 0ULL;
 }
 
-void SetupTargetResourceMasks(CompilationUnit* cUnit, LIR* lir)
+void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 {
-  DCHECK_EQ(cUnit->instructionSet, kX86);
+  DCHECK_EQ(cu->instruction_set, kX86);
 
   // X86-specific resource map setup here.
   uint64_t flags = EncodingMap[lir->opcode].flags;
 
   if (flags & REG_USE_SP) {
-    lir->useMask |= ENCODE_X86_REG_SP;
+    lir->use_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEF_SP) {
-    lir->defMask |= ENCODE_X86_REG_SP;
+    lir->def_mask |= ENCODE_X86_REG_SP;
   }
 
   if (flags & REG_DEFA) {
-    SetupRegMask(cUnit, &lir->defMask, rAX);
+    SetupRegMask(cu, &lir->def_mask, rAX);
   }
 
   if (flags & REG_DEFD) {
-    SetupRegMask(cUnit, &lir->defMask, rDX);
+    SetupRegMask(cu, &lir->def_mask, rDX);
   }
   if (flags & REG_USEA) {
-    SetupRegMask(cUnit, &lir->useMask, rAX);
+    SetupRegMask(cu, &lir->use_mask, rAX);
   }
 
   if (flags & REG_USEC) {
-    SetupRegMask(cUnit, &lir->useMask, rCX);
+    SetupRegMask(cu, &lir->use_mask, rCX);
   }
 
   if (flags & REG_USED) {
-    SetupRegMask(cUnit, &lir->useMask, rDX);
+    SetupRegMask(cu, &lir->use_mask, rDX);
   }
 }
 
@@ -223,7 +223,7 @@ static const char* x86CondName[] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.cc.
  */
-std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) {
+std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
   std::string buf;
   size_t i = 0;
   size_t fmt_len = strlen(fmt);
@@ -252,8 +252,8 @@ std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
             buf += StringPrintf("%d", operand);
             break;
           case 'p': {
-            SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(operand);
-            buf += StringPrintf("0x%08x", tabRec->offset);
+            SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(operand);
+            buf += StringPrintf("0x%08x", tab_rec->offset);
             break;
           }
           case 'r':
@@ -267,7 +267,7 @@ std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
             break;
           case 't':
             buf += StringPrintf("0x%08x (L%p)",
-                                reinterpret_cast<uint32_t>(baseAddr)
+                                reinterpret_cast<uint32_t>(base_addr)
                                 + lir->offset + operand, lir->target);
             break;
           default:
@@ -304,8 +304,8 @@ void DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
     }
     /* Memory bits */
     if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
-      sprintf(buf + strlen(buf), "dr%d%s", x86LIR->aliasInfo & 0xffff,
-              (x86LIR->aliasInfo & 0x80000000) ? "(+1)" : "");
+      sprintf(buf + strlen(buf), "dr%d%s", x86LIR->alias_info & 0xffff,
+              (x86LIR->alias_info & 0x80000000) ? "(+1)" : "");
     }
     if (mask & ENCODE_LITERAL) {
       strcat(buf, "lit ");
@@ -322,10 +322,10 @@ void DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
     LOG(INFO) << prefix << ": " <<  buf;
   }
 }
-void AdjustSpillMask(CompilationUnit* cUnit) {
+void AdjustSpillMask(CompilationUnit* cu) {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
-  cUnit->coreSpillMask |= (1 << rRET);
-  cUnit->numCoreSpills++;
+  cu->core_spill_mask |= (1 << rRET);
+  cu->num_core_spills++;
 }
 
 /*
@@ -334,7 +334,7 @@ void AdjustSpillMask(CompilationUnit* cUnit) {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void MarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
+void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
 {
   UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
 #if 0
@@ -342,35 +342,35 @@ void MarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 #endif
 }
 
-void FlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
+void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 {
-  RegisterInfo* info1 = GetRegInfo(cUnit, reg1);
-  RegisterInfo* info2 = GetRegInfo(cUnit, reg2);
+  RegisterInfo* info1 = GetRegInfo(cu, reg1);
+  RegisterInfo* info2 = GetRegInfo(cu, reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
          (info1->partner == info2->reg) &&
          (info2->partner == info1->reg));
   if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
-    if (!(info1->isTemp && info2->isTemp)) {
-      /* Should not happen.  If it does, there's a problem in evalLoc */
+    if (!(info1->is_temp && info2->is_temp)) {
+      /* Should not happen.  If it does, there's a problem in eval_loc */
       LOG(FATAL) << "Long half-temp, half-promoted";
     }
 
     info1->dirty = false;
     info2->dirty = false;
-    if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
+    if (SRegToVReg(cu, info2->s_reg) < SRegToVReg(cu, info1->s_reg))
       info1 = info2;
-    int vReg = SRegToVReg(cUnit, info1->sReg);
-    StoreBaseDispWide(cUnit, rX86_SP, VRegOffset(cUnit, vReg), info1->reg, info1->partner);
+    int v_reg = SRegToVReg(cu, info1->s_reg);
+    StoreBaseDispWide(cu, rX86_SP, VRegOffset(cu, v_reg), info1->reg, info1->partner);
   }
 }
 
-void FlushReg(CompilationUnit* cUnit, int reg)
+void FlushReg(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* info = GetRegInfo(cUnit, reg);
+  RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
     info->dirty = false;
-    int vReg = SRegToVReg(cUnit, info->sReg);
-    StoreBaseDisp(cUnit, rX86_SP, VRegOffset(cUnit, vReg), reg, kWord);
+    int v_reg = SRegToVReg(cu, info->s_reg);
+    StoreBaseDisp(cu, rX86_SP, VRegOffset(cu, v_reg), reg, kWord);
   }
 }
 
@@ -380,56 +380,56 @@ bool IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ClobberCalleeSave(CompilationUnit *cUnit)
+void ClobberCalleeSave(CompilationUnit *cu)
 {
-  Clobber(cUnit, rAX);
-  Clobber(cUnit, rCX);
-  Clobber(cUnit, rDX);
+  Clobber(cu, rAX);
+  Clobber(cu, rCX);
+  Clobber(cu, rDX);
 }
 
-RegLocation GetReturnWideAlt(CompilationUnit* cUnit) {
+RegLocation GetReturnWideAlt(CompilationUnit* cu) {
   RegLocation res = LocCReturnWide();
-  CHECK(res.lowReg == rAX);
-  CHECK(res.highReg == rDX);
-  Clobber(cUnit, rAX);
-  Clobber(cUnit, rDX);
-  MarkInUse(cUnit, rAX);
-  MarkInUse(cUnit, rDX);
-  MarkPair(cUnit, res.lowReg, res.highReg);
+  CHECK(res.low_reg == rAX);
+  CHECK(res.high_reg == rDX);
+  Clobber(cu, rAX);
+  Clobber(cu, rDX);
+  MarkInUse(cu, rAX);
+  MarkInUse(cu, rDX);
+  MarkPair(cu, res.low_reg, res.high_reg);
   return res;
 }
 
-RegLocation GetReturnAlt(CompilationUnit* cUnit)
+RegLocation GetReturnAlt(CompilationUnit* cu)
 {
   RegLocation res = LocCReturn();
-  res.lowReg = rDX;
-  Clobber(cUnit, rDX);
-  MarkInUse(cUnit, rDX);
+  res.low_reg = rDX;
+  Clobber(cu, rDX);
+  MarkInUse(cu, rDX);
   return res;
 }
 
-RegisterInfo* GetRegInfo(CompilationUnit* cUnit, int reg)
+RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg)
 {
-  return X86_FPREG(reg) ? &cUnit->regPool->FPRegs[reg & X86_FP_REG_MASK]
-                    : &cUnit->regPool->coreRegs[reg];
+  return X86_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & X86_FP_REG_MASK]
+                    : &cu->reg_pool->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void LockCallTemps(CompilationUnit* cUnit)
+void LockCallTemps(CompilationUnit* cu)
 {
-  LockTemp(cUnit, rX86_ARG0);
-  LockTemp(cUnit, rX86_ARG1);
-  LockTemp(cUnit, rX86_ARG2);
-  LockTemp(cUnit, rX86_ARG3);
+  LockTemp(cu, rX86_ARG0);
+  LockTemp(cu, rX86_ARG1);
+  LockTemp(cu, rX86_ARG2);
+  LockTemp(cu, rX86_ARG3);
 }
 
 /* To be used when explicitly managing register use */
-void FreeCallTemps(CompilationUnit* cUnit)
+void FreeCallTemps(CompilationUnit* cu)
 {
-  FreeTemp(cUnit, rX86_ARG0);
-  FreeTemp(cUnit, rX86_ARG1);
-  FreeTemp(cUnit, rX86_ARG2);
-  FreeTemp(cUnit, rX86_ARG3);
+  FreeTemp(cu, rX86_ARG0);
+  FreeTemp(cu, rX86_ARG1);
+  FreeTemp(cu, rX86_ARG2);
+  FreeTemp(cu, rX86_ARG3);
 }
 
 /* Architecture-specific initializations and checks go here */
@@ -438,128 +438,128 @@ bool ArchVariantInit(void)
   return true;
 }
 
-void GenMemBarrier(CompilationUnit *cUnit, MemBarrierKind barrierKind)
+void GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
 {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
-  NewLIR0(cUnit, kX86Mfence);
+  NewLIR0(cu, kX86Mfence);
 #endif
 }
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int AllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
-                          int regClass)
+int AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
+                          int reg_class)
 {
-  int highReg;
-  int lowReg;
+  int high_reg;
+  int low_reg;
   int res = 0;
 
-  if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
-    lowReg = AllocTempDouble(cUnit);
-    highReg = lowReg + 1;
-    res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
+  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
+    low_reg = AllocTempDouble(cu);
+    high_reg = low_reg + 1;
+    res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
     return res;
   }
 
-  lowReg = AllocTemp(cUnit);
-  highReg = AllocTemp(cUnit);
-  res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
+  low_reg = AllocTemp(cu);
+  high_reg = AllocTemp(cu);
+  res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
   return res;
 }
 
-int AllocTypedTemp(CompilationUnit *cUnit, bool fpHint, int regClass) {
-  if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
-    return AllocTempFloat(cUnit);
+int AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class) {
+  if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
+    return AllocTempFloat(cu);
   }
-  return AllocTemp(cUnit);
+  return AllocTemp(cu);
 }
 
-void CompilerInitializeRegAlloc(CompilationUnit* cUnit) {
-  int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
-  int numReserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
-  int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
-  int numFPRegs = sizeof(FpRegs)/sizeof(*FpRegs);
-  int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
+void CompilerInitializeRegAlloc(CompilationUnit* cu) {
+  int num_regs = sizeof(core_regs)/sizeof(*core_regs);
+  int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
+  int num_temps = sizeof(core_temps)/sizeof(*core_temps);
+  int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
+  int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
   RegisterPool *pool =
-      static_cast<RegisterPool*>(NewMem(cUnit, sizeof(*pool), true, kAllocRegAlloc));
-  cUnit->regPool = pool;
-  pool->numCoreRegs = numRegs;
-  pool->coreRegs =
-      static_cast<RegisterInfo*>(NewMem(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+      static_cast<RegisterPool*>(NewMem(cu, sizeof(*pool), true, kAllocRegAlloc));
+  cu->reg_pool = pool;
+  pool->num_core_regs = num_regs;
+  pool->core_regs =
+      static_cast<RegisterInfo*>(NewMem(cu, num_regs * sizeof(*cu->reg_pool->core_regs),
                                              true, kAllocRegAlloc));
-  pool->numFPRegs = numFPRegs;
+  pool->num_fp_regs = num_fp_regs;
   pool->FPRegs =
-      static_cast<RegisterInfo *>(NewMem(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs),
+      static_cast<RegisterInfo *>(NewMem(cu, num_fp_regs * sizeof(*cu->reg_pool->FPRegs),
                                               true, kAllocRegAlloc));
-  CompilerInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
-  CompilerInitPool(pool->FPRegs, FpRegs, pool->numFPRegs);
+  CompilerInitPool(pool->core_regs, core_regs, pool->num_core_regs);
+  CompilerInitPool(pool->FPRegs, FpRegs, pool->num_fp_regs);
   // Keep special registers from being allocated
-  for (int i = 0; i < numReserved; i++) {
-    MarkInUse(cUnit, ReservedRegs[i]);
+  for (int i = 0; i < num_reserved; i++) {
+    MarkInUse(cu, ReservedRegs[i]);
   }
   // Mark temp regs - all others not in use can be used for promotion
-  for (int i = 0; i < numTemps; i++) {
-    MarkTemp(cUnit, coreTemps[i]);
+  for (int i = 0; i < num_temps; i++) {
+    MarkTemp(cu, core_temps[i]);
   }
-  for (int i = 0; i < numFPTemps; i++) {
-    MarkTemp(cUnit, fpTemps[i]);
+  for (int i = 0; i < num_fp_temps; i++) {
+    MarkTemp(cu, fp_temps[i]);
   }
   // Construct the alias map.
-  cUnit->phiAliasMap = static_cast<int*>
-      (NewMem(cUnit, cUnit->numSSARegs * sizeof(cUnit->phiAliasMap[0]), false, kAllocDFInfo));
-  for (int i = 0; i < cUnit->numSSARegs; i++) {
-    cUnit->phiAliasMap[i] = i;
+  cu->phi_alias_map = static_cast<int*>
+      (NewMem(cu, cu->num_ssa_regs * sizeof(cu->phi_alias_map[0]), false, kAllocDFInfo));
+  for (int i = 0; i < cu->num_ssa_regs; i++) {
+    cu->phi_alias_map[i] = i;
   }
-  for (MIR* phi = cUnit->phiList; phi; phi = phi->meta.phiNext) {
-    int defReg = phi->ssaRep->defs[0];
-    for (int i = 0; i < phi->ssaRep->numUses; i++) {
-      for (int j = 0; j < cUnit->numSSARegs; j++) {
-        if (cUnit->phiAliasMap[j] == phi->ssaRep->uses[i]) {
-          cUnit->phiAliasMap[j] = defReg;
+  for (MIR* phi = cu->phi_list; phi; phi = phi->meta.phi_next) {
+    int def_reg = phi->ssa_rep->defs[0];
+    for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
+      for (int j = 0; j < cu->num_ssa_regs; j++) {
+        if (cu->phi_alias_map[j] == phi->ssa_rep->uses[i]) {
+          cu->phi_alias_map[j] = def_reg;
         }
       }
     }
   }
 }
 
-void FreeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
-                     RegLocation rlFree)
+void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
+                     RegLocation rl_free)
 {
-  if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
-      (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
+  if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
+      (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
-    FreeTemp(cUnit, rlFree.lowReg);
-    FreeTemp(cUnit, rlFree.highReg);
+    FreeTemp(cu, rl_free.low_reg);
+    FreeTemp(cu, rl_free.high_reg);
   }
 }
 
-void SpillCoreRegs(CompilationUnit* cUnit) {
-  if (cUnit->numCoreSpills == 0) {
+void SpillCoreRegs(CompilationUnit* cu) {
+  if (cu->num_core_spills == 0) {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
-  int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
+  uint32_t mask = cu->core_spill_mask & ~(1 << rRET);
+  int offset = cu->frame_size - (4 * cu->num_core_spills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      StoreWordDisp(cUnit, rX86_SP, offset, reg);
+      StoreWordDisp(cu, rX86_SP, offset, reg);
       offset += 4;
     }
   }
 }
 
-void UnSpillCoreRegs(CompilationUnit* cUnit) {
-  if (cUnit->numCoreSpills == 0) {
+void UnSpillCoreRegs(CompilationUnit* cu) {
+  if (cu->num_core_spills == 0) {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
-  int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
+  uint32_t mask = cu->core_spill_mask & ~(1 << rRET);
+  int offset = cu->frame_size - (4 * cu->num_core_spills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      LoadWordDisp(cUnit, rX86_SP, offset, reg);
+      LoadWordDisp(cu, rX86_SP, offset, reg);
       offset += 4;
     }
   }
@@ -586,7 +586,7 @@ bool ArchInit() {
 }
 
 // Not used in x86
-int LoadHelper(CompilationUnit* cUnit, int offset)
+int LoadHelper(CompilationUnit* cu, int offset)
 {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;

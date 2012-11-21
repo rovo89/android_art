@@ -99,7 +99,7 @@ namespace art {
  * | OUT[outs-2]            |
  * |       .                |
  * | OUT[0]                 |
- * | curMethod*             | <<== sp w/ 16-byte alignment
+ * | cur_method*            | <<== sp w/ 16-byte alignment
  * +========================+
  */
 
@@ -128,7 +128,7 @@ namespace art {
 #define X86_FP_REG_MASK 0xF
 
 /* RegisterLocation templates return values (rAX, rAX/rDX or XMM0) */
-//                               location,     wide, defined, const, fp, core, ref, highWord, home, lowReg, highReg,     sRegLow
+//                               location,     wide, defined, const, fp, core, ref, high_word, home, low_reg, high_reg,     s_reg_low
 #define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
 #define X86_LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
@@ -384,7 +384,7 @@ enum X86OpCode {
   kX86Last
 };
 
-/* Instruction assembly fieldLoc kind */
+/* Instruction assembly field_loc kind */
 enum X86EncodingKind {
   kData,                                   // Special case for raw data.
   kNop,                                    // Special case for variable length nop.

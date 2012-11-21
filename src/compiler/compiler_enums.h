@@ -63,7 +63,7 @@ enum BBType {
 };
 
 /*
- * Def/Use encoding in 64-bit useMask/defMask.  Low positions used for target-specific
+ * Def/Use encoding in 64-bit use_mask/def_mask.  Low positions used for target-specific
  * registers (and typically use the register number as the position).  High positions
  * reserved for common and abstract resources.
  */
@@ -72,7 +72,7 @@ enum ResourceEncodingPos {
   kMustNotAlias = 63,
   kHeapRef = 62,          // Default memory reference type
   kLiteral = 61,          // Literal pool memory reference
-  kDalvikReg = 60,        // Dalvik vReg memory reference
+  kDalvikReg = 60,        // Dalvik v_reg memory reference
   kFPStatus = 59,
   kCCode = 58,
   kLowestCommonResource = kCCode
@@ -130,7 +130,7 @@ enum MIROptimizationFlagPositons {
   kMIRMark,                           // Temporary node mark
 };
 
-/* For successorBlockList */
+/* For successor_block_list */
 enum BlockListType {
   kNotUsed = 0,
   kCatch,

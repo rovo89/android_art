@@ -987,24 +987,24 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
-                    uintptr_t startAddr)
+AssemblerStatus AssembleInstructions(CompilationUnit* cu,
+                    uintptr_t start_addr)
 {
   LIR* lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cu->first_lir_insn; lir; lir = NEXT_LIR(lir)) {
 
     if (lir->opcode < 0) {
       /* 1 means padding is needed */
       if ((lir->opcode == kPseudoPseudoAlign4) && (lir->operands[0] == 1)) {
-        cUnit->codeBuffer.push_back(PADDING_MOV_R5_R5 & 0xFF);
-        cUnit->codeBuffer.push_back((PADDING_MOV_R5_R5 >> 8) & 0xFF);
+        cu->code_buffer.push_back(PADDING_MOV_R5_R5 & 0xFF);
+        cu->code_buffer.push_back((PADDING_MOV_R5_R5 >> 8) & 0xFF);
       }
       continue;
     }
 
-    if (lir->flags.isNop) {
+    if (lir->flags.is_nop) {
       continue;
     }
 
@@ -1031,9 +1031,9 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
          * However, if the load displacement exceeds the limit,
          * we revert to a 2-instruction materialization sequence.
          */
-        LIR *lirTarget = lir->target;
+        LIR *lir_target = lir->target;
         uintptr_t pc = (lir->offset + 4) & ~3;
-        uintptr_t target = lirTarget->offset;
+        uintptr_t target = lir_target->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -1053,22 +1053,22 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
            * vldrs/vldrd we include REG_DEF_LR in the resource
            * masks for these instructions.
            */
-          int baseReg = (lir->opcode == kThumb2LdrPcRel12) ?
+          int base_reg = (lir->opcode == kThumb2LdrPcRel12) ?
             lir->operands[0] : rARM_LR;
 
           // Add new Adr to generate the address
-          LIR* newAdr = RawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
-                     baseReg, 0, 0, 0, 0, lir->target);
-          InsertLIRBefore(lir, newAdr);
+          LIR* new_adr = RawLIR(cu, lir->dalvik_offset, kThumb2Adr,
+                     base_reg, 0, 0, 0, 0, lir->target);
+          InsertLIRBefore(lir, new_adr);
 
           // Convert to normal load
           if (lir->opcode == kThumb2LdrPcRel12) {
             lir->opcode = kThumb2LdrRRI12;
           }
           // Change the load to be relative to the new Adr base
-          lir->operands[1] = baseReg;
+          lir->operands[1] = base_reg;
           lir->operands[2] = 0;
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         } else {
           if ((lir->opcode == kThumb2Vldrs) ||
@@ -1080,26 +1080,26 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
           }
         }
       } else if (lir->opcode == kThumb2Cbnz || lir->opcode == kThumb2Cbz) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         if (delta > 126 || delta < 0) {
           /*
            * Convert to cmp rx,#0 / b[eq/ne] tgt pair
            * Make new branch instruction and insert after
            */
-          LIR* newInst =
-            RawLIR(cUnit, lir->dalvikOffset, kThumbBCond, 0,
+          LIR* new_inst =
+            RawLIR(cu, lir->dalvik_offset, kThumbBCond, 0,
                    (lir->opcode == kThumb2Cbz) ? kArmCondEq : kArmCondNe,
                    0, 0, 0, lir->target);
-          InsertLIRAfter(lir, newInst);
+          InsertLIRAfter(lir, new_inst);
           /* Convert the cb[n]z to a cmp rx, #0 ] */
           lir->opcode = kThumbCmpRI8;
           /* operand[0] is src1 in both cb[n]z & CmpRI8 */
           lir->operands[1] = 0;
           lir->target = 0;
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         } else {
           lir->operands[1] = delta >> 1;
@@ -1124,121 +1124,121 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
             }
           }
           lir->operands[0] = reg;
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBCond || lir->opcode == kThumb2BCond) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         int delta = 0;
-        DCHECK(targetLIR);
+        DCHECK(target_lir);
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         delta = target - pc;
         if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
           lir->opcode = kThumb2BCond;
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         }
         lir->operands[0] = delta >> 1;
       } else if (lir->opcode == kThumb2BUncond) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         lir->operands[0] = delta >> 1;
-        if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) &&
+        if (!(cu->disable_opt & (1 << kSafeOptimizations)) &&
           lir->operands[0] == 0) {  // Useless branch
-          lir->flags.isNop = true;
+          lir->flags.is_nop = true;
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBUncond) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         if (delta > 2046 || delta < -2048) {
           // Convert to Thumb2BCond w/ kArmCondAl
           lir->opcode = kThumb2BUncond;
           lir->operands[0] = 0;
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         } else {
           lir->operands[0] = delta >> 1;
-          if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) &&
+          if (!(cu->disable_opt & (1 << kSafeOptimizations)) &&
             lir->operands[0] == -1) {  // Useless branch
-            lir->flags.isNop = true;
+            lir->flags.is_nop = true;
             res = kRetryAll;
           }
         }
       } else if (lir->opcode == kThumbBlx1) {
         DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
-        /* curPC is Thumb */
-        uintptr_t curPC = (startAddr + lir->offset + 4) & ~3;
+        /* cur_pc is Thumb */
+        uintptr_t cur_pc = (start_addr + lir->offset + 4) & ~3;
         uintptr_t target = lir->operands[1];
 
         /* Match bit[1] in target with base */
-        if (curPC & 0x2) {
+        if (cur_pc & 0x2) {
           target |= 0x2;
         }
-        int delta = target - curPC;
+        int delta = target - cur_pc;
         DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
         lir->operands[0] = (delta >> 12) & 0x7ff;
         NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
       } else if (lir->opcode == kThumbBl1) {
         DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
-        /* Both curPC and target are Thumb */
-        uintptr_t curPC = startAddr + lir->offset + 4;
+        /* Both cur_pc and target are Thumb */
+        uintptr_t cur_pc = start_addr + lir->offset + 4;
         uintptr_t target = lir->operands[1];
 
-        int delta = target - curPC;
+        int delta = target - cur_pc;
         DCHECK((delta >= -(1<<22)) && (delta <= ((1<<22)-2)));
 
         lir->operands[0] = (delta >> 12) & 0x7ff;
         NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
       } else if (lir->opcode == kThumb2Adr) {
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[2]);
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[2]);
         LIR* target = lir->target;
-        int targetDisp = tabRec ? tabRec->offset
+        int target_disp = tab_rec ? tab_rec->offset
                     : target->offset;
-        int disp = targetDisp - ((lir->offset + 4) & ~3);
+        int disp = target_disp - ((lir->offset + 4) & ~3);
         if (disp < 4096) {
           lir->operands[1] = disp;
         } else {
           // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
-          LIR *newMov16L =
-              RawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16LST,
+          LIR *new_mov16L =
+              RawLIR(cu, lir->dalvik_offset, kThumb2MovImm16LST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
-                     reinterpret_cast<uintptr_t>(tabRec), 0, lir->target);
-          InsertLIRBefore(lir, newMov16L);
-          LIR *newMov16H =
-              RawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16HST,
+                     reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
+          InsertLIRBefore(lir, new_mov16L);
+          LIR *new_mov16H =
+              RawLIR(cu, lir->dalvik_offset, kThumb2MovImm16HST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
-                     reinterpret_cast<uintptr_t>(tabRec), 0, lir->target);
-          InsertLIRBefore(lir, newMov16H);
+                     reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
+          InsertLIRBefore(lir, new_mov16H);
           lir->opcode = kThumb2AddRRR;
           lir->operands[1] = rARM_PC;
           lir->operands[2] = lir->operands[0];
-          SetupResourceMasks(cUnit, lir);
+          SetupResourceMasks(cu, lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumb2MovImm16LST) {
-        // operands[1] should hold disp, [2] has add, [3] has tabRec
+        // operands[1] should hold disp, [2] has add, [3] has tab_rec
         LIR *addPCInst = reinterpret_cast<LIR*>(lir->operands[2]);
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
-        // If tabRec is null, this is a literal load. Use target
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        // If tab_rec is null, this is a literal load. Use target
         LIR* target = lir->target;
-        int targetDisp = tabRec ? tabRec->offset : target->offset;
-        lir->operands[1] = (targetDisp - (addPCInst->offset + 4)) & 0xffff;
+        int target_disp = tab_rec ? tab_rec->offset : target->offset;
+        lir->operands[1] = (target_disp - (addPCInst->offset + 4)) & 0xffff;
       } else if (lir->opcode == kThumb2MovImm16HST) {
-        // operands[1] should hold disp, [2] has add, [3] has tabRec
+        // operands[1] should hold disp, [2] has add, [3] has tab_rec
         LIR *addPCInst = reinterpret_cast<LIR*>(lir->operands[2]);
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
-        // If tabRec is null, this is a literal load. Use target
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        // If tab_rec is null, this is a literal load. Use target
         LIR* target = lir->target;
-        int targetDisp = tabRec ? tabRec->offset : target->offset;
+        int target_disp = tab_rec ? tab_rec->offset : target->offset;
         lir->operands[1] =
-            ((targetDisp - (addPCInst->offset + 4)) >> 16) & 0xffff;
+            ((target_disp - (addPCInst->offset + 4)) >> 16) & 0xffff;
       }
     }
     /*
@@ -1256,12 +1256,12 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
       uint32_t operand;
       uint32_t value;
       operand = lir->operands[i];
-      switch (encoder->fieldLoc[i].kind) {
+      switch (encoder->field_loc[i].kind) {
         case kFmtUnused:
           break;
         case kFmtFPImm:
-          value = ((operand & 0xF0) >> 4) << encoder->fieldLoc[i].end;
-          value |= (operand & 0x0F) << encoder->fieldLoc[i].start;
+          value = ((operand & 0xF0) >> 4) << encoder->field_loc[i].end;
+          value |= (operand & 0x0F) << encoder->field_loc[i].start;
           bits |= value;
           break;
         case kFmtBrOffset:
@@ -1297,27 +1297,27 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
           bits |= value;
           break;
         case kFmtBitBlt:
-          value = (operand << encoder->fieldLoc[i].start) &
-              ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
+          value = (operand << encoder->field_loc[i].start) &
+              ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
           break;
         case kFmtDfp: {
           DCHECK(ARM_DOUBLEREG(operand));
           DCHECK_EQ((operand & 0x1), 0U);
-          int regName = (operand & ARM_FP_REG_MASK) >> 1;
+          int reg_name = (operand & ARM_FP_REG_MASK) >> 1;
           /* Snag the 1-bit slice and position it */
-          value = ((regName & 0x10) >> 4) << encoder->fieldLoc[i].end;
+          value = ((reg_name & 0x10) >> 4) << encoder->field_loc[i].end;
           /* Extract and position the 4-bit slice */
-          value |= (regName & 0x0f) << encoder->fieldLoc[i].start;
+          value |= (reg_name & 0x0f) << encoder->field_loc[i].start;
           bits |= value;
           break;
         }
         case kFmtSfp:
           DCHECK(ARM_SINGLEREG(operand));
           /* Snag the 1-bit slice and position it */
-          value = (operand & 0x1) << encoder->fieldLoc[i].end;
+          value = (operand & 0x1) << encoder->field_loc[i].end;
           /* Extract and position the 4-bit slice */
-          value |= ((operand & 0x1e) >> 1) << encoder->fieldLoc[i].start;
+          value |= ((operand & 0x1e) >> 1) << encoder->field_loc[i].start;
           bits |= value;
           break;
         case kFmtImm12:
@@ -1348,15 +1348,15 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cUnit,
           }
           break;
         default:
-          LOG(FATAL) << "Bad fmt:" << encoder->fieldLoc[i].kind;
+          LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
       }
     }
     if (encoder->size == 4) {
-      cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
-      cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
+      cu->code_buffer.push_back((bits >> 16) & 0xff);
+      cu->code_buffer.push_back((bits >> 24) & 0xff);
     }
-    cUnit->codeBuffer.push_back(bits & 0xff);
-    cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
+    cu->code_buffer.push_back(bits & 0xff);
+    cu->code_buffer.push_back((bits >> 8) & 0xff);
   }
   return res;
 }
@@ -1369,23 +1369,23 @@ int GetInsnSize(LIR* lir)
 /*
  * Target-dependent offset assignment.
  */
-int AssignInsnOffsets(CompilationUnit* cUnit)
+int AssignInsnOffsets(CompilationUnit* cu)
 {
-  LIR* armLIR;
+  LIR* arm_lir;
   int offset = 0;
 
-  for (armLIR = cUnit->firstLIRInsn; armLIR; armLIR = NEXT_LIR(armLIR)) {
-    armLIR->offset = offset;
-    if (armLIR->opcode >= 0) {
-      if (!armLIR->flags.isNop) {
-        offset += armLIR->flags.size;
+  for (arm_lir = cu->first_lir_insn; arm_lir; arm_lir = NEXT_LIR(arm_lir)) {
+    arm_lir->offset = offset;
+    if (arm_lir->opcode >= 0) {
+      if (!arm_lir->flags.is_nop) {
+        offset += arm_lir->flags.size;
       }
-    } else if (armLIR->opcode == kPseudoPseudoAlign4) {
+    } else if (arm_lir->opcode == kPseudoPseudoAlign4) {
       if (offset & 0x2) {
         offset += 2;
-        armLIR->operands[0] = 1;
+        arm_lir->operands[0] = 1;
       } else {
-        armLIR->operands[0] = 0;
+        arm_lir->operands[0] = 0;
       }
     }
     /* Pseudo opcodes don't consume space */

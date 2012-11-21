@@ -458,12 +458,12 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
  * NOTE: An out-of-range bal isn't supported because it should
  * never happen with the current PIC model.
  */
-static void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
+static void ConvertShortToLongBranch(CompilationUnit* cu, LIR* lir)
 {
   // For conditional branches we'll need to reverse the sense
   bool unconditional = false;
   int opcode = lir->opcode;
-  int dalvikOffset = lir->dalvikOffset;
+  int dalvik_offset = lir->dalvik_offset;
   switch (opcode) {
     case kMipsBal:
       LOG(FATAL) << "long branch and link unsupported";
@@ -481,31 +481,31 @@ static void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
     default:
       LOG(FATAL) << "Unexpected branch kind " << opcode;
   }
-  LIR* hopTarget = NULL;
+  LIR* hop_target = NULL;
   if (!unconditional) {
-    hopTarget = RawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
-    LIR* hopBranch = RawLIR(cUnit, dalvikOffset, opcode, lir->operands[0],
-                            lir->operands[1], 0, 0, 0, hopTarget);
-    InsertLIRBefore(lir, hopBranch);
+    hop_target = RawLIR(cu, dalvik_offset, kPseudoTargetLabel);
+    LIR* hop_branch = RawLIR(cu, dalvik_offset, opcode, lir->operands[0],
+                            lir->operands[1], 0, 0, 0, hop_target);
+    InsertLIRBefore(lir, hop_branch);
   }
-  LIR* currPC = RawLIR(cUnit, dalvikOffset, kMipsCurrPC);
-  InsertLIRBefore(lir, currPC);
-  LIR* anchor = RawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
-  LIR* deltaHi = RawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
+  LIR* curr_pc = RawLIR(cu, dalvik_offset, kMipsCurrPC);
+  InsertLIRBefore(lir, curr_pc);
+  LIR* anchor = RawLIR(cu, dalvik_offset, kPseudoTargetLabel);
+  LIR* delta_hi = RawLIR(cu, dalvik_offset, kMipsDeltaHi, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
-  InsertLIRBefore(lir, deltaHi);
+  InsertLIRBefore(lir, delta_hi);
   InsertLIRBefore(lir, anchor);
-  LIR* deltaLo = RawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
+  LIR* delta_lo = RawLIR(cu, dalvik_offset, kMipsDeltaLo, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
-  InsertLIRBefore(lir, deltaLo);
-  LIR* addu = RawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
+  InsertLIRBefore(lir, delta_lo);
+  LIR* addu = RawLIR(cu, dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
   InsertLIRBefore(lir, addu);
-  LIR* jr = RawLIR(cUnit, dalvikOffset, kMipsJr, r_AT);
+  LIR* jr = RawLIR(cu, dalvik_offset, kMipsJr, r_AT);
   InsertLIRBefore(lir, jr);
   if (!unconditional) {
-    InsertLIRBefore(lir, hopTarget);
+    InsertLIRBefore(lir, hop_target);
   }
-  lir->flags.isNop = true;
+  lir->flags.is_nop = true;
 }
 
 /*
@@ -514,19 +514,19 @@ static void ConvertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus AssembleInstructions(CompilationUnit *cUnit,
-                    uintptr_t startAddr)
+AssemblerStatus AssembleInstructions(CompilationUnit *cu,
+                    uintptr_t start_addr)
 {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cu->first_lir_insn; lir; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
 
 
-    if (lir->flags.isNop) {
+    if (lir->flags.is_nop) {
       continue;
     }
 
@@ -543,101 +543,101 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cUnit,
          * then it is a Switch/Data table.
          */
         int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
-        int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
           // Fits
           lir->operands[1] = delta;
         } else {
           // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
-          LIR *newDeltaHi =
-              RawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
+          LIR *new_delta_hi =
+              RawLIR(cu, lir->dalvik_offset, kMipsDeltaHi,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          InsertLIRBefore(lir, newDeltaHi);
-          LIR *newDeltaLo =
-              RawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
+          InsertLIRBefore(lir, new_delta_hi);
+          LIR *new_delta_lo =
+              RawLIR(cu, lir->dalvik_offset, kMipsDeltaLo,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
-          InsertLIRBefore(lir, newDeltaLo);
-          LIR *newAddu =
-              RawLIR(cUnit, lir->dalvikOffset, kMipsAddu,
+          InsertLIRBefore(lir, new_delta_lo);
+          LIR *new_addu =
+              RawLIR(cu, lir->dalvik_offset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
-          InsertLIRBefore(lir, newAddu);
-          lir->flags.isNop = true;
+          InsertLIRBefore(lir, new_addu);
+          lir->flags.is_nop = true;
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {
         int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
-        int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = delta & 0xffff;
       } else if (lir->opcode == kMipsDeltaHi) {
         int offset1 = (reinterpret_cast<LIR*>(lir->operands[2]))->offset;
-        SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
-        int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+        SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(lir->operands[3]);
+        int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = (delta >> 16) & 0xffff;
       } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cu, lir);
         } else {
           lir->operands[0] = delta >> 2;
         }
       } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cu, lir);
         } else {
           lir->operands[1] = delta >> 2;
         }
       } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
-        LIR *targetLIR = lir->target;
+        LIR *target_lir = lir->target;
         uintptr_t pc = lir->offset + 4;
-        uintptr_t target = targetLIR->offset;
+        uintptr_t target = target_lir->offset;
         int delta = target - pc;
         if (delta & 0x3) {
           LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cUnit, lir);
+          ConvertShortToLongBranch(cu, lir);
         } else {
           lir->operands[2] = delta >> 2;
         }
       } else if (lir->opcode == kMipsJal) {
-        uintptr_t curPC = (startAddr + lir->offset + 4) & ~3;
+        uintptr_t cur_pc = (start_addr + lir->offset + 4) & ~3;
         uintptr_t target = lir->operands[0];
         /* ensure PC-region branch can be used */
-        DCHECK_EQ((curPC & 0xF0000000), (target & 0xF0000000));
+        DCHECK_EQ((cur_pc & 0xF0000000), (target & 0xF0000000));
         if (target & 0x3) {
           LOG(FATAL) << "Jump target not multiple of 4: " << target;
         }
         lir->operands[0] =  target >> 2;
       } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
-        LIR *targetLIR = lir->target;
-        uintptr_t target = startAddr + targetLIR->offset;
+        LIR *target_lir = lir->target;
+        uintptr_t target = start_addr + target_lir->offset;
         lir->operands[1] = target >> 16;
       } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
-        LIR *targetLIR = lir->target;
-        uintptr_t target = startAddr + targetLIR->offset;
+        LIR *target_lir = lir->target;
+        uintptr_t target = start_addr + target_lir->offset;
         lir->operands[2] = lir->operands[2] + target;
       }
     }
@@ -657,54 +657,54 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cUnit,
       uint32_t operand;
       uint32_t value;
       operand = lir->operands[i];
-      switch (encoder->fieldLoc[i].kind) {
+      switch (encoder->field_loc[i].kind) {
         case kFmtUnused:
           break;
         case kFmtBitBlt:
-          if (encoder->fieldLoc[i].start == 0 && encoder->fieldLoc[i].end == 31) {
+          if (encoder->field_loc[i].start == 0 && encoder->field_loc[i].end == 31) {
             value = operand;
           } else {
-            value = (operand << encoder->fieldLoc[i].start) &
-                ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
+            value = (operand << encoder->field_loc[i].start) &
+                ((1 << (encoder->field_loc[i].end + 1)) - 1);
           }
           bits |= value;
           break;
         case kFmtBlt5_2:
           value = (operand & 0x1f);
-          bits |= (value << encoder->fieldLoc[i].start);
-          bits |= (value << encoder->fieldLoc[i].end);
+          bits |= (value << encoder->field_loc[i].start);
+          bits |= (value << encoder->field_loc[i].end);
           break;
         case kFmtDfp: {
           DCHECK(MIPS_DOUBLEREG(operand));
           DCHECK_EQ((operand & 0x1), 0U);
-          value = ((operand & MIPS_FP_REG_MASK) << encoder->fieldLoc[i].start) &
-              ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
+          value = ((operand & MIPS_FP_REG_MASK) << encoder->field_loc[i].start) &
+              ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
           break;
         }
         case kFmtSfp:
           DCHECK(MIPS_SINGLEREG(operand));
-          value = ((operand & MIPS_FP_REG_MASK) << encoder->fieldLoc[i].start) &
-              ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
+          value = ((operand & MIPS_FP_REG_MASK) << encoder->field_loc[i].start) &
+              ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
           break;
         default:
-          LOG(FATAL) << "Bad encoder format: " << encoder->fieldLoc[i].kind;
+          LOG(FATAL) << "Bad encoder format: " << encoder->field_loc[i].kind;
       }
     }
     // We only support little-endian MIPS.
-    cUnit->codeBuffer.push_back(bits & 0xff);
-    cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
-    cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
-    cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
+    cu->code_buffer.push_back(bits & 0xff);
+    cu->code_buffer.push_back((bits >> 8) & 0xff);
+    cu->code_buffer.push_back((bits >> 16) & 0xff);
+    cu->code_buffer.push_back((bits >> 24) & 0xff);
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
       const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
       uint32_t bits = encoder->skeleton;
-      cUnit->codeBuffer.push_back(bits & 0xff);
-      cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
-      cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
-      cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
+      cu->code_buffer.push_back(bits & 0xff);
+      cu->code_buffer.push_back((bits >> 8) & 0xff);
+      cu->code_buffer.push_back((bits >> 16) & 0xff);
+      cu->code_buffer.push_back((bits >> 24) & 0xff);
     }
   }
   return res;
@@ -718,23 +718,23 @@ int GetInsnSize(LIR* lir)
  * Target-dependent offset assignment.
  * independent.
  */
-int AssignInsnOffsets(CompilationUnit* cUnit)
+int AssignInsnOffsets(CompilationUnit* cu)
 {
-  LIR* mipsLIR;
+  LIR* mips_lir;
   int offset = 0;
 
-  for (mipsLIR = cUnit->firstLIRInsn; mipsLIR; mipsLIR = NEXT_LIR(mipsLIR)) {
-    mipsLIR->offset = offset;
-    if (mipsLIR->opcode >= 0) {
-      if (!mipsLIR->flags.isNop) {
-        offset += mipsLIR->flags.size;
+  for (mips_lir = cu->first_lir_insn; mips_lir; mips_lir = NEXT_LIR(mips_lir)) {
+    mips_lir->offset = offset;
+    if (mips_lir->opcode >= 0) {
+      if (!mips_lir->flags.is_nop) {
+        offset += mips_lir->flags.size;
       }
-    } else if (mipsLIR->opcode == kPseudoPseudoAlign4) {
+    } else if (mips_lir->opcode == kPseudoPseudoAlign4) {
       if (offset & 0x2) {
         offset += 2;
-        mipsLIR->operands[0] = 1;
+        mips_lir->operands[0] = 1;
       } else {
-        mipsLIR->operands[0] = 0;
+        mips_lir->operands[0] = 0;
       }
     }
     /* Pseudo opcodes don't consume space */

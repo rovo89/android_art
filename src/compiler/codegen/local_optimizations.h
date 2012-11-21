@@ -19,8 +19,8 @@
 
 namespace art {
 
-void ApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR);
-void RemoveRedundantBranches(CompilationUnit* cUnit);
+void ApplyLocalOptimizations(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir);
+void RemoveRedundantBranches(CompilationUnit* cu);
 
 }  // namespace art
 

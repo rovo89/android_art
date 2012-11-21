@@ -19,11 +19,11 @@
 
 namespace art {
 // TODO: move GenInvoke to gen_invoke.cc
-void GenInvoke(CompilationUnit* cUnit, CallInfo* info);
+void GenInvoke(CompilationUnit* cu, CallInfo* info);
 // TODO: move GenInvoke to gen_invoke.cc or utils
-CallInfo* NewMemCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir, InvokeType type, bool isRange);
-void SpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase);
-void MethodMIR2LIR(CompilationUnit* cUnit);
+CallInfo* NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
+void SpecialMIR2LIR(CompilationUnit* cu, SpecialCaseHandler special_case);
+void MethodMIR2LIR(CompilationUnit* cu);
 
 
 }  // namespace art

@@ -19,8 +19,8 @@
 
 namespace art {
 
-void MethodMIR2Bitcode(CompilationUnit* cUnit);
-void MethodBitcode2LIR(CompilationUnit* cUnit);
+void MethodMIR2Bitcode(CompilationUnit* cu);
+void MethodBitcode2LIR(CompilationUnit* cu);
 
 }  // namespace art
 

@@ -39,106 +39,106 @@ namespace art {
  * finish:
  *
  */
-void GenCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
-        RegLocation rlSrc1, RegLocation rlSrc2)
+void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
+        RegLocation rl_src1, RegLocation rl_src2)
 {
-  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kCoreReg);
-  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kCoreReg);
-  int t0 = AllocTemp(cUnit);
-  int t1 = AllocTemp(cUnit);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  NewLIR3(cUnit, kMipsSlt, t0, rlSrc1.highReg, rlSrc2.highReg);
-  NewLIR3(cUnit, kMipsSlt, t1, rlSrc2.highReg, rlSrc1.highReg);
-  NewLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
-  LIR* branch = OpCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
-  NewLIR3(cUnit, kMipsSltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
-  NewLIR3(cUnit, kMipsSltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
-  NewLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
-  FreeTemp(cUnit, t0);
-  FreeTemp(cUnit, t1);
-  LIR* target = NewLIR0(cUnit, kPseudoTargetLabel);
+  rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
+  int t0 = AllocTemp(cu);
+  int t1 = AllocTemp(cu);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  NewLIR3(cu, kMipsSlt, t0, rl_src1.high_reg, rl_src2.high_reg);
+  NewLIR3(cu, kMipsSlt, t1, rl_src2.high_reg, rl_src1.high_reg);
+  NewLIR3(cu, kMipsSubu, rl_result.low_reg, t1, t0);
+  LIR* branch = OpCmpImmBranch(cu, kCondNe, rl_result.low_reg, 0, NULL);
+  NewLIR3(cu, kMipsSltu, t0, rl_src1.low_reg, rl_src2.low_reg);
+  NewLIR3(cu, kMipsSltu, t1, rl_src2.low_reg, rl_src1.low_reg);
+  NewLIR3(cu, kMipsSubu, rl_result.low_reg, t1, t0);
+  FreeTemp(cu, t0);
+  FreeTemp(cu, t1);
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
   branch->target = target;
-  StoreValue(cUnit, rlDest, rlResult);
+  StoreValue(cu, rl_dest, rl_result);
 }
 
-LIR* OpCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
+LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
          int src2, LIR* target)
 {
   LIR* branch;
-  MipsOpCode sltOp;
-  MipsOpCode brOp;
-  bool cmpZero = false;
+  MipsOpCode slt_op;
+  MipsOpCode br_op;
+  bool cmp_zero = false;
   bool swapped = false;
   switch (cond) {
     case kCondEq:
-      brOp = kMipsBeq;
-      cmpZero = true;
+      br_op = kMipsBeq;
+      cmp_zero = true;
       break;
     case kCondNe:
-      brOp = kMipsBne;
-      cmpZero = true;
+      br_op = kMipsBne;
+      cmp_zero = true;
       break;
     case kCondCc:
-      sltOp = kMipsSltu;
-      brOp = kMipsBnez;
+      slt_op = kMipsSltu;
+      br_op = kMipsBnez;
       break;
     case kCondCs:
-      sltOp = kMipsSltu;
-      brOp = kMipsBeqz;
+      slt_op = kMipsSltu;
+      br_op = kMipsBeqz;
       break;
     case kCondGe:
-      sltOp = kMipsSlt;
-      brOp = kMipsBeqz;
+      slt_op = kMipsSlt;
+      br_op = kMipsBeqz;
       break;
     case kCondGt:
-      sltOp = kMipsSlt;
-      brOp = kMipsBnez;
+      slt_op = kMipsSlt;
+      br_op = kMipsBnez;
       swapped = true;
       break;
     case kCondLe:
-      sltOp = kMipsSlt;
-      brOp = kMipsBeqz;
+      slt_op = kMipsSlt;
+      br_op = kMipsBeqz;
       swapped = true;
       break;
     case kCondLt:
-      sltOp = kMipsSlt;
-      brOp = kMipsBnez;
+      slt_op = kMipsSlt;
+      br_op = kMipsBnez;
       break;
     case kCondHi:  // Gtu
-      sltOp = kMipsSltu;
-      brOp = kMipsBnez;
+      slt_op = kMipsSltu;
+      br_op = kMipsBnez;
       swapped = true;
       break;
     default:
       LOG(FATAL) << "No support for ConditionCode: " << cond;
       return NULL;
   }
-  if (cmpZero) {
-    branch = NewLIR2(cUnit, brOp, src1, src2);
+  if (cmp_zero) {
+    branch = NewLIR2(cu, br_op, src1, src2);
   } else {
-    int tReg = AllocTemp(cUnit);
+    int t_reg = AllocTemp(cu);
     if (swapped) {
-      NewLIR3(cUnit, sltOp, tReg, src2, src1);
+      NewLIR3(cu, slt_op, t_reg, src2, src1);
     } else {
-      NewLIR3(cUnit, sltOp, tReg, src1, src2);
+      NewLIR3(cu, slt_op, t_reg, src1, src2);
     }
-    branch = NewLIR1(cUnit, brOp, tReg);
-    FreeTemp(cUnit, tReg);
+    branch = NewLIR1(cu, br_op, t_reg);
+    FreeTemp(cu, t_reg);
   }
   branch->target = target;
   return branch;
 }
 
-LIR* OpCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-          int checkValue, LIR* target)
+LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
+          int check_value, LIR* target)
 {
   LIR* branch;
-  if (checkValue != 0) {
+  if (check_value != 0) {
     // TUNING: handle s16 & kCondLt/Mi case using slti
-    int tReg = AllocTemp(cUnit);
-    LoadConstant(cUnit, tReg, checkValue);
-    branch = OpCmpBranch(cUnit, cond, reg, tReg, target);
-    FreeTemp(cUnit, tReg);
+    int t_reg = AllocTemp(cu);
+    LoadConstant(cu, t_reg, check_value);
+    branch = OpCmpBranch(cu, cond, reg, t_reg, target);
+    FreeTemp(cu, t_reg);
     return branch;
   }
   MipsOpCode opc;
@@ -152,211 +152,211 @@ LIR* OpCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
     case kCondNe: opc = kMipsBnez; break;
     default:
       // Tuning: use slti when applicable
-      int tReg = AllocTemp(cUnit);
-      LoadConstant(cUnit, tReg, checkValue);
-      branch = OpCmpBranch(cUnit, cond, reg, tReg, target);
-      FreeTemp(cUnit, tReg);
+      int t_reg = AllocTemp(cu);
+      LoadConstant(cu, t_reg, check_value);
+      branch = OpCmpBranch(cu, cond, reg, t_reg, target);
+      FreeTemp(cu, t_reg);
       return branch;
   }
-  branch = NewLIR1(cUnit, opc, reg);
+  branch = NewLIR1(cu, opc, reg);
   branch->target = target;
   return branch;
 }
 
-LIR* OpRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
 {
 #ifdef __mips_hard_float
-  if (MIPS_FPREG(rDest) || MIPS_FPREG(rSrc))
-    return FpRegCopy(cUnit, rDest, rSrc);
+  if (MIPS_FPREG(r_dest) || MIPS_FPREG(r_src))
+    return FpRegCopy(cu, r_dest, r_src);
 #endif
-  LIR* res = RawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
-            rDest, rSrc);
-  if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
-    res->flags.isNop = true;
+  LIR* res = RawLIR(cu, cu->current_dalvik_offset, kMipsMove,
+            r_dest, r_src);
+  if (!(cu->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
+    res->flags.is_nop = true;
   }
   return res;
 }
 
-LIR* OpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
-  LIR *res = OpRegCopyNoInsert(cUnit, rDest, rSrc);
-  AppendLIR(cUnit, res);
+  LIR *res = OpRegCopyNoInsert(cu, r_dest, r_src);
+  AppendLIR(cu, res);
   return res;
 }
 
-void OpRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-          int srcLo, int srcHi)
+void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
+          int src_lo, int src_hi)
 {
 #ifdef __mips_hard_float
-  bool destFP = MIPS_FPREG(destLo) && MIPS_FPREG(destHi);
-  bool srcFP = MIPS_FPREG(srcLo) && MIPS_FPREG(srcHi);
-  assert(MIPS_FPREG(srcLo) == MIPS_FPREG(srcHi));
-  assert(MIPS_FPREG(destLo) == MIPS_FPREG(destHi));
-  if (destFP) {
-    if (srcFP) {
-      OpRegCopy(cUnit, S2d(destLo, destHi), S2d(srcLo, srcHi));
+  bool dest_fp = MIPS_FPREG(dest_lo) && MIPS_FPREG(dest_hi);
+  bool src_fp = MIPS_FPREG(src_lo) && MIPS_FPREG(src_hi);
+  assert(MIPS_FPREG(src_lo) == MIPS_FPREG(src_hi));
+  assert(MIPS_FPREG(dest_lo) == MIPS_FPREG(dest_hi));
+  if (dest_fp) {
+    if (src_fp) {
+      OpRegCopy(cu, S2d(dest_lo, dest_hi), S2d(src_lo, src_hi));
     } else {
        /* note the operands are swapped for the mtc1 instr */
-      NewLIR2(cUnit, kMipsMtc1, srcLo, destLo);
-      NewLIR2(cUnit, kMipsMtc1, srcHi, destHi);
+      NewLIR2(cu, kMipsMtc1, src_lo, dest_lo);
+      NewLIR2(cu, kMipsMtc1, src_hi, dest_hi);
     }
   } else {
-    if (srcFP) {
-      NewLIR2(cUnit, kMipsMfc1, destLo, srcLo);
-      NewLIR2(cUnit, kMipsMfc1, destHi, srcHi);
+    if (src_fp) {
+      NewLIR2(cu, kMipsMfc1, dest_lo, src_lo);
+      NewLIR2(cu, kMipsMfc1, dest_hi, src_hi);
     } else {
       // Handle overlap
-      if (srcHi == destLo) {
-        OpRegCopy(cUnit, destHi, srcHi);
-        OpRegCopy(cUnit, destLo, srcLo);
+      if (src_hi == dest_lo) {
+        OpRegCopy(cu, dest_hi, src_hi);
+        OpRegCopy(cu, dest_lo, src_lo);
       } else {
-        OpRegCopy(cUnit, destLo, srcLo);
-        OpRegCopy(cUnit, destHi, srcHi);
+        OpRegCopy(cu, dest_lo, src_lo);
+        OpRegCopy(cu, dest_hi, src_hi);
       }
     }
   }
 #else
   // Handle overlap
-  if (srcHi == destLo) {
-    OpRegCopy(cUnit, destHi, srcHi);
-    OpRegCopy(cUnit, destLo, srcLo);
+  if (src_hi == dest_lo) {
+    OpRegCopy(cu, dest_hi, src_hi);
+    OpRegCopy(cu, dest_lo, src_lo);
   } else {
-    OpRegCopy(cUnit, destLo, srcLo);
-    OpRegCopy(cUnit, destHi, srcHi);
+    OpRegCopy(cu, dest_lo, src_lo);
+    OpRegCopy(cu, dest_hi, src_hi);
   }
 #endif
 }
 
-void GenFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
 }
 
-LIR* GenRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
+LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
                     int reg1, int base, int offset, ThrowKind kind)
 {
   LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
   return NULL;
 }
 
-RegLocation GenDivRem(CompilationUnit* cUnit, RegLocation rlDest, int reg1, int reg2, bool isDiv)
+RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int reg2, bool is_div)
 {
-  NewLIR4(cUnit, kMipsDiv, r_HI, r_LO, reg1, reg2);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  if (isDiv) {
-    NewLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+  NewLIR4(cu, kMipsDiv, r_HI, r_LO, reg1, reg2);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  if (is_div) {
+    NewLIR2(cu, kMipsMflo, rl_result.low_reg, r_LO);
   } else {
-    NewLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+    NewLIR2(cu, kMipsMfhi, rl_result.low_reg, r_HI);
   }
-  return rlResult;
+  return rl_result;
 }
 
-RegLocation GenDivRemLit(CompilationUnit* cUnit, RegLocation rlDest, int reg1, int lit, bool isDiv)
+RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int lit, bool is_div)
 {
-  int tReg = AllocTemp(cUnit);
-  NewLIR3(cUnit, kMipsAddiu, tReg, r_ZERO, lit);
-  NewLIR4(cUnit, kMipsDiv, r_HI, r_LO, reg1, tReg);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  if (isDiv) {
-    NewLIR2(cUnit, kMipsMflo, rlResult.lowReg, r_LO);
+  int t_reg = AllocTemp(cu);
+  NewLIR3(cu, kMipsAddiu, t_reg, r_ZERO, lit);
+  NewLIR4(cu, kMipsDiv, r_HI, r_LO, reg1, t_reg);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  if (is_div) {
+    NewLIR2(cu, kMipsMflo, rl_result.low_reg, r_LO);
   } else {
-    NewLIR2(cUnit, kMipsMfhi, rlResult.lowReg, r_HI);
+    NewLIR2(cu, kMipsMfhi, rl_result.low_reg, r_HI);
   }
-  FreeTemp(cUnit, tReg);
-  return rlResult;
+  FreeTemp(cu, t_reg);
+  return rl_result;
 }
 
-void OpLea(CompilationUnit* cUnit, int rBase, int reg1, int reg2, int scale, int offset)
+void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
 {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void OpTlsCmp(CompilationUnit* cUnit, int offset, int val)
+void OpTlsCmp(CompilationUnit* cu, int offset, int val)
 {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool GenInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
-  DCHECK_NE(cUnit->instructionSet, kThumb2);
+bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
+  DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-bool GenInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
-  DCHECK_NE(cUnit->instructionSet, kThumb2);
+bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
+  DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-LIR* OpPcRelLoad(CompilationUnit* cUnit, int reg, LIR* target) {
+LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips";
   return NULL;
 }
 
-LIR* OpVldm(CompilationUnit* cUnit, int rBase, int count)
+LIR* OpVldm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVldm for Mips";
   return NULL;
 }
 
-LIR* OpVstm(CompilationUnit* cUnit, int rBase, int count)
+LIR* OpVstm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVstm for Mips";
   return NULL;
 }
 
-void GenMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
-                                   RegLocation rlResult, int lit,
-                                   int firstBit, int secondBit)
+void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
+                                   RegLocation rl_result, int lit,
+                                   int first_bit, int second_bit)
 {
-  int tReg = AllocTemp(cUnit);
-  OpRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, secondBit - firstBit);
-  OpRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, tReg);
-  FreeTemp(cUnit, tReg);
-  if (firstBit != 0) {
-    OpRegRegImm(cUnit, kOpLsl, rlResult.lowReg, rlResult.lowReg, firstBit);
+  int t_reg = AllocTemp(cu);
+  OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
+  OpRegRegReg(cu, kOpAdd, rl_result.low_reg, rl_src.low_reg, t_reg);
+  FreeTemp(cu, t_reg);
+  if (first_bit != 0) {
+    OpRegRegImm(cu, kOpLsl, rl_result.low_reg, rl_result.low_reg, first_bit);
   }
 }
 
-void GenDivZeroCheck(CompilationUnit* cUnit, int regLo, int regHi)
+void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 {
-  int tReg = AllocTemp(cUnit);
-  OpRegRegReg(cUnit, kOpOr, tReg, regLo, regHi);
-  GenImmedCheck(cUnit, kCondEq, tReg, 0, kThrowDivZero);
-  FreeTemp(cUnit, tReg);
+  int t_reg = AllocTemp(cu);
+  OpRegRegReg(cu, kOpOr, t_reg, reg_lo, reg_hi);
+  GenImmedCheck(cu, kCondEq, t_reg, 0, kThrowDivZero);
+  FreeTemp(cu, t_reg);
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* OpTestSuspend(CompilationUnit* cUnit, LIR* target)
+LIR* OpTestSuspend(CompilationUnit* cu, LIR* target)
 {
-  OpRegImm(cUnit, kOpSub, rMIPS_SUSPEND, 1);
-  return OpCmpImmBranch(cUnit, (target == NULL) ? kCondEq : kCondNe, rMIPS_SUSPEND, 0, target);
+  OpRegImm(cu, kOpSub, rMIPS_SUSPEND, 1);
+  return OpCmpImmBranch(cu, (target == NULL) ? kCondEq : kCondNe, rMIPS_SUSPEND, 0, target);
 }
 
 // Decrement register and branch on condition
-LIR* OpDecAndBranch(CompilationUnit* cUnit, ConditionCode cCode, int reg, LIR* target)
+LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
 {
-  OpRegImm(cUnit, kOpSub, reg, 1);
-  return OpCmpImmBranch(cUnit, cCode, reg, 0, target);
+  OpRegImm(cu, kOpSub, reg, 1);
+  return OpCmpImmBranch(cu, c_code, reg, 0, target);
 }
 
-bool SmallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
-                        RegLocation rlSrc, RegLocation rlDest, int lit)
+bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
+                        RegLocation rl_src, RegLocation rl_dest, int lit)
 {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
   return false;
 }
 
-LIR* OpIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide)
+LIR* OpIT(CompilationUnit* cu, ArmConditionCode cond, const char* guide)
 {
   LOG(FATAL) << "Unexpected use of OpIT in Mips";
   return NULL;
 }
 
-bool GenAddLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
-  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kCoreReg);
-  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kCoreReg);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+  rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   /*
    *  [v1 v0] =  [a1 a0] + [a3 a2];
    *  addu v0,a2,a0
@@ -365,22 +365,22 @@ bool GenAddLong(CompilationUnit* cUnit, RegLocation rlDest,
    *  addu v1,v1,t1
    */
 
-  OpRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc2.lowReg, rlSrc1.lowReg);
-  int tReg = AllocTemp(cUnit);
-  OpRegRegReg(cUnit, kOpAdd, tReg, rlSrc2.highReg, rlSrc1.highReg);
-  NewLIR3(cUnit, kMipsSltu, rlResult.highReg, rlResult.lowReg, rlSrc2.lowReg);
-  OpRegRegReg(cUnit, kOpAdd, rlResult.highReg, rlResult.highReg, tReg);
-  FreeTemp(cUnit, tReg);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  OpRegRegReg(cu, kOpAdd, rl_result.low_reg, rl_src2.low_reg, rl_src1.low_reg);
+  int t_reg = AllocTemp(cu);
+  OpRegRegReg(cu, kOpAdd, t_reg, rl_src2.high_reg, rl_src1.high_reg);
+  NewLIR3(cu, kMipsSltu, rl_result.high_reg, rl_result.low_reg, rl_src2.low_reg);
+  OpRegRegReg(cu, kOpAdd, rl_result.high_reg, rl_result.high_reg, t_reg);
+  FreeTemp(cu, t_reg);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenSubLong(CompilationUnit* cUnit, RegLocation rlDest,
-        RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
+        RegLocation rl_src1, RegLocation rl_src2)
 {
-  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kCoreReg);
-  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kCoreReg);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+  rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   /*
    *  [v1 v0] =  [a1 a0] - [a3 a2];
    *  sltu  t1,a0,a2
@@ -389,21 +389,21 @@ bool GenSubLong(CompilationUnit* cUnit, RegLocation rlDest,
    *  subu  v1,v1,t1
    */
 
-  int tReg = AllocTemp(cUnit);
-  NewLIR3(cUnit, kMipsSltu, tReg, rlSrc1.lowReg, rlSrc2.lowReg);
-  OpRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-  OpRegRegReg(cUnit, kOpSub, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
-  OpRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
-  FreeTemp(cUnit, tReg);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  int t_reg = AllocTemp(cu);
+  NewLIR3(cu, kMipsSltu, t_reg, rl_src1.low_reg, rl_src2.low_reg);
+  OpRegRegReg(cu, kOpSub, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
+  OpRegRegReg(cu, kOpSub, rl_result.high_reg, rl_src1.high_reg, rl_src2.high_reg);
+  OpRegRegReg(cu, kOpSub, rl_result.high_reg, rl_result.high_reg, t_reg);
+  FreeTemp(cu, t_reg);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenNegLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc)
+bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src)
 {
-  rlSrc = LoadValueWide(cUnit, rlSrc, kCoreReg);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
+  rl_src = LoadValueWide(cu, rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   /*
    *  [v1 v0] =  -[a1 a0]
    *  negu  v0,a0
@@ -412,32 +412,32 @@ bool GenNegLong(CompilationUnit* cUnit, RegLocation rlDest,
    *  subu  v1,v1,t1
    */
 
-  OpRegReg(cUnit, kOpNeg, rlResult.lowReg, rlSrc.lowReg);
-  OpRegReg(cUnit, kOpNeg, rlResult.highReg, rlSrc.highReg);
-  int tReg = AllocTemp(cUnit);
-  NewLIR3(cUnit, kMipsSltu, tReg, r_ZERO, rlResult.lowReg);
-  OpRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
-  FreeTemp(cUnit, tReg);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  OpRegReg(cu, kOpNeg, rl_result.low_reg, rl_src.low_reg);
+  OpRegReg(cu, kOpNeg, rl_result.high_reg, rl_src.high_reg);
+  int t_reg = AllocTemp(cu);
+  NewLIR3(cu, kMipsSltu, t_reg, r_ZERO, rl_result.low_reg);
+  OpRegRegReg(cu, kOpSub, rl_result.high_reg, rl_result.high_reg, t_reg);
+  FreeTemp(cu, t_reg);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenAndLong(CompilationUnit* cUnit, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
+                RegLocation rl_src1, RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
   return false;
 }
 
-bool GenOrLong(CompilationUnit* cUnit, RegLocation rlDest,
-               RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
+               RegLocation rl_src1, RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
   return false;
 }
 
-bool GenXorLong(CompilationUnit* cUnit, RegLocation rlDest,
-               RegLocation rlSrc1, RegLocation rlSrc2)
+bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
+               RegLocation rl_src1, RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
   return false;

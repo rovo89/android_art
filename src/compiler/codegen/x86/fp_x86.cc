@@ -20,10 +20,10 @@
 
 namespace art {
 
-bool GenArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
-                     RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2) {
+bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
+                     RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
-  RegLocation rlResult;
+  RegLocation rl_result;
 
   /*
    * Don't attempt to optimize register usage since these opcodes call out to
@@ -49,31 +49,31 @@ bool GenArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::NEG_FLOAT:
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
-      return GenArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpFloatPortable(cu, opcode, rl_dest, rl_src1, rl_src2);
     default:
       return true;
   }
-  rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
-  rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
-  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-  int rDest = rlResult.lowReg;
-  int rSrc1 = rlSrc1.lowReg;
-  int rSrc2 = rlSrc2.lowReg;
-  if (rDest == rSrc2) {
-    rSrc2 = AllocTempFloat(cUnit);
-    OpRegCopy(cUnit, rSrc2, rDest);
+  rl_src1 = LoadValue(cu, rl_src1, kFPReg);
+  rl_src2 = LoadValue(cu, rl_src2, kFPReg);
+  rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+  int r_dest = rl_result.low_reg;
+  int r_src1 = rl_src1.low_reg;
+  int r_src2 = rl_src2.low_reg;
+  if (r_dest == r_src2) {
+    r_src2 = AllocTempFloat(cu);
+    OpRegCopy(cu, r_src2, r_dest);
   }
-  OpRegCopy(cUnit, rDest, rSrc1);
-  NewLIR2(cUnit, op, rDest, rSrc2);
-  StoreValue(cUnit, rlDest, rlResult);
+  OpRegCopy(cu, r_dest, r_src1);
+  NewLIR2(cu, op, r_dest, r_src2);
+  StoreValue(cu, rl_dest, rl_result);
 
   return false;
 }
 
-bool GenArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
-                      RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2) {
+bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+                      RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
-  RegLocation rlResult;
+  RegLocation rl_result;
 
   switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
@@ -95,36 +95,36 @@ bool GenArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::NEG_DOUBLE:
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
-      return GenArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+      return GenArithOpDoublePortable(cu, opcode, rl_dest, rl_src1, rl_src2);
     default:
       return true;
   }
-  rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
-  DCHECK(rlSrc1.wide);
-  rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
-  DCHECK(rlSrc2.wide);
-  rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-  DCHECK(rlDest.wide);
-  DCHECK(rlResult.wide);
-  int rDest = S2d(rlResult.lowReg, rlResult.highReg);
-  int rSrc1 = S2d(rlSrc1.lowReg, rlSrc1.highReg);
-  int rSrc2 = S2d(rlSrc2.lowReg, rlSrc2.highReg);
-  if (rDest == rSrc2) {
-    rSrc2 = AllocTempDouble(cUnit) | X86_FP_DOUBLE;
-    OpRegCopy(cUnit, rSrc2, rDest);
+  rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
+  DCHECK(rl_src1.wide);
+  rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
+  DCHECK(rl_src2.wide);
+  rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_result.wide);
+  int r_dest = S2d(rl_result.low_reg, rl_result.high_reg);
+  int r_src1 = S2d(rl_src1.low_reg, rl_src1.high_reg);
+  int r_src2 = S2d(rl_src2.low_reg, rl_src2.high_reg);
+  if (r_dest == r_src2) {
+    r_src2 = AllocTempDouble(cu) | X86_FP_DOUBLE;
+    OpRegCopy(cu, r_src2, r_dest);
   }
-  OpRegCopy(cUnit, rDest, rSrc1);
-  NewLIR2(cUnit, op, rDest, rSrc2);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  OpRegCopy(cu, r_dest, r_src1);
+  NewLIR2(cu, op, r_dest, r_src2);
+  StoreValueWide(cu, rl_dest, rl_result);
   return false;
 }
 
-bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode,
-                   RegLocation rlDest, RegLocation rlSrc) {
+bool GenConversion(CompilationUnit *cu, Instruction::Code opcode,
+                   RegLocation rl_dest, RegLocation rl_src) {
   RegisterClass rcSrc = kFPReg;
   X86OpCode op = kX86Nop;
-  int srcReg;
-  RegLocation rlResult;
+  int src_reg;
+  RegLocation rl_result;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
       rcSrc = kCoreReg;
@@ -143,45 +143,45 @@ bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode,
       op = kX86Cvtsi2sdRR;
       break;
     case Instruction::FLOAT_TO_INT: {
-      rlSrc = LoadValue(cUnit, rlSrc, kFPReg);
-      srcReg = rlSrc.lowReg;
-      ClobberSReg(cUnit, rlDest.sRegLow);
-      rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-      int tempReg = AllocTempFloat(cUnit);
+      rl_src = LoadValue(cu, rl_src, kFPReg);
+      src_reg = rl_src.low_reg;
+      ClobberSReg(cu, rl_dest.s_reg_low);
+      rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+      int temp_reg = AllocTempFloat(cu);
 
-      LoadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
-      NewLIR2(cUnit, kX86Cvtsi2ssRR, tempReg, rlResult.lowReg);
-      NewLIR2(cUnit, kX86ComissRR, srcReg, tempReg);
-      LIR* branchPosOverflow = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
-      LIR* branchNaN = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondP);
-      NewLIR2(cUnit, kX86Cvttss2siRR, rlResult.lowReg, srcReg);
-      LIR* branchNormal = NewLIR1(cUnit, kX86Jmp8, 0);
-      branchNaN->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      NewLIR2(cUnit, kX86Xor32RR, rlResult.lowReg, rlResult.lowReg);
-      branchPosOverflow->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      branchNormal->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      StoreValue(cUnit, rlDest, rlResult);
+      LoadConstant(cu, rl_result.low_reg, 0x7fffffff);
+      NewLIR2(cu, kX86Cvtsi2ssRR, temp_reg, rl_result.low_reg);
+      NewLIR2(cu, kX86ComissRR, src_reg, temp_reg);
+      LIR* branch_pos_overflow = NewLIR2(cu, kX86Jcc8, 0, kX86CondA);
+      LIR* branch_na_n = NewLIR2(cu, kX86Jcc8, 0, kX86CondP);
+      NewLIR2(cu, kX86Cvttss2siRR, rl_result.low_reg, src_reg);
+      LIR* branch_normal = NewLIR1(cu, kX86Jmp8, 0);
+      branch_na_n->target = NewLIR0(cu, kPseudoTargetLabel);
+      NewLIR2(cu, kX86Xor32RR, rl_result.low_reg, rl_result.low_reg);
+      branch_pos_overflow->target = NewLIR0(cu, kPseudoTargetLabel);
+      branch_normal->target = NewLIR0(cu, kPseudoTargetLabel);
+      StoreValue(cu, rl_dest, rl_result);
       return false;
     }
     case Instruction::DOUBLE_TO_INT: {
-      rlSrc = LoadValueWide(cUnit, rlSrc, kFPReg);
-      srcReg = rlSrc.lowReg;
-      ClobberSReg(cUnit, rlDest.sRegLow);
-      rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-      int tempReg = AllocTempDouble(cUnit) | X86_FP_DOUBLE;
+      rl_src = LoadValueWide(cu, rl_src, kFPReg);
+      src_reg = rl_src.low_reg;
+      ClobberSReg(cu, rl_dest.s_reg_low);
+      rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+      int temp_reg = AllocTempDouble(cu) | X86_FP_DOUBLE;
 
-      LoadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
-      NewLIR2(cUnit, kX86Cvtsi2sdRR, tempReg, rlResult.lowReg);
-      NewLIR2(cUnit, kX86ComisdRR, srcReg, tempReg);
-      LIR* branchPosOverflow = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
-      LIR* branchNaN = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondP);
-      NewLIR2(cUnit, kX86Cvttsd2siRR, rlResult.lowReg, srcReg);
-      LIR* branchNormal = NewLIR1(cUnit, kX86Jmp8, 0);
-      branchNaN->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      NewLIR2(cUnit, kX86Xor32RR, rlResult.lowReg, rlResult.lowReg);
-      branchPosOverflow->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      branchNormal->target = NewLIR0(cUnit, kPseudoTargetLabel);
-      StoreValue(cUnit, rlDest, rlResult);
+      LoadConstant(cu, rl_result.low_reg, 0x7fffffff);
+      NewLIR2(cu, kX86Cvtsi2sdRR, temp_reg, rl_result.low_reg);
+      NewLIR2(cu, kX86ComisdRR, src_reg, temp_reg);
+      LIR* branch_pos_overflow = NewLIR2(cu, kX86Jcc8, 0, kX86CondA);
+      LIR* branch_na_n = NewLIR2(cu, kX86Jcc8, 0, kX86CondP);
+      NewLIR2(cu, kX86Cvttsd2siRR, rl_result.low_reg, src_reg);
+      LIR* branch_normal = NewLIR1(cu, kX86Jmp8, 0);
+      branch_na_n->target = NewLIR0(cu, kPseudoTargetLabel);
+      NewLIR2(cu, kX86Xor32RR, rl_result.low_reg, rl_result.low_reg);
+      branch_pos_overflow->target = NewLIR0(cu, kPseudoTargetLabel);
+      branch_normal->target = NewLIR0(cu, kPseudoTargetLabel);
+      StoreValue(cu, rl_dest, rl_result);
       return false;
     }
     case Instruction::LONG_TO_DOUBLE:
@@ -189,140 +189,140 @@ bool GenConversion(CompilationUnit *cUnit, Instruction::Code opcode,
       // TODO: inline by using memory as a 64-bit source. Be careful about promoted registers.
     case Instruction::FLOAT_TO_LONG:
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionPortable(cUnit, opcode, rlDest, rlSrc);
+      return GenConversionPortable(cu, opcode, rl_dest, rl_src);
     default:
       return true;
   }
-  if (rlSrc.wide) {
-    rlSrc = LoadValueWide(cUnit, rlSrc, rcSrc);
-    srcReg = S2d(rlSrc.lowReg, rlSrc.highReg);
+  if (rl_src.wide) {
+    rl_src = LoadValueWide(cu, rl_src, rcSrc);
+    src_reg = S2d(rl_src.low_reg, rl_src.high_reg);
   } else {
-    rlSrc = LoadValue(cUnit, rlSrc, rcSrc);
-    srcReg = rlSrc.lowReg;
+    rl_src = LoadValue(cu, rl_src, rcSrc);
+    src_reg = rl_src.low_reg;
   }
-  if (rlDest.wide) {
-    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-    NewLIR2(cUnit, op, S2d(rlResult.lowReg, rlResult.highReg), srcReg);
-    StoreValueWide(cUnit, rlDest, rlResult);
+  if (rl_dest.wide) {
+    rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+    NewLIR2(cu, op, S2d(rl_result.low_reg, rl_result.high_reg), src_reg);
+    StoreValueWide(cu, rl_dest, rl_result);
   } else {
-    rlResult = EvalLoc(cUnit, rlDest, kFPReg, true);
-    NewLIR2(cUnit, op, rlResult.lowReg, srcReg);
-    StoreValue(cUnit, rlDest, rlResult);
+    rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
+    NewLIR2(cu, op, rl_result.low_reg, src_reg);
+    StoreValue(cu, rl_dest, rl_result);
   }
   return false;
 }
 
-bool GenCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation rlDest,
-              RegLocation rlSrc1, RegLocation rlSrc2) {
+bool GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
+              RegLocation rl_src1, RegLocation rl_src2) {
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
-  bool unorderedGt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
-  int srcReg1;
-  int srcReg2;
+  bool unordered_gt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
+  int src_reg1;
+  int src_reg2;
   if (single) {
-    rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
-    srcReg1 = rlSrc1.lowReg;
-    rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
-    srcReg2 = rlSrc2.lowReg;
+    rl_src1 = LoadValue(cu, rl_src1, kFPReg);
+    src_reg1 = rl_src1.low_reg;
+    rl_src2 = LoadValue(cu, rl_src2, kFPReg);
+    src_reg2 = rl_src2.low_reg;
   } else {
-    rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
-    srcReg1 = S2d(rlSrc1.lowReg, rlSrc1.highReg);
-    rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
-    srcReg2 = S2d(rlSrc2.lowReg, rlSrc2.highReg);
+    rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
+    src_reg1 = S2d(rl_src1.low_reg, rl_src1.high_reg);
+    rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
+    src_reg2 = S2d(rl_src2.low_reg, rl_src2.high_reg);
   }
-  ClobberSReg(cUnit, rlDest.sRegLow);
-  RegLocation rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  LoadConstantNoClobber(cUnit, rlResult.lowReg, unorderedGt ? 1 : 0);
+  ClobberSReg(cu, rl_dest.s_reg_low);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  LoadConstantNoClobber(cu, rl_result.low_reg, unordered_gt ? 1 : 0);
   if (single) {
-    NewLIR2(cUnit, kX86UcomissRR, srcReg1, srcReg2);
+    NewLIR2(cu, kX86UcomissRR, src_reg1, src_reg2);
   } else {
-    NewLIR2(cUnit, kX86UcomisdRR, srcReg1, srcReg2);
+    NewLIR2(cu, kX86UcomisdRR, src_reg1, src_reg2);
   }
   LIR* branch = NULL;
-  if (unorderedGt) {
-    branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+  if (unordered_gt) {
+    branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
   }
   // If the result reg can't be byte accessed, use a jump and move instead of a set.
-  if (rlResult.lowReg >= 4) {
+  if (rl_result.low_reg >= 4) {
     LIR* branch2 = NULL;
-    if (unorderedGt) {
-      branch2 = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
-      NewLIR2(cUnit, kX86Mov32RI, rlResult.lowReg, 0x0);
+    if (unordered_gt) {
+      branch2 = NewLIR2(cu, kX86Jcc8, 0, kX86CondA);
+      NewLIR2(cu, kX86Mov32RI, rl_result.low_reg, 0x0);
     } else {
-      branch2 = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondBe);
-      NewLIR2(cUnit, kX86Mov32RI, rlResult.lowReg, 0x1);
+      branch2 = NewLIR2(cu, kX86Jcc8, 0, kX86CondBe);
+      NewLIR2(cu, kX86Mov32RI, rl_result.low_reg, 0x1);
     }
-    branch2->target = NewLIR0(cUnit, kPseudoTargetLabel);
+    branch2->target = NewLIR0(cu, kPseudoTargetLabel);
   } else {
-    NewLIR2(cUnit, kX86Set8R, rlResult.lowReg, kX86CondA /* above - unsigned > */);
+    NewLIR2(cu, kX86Set8R, rl_result.low_reg, kX86CondA /* above - unsigned > */);
   }
-  NewLIR2(cUnit, kX86Sbb32RI, rlResult.lowReg, 0);
-  if (unorderedGt) {
-    branch->target = NewLIR0(cUnit, kPseudoTargetLabel);
+  NewLIR2(cu, kX86Sbb32RI, rl_result.low_reg, 0);
+  if (unordered_gt) {
+    branch->target = NewLIR0(cu, kPseudoTargetLabel);
   }
-  StoreValue(cUnit, rlDest, rlResult);
+  StoreValue(cu, rl_dest, rl_result);
   return false;
 }
 
-void GenFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                                bool gtBias, bool isDouble) {
-  LIR* labelList = cUnit->blockLabelList;
-  LIR* taken = &labelList[bb->taken->id];
-  LIR* notTaken = &labelList[bb->fallThrough->id];
+void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                                bool gt_bias, bool is_double) {
+  LIR* label_list = cu->block_label_list;
+  LIR* taken = &label_list[bb->taken->id];
+  LIR* not_taken = &label_list[bb->fall_through->id];
   LIR* branch = NULL;
-  RegLocation rlSrc1;
-  RegLocation rlSrc2;
-  if (isDouble) {
-    rlSrc1 = GetSrcWide(cUnit, mir, 0);
-    rlSrc2 = GetSrcWide(cUnit, mir, 2);
-    rlSrc1 = LoadValueWide(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = LoadValueWide(cUnit, rlSrc2, kFPReg);
-    NewLIR2(cUnit, kX86UcomisdRR, S2d(rlSrc1.lowReg, rlSrc1.highReg),
-            S2d(rlSrc2.lowReg, rlSrc2.highReg));
+  RegLocation rl_src1;
+  RegLocation rl_src2;
+  if (is_double) {
+    rl_src1 = GetSrcWide(cu, mir, 0);
+    rl_src2 = GetSrcWide(cu, mir, 2);
+    rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
+    rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
+    NewLIR2(cu, kX86UcomisdRR, S2d(rl_src1.low_reg, rl_src1.high_reg),
+            S2d(rl_src2.low_reg, rl_src2.high_reg));
   } else {
-    rlSrc1 = GetSrc(cUnit, mir, 0);
-    rlSrc2 = GetSrc(cUnit, mir, 1);
-    rlSrc1 = LoadValue(cUnit, rlSrc1, kFPReg);
-    rlSrc2 = LoadValue(cUnit, rlSrc2, kFPReg);
-    NewLIR2(cUnit, kX86UcomissRR, rlSrc1.lowReg, rlSrc2.lowReg);
+    rl_src1 = GetSrc(cu, mir, 0);
+    rl_src2 = GetSrc(cu, mir, 1);
+    rl_src1 = LoadValue(cu, rl_src1, kFPReg);
+    rl_src2 = LoadValue(cu, rl_src2, kFPReg);
+    NewLIR2(cu, kX86UcomissRR, rl_src1.low_reg, rl_src2.low_reg);
   }
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   switch (ccode) {
     case kCondEq:
-      if (!gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
-        branch->target = notTaken;
+      if (!gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
+        branch->target = not_taken;
       }
       break;
     case kCondNe:
-      if (!gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+      if (!gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
         branch->target = taken;
       }
       break;
     case kCondLt:
-      if (gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
-        branch->target = notTaken;
+      if (gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
+        branch->target = not_taken;
       }
       ccode = kCondCs;
       break;
     case kCondLe:
-      if (gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
-        branch->target = notTaken;
+      if (gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
+        branch->target = not_taken;
       }
       ccode = kCondLs;
       break;
     case kCondGt:
-      if (gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+      if (gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
         branch->target = taken;
       }
       ccode = kCondHi;
       break;
     case kCondGe:
-      if (gtBias) {
-        branch = NewLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+      if (gt_bias) {
+        branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondPE);
         branch->target = taken;
       }
       ccode = kCondCc;
@@ -330,30 +330,30 @@ void GenFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     default:
       LOG(FATAL) << "Unexpected ccode: " << ccode;
   }
-  OpCondBranch(cUnit, ccode, taken);
+  OpCondBranch(cu, ccode, taken);
 }
 
-void GenNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  RegLocation rlResult;
-  rlSrc = LoadValue(cUnit, rlSrc, kCoreReg);
-  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  OpRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
-  StoreValue(cUnit, rlDest, rlResult);
+  RegLocation rl_result;
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  OpRegRegImm(cu, kOpAdd, rl_result.low_reg, rl_src.low_reg, 0x80000000);
+  StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  RegLocation rlResult;
-  rlSrc = LoadValueWide(cUnit, rlSrc, kCoreReg);
-  rlResult = EvalLoc(cUnit, rlDest, kCoreReg, true);
-  OpRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
-  OpRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
-  StoreValueWide(cUnit, rlDest, rlResult);
+  RegLocation rl_result;
+  rl_src = LoadValueWide(cu, rl_src, kCoreReg);
+  rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  OpRegRegImm(cu, kOpAdd, rl_result.high_reg, rl_src.high_reg, 0x80000000);
+  OpRegCopy(cu, rl_result.low_reg, rl_src.low_reg);
+  StoreValueWide(cu, rl_dest, rl_result);
 }
 
-bool GenInlinedSqrt(CompilationUnit* cUnit, CallInfo* info) {
-  DCHECK_NE(cUnit->instructionSet, kThumb2);
+bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
+  DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 

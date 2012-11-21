@@ -89,7 +89,7 @@ namespace art {
  * | OUT[outs-2]            |
  * |       .                |
  * | OUT[0]                 |
- * | curMethod*             | <<== sp w/ 16-byte alignment
+ * | cur_method*            | <<== sp w/ 16-byte alignment
  * +========================+
  */
 
@@ -568,7 +568,7 @@ enum ArmOpDmbOptions {
 };
 
 /* Bit flags describing the behavior of each native opcode */
-/* Instruction assembly fieldLoc kind */
+/* Instruction assembly field_loc kind */
 enum ArmEncodingKind {
   kFmtUnused,
   kFmtBitBlt,    /* Bit string using end/start */
@@ -594,7 +594,7 @@ struct ArmEncodingMap {
     ArmEncodingKind kind;
     int end;   /* end for kFmtBitBlt, 1-bit slice end for FP regs */
     int start; /* start for kFmtBitBlt, 4-bit slice end for FP regs */
-  } fieldLoc[4];
+  } field_loc[4];
   ArmOpcode opcode;
   uint64_t flags;
   const char* name;
