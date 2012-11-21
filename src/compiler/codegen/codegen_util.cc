@@ -312,10 +312,10 @@ void CodegenDump(CompilationUnit* cu)
   LOG(INFO) << "expansion factor: "
             << static_cast<float>(cu->total_size) / static_cast<float>(insns_size * 2);
   DumpPromotionMap(cu);
-  for (lir_insn = cu->first_lir_insn; lir_insn; lir_insn = lir_insn->next) {
+  for (lir_insn = cu->first_lir_insn; lir_insn != NULL; lir_insn = lir_insn->next) {
     DumpLIRInsn(cu, lir_insn, 0);
   }
-  for (lir_insn = cu->literal_list; lir_insn; lir_insn = lir_insn->next) {
+  for (lir_insn = cu->literal_list; lir_insn != NULL; lir_insn = lir_insn->next) {
     LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)", lir_insn->offset, lir_insn->offset,
                               lir_insn->operands[0]);
   }

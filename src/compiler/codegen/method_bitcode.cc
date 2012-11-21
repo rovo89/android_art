@@ -1856,7 +1856,7 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
     return false;
   }
 
-  for (MIR* mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
 
     SetDexOffset(cu, mir->offset);
 
@@ -3385,8 +3385,7 @@ void MethodBitcode2LIR(CompilationUnit* cu)
     static_cast<LIR*>(NewMem(cu, sizeof(LIR) * num_basic_blocks, true, kAllocLIR));
   LIR* label_list = cu->block_label_list;
   int next_label = 0;
-  for (llvm::Function::iterator i = func->begin(),
-       e = func->end(); i != e; ++i) {
+  for (llvm::Function::iterator i = func->begin(), e = func->end(); i != e; ++i) {
     cu->block_to_label_map.Put(static_cast<llvm::BasicBlock*>(i),
                                &label_list[next_label++]);
   }
@@ -3397,8 +3396,7 @@ void MethodBitcode2LIR(CompilationUnit* cu)
    */
   cu->loc_map.clear();  // Start fresh
   cu->reg_location = NULL;
-  for (int i = 0; i < cu->num_dalvik_registers + cu->num_compiler_temps + 1;
-       i++) {
+  for (int i = 0; i < cu->num_dalvik_registers + cu->num_compiler_temps + 1; i++) {
     cu->promotion_map[i].core_location = kLocDalvikFrame;
     cu->promotion_map[i].fp_location = kLocDalvikFrame;
   }
@@ -3416,8 +3414,7 @@ void MethodBitcode2LIR(CompilationUnit* cu)
    * be the first instruction we encounter, so we won't have to iterate
    * through everything.
    */
-  for (llvm::inst_iterator i = llvm::inst_begin(func),
-       e = llvm::inst_end(func); i != e; ++i) {
+  for (llvm::inst_iterator i = llvm::inst_begin(func), e = llvm::inst_end(func); i != e; ++i) {
     llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(&*i);
     if (call_inst != NULL) {
       llvm::Function* callee = call_inst->getCalledFunction();
@@ -3489,8 +3486,7 @@ void MethodBitcode2LIR(CompilationUnit* cu)
     CreateLocFromValue(cu, val);
   }
   // Create RegLocations for all non-argument defintions
-  for (llvm::inst_iterator i = llvm::inst_begin(func),
-       e = llvm::inst_end(func); i != e; ++i) {
+  for (llvm::inst_iterator i = llvm::inst_begin(func), e = llvm::inst_end(func); i != e; ++i) {
     llvm::Value* val = &*i;
     if (val->hasName() && (val->getName().str().c_str()[0] == 'v')) {
       CreateLocFromValue(cu, val);
@@ -3498,8 +3494,7 @@ void MethodBitcode2LIR(CompilationUnit* cu)
   }
 
   // Walk the blocks, generating code.
-  for (llvm::Function::iterator i = cu->func->begin(),
-       e = cu->func->end(); i != e; ++i) {
+  for (llvm::Function::iterator i = cu->func->begin(), e = cu->func->end(); i != e; ++i) {
     BitcodeBlockCodeGen(cu, static_cast<llvm::BasicBlock*>(i));
   }
 

@@ -520,7 +520,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu,
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cu->first_lir_insn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -723,7 +723,7 @@ int AssignInsnOffsets(CompilationUnit* cu)
   LIR* mips_lir;
   int offset = 0;
 
-  for (mips_lir = cu->first_lir_insn; mips_lir; mips_lir = NEXT_LIR(mips_lir)) {
+  for (mips_lir = cu->first_lir_insn; mips_lir != NULL; mips_lir = NEXT_LIR(mips_lir)) {
     mips_lir->offset = offset;
     if (mips_lir->opcode >= 0) {
       if (!mips_lir->flags.is_nop) {

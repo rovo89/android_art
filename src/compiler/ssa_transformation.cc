@@ -802,7 +802,7 @@ static bool InsertPhiNodeOperands(CompilationUnit* cu, BasicBlock* bb)
   std::vector<int> incoming_arc;
 
   /* Phi nodes are at the beginning of each block */
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     if (mir->dalvikInsn.opcode != static_cast<Instruction::Code>(kMirOpPhi))
       return true;
     int ssa_reg = mir->ssa_rep->defs[0];

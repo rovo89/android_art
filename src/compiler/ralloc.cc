@@ -74,7 +74,7 @@ static bool RemapNames(CompilationUnit* cu, BasicBlock* bb)
       bb->block_type != kExitBlock)
     return false;
 
-  for (MIR* mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     SSARepresentation *ssa_rep = mir->ssa_rep;
     if (ssa_rep) {
       for (int i = 0; i < ssa_rep->num_uses; i++) {
@@ -102,7 +102,7 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
   if (bb->block_type != kDalvikByteCode && bb->block_type != kEntryBlock)
     return false;
 
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     SSARepresentation *ssa_rep = mir->ssa_rep;
     if (ssa_rep) {
       int attrs = oat_data_flow_attributes[mir->dalvikInsn.opcode];

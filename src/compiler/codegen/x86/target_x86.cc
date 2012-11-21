@@ -512,7 +512,7 @@ void CompilerInitializeRegAlloc(CompilationUnit* cu) {
   for (int i = 0; i < cu->num_ssa_regs; i++) {
     cu->phi_alias_map[i] = i;
   }
-  for (MIR* phi = cu->phi_list; phi; phi = phi->meta.phi_next) {
+  for (MIR* phi = cu->phi_list; phi != NULL; phi = phi->meta.phi_next) {
     int def_reg = phi->ssa_rep->defs[0];
     for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
       for (int j = 0; j < cu->num_ssa_regs; j++) {

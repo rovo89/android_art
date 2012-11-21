@@ -78,9 +78,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
 
   if (head_lir == tail_lir) return;
 
-  for (this_lir = PREV_LIR(tail_lir);
-      this_lir != head_lir;
-      this_lir = PREV_LIR(this_lir)) {
+  for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
     int sink_distance = 0;
 
     /* Skip non-interesting instructions */
@@ -124,9 +122,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
         stop_use_reg_mask = (GetPCUseDefEncoding() | this_lir->use_mask) & ~ENCODE_MEM;
     }
 
-    for (check_lir = NEXT_LIR(this_lir);
-        check_lir != tail_lir;
-        check_lir = NEXT_LIR(check_lir)) {
+    for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
 
       /*
        * Skip already dead instructions (whose dataflow information is
@@ -275,9 +271,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
   if (head_lir == tail_lir) return;
 
   /* Start from the second instruction */
-  for (this_lir = NEXT_LIR(head_lir);
-     this_lir != tail_lir;
-     this_lir = NEXT_LIR(this_lir)) {
+  for (this_lir = NEXT_LIR(head_lir); this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
 
     /* Skip non-interesting instructions */
     if ((this_lir->flags.is_nop == true) ||
@@ -308,9 +302,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
     bool stop_here = false;
 
     /* Try to hoist the load to a good spot */
-    for (check_lir = PREV_LIR(this_lir);
-        check_lir != head_lir;
-        check_lir = PREV_LIR(check_lir)) {
+    for (check_lir = PREV_LIR(this_lir); check_lir != head_lir; check_lir = PREV_LIR(check_lir)) {
 
       /*
        * Skip already dead instructions (whose dataflow information is

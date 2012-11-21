@@ -1194,7 +1194,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) 
   AssemblerStatus res = kSuccess;  // Assume success
 
   const bool kVerbosePcFixup = false;
-  for (lir = cu->first_lir_insn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -1420,21 +1420,21 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) 
  */
 int AssignInsnOffsets(CompilationUnit* cu)
 {
-    LIR* x86LIR;
+    LIR* x86_lir;
     int offset = 0;
 
-    for (x86LIR = cu->first_lir_insn; x86LIR; x86LIR = NEXT_LIR(x86LIR)) {
-        x86LIR->offset = offset;
-        if (x86LIR->opcode >= 0) {
-            if (!x86LIR->flags.is_nop) {
-                offset += x86LIR->flags.size;
+    for (x86_lir = cu->first_lir_insn; x86_lir != NULL; x86_lir = NEXT_LIR(x86_lir)) {
+        x86_lir->offset = offset;
+        if (x86_lir->opcode >= 0) {
+            if (!x86_lir->flags.is_nop) {
+                offset += x86_lir->flags.size;
             }
-        } else if (x86LIR->opcode == kPseudoPseudoAlign4) {
+        } else if (x86_lir->opcode == kPseudoPseudoAlign4) {
             if (offset & 0x2) {
                 offset += 2;
-                x86LIR->operands[0] = 1;
+                x86_lir->operands[0] = 1;
             } else {
-                x86LIR->operands[0] = 0;
+                x86_lir->operands[0] = 0;
             }
         }
         /* Pseudo opcodes don't consume space */

@@ -993,7 +993,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cu,
   LIR* lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cu->first_lir_insn; lir; lir = NEXT_LIR(lir)) {
+  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
 
     if (lir->opcode < 0) {
       /* 1 means padding is needed */
@@ -1374,7 +1374,7 @@ int AssignInsnOffsets(CompilationUnit* cu)
   LIR* arm_lir;
   int offset = 0;
 
-  for (arm_lir = cu->first_lir_insn; arm_lir; arm_lir = NEXT_LIR(arm_lir)) {
+  for (arm_lir = cu->first_lir_insn; arm_lir != NULL; arm_lir = NEXT_LIR(arm_lir)) {
     arm_lir->offset = offset;
     if (arm_lir->opcode >= 0) {
       if (!arm_lir->flags.is_nop) {

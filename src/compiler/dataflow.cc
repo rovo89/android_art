@@ -1131,7 +1131,7 @@ bool FindLocalLiveIn(CompilationUnit* cu, BasicBlock* bb)
       AllocBitVector(cu, cu->num_dalvik_registers, false,
                         kBitMapLiveIn);
 
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
     DecodedInstruction *d_insn = &mir->dalvikInsn;
 
@@ -1249,7 +1249,7 @@ bool DoSSAConversion(CompilationUnit* cu, BasicBlock* bb)
 
   if (bb->data_flow_info == NULL) return false;
 
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     mir->ssa_rep = static_cast<struct SSARepresentation *>(NewMem(cu, sizeof(SSARepresentation),
                                                                  true, kAllocDFInfo));
 
@@ -1394,7 +1394,7 @@ bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb)
   MIR* mir;
   ArenaBitVector *is_constant_v = cu->is_constant_v;
 
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;
@@ -1757,7 +1757,7 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
 {
   int num_temps = 0;
 
-  for (MIR* mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     // Look for interesting opcodes, skip otherwise
     Instruction::Code opcode = mir->dalvikInsn.opcode;
     switch (opcode) {
@@ -1887,7 +1887,7 @@ static bool NullCheckEliminationInit(struct CompilationUnit* cu, struct BasicBlo
 static bool CountChecks( struct CompilationUnit* cu, struct BasicBlock* bb)
 {
   if (bb->data_flow_info == NULL) return false;
-  for (MIR* mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     if (mir->ssa_rep == NULL) {
       continue;
     }
@@ -2059,7 +2059,7 @@ static bool EliminateNullChecks( struct CompilationUnit* cu, struct BasicBlock* 
   }
 
   // Walk through the instruction in the block, updating as necessary
-  for (MIR* mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     if (mir->ssa_rep == NULL) {
         continue;
     }
@@ -2084,7 +2084,7 @@ static bool EliminateNullChecks( struct CompilationUnit* cu, struct BasicBlock* 
         } else if (bb->fall_through) {
           // Look in next basic block
           struct BasicBlock* next_bb = bb->fall_through;
-          for (MIR* tmir = next_bb->first_mir_insn; tmir;
+          for (MIR* tmir = next_bb->first_mir_insn; tmir != NULL;
             tmir =tmir->next) {
             if (static_cast<int>(tmir->dalvikInsn.opcode) >= static_cast<int>(kMirOpFirst)) {
               continue;
@@ -2259,7 +2259,7 @@ static void AddBlocksToLoop(CompilationUnit* cu, ArenaBitVector* blocks,
   GrowableListIterator iter;
   GrowableListIteratorInit(bb->predecessors, &iter);
   BasicBlock* pred_bb;
-  for (pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); pred_bb;
+  for (pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); pred_bb != NULL;
        pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
     AddBlocksToLoop(cu, blocks, pred_bb, head_id);
   }
@@ -2277,7 +2277,7 @@ static void DumpLoops(CompilationUnit *cu)
     GrowableListIterator iter;
     GrowableListIteratorInit(&loop->incoming_back_edges, &iter);
     BasicBlock* edge_bb;
-    for (edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edge_bb;
+    for (edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edge_bb != NULL;
          edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
       LOG(INFO) << "    Backedge block id " << edge_bb->id
                 << ", offset 0x" << std::hex << edge_bb->start_offset;
@@ -2306,14 +2306,14 @@ void LoopDetection(CompilationUnit *cu)
   GrowableListIteratorInit(&cu->loop_headers, &iter);
   // Add blocks to each header
   for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
-       loop; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
+       loop != NULL; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     loop->blocks = AllocBitVector(cu, cu->num_blocks, true,
                                      kBitMapMisc);
     SetBit(cu, loop->blocks, loop->header->id);
     GrowableListIterator iter;
     GrowableListIteratorInit(&loop->incoming_back_edges, &iter);
     BasicBlock* edge_bb;
-    for (edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edge_bb;
+    for (edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter)); edge_bb != NULL;
          edge_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter))) {
       AddBlocksToLoop(cu, loop->blocks, edge_bb, loop->header->id);
     }
@@ -2321,12 +2321,12 @@ void LoopDetection(CompilationUnit *cu)
   // Compute the nesting depth of each header
   GrowableListIteratorInit(&cu->loop_headers, &iter);
   for (LoopInfo* loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter));
-       loop; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
+       loop != NULL; loop = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter))) {
     GrowableListIterator iter2;
     GrowableListIteratorInit(&cu->loop_headers, &iter2);
     LoopInfo* loop2;
     for (loop2 = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter2));
-         loop2; loop2 = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter2))) {
+         loop2 != NULL; loop2 = reinterpret_cast<LoopInfo*>(GrowableListIteratorNext(&iter2))) {
       if (IsBitSet(loop2->blocks, loop->header->id)) {
          loop->header->nesting_depth++;
       }

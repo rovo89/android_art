@@ -729,7 +729,7 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
     GenExitSequence(cu);
   }
 
-  for (mir = bb->first_mir_insn; mir; mir = mir->next) {
+  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     ResetRegPool(cu);
     if (cu->disable_opt & (1 << kTrackLiveTemps)) {
       ClobberAllRegs(cu);
