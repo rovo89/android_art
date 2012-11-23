@@ -160,7 +160,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
 }  // namespace arm
 }  // namespace art
 
-extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& /*compiler*/, bool is_static,
+extern "C" art::CompiledInvokeStub* ArtCreateArmInvokeStub(art::Compiler& /*compiler*/, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
   return art::arm::CreateInvokeStub(is_static, shorty, shorty_len);
 }

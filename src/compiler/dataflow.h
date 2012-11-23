@@ -33,17 +33,17 @@ enum DataFlowAttributePos {
   kSetsConst,
   kFormat35c,
   kFormat3rc,
-  kNullCheckSrc0,        // Null check of uses[0]
-  kNullCheckSrc1,        // Null check of uses[1]
-  kNullCheckSrc2,        // Null check of uses[2]
-  kNullCheckOut0,        // Null check out outgoing arg0
-  kDstNonNull,           // May assume dst is non-null
-  kRetNonNull,           // May assume retval is non-null
-  kNullTransferSrc0,     // Object copy src[0] -> dst
-  kNullTransferSrcN,     // Phi null check state transfer
-  kRangeCheckSrc1,       // Range check of uses[1]
-  kRangeCheckSrc2,       // Range check of uses[2]
-  kRangeCheckSrc3,       // Range check of uses[3]
+  kNullCheckSrc0,        // Null check of uses[0].
+  kNullCheckSrc1,        // Null check of uses[1].
+  kNullCheckSrc2,        // Null check of uses[2].
+  kNullCheckOut0,        // Null check out outgoing arg0.
+  kDstNonNull,           // May assume dst is non-null.
+  kRetNonNull,           // May assume retval is non-null.
+  kNullTransferSrc0,     // Object copy src[0] -> dst.
+  kNullTransferSrcN,     // Phi null check state transfer.
+  kRangeCheckSrc1,       // Range check of uses[1].
+  kRangeCheckSrc2,       // Range check of uses[2].
+  kRangeCheckSrc3,       // Range check of uses[3].
   kFPA,
   kFPB,
   kFPC,
@@ -53,7 +53,7 @@ enum DataFlowAttributePos {
   kRefA,
   kRefB,
   kRefC,
-  kUsesMethodStar,       // Implicit use of Method*
+  kUsesMethodStar,       // Implicit use of Method*.
 };
 
 #define DF_NOP                  0
@@ -147,8 +147,8 @@ struct InductionVariableInfo {
 struct ArrayAccessInfo {
   int array_reg;
   int iv_reg;
-  int max_c;                   // For DIV - will affect upper bound checking
-  int min_c;                   // For DIV - will affect lower bound checking
+  int max_c;                   // For DIV - will affect upper bound checking.
+  int min_c;                   // For DIV - will affect lower bound checking.
 };
 
 struct LoopInfo {
@@ -166,7 +166,8 @@ bool DoSSAConversion(CompilationUnit* cu, BasicBlock* bb);
 bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb);
 void CompilerInitializeSSAConversion(CompilationUnit* cu);
 bool ClearVisitedFlag(struct CompilationUnit* cu, struct BasicBlock* bb);
-void DataFlowAnalysisDispatcher(CompilationUnit* cu, bool (*func)(CompilationUnit*, BasicBlock*), DataFlowAnalysisMode dfa_mode, bool is_iterative);
+void DataFlowAnalysisDispatcher(CompilationUnit* cu, bool (*func)(CompilationUnit*, BasicBlock*),
+                                DataFlowAnalysisMode dfa_mode, bool is_iterative);
 MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
 void NullCheckElimination(CompilationUnit *cu);
 void BasicBlockCombine(CompilationUnit* cu);

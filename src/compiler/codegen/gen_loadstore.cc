@@ -26,7 +26,7 @@ namespace art {
  * Load an immediate value into a fixed or temp register.  Target
  * register is clobbered, and marked in_use.
  */
-LIR* LoadConstant(CompilationUnit* cu, int r_dest, int value)
+LIR* Codegen::LoadConstant(CompilationUnit* cu, int r_dest, int value)
 {
   if (IsTemp(cu, r_dest)) {
     Clobber(cu, r_dest);
@@ -36,15 +36,13 @@ LIR* LoadConstant(CompilationUnit* cu, int r_dest, int value)
 }
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-LIR* LoadWordDisp(CompilationUnit* cu, int rBase, int displacement,
-                  int r_dest)
+LIR* Codegen::LoadWordDisp(CompilationUnit* cu, int rBase, int displacement, int r_dest)
 {
   return LoadBaseDisp(cu, rBase, displacement, r_dest, kWord,
                       INVALID_SREG);
 }
 
-LIR* StoreWordDisp(CompilationUnit* cu, int rBase, int displacement,
-                   int r_src)
+LIR* Codegen::StoreWordDisp(CompilationUnit* cu, int rBase, int displacement, int r_src)
 {
   return StoreBaseDisp(cu, rBase, displacement, r_src, kWord);
 }
@@ -54,7 +52,7 @@ LIR* StoreWordDisp(CompilationUnit* cu, int rBase, int displacement,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_dest)
+void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_dest)
 {
   rl_src = UpdateLoc(cu, rl_src);
   if (rl_src.location == kLocPhysReg) {
@@ -71,7 +69,7 @@ void LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_dest)
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-void LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int r_dest)
+void Codegen::LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int r_dest)
 {
   Clobber(cu, r_dest);
   MarkInUse(cu, r_dest);
@@ -83,7 +81,7 @@ void LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int r_dest)
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
+void Codegen::LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
              int reg_hi)
 {
   rl_src = UpdateLocWide(cu, rl_src);
@@ -102,8 +100,8 @@ void LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
  * registers.  Should be used when loading to a fixed registers (for example,
  * loading arguments to an out of line call.
  */
-void LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src,
-                              int reg_lo, int reg_hi)
+void Codegen::LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
+                                       int reg_hi)
 {
   Clobber(cu, reg_lo);
   Clobber(cu, reg_hi);
@@ -112,8 +110,7 @@ void LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src,
   LoadValueDirectWide(cu, rl_src, reg_lo, reg_hi);
 }
 
-RegLocation LoadValue(CompilationUnit* cu, RegLocation rl_src,
-                      RegisterClass op_kind)
+RegLocation Codegen::LoadValue(CompilationUnit* cu, RegLocation rl_src, RegisterClass op_kind)
 {
   rl_src = EvalLoc(cu, rl_src, op_kind, false);
   if (rl_src.location != kLocPhysReg) {
@@ -126,7 +123,7 @@ RegLocation LoadValue(CompilationUnit* cu, RegLocation rl_src,
   return rl_src;
 }
 
-void StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void Codegen::StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
 #ifndef NDEBUG
   /*
@@ -179,8 +176,7 @@ void StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
   }
 }
 
-RegLocation LoadValueWide(CompilationUnit* cu, RegLocation rl_src,
-              RegisterClass op_kind)
+RegLocation Codegen::LoadValueWide(CompilationUnit* cu, RegLocation rl_src, RegisterClass op_kind)
 {
   DCHECK(rl_src.wide);
   rl_src = EvalLoc(cu, rl_src, op_kind, false);
@@ -196,8 +192,7 @@ RegLocation LoadValueWide(CompilationUnit* cu, RegLocation rl_src,
   return rl_src;
 }
 
-void StoreValueWide(CompilationUnit* cu, RegLocation rl_dest,
-          RegLocation rl_src)
+void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
 #ifndef NDEBUG
   /*
@@ -211,7 +206,7 @@ void StoreValueWide(CompilationUnit* cu, RegLocation rl_dest,
 #endif
   LIR* def_start;
   LIR* def_end;
-  DCHECK_EQ(FpReg(rl_src.low_reg), FpReg(rl_src.high_reg));
+  DCHECK_EQ(IsFpReg(rl_src.low_reg), IsFpReg(rl_src.high_reg));
   DCHECK(rl_dest.wide);
   DCHECK(rl_src.wide);
   if (rl_src.location == kLocPhysReg) {
@@ -261,12 +256,12 @@ void StoreValueWide(CompilationUnit* cu, RegLocation rl_dest,
 }
 
 /* Utilities to load the current Method* */
-void LoadCurrMethodDirect(CompilationUnit *cu, int r_tgt)
+void Codegen::LoadCurrMethodDirect(CompilationUnit *cu, int r_tgt)
 {
   LoadValueDirectFixed(cu, cu->method_loc, r_tgt);
 }
 
-RegLocation LoadCurrMethod(CompilationUnit *cu)
+RegLocation Codegen::LoadCurrMethod(CompilationUnit *cu)
 {
   return LoadValue(cu, cu->method_loc, kCoreReg);
 }

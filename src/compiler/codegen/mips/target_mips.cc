@@ -16,6 +16,7 @@
 
 #include "../../compiler_internals.h"
 #include "mips_lir.h"
+#include "codegen_mips.h"
 #include "../ralloc_util.h"
 #include "../codegen_util.h"
 
@@ -31,39 +32,37 @@ static int ReservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP,
                              r_RA};
 static int core_temps[] = {r_V0, r_V1, r_A0, r_A1, r_A2, r_A3, r_T0, r_T1, r_T2,
                            r_T3, r_T4, r_T5, r_T6, r_T7, r_T8};
-#ifdef __mips_hard_float
 static int FpRegs[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                        r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
 static int fp_temps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                          r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
-#endif
 
-RegLocation LocCReturn()
+RegLocation MipsCodegen::LocCReturn()
 {
   RegLocation res = MIPS_LOC_C_RETURN;
   return res;
 }
 
-RegLocation LocCReturnWide()
+RegLocation MipsCodegen::LocCReturnWide()
 {
   RegLocation res = MIPS_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation LocCReturnFloat()
+RegLocation MipsCodegen::LocCReturnFloat()
 {
   RegLocation res = MIPS_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation LocCReturnDouble()
+RegLocation MipsCodegen::LocCReturnDouble()
 {
   RegLocation res = MIPS_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int TargetReg(SpecialTargetRegister reg) {
+int MipsCodegen::TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rMIPS_SELF; break;
@@ -88,37 +87,19 @@ int TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int S2d(int low_reg, int high_reg)
+int MipsCodegen::S2d(int low_reg, int high_reg)
 {
   return MIPS_S2D(low_reg, high_reg);
 }
 
-// Is reg a single or double?
-bool FpReg(int reg)
-{
-  return MIPS_FPREG(reg);
-}
-
-// Is reg a single?
-bool SingleReg(int reg)
-{
-  return MIPS_SINGLEREG(reg);
-}
-
-// Is reg a double?
-bool DoubleReg(int reg)
-{
-  return MIPS_DOUBLEREG(reg);
-}
-
 // Return mask to strip off fp reg flags and bias.
-uint32_t FpRegMask()
+uint32_t MipsCodegen::FpRegMask()
 {
   return MIPS_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool SameRegType(int reg1, int reg2)
+bool MipsCodegen::SameRegType(int reg1, int reg2)
 {
   return (MIPS_REGTYPE(reg1) == MIPS_REGTYPE(reg2));
 }
@@ -126,7 +107,7 @@ bool SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
+uint64_t MipsCodegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
 {
   uint64_t seed;
   int shift;
@@ -143,18 +124,18 @@ uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
   return (seed << shift);
 }
 
-uint64_t GetPCUseDefEncoding()
+uint64_t MipsCodegen::GetPCUseDefEncoding()
 {
   return ENCODE_MIPS_REG_PC;
 }
 
 
-void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
+void MipsCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 {
   DCHECK_EQ(cu->instruction_set, kMips);
 
   // Mips-specific resource map setup here.
-  uint64_t flags = EncodingMap[lir->opcode].flags;
+  uint64_t flags = MipsCodegen::EncodingMap[lir->opcode].flags;
 
   if (flags & REG_DEF_SP) {
     lir->def_mask |= ENCODE_MIPS_REG_SP;
@@ -182,7 +163,7 @@ static const char *mips_reg_name[MIPS_REG_COUNT] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr)
+std::string MipsCodegen::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr)
 {
   std::string buf;
   int i;
@@ -275,7 +256,7 @@ std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr)
 }
 
 // FIXME: need to redo resource maps for MIPS - fix this at that time
-void DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix)
+void MipsCodegen::DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -326,7 +307,7 @@ void DumpResourceMask(LIR *mips_lir, uint64_t mask, const char *prefix)
  * machinery is in place, always spill lr.
  */
 
-void AdjustSpillMask(CompilationUnit* cu)
+void MipsCodegen::AdjustSpillMask(CompilationUnit* cu)
 {
   cu->core_spill_mask |= (1 << r_RA);
   cu->num_core_spills++;
@@ -338,12 +319,12 @@ void AdjustSpillMask(CompilationUnit* cu)
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void MarkPreservedSingle(CompilationUnit* cu, int s_reg, int reg)
+void MipsCodegen::MarkPreservedSingle(CompilationUnit* cu, int s_reg, int reg)
 {
   LOG(FATAL) << "No support yet for promoted FP regs";
 }
 
-void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
+void MipsCodegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 {
   RegisterInfo* info1 = GetRegInfo(cu, reg1);
   RegisterInfo* info2 = GetRegInfo(cu, reg2);
@@ -365,7 +346,7 @@ void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
   }
 }
 
-void FlushReg(CompilationUnit* cu, int reg)
+void MipsCodegen::FlushReg(CompilationUnit* cu, int reg)
 {
   RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
@@ -376,12 +357,12 @@ void FlushReg(CompilationUnit* cu, int reg)
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool IsFpReg(int reg) {
+bool MipsCodegen::IsFpReg(int reg) {
   return MIPS_FPREG(reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ClobberCalleeSave(CompilationUnit *cu)
+void MipsCodegen::ClobberCalleeSave(CompilationUnit *cu)
 {
   Clobber(cu, r_ZERO);
   Clobber(cu, r_AT);
@@ -424,28 +405,28 @@ void ClobberCalleeSave(CompilationUnit *cu)
   Clobber(cu, r_F15);
 }
 
-RegLocation GetReturnWideAlt(CompilationUnit* cu)
+RegLocation MipsCodegen::GetReturnWideAlt(CompilationUnit* cu)
 {
   UNIMPLEMENTED(FATAL) << "No GetReturnWideAlt for MIPS";
   RegLocation res = LocCReturnWide();
   return res;
 }
 
-RegLocation GetReturnAlt(CompilationUnit* cu)
+RegLocation MipsCodegen::GetReturnAlt(CompilationUnit* cu)
 {
   UNIMPLEMENTED(FATAL) << "No GetReturnAlt for MIPS";
   RegLocation res = LocCReturn();
   return res;
 }
 
-RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg)
+RegisterInfo* MipsCodegen::GetRegInfo(CompilationUnit* cu, int reg)
 {
   return MIPS_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & MIPS_FP_REG_MASK]
             : &cu->reg_pool->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void LockCallTemps(CompilationUnit* cu)
+void MipsCodegen::LockCallTemps(CompilationUnit* cu)
 {
   LockTemp(cu, rMIPS_ARG0);
   LockTemp(cu, rMIPS_ARG1);
@@ -454,7 +435,7 @@ void LockCallTemps(CompilationUnit* cu)
 }
 
 /* To be used when explicitly managing register use */
-void FreeCallTemps(CompilationUnit* cu)
+void MipsCodegen::FreeCallTemps(CompilationUnit* cu)
 {
   FreeTemp(cu, rMIPS_ARG0);
   FreeTemp(cu, rMIPS_ARG1);
@@ -462,13 +443,7 @@ void FreeCallTemps(CompilationUnit* cu)
   FreeTemp(cu, rMIPS_ARG3);
 }
 
-/* Architecture-specific initializations and checks go here */
-bool ArchVariantInit(void)
-{
-  return true;
-}
-
-void GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
+void MipsCodegen::GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
 {
 #if ANDROID_SMP != 0
   NewLIR1(cu, kMipsSync, 0 /* Only stype currently supported */);
@@ -479,21 +454,19 @@ void GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
+int MipsCodegen::AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
                   int reg_class)
 {
   int high_reg;
   int low_reg;
   int res = 0;
 
-#ifdef __mips_hard_float
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     low_reg = AllocTempDouble(cu);
     high_reg = low_reg + 1;
     res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
     return res;
   }
-#endif
 
   low_reg = AllocTemp(cu);
   high_reg = AllocTemp(cu);
@@ -501,29 +474,22 @@ int AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
   return res;
 }
 
-int AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class)
+int MipsCodegen::AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class)
 {
-#ifdef __mips_hard_float
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
 {
     return AllocTempFloat(cu);
 }
-#endif
   return AllocTemp(cu);
 }
 
-void CompilerInitializeRegAlloc(CompilationUnit* cu)
+void MipsCodegen::CompilerInitializeRegAlloc(CompilationUnit* cu)
 {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
-#ifdef __mips_hard_float
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-#else
-  int num_fp_regs = 0;
-  int num_fp_temps = 0;
-#endif
   RegisterPool *pool =
       static_cast<RegisterPool*>(NewMem(cu, sizeof(*pool), true, kAllocRegAlloc));
   cu->reg_pool = pool;
@@ -568,8 +534,7 @@ void CompilerInitializeRegAlloc(CompilationUnit* cu)
   }
 }
 
-void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
-           RegLocation rl_free)
+void MipsCodegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep, RegLocation rl_free)
 {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
     (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
@@ -584,13 +549,13 @@ void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
  * ensure that all branch instructions can be restarted if
  * there is a trap in the shadow.  Allocate a temp register.
  */
-int LoadHelper(CompilationUnit* cu, int offset)
+int MipsCodegen::LoadHelper(CompilationUnit* cu, int offset)
 {
   LoadWordDisp(cu, rMIPS_SELF, offset, r_T9);
   return r_T9;
 }
 
-void SpillCoreRegs(CompilationUnit* cu)
+void MipsCodegen::SpillCoreRegs(CompilationUnit* cu)
 {
   if (cu->num_core_spills == 0) {
     return;
@@ -606,7 +571,7 @@ void SpillCoreRegs(CompilationUnit* cu)
   }
 }
 
-void UnSpillCoreRegs(CompilationUnit* cu)
+void MipsCodegen::UnSpillCoreRegs(CompilationUnit* cu)
 {
   if (cu->num_core_spills == 0) {
     return;
@@ -622,39 +587,38 @@ void UnSpillCoreRegs(CompilationUnit* cu)
   OpRegImm(cu, kOpAdd, rMIPS_SP, cu->frame_size);
 }
 
-bool BranchUnconditional(LIR* lir)
+bool MipsCodegen::IsUnconditionalBranch(LIR* lir)
 {
   return (lir->opcode == kMipsB);
 }
 
 /* Common initialization routine for an architecture family */
-bool ArchInit()
+bool InitMipsCodegen(CompilationUnit* cu)
 {
-  int i;
-
-  for (i = 0; i < kMipsLast; i++) {
-    if (EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << EncodingMap[i].name <<
-         " is wrong: expecting " << i << ", seeing " << static_cast<int>(EncodingMap[i].opcode);
+  cu->cg.reset(new MipsCodegen());
+  for (int i = 0; i < kMipsLast; i++) {
+    if (MipsCodegen::EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << MipsCodegen::EncodingMap[i].name
+                 << " is wrong: expecting " << i << ", seeing "
+                 << static_cast<int>(MipsCodegen::EncodingMap[i].opcode);
     }
   }
-
-  return ArchVariantInit();
+  return true;
 }
 
-uint64_t GetTargetInstFlags(int opcode)
+uint64_t MipsCodegen::GetTargetInstFlags(int opcode)
 {
-  return EncodingMap[opcode].flags;
+  return MipsCodegen::EncodingMap[opcode].flags;
 }
 
-const char* GetTargetInstName(int opcode)
+const char* MipsCodegen::GetTargetInstName(int opcode)
 {
-  return EncodingMap[opcode].name;
+  return MipsCodegen::EncodingMap[opcode].name;
 }
 
-const char* GetTargetInstFmt(int opcode)
+const char* MipsCodegen::GetTargetInstFmt(int opcode)
 {
-  return EncodingMap[opcode].fmt;
+  return MipsCodegen::EncodingMap[opcode].fmt;
 }
 
 } // namespace art

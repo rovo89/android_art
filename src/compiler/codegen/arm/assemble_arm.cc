@@ -15,6 +15,7 @@
  */
 
 #include "arm_lir.h"
+#include "codegen_arm.h"
 #include "../codegen_util.h"
 
 namespace art {
@@ -75,7 +76,7 @@ namespace art {
  *  [!] escape.  To insert "!", use "!!"
  */
 /* NOTE: must be kept in sync with enum ArmOpcode from LIR.h */
-const ArmEncodingMap EncodingMap[kArmLast] = {
+const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
     ENCODING_MAP(kArm16BitData,    0x0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP, "data", "0x!0h(!0d)", 2),
@@ -987,8 +988,7 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-AssemblerStatus AssembleInstructions(CompilationUnit* cu,
-                    uintptr_t start_addr)
+AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t start_addr)
 {
   LIR* lir;
   AssemblerStatus res = kSuccess;  // Assume success
@@ -1361,7 +1361,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit* cu,
   return res;
 }
 
-int GetInsnSize(LIR* lir)
+int ArmCodegen::GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }
@@ -1369,7 +1369,7 @@ int GetInsnSize(LIR* lir)
 /*
  * Target-dependent offset assignment.
  */
-int AssignInsnOffsets(CompilationUnit* cu)
+int ArmCodegen::AssignInsnOffsets(CompilationUnit* cu)
 {
   LIR* arm_lir;
   int offset = 0;

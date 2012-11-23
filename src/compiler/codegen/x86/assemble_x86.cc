@@ -15,13 +15,14 @@
  */
 
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../codegen_util.h"
 
 namespace art {
 
 #define MAX_ASSEMBLER_RETRIES 50
 
-X86EncodingMap EncodingMap[kX86Last] = {
+const X86EncodingMap X86Codegen::EncodingMap[kX86Last] = {
   { kX8632BitData, kData,    IS_UNARY_OP,            { 0, 0, 0x00, 0, 0, 0, 0, 4 }, "data",  "0x!0d" },
   { kX86Bkpt,      kNullary, NO_OPERAND | IS_BRANCH, { 0, 0, 0xCC, 0, 0, 0, 0, 0 }, "int 3", "" },
   { kX86Nop,       kNop,     IS_UNARY_OP,            { 0, 0, 0x90, 0, 0, 0, 0, 0 }, "nop",   "" },
@@ -329,7 +330,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4 }, "PcRelAdr",      "!0r,!1d" },
 };
 
-static size_t ComputeSize(X86EncodingMap* entry, int displacement, bool has_sib) {
+static size_t ComputeSize(const X86EncodingMap* entry, int displacement, bool has_sib) {
   size_t size = 0;
   if (entry->skeleton.prefix1 > 0) {
     ++size;
@@ -358,8 +359,8 @@ static size_t ComputeSize(X86EncodingMap* entry, int displacement, bool has_sib)
   return size;
 }
 
-int GetInsnSize(LIR* lir) {
-  X86EncodingMap* entry = &EncodingMap[lir->opcode];
+int X86Codegen::GetInsnSize(LIR* lir) {
+  const X86EncodingMap* entry = &X86Codegen::EncodingMap[lir->opcode];
   switch (entry->kind) {
     case kData:
       return 4;  // 4 bytes of data
@@ -498,7 +499,7 @@ int GetInsnSize(LIR* lir) {
     case kMacro:
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
       return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          ComputeSize(&EncodingMap[kX86Sub32RI], 0, false) -
+          ComputeSize(&X86Codegen::EncodingMap[kX86Sub32RI], 0, false) -
           (lir->operands[0] == rAX  ? 1 : 0);  // shorter ax encoding
     default:
       break;
@@ -1173,12 +1174,14 @@ static void EmitMacro(CompilationUnit* cu, const X86EncodingMap* entry,
   DCHECK_LT(reg, 8);
   cu->code_buffer.push_back(0x58 + reg);  // pop reg
 
-  EmitRegImm(cu, &EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
+  EmitRegImm(cu, &X86Codegen::EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
 }
 
 static void EmitUnimplemented(CompilationUnit* cu, const X86EncodingMap* entry, LIR* lir) {
-  UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " " << BuildInsnString(entry->fmt, lir, 0);
-  for (int i = 0; i < GetInsnSize(lir); ++i) {
+  Codegen* cg = cu->cg.get();
+  UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " "
+                         << cg->BuildInsnString(entry->fmt, lir, 0);
+  for (int i = 0; i < cg->GetInsnSize(lir); ++i) {
     cu->code_buffer.push_back(0xCC);  // push breakpoint instruction - int 3
   }
 }
@@ -1189,7 +1192,7 @@ static void EmitUnimplemented(CompilationUnit* cu, const X86EncodingMap* entry, 
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) {
+AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1305,7 +1308,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) 
       continue;
     }
     CHECK_EQ(static_cast<size_t>(lir->offset), cu->code_buffer.size());
-    const X86EncodingMap *entry = &EncodingMap[lir->opcode];
+    const X86EncodingMap *entry = &X86Codegen::EncodingMap[lir->opcode];
     size_t starting_cbuf_size = cu->code_buffer.size();
     switch (entry->kind) {
       case kData:  // 4 bytes of data
@@ -1409,7 +1412,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) 
     }
     CHECK_EQ(static_cast<size_t>(GetInsnSize(lir)),
              cu->code_buffer.size() - starting_cbuf_size)
-        << "Instruction size mismatch for entry: " << EncodingMap[lir->opcode].name;
+        << "Instruction size mismatch for entry: " << X86Codegen::EncodingMap[lir->opcode].name;
   }
   return res;
 }
@@ -1418,7 +1421,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) 
  * Target-dependent offset assignment.
  * independent.
  */
-int AssignInsnOffsets(CompilationUnit* cu)
+int X86Codegen::AssignInsnOffsets(CompilationUnit* cu)
 {
     LIR* x86_lir;
     int offset = 0;

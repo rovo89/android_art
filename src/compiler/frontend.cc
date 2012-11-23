@@ -22,8 +22,8 @@
 #include "object.h"
 #include "runtime.h"
 #include "codegen/codegen_util.h"
-#include "codegen/method_bitcode.h"
-#include "codegen/method_codegen_driver.h"
+#include "codegen/mir_to_gbc.h"
+#include "codegen/mir_to_lir.h"
 
 #include <llvm/Support/Threading.h>
 
@@ -748,8 +748,21 @@ static BasicBlock* ProcessCanThrow(CompilationUnit* cu, BasicBlock* cur_block,
 }
 
 void CompilerInit(CompilationUnit* cu, const Compiler& compiler) {
-  if (!ArchInit()) {
-    LOG(FATAL) << "Failed to initialize oat";
+  bool success = false;
+  switch (compiler.GetInstructionSet()) {
+    case kThumb2:
+      success = InitArmCodegen(cu);
+      break;
+    case kMips:
+      success = InitMipsCodegen(cu);
+      break;
+    case kX86:
+      success = InitX86Codegen(cu);
+      break;
+    default:;
+  }
+  if (!success) {
+    LOG(FATAL) << "Failed to initialize codegen for " << compiler.GetInstructionSet();
   }
   if (!HeapInit(cu)) {
     LOG(FATAL) << "Failed to initialize oat heap";
@@ -1107,7 +1120,7 @@ if (PrettyMethod(method_idx, dex_file).find("void com.android.inputmethod.keyboa
     DumpCheckStats(cu.get());
   }
 
-  CompilerInitializeRegAlloc(cu.get());  // Needs to happen after SSA naming
+  cu.get()->cg->CompilerInitializeRegAlloc(cu.get());  // Needs to happen after SSA naming
 
   /* Allocate Registers using simple local allocation scheme */
   SimpleRegAlloc(cu.get());

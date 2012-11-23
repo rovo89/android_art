@@ -103,13 +103,13 @@ namespace art {
  * +========================+
  */
 
-/* Offset to distingish FP regs */
+// Offset to distingish FP regs.
 #define X86_FP_REG_OFFSET 32
-/* Offset to distinguish DP FP regs */
+// Offset to distinguish DP FP regs.
 #define X86_FP_DOUBLE (X86_FP_REG_OFFSET + 16)
-/* Offset to distingish the extra regs */
+// Offset to distingish the extra regs.
 #define X86_EXTRA_REG_OFFSET (X86_FP_DOUBLE + 16)
-/* Reg types */
+// Reg types.
 #define X86_REGTYPE(x) (x & (X86_FP_REG_OFFSET | X86_FP_DOUBLE))
 #define X86_FPREG(x) ((x & X86_FP_REG_OFFSET) == X86_FP_REG_OFFSET)
 #define X86_EXTRAREG(x) ((x & X86_EXTRA_REG_OFFSET) == X86_EXTRA_REG_OFFSET)
@@ -127,7 +127,7 @@ namespace art {
 /* Mask to strip off fp flags */
 #define X86_FP_REG_MASK 0xF
 
-/* RegisterLocation templates return values (rAX, rAX/rDX or XMM0) */
+// RegisterLocation templates return values (rAX, rAX/rDX or XMM0).
 //                               location,     wide, defined, const, fp, core, ref, high_word, home, low_reg, high_reg,     s_reg_low
 #define X86_LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define X86_LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
@@ -137,17 +137,13 @@ namespace art {
 enum X86ResourceEncodingPos {
   kX86GPReg0   = 0,
   kX86RegSP    = 4,
-  kX86FPReg0   = 16,  // xmm0 .. xmm7/xmm15
+  kX86FPReg0   = 16,  // xmm0 .. xmm7/xmm15.
   kX86FPRegEnd   = 32,
   kX86RegEnd   = kX86FPRegEnd,
 };
 
 #define ENCODE_X86_REG_LIST(N)      (static_cast<uint64_t>(N))
 #define ENCODE_X86_REG_SP           (1ULL << kX86RegSP)
-
-/*
- * Annotate special-purpose core registers:
- */
 
 enum X86NativeRegisterPool {
   r0     = 0,
@@ -169,7 +165,7 @@ enum X86NativeRegisterPool {
   r7     = 7,
   rDI    = r7,
 #ifndef TARGET_REX_SUPPORT
-  rRET   = 8,  // fake return address register for core spill mask
+  rRET   = 8,  // fake return address register for core spill mask.
 #else
   r8     = 8,
   r9     = 9,
@@ -179,7 +175,7 @@ enum X86NativeRegisterPool {
   r13    = 13,
   r14    = 14,
   r15    = 15,
-  rRET   = 16,  // fake return address register for core spill mask
+  rRET   = 16,  // fake return address register for core spill mask.
 #endif
   fr0  =  0 + X86_FP_REG_OFFSET,
   fr1  =  1 + X86_FP_REG_OFFSET,
@@ -198,10 +194,6 @@ enum X86NativeRegisterPool {
   fr14 = 14 + X86_FP_REG_OFFSET,
   fr15 = 15 + X86_FP_REG_OFFSET,
 };
-
-/*
- * Target-independent aliases
- */
 
 #define rX86_ARG0 rAX
 #define rX86_ARG1 rCX
@@ -227,7 +219,7 @@ enum X86NativeRegisterPool {
  */
 enum X86OpCode {
   kX86First = 0,
-  kX8632BitData = kX86First, /* data [31..0] */
+  kX8632BitData = kX86First, // data [31..0].
   kX86Bkpt,
   kX86Nop,
   // Define groups of binary operations
@@ -427,21 +419,23 @@ struct X86EncodingMap {
   const char* fmt;
 };
 
-extern X86EncodingMap EncodingMap[kX86Last];
 
 // FIXME: mem barrier type - what do we do for x86?
 #define kSY 0
 #define kST 0
 
-/* Offsets of high and low halves of a 64bit value */
+// Offsets of high and low halves of a 64bit value.
 #define LOWORD_OFFSET 0
 #define HIWORD_OFFSET 4
 
-/* Segment override instruction prefix used for quick TLS access to Thread::Current() */
+// Segment override instruction prefix used for quick TLS access to Thread::Current().
 #define THREAD_PREFIX 0x64
 
 #define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 127))
 #define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32767))
+
+extern X86EncodingMap EncodingMap[kX86Last];
+extern X86ConditionCode X86ConditionEncoding(ConditionCode cond);
 
 }  // namespace art
 

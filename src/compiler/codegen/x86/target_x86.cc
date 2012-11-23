@@ -16,6 +16,7 @@
 
 #include "../../compiler_internals.h"
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../ralloc_util.h"
 #include "../codegen_util.h"
 
@@ -45,32 +46,32 @@ namespace art {
 #endif
 };
 
-RegLocation LocCReturn()
+RegLocation X86Codegen::LocCReturn()
 {
   RegLocation res = X86_LOC_C_RETURN;
   return res;
 }
 
-RegLocation LocCReturnWide()
+RegLocation X86Codegen::LocCReturnWide()
 {
   RegLocation res = X86_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation LocCReturnFloat()
+RegLocation X86Codegen::LocCReturnFloat()
 {
   RegLocation res = X86_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation LocCReturnDouble()
+RegLocation X86Codegen::LocCReturnDouble()
 {
   RegLocation res = X86_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int TargetReg(SpecialTargetRegister reg) {
+int X86Codegen::TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rX86_SELF; break;
@@ -95,37 +96,19 @@ int TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int S2d(int low_reg, int high_reg)
+int X86Codegen::S2d(int low_reg, int high_reg)
 {
   return X86_S2D(low_reg, high_reg);
 }
 
-// Is reg a single or double?
-bool FpReg(int reg)
-{
-  return X86_FPREG(reg);
-}
-
-// Is reg a single?
-bool SingleReg(int reg)
-{
-  return X86_SINGLEREG(reg);
-}
-
-// Is reg a double?
-bool DoubleReg(int reg)
-{
-  return X86_DOUBLEREG(reg);
-}
-
 // Return mask to strip off fp reg flags and bias.
-uint32_t FpRegMask()
+uint32_t X86Codegen::FpRegMask()
 {
   return X86_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool SameRegType(int reg1, int reg2)
+bool X86Codegen::SameRegType(int reg1, int reg2)
 {
   return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
 }
@@ -133,7 +116,7 @@ bool SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
+uint64_t X86Codegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
 {
   uint64_t seed;
   int shift;
@@ -149,7 +132,7 @@ uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
   return (seed << shift);
 }
 
-uint64_t GetPCUseDefEncoding()
+uint64_t X86Codegen::GetPCUseDefEncoding()
 {
   /*
    * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
@@ -159,12 +142,12 @@ uint64_t GetPCUseDefEncoding()
   return 0ULL;
 }
 
-void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
+void X86Codegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 {
   DCHECK_EQ(cu->instruction_set, kX86);
 
   // X86-specific resource map setup here.
-  uint64_t flags = EncodingMap[lir->opcode].flags;
+  uint64_t flags = X86Codegen::EncodingMap[lir->opcode].flags;
 
   if (flags & REG_USE_SP) {
     lir->use_mask |= ENCODE_X86_REG_SP;
@@ -223,7 +206,7 @@ static const char* x86CondName[] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.cc.
  */
-std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
+std::string X86Codegen::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
   std::string buf;
   size_t i = 0;
   size_t fmt_len = strlen(fmt);
@@ -281,7 +264,7 @@ std::string BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr)
   return buf;
 }
 
-void DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
+void X86Codegen::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -322,7 +305,8 @@ void DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
     LOG(INFO) << prefix << ": " <<  buf;
   }
 }
-void AdjustSpillMask(CompilationUnit* cu) {
+
+void X86Codegen::AdjustSpillMask(CompilationUnit* cu) {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
   cu->core_spill_mask |= (1 << rRET);
   cu->num_core_spills++;
@@ -334,7 +318,7 @@ void AdjustSpillMask(CompilationUnit* cu) {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
+void X86Codegen::MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
 {
   UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
 #if 0
@@ -342,7 +326,7 @@ void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
 #endif
 }
 
-void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
+void X86Codegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 {
   RegisterInfo* info1 = GetRegInfo(cu, reg1);
   RegisterInfo* info2 = GetRegInfo(cu, reg2);
@@ -364,7 +348,7 @@ void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
   }
 }
 
-void FlushReg(CompilationUnit* cu, int reg)
+void X86Codegen::FlushReg(CompilationUnit* cu, int reg)
 {
   RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
@@ -375,19 +359,19 @@ void FlushReg(CompilationUnit* cu, int reg)
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool IsFpReg(int reg) {
+bool X86Codegen::IsFpReg(int reg) {
   return X86_FPREG(reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ClobberCalleeSave(CompilationUnit *cu)
+void X86Codegen::ClobberCalleeSave(CompilationUnit *cu)
 {
   Clobber(cu, rAX);
   Clobber(cu, rCX);
   Clobber(cu, rDX);
 }
 
-RegLocation GetReturnWideAlt(CompilationUnit* cu) {
+RegLocation X86Codegen::GetReturnWideAlt(CompilationUnit* cu) {
   RegLocation res = LocCReturnWide();
   CHECK(res.low_reg == rAX);
   CHECK(res.high_reg == rDX);
@@ -399,7 +383,7 @@ RegLocation GetReturnWideAlt(CompilationUnit* cu) {
   return res;
 }
 
-RegLocation GetReturnAlt(CompilationUnit* cu)
+RegLocation X86Codegen::GetReturnAlt(CompilationUnit* cu)
 {
   RegLocation res = LocCReturn();
   res.low_reg = rDX;
@@ -408,14 +392,14 @@ RegLocation GetReturnAlt(CompilationUnit* cu)
   return res;
 }
 
-RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg)
+RegisterInfo* X86Codegen::GetRegInfo(CompilationUnit* cu, int reg)
 {
   return X86_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & X86_FP_REG_MASK]
                     : &cu->reg_pool->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void LockCallTemps(CompilationUnit* cu)
+void X86Codegen::LockCallTemps(CompilationUnit* cu)
 {
   LockTemp(cu, rX86_ARG0);
   LockTemp(cu, rX86_ARG1);
@@ -424,7 +408,7 @@ void LockCallTemps(CompilationUnit* cu)
 }
 
 /* To be used when explicitly managing register use */
-void FreeCallTemps(CompilationUnit* cu)
+void X86Codegen::FreeCallTemps(CompilationUnit* cu)
 {
   FreeTemp(cu, rX86_ARG0);
   FreeTemp(cu, rX86_ARG1);
@@ -432,13 +416,7 @@ void FreeCallTemps(CompilationUnit* cu)
   FreeTemp(cu, rX86_ARG3);
 }
 
-/* Architecture-specific initializations and checks go here */
-bool ArchVariantInit(void)
-{
-  return true;
-}
-
-void GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
+void X86Codegen::GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
 {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
@@ -449,7 +427,7 @@ void GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
+int X86Codegen::AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
                           int reg_class)
 {
   int high_reg;
@@ -469,14 +447,14 @@ int AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
   return res;
 }
 
-int AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class) {
+int X86Codegen::AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
     return AllocTempFloat(cu);
   }
   return AllocTemp(cu);
 }
 
-void CompilerInitializeRegAlloc(CompilationUnit* cu) {
+void X86Codegen::CompilerInitializeRegAlloc(CompilationUnit* cu) {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
@@ -524,7 +502,7 @@ void CompilerInitializeRegAlloc(CompilationUnit* cu) {
   }
 }
 
-void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
+void X86Codegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
                      RegLocation rl_free)
 {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
@@ -535,7 +513,7 @@ void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
   }
 }
 
-void SpillCoreRegs(CompilationUnit* cu) {
+void X86Codegen::SpillCoreRegs(CompilationUnit* cu) {
   if (cu->num_core_spills == 0) {
     return;
   }
@@ -550,7 +528,7 @@ void SpillCoreRegs(CompilationUnit* cu) {
   }
 }
 
-void UnSpillCoreRegs(CompilationUnit* cu) {
+void X86Codegen::UnSpillCoreRegs(CompilationUnit* cu) {
   if (cu->num_core_spills == 0) {
     return;
   }
@@ -565,46 +543,44 @@ void UnSpillCoreRegs(CompilationUnit* cu) {
   }
 }
 
-bool BranchUnconditional(LIR* lir)
+bool X86Codegen::IsUnconditionalBranch(LIR* lir)
 {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
 /* Common initialization routine for an architecture family */
-bool ArchInit() {
-  int i;
-
-  for (i = 0; i < kX86Last; i++) {
-    if (EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << EncodingMap[i].name
+bool InitX86Codegen(CompilationUnit* cu) {
+  cu->cg.reset(new X86Codegen());
+  for (int i = 0; i < kX86Last; i++) {
+    if (X86Codegen::EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << X86Codegen::EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(EncodingMap[i].opcode);
+                 << static_cast<int>(X86Codegen::EncodingMap[i].opcode);
     }
   }
-
-  return ArchVariantInit();
+  return true;
 }
 
 // Not used in x86
-int LoadHelper(CompilationUnit* cu, int offset)
+int X86Codegen::LoadHelper(CompilationUnit* cu, int offset)
 {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;
 }
 
-uint64_t GetTargetInstFlags(int opcode)
+uint64_t X86Codegen::GetTargetInstFlags(int opcode)
 {
-  return EncodingMap[opcode].flags;
+  return X86Codegen::EncodingMap[opcode].flags;
 }
 
-const char* GetTargetInstName(int opcode)
+const char* X86Codegen::GetTargetInstName(int opcode)
 {
-  return EncodingMap[opcode].name;
+  return X86Codegen::EncodingMap[opcode].name;
 }
 
-const char* GetTargetInstFmt(int opcode)
+const char* X86Codegen::GetTargetInstFmt(int opcode)
 {
-  return EncodingMap[opcode].fmt;
+  return X86Codegen::EncodingMap[opcode].fmt;
 }
 
 } // namespace art

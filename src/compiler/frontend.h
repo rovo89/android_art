@@ -49,7 +49,7 @@ namespace greenland {
  */
 #define MAX_ASSEMBLER_RETRIES 50
 
-/* Suppress optimization if corresponding bit set */
+// Suppress optimization if corresponding bit set.
 enum opt_control_vector {
   kLoadStoreElimination = 0,
   kLoadHoisting,
@@ -64,7 +64,7 @@ enum opt_control_vector {
   kPromoteCompilerTemps,
 };
 
-/* Force code generation paths for testing */
+// Force code generation paths for testing.
 enum debugControlVector {
   kDebugDisplayMissingTargets,
   kDebugVerbose,
@@ -86,14 +86,14 @@ enum debugControlVector {
 };
 
 enum OatMethodAttributes {
-  kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
-  kIsHot,             /* Code is part of a hot trace */
-  kIsLeaf,            /* Method is leaf */
-  kIsEmpty,           /* Method is empty */
-  kIsThrowFree,       /* Method doesn't throw */
-  kIsGetter,          /* Method fits the getter pattern */
-  kIsSetter,          /* Method fits the setter pattern */
-  kCannotCompile,     /* Method cannot be compiled */
+  kIsCallee = 0,      // Code is part of a callee (invoked by a hot trace).
+  kIsHot,             // Code is part of a hot trace.
+  kIsLeaf,            // Method is leaf.
+  kIsEmpty,           // Method is empty.
+  kIsThrowFree,       // Method doesn't throw.
+  kIsGetter,          // Method fits the getter pattern.
+  kIsSetter,          // Method fits the setter pattern.
+  kCannotCompile,     // Method cannot be compiled.
 };
 
 #define METHOD_IS_CALLEE        (1 << kIsCallee)
@@ -128,7 +128,7 @@ class LLVMInfo {
 
   private:
     UniquePtr<llvm::LLVMContext> llvm_context_;
-    llvm::Module* llvm_module_; // Managed by context_
+    llvm::Module* llvm_module_; // Managed by context_.
     UniquePtr<art::greenland::IntrinsicHelper> intrinsic_helper_;
     UniquePtr<art::greenland::IRBuilder> ir_builder_;
 };

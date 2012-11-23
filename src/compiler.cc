@@ -340,7 +340,28 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
   init_compiler_context(*this);
 
   jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
-  create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+    create_invoke_stub_ =
+        FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateLLVMInvokeStub");
+  } else {
+    switch (instruction_set) {
+      case kArm:
+      case kThumb2:
+        create_invoke_stub_ =
+            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateArmInvokeStub");
+        break;
+      case kMips:
+        create_invoke_stub_ =
+            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateMipsInvokeStub");
+        break;
+      case kX86:
+        create_invoke_stub_ =
+            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateX86InvokeStub");
+        break;
+      default:
+        LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
+    }
+  }
 
   if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
     create_proxy_stub_ = FindFunction<CreateProxyStubFn>(

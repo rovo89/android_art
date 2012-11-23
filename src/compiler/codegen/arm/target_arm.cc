@@ -16,6 +16,7 @@
 
 #include "../../compiler_internals.h"
 #include "arm_lir.h"
+#include "codegen_arm.h"
 #include "../ralloc_util.h"
 #include "../codegen_util.h"
 
@@ -34,32 +35,32 @@ static int core_temps[] = {r0, r1, r2, r3, r12};
 static int fp_temps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                         fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15};
 
-RegLocation LocCReturn()
+RegLocation ArmCodegen::LocCReturn()
 {
   RegLocation res = ARM_LOC_C_RETURN;
   return res;
 }
 
-RegLocation LocCReturnWide()
+RegLocation ArmCodegen::LocCReturnWide()
 {
   RegLocation res = ARM_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation LocCReturnFloat()
+RegLocation ArmCodegen::LocCReturnFloat()
 {
   RegLocation res = ARM_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation LocCReturnDouble()
+RegLocation ArmCodegen::LocCReturnDouble()
 {
   RegLocation res = ARM_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int TargetReg(SpecialTargetRegister reg) {
+int ArmCodegen::TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rARM_SELF; break;
@@ -85,37 +86,19 @@ int TargetReg(SpecialTargetRegister reg) {
 
 
 // Create a double from a pair of singles.
-int S2d(int low_reg, int high_reg)
+int ArmCodegen::S2d(int low_reg, int high_reg)
 {
   return ARM_S2D(low_reg, high_reg);
 }
 
-// Is reg a single or double?
-bool FpReg(int reg)
-{
-  return ARM_FPREG(reg);
-}
-
-// Is reg a single?
-bool SingleReg(int reg)
-{
-  return ARM_SINGLEREG(reg);
-}
-
-// Is reg a double?
-bool DoubleReg(int reg)
-{
-  return ARM_DOUBLEREG(reg);
-}
-
 // Return mask to strip off fp reg flags and bias.
-uint32_t FpRegMask()
+uint32_t ArmCodegen::FpRegMask()
 {
   return ARM_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool SameRegType(int reg1, int reg2)
+bool ArmCodegen::SameRegType(int reg1, int reg2)
 {
   return (ARM_REGTYPE(reg1) == ARM_REGTYPE(reg2));
 }
@@ -123,7 +106,7 @@ bool SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
+uint64_t ArmCodegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
 {
   uint64_t seed;
   int shift;
@@ -140,17 +123,17 @@ uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg)
   return (seed << shift);
 }
 
-uint64_t GetPCUseDefEncoding()
+uint64_t ArmCodegen::GetPCUseDefEncoding()
 {
   return ENCODE_ARM_REG_PC;
 }
 
-void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
+void ArmCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 {
   DCHECK_EQ(cu->instruction_set, kThumb2);
 
   // Thumb2 specific setup
-  uint64_t flags = EncodingMap[lir->opcode].flags;
+  uint64_t flags = ArmCodegen::EncodingMap[lir->opcode].flags;
   int opcode = lir->opcode;
 
   if (flags & REG_DEF_SP) {
@@ -221,7 +204,7 @@ void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 }
 
-ArmConditionCode ArmConditionEncoding(ConditionCode ccode)
+ArmConditionCode ArmCodegen::ArmConditionEncoding(ConditionCode ccode)
 {
   ArmConditionCode res;
   switch (ccode) {
@@ -334,7 +317,7 @@ const char* cc_names[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
+std::string ArmCodegen::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
 {
   std::string buf;
   int i;
@@ -473,7 +456,7 @@ std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
   return buf;
 }
 
-void DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
+void ArmCodegen::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -519,30 +502,21 @@ void DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
   }
 }
 
-bool BranchUnconditional(LIR* lir)
+bool ArmCodegen::IsUnconditionalBranch(LIR* lir)
 {
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
-/* Common initialization routine for an architecture family */
-bool ArchInit()
+bool InitArmCodegen(CompilationUnit* cu)
 {
-  int i;
-
-  for (i = 0; i < kArmLast; i++) {
-    if (EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << EncodingMap[i].name
+  cu->cg.reset(new ArmCodegen());
+  for (int i = 0; i < kArmLast; i++) {
+    if (ArmCodegen::EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << ArmCodegen::EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(EncodingMap[i].opcode);
+                 << static_cast<int>(ArmCodegen::EncodingMap[i].opcode);
     }
   }
-
-  return ArchVariantInit();
-}
-
-/* Architecture-specific initializations and checks go here */
-bool ArchVariantInit(void)
-{
   return true;
 }
 
@@ -550,7 +524,7 @@ bool ArchVariantInit(void)
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int AllocTypedTempPair(CompilationUnit* cu, bool fp_hint, int reg_class)
+int ArmCodegen::AllocTypedTempPair(CompilationUnit* cu, bool fp_hint, int reg_class)
 {
   int high_reg;
   int low_reg;
@@ -567,14 +541,14 @@ int AllocTypedTempPair(CompilationUnit* cu, bool fp_hint, int reg_class)
   return res;
 }
 
-int AllocTypedTemp(CompilationUnit* cu, bool fp_hint, int reg_class)
+int ArmCodegen::AllocTypedTemp(CompilationUnit* cu, bool fp_hint, int reg_class)
 {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
     return AllocTempFloat(cu);
   return AllocTemp(cu);
 }
 
-void CompilerInitializeRegAlloc(CompilationUnit* cu)
+void ArmCodegen::CompilerInitializeRegAlloc(CompilationUnit* cu)
 {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
@@ -629,7 +603,7 @@ void CompilerInitializeRegAlloc(CompilationUnit* cu)
   }
 }
 
-void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
+void ArmCodegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
                      RegLocation rl_free)
 {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
@@ -645,7 +619,7 @@ void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
  * machinery is in place, always spill lr.
  */
 
-void AdjustSpillMask(CompilationUnit* cu)
+void ArmCodegen::AdjustSpillMask(CompilationUnit* cu)
 {
   cu->core_spill_mask |= (1 << rARM_LR);
   cu->num_core_spills++;
@@ -657,7 +631,7 @@ void AdjustSpillMask(CompilationUnit* cu)
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
+void ArmCodegen::MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
 {
   DCHECK_GE(reg, ARM_FP_REG_MASK + ARM_FP_CALLEE_SAVE_BASE);
   reg = (reg & ARM_FP_REG_MASK) - ARM_FP_CALLEE_SAVE_BASE;
@@ -673,7 +647,7 @@ void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
   cu->fp_spill_mask = ((1 << cu->num_fp_spills) - 1) << ARM_FP_CALLEE_SAVE_BASE;
 }
 
-void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
+void ArmCodegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 {
   RegisterInfo* info1 = GetRegInfo(cu, reg1);
   RegisterInfo* info2 = GetRegInfo(cu, reg2);
@@ -696,7 +670,7 @@ void FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
   }
 }
 
-void FlushReg(CompilationUnit* cu, int reg)
+void ArmCodegen::FlushReg(CompilationUnit* cu, int reg)
 {
   RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
@@ -707,12 +681,12 @@ void FlushReg(CompilationUnit* cu, int reg)
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool IsFpReg(int reg) {
+bool ArmCodegen::IsFpReg(int reg) {
   return ARM_FPREG(reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ClobberCalleeSave(CompilationUnit *cu)
+void ArmCodegen::ClobberCalleeSave(CompilationUnit *cu)
 {
   Clobber(cu, r0);
   Clobber(cu, r1);
@@ -738,7 +712,7 @@ void ClobberCalleeSave(CompilationUnit *cu)
   Clobber(cu, fr15);
 }
 
-RegLocation GetReturnWideAlt(CompilationUnit* cu)
+RegLocation ArmCodegen::GetReturnWideAlt(CompilationUnit* cu)
 {
   RegLocation res = LocCReturnWide();
   res.low_reg = r2;
@@ -751,7 +725,7 @@ RegLocation GetReturnWideAlt(CompilationUnit* cu)
   return res;
 }
 
-RegLocation GetReturnAlt(CompilationUnit* cu)
+RegLocation ArmCodegen::GetReturnAlt(CompilationUnit* cu)
 {
   RegLocation res = LocCReturn();
   res.low_reg = r1;
@@ -760,14 +734,14 @@ RegLocation GetReturnAlt(CompilationUnit* cu)
   return res;
 }
 
-RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg)
+RegisterInfo* ArmCodegen::GetRegInfo(CompilationUnit* cu, int reg)
 {
   return ARM_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & ARM_FP_REG_MASK]
       : &cu->reg_pool->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void LockCallTemps(CompilationUnit* cu)
+void ArmCodegen::LockCallTemps(CompilationUnit* cu)
 {
   LockTemp(cu, r0);
   LockTemp(cu, r1);
@@ -776,7 +750,7 @@ void LockCallTemps(CompilationUnit* cu)
 }
 
 /* To be used when explicitly managing register use */
-void FreeCallTemps(CompilationUnit* cu)
+void ArmCodegen::FreeCallTemps(CompilationUnit* cu)
 {
   FreeTemp(cu, r0);
   FreeTemp(cu, r1);
@@ -784,25 +758,25 @@ void FreeCallTemps(CompilationUnit* cu)
   FreeTemp(cu, r3);
 }
 
-int LoadHelper(CompilationUnit* cu, int offset)
+int ArmCodegen::LoadHelper(CompilationUnit* cu, int offset)
 {
   LoadWordDisp(cu, rARM_SELF, offset, rARM_LR);
   return rARM_LR;
 }
 
-uint64_t GetTargetInstFlags(int opcode)
+uint64_t ArmCodegen::GetTargetInstFlags(int opcode)
 {
-  return EncodingMap[opcode].flags;
+  return ArmCodegen::EncodingMap[opcode].flags;
 }
 
-const char* GetTargetInstName(int opcode)
+const char* ArmCodegen::GetTargetInstName(int opcode)
 {
-  return EncodingMap[opcode].name;
+  return ArmCodegen::EncodingMap[opcode].name;
 }
 
-const char* GetTargetInstFmt(int opcode)
+const char* ArmCodegen::GetTargetInstFmt(int opcode)
 {
-  return EncodingMap[opcode].fmt;
+  return ArmCodegen::EncodingMap[opcode].fmt;
 }
 
 }  // namespace art

@@ -16,15 +16,15 @@
 
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "mips_lir.h"
+#include "codegen_mips.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
-                     RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
+                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
-#ifdef __mips_hard_float
   int op = kMipsNop;
   RegLocation rl_result;
 
@@ -64,15 +64,11 @@ bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation 
   StoreValue(cu, rl_dest, rl_result);
 
   return false;
-#else
-  return GenArithOpFloatPortable(cu, opcode, rl_dest, rl_src1, rl_src2);
-#endif
 }
 
-bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
-                      RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
-#ifdef __mips_hard_float
   int op = kMipsNop;
   RegLocation rl_result;
 
@@ -112,15 +108,11 @@ bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
           S2d(rl_src2.low_reg, rl_src2.high_reg));
   StoreValueWide(cu, rl_dest, rl_result);
   return false;
-#else
-  return GenArithOpDoublePortable(cu, opcode, rl_dest, rl_src1, rl_src2);
-#endif
 }
 
-bool GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
-                   RegLocation rl_src)
+bool MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+                                RegLocation rl_src)
 {
-#ifdef __mips_hard_float
   int op = kMipsNop;
   int src_reg;
   RegLocation rl_result;
@@ -164,13 +156,10 @@ bool GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl
     StoreValue(cu, rl_dest, rl_result);
   }
   return false;
-#else
-  return GenConversionPortable(cu, opcode, rl_dest, rl_src);
-#endif
 }
 
-bool GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
-              RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+                           RegLocation rl_src1, RegLocation rl_src2)
 {
   bool wide = true;
   int offset;
@@ -210,13 +199,13 @@ bool GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest
   return false;
 }
 
-void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+void MipsCodegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
                                 bool gt_bias, bool is_double)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
-void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
+void MipsCodegen::GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValue(cu, rl_src, kCoreReg);
@@ -225,7 +214,7 @@ void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
+void MipsCodegen::GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
@@ -235,7 +224,7 @@ void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValueWide(cu, rl_dest, rl_result);
 }
 
-bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
+bool MipsCodegen::GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
 {
   // TODO: need Mips implementation
   return false;

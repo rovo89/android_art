@@ -86,13 +86,13 @@ namespace art {
  * +========================+
  */
 
-/* Offset to distingish FP regs */
+// Offset to distingish FP regs.
 #define MIPS_FP_REG_OFFSET 32
-/* Offset to distinguish DP FP regs */
+// Offset to distinguish DP FP regs.
 #define MIPS_FP_DOUBLE 64
-/* Offset to distingish the extra regs */
+// Offset to distingish the extra regs.
 #define MIPS_EXTRA_REG_OFFSET 128
-/* Reg types */
+// Reg types.
 #define MIPS_REGTYPE(x) (x & (MIPS_FP_REG_OFFSET | MIPS_FP_DOUBLE))
 #define MIPS_FPREG(x) ((x & MIPS_FP_REG_OFFSET) == MIPS_FP_REG_OFFSET)
 #define MIPS_EXTRAREG(x) ((x & MIPS_EXTRA_REG_OFFSET) == MIPS_EXTRA_REG_OFFSET)
@@ -106,7 +106,7 @@ namespace art {
  * code that reg locations always describe doubles as a pair of singles.
  */
 #define MIPS_S2D(x,y) ((x) | MIPS_FP_DOUBLE)
-/* Mask to strip off fp flags */
+// Mask to strip off fp flags.
 #define MIPS_FP_REG_MASK (MIPS_FP_REG_OFFSET-1)
 
 #ifdef HAVE_LITTLE_ENDIAN
@@ -129,7 +129,7 @@ namespace art {
 #define r_RESULT1 r_V0
 #endif
 
-/* These are the same for both big and little endian. */
+// These are the same for both big and little endian.
 #define r_FARG0 r_F12
 #define r_FARG1 r_F13
 #define r_FARG2 r_F14
@@ -137,11 +137,11 @@ namespace art {
 #define r_FRESULT0 r_F0
 #define r_FRESULT1 r_F1
 
-/* Regs not used for Mips */
+// Regs not used for Mips.
 #define rMIPS_LR INVALID_REG
 #define rMIPS_PC INVALID_REG
 
-/* RegisterLocation templates return values (r_V0, or r_V0/r_V1) */
+// RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 #define MIPS_LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
                            INVALID_SREG, INVALID_SREG}
 #define MIPS_LOC_C_RETURN_FLOAT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0, \
@@ -155,7 +155,7 @@ enum MipsResourceEncodingPos {
   kMipsGPReg0   = 0,
   kMipsRegSP    = 29,
   kMipsRegLR    = 31,
-  kMipsFPReg0   = 32, /* only 16 fp regs supported currently */
+  kMipsFPReg0   = 32, // only 16 fp regs supported currently.
   kMipsFPRegEnd   = 48,
   kMipsRegHI    = kMipsFPRegEnd,
   kMipsRegLO,
@@ -167,10 +167,6 @@ enum MipsResourceEncodingPos {
 #define ENCODE_MIPS_REG_SP           (1ULL << kMipsRegSP)
 #define ENCODE_MIPS_REG_LR           (1ULL << kMipsRegLR)
 #define ENCODE_MIPS_REG_PC           (1ULL << kMipsRegPC)
-
-/*
- * Annotate special-purpose core registers:
- */
 
 enum MipsNativeRegisterPool {
   r_ZERO = 0,
@@ -222,7 +218,11 @@ enum MipsNativeRegisterPool {
   r_F13,
   r_F14,
   r_F15,
-#if 0 /* only 16 fp regs supported currently */
+#if 0
+  /*
+   * TODO: The shared resource mask doesn't have enough bit positions to describe all
+   * MIPS registers.  Expand it and enable use of fp registers 16 through 31.
+   */
   r_F16,
   r_F17,
   r_F18,
@@ -248,7 +248,7 @@ enum MipsNativeRegisterPool {
   r_DF5 = r_F10 + MIPS_FP_DOUBLE,
   r_DF6 = r_F12 + MIPS_FP_DOUBLE,
   r_DF7 = r_F14 + MIPS_FP_DOUBLE,
-#if 0 /* only 16 fp regs supported currently */
+#if 0 // TODO: expand resource mask to enable use of all MIPS fp registers.
   r_DF8 = r_F16 + MIPS_FP_DOUBLE,
   r_DF9 = r_F18 + MIPS_FP_DOUBLE,
   r_DF10 = r_F20 + MIPS_FP_DOUBLE,
@@ -262,10 +262,6 @@ enum MipsNativeRegisterPool {
   r_LO,
   r_PC,
 };
-
-/*
- * Target-independent aliases
- */
 
 #define rMIPS_SUSPEND r_S0
 #define rMIPS_SELF r_S1
@@ -283,7 +279,6 @@ enum MipsNativeRegisterPool {
 #define rMIPS_INVOKE_TGT r_T9
 #define rMIPS_COUNT INVALID_REG
 
-/* Shift encodings */
 enum MipsShiftEncodings {
   kMipsLsl = 0x0,
   kMipsLsr = 0x1,
@@ -291,7 +286,7 @@ enum MipsShiftEncodings {
   kMipsRor = 0x3
 };
 
-// MIPS sync kinds (Note: support for kinds other than kSYNC0 may not exist)
+// MIPS sync kinds (Note: support for kinds other than kSYNC0 may not exist).
 #define kSYNC0        0x00
 #define kSYNC_WMB     0x04
 #define kSYNC_MB      0x01
@@ -299,7 +294,7 @@ enum MipsShiftEncodings {
 #define kSYNC_RELEASE 0x12
 #define kSYNC_RMB     0x13
 
-// TODO: Use smaller hammer when appropriate for target CPU
+// TODO: Use smaller hammer when appropriate for target CPU.
 #define kST kSYNC0
 #define kSY kSYNC0
 
@@ -310,103 +305,99 @@ enum MipsShiftEncodings {
  */
 enum MipsOpCode {
   kMipsFirst = 0,
-  kMips32BitData = kMipsFirst, /* data [31..0] */
-  kMipsAddiu, /* addiu t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0] */
-  kMipsAddu,  /* add d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100001] */
-  kMipsAnd,   /* and d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100100] */
-  kMipsAndi,  /* andi t,s,imm16 [001100] s[25..21] t[20..16] imm16[15..0] */
-  kMipsB,     /* b o   [0001000000000000] o[15..0] */
-  kMipsBal,   /* bal o [0000010000010001] o[15..0] */
-  /* NOTE: the code tests the range kMipsBeq thru kMipsBne, so
-       adding an instruction in this range may require updates */
-  kMipsBeq,   /* beq s,t,o [000100] s[25..21] t[20..16] o[15..0] */
-  kMipsBeqz,  /* beqz s,o [000100] s[25..21] [00000] o[15..0] */
-  kMipsBgez,  /* bgez s,o [000001] s[25..21] [00001] o[15..0] */
-  kMipsBgtz,  /* bgtz s,o [000111] s[25..21] [00000] o[15..0] */
-  kMipsBlez,  /* blez s,o [000110] s[25..21] [00000] o[15..0] */
-  kMipsBltz,  /* bltz s,o [000001] s[25..21] [00000] o[15..0] */
-  kMipsBnez,  /* bnez s,o [000101] s[25..21] [00000] o[15..0] */
-  kMipsBne,   /* bne s,t,o [000101] s[25..21] t[20..16] o[15..0] */
-  kMipsDiv,   /* div s,t [000000] s[25..21] t[20..16] [0000000000011010] */
+  kMips32BitData = kMipsFirst, // data [31..0].
+  kMipsAddiu, // addiu t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
+  kMipsAddu,  // add d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100001].
+  kMipsAnd,   // and d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100100].
+  kMipsAndi,  // andi t,s,imm16 [001100] s[25..21] t[20..16] imm16[15..0].
+  kMipsB,     // b o   [0001000000000000] o[15..0].
+  kMipsBal,   // bal o [0000010000010001] o[15..0].
+  // NOTE: the code tests the range kMipsBeq thru kMipsBne, so adding an instruction in this
+  //       range may require updates.
+  kMipsBeq,   // beq s,t,o [000100] s[25..21] t[20..16] o[15..0].
+  kMipsBeqz,  // beqz s,o [000100] s[25..21] [00000] o[15..0].
+  kMipsBgez,  // bgez s,o [000001] s[25..21] [00001] o[15..0].
+  kMipsBgtz,  // bgtz s,o [000111] s[25..21] [00000] o[15..0].
+  kMipsBlez,  // blez s,o [000110] s[25..21] [00000] o[15..0].
+  kMipsBltz,  // bltz s,o [000001] s[25..21] [00000] o[15..0].
+  kMipsBnez,  // bnez s,o [000101] s[25..21] [00000] o[15..0].
+  kMipsBne,   // bne s,t,o [000101] s[25..21] t[20..16] o[15..0].
+  kMipsDiv,   // div s,t [000000] s[25..21] t[20..16] [0000000000011010].
 #if __mips_isa_rev>=2
-  kMipsExt,   /* ext t,s,p,z [011111] s[25..21] t[20..16] z[15..11] p[10..6] [000000] */
+  kMipsExt,   // ext t,s,p,z [011111] s[25..21] t[20..16] z[15..11] p[10..6] [000000].
 #endif
-  kMipsJal,   /* jal t [000011] t[25..0] */
-  kMipsJalr,  /* jalr d,s [000000] s[25..21] [00000] d[15..11]
-                  hint[10..6] [001001] */
-  kMipsJr,    /* jr s [000000] s[25..21] [0000000000] hint[10..6] [001000] */
-  kMipsLahi,  /* lui t,imm16 [00111100000] t[20..16] imm16[15..0] load addr hi */
-  kMipsLalo,  /* ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0] load addr lo */
-  kMipsLui,   /* lui t,imm16 [00111100000] t[20..16] imm16[15..0] */
-  kMipsLb,    /* lb t,o(b) [100000] b[25..21] t[20..16] o[15..0] */
-  kMipsLbu,   /* lbu t,o(b) [100100] b[25..21] t[20..16] o[15..0] */
-  kMipsLh,    /* lh t,o(b) [100001] b[25..21] t[20..16] o[15..0] */
-  kMipsLhu,   /* lhu t,o(b) [100101] b[25..21] t[20..16] o[15..0] */
-  kMipsLw,    /* lw t,o(b) [100011] b[25..21] t[20..16] o[15..0] */
-  kMipsMfhi,  /* mfhi d [0000000000000000] d[15..11] [00000010000] */
-  kMipsMflo,  /* mflo d [0000000000000000] d[15..11] [00000010010] */
-  kMipsMove,  /* move d,s [000000] s[25..21] [00000] d[15..11] [00000100101] */
-  kMipsMovz,  /* movz d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000001010] */
-  kMipsMul,   /* mul d,s,t [011100] s[25..21] t[20..16] d[15..11] [00000000010] */
-  kMipsNop,   /* nop [00000000000000000000000000000000] */
-  kMipsNor,   /* nor d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100111] */
-  kMipsOr,    /* or d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100101] */
-  kMipsOri,   /* ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0] */
-  kMipsPref,  /* pref h,o(b) [101011] b[25..21] h[20..16] o[15..0] */
-  kMipsSb,    /* sb t,o(b) [101000] b[25..21] t[20..16] o[15..0] */
+  kMipsJal,   // jal t [000011] t[25..0].
+  kMipsJalr,  // jalr d,s [000000] s[25..21] [00000] d[15..11] hint[10..6] [001001].
+  kMipsJr,    // jr s [000000] s[25..21] [0000000000] hint[10..6] [001000].
+  kMipsLahi,  // lui t,imm16 [00111100000] t[20..16] imm16[15..0] load addr hi.
+  kMipsLalo,  // ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0] load addr lo.
+  kMipsLui,   // lui t,imm16 [00111100000] t[20..16] imm16[15..0].
+  kMipsLb,    // lb t,o(b) [100000] b[25..21] t[20..16] o[15..0].
+  kMipsLbu,   // lbu t,o(b) [100100] b[25..21] t[20..16] o[15..0].
+  kMipsLh,    // lh t,o(b) [100001] b[25..21] t[20..16] o[15..0].
+  kMipsLhu,   // lhu t,o(b) [100101] b[25..21] t[20..16] o[15..0].
+  kMipsLw,    // lw t,o(b) [100011] b[25..21] t[20..16] o[15..0].
+  kMipsMfhi,  // mfhi d [0000000000000000] d[15..11] [00000010000].
+  kMipsMflo,  // mflo d [0000000000000000] d[15..11] [00000010010].
+  kMipsMove,  // move d,s [000000] s[25..21] [00000] d[15..11] [00000100101].
+  kMipsMovz,  // movz d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000001010].
+  kMipsMul,   // mul d,s,t [011100] s[25..21] t[20..16] d[15..11] [00000000010].
+  kMipsNop,   // nop [00000000000000000000000000000000].
+  kMipsNor,   // nor d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100111].
+  kMipsOr,    // or d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100101].
+  kMipsOri,   // ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
+  kMipsPref,  // pref h,o(b) [101011] b[25..21] h[20..16] o[15..0].
+  kMipsSb,    // sb t,o(b) [101000] b[25..21] t[20..16] o[15..0].
 #if __mips_isa_rev>=2
-  kMipsSeb,   /* seb d,t [01111100000] t[20..16] d[15..11] [10000100000] */
-  kMipsSeh,   /* seh d,t [01111100000] t[20..16] d[15..11] [11000100000] */
+  kMipsSeb,   // seb d,t [01111100000] t[20..16] d[15..11] [10000100000].
+  kMipsSeh,   // seh d,t [01111100000] t[20..16] d[15..11] [11000100000].
 #endif
-  kMipsSh,    /* sh t,o(b) [101001] b[25..21] t[20..16] o[15..0] */
-  kMipsSll,   /* sll d,t,a [00000000000] t[20..16] d[15..11] a[10..6] [000000] */
-  kMipsSllv,  /* sllv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000100] */
-  kMipsSlt,   /* slt d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000101010] */
-  kMipsSlti,  /* slti t,s,imm16 [001010] s[25..21] t[20..16] imm16[15..0] */
-  kMipsSltu,  /* sltu d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000101011] */
-  kMipsSra,   /* sra d,s,imm5 [00000000000] t[20..16] d[15..11] imm5[10..6] [000011] */
-  kMipsSrav,  /* srav d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000111] */
-  kMipsSrl,   /* srl d,t,a [00000000000] t[20..16] d[20..16] a[10..6] [000010] */
-  kMipsSrlv,  /* srlv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000110] */
-  kMipsSubu,  /* subu d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100011] */
-  kMipsSw,    /* sw t,o(b) [101011] b[25..21] t[20..16] o[15..0] */
-  kMipsXor,   /* xor d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100110] */
-  kMipsXori,  /* xori t,s,imm16 [001110] s[25..21] t[20..16] imm16[15..0] */
-#ifdef __mips_hard_float
-  kMipsFadds, /* add.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000000] */
-  kMipsFsubs, /* sub.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000001] */
-  kMipsFmuls, /* mul.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000010] */
-  kMipsFdivs, /* div.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000011] */
-  kMipsFaddd, /* add.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000000] */
-  kMipsFsubd, /* sub.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000001] */
-  kMipsFmuld, /* mul.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000010] */
-  kMipsFdivd, /* div.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000011] */
-  kMipsFcvtsd,/* cvt.s.d d,s [01000110001] [00000] s[15..11] d[10..6] [100000] */
-  kMipsFcvtsw,/* cvt.s.w d,s [01000110100] [00000] s[15..11] d[10..6] [100000] */
-  kMipsFcvtds,/* cvt.d.s d,s [01000110000] [00000] s[15..11] d[10..6] [100001] */
-  kMipsFcvtdw,/* cvt.d.w d,s [01000110100] [00000] s[15..11] d[10..6] [100001] */
-  kMipsFcvtws,/* cvt.w.d d,s [01000110000] [00000] s[15..11] d[10..6] [100100] */
-  kMipsFcvtwd,/* cvt.w.d d,s [01000110001] [00000] s[15..11] d[10..6] [100100] */
-  kMipsFmovs, /* mov.s d,s [01000110000] [00000] s[15..11] d[10..6] [000110] */
-  kMipsFmovd, /* mov.d d,s [01000110001] [00000] s[15..11] d[10..6] [000110] */
-  kMipsFlwc1, /* lwc1 t,o(b) [110001] b[25..21] t[20..16] o[15..0] */
-  kMipsFldc1, /* ldc1 t,o(b) [110101] b[25..21] t[20..16] o[15..0] */
-  kMipsFswc1, /* swc1 t,o(b) [111001] b[25..21] t[20..16] o[15..0] */
-  kMipsFsdc1, /* sdc1 t,o(b) [111101] b[25..21] t[20..16] o[15..0] */
-  kMipsMfc1,  /* mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000] */
-  kMipsMtc1,  /* mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000] */
-#endif
-  kMipsDelta, /* Psuedo for ori t, s, <label>-<label> */
-  kMipsDeltaHi, /* Pseudo for lui t, high16(<label>-<label>) */
-  kMipsDeltaLo, /* Pseudo for ori t, s, low16(<label>-<label>) */
-  kMipsCurrPC,  /* jal to .+8 to materialize pc */
-  kMipsSync,  /* sync kind [000000] [0000000000000000] s[10..6] [001111] */
-  kMipsUndefined,  /* undefined [011001xxxxxxxxxxxxxxxx] */
+  kMipsSh,    // sh t,o(b) [101001] b[25..21] t[20..16] o[15..0].
+  kMipsSll,   // sll d,t,a [00000000000] t[20..16] d[15..11] a[10..6] [000000].
+  kMipsSllv,  // sllv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000100].
+  kMipsSlt,   // slt d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000101010].
+  kMipsSlti,  // slti t,s,imm16 [001010] s[25..21] t[20..16] imm16[15..0].
+  kMipsSltu,  // sltu d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000101011].
+  kMipsSra,   // sra d,s,imm5 [00000000000] t[20..16] d[15..11] imm5[10..6] [000011].
+  kMipsSrav,  // srav d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000111].
+  kMipsSrl,   // srl d,t,a [00000000000] t[20..16] d[20..16] a[10..6] [000010].
+  kMipsSrlv,  // srlv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000110].
+  kMipsSubu,  // subu d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100011].
+  kMipsSw,    // sw t,o(b) [101011] b[25..21] t[20..16] o[15..0].
+  kMipsXor,   // xor d,s,t [000000] s[25..21] t[20..16] d[15..11] [00000100110].
+  kMipsXori,  // xori t,s,imm16 [001110] s[25..21] t[20..16] imm16[15..0].
+  kMipsFadds, // add.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000000].
+  kMipsFsubs, // sub.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000001].
+  kMipsFmuls, // mul.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000010].
+  kMipsFdivs, // div.s d,s,t [01000110000] t[20..16] s[15..11] d[10..6] [000011].
+  kMipsFaddd, // add.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000000].
+  kMipsFsubd, // sub.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000001].
+  kMipsFmuld, // mul.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000010].
+  kMipsFdivd, // div.d d,s,t [01000110001] t[20..16] s[15..11] d[10..6] [000011].
+  kMipsFcvtsd,// cvt.s.d d,s [01000110001] [00000] s[15..11] d[10..6] [100000].
+  kMipsFcvtsw,// cvt.s.w d,s [01000110100] [00000] s[15..11] d[10..6] [100000].
+  kMipsFcvtds,// cvt.d.s d,s [01000110000] [00000] s[15..11] d[10..6] [100001].
+  kMipsFcvtdw,// cvt.d.w d,s [01000110100] [00000] s[15..11] d[10..6] [100001].
+  kMipsFcvtws,// cvt.w.d d,s [01000110000] [00000] s[15..11] d[10..6] [100100].
+  kMipsFcvtwd,// cvt.w.d d,s [01000110001] [00000] s[15..11] d[10..6] [100100].
+  kMipsFmovs, // mov.s d,s [01000110000] [00000] s[15..11] d[10..6] [000110].
+  kMipsFmovd, // mov.d d,s [01000110001] [00000] s[15..11] d[10..6] [000110].
+  kMipsFlwc1, // lwc1 t,o(b) [110001] b[25..21] t[20..16] o[15..0].
+  kMipsFldc1, // ldc1 t,o(b) [110101] b[25..21] t[20..16] o[15..0].
+  kMipsFswc1, // swc1 t,o(b) [111001] b[25..21] t[20..16] o[15..0].
+  kMipsFsdc1, // sdc1 t,o(b) [111101] b[25..21] t[20..16] o[15..0].
+  kMipsMfc1,  // mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000].
+  kMipsMtc1,  // mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000].
+  kMipsDelta, // Psuedo for ori t, s, <label>-<label>.
+  kMipsDeltaHi, // Pseudo for lui t, high16(<label>-<label>).
+  kMipsDeltaLo, // Pseudo for ori t, s, low16(<label>-<label>).
+  kMipsCurrPC,  // jal to .+8 to materialize pc.
+  kMipsSync,    // sync kind [000000] [0000000000000000] s[10..6] [001111].
+  kMipsUndefined,  // undefined [011001xxxxxxxxxxxxxxxx].
   kMipsLast
 };
 
-/* Bit flags describing the behavior of each native opcode */
-/* Instruction assembly field_loc kind */
+// Instruction assembly field_loc kind.
 enum MipsEncodingKind {
   kFmtUnused,
   kFmtBitBlt,    /* Bit string using end/start */
@@ -415,26 +406,26 @@ enum MipsEncodingKind {
   kFmtBlt5_2,    /* Same 5-bit field to 2 locations */
 };
 
-/* Struct used to define the snippet positions for each MIPS opcode */
+// Struct used to define the snippet positions for each MIPS opcode.
 struct MipsEncodingMap {
   uint32_t skeleton;
   struct {
     MipsEncodingKind kind;
-    int end;   /* end for kFmtBitBlt, 1-bit slice end for FP regs */
-    int start; /* start for kFmtBitBlt, 4-bit slice end for FP regs */
+    int end;   // end for kFmtBitBlt, 1-bit slice end for FP regs.
+    int start; // start for kFmtBitBlt, 4-bit slice end for FP regs.
   } field_loc[4];
   MipsOpCode opcode;
   uint64_t flags;
   const char *name;
   const char* fmt;
-  int size;   /* Size in bytes */
+  int size;   // Note: size is in bytes.
 };
 
 extern MipsEncodingMap EncodingMap[kMipsLast];
 
 #define IS_UIMM16(v) ((0 <= (v)) && ((v) <= 65535))
 #define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32766))
-#define IS_SIMM16_2WORD(v) ((-32764 <= (v)) && ((v) <= 32763)) /* 2 offsets must fit */
+#define IS_SIMM16_2WORD(v) ((-32764 <= (v)) && ((v) <= 32763)) // 2 offsets must fit.
 
 }  // namespace art
 

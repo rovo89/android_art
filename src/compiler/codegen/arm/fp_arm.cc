@@ -15,13 +15,14 @@
  */
 
 #include "arm_lir.h"
+#include "codegen_arm.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-bool GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                     RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                                 RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kThumbBkpt;
   RegLocation rl_result;
@@ -63,8 +64,8 @@ bool GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, RegLocation 
   return false;
 }
 
-bool GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
-                      RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
+                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kThumbBkpt;
   RegLocation rl_result;
@@ -108,8 +109,8 @@ bool GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenConversion(CompilationUnit* cu, Instruction::Code opcode,
-                   RegLocation rl_dest, RegLocation rl_src)
+bool ArmCodegen::GenConversion(CompilationUnit* cu, Instruction::Code opcode,
+                               RegLocation rl_dest, RegLocation rl_src)
 {
   int op = kThumbBkpt;
   int src_reg;
@@ -161,8 +162,8 @@ bool GenConversion(CompilationUnit* cu, Instruction::Code opcode,
   return false;
 }
 
-void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                         bool gt_bias, bool is_double)
+void ArmCodegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,
+                                     bool is_double)
 {
   LIR* label_list = cu->block_label_list;
   LIR* target = &label_list[bb->taken->id];
@@ -215,8 +216,8 @@ void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
 }
 
 
-bool GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-        RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                          RegLocation rl_src1, RegLocation rl_src2)
 {
   bool is_double;
   int default_result;
@@ -261,12 +262,12 @@ bool GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest
   DCHECK(!ARM_FPREG(rl_result.low_reg));
   NewLIR0(cu, kThumb2Fmstat);
 
-  OpIT(cu, (default_result == -1) ? kArmCondGt : kArmCondMi, "");
+  OpIT(cu, (default_result == -1) ? kCondGt : kCondMi, "");
   NewLIR2(cu, kThumb2MovImmShift, rl_result.low_reg,
           ModifiedImmediate(-default_result)); // Must not alter ccodes
   GenBarrier(cu);
 
-  OpIT(cu, kArmCondEq, "");
+  OpIT(cu, kCondEq, "");
   LoadConstant(cu, rl_result.low_reg, 0);
   GenBarrier(cu);
 
@@ -274,7 +275,7 @@ bool GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest
   return false;
 }
 
-void GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void ArmCodegen::GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValue(cu, rl_src, kFPReg);
@@ -283,7 +284,7 @@ void GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void ArmCodegen::GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValueWide(cu, rl_src, kFPReg);
@@ -293,7 +294,7 @@ void GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValueWide(cu, rl_dest, rl_result);
 }
 
-bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
+bool ArmCodegen::GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
   DCHECK_EQ(cu->instruction_set, kThumb2);
   LIR *branch;
   RegLocation rl_src = info->args[0];

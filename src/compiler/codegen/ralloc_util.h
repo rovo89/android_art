@@ -21,9 +21,9 @@
  * This file contains target independent register alloction support.
  */
 
-#include "../compiler_utility.h"
 #include "../compiler_ir.h"
 #include "../dataflow.h"
+#include "../compiler_utility.h"
 
 namespace art {
 
@@ -34,7 +34,6 @@ struct RefCounts {
   bool double_start;   // Starting v_reg for a double
 };
 
-
 /*
  * Get the "real" sreg number associated with an s_reg slot.  In general,
  * s_reg values passed through codegen are the SSA names created by
@@ -44,11 +43,9 @@ struct RefCounts {
  * records for operands are first created, we need to ask the locRecord
  * identified by the dataflow pass what it's new name is.
  */
-
 inline int GetSRegHi(int lowSreg) {
   return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
 }
-
 
 inline bool oat_live_out(CompilationUnit* cu, int s_reg) {
   //For now.
@@ -63,32 +60,23 @@ inline int oatSSASrc(MIR* mir, int num) {
 void ClobberSReg(CompilationUnit* cu, int s_reg);
 RegLocation EvalLoc(CompilationUnit* cu, RegLocation loc,
                               int reg_class, bool update);
-/* Mark a temp register as dead.  Does not affect allocation state. */
+// Mark a temp register as dead.  Does not affect allocation state.
 void Clobber(CompilationUnit* cu, int reg);
+
 RegLocation UpdateLoc(CompilationUnit* cu, RegLocation loc);
-
-/* see comments for update_loc */
 RegLocation UpdateLocWide(CompilationUnit* cu, RegLocation loc);
-
 RegLocation UpdateRawLoc(CompilationUnit* cu, RegLocation loc);
 
 void MarkLive(CompilationUnit* cu, int reg, int s_reg);
-
 void MarkTemp(CompilationUnit* cu, int reg);
-
 void UnmarkTemp(CompilationUnit* cu, int reg);
-
 void MarkDirty(CompilationUnit* cu, RegLocation loc);
-
 void MarkPair(CompilationUnit* cu, int low_reg, int high_reg);
-
 void MarkClean(CompilationUnit* cu, RegLocation loc);
-
 void ResetDef(CompilationUnit* cu, int reg);
-
 void ResetDefLoc(CompilationUnit* cu, RegLocation rl);
 
-/* Set up temp & preserved register pools specialized by target */
+// Set up temp & preserved register pools specialized by target.
 void CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num);
 
 /*
@@ -96,83 +84,57 @@ void CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num);
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-void MarkDef(CompilationUnit* cu, RegLocation rl, LIR* start,
-                       LIR* finish);
-/*
- * Mark the beginning and end LIR of a def sequence.  Note that
- * on entry start points to the LIR prior to the beginning of the
- * sequence.
- */
-void MarkDefWide(CompilationUnit* cu, RegLocation rl,
-                           LIR* start, LIR* finish);
+void MarkDef(CompilationUnit* cu, RegLocation rl, LIR* start, LIR* finish);
+void MarkDefWide(CompilationUnit* cu, RegLocation rl, LIR* start, LIR* finish);
+void ResetDefLocWide(CompilationUnit* cu, RegLocation rl);
+void ResetDefTracking(CompilationUnit* cu);
 
 
 // Get the LocRecord associated with an SSA name use.
 RegLocation GetSrc(CompilationUnit* cu, MIR* mir, int num);
 RegLocation GetSrcWide(CompilationUnit* cu, MIR* mir, int low);
-// Non-width checking version
+// Non-width checking version.
 RegLocation GetRawSrc(CompilationUnit* cu, MIR* mir, int num);
 
 // Get the LocRecord associated with an SSA name def.
 RegLocation GetDest(CompilationUnit* cu, MIR* mir);
 RegLocation GetDestWide(CompilationUnit* cu, MIR* mir);
-// Non-width checking version
+// Non-width checking version.
 RegLocation GetRawDest(CompilationUnit* cu, MIR* mir);
 
-RegLocation GetReturnWide(CompilationUnit* cu, bool is_double);
-
-/* Clobber all regs that might be used by an external C call */
+// Clobber all regs that might be used by an external C call.
 void ClobberCalleeSave(CompilationUnit* cu);
 
 RegisterInfo *IsTemp(CompilationUnit* cu, int reg);
-
 RegisterInfo *IsPromoted(CompilationUnit* cu, int reg);
-
+RegisterInfo *IsLive(CompilationUnit* cu, int reg);
 bool IsDirty(CompilationUnit* cu, int reg);
 
 void MarkInUse(CompilationUnit* cu, int reg);
 
 int AllocTemp(CompilationUnit* cu);
-
 int AllocTempFloat(CompilationUnit* cu);
-
-//REDO: too many assumptions.
 int AllocTempDouble(CompilationUnit* cu);
-
 void FreeTemp(CompilationUnit* cu, int reg);
-
-void ResetDefLocWide(CompilationUnit* cu, RegLocation rl);
-
-void ResetDefTracking(CompilationUnit* cu);
-
-RegisterInfo *IsLive(CompilationUnit* cu, int reg);
-
-/* To be used when explicitly managing register use */
-void LockCallTemps(CompilationUnit* cu);
-
-void FreeCallTemps(CompilationUnit* cu);
-
-void FlushAllRegs(CompilationUnit* cu);
-
-RegLocation GetReturnWideAlt(CompilationUnit* cu);
-
-RegLocation GetReturn(CompilationUnit* cu, bool is_float);
-
-RegLocation GetReturnAlt(CompilationUnit* cu);
-
-/* Clobber any temp associated with an s_reg.  Could be in either class */
-
-/* Return a temp if one is available, -1 otherwise */
+// Return a temp if one is available, -1 otherwise.
 int AllocFreeTemp(CompilationUnit* cu);
-
-/* Attempt to allocate a callee-save register */
 /*
+ * Attempt to allocate a callee-save register.
  * Similar to AllocTemp(), but forces the allocation of a specific
  * register.  No check is made to see if the register was previously
  * allocated.  Use with caution.
  */
 void LockTemp(CompilationUnit* cu, int reg);
 
+/* To be used when explicitly managing register use */
+void LockCallTemps(CompilationUnit* cu);
+void FreeCallTemps(CompilationUnit* cu);
+
+void FlushAllRegs(CompilationUnit* cu);
+
+RegLocation GetReturn(CompilationUnit* cu, bool is_float);
+RegLocation GetReturnWide(CompilationUnit* cu, bool is_double);
+RegLocation GetBadLoc();
 RegLocation WideToNarrow(CompilationUnit* cu, RegLocation rl);
 
 /*
@@ -193,21 +155,6 @@ int VRegOffset(CompilationUnit* cu, int reg);
 int SRegOffset(CompilationUnit* cu, int reg);
 void RecordCorePromotion(CompilationUnit* cu, int reg, int s_reg);
 void RecordFpPromotion(CompilationUnit* cu, int reg, int s_reg);
-
-
-/* Architecture-dependent register allocation routines. */
-int AllocTypedTempPair(CompilationUnit* cu,
-                                 bool fp_hint, int reg_class);
-
-int AllocTypedTemp(CompilationUnit* cu, bool fp_hint, int reg_class);
-
-void oatDumpFPRegPool(CompilationUnit* cUint);
-RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg);
-void NopLIR(LIR* lir);
-bool oatIsFPReg(int reg);
-uint32_t oatFPRegMask(void);
-void AdjustSpillMask(CompilationUnit* cu);
-void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg);
 int ComputeFrameSize(CompilationUnit* cu);
 
 }  // namespace art

@@ -171,7 +171,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
 }  // namespace mips
 }  // namespace art
 
-extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& /*compiler*/, bool is_static,
+extern "C" art::CompiledInvokeStub* ArtCreateMipsInvokeStub(art::Compiler& /*compiler*/, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
   return art::mips::CreateInvokeStub(is_static, shorty, shorty_len);
 }

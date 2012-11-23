@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_CODEGEN_METHODCODEGENDRIVER_H_
-#define ART_SRC_COMPILER_CODEGEN_METHODCODEGENDRIVER_H_
+#ifndef ART_SRC_COMPILER_CODEGEN_MIRTOLIR_H_
+#define ART_SRC_COMPILER_CODEGEN_MIRTOLIR_H_
 
 namespace art {
-// TODO: move GenInvoke to gen_invoke.cc
-void GenInvoke(CompilationUnit* cu, CallInfo* info);
-// TODO: move GenInvoke to gen_invoke.cc or utils
-CallInfo* NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
 void SpecialMIR2LIR(CompilationUnit* cu, SpecialCaseHandler special_case);
 void MethodMIR2LIR(CompilationUnit* cu);
 
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_CODEGEN_METHODCODEGENDRIVER_H_
+#endif // ART_SRC_COMPILER_CODEGEN_MIRTOLIR_H_

@@ -28,8 +28,8 @@ enum RegisterClass {
 };
 
 enum SpecialTargetRegister {
-  kSelf,            // Thread
-  kSuspend,         // Used to reduce suspend checks
+  kSelf,            // Thread pointer.
+  kSuspend,         // Used to reduce suspend checks for some targets.
   kLr,
   kPc,
   kSp,
@@ -70,15 +70,15 @@ enum BBType {
 
 enum ResourceEncodingPos {
   kMustNotAlias = 63,
-  kHeapRef = 62,          // Default memory reference type
-  kLiteral = 61,          // Literal pool memory reference
-  kDalvikReg = 60,        // Dalvik v_reg memory reference
+  kHeapRef = 62,          // Default memory reference type.
+  kLiteral = 61,          // Literal pool memory reference.
+  kDalvikReg = 60,        // Dalvik v_reg memory reference.
   kFPStatus = 59,
   kCCode = 58,
   kLowestCommonResource = kCCode
 };
 
-/* Shared pseudo opcodes - must be < 0 */
+// Shared pseudo opcodes - must be < 0.
 enum LIRPseudoOpcode {
   kPseudoExportedPC = -18,
   kPseudoSafepointPC = -17,
@@ -122,15 +122,15 @@ enum MIROptimizationFlagPositons {
   kMIRNullCheckOnly,
   kMIRIgnoreRangeCheck,
   kMIRRangeCheckOnly,
-  kMIRInlined,                        // Invoke is inlined (ie dead)
-  kMIRInlinedPred,                    // Invoke is inlined via prediction
-  kMIRCallee,                         // Instruction is inlined from callee
+  kMIRInlined,                        // Invoke is inlined (ie dead).
+  kMIRInlinedPred,                    // Invoke is inlined via prediction.
+  kMIRCallee,                         // Instruction is inlined from callee.
   kMIRIgnoreSuspendCheck,
   kMIRDup,
-  kMIRMark,                           // Temporary node mark
+  kMIRMark,                           // Temporary node mark.
 };
 
-/* For successor_block_list */
+// For successor_block_list.
 enum BlockListType {
   kNotUsed = 0,
   kCatch,
@@ -328,17 +328,17 @@ std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
 
 /* Customized node traversal orders for different needs */
 enum DataFlowAnalysisMode {
-  kAllNodes = 0,              // All nodes
-  kReachableNodes,            // All reachable nodes
-  kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
-  kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
-  kPostOrderDOMTraversal,     // Dominator tree / Post-Order
-  kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
+  kAllNodes = 0,              // All nodes.
+  kReachableNodes,            // All reachable nodes.
+  kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order.
+  kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order.
+  kPostOrderDOMTraversal,     // Dominator tree / Post-Order.
+  kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order.
 };
 
 std::ostream& operator<<(std::ostream& os, const DataFlowAnalysisMode& mode);
 
-// Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers")
+// Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers").
 enum MemBarrierKind {
   kLoadStore,
   kLoadLoad,
@@ -347,6 +347,51 @@ enum MemBarrierKind {
 };
 
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
+
+enum OpFeatureFlags {
+  kIsBranch = 0,
+  kNoOperand,
+  kIsUnaryOp,
+  kIsBinaryOp,
+  kIsTertiaryOp,
+  kIsQuadOp,
+  kIsQuinOp,
+  kIsSextupleOp,
+  kIsIT,
+  kMemLoad,
+  kMemStore,
+  kPCRelFixup, // x86 FIXME: add NEEDS_FIXUP to instruction attributes.
+  kRegDef0,
+  kRegDef1,
+  kRegDefA,
+  kRegDefD,
+  kRegDefFPCSList0,
+  kRegDefFPCSList2,
+  kRegDefList0,
+  kRegDefList1,
+  kRegDefList2,
+  kRegDefLR,
+  kRegDefSP,
+  kRegUse0,
+  kRegUse1,
+  kRegUse2,
+  kRegUse3,
+  kRegUse4,
+  kRegUseA,
+  kRegUseC,
+  kRegUseD,
+  kRegUseFPCSList0,
+  kRegUseFPCSList2,
+  kRegUseList0,
+  kRegUseList1,
+  kRegUseLR,
+  kRegUsePC,
+  kRegUseSP,
+  kSetsCCodes,
+  kUsesCCodes
+};
+
+std::ostream& operator<<(std::ostream& os, const OpFeatureFlags& flag);
 
 }  // namespace art
 

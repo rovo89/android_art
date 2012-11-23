@@ -42,9 +42,10 @@ static bool IsDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 /* Convert a more expensive instruction (ie load) into a move */
 static void ConvertMemOpIntoMove(CompilationUnit* cu, LIR* orig_lir, int dest, int src)
 {
+  Codegen* cg = cu->cg.get();
   /* Insert a move to replace the load */
   LIR* move_lir;
-  move_lir = OpRegCopyNoInsert( cu, dest, src);
+  move_lir = cg->OpRegCopyNoInsert( cu, dest, src);
   /*
    * Insert the converted instruction after the original since the
    * optimization is scannng in the top-down order and the new instruction
@@ -74,6 +75,7 @@ static void ConvertMemOpIntoMove(CompilationUnit* cu, LIR* orig_lir, int dest, i
  */
 static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
 {
+  Codegen* cg = cu->cg.get();
   LIR* this_lir;
 
   if (head_lir == tail_lir) return;
@@ -84,20 +86,20 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
     /* Skip non-interesting instructions */
     if ((this_lir->flags.is_nop == true) ||
         is_pseudo_opcode(this_lir->opcode) ||
-        (GetTargetInstFlags(this_lir->opcode) & IS_BRANCH) ||
-        !(GetTargetInstFlags(this_lir->opcode) & (IS_LOAD | IS_STORE))) {
+        (cg->GetTargetInstFlags(this_lir->opcode) & IS_BRANCH) ||
+        !(cg->GetTargetInstFlags(this_lir->opcode) & (IS_LOAD | IS_STORE))) {
       continue;
     }
 
     int native_reg_id;
     if (cu->instruction_set == kX86) {
       // If x86, location differs depending on whether memory/reg operation.
-      native_reg_id = (GetTargetInstFlags(this_lir->opcode) & IS_STORE) ? this_lir->operands[2]
+      native_reg_id = (cg->GetTargetInstFlags(this_lir->opcode) & IS_STORE) ? this_lir->operands[2]
           : this_lir->operands[0];
     } else {
       native_reg_id = this_lir->operands[0];
     }
-    bool is_this_lir_load = GetTargetInstFlags(this_lir->opcode) & IS_LOAD;
+    bool is_this_lir_load = cg->GetTargetInstFlags(this_lir->opcode) & IS_LOAD;
     LIR* check_lir;
     /* Use the mem mask to determine the rough memory location */
     uint64_t this_mem_mask = (this_lir->use_mask | this_lir->def_mask) & ENCODE_MEM;
@@ -119,7 +121,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
        * region bits since stop_mask is used to check data/control
        * dependencies.
        */
-        stop_use_reg_mask = (GetPCUseDefEncoding() | this_lir->use_mask) & ~ENCODE_MEM;
+        stop_use_reg_mask = (cg->GetPCUseDefEncoding() | this_lir->use_mask) & ~ENCODE_MEM;
     }
 
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
@@ -138,16 +140,16 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
        * Potential aliases seen - check the alias relations
        */
       if (check_mem_mask != ENCODE_MEM && alias_condition != 0) {
-        bool is_check_lir_load = GetTargetInstFlags(check_lir->opcode) & IS_LOAD;
+        bool is_check_lir_load = cg->GetTargetInstFlags(check_lir->opcode) & IS_LOAD;
         if  (alias_condition == ENCODE_LITERAL) {
           /*
            * Should only see literal loads in the instruction
            * stream.
            */
-          DCHECK(!(GetTargetInstFlags(check_lir->opcode) & IS_STORE));
+          DCHECK(!(cg->GetTargetInstFlags(check_lir->opcode) & IS_STORE));
           /* Same value && same register type */
           if (check_lir->alias_info == this_lir->alias_info &&
-              SameRegType(check_lir->operands[0], native_reg_id)) {
+              cg->SameRegType(check_lir->operands[0], native_reg_id)) {
             /*
              * Different destination register - insert
              * a move
@@ -162,7 +164,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
           /* Must alias */
           if (check_lir->alias_info == this_lir->alias_info) {
             /* Only optimize compatible registers */
-            bool reg_compatible = SameRegType(check_lir->operands[0], native_reg_id);
+            bool reg_compatible = cg->SameRegType(check_lir->operands[0], native_reg_id);
             if ((is_this_lir_load && is_check_lir_load) ||
                 (!is_this_lir_load && is_check_lir_load)) {
               /* RAR or RAW */
@@ -227,7 +229,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
         if (cu->instruction_set == kX86) {
           // Prevent stores from being sunk between ops that generate ccodes and
           // ops that use them.
-          uint64_t flags = GetTargetInstFlags(check_lir->opcode);
+          uint64_t flags = cg->GetTargetInstFlags(check_lir->opcode);
           if (sink_distance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
             check_lir = PREV_LIR(check_lir);
             sink_distance--;
@@ -260,6 +262,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
  */
 void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
 {
+  Codegen* cg = cu->cg.get();
   LIR* this_lir, *check_lir;
   /*
    * Store the list of independent instructions that can be hoisted past.
@@ -276,7 +279,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
     /* Skip non-interesting instructions */
     if ((this_lir->flags.is_nop == true) ||
         is_pseudo_opcode(this_lir->opcode) ||
-        !(GetTargetInstFlags(this_lir->opcode) & IS_LOAD)) {
+        !(cg->GetTargetInstFlags(this_lir->opcode) & IS_LOAD)) {
       continue;
     }
 
@@ -290,7 +293,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
        * conservatively here.
        */
       if (stop_use_all_mask & ENCODE_HEAP_REF) {
-        stop_use_all_mask |= GetPCUseDefEncoding();
+        stop_use_all_mask |= cg->GetPCUseDefEncoding();
       }
     }
 
@@ -374,7 +377,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
       LIR* dep_lir = prev_inst_list[next_slot-1];
       /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
       if (!is_pseudo_opcode(dep_lir->opcode) &&
-        (GetTargetInstFlags(dep_lir->opcode) & IS_LOAD)) {
+        (cg->GetTargetInstFlags(dep_lir->opcode) & IS_LOAD)) {
         first_slot -= LDLD_DISTANCE;
       }
       /*
@@ -391,7 +394,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
            */
-          if (GetTargetInstFlags(cur_lir->opcode) & IS_LOAD) continue;
+          if (cg->GetTargetInstFlags(cur_lir->opcode) & IS_LOAD) continue;
           /*
            * If the remaining number of slots is less than LD_LATENCY,
            * insert the hoisted load here.
@@ -411,7 +414,7 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
          * the remaining instructions are less than LD_LATENCY.
          */
         bool prev_is_load = is_pseudo_opcode(prev_lir->opcode) ? false :
-            (GetTargetInstFlags(prev_lir->opcode) & IS_LOAD);
+            (cg->GetTargetInstFlags(prev_lir->opcode) & IS_LOAD);
         if (((cur_lir->use_mask & prev_lir->def_mask) && prev_is_load) || (slot < LD_LATENCY)) {
           break;
         }
@@ -452,11 +455,12 @@ void ApplyLocalOptimizations(CompilationUnit* cu, LIR* head_lir,
 void RemoveRedundantBranches(CompilationUnit* cu)
 {
   LIR* this_lir;
+  Codegen* cg = cu->cg.get();
 
   for (this_lir = cu->first_lir_insn; this_lir != cu->last_lir_insn; this_lir = NEXT_LIR(this_lir)) {
 
     /* Branch to the next instruction */
-    if (BranchUnconditional(this_lir)) {
+    if (cg->IsUnconditionalBranch(this_lir)) {
       LIR* next_lir = this_lir;
 
       while (true) {

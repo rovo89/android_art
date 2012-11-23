@@ -36,6 +36,6 @@
 #include "ralloc.h"
 #include "compiler_utility.h"
 #include "compiler_ir.h"
-#include "codegen/compiler_codegen.h"
+#include "codegen/codegen.h"
 
 #endif  // ART_SRC_COMPILER_COMPILER_INTERNAL_H_

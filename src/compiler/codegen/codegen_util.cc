@@ -23,17 +23,36 @@
 
 namespace art {
 
+void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
+{
+  inst->def_mask = ENCODE_ALL;
+  LIR* safepoint_pc = NewLIR0(cu, kPseudoSafepointPC);
+  DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
+}
+
+bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
+                  int& field_offset, bool& is_volatile, bool is_put)
+{
+  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
+               *cu->dex_file,
+               cu->code_item, cu->method_idx,
+               cu->access_flags);
+  return cu->compiler->ComputeInstanceFieldInfo(field_idx, &m_unit,
+           field_offset, is_volatile, is_put);
+}
+
 /* Convert an instruction to a NOP */
 void NopLIR( LIR* lir)
 {
   lir->flags.is_nop = true;
 }
 
-void SetMemRefType(LIR* lir, bool is_load, int mem_type)
+void SetMemRefType(CompilationUnit* cu, LIR* lir, bool is_load, int mem_type)
 {
   uint64_t *mask_ptr;
   uint64_t mask = ENCODE_MEM;;
-  DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
+  Codegen* cg = cu->cg.get();
+  DCHECK(cg->GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   if (is_load) {
     mask_ptr = &lir->use_mask;
   } else {
@@ -55,7 +74,7 @@ void SetMemRefType(LIR* lir, bool is_load, int mem_type)
       break;
     case kMustNotAlias:
       /* Currently only loads can be marked as kMustNotAlias */
-      DCHECK(!(GetTargetInstFlags(lir->opcode) & IS_STORE));
+      DCHECK(!(cg->GetTargetInstFlags(lir->opcode) & IS_STORE));
       *mask_ptr |= ENCODE_MUST_NOT_ALIAS;
       break;
     default:
@@ -66,9 +85,9 @@ void SetMemRefType(LIR* lir, bool is_load, int mem_type)
 /*
  * Mark load/store instructions that access Dalvik registers through the stack.
  */
-void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit)
+void AnnotateDalvikRegAccess(CompilationUnit* cu, LIR* lir, int reg_id, bool is_load, bool is64bit)
 {
-  SetMemRefType(lir, is_load, kDalvikReg);
+  SetMemRefType(cu, lir, is_load, kDalvikReg);
 
   /*
    * Store the Dalvik register id in alias_info. Mark the MSB if it is a 64-bit
@@ -82,7 +101,8 @@ void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit)
  */
 void SetupRegMask(CompilationUnit* cu, uint64_t* mask, int reg)
 {
-  *mask |= GetRegMaskCommon(cu, reg);
+  Codegen* cg = cu->cg.get();
+  *mask |= cg->GetRegMaskCommon(cu, reg);
 }
 
 /*
@@ -91,25 +111,26 @@ void SetupRegMask(CompilationUnit* cu, uint64_t* mask, int reg)
 void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
 {
   int opcode = lir->opcode;
+  Codegen* cg = cu->cg.get();
 
   if (opcode <= 0) {
     lir->use_mask = lir->def_mask = 0;
     return;
   }
 
-  uint64_t flags = GetTargetInstFlags(opcode);
+  uint64_t flags = cg->GetTargetInstFlags(opcode);
 
   if (flags & NEEDS_FIXUP) {
     lir->flags.pcRelFixup = true;
   }
 
   /* Get the starting size of the instruction's template */
-  lir->flags.size = GetInsnSize(lir);
+  lir->flags.size = cg->GetInsnSize(lir);
 
   /* Set up the mask for resources that are updated */
   if (flags & (IS_LOAD | IS_STORE)) {
     /* Default to heap - will catch specialized classes later */
-    SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
+    SetMemRefType(cu, lir, flags & IS_LOAD, kHeapRef);
   }
 
   /*
@@ -149,7 +170,7 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 
   // Handle target-specific actions
-  SetupTargetResourceMasks(cu, lir);
+  cg->SetupTargetResourceMasks(cu, lir);
 }
 
 /*
@@ -164,6 +185,7 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
   int offset = lir->offset;
   int dest = lir->operands[0];
   const bool dump_nop = (cu->enable_debug & (1 << kDebugShowNops));
+  Codegen* cg = cu->cg.get();
 
   /* Handle pseudo-ops individually, and all regular insns as a group */
   switch (lir->opcode) {
@@ -228,10 +250,10 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
       if (lir->flags.is_nop && !dump_nop) {
         break;
       } else {
-        std::string op_name(BuildInsnString(GetTargetInstName(lir->opcode),
-                                            lir, base_addr));
-        std::string op_operands(BuildInsnString(GetTargetInstFmt(lir->opcode),
-                                                lir, base_addr));
+        std::string op_name(cg->BuildInsnString(cg->GetTargetInstName(lir->opcode),
+                                               lir, base_addr));
+        std::string op_operands(cg->BuildInsnString(cg->GetTargetInstFmt(lir->opcode),
+                                                    lir, base_addr));
         LOG(INFO) << StringPrintf("%05x: %-9s%s%s",
                                   reinterpret_cast<unsigned int>(base_addr + offset),
                                   op_name.c_str(), op_operands.c_str(),
@@ -250,12 +272,13 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
 
 void DumpPromotionMap(CompilationUnit *cu)
 {
+  Codegen* cg = cu->cg.get();
   int num_regs = cu->num_dalvik_registers + cu->num_compiler_temps + 1;
   for (int i = 0; i < num_regs; i++) {
     PromotionMap v_reg_map = cu->promotion_map[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", v_reg_map.FpReg & FpRegMask());
+      StringAppendF(&buf, " : s%d", v_reg_map.FpReg & cg->FpRegMask());
     }
 
     std::string buf3;
@@ -359,8 +382,9 @@ LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0,
  */
 LIR* NewLIR0(CompilationUnit* cu, int opcode)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & NO_OPERAND))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode);
@@ -371,8 +395,9 @@ LIR* NewLIR0(CompilationUnit* cu, int opcode)
 LIR* NewLIR1(CompilationUnit* cu, int opcode,
                int dest)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_UNARY_OP))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest);
@@ -383,8 +408,9 @@ LIR* NewLIR1(CompilationUnit* cu, int opcode,
 LIR* NewLIR2(CompilationUnit* cu, int opcode,
                int dest, int src1)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_BINARY_OP))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1);
@@ -395,8 +421,9 @@ LIR* NewLIR2(CompilationUnit* cu, int opcode,
 LIR* NewLIR3(CompilationUnit* cu, int opcode,
                int dest, int src1, int src2)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2);
@@ -407,8 +434,9 @@ LIR* NewLIR3(CompilationUnit* cu, int opcode,
 LIR* NewLIR4(CompilationUnit* cu, int opcode,
       int dest, int src1, int src2, int info)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_QUAD_OP))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2, info);
@@ -419,8 +447,9 @@ LIR* NewLIR4(CompilationUnit* cu, int opcode,
 LIR* NewLIR5(CompilationUnit* cu, int opcode,
        int dest, int src1, int src2, int info1, int info2)
 {
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
+  Codegen* cg = cu->cg.get();
+  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_QUIN_OP))
+      << cg->GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
       << cu->current_dalvik_offset;
   LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2, info1, info2);
@@ -840,7 +869,8 @@ static int AssignFillArrayDataOffset(CompilationUnit* cu, int offset)
  */
 static void AssignOffsets(CompilationUnit* cu)
 {
-  int offset = AssignInsnOffsets(cu);
+  Codegen* cg = cu->cg.get();
+  int offset = cg->AssignInsnOffsets(cu);
 
   /* Const values have to be word aligned */
   offset = (offset + 3) & ~3;
@@ -864,6 +894,7 @@ static void AssignOffsets(CompilationUnit* cu)
  */
 void AssembleLIR(CompilationUnit* cu)
 {
+  Codegen* cg = cu->cg.get();
   AssignOffsets(cu);
   /*
    * Assemble here.  Note that we generate code with optimistic assumptions
@@ -871,7 +902,7 @@ void AssembleLIR(CompilationUnit* cu)
    */
 
   while (true) {
-    AssemblerStatus res = AssembleInstructions(cu, 0);
+    AssemblerStatus res = cg->AssembleInstructions(cu, 0);
     if (res == kSuccess) {
       break;
     } else {

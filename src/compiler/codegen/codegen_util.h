@@ -19,19 +19,23 @@
 
 namespace art {
 
+void MarkSafepointPC(CompilationUnit* cu, LIR* inst);
+bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
+                  int& field_offset, bool& is_volatile, bool is_put);
+void SetupResourceMasks(CompilationUnit* cu, LIR* lir);
 inline int32_t s4FromSwitchData(const void* switch_data) { return *reinterpret_cast<const int32_t*>(switch_data); }
 inline RegisterClass oat_reg_class_by_size(OpSize size) { return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte || size == kSignedByte ) ? kCoreReg : kAnyReg; }
 void AssembleLIR(CompilationUnit* cu);
-void SetMemRefType(LIR* lir, bool is_load, int mem_type);
-void AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load, bool is64bit);
+void SetMemRefType(CompilationUnit* cu, LIR* lir, bool is_load, int mem_type);
+void AnnotateDalvikRegAccess(CompilationUnit* cu, LIR* lir, int reg_id, bool is_load, bool is64bit);
 uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg);
 void SetupRegMask(CompilationUnit* cu, uint64_t* mask, int reg);
 void SetupResourceMasks(CompilationUnit* cu, LIR* lir);
 void DumpLIRInsn(CompilationUnit* cu, LIR* arg, unsigned char* base_addr);
 void DumpPromotionMap(CompilationUnit *cu);
 void CodegenDump(CompilationUnit* cu);
-// TODO: remove default parameters
-LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0 = 0, int op1 = 0, int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
+LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0 = 0, int op1 = 0,
+            int op2 = 0, int op3 = 0, int op4 = 0, LIR* target = NULL);
 LIR* NewLIR0(CompilationUnit* cu, int opcode);
 LIR* NewLIR1(CompilationUnit* cu, int opcode, int dest);
 LIR* NewLIR2(CompilationUnit* cu, int opcode, int dest, int src1);
@@ -46,6 +50,7 @@ void ProcessSwitchTables(CompilationUnit* cu);
 void DumpSparseSwitchTable(const uint16_t* table);
 void DumpPackedSwitchTable(const uint16_t* table);
 LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str);
+void NopLIR(LIR* lir);
 
 }  // namespace art
 

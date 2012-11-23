@@ -28,6 +28,206 @@ namespace art {
  */
 
 /*
+ * To save scheduling time, helper calls are broken into two parts: generation of
+ * the helper target address, and the actuall call to the helper.  Because x86
+ * has a memory call operation, part 1 is a NOP for x86.  For other targets,
+ * load arguments between the two parts.
+ */
+int Codegen::CallHelperSetup(CompilationUnit* cu, int helper_offset)
+{
+  return (cu->instruction_set == kX86) ? 0 : LoadHelper(cu, helper_offset);
+}
+
+/* NOTE: if r_tgt is a temp, it will be freed following use */
+LIR* Codegen::CallHelper(CompilationUnit* cu, int r_tgt, int helper_offset, bool safepoint_pc)
+{
+  LIR* call_inst;
+  if (cu->instruction_set == kX86) {
+    call_inst = OpThreadMem(cu, kOpBlx, helper_offset);
+  } else {
+    call_inst = OpReg(cu, kOpBlx, r_tgt);
+    FreeTemp(cu, r_tgt);
+  }
+  if (safepoint_pc) {
+    MarkSafepointPC(cu, call_inst);
+  }
+  return call_inst;
+}
+
+void Codegen::CallRuntimeHelperImm(CompilationUnit* cu, int helper_offset, int arg0,
+                                   bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperReg(CompilationUnit* cu, int helper_offset, int arg0,
+                                   bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  OpRegCopy(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegLocation(CompilationUnit* cu, int helper_offset, RegLocation arg0,
+                                          bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  if (arg0.wide == 0) {
+    LoadValueDirectFixed(cu, arg0, TargetReg(kArg0));
+  } else {
+    LoadValueDirectWideFixed(cu, arg0, TargetReg(kArg0), TargetReg(kArg1));
+  }
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
+                                      bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  LoadConstant(cu, TargetReg(kArg1), arg1);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmRegLocation(CompilationUnit* cu, int helper_offset, int arg0,
+                                              RegLocation arg1, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  if (arg1.wide == 0) {
+    LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
+  } else {
+    LoadValueDirectWideFixed(cu, arg1, TargetReg(kArg1), TargetReg(kArg2));
+  }
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegLocationImm(CompilationUnit* cu, int helper_offset,
+                                              RegLocation arg0, int arg1, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadValueDirectFixed(cu, arg0, TargetReg(kArg0));
+  LoadConstant(cu, TargetReg(kArg1), arg1);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmReg(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
+                                      bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  OpRegCopy(cu, TargetReg(kArg1), arg1);
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
+                             bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  OpRegCopy(cu, TargetReg(kArg0), arg0);
+  LoadConstant(cu, TargetReg(kArg1), arg1);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmMethod(CompilationUnit* cu, int helper_offset, int arg0,
+                                         bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadCurrMethodDirect(cu, TargetReg(kArg1));
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegLocationRegLocation(CompilationUnit* cu, int helper_offset,
+                                                      RegLocation arg0, RegLocation arg1,
+                                                      bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  if (arg0.wide == 0) {
+    LoadValueDirectFixed(cu, arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
+    if (arg1.wide == 0) {
+      if (cu->instruction_set == kMips) {
+        LoadValueDirectFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1));
+      } else {
+        LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
+      }
+    } else {
+      if (cu->instruction_set == kMips) {
+        LoadValueDirectWideFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg2));
+      } else {
+        LoadValueDirectWideFixed(cu, arg1, TargetReg(kArg1), TargetReg(kArg2));
+      }
+    }
+  } else {
+    LoadValueDirectWideFixed(cu, arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0), arg0.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
+    if (arg1.wide == 0) {
+      LoadValueDirectFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2));
+    } else {
+      LoadValueDirectWideFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg3));
+    }
+  }
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegReg(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
+                                      bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  OpRegCopy(cu, TargetReg(kArg0), arg0);
+  OpRegCopy(cu, TargetReg(kArg1), arg1);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperRegRegImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
+                                         int arg2, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
+  OpRegCopy(cu, TargetReg(kArg0), arg0);
+  OpRegCopy(cu, TargetReg(kArg1), arg1);
+  LoadConstant(cu, TargetReg(kArg2), arg2);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmMethodRegLocation(CompilationUnit* cu, int helper_offset,
+                                                    int arg0, RegLocation arg2, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadValueDirectFixed(cu, arg2, TargetReg(kArg2));
+  LoadCurrMethodDirect(cu, TargetReg(kArg1));
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmMethodImm(CompilationUnit* cu, int helper_offset, int arg0,
+                                            int arg2, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadCurrMethodDirect(cu, TargetReg(kArg1));
+  LoadConstant(cu, TargetReg(kArg2), arg2);
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+void Codegen::CallRuntimeHelperImmRegLocationRegLocation(CompilationUnit* cu, int helper_offset,
+                                                         int arg0, RegLocation arg1,
+                                                         RegLocation arg2, bool safepoint_pc) {
+  int r_tgt = CallHelperSetup(cu, helper_offset);
+  LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
+  if (arg2.wide == 0) {
+    LoadValueDirectFixed(cu, arg2, TargetReg(kArg2));
+  } else {
+    LoadValueDirectWideFixed(cu, arg2, TargetReg(kArg2), TargetReg(kArg3));
+  }
+  LoadConstant(cu, TargetReg(kArg0), arg0);
+  ClobberCalleeSave(cu);
+  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
+}
+
+/*
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform intial
  * assignment of promoted arguments.
@@ -35,7 +235,7 @@ namespace art {
  * ArgLocs is an array of location records describing the incoming arguments
  * with one location record per word of argument.
  */
-void FlushIns(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
+void Codegen::FlushIns(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
 {
   /*
    * Dummy up a RegLocation for the incoming Method*
@@ -119,6 +319,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type)
 {
+  Codegen* cg = cu->cg.get();
   if (cu->instruction_set != kThumb2) {
     // Disable sharpening
     direct_code = 0;
@@ -128,26 +329,26 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<unsigned int>(-1)) {
-        LoadConstant(cu, TargetReg(kInvokeTgt), direct_code);
+        cg->LoadConstant(cu, cg->TargetReg(kInvokeTgt), direct_code);
       } else {
         LIR* data_target = ScanLiteralPool(cu->code_literal_list, dex_idx, 0);
         if (data_target == NULL) {
           data_target = AddWordData(cu, &cu->code_literal_list, dex_idx);
           data_target->operands[1] = type;
         }
-        LIR* load_pc_rel = OpPcRelLoad(cu, TargetReg(kInvokeTgt), data_target);
+        LIR* load_pc_rel = cg->OpPcRelLoad(cu, cg->TargetReg(kInvokeTgt), data_target);
         AppendLIR(cu, load_pc_rel);
         DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
       }
       if (direct_method != static_cast<unsigned int>(-1)) {
-        LoadConstant(cu, TargetReg(kArg0), direct_method);
+        cg->LoadConstant(cu, cg->TargetReg(kArg0), direct_method);
       } else {
         LIR* data_target = ScanLiteralPool(cu->method_literal_list, dex_idx, 0);
         if (data_target == NULL) {
           data_target = AddWordData(cu, &cu->method_literal_list, dex_idx);
           data_target->operands[1] = type;
         }
-        LIR* load_pc_rel = OpPcRelLoad(cu, TargetReg(kArg0), data_target);
+        LIR* load_pc_rel = cg->OpPcRelLoad(cu, cg->TargetReg(kArg0), data_target);
         AppendLIR(cu, load_pc_rel);
         DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
       }
@@ -159,36 +360,37 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       // TUNING: we can save a reg copy if Method* has been promoted.
-      LoadCurrMethodDirect(cu, TargetReg(kArg0));
+      cg->LoadCurrMethodDirect(cu, cg->TargetReg(kArg0));
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
-      LoadWordDisp(cu, TargetReg(kArg0),
-        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), TargetReg(kArg0));
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
-          LoadConstant(cu, TargetReg(kInvokeTgt), direct_code);
+          cg->LoadConstant(cu, cg->TargetReg(kInvokeTgt), direct_code);
         } else {
           LIR* data_target = ScanLiteralPool(cu->code_literal_list, dex_idx, 0);
           if (data_target == NULL) {
             data_target = AddWordData(cu, &cu->code_literal_list, dex_idx);
             data_target->operands[1] = type;
           }
-          LIR* load_pc_rel = OpPcRelLoad(cu, TargetReg(kInvokeTgt), data_target);
+          LIR* load_pc_rel = cg->OpPcRelLoad(cu, cg->TargetReg(kInvokeTgt), data_target);
           AppendLIR(cu, load_pc_rel);
           DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
         }
       }
       break;
     case 2:  // Grab target method*
-      LoadWordDisp(cu, TargetReg(kArg0),
-                   Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4, TargetReg(kArg0));
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+                       Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4,
+                       cg-> TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86) {
         if (direct_code == 0) {
-          LoadWordDisp(cu, TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
-                       TargetReg(kInvokeTgt));
+          cg->LoadWordDisp(cu, cg->TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+                           cg->TargetReg(kInvokeTgt));
         }
         break;
       }
@@ -211,6 +413,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
                          int state, uint32_t dex_idx, uint32_t method_idx,
                          uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
+  Codegen* cg = cu->cg.get();
   /*
    * This is the fast path in which the target virtual method is
    * fully resolved at compile time.
@@ -218,27 +421,27 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
   switch (state) {
     case 0: {  // Get "this" [set kArg1]
       RegLocation  rl_arg = info->args[0];
-      LoadValueDirectFixed(cu, rl_arg, TargetReg(kArg1));
+      cg->LoadValueDirectFixed(cu, rl_arg, cg->TargetReg(kArg1));
       break;
     }
     case 1: // Is "this" null? [use kArg1]
-      GenNullCheck(cu, info->args[0].s_reg_low, TargetReg(kArg1), info->opt_flags);
+      cg->GenNullCheck(cu, info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
-      LoadWordDisp(cu, TargetReg(kArg1), Object::ClassOffset().Int32Value(),
-                   TargetReg(kInvokeTgt));
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg1), Object::ClassOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
       break;
     case 2: // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
-      LoadWordDisp(cu, TargetReg(kInvokeTgt), Class::VTableOffset().Int32Value(),
-                   TargetReg(kInvokeTgt));
+      cg->LoadWordDisp(cu, cg->TargetReg(kInvokeTgt), Class::VTableOffset().Int32Value(),
+                       cg->TargetReg(kInvokeTgt));
       break;
     case 3: // Get target method [use kInvokeTgt, set kArg0]
-      LoadWordDisp(cu, TargetReg(kInvokeTgt), (method_idx * 4) +
-                   Array::DataOffset(sizeof(Object*)).Int32Value(), TargetReg(kArg0));
+      cg->LoadWordDisp(cu, cg->TargetReg(kInvokeTgt), (method_idx * 4) +
+                       Array::DataOffset(sizeof(Object*)).Int32Value(), cg->TargetReg(kArg0));
       break;
     case 4: // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86) {
-        LoadWordDisp(cu, TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
-                     TargetReg(kInvokeTgt));
+        cg->LoadWordDisp(cu, cg->TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+                         cg->TargetReg(kInvokeTgt));
         break;
       }
       // Intentional fallthrough for X86
@@ -256,6 +459,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  uint32_t dex_idx, uint32_t unused, uintptr_t unused2,
                                  uintptr_t direct_method, InvokeType unused4)
 {
+  Codegen* cg = cu->cg.get();
   if (cu->instruction_set != kThumb2) {
     // Disable sharpening
     direct_method = 0;
@@ -267,18 +471,18 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     switch (state) {
       case 0:  // Load the trampoline target [sets kInvokeTgt].
         if (cu->instruction_set != kX86) {
-          LoadWordDisp(cu, TargetReg(kSelf), trampoline, TargetReg(kInvokeTgt));
+          cg->LoadWordDisp(cu, cg->TargetReg(kSelf), trampoline, cg->TargetReg(kInvokeTgt));
         }
         // Get the interface Method* [sets kArg0]
         if (direct_method != static_cast<unsigned int>(-1)) {
-          LoadConstant(cu, TargetReg(kArg0), direct_method);
+          cg->LoadConstant(cu, cg->TargetReg(kArg0), direct_method);
         } else {
           LIR* data_target = ScanLiteralPool(cu->method_literal_list, dex_idx, 0);
           if (data_target == NULL) {
             data_target = AddWordData(cu, &cu->method_literal_list, dex_idx);
             data_target->operands[1] = kInterface;
           }
-          LIR* load_pc_rel = OpPcRelLoad(cu, TargetReg(kArg0), data_target);
+          LIR* load_pc_rel = cg->OpPcRelLoad(cu, cg->TargetReg(kArg0), data_target);
           AppendLIR(cu, load_pc_rel);
           DCHECK_EQ(cu->instruction_set, kThumb2) << reinterpret_cast<void*>(data_target);
         }
@@ -290,21 +494,21 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
     switch (state) {
       case 0:
         // Get the current Method* [sets kArg0] - TUNING: remove copy of method if it is promoted.
-        LoadCurrMethodDirect(cu, TargetReg(kArg0));
+        cg->LoadCurrMethodDirect(cu, cg->TargetReg(kArg0));
         // Load the trampoline target [sets kInvokeTgt].
         if (cu->instruction_set != kX86) {
-          LoadWordDisp(cu, TargetReg(kSelf), trampoline, TargetReg(kInvokeTgt));
+          cg->LoadWordDisp(cu, cg->TargetReg(kSelf), trampoline, cg->TargetReg(kInvokeTgt));
         }
         break;
     case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
-      LoadWordDisp(cu, TargetReg(kArg0),
-                   AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                   TargetReg(kArg0));
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+                       AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                       cg->TargetReg(kArg0));
       break;
     case 2:  // Grab target method* [set/use kArg0]
-      LoadWordDisp(cu, TargetReg(kArg0),
-                   Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4,
-                   TargetReg(kArg0));
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+                       Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4,
+                       cg->TargetReg(kArg0));
       break;
     default:
       return -1;
@@ -316,6 +520,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
                             int state, uint32_t dex_idx, uint32_t method_idx)
 {
+  Codegen* cg = cu->cg.get();
   /*
    * This handles the case in which the base method is not fully
    * resolved at compile time, we bail to a runtime helper.
@@ -323,10 +528,10 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
   if (state == 0) {
     if (cu->instruction_set != kX86) {
       // Load trampoline target
-      LoadWordDisp(cu, TargetReg(kSelf), trampoline, TargetReg(kInvokeTgt));
+      cg->LoadWordDisp(cu, cg->TargetReg(kSelf), trampoline, cg->TargetReg(kInvokeTgt));
     }
     // Load kArg0 with method index
-    LoadConstant(cu, TargetReg(kArg0), dex_idx);
+    cg->LoadConstant(cu, cg->TargetReg(kArg0), dex_idx);
     return 1;
   }
   return -1;
@@ -380,8 +585,9 @@ static int LoadArgRegs(CompilationUnit* cu, CallInfo* info, int call_state,
                        uint32_t method_idx, uintptr_t direct_code,
                        uintptr_t direct_method, InvokeType type, bool skip_this)
 {
-  int last_arg_reg = TargetReg(kArg3);
-  int next_reg = TargetReg(kArg1);
+  Codegen* cg = cu->cg.get();
+  int last_arg_reg = cg->TargetReg(kArg3);
+  int next_reg = cg->TargetReg(kArg1);
   int next_arg = 0;
   if (skip_this) {
     next_reg++;
@@ -390,13 +596,13 @@ static int LoadArgRegs(CompilationUnit* cu, CallInfo* info, int call_state,
   for (; (next_reg <= last_arg_reg) && (next_arg < info->num_arg_words); next_reg++) {
     RegLocation rl_arg = info->args[next_arg++];
     rl_arg = UpdateRawLoc(cu, rl_arg);
-    if (rl_arg.wide && (next_reg <= TargetReg(kArg2))) {
-      LoadValueDirectWideFixed(cu, rl_arg, next_reg, next_reg + 1);
+    if (rl_arg.wide && (next_reg <= cg->TargetReg(kArg2))) {
+      cg->LoadValueDirectWideFixed(cu, rl_arg, next_reg, next_reg + 1);
       next_reg++;
       next_arg++;
     } else {
       rl_arg.wide = false;
-      LoadValueDirectFixed(cu, rl_arg, next_reg);
+      cg->LoadValueDirectFixed(cu, rl_arg, next_reg);
     }
     call_state = next_call_insn(cu, info, call_state, dex_idx, method_idx,
                  direct_code, direct_method, type);
@@ -411,12 +617,10 @@ static int LoadArgRegs(CompilationUnit* cu, CallInfo* info, int call_state,
  * the target method pointer.  Note, this may also be called
  * for "range" variants if the number of arguments is 5 or fewer.
  */
-int GenDalvikArgsNoRange(CompilationUnit* cu, CallInfo* info,
-                         int call_state,
-                         LIR** pcrLabel, NextCallInsn next_call_insn,
-                         uint32_t dex_idx, uint32_t method_idx,
-                         uintptr_t direct_code, uintptr_t direct_method,
-                         InvokeType type, bool skip_this)
+int Codegen::GenDalvikArgsNoRange(CompilationUnit* cu, CallInfo* info,
+                                  int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
+                                  uint32_t dex_idx, uint32_t method_idx, uintptr_t direct_code,
+                                  uintptr_t direct_method, InvokeType type, bool skip_this)
 {
   RegLocation rl_arg;
 
@@ -512,11 +716,10 @@ int GenDalvikArgsNoRange(CompilationUnit* cu, CallInfo* info,
  *       Pass arg0, arg1 & arg2 in kArg1-kArg3
  *
  */
-int GenDalvikArgsRange(CompilationUnit* cu, CallInfo* info, int call_state,
-                       LIR** pcrLabel, NextCallInsn next_call_insn,
-                       uint32_t dex_idx, uint32_t method_idx,
-                       uintptr_t direct_code, uintptr_t direct_method,
-                       InvokeType type, bool skip_this)
+int Codegen::GenDalvikArgsRange(CompilationUnit* cu, CallInfo* info, int call_state,
+                                LIR** pcrLabel, NextCallInsn next_call_insn, uint32_t dex_idx,
+                                uint32_t method_idx, uintptr_t direct_code, uintptr_t direct_method,
+                                InvokeType type, bool skip_this)
 {
 
   // If we can treat it as non-range (Jumbo ops will use range form)
@@ -574,14 +777,14 @@ int GenDalvikArgsRange(CompilationUnit* cu, CallInfo* info, int call_state,
       LIR* ld = OpVldm(cu, TargetReg(kArg3), regs_left);
       //TUNING: loosen barrier
       ld->def_mask = ENCODE_ALL;
-      SetMemRefType(ld, true /* is_load */, kDalvikReg);
+      SetMemRefType(cu, ld, true /* is_load */, kDalvikReg);
       call_state = next_call_insn(cu, info, call_state, dex_idx, method_idx,
                                direct_code, direct_method, type);
       OpRegRegImm(cu, kOpAdd, TargetReg(kArg3), TargetReg(kSp), 4 /* Method* */ + (3 * 4));
       call_state = next_call_insn(cu, info, call_state, dex_idx, method_idx,
                                direct_code, direct_method, type);
       LIR* st = OpVstm(cu, TargetReg(kArg3), regs_left);
-      SetMemRefType(st, false /* is_load */, kDalvikReg);
+      SetMemRefType(cu, st, false /* is_load */, kDalvikReg);
       st->def_mask = ENCODE_ALL;
       call_state = next_call_insn(cu, info, call_state, dex_idx, method_idx,
                                direct_code, direct_method, type);
@@ -601,7 +804,7 @@ int GenDalvikArgsRange(CompilationUnit* cu, CallInfo* info, int call_state,
   return call_state;
 }
 
-RegLocation InlineTarget(CompilationUnit* cu, CallInfo* info)
+RegLocation Codegen::InlineTarget(CompilationUnit* cu, CallInfo* info)
 {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
@@ -612,7 +815,7 @@ RegLocation InlineTarget(CompilationUnit* cu, CallInfo* info)
   return res;
 }
 
-RegLocation InlineTargetWide(CompilationUnit* cu, CallInfo* info)
+RegLocation Codegen::InlineTargetWide(CompilationUnit* cu, CallInfo* info)
 {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
@@ -623,7 +826,7 @@ RegLocation InlineTargetWide(CompilationUnit* cu, CallInfo* info)
   return res;
 }
 
-bool GenInlinedCharAt(CompilationUnit* cu, CallInfo* info)
+bool Codegen::GenInlinedCharAt(CompilationUnit* cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -702,8 +905,7 @@ bool GenInlinedCharAt(CompilationUnit* cu, CallInfo* info)
 }
 
 // Generates an inlined String.is_empty or String.length.
-bool GenInlinedStringIsEmptyOrLength(CompilationUnit* cu, CallInfo* info,
-                                     bool is_empty)
+bool Codegen::GenInlinedStringIsEmptyOrLength(CompilationUnit* cu, CallInfo* info, bool is_empty)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -733,7 +935,7 @@ bool GenInlinedStringIsEmptyOrLength(CompilationUnit* cu, CallInfo* info,
   return true;
 }
 
-bool GenInlinedAbsInt(CompilationUnit *cu, CallInfo* info)
+bool Codegen::GenInlinedAbsInt(CompilationUnit *cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -752,7 +954,7 @@ bool GenInlinedAbsInt(CompilationUnit *cu, CallInfo* info)
   return true;
 }
 
-bool GenInlinedAbsLong(CompilationUnit *cu, CallInfo* info)
+bool Codegen::GenInlinedAbsLong(CompilationUnit *cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -794,7 +996,7 @@ bool GenInlinedAbsLong(CompilationUnit *cu, CallInfo* info)
   }
 }
 
-bool GenInlinedFloatCvt(CompilationUnit *cu, CallInfo* info)
+bool Codegen::GenInlinedFloatCvt(CompilationUnit *cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -806,7 +1008,7 @@ bool GenInlinedFloatCvt(CompilationUnit *cu, CallInfo* info)
   return true;
 }
 
-bool GenInlinedDoubleCvt(CompilationUnit *cu, CallInfo* info)
+bool Codegen::GenInlinedDoubleCvt(CompilationUnit *cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -822,8 +1024,7 @@ bool GenInlinedDoubleCvt(CompilationUnit *cu, CallInfo* info)
  * Fast string.index_of(I) & (II).  Tests for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
  */
-bool GenInlinedIndexOf(CompilationUnit* cu, CallInfo* info,
-                       bool zero_based)
+bool Codegen::GenInlinedIndexOf(CompilationUnit* cu, CallInfo* info, bool zero_based)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -867,7 +1068,7 @@ bool GenInlinedIndexOf(CompilationUnit* cu, CallInfo* info,
 }
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
-bool GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info)
+bool Codegen::GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info)
 {
   if (cu->instruction_set == kMips) {
     // TODO - add Mips implementation
@@ -904,7 +1105,7 @@ bool GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info)
   return true;
 }
 
-bool GenIntrinsic(CompilationUnit* cu, CallInfo* info)
+bool Codegen::GenIntrinsic(CompilationUnit* cu, CallInfo* info)
 {
   if (info->opt_flags & MIR_INLINED) {
     return false;
@@ -982,7 +1183,7 @@ bool GenIntrinsic(CompilationUnit* cu, CallInfo* info)
   return false;
 }
 
-void GenInvoke(CompilationUnit* cu, CallInfo* info)
+void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
 {
   if (GenIntrinsic(cu, info)) {
     return;
@@ -1109,8 +1310,8 @@ void GenInvoke(CompilationUnit* cu, CallInfo* info)
  * high-word loc for wide arguments.  Also pull up any following
  * MOVE_RESULT and incorporate it into the invoke.
  */
-CallInfo* NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                         InvokeType type, bool is_range)
+CallInfo* Codegen::NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir, InvokeType type,
+                                  bool is_range)
 {
   CallInfo* info = static_cast<CallInfo*>(NewMem(cu, sizeof(CallInfo), true, kAllocMisc));
   MIR* move_result_mir = FindMoveResult(cu, bb, mir);
@@ -1133,6 +1334,5 @@ CallInfo* NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
   info->offset = mir->offset;
   return info;
 }
-
 
 }  // namespace art

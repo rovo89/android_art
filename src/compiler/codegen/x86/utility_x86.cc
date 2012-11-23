@@ -15,6 +15,7 @@
  */
 
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
@@ -22,13 +23,7 @@ namespace art {
 
 /* This file contains codegen for the X86 ISA */
 
-void GenBarrier(CompilationUnit *cu);
-void LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg);
-LIR *LoadWordDisp(CompilationUnit *cu, int rBase, int displacement, int r_dest);
-LIR *StoreWordDisp(CompilationUnit *cu, int rBase, int displacement, int r_src);
-LIR *LoadConstant(CompilationUnit *cu, int r_dest, int value);
-
-LIR *FpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
+LIR* X86Codegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
@@ -64,7 +59,7 @@ LIR *FpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR *LoadConstantNoClobber(CompilationUnit *cu, int r_dest, int value)
+LIR* X86Codegen::LoadConstantNoClobber(CompilationUnit *cu, int r_dest, int value)
 {
   int r_dest_save = r_dest;
   if (X86_FPREG(r_dest)) {
@@ -91,16 +86,14 @@ LIR *LoadConstantNoClobber(CompilationUnit *cu, int r_dest, int value)
   return res;
 }
 
-LIR* OpBranchUnconditional(CompilationUnit *cu, OpKind op)
+LIR* X86Codegen::OpUnconditionalBranch(CompilationUnit* cu, LIR* target)
 {
-  CHECK_EQ(op, kOpUncondBr);
-  return NewLIR1(cu, kX86Jmp8, 0 /* offset to be patched */ );
+  LIR* res = NewLIR1(cu, kX86Jmp8, 0 /* offset to be patched during assembly*/ );
+  res->target = target;
+  return res;
 }
 
-LIR *LoadMultiple(CompilationUnit *cu, int rBase, int r_mask);
-
-X86ConditionCode X86ConditionEncoding(ConditionCode cond);
-LIR* OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
+LIR* X86Codegen::OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
 {
   LIR* branch = NewLIR2(cu, kX86Jcc8, 0 /* offset to be patched */,
                         X86ConditionEncoding(cc));
@@ -108,7 +101,7 @@ LIR* OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
   return branch;
 }
 
-LIR *OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
+LIR* X86Codegen::OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -121,7 +114,7 @@ LIR *OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
   return NewLIR1(cu, opcode, r_dest_src);
 }
 
-LIR *OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int value)
+LIR* X86Codegen::OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int value)
 {
   X86OpCode opcode = kX86Bkpt;
   bool byte_imm = IS_SIMM8(value);
@@ -148,7 +141,7 @@ LIR *OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int value)
   return NewLIR2(cu, opcode, r_dest_src1, value);
 }
 
-LIR *OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r_src2)
+LIR* X86Codegen::OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r_src2)
 {
     X86OpCode opcode = kX86Nop;
     bool src2_must_be_cx = false;
@@ -194,7 +187,7 @@ LIR *OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r_src2)
     return NewLIR2(cu, opcode, r_dest_src1, r_src2);
 }
 
-LIR* OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
+LIR* X86Codegen::OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
               int offset)
 {
   X86OpCode opcode = kX86Nop;
@@ -218,7 +211,7 @@ LIR* OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
   return NewLIR3(cu, opcode, r_dest, rBase, offset);
 }
 
-LIR* OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_src1,
+LIR* X86Codegen::OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_src1,
                  int r_src2)
 {
   if (r_dest != r_src1 && r_dest != r_src2) {
@@ -267,7 +260,7 @@ LIR* OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_src1,
   }
 }
 
-LIR* OpRegRegImm(CompilationUnit *cu, OpKind op, int r_dest, int r_src,
+LIR* X86Codegen::OpRegRegImm(CompilationUnit *cu, OpKind op, int r_dest, int r_src,
                  int value)
 {
   if (op == kOpMul) {
@@ -294,7 +287,7 @@ LIR* OpRegRegImm(CompilationUnit *cu, OpKind op, int r_dest, int r_src,
   return OpRegImm(cu, op, r_dest, value);
 }
 
-LIR* OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
+LIR* X86Codegen::OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -306,7 +299,7 @@ LIR* OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
   return NewLIR1(cu, opcode, thread_offset);
 }
 
-LIR* OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
+LIR* X86Codegen::OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -318,8 +311,8 @@ LIR* OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
   return NewLIR2(cu, opcode, rBase, disp);
 }
 
-LIR *LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo,
-                           int r_dest_hi, int val_lo, int val_hi)
+LIR* X86Codegen::LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo,
+                                       int r_dest_hi, int val_lo, int val_hi)
 {
     LIR *res;
     if (X86_FPREG(r_dest_lo)) {
@@ -345,22 +338,9 @@ LIR *LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo,
     return res;
 }
 
-LIR *LoadMultiple(CompilationUnit *cu, int rBase, int r_mask)
-{
-  UNIMPLEMENTED(FATAL) << "LoadMultiple";
-  NewLIR0(cu, kX86Bkpt);
-  return NULL;
-}
-
-LIR *StoreMultiple(CompilationUnit *cu, int rBase, int r_mask)
-{
-  UNIMPLEMENTED(FATAL) << "StoreMultiple";
-  NewLIR0(cu, kX86Bkpt);
-  return NULL;
-}
-
-LIR* LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
-                         int displacement, int r_dest, int r_dest_hi, OpSize size, int s_reg) {
+LIR* X86Codegen::LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+                                     int displacement, int r_dest, int r_dest_hi, OpSize size,
+                                     int s_reg) {
   LIR *load = NULL;
   LIR *load2 = NULL;
   bool is_array = r_index != INVALID_REG;
@@ -428,10 +408,10 @@ LIR* LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
       }
     }
     if (rBase == rX86_SP) {
-      AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0))
-                              >> 2, true /* is_load */, is64bit);
+      AnnotateDalvikRegAccess(cu, load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+                              true /* is_load */, is64bit);
       if (pair) {
-        AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
+        AnnotateDalvikRegAccess(cu, load2, (displacement + HIWORD_OFFSET) >> 2,
                                 true /* is_load */, is64bit);
       }
     }
@@ -458,26 +438,27 @@ LIR* LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
 }
 
 /* Load value from base + scaled index. */
-LIR *LoadBaseIndexed(CompilationUnit *cu, int rBase,
+LIR* X86Codegen::LoadBaseIndexed(CompilationUnit *cu, int rBase,
                      int r_index, int r_dest, int scale, OpSize size) {
   return LoadBaseIndexedDisp(cu, rBase, r_index, scale, 0,
                              r_dest, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR *LoadBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Codegen::LoadBaseDisp(CompilationUnit *cu, int rBase, int displacement,
                   int r_dest, OpSize size, int s_reg) {
   return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
                              r_dest, INVALID_REG, size, s_reg);
 }
 
-LIR *LoadBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Codegen::LoadBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
                       int r_dest_lo, int r_dest_hi, int s_reg) {
   return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
                              r_dest_lo, r_dest_hi, kLong, s_reg);
 }
 
-LIR* StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
-                          int displacement, int r_src, int r_src_hi, OpSize size, int s_reg) {
+LIR* X86Codegen::StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+                                      int displacement, int r_src, int r_src_hi, OpSize size,
+                                      int s_reg) {
   LIR *store = NULL;
   LIR *store2 = NULL;
   bool is_array = r_index != INVALID_REG;
@@ -533,10 +514,10 @@ LIR* StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale
       store2 = NewLIR3(cu, opcode, rBase, displacement + HIWORD_OFFSET, r_src_hi);
     }
     if (rBase == rX86_SP) {
-      AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
-                              >> 2, false /* is_load */, is64bit);
+      AnnotateDalvikRegAccess(cu, store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+                              false /* is_load */, is64bit);
       if (pair) {
-        AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
+        AnnotateDalvikRegAccess(cu, store2, (displacement + HIWORD_OFFSET) >> 2,
                                 false /* is_load */, is64bit);
       }
     }
@@ -556,29 +537,29 @@ LIR* StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale
 }
 
 /* store value base base + scaled index. */
-LIR *StoreBaseIndexed(CompilationUnit *cu, int rBase, int r_index, int r_src,
+LIR* X86Codegen::StoreBaseIndexed(CompilationUnit *cu, int rBase, int r_index, int r_src,
                       int scale, OpSize size)
 {
   return StoreBaseIndexedDisp(cu, rBase, r_index, scale, 0,
                               r_src, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR *StoreBaseDisp(CompilationUnit *cu, int rBase, int displacement,
-                   int r_src, OpSize size)
+LIR* X86Codegen::StoreBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+                               int r_src, OpSize size)
 {
     return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0,
                                 displacement, r_src, INVALID_REG, size,
                                 INVALID_SREG);
 }
 
-LIR *StoreBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
-                       int r_src_lo, int r_src_hi)
+LIR* X86Codegen::StoreBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+                                   int r_src_lo, int r_src_hi)
 {
   return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
                               r_src_lo, r_src_hi, kLong, INVALID_SREG);
 }
 
-void LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg)
+void X86Codegen::LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg)
 {
   LoadBaseDispWide(cu, base, 0, low_reg, high_reg, INVALID_SREG);
 }

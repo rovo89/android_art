@@ -283,10 +283,10 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
   return result;
 }
 
-extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler,
-                                                        bool is_static,
-                                                        const char* shorty,
-                                                        uint32_t shorty_len) {
+extern "C" art::CompiledInvokeStub* ArtCreateLLVMInvokeStub(art::Compiler& compiler,
+                                                            bool is_static,
+                                                            const char* shorty,
+                                                            uint32_t shorty_len) {
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
   return result;

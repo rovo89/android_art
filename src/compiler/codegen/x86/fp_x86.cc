@@ -15,13 +15,14 @@
  */
 
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
-                     RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+bool X86Codegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
+                                 RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
   RegLocation rl_result;
 
@@ -70,8 +71,8 @@ bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
-                      RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+bool X86Codegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
   RegLocation rl_result;
 
@@ -119,8 +120,8 @@ bool GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenConversion(CompilationUnit *cu, Instruction::Code opcode,
-                   RegLocation rl_dest, RegLocation rl_src) {
+bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+                               RegLocation rl_src) {
   RegisterClass rcSrc = kFPReg;
   X86OpCode op = kX86Nop;
   int src_reg;
@@ -212,8 +213,8 @@ bool GenConversion(CompilationUnit *cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
-              RegLocation rl_src1, RegLocation rl_src2) {
+bool X86Codegen::GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
+                          RegLocation rl_src1, RegLocation rl_src2) {
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
   bool unordered_gt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
   int src_reg1;
@@ -263,8 +264,8 @@ bool GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
   return false;
 }
 
-void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                                bool gt_bias, bool is_double) {
+void X86Codegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,
+                                     bool is_double) {
   LIR* label_list = cu->block_label_list;
   LIR* taken = &label_list[bb->taken->id];
   LIR* not_taken = &label_list[bb->fall_through->id];
@@ -333,7 +334,7 @@ void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
   OpCondBranch(cu, ccode, taken);
 }
 
-void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
+void X86Codegen::GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValue(cu, rl_src, kCoreReg);
@@ -342,7 +343,7 @@ void GenNegFloat(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
+void X86Codegen::GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result;
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
@@ -352,7 +353,7 @@ void GenNegDouble(CompilationUnit *cu, RegLocation rl_dest, RegLocation rl_src)
   StoreValueWide(cu, rl_dest, rl_result);
 }
 
-bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
+bool X86Codegen::GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
   DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }

@@ -17,6 +17,7 @@
 /* This file contains codegen for the X86 ISA */
 
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
@@ -25,8 +26,8 @@ namespace art {
 /*
  * Perform register memory operation.
  */
-LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
-                    int reg1, int base, int offset, ThrowKind kind)
+LIR* X86Codegen::GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
+                                int reg1, int base, int offset, ThrowKind kind)
 {
   LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
                     cu->current_dalvik_offset, reg1, base, offset);
@@ -53,8 +54,8 @@ LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
  * finish:
  *
  */
-void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+void X86Codegen::GenCmpLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -96,8 +97,8 @@ X86ConditionCode X86ConditionEncoding(ConditionCode cond) {
   return kX86CondO;
 }
 
-LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
-                 int src2, LIR* target)
+LIR* X86Codegen::OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1, int src2,
+                             LIR* target)
 {
   NewLIR2(cu, kX86Cmp32RR, src1, src2);
   X86ConditionCode cc = X86ConditionEncoding(cond);
@@ -107,8 +108,8 @@ LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
   return branch;
 }
 
-LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
-                    int check_value, LIR* target)
+LIR* X86Codegen::OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
+                                int check_value, LIR* target)
 {
   if ((check_value == 0) && (cond == kCondEq || cond == kCondNe)) {
     // TODO: when check_value == 0 and reg is rCX, use the jcxz/nz opcode
@@ -122,10 +123,10 @@ LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
   return branch;
 }
 
-LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
+LIR* X86Codegen::OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
 {
   if (X86_FPREG(r_dest) || X86_FPREG(r_src))
-    return FpRegCopy(cu, r_dest, r_src);
+    return OpFpRegCopy(cu, r_dest, r_src);
   LIR* res = RawLIR(cu, cu->current_dalvik_offset, kX86Mov32RR,
                     r_dest, r_src);
   if (r_dest == r_src) {
@@ -134,15 +135,15 @@ LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
-LIR* OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
+LIR* X86Codegen::OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
   LIR *res = OpRegCopyNoInsert(cu, r_dest, r_src);
   AppendLIR(cu, res);
   return res;
 }
 
-void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
-                   int src_lo, int src_hi)
+void X86Codegen::OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
+                               int src_lo, int src_hi)
 {
   bool dest_fp = X86_FPREG(dest_lo) && X86_FPREG(dest_hi);
   bool src_fp = X86_FPREG(src_lo) && X86_FPREG(src_hi);
@@ -177,7 +178,7 @@ void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
   }
 }
 
-void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) {
+void X86Codegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) {
   LIR* label_list = cu->block_label_list;
   LIR* taken = &label_list[bb->taken->id];
   RegLocation rl_src1 = GetSrcWide(cu, mir, 0);
@@ -216,19 +217,22 @@ void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) {
   }
   OpCondBranch(cu, ccode, taken);
 }
-RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int lit, bool is_div)
+
+RegLocation X86Codegen::GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg_lo,
+                                     int lit, bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for x86";
   return rl_dest;
 }
 
-RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div)
+RegLocation X86Codegen::GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg_lo,
+                                  int reg_hi, bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRem for x86";
   return rl_dest;
 }
 
-bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
+bool X86Codegen::GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
 {
   DCHECK_EQ(cu->instruction_set, kX86);
   RegLocation rl_src1 = info->args[0];
@@ -249,41 +253,41 @@ bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
   return true;
 }
 
-void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
+void X86Codegen::OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
 {
   NewLIR5(cu, kX86Lea32RA, rBase, reg1, reg2, scale, offset);
 }
 
-void OpTlsCmp(CompilationUnit* cu, int offset, int val)
+void X86Codegen::OpTlsCmp(CompilationUnit* cu, int offset, int val)
 {
   NewLIR2(cu, kX86Cmp16TI8, offset, val);
 }
 
-bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
+bool X86Codegen::GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
   DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
+LIR* X86Codegen::OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for x86";
   return NULL;
 }
 
-LIR* OpVldm(CompilationUnit* cu, int rBase, int count)
+LIR* X86Codegen::OpVldm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVldm for x86";
   return NULL;
 }
 
-LIR* OpVstm(CompilationUnit* cu, int rBase, int count)
+LIR* X86Codegen::OpVstm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVstm for x86";
   return NULL;
 }
 
-void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
-                                   RegLocation rl_result, int lit,
-                                   int first_bit, int second_bit)
+void X86Codegen::GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
+                                               RegLocation rl_result, int lit,
+                                               int first_bit, int second_bit)
 {
   int t_reg = AllocTemp(cu);
   OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
@@ -294,7 +298,7 @@ void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
   }
 }
 
-void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
+void X86Codegen::GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 {
   int t_reg = AllocTemp(cu);
   OpRegRegReg(cu, kOpOr, t_reg, reg_lo, reg_hi);
@@ -303,33 +307,33 @@ void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* OpTestSuspend(CompilationUnit* cu, LIR* target)
+LIR* X86Codegen::OpTestSuspend(CompilationUnit* cu, LIR* target)
 {
   OpTlsCmp(cu, Thread::ThreadFlagsOffset().Int32Value(), 0);
   return OpCondBranch(cu, (target == NULL) ? kCondNe : kCondEq, target);
 }
 
 // Decrement register and branch on condition
-LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
+LIR* X86Codegen::OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
 {
   OpRegImm(cu, kOpSub, reg, 1);
   return OpCmpImmBranch(cu, c_code, reg, 0, target);
 }
 
-bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
-                        RegLocation rl_src, RegLocation rl_dest, int lit)
+bool X86Codegen::SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
+                                    RegLocation rl_src, RegLocation rl_dest, int lit)
 {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in x86";
   return false;
 }
 
-LIR* OpIT(CompilationUnit* cu, ArmConditionCode cond, const char* guide)
+LIR* X86Codegen::OpIT(CompilationUnit* cu, ConditionCode cond, const char* guide)
 {
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   return NULL;
 }
-bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                         RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -344,8 +348,8 @@ bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -360,8 +364,8 @@ bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -376,8 +380,8 @@ bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
-               RegLocation rl_src1, RegLocation rl_src2)
+bool X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
+                           RegLocation rl_src1, RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -392,8 +396,8 @@ bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool X86Codegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
+                            RegLocation rl_src1, RegLocation rl_src2)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -408,8 +412,7 @@ bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src)
+bool X86Codegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -424,7 +427,7 @@ bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-void OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int thread_offset) {
+void X86Codegen::OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;

@@ -19,6 +19,7 @@
 #include "oat_compilation_unit.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "arm_lir.h"
+#include "codegen_arm.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
@@ -37,7 +38,7 @@ static int InPosition(CompilationUnit* cu, int s_reg)
  * there.  NOTE: all live arg registers must be locked prior to this call
  * to avoid having them allocated as a temp by downstream utilities.
  */
-RegLocation ArgLoc(CompilationUnit* cu, RegLocation loc)
+RegLocation ArmCodegen::ArgLoc(CompilationUnit* cu, RegLocation loc)
 {
   int arg_num = InPosition(cu, loc.s_reg_low);
   if (loc.wide) {
@@ -67,15 +68,16 @@ RegLocation ArgLoc(CompilationUnit* cu, RegLocation loc)
  * the frame, we can't use the normal LoadValue() because it assumed
  * a proper frame - and we're frameless.
  */
-RegLocation LoadArg(CompilationUnit* cu, RegLocation loc)
+static RegLocation LoadArg(CompilationUnit* cu, RegLocation loc)
 {
+  Codegen* cg = cu->cg.get();
   if (loc.location == kLocDalvikFrame) {
     int start = (InPosition(cu, loc.s_reg_low) + 1) * sizeof(uint32_t);
     loc.low_reg = AllocTemp(cu);
-    LoadWordDisp(cu, rARM_SP, start, loc.low_reg);
+    cg->LoadWordDisp(cu, rARM_SP, start, loc.low_reg);
     if (loc.wide) {
       loc.high_reg = AllocTemp(cu);
-      LoadWordDisp(cu, rARM_SP, start + sizeof(uint32_t), loc.high_reg);
+      cg->LoadWordDisp(cu, rARM_SP, start + sizeof(uint32_t), loc.high_reg);
     }
     loc.location = kLocPhysReg;
   }
@@ -122,7 +124,8 @@ static MIR* GetNextMir(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir)
 }
 
 /* Used for the "verbose" listing */
-void GenPrintLabel(CompilationUnit *cu, MIR* mir)
+//TODO:  move to common code
+void ArmCodegen::GenPrintLabel(CompilationUnit *cu, MIR* mir)
 {
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* inst_str = cu->verbose ?
@@ -138,6 +141,7 @@ void GenPrintLabel(CompilationUnit *cu, MIR* mir)
 static MIR* SpecialIGet(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
                         OpSize size, bool long_or_double, bool is_object)
 {
+  Codegen* cg = cu->cg.get();
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
@@ -147,7 +151,7 @@ static MIR* SpecialIGet(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
   }
   RegLocation rl_obj = GetSrc(cu, mir, 0);
   LockLiveArgs(cu, mir);
-  rl_obj = ArgLoc(cu, rl_obj);
+  rl_obj = ArmCodegen::ArgLoc(cu, rl_obj);
   RegLocation rl_dest;
   if (long_or_double) {
     rl_dest = GetReturnWide(cu, false);
@@ -155,16 +159,17 @@ static MIR* SpecialIGet(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
     rl_dest = GetReturn(cu, false);
   }
   // Point of no return - no aborts after this
-  GenPrintLabel(cu, mir);
+  ArmCodegen::GenPrintLabel(cu, mir);
   rl_obj = LoadArg(cu, rl_obj);
-  GenIGet(cu, field_idx, mir->optimization_flags, size, rl_dest, rl_obj,
-          long_or_double, is_object);
+  cg->GenIGet(cu, field_idx, mir->optimization_flags, size, rl_dest, rl_obj,
+              long_or_double, is_object);
   return GetNextMir(cu, bb, mir);
 }
 
 static MIR* SpecialIPut(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
                         OpSize size, bool long_or_double, bool is_object)
 {
+  Codegen* cg = cu->cg.get();
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
@@ -182,24 +187,25 @@ static MIR* SpecialIPut(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
     rl_src = GetSrc(cu, mir, 0);
     rl_obj = GetSrc(cu, mir, 1);
   }
-  rl_src = ArgLoc(cu, rl_src);
-  rl_obj = ArgLoc(cu, rl_obj);
+  rl_src = ArmCodegen::ArgLoc(cu, rl_src);
+  rl_obj = ArmCodegen::ArgLoc(cu, rl_obj);
   // Reject if source is split across registers & frame
   if (rl_obj.location == kLocInvalid) {
     ResetRegPool(cu);
     return NULL;
   }
   // Point of no return - no aborts after this
-  GenPrintLabel(cu, mir);
+  ArmCodegen::GenPrintLabel(cu, mir);
   rl_obj = LoadArg(cu, rl_obj);
   rl_src = LoadArg(cu, rl_src);
-  GenIPut(cu, field_idx, mir->optimization_flags, size, rl_src, rl_obj,
-          long_or_double, is_object);
+  cg->GenIPut(cu, field_idx, mir->optimization_flags, size, rl_src, rl_obj,
+              long_or_double, is_object);
   return GetNextMir(cu, bb, mir);
 }
 
 static MIR* SpecialIdentity(CompilationUnit* cu, MIR* mir)
 {
+  Codegen* cg = cu->cg.get();
   RegLocation rl_src;
   RegLocation rl_dest;
   bool wide = (mir->ssa_rep->num_uses == 2);
@@ -211,18 +217,18 @@ static MIR* SpecialIdentity(CompilationUnit* cu, MIR* mir)
     rl_dest = GetReturn(cu, false);
   }
   LockLiveArgs(cu, mir);
-  rl_src = ArgLoc(cu, rl_src);
+  rl_src = ArmCodegen::ArgLoc(cu, rl_src);
   if (rl_src.location == kLocInvalid) {
     ResetRegPool(cu);
     return NULL;
   }
   // Point of no return - no aborts after this
-  GenPrintLabel(cu, mir);
+  ArmCodegen::GenPrintLabel(cu, mir);
   rl_src = LoadArg(cu, rl_src);
   if (wide) {
-    StoreValueWide(cu, rl_dest, rl_src);
+    cg->StoreValueWide(cu, rl_dest, rl_src);
   } else {
-    StoreValue(cu, rl_dest, rl_src);
+    cg->StoreValue(cu, rl_dest, rl_src);
   }
   return mir;
 }
@@ -230,8 +236,8 @@ static MIR* SpecialIdentity(CompilationUnit* cu, MIR* mir)
 /*
  * Special-case code genration for simple non-throwing leaf methods.
  */
-void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                    SpecialCaseHandler special_case)
+void ArmCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                                SpecialCaseHandler special_case)
 {
    cu->current_dalvik_offset = mir->offset;
    MIR* next_mir = NULL;
@@ -241,7 +247,7 @@ void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
        next_mir = mir;
        break;
      case kConstFunction:
-       GenPrintLabel(cu, mir);
+       ArmCodegen::GenPrintLabel(cu, mir);
        LoadConstant(cu, rARM_RET0, mir->dalvikInsn.vB);
        next_mir = GetNextMir(cu, &bb, mir);
        break;
@@ -292,7 +298,7 @@ void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
    if (next_mir != NULL) {
     cu->current_dalvik_offset = next_mir->offset;
     if (special_case != kIdentity) {
-      GenPrintLabel(cu, next_mir);
+      ArmCodegen::GenPrintLabel(cu, next_mir);
     }
     NewLIR1(cu, kThumbBx, rARM_LR);
     cu->core_spill_mask = 0;
@@ -324,8 +330,7 @@ void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  *   add   rARM_PC, r_disp   ; This is the branch from which we compute displacement
  *   cbnz  r_idx, lp
  */
-void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -363,7 +368,7 @@ void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
   NewLIR2(cu, kThumb2LdmiaWB, rBase, (1 << r_key) | (1 << r_disp));
   OpRegReg(cu, kOpCmp, r_key, rl_src.low_reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-  OpIT(cu, kArmCondEq, "");
+  OpIT(cu, kCondEq, "");
   LIR* switch_branch = NewLIR1(cu, kThumb2AddPCR, r_disp);
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
@@ -372,8 +377,7 @@ void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
 }
 
 
-void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void ArmCodegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -429,7 +433,7 @@ void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void ArmCodegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   // Add the table to the list - we'll process it later
@@ -481,7 +485,7 @@ void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl
  * preserved.
  *
  */
-void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void ArmCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   DCHECK_EQ(LW_SHAPE_THIN, 0);
@@ -497,11 +501,11 @@ void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
   NewLIR4(cu, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
   NewLIR3(cu, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
   OpRegImm(cu, kOpCmp, r1, 0);
-  OpIT(cu, kArmCondEq, "");
+  OpIT(cu, kCondEq, "");
   NewLIR4(cu, kThumb2Strex, r1, r2, r0,
           Object::MonitorOffset().Int32Value() >> 2);
   OpRegImm(cu, kOpCmp, r1, 0);
-  OpIT(cu, kArmCondNe, "T");
+  OpIT(cu, kCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
   LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
   ClobberCalleeSave(cu);
@@ -516,7 +520,7 @@ void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void ArmCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   DCHECK_EQ(LW_SHAPE_THIN, 0);
   FlushAllRegs(cu);
@@ -532,7 +536,7 @@ void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
   OpRegImm(cu, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
   NewLIR3(cu, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
   OpRegReg(cu, kOpSub, r1, r2);
-  OpIT(cu, kArmCondEq, "EE");
+  OpIT(cu, kCondEq, "EE");
   StoreWordDisp(cu, r0, Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
   LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
@@ -545,7 +549,7 @@ void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
+void ArmCodegen::MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
 {
   int reg_card_base = AllocTemp(cu);
   int reg_card_no = AllocTemp(cu);
@@ -560,8 +564,7 @@ void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
   FreeTemp(cu, reg_card_no);
 }
 
-void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
-                      RegLocation rl_method)
+void ArmCodegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
 {
   int spill_count = cu->num_core_spills + cu->num_fp_spills;
   /*
@@ -614,7 +617,7 @@ void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
   FreeTemp(cu, r3);
 }
 
-void GenExitSequence(CompilationUnit* cu)
+void ArmCodegen::GenExitSequence(CompilationUnit* cu)
 {
   int spill_count = cu->num_core_spills + cu->num_fp_spills;
   /*

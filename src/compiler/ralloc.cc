@@ -364,18 +364,19 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
 
 static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
-static void DumpRegLocTable(RegLocation* table, int count)
+static void DumpRegLocTable(CompilationUnit* cu, RegLocation* table, int count)
 {
+  Codegen* cg = cu->cg.get();
   for (int i = 0; i < count; i++) {
     LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
         table[i].orig_sreg, storage_name[table[i].location],
         table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
         table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
         table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-        IsFpReg(table[i].low_reg) ? 's' : 'r',
-        table[i].low_reg & FpRegMask(),
-        IsFpReg(table[i].high_reg) ? 's' : 'r',
-        table[i].high_reg & FpRegMask(), table[i].s_reg_low);
+        cg->IsFpReg(table[i].low_reg) ? 's' : 'r',
+        table[i].low_reg & cg->FpRegMask(),
+        cg->IsFpReg(table[i].high_reg) ? 's' : 'r',
+        table[i].high_reg & cg->FpRegMask(), table[i].s_reg_low);
   }
 }
 
@@ -515,7 +516,7 @@ void SimpleRegAlloc(CompilationUnit* cu)
 
   if (cu->verbose && !(cu->disable_opt & (1 << kPromoteRegs))) {
     LOG(INFO) << "After Promotion";
-    DumpRegLocTable(cu->reg_location, cu->num_ssa_regs);
+    DumpRegLocTable(cu, cu->reg_location, cu->num_ssa_regs);
   }
 
   /* Set the frame size */

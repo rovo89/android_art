@@ -18,6 +18,7 @@
 
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "mips_lir.h"
+#include "codegen_mips.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
@@ -39,8 +40,8 @@ namespace art {
  * finish:
  *
  */
-void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
-        RegLocation rl_src1, RegLocation rl_src2)
+void MipsCodegen::GenCmpLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
 {
   rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
@@ -61,8 +62,8 @@ void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
   StoreValue(cu, rl_dest, rl_result);
 }
 
-LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
-         int src2, LIR* target)
+LIR* MipsCodegen::OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1, int src2,
+                              LIR* target)
 {
   LIR* branch;
   MipsOpCode slt_op;
@@ -129,8 +130,8 @@ LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
   return branch;
 }
 
-LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
-          int check_value, LIR* target)
+LIR* MipsCodegen::OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
+                                 int check_value, LIR* target)
 {
   LIR* branch;
   if (check_value != 0) {
@@ -163,12 +164,10 @@ LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
   return branch;
 }
 
-LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
+LIR* MipsCodegen::OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
 {
-#ifdef __mips_hard_float
   if (MIPS_FPREG(r_dest) || MIPS_FPREG(r_src))
-    return FpRegCopy(cu, r_dest, r_src);
-#endif
+    return OpFpRegCopy(cu, r_dest, r_src);
   LIR* res = RawLIR(cu, cu->current_dalvik_offset, kMipsMove,
             r_dest, r_src);
   if (!(cu->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
@@ -177,17 +176,16 @@ LIR* OpRegCopyNoInsert(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
-LIR* OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
+LIR* MipsCodegen::OpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
 {
   LIR *res = OpRegCopyNoInsert(cu, r_dest, r_src);
   AppendLIR(cu, res);
   return res;
 }
 
-void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
-          int src_lo, int src_hi)
+void MipsCodegen::OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi, int src_lo,
+                                int src_hi)
 {
-#ifdef __mips_hard_float
   bool dest_fp = MIPS_FPREG(dest_lo) && MIPS_FPREG(dest_hi);
   bool src_fp = MIPS_FPREG(src_lo) && MIPS_FPREG(src_hi);
   assert(MIPS_FPREG(src_lo) == MIPS_FPREG(src_hi));
@@ -215,31 +213,22 @@ void OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
       }
     }
   }
-#else
-  // Handle overlap
-  if (src_hi == dest_lo) {
-    OpRegCopy(cu, dest_hi, src_hi);
-    OpRegCopy(cu, dest_lo, src_lo);
-  } else {
-    OpRegCopy(cu, dest_lo, src_lo);
-    OpRegCopy(cu, dest_hi, src_hi);
-  }
-#endif
 }
 
-void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
+void MipsCodegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
 }
 
-LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
+LIR* MipsCodegen::GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
                     int reg1, int base, int offset, ThrowKind kind)
 {
   LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
   return NULL;
 }
 
-RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int reg2, bool is_div)
+RegLocation MipsCodegen::GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int reg2,
+                                    bool is_div)
 {
   NewLIR4(cu, kMipsDiv, r_HI, r_LO, reg1, reg2);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -251,7 +240,8 @@ RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int re
   return rl_result;
 }
 
-RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int lit, bool is_div)
+RegLocation MipsCodegen::GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int lit,
+                                       bool is_div)
 {
   int t_reg = AllocTemp(cu);
   NewLIR3(cu, kMipsAddiu, t_reg, r_ZERO, lit);
@@ -266,46 +256,46 @@ RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int
   return rl_result;
 }
 
-void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
+void MipsCodegen::OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
 {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void OpTlsCmp(CompilationUnit* cu, int offset, int val)
+void MipsCodegen::OpTlsCmp(CompilationUnit* cu, int offset, int val)
 {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
+bool MipsCodegen::GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
   DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
+bool MipsCodegen::GenInlinedSqrt(CompilationUnit* cu, CallInfo* info) {
   DCHECK_NE(cu->instruction_set, kThumb2);
   return false;
 }
 
-LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
+LIR* MipsCodegen::OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips";
   return NULL;
 }
 
-LIR* OpVldm(CompilationUnit* cu, int rBase, int count)
+LIR* MipsCodegen::OpVldm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVldm for Mips";
   return NULL;
 }
 
-LIR* OpVstm(CompilationUnit* cu, int rBase, int count)
+LIR* MipsCodegen::OpVstm(CompilationUnit* cu, int rBase, int count)
 {
   LOG(FATAL) << "Unexpected use of OpVstm for Mips";
   return NULL;
 }
 
-void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
-                                   RegLocation rl_result, int lit,
-                                   int first_bit, int second_bit)
+void MipsCodegen::GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
+                                                RegLocation rl_result, int lit,
+                                                int first_bit, int second_bit)
 {
   int t_reg = AllocTemp(cu);
   OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
@@ -316,7 +306,7 @@ void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
   }
 }
 
-void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
+void MipsCodegen::GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 {
   int t_reg = AllocTemp(cu);
   OpRegRegReg(cu, kOpOr, t_reg, reg_lo, reg_hi);
@@ -325,34 +315,34 @@ void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* OpTestSuspend(CompilationUnit* cu, LIR* target)
+LIR* MipsCodegen::OpTestSuspend(CompilationUnit* cu, LIR* target)
 {
   OpRegImm(cu, kOpSub, rMIPS_SUSPEND, 1);
   return OpCmpImmBranch(cu, (target == NULL) ? kCondEq : kCondNe, rMIPS_SUSPEND, 0, target);
 }
 
 // Decrement register and branch on condition
-LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
+LIR* MipsCodegen::OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
 {
   OpRegImm(cu, kOpSub, reg, 1);
   return OpCmpImmBranch(cu, c_code, reg, 0, target);
 }
 
-bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
-                        RegLocation rl_src, RegLocation rl_dest, int lit)
+bool MipsCodegen::SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
+                                     RegLocation rl_src, RegLocation rl_dest, int lit)
 {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in Mips";
   return false;
 }
 
-LIR* OpIT(CompilationUnit* cu, ArmConditionCode cond, const char* guide)
+LIR* MipsCodegen::OpIT(CompilationUnit* cu, ConditionCode cond, const char* guide)
 {
   LOG(FATAL) << "Unexpected use of OpIT in Mips";
   return NULL;
 }
 
-bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
 {
   rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
@@ -375,8 +365,8 @@ bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
-        RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
 {
   rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(cu, rl_src2, kCoreReg);
@@ -399,8 +389,7 @@ bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src)
+bool MipsCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -422,22 +411,22 @@ bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
   return false;
 }
 
-bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
-               RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
   return false;
 }
 
-bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
-               RegLocation rl_src1, RegLocation rl_src2)
+bool MipsCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
   return false;

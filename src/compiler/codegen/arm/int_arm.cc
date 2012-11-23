@@ -19,12 +19,13 @@
 #include "oat_compilation_unit.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "arm_lir.h"
+#include "codegen_arm.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
+LIR* ArmCodegen::OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
          int src2, LIR* target)
 {
   OpRegReg(cu, kOpCmp, src1, src2);
@@ -41,14 +42,15 @@ LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1,
  * met, and an "E" means the instruction is executed if the condition
  * is not met.
  */
-LIR* OpIT(CompilationUnit* cu, ArmConditionCode code, const char* guide)
+LIR* ArmCodegen::OpIT(CompilationUnit* cu, ConditionCode ccode, const char* guide)
 {
   int mask;
-  int cond_bit = code & 1;
-  int alt_bit = cond_bit ^ 1;
   int mask3 = 0;
   int mask2 = 0;
   int mask1 = 0;
+  ArmConditionCode code = ArmConditionEncoding(ccode);
+  int cond_bit = code & 1;
+  int alt_bit = cond_bit ^ 1;
 
   //Note: case fallthroughs intentional
   switch (strlen(guide)) {
@@ -84,8 +86,8 @@ LIR* OpIT(CompilationUnit* cu, ArmConditionCode code, const char* guide)
  *     neg   rX
  * done:
  */
-void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
-        RegLocation rl_src1, RegLocation rl_src2)
+void ArmCodegen::GenCmpLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LIR* target1;
   LIR* target2;
@@ -99,7 +101,7 @@ void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
   OpRegRegReg(cu, kOpSub, t_reg, rl_src1.low_reg, rl_src2.low_reg);
   LIR* branch3 = OpCondBranch(cu, kCondEq, NULL);
 
-  OpIT(cu, kArmCondHi, "E");
+  OpIT(cu, kCondHi, "E");
   NewLIR2(cu, kThumb2MovImmShift, t_reg, ModifiedImmediate(-1));
   LoadConstant(cu, t_reg, 1);
   GenBarrier(cu);
@@ -119,7 +121,7 @@ void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest,
   branch3->target = branch1->target;
 }
 
-void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
+void ArmCodegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   LIR* label_list = cu->block_label_list;
   LIR* taken = &label_list[bb->taken->id];
@@ -168,8 +170,8 @@ void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
  * Generate a register comparison to an immediate and branch.  Caller
  * is responsible for setting branch target field.
  */
-LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
-          int check_value, LIR* target)
+LIR* ArmCodegen::OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg, int check_value,
+                                LIR* target)
 {
   LIR* branch;
   int mod_imm;
@@ -194,12 +196,13 @@ LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg,
   branch->target = target;
   return branch;
 }
-LIR* OpRegCopyNoInsert(CompilationUnit* cu, int r_dest, int r_src)
+
+LIR* ArmCodegen::OpRegCopyNoInsert(CompilationUnit* cu, int r_dest, int r_src)
 {
   LIR* res;
   int opcode;
   if (ARM_FPREG(r_dest) || ARM_FPREG(r_src))
-    return FpRegCopy(cu, r_dest, r_src);
+    return OpFpRegCopy(cu, r_dest, r_src);
   if (ARM_LOWREG(r_dest) && ARM_LOWREG(r_src))
     opcode = kThumbMovRR;
   else if (!ARM_LOWREG(r_dest) && !ARM_LOWREG(r_src))
@@ -215,15 +218,15 @@ LIR* OpRegCopyNoInsert(CompilationUnit* cu, int r_dest, int r_src)
   return res;
 }
 
-LIR* OpRegCopy(CompilationUnit* cu, int r_dest, int r_src)
+LIR* ArmCodegen::OpRegCopy(CompilationUnit* cu, int r_dest, int r_src)
 {
   LIR* res = OpRegCopyNoInsert(cu, r_dest, r_src);
   AppendLIR(cu, res);
   return res;
 }
 
-void OpRegCopyWide(CompilationUnit* cu, int dest_lo, int dest_hi,
-               int src_lo, int src_hi)
+void ArmCodegen::OpRegCopyWide(CompilationUnit* cu, int dest_lo, int dest_hi, int src_lo,
+                               int src_hi)
 {
   bool dest_fp = ARM_FPREG(dest_lo) && ARM_FPREG(dest_hi);
   bool src_fp = ARM_FPREG(src_lo) && ARM_FPREG(src_hi);
@@ -278,8 +281,8 @@ static const MagicTable magic_table[] = {
 };
 
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
-bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
-                        RegLocation rl_src, RegLocation rl_dest, int lit)
+bool ArmCodegen::SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
+                                    RegLocation rl_src, RegLocation rl_dest, int lit)
 {
   if ((lit < 0) || (lit >= static_cast<int>(sizeof(magic_table)/sizeof(magic_table[0])))) {
     return false;
@@ -323,26 +326,28 @@ bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
   return true;
 }
 
-LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
+LIR* ArmCodegen::GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
                     int reg1, int base, int offset, ThrowKind kind)
 {
   LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
   return NULL;
 }
 
-RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int lit, bool is_div)
+RegLocation ArmCodegen::GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg1, int lit,
+                                     bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm";
   return rl_dest;
 }
 
-RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int reg2, bool is_div)
+RegLocation ArmCodegen::GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg1, int reg2,
+                                  bool is_div)
 {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
   return rl_dest;
 }
 
-bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
+bool ArmCodegen::GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
 {
   DCHECK_EQ(cu->instruction_set, kThumb2);
   RegLocation rl_src1 = info->args[0];
@@ -352,7 +357,7 @@ bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
   RegLocation rl_dest = InlineTarget(cu, info);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   OpRegReg(cu, kOpCmp, rl_src1.low_reg, rl_src2.low_reg);
-  OpIT(cu, (is_min) ? kArmCondGt : kArmCondLt, "E");
+  OpIT(cu, (is_min) ? kCondGt : kCondLt, "E");
   OpRegReg(cu, kOpMov, rl_result.low_reg, rl_src2.low_reg);
   OpRegReg(cu, kOpMov, rl_result.low_reg, rl_src1.low_reg);
   GenBarrier(cu);
@@ -360,17 +365,17 @@ bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min)
   return true;
 }
 
-void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
+void ArmCodegen::OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale, int offset)
 {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void OpTlsCmp(CompilationUnit* cu, int offset, int val)
+void ArmCodegen::OpTlsCmp(CompilationUnit* cu, int offset, int val)
 {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
-bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
+bool ArmCodegen::GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier) {
   DCHECK_EQ(cu->instruction_set, kThumb2);
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj= info->args[1];  // Object - known non-null
@@ -417,7 +422,7 @@ bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrie
   OpRegReg(cu, kOpCmp, r_old_value, rl_expected.low_reg);
   FreeTemp(cu, r_old_value);  // Now unneeded.
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
-  OpIT(cu, kArmCondEq, "TE");
+  OpIT(cu, kCondEq, "TE");
   NewLIR4(cu, kThumb2Strex, rl_result.low_reg, rl_new_value.low_reg, r_ptr, 0);
   FreeTemp(cu, r_ptr);  // Now unneeded.
   OpRegImm(cu, kOpXor, rl_result.low_reg, 1);
@@ -428,24 +433,24 @@ bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrie
   return true;
 }
 
-LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target)
+LIR* ArmCodegen::OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target)
 {
   return RawLIR(cu, cu->current_dalvik_offset, kThumb2LdrPcRel12, reg, 0, 0, 0, 0, target);
 }
 
-LIR* OpVldm(CompilationUnit* cu, int rBase, int count)
+LIR* ArmCodegen::OpVldm(CompilationUnit* cu, int rBase, int count)
 {
   return NewLIR3(cu, kThumb2Vldms, rBase, fr0, count);
 }
 
-LIR* OpVstm(CompilationUnit* cu, int rBase, int count)
+LIR* ArmCodegen::OpVstm(CompilationUnit* cu, int rBase, int count)
 {
   return NewLIR3(cu, kThumb2Vstms, rBase, fr0, count);
 }
 
-void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
-                                   RegLocation rl_result, int lit,
-                                   int first_bit, int second_bit)
+void ArmCodegen::GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
+                                               RegLocation rl_result, int lit,
+                                               int first_bit, int second_bit)
 {
   OpRegRegRegShift(cu, kOpAdd, rl_result.low_reg, rl_src.low_reg, rl_src.low_reg,
                    EncodeShift(kArmLsl, second_bit - first_bit));
@@ -454,7 +459,7 @@ void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
   }
 }
 
-void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
+void ArmCodegen::GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 {
   int t_reg = AllocTemp(cu);
   NewLIR4(cu, kThumb2OrrRRRs, t_reg, reg_lo, reg_hi, 0);
@@ -463,21 +468,21 @@ void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* OpTestSuspend(CompilationUnit* cu, LIR* target)
+LIR* ArmCodegen::OpTestSuspend(CompilationUnit* cu, LIR* target)
 {
   NewLIR2(cu, kThumbSubRI8, rARM_SUSPEND, 1);
   return OpCondBranch(cu, (target == NULL) ? kCondEq : kCondNe, target);
 }
 
 // Decrement register and branch on condition
-LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
+LIR* ArmCodegen::OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg, LIR* target)
 {
   // Combine sub & test using sub setflags encoding here
   NewLIR3(cu, kThumb2SubsRRI12, reg, reg, 1);
   return OpCondBranch(cu, c_code, target);
 }
 
-void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind)
+void ArmCodegen::GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind)
 {
 #if ANDROID_SMP != 0
   int dmb_flavor;
@@ -497,8 +502,7 @@ void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind)
 #endif
 }
 
-bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src)
+bool ArmCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -519,36 +523,36 @@ bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest,
   return false;
 }
 
-bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
   return false;
 }
 
-bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
   return false;
 }
 
-bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest,
-                RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
   return false;
 }
 
-bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
-               RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                           RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
   return false;
 }
 
-bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
-               RegLocation rl_src1, RegLocation rl_src2)
+bool ArmCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of genXoLong for Arm";
   return false;

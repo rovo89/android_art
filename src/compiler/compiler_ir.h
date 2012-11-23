@@ -36,7 +36,7 @@ namespace art {
 #define EXERCISE_SLOWEST_STRING_PATH (cu->enable_debug & \
   (1 << kDebugSlowestStringPath))
 
-// Minimum field size to contain Dalvik v_reg number
+// Minimum field size to contain Dalvik v_reg number.
 #define VREG_NUM_WIDTH 16
 
 struct ArenaBitVector;
@@ -55,17 +55,17 @@ struct RegLocation {
   RegLocationType location:3;
   unsigned wide:1;
   unsigned defined:1;   // Do we know the type?
-  unsigned is_const:1;   // Constant, value in cu->constant_values[]
+  unsigned is_const:1;  // Constant, value in cu->constant_values[].
   unsigned fp:1;        // Floating point?
   unsigned core:1;      // Non-floating point?
-  unsigned ref:1;       // Something GC cares about
-  unsigned high_word:1;  // High word of pair?
+  unsigned ref:1;       // Something GC cares about.
+  unsigned high_word:1; // High word of pair?
   unsigned home:1;      // Does this represent the home location?
-  uint8_t low_reg;            // First physical register
-  uint8_t high_reg;           // 2nd physical register (if wide)
-  int32_t s_reg_low;      // SSA name for low Dalvik word
-  int32_t orig_sreg;     // TODO: remove after Bitcode gen complete
-                        // and consolodate usage w/ s_reg_low
+  uint8_t low_reg;      // First physical register.
+  uint8_t high_reg;     // 2nd physical register (if wide).
+  int32_t s_reg_low;    // SSA name for low Dalvik word.
+  int32_t orig_sreg;    // TODO: remove after Bitcode gen complete
+                        // and consolodate usage w/ s_reg_low.
 };
 
 struct CompilerTemp {
@@ -74,19 +74,19 @@ struct CompilerTemp {
 };
 
 struct CallInfo {
-  int num_arg_words;      // Note: word count, not arg count
-  RegLocation* args;    // One for each word of arguments
-  RegLocation result;   // Eventual target of MOVE_RESULT
+  int num_arg_words;    // Note: word count, not arg count.
+  RegLocation* args;    // One for each word of arguments.
+  RegLocation result;   // Eventual target of MOVE_RESULT.
   int opt_flags;
   InvokeType type;
   uint32_t dex_idx;
-  uint32_t index;       // Method idx for invokes, type idx for FilledNewArray
+  uint32_t index;       // Method idx for invokes, type idx for FilledNewArray.
   uintptr_t direct_code;
   uintptr_t direct_method;
-  RegLocation target;    // Target of following move_result
+  RegLocation target;    // Target of following move_result.
   bool skip_this;
   bool is_range;
-  int offset;            // Dalvik offset
+  int offset;            // Dalvik offset.
 };
 
  /*
@@ -97,15 +97,15 @@ struct CallInfo {
  */
 struct RegisterInfo {
   int reg;                    // Reg number
-  bool in_use;                 // Has it been allocated?
-  bool is_temp;                // Can allocate as temp?
+  bool in_use;                // Has it been allocated?
+  bool is_temp;               // Can allocate as temp?
   bool pair;                  // Part of a register pair?
-  int partner;                // If pair, other reg of pair
+  int partner;                // If pair, other reg of pair.
   bool live;                  // Is there an associated SSA name?
   bool dirty;                 // If live, is it dirty?
-  int s_reg;                   // Name of live value
-  LIR *def_start;              // Starting inst in last def sequence
-  LIR *def_end;                // Ending inst in last def sequence
+  int s_reg;                  // Name of live value.
+  LIR *def_start;             // Starting inst in last def sequence.
+  LIR *def_end;               // Ending inst in last def sequence.
 };
 
 struct RegisterPool {
@@ -138,21 +138,21 @@ struct RegisterPool {
 #define MANY_BLOCKS_INITIALIZER 1000 /* Threshold for switching dataflow off */
 #define MANY_BLOCKS 4000 /* Non-initializer threshold */
 
-/* Utility macros to traverse the LIR list */
+// Utility macros to traverse the LIR list.
 #define NEXT_LIR(lir) (lir->next)
 #define PREV_LIR(lir) (lir->prev)
 
-/* Defines for alias_info (tracks Dalvik register references) */
+// Defines for alias_info (tracks Dalvik register references).
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE_FLAG     (0x80000000)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & DECODE_ALIAS_INFO_WIDE_FLAG) ? 1 : 0)
 #define ENCODE_ALIAS_INFO(REG, ISWIDE)  (REG | (ISWIDE ? DECODE_ALIAS_INFO_WIDE_FLAG : 0))
 
-/* Common resource macros */
+// Common resource macros.
 #define ENCODE_CCODE            (1ULL << kCCode)
 #define ENCODE_FP_STATUS        (1ULL << kFPStatus)
 
-/* Abstract memory locations */
+// Abstract memory locations.
 #define ENCODE_DALVIK_REG       (1ULL << kDalvikReg)
 #define ENCODE_LITERAL          (1ULL << kLiteral)
 #define ENCODE_HEAP_REF         (1ULL << kHeapRef)
@@ -165,22 +165,22 @@ struct RegisterPool {
 #define is_pseudo_opcode(opcode) (static_cast<int>(opcode) < 0)
 
 struct LIR {
-  int offset;                        // Offset of this instruction
-  int dalvik_offset;                  // Offset of Dalvik opcode
+  int offset;               // Offset of this instruction.
+  int dalvik_offset;        // Offset of Dalvik opcode.
   LIR* next;
   LIR* prev;
   LIR* target;
   int opcode;
-  int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
+  int operands[5];          // [0..4] = [dest, src1, src2, extra, extra2].
   struct {
-    bool is_nop:1;           // LIR is optimized away
-    bool pcRelFixup:1;      // May need pc-relative fixup
-    unsigned int size:5;    // in bytes
+    bool is_nop:1;          // LIR is optimized away.
+    bool pcRelFixup:1;      // May need pc-relative fixup.
+    unsigned int size:5;    // Note: size is in bytes.
     unsigned int unused:25;
   } flags;
-  int alias_info;              // For Dalvik register & litpool disambiguation
-  uint64_t use_mask;           // Resource mask for use
-  uint64_t def_mask;           // Resource mask for def
+  int alias_info;           // For Dalvik register & litpool disambiguation.
+  uint64_t use_mask;        // Resource mask for use.
+  uint64_t def_mask;        // Resource mask for def.
 };
 
 extern const char* extended_mir_op_names[kMirOpLast - kMirOpFirst];
@@ -214,9 +214,9 @@ struct MIR {
   SSARepresentation* ssa_rep;
   int optimization_flags;
   union {
-    // Used to quickly locate all Phi opcodes
+    // Used to quickly locate all Phi opcodes.
     MIR* phi_next;
-    // Establish link between two halves of throwing instructions
+    // Establish link between two halves of throwing instructions.
     MIR* throw_insn;
   } meta;
 };
@@ -239,14 +239,14 @@ struct BasicBlock {
   MIR* last_mir_insn;
   BasicBlock* fall_through;
   BasicBlock* taken;
-  BasicBlock* i_dom;            // Immediate dominator
+  BasicBlock* i_dom;                // Immediate dominator.
   BasicBlockDataFlow* data_flow_info;
   GrowableList* predecessors;
   ArenaBitVector* dominators;
-  ArenaBitVector* i_dominated;         // Set nodes being immediately dominated
-  ArenaBitVector* dom_frontier;        // Dominance frontier
-  struct {                            // For one-to-many successors like
-    BlockListType block_list_type;    // switch and exception handling
+  ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
+  ArenaBitVector* dom_frontier;     // Dominance frontier.
+  struct {                          // For one-to-many successors like.
+    BlockListType block_list_type;  // switch and exception handling.
     GrowableList blocks;
   } successor_block_list;
 };
@@ -266,6 +266,7 @@ struct LoopAnalysis;
 struct RegisterPool;
 struct ArenaMemBlock;
 struct Memstats;
+class Codegen;
 
 #define NOTVISITED (-1)
 
@@ -360,29 +361,30 @@ struct CompilationUnit {
 #ifndef NDEBUG
       live_sreg(0),
 #endif
-      opcode_count(NULL) {}
+      opcode_count(NULL),
+      cg(NULL) {}
 
   int num_blocks;
   GrowableList block_list;
-  Compiler* compiler;            // Compiler driving this compiler
-  ClassLinker* class_linker;     // Linker to resolve fields and methods
-  const DexFile* dex_file;       // DexFile containing the method being compiled
-  jobject class_loader;          // compiling method's class loader
-  uint32_t method_idx;                // compiling method's index into method_ids of DexFile
-  const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
-  uint32_t access_flags;              // compiling method's access flags
-  InvokeType invoke_type;             // compiling method's invocation type
-  const char* shorty;                 // compiling method's shorty
+  Compiler* compiler;                  // Compiler driving this compiler.
+  ClassLinker* class_linker;           // Linker to resolve fields and methods.
+  const DexFile* dex_file;             // DexFile containing the method being compiled.
+  jobject class_loader;                // compiling method's class loader.
+  uint32_t method_idx;                 // compiling method's index into method_ids of DexFile.
+  const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item.
+  uint32_t access_flags;               // compiling method's access flags.
+  InvokeType invoke_type;              // compiling method's invocation type.
+  const char* shorty;                  // compiling method's shorty.
   LIR* first_lir_insn;
   LIR* last_lir_insn;
-  LIR* literal_list;                   // Constants
-  LIR* method_literal_list;             // Method literals requiring patching
-  LIR* code_literal_list;               // Code literals requiring patching
-  uint32_t disable_opt;                // opt_control_vector flags
-  uint32_t enable_debug;               // debugControlVector flags
-  int data_offset;                     // starting offset of literal pool
-  int total_size;                      // header + code size
-  AssemblerStatus assembler_status;    // Success or fix and retry
+  LIR* literal_list;                   // Constants.
+  LIR* method_literal_list;            // Method literals requiring patching.
+  LIR* code_literal_list;              // Code literals requiring patching.
+  uint32_t disable_opt;                // opt_control_vector flags.
+  uint32_t enable_debug;               // debugControlVector flags.
+  int data_offset;                     // starting offset of literal pool.
+  int total_size;                      // header + code size.
+  AssemblerStatus assembler_status;    // Success or fix and retry.
   int assembler_retries;
   std::vector<uint8_t> code_buffer;
   /*
@@ -401,46 +403,45 @@ struct CompilationUnit {
   std::vector<uint32_t> fp_vmap_table;
   std::vector<uint8_t> native_gc_map;
   bool verbose;
-  bool has_loop;                       // Contains a loop
-  bool has_invoke;                     // Contains an invoke instruction
-  bool qd_mode;                        // Compile for code size/compile time
+  bool has_loop;                       // Contains a loop.
+  bool has_invoke;                     // Contains an invoke instruction.
+  bool qd_mode;                        // Compile for code size/compile time.
   RegisterPool* reg_pool;
   InstructionSet instruction_set;
-  /* Number of total regs used in the whole cu after SSA transformation */
+  // Number of total regs used in the whole cu after SSA transformation .
   int num_ssa_regs;
-  /* Map SSA reg i to the base virtual register/subscript */
+  // Map SSA reg i to the base virtual register/subscript.
   GrowableList* ssa_base_vregs;
   GrowableList* ssa_subscripts;
   GrowableList* ssa_strings;
 
-  /* The following are new data structures to support SSA representations */
-  /* Map original Dalvik virtual reg i to the current SSA name */
-  int* vreg_to_ssa_map;                  // length == method->registers_size
-  int* ssa_last_defs;                   // length == method->registers_size
-  ArenaBitVector* is_constant_v;        // length == num_ssa_reg
-  int* constant_values;                // length == num_ssa_reg
-  int* phi_alias_map;                   // length == num_ssa_reg
+  // Map original Dalvik virtual reg i to the current SSA name.
+  int* vreg_to_ssa_map;            // length == method->registers_size
+  int* ssa_last_defs;              // length == method->registers_size
+  ArenaBitVector* is_constant_v;   // length == num_ssa_reg
+  int* constant_values;            // length == num_ssa_reg
+  int* phi_alias_map;              // length == num_ssa_reg
   MIR* phi_list;
 
-  /* Use counts of ssa names */
-  GrowableList use_counts;             // Weighted by nesting depth
-  GrowableList raw_use_counts;          // Not weighted
+  // Use counts of ssa names.
+  GrowableList use_counts;         // Weighted by nesting depth
+  GrowableList raw_use_counts;     // Not weighted
 
-  /* Optimization support */
+  // Optimization support.
   GrowableList loop_headers;
 
-  /* Map SSA names to location */
+  // Map SSA names to location.
   RegLocation* reg_location;
 
-  /* Keep track of Dalvik v_reg to physical register mappings */
+  // Keep track of Dalvik v_reg to physical register mappings.
   PromotionMap* promotion_map;
 
-  /* SSA name for Method* */
+  // SSA name for Method*.
   int method_sreg;
-  RegLocation method_loc;            // Describes location of method*
+  RegLocation method_loc;          // Describes location of method*.
 
   int num_reachable_blocks;
-  int num_dalvik_registers;             // method->registers_size
+  int num_dalvik_registers;        // method->registers_size.
   BasicBlock* entry_block;
   BasicBlock* exit_block;
   BasicBlock* cur_block;
@@ -453,11 +454,11 @@ struct CompilationUnit {
   GrowableList compiler_temps;
   int* i_dom_list;
   ArenaBitVector* try_block_addr;
-  ArenaBitVector** def_block_matrix;    // num_dalvik_register x num_blocks
+  ArenaBitVector** def_block_matrix;    // num_dalvik_register x num_blocks.
   ArenaBitVector* temp_block_v;
   ArenaBitVector* temp_dalvik_register_v;
-  ArenaBitVector* temp_ssa_register_v;   // num_ssa_regs
-  int* temp_ssa_block_id_v;               // working storage for Phi labels
+  ArenaBitVector* temp_ssa_register_v;  // num_ssa_regs.
+  int* temp_ssa_block_id_v;             // working storage for Phi labels.
   LIR* block_label_list;
   /*
    * Frame layout details.
@@ -467,7 +468,7 @@ struct CompilationUnit {
    */
   int num_ins;
   int num_outs;
-  int num_regs;            // Unlike num_dalvik_registers, does not include ins
+  int num_regs;            // Unlike num_dalvik_registers, does not include ins.
   int num_core_spills;
   int num_fp_spills;
   int num_compiler_temps;
@@ -476,14 +477,13 @@ struct CompilationUnit {
   unsigned int fp_spill_mask;
   unsigned int attrs;
   /*
-   * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
+   * TODO: The code generation utilities don't have a built-in
    * mechanism to propagate the original Dalvik opcode address to the
    * associated generated instructions.  For the trace compiler, this wasn't
    * necessary because the interpreter handled all throws and debugging
    * requests.  For now we'll handle this by placing the Dalvik offset
    * in the CompilationUnit struct before codegen for each instruction.
-   * The low-level LIR creation utilites will pull it from here.  Should
-   * be rewritten.
+   * The low-level LIR creation utilites will pull it from here.  Rework this.
    */
   int current_dalvik_offset;
   GrowableList switch_tables;
@@ -491,10 +491,10 @@ struct CompilationUnit {
   const uint16_t* insns;
   uint32_t insns_size;
   bool disable_dataflow; // Skip dataflow analysis if possible
-  SafeMap<unsigned int, BasicBlock*> block_map; // FindBlock lookup cache
-  SafeMap<unsigned int, unsigned int> block_id_map; // Block collapse lookup cache
-  SafeMap<unsigned int, LIR*> boundary_map; // boundary lookup cache
-  int def_count;         // Used to estimate number of SSA names
+  SafeMap<unsigned int, BasicBlock*> block_map; // FindBlock lookup cache.
+  SafeMap<unsigned int, unsigned int> block_id_map; // Block collapse lookup cache.
+  SafeMap<unsigned int, LIR*> boundary_map; // boundary lookup cache.
+  int def_count;         // Used to estimate number of SSA names.
 
   // If non-empty, apply optimizer/debug flags only to matching methods.
   std::string compiler_method_match;
@@ -518,9 +518,9 @@ struct CompilationUnit {
   std::string bitcode_filename;
   GrowableList llvm_values;
   int32_t temp_name;
-  SafeMap<llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label
-  SafeMap<int32_t, llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb
-  SafeMap<llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec
+  SafeMap<llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label.
+  SafeMap<int32_t, llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb.
+  SafeMap<llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec.
   int num_shadow_frame_entries;
   int* shadow_map;
   std::set<llvm::BasicBlock*> llvm_blocks;
@@ -533,22 +533,23 @@ struct CompilationUnit {
   int live_sreg;
 #endif
   std::set<uint32_t> catches;
-  int* opcode_count;    // Count Dalvik opcodes for tuning
+  int* opcode_count;    // Count Dalvik opcodes for tuning.
+  UniquePtr<Codegen> cg;
 };
 
 struct SwitchTable {
   int offset;
-  const uint16_t* table;            // Original dex table
-  int vaddr;                  // Dalvik offset of switch opcode
-  LIR* anchor;                // Reference instruction for relative offsets
-  LIR** targets;              // Array of case targets
+  const uint16_t* table;      // Original dex table.
+  int vaddr;                  // Dalvik offset of switch opcode.
+  LIR* anchor;                // Reference instruction for relative offsets.
+  LIR** targets;              // Array of case targets.
 };
 
 struct FillArrayData {
   int offset;
-  const uint16_t* table;           // Original dex table
+  const uint16_t* table;      // Original dex table.
   int size;
-  int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
+  int vaddr;                  // Dalvik offset of FILL_ARRAY_DATA opcode.
 };
 
 #define MAX_PATTERN_LEN 5
@@ -582,24 +583,6 @@ static const CodePattern special_patterns[] = {
   {{Instruction::RETURN_OBJECT}, kIdentity},
   {{Instruction::RETURN_WIDE}, kIdentity},
 };
-
-BasicBlock* NewMemBB(CompilationUnit* cu, BBType block_type, int block_id);
-
-void AppendMIR(BasicBlock* bb, MIR* mir);
-
-void PrependMIR(BasicBlock* bb, MIR* mir);
-
-void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
-
-void AppendLIR(CompilationUnit* cu, LIR* lir);
-
-void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
-
-void InsertLIRAfter(LIR* current_lir, LIR* new_lir);
-
-MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
-/* Debug Utilities */
-void DumpCompilationUnit(CompilationUnit* cu);
 
 }  // namespace art
 

@@ -24,6 +24,10 @@
 
 namespace art {
 
+static const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
+                                    INVALID_REG, INVALID_REG, INVALID_SREG,
+                                    INVALID_SREG};
+
 /*
  * Free all allocated temps in the temp pools.  Note that this does
  * not affect the "liveness" of a temp register, which will stay
@@ -102,7 +106,8 @@ static void ClobberBody(CompilationUnit *cu, RegisterInfo* p)
 /* Mark a temp register as dead.  Does not affect allocation state. */
 void Clobber(CompilationUnit* cu, int reg)
 {
-  ClobberBody(cu, GetRegInfo(cu, reg));
+  Codegen* cg = cu->cg.get();
+  ClobberBody(cu, cg->GetRegInfo(cu, reg));
 }
 
 static void ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
@@ -158,9 +163,10 @@ static int SRegToPMap(CompilationUnit* cu, int s_reg)
 
 void RecordCorePromotion(CompilationUnit* cu, int reg, int s_reg)
 {
+  Codegen* cg = cu->cg.get();
   int p_map_idx = SRegToPMap(cu, s_reg);
   int v_reg = SRegToVReg(cu, s_reg);
-  GetRegInfo(cu, reg)->in_use = true;
+  cg->GetRegInfo(cu, reg)->in_use = true;
   cu->core_spill_mask |= (1 << reg);
   // Include reg for later sort
   cu->core_vmap_table.push_back(reg << VREG_NUM_WIDTH |
@@ -187,10 +193,11 @@ static int AllocPreservedCoreReg(CompilationUnit* cu, int s_reg)
 
 void RecordFpPromotion(CompilationUnit* cu, int reg, int s_reg)
 {
+  Codegen* cg = cu->cg.get();
   int p_map_idx = SRegToPMap(cu, s_reg);
   int v_reg = SRegToVReg(cu, s_reg);
-  GetRegInfo(cu, reg)->in_use = true;
-  MarkPreservedSingle(cu, v_reg, reg);
+  cg->GetRegInfo(cu, reg)->in_use = true;
+  cg->MarkPreservedSingle(cu, v_reg, reg);
   cu->promotion_map[p_map_idx].fp_location = kLocPhysReg;
   cu->promotion_map[p_map_idx].FpReg = reg;
 }
@@ -225,6 +232,7 @@ static int AllocPreservedSingle(CompilationUnit* cu, int s_reg, bool even)
  */
 static int AllocPreservedDouble(CompilationUnit* cu, int s_reg)
 {
+  Codegen* cg = cu->cg.get();
   int res = -1; // Assume failure
   int v_reg = SRegToVReg(cu, s_reg);
   int p_map_idx = SRegToPMap(cu, s_reg);
@@ -236,7 +244,7 @@ static int AllocPreservedDouble(CompilationUnit* cu, int s_reg)
       return res;
     }
     // Is the low reg of the pair free?
-    RegisterInfo* p = GetRegInfo(cu, high_reg-1);
+    RegisterInfo* p = cg->GetRegInfo(cu, high_reg-1);
     if (p->in_use || p->is_temp) {
       // Already allocated or not preserved - fail.
       return res;
@@ -245,7 +253,7 @@ static int AllocPreservedDouble(CompilationUnit* cu, int s_reg)
     res = p->reg;
     p->in_use = true;
     DCHECK_EQ((res & 1), 0);
-    MarkPreservedSingle(cu, v_reg, res);
+    cg->MarkPreservedSingle(cu, v_reg, res);
   } else {
     RegisterInfo* FPRegs = cu->reg_pool->FPRegs;
     for (int i = 0; i < cu->reg_pool->num_fp_regs; i++) {
@@ -256,10 +264,10 @@ static int AllocPreservedDouble(CompilationUnit* cu, int s_reg)
         (FPRegs[i].reg + 1) == FPRegs[i+1].reg) {
         res = FPRegs[i].reg;
         FPRegs[i].in_use = true;
-        MarkPreservedSingle(cu, v_reg, res);
+        cg->MarkPreservedSingle(cu, v_reg, res);
         FPRegs[i+1].in_use = true;
         DCHECK_EQ(res + 1, FPRegs[i+1].reg);
-        MarkPreservedSingle(cu, v_reg+1, res+1);
+        cg->MarkPreservedSingle(cu, v_reg+1, res+1);
         break;
       }
     }
@@ -498,19 +506,22 @@ RegisterInfo* IsLive(CompilationUnit* cu, int reg)
 
 RegisterInfo* IsTemp(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* p = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* p = cg->GetRegInfo(cu, reg);
   return (p->is_temp) ? p : NULL;
 }
 
 RegisterInfo* IsPromoted(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* p = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* p = cg->GetRegInfo(cu, reg);
   return (p->is_temp) ? NULL : p;
 }
 
 bool IsDirty(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* p = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* p = cg->GetRegInfo(cu, reg);
   return p->dirty;
 }
 
@@ -553,7 +564,8 @@ static void ResetDefBody(RegisterInfo* p)
 
 void ResetDef(CompilationUnit* cu, int reg)
 {
-  ResetDefBody(GetRegInfo(cu, reg));
+  Codegen* cg = cu->cg.get();
+  ResetDefBody(cg->GetRegInfo(cu, reg));
 }
 
 static void NullifyRange(CompilationUnit* cu, LIR *start, LIR *finish, int s_reg1, int s_reg2)
@@ -580,7 +592,8 @@ void MarkDef(CompilationUnit* cu, RegLocation rl,
   DCHECK(!rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = GetRegInfo(cu, rl.low_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* p = cg->GetRegInfo(cu, rl.low_reg);
   p->def_start = start->next;
   p->def_end = finish;
 }
@@ -596,7 +609,8 @@ void MarkDefWide(CompilationUnit* cu, RegLocation rl,
   DCHECK(rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
-  RegisterInfo* p = GetRegInfo(cu, rl.low_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* p = cg->GetRegInfo(cu, rl.low_reg);
   ResetDef(cu, rl.high_reg);  // Only track low of pair
   p->def_start = start->next;
   p->def_end = finish;
@@ -605,9 +619,10 @@ void MarkDefWide(CompilationUnit* cu, RegLocation rl,
 RegLocation WideToNarrow(CompilationUnit* cu, RegLocation rl)
 {
   DCHECK(rl.wide);
+  Codegen* cg = cu->cg.get();
   if (rl.location == kLocPhysReg) {
-    RegisterInfo* info_lo = GetRegInfo(cu, rl.low_reg);
-    RegisterInfo* info_hi = GetRegInfo(cu, rl.high_reg);
+    RegisterInfo* info_lo = cg->GetRegInfo(cu, rl.low_reg);
+    RegisterInfo* info_hi = cg->GetRegInfo(cu, rl.high_reg);
     if (info_lo->is_temp) {
       info_lo->pair = false;
       info_lo->def_start = NULL;
@@ -675,13 +690,14 @@ void ClobberAllRegs(CompilationUnit* cu)
 // Make sure nothing is live and dirty
 static void FlushAllRegsBody(CompilationUnit* cu, RegisterInfo* info, int num_regs)
 {
+  Codegen* cg = cu->cg.get();
   int i;
   for (i=0; i < num_regs; i++) {
     if (info[i].live && info[i].dirty) {
       if (info[i].pair) {
-        FlushRegWide(cu, info[i].reg, info[i].partner);
+        cg->FlushRegWide(cu, info[i].reg, info[i].partner);
       } else {
-        FlushReg(cu, info[i].reg);
+        cg->FlushReg(cu, info[i].reg);
       }
     }
   }
@@ -698,20 +714,22 @@ void FlushAllRegs(CompilationUnit* cu)
 
 
 //TUNING: rewrite all of this reg stuff.  Probably use an attribute table
-static bool RegClassMatches(int reg_class, int reg)
+static bool RegClassMatches(CompilationUnit* cu, int reg_class, int reg)
 {
+  Codegen* cg = cu->cg.get();
   if (reg_class == kAnyReg) {
     return true;
   } else if (reg_class == kCoreReg) {
-    return !IsFpReg(reg);
+    return !cg->IsFpReg(reg);
   } else {
-    return IsFpReg(reg);
+    return cg->IsFpReg(reg);
   }
 }
 
 void MarkLive(CompilationUnit* cu, int reg, int s_reg)
 {
-  RegisterInfo* info = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info = cg->GetRegInfo(cu, reg);
   if ((info->reg == reg) && (info->s_reg == s_reg) && info->live) {
     return;  /* already live */
   } else if (s_reg != INVALID_SREG) {
@@ -729,20 +747,23 @@ void MarkLive(CompilationUnit* cu, int reg, int s_reg)
 
 void MarkTemp(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* info = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info = cg->GetRegInfo(cu, reg);
   info->is_temp = true;
 }
 
 void UnmarkTemp(CompilationUnit* cu, int reg)
 {
-  RegisterInfo* info = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info = cg->GetRegInfo(cu, reg);
   info->is_temp = false;
 }
 
 void MarkPair(CompilationUnit* cu, int low_reg, int high_reg)
 {
-  RegisterInfo* info_lo = GetRegInfo(cu, low_reg);
-  RegisterInfo* info_hi = GetRegInfo(cu, high_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info_lo = cg->GetRegInfo(cu, low_reg);
+  RegisterInfo* info_hi = cg->GetRegInfo(cu, high_reg);
   info_lo->pair = info_hi->pair = true;
   info_lo->partner = high_reg;
   info_hi->partner = low_reg;
@@ -750,10 +771,11 @@ void MarkPair(CompilationUnit* cu, int low_reg, int high_reg)
 
 void MarkClean(CompilationUnit* cu, RegLocation loc)
 {
-  RegisterInfo* info = GetRegInfo(cu, loc.low_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info = cg->GetRegInfo(cu, loc.low_reg);
   info->dirty = false;
   if (loc.wide) {
-    info = GetRegInfo(cu, loc.high_reg);
+    info = cg->GetRegInfo(cu, loc.high_reg);
     info->dirty = false;
   }
 }
@@ -764,24 +786,27 @@ void MarkDirty(CompilationUnit* cu, RegLocation loc)
     // If already home, can't be dirty
     return;
   }
-  RegisterInfo* info = GetRegInfo(cu, loc.low_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* info = cg->GetRegInfo(cu, loc.low_reg);
   info->dirty = true;
   if (loc.wide) {
-    info = GetRegInfo(cu, loc.high_reg);
+    info = cg->GetRegInfo(cu, loc.high_reg);
     info->dirty = true;
   }
 }
 
 void MarkInUse(CompilationUnit* cu, int reg)
 {
-    RegisterInfo* info = GetRegInfo(cu, reg);
+  Codegen* cg = cu->cg.get();
+    RegisterInfo* info = cg->GetRegInfo(cu, reg);
     info->in_use = true;
 }
 
 static void CopyRegInfo(CompilationUnit* cu, int new_reg, int old_reg)
 {
-  RegisterInfo* new_info = GetRegInfo(cu, new_reg);
-  RegisterInfo* old_info = GetRegInfo(cu, old_reg);
+  Codegen* cg = cu->cg.get();
+  RegisterInfo* new_info = cg->GetRegInfo(cu, new_reg);
+  RegisterInfo* old_info = cg->GetRegInfo(cu, old_reg);
   // Target temp status must not change
   bool is_temp = new_info->is_temp;
   *new_info = *old_info;
@@ -792,12 +817,13 @@ static void CopyRegInfo(CompilationUnit* cu, int new_reg, int old_reg)
 
 static bool CheckCorePoolSanity(CompilationUnit* cu)
 {
+  Codegen* cg = cu->cg.get();
    for (static int i = 0; i < cu->reg_pool->num_core_regs; i++) {
      if (cu->reg_pool->core_regs[i].pair) {
        static int my_reg = cu->reg_pool->core_regs[i].reg;
        static int my_sreg = cu->reg_pool->core_regs[i].s_reg;
        static int partner_reg = cu->reg_pool->core_regs[i].partner;
-       static RegisterInfo* partner = GetRegInfo(cu, partner_reg);
+       static RegisterInfo* partner = cg->GetRegInfo(cu, partner_reg);
        DCHECK(partner != NULL);
        DCHECK(partner->pair);
        DCHECK_EQ(my_reg, partner->partner);
@@ -855,6 +881,7 @@ RegLocation UpdateLocWide(CompilationUnit* cu, RegLocation loc)
 {
   DCHECK(loc.wide);
   DCHECK(CheckCorePoolSanity(cu));
+  Codegen* cg = cu->cg.get();
   if (loc.location != kLocPhysReg) {
     DCHECK((loc.location == kLocDalvikFrame) ||
          (loc.location == kLocCompilerTemp));
@@ -866,9 +893,9 @@ RegLocation UpdateLocWide(CompilationUnit* cu, RegLocation loc)
     match = match && (info_lo != NULL);
     match = match && (info_hi != NULL);
     // Are they both core or both FP?
-    match = match && (IsFpReg(info_lo->reg) == IsFpReg(info_hi->reg));
+    match = match && (cg->IsFpReg(info_lo->reg) == cg->IsFpReg(info_hi->reg));
     // If a pair of floating point singles, are they properly aligned?
-    if (match && IsFpReg(info_lo->reg)) {
+    if (match && cg->IsFpReg(info_lo->reg)) {
       match &= ((info_lo->reg & 0x1) == 0);
       match &= ((info_hi->reg - info_lo->reg) == 1);
     }
@@ -884,7 +911,7 @@ RegLocation UpdateLocWide(CompilationUnit* cu, RegLocation loc)
       loc.high_reg = info_hi->reg;
       loc.location = kLocPhysReg;
       MarkPair(cu, loc.low_reg, loc.high_reg);
-      DCHECK(!IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
+      DCHECK(!cg->IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
       return loc;
     }
     // Can't easily reuse - clobber and free any overlaps
@@ -920,20 +947,20 @@ RegLocation EvalLocWide(CompilationUnit* cu, RegLocation loc, int reg_class, boo
   int new_regs;
   int low_reg;
   int high_reg;
+  Codegen* cg = cu->cg.get();
 
   loc = UpdateLocWide(cu, loc);
 
   /* If already in registers, we can assume proper form.  Right reg class? */
   if (loc.location == kLocPhysReg) {
-    DCHECK_EQ(IsFpReg(loc.low_reg), IsFpReg(loc.high_reg));
-    DCHECK(!IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
-    if (!RegClassMatches(reg_class, loc.low_reg)) {
+    DCHECK_EQ(cg->IsFpReg(loc.low_reg), cg->IsFpReg(loc.high_reg));
+    DCHECK(!cg->IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
+    if (!RegClassMatches(cu, reg_class, loc.low_reg)) {
       /* Wrong register class.  Reallocate and copy */
-      new_regs = AllocTypedTempPair(cu, loc.fp, reg_class);
+      new_regs = cg->AllocTypedTempPair(cu, loc.fp, reg_class);
       low_reg = new_regs & 0xff;
       high_reg = (new_regs >> 8) & 0xff;
-      OpRegCopyWide(cu, low_reg, high_reg, loc.low_reg,
-                    loc.high_reg);
+      cg->OpRegCopyWide(cu, low_reg, high_reg, loc.low_reg, loc.high_reg);
       CopyRegInfo(cu, low_reg, loc.low_reg);
       CopyRegInfo(cu, high_reg, loc.high_reg);
       Clobber(cu, loc.low_reg);
@@ -941,7 +968,7 @@ RegLocation EvalLocWide(CompilationUnit* cu, RegLocation loc, int reg_class, boo
       loc.low_reg = low_reg;
       loc.high_reg = high_reg;
       MarkPair(cu, loc.low_reg, loc.high_reg);
-      DCHECK(!IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
+      DCHECK(!cg->IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
     }
     return loc;
   }
@@ -949,7 +976,7 @@ RegLocation EvalLocWide(CompilationUnit* cu, RegLocation loc, int reg_class, boo
   DCHECK_NE(loc.s_reg_low, INVALID_SREG);
   DCHECK_NE(GetSRegHi(loc.s_reg_low), INVALID_SREG);
 
-  new_regs = AllocTypedTempPair(cu, loc.fp, reg_class);
+  new_regs = cg->AllocTypedTempPair(cu, loc.fp, reg_class);
   loc.low_reg = new_regs & 0xff;
   loc.high_reg = (new_regs >> 8) & 0xff;
 
@@ -959,7 +986,7 @@ RegLocation EvalLocWide(CompilationUnit* cu, RegLocation loc, int reg_class, boo
     MarkLive(cu, loc.low_reg, loc.s_reg_low);
     MarkLive(cu, loc.high_reg, GetSRegHi(loc.s_reg_low));
   }
-  DCHECK(!IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
+  DCHECK(!cg->IsFpReg(loc.low_reg) || ((loc.low_reg & 0x1) == 0));
   return loc;
 }
 
@@ -971,13 +998,14 @@ RegLocation EvalLoc(CompilationUnit* cu, RegLocation loc,
   if (loc.wide)
     return EvalLocWide(cu, loc, reg_class, update);
 
+  Codegen* cg = cu->cg.get();
   loc = UpdateLoc(cu, loc);
 
   if (loc.location == kLocPhysReg) {
-    if (!RegClassMatches(reg_class, loc.low_reg)) {
+    if (!RegClassMatches(cu, reg_class, loc.low_reg)) {
       /* Wrong register class.  Realloc, copy and transfer ownership */
-      new_reg = AllocTypedTemp(cu, loc.fp, reg_class);
-      OpRegCopy(cu, new_reg, loc.low_reg);
+      new_reg = cg->AllocTypedTemp(cu, loc.fp, reg_class);
+      cg->OpRegCopy(cu, new_reg, loc.low_reg);
       CopyRegInfo(cu, new_reg, loc.low_reg);
       Clobber(cu, loc.low_reg);
       loc.low_reg = new_reg;
@@ -987,7 +1015,7 @@ RegLocation EvalLoc(CompilationUnit* cu, RegLocation loc,
 
   DCHECK_NE(loc.s_reg_low, INVALID_SREG);
 
-  new_reg = AllocTypedTemp(cu, loc.fp, reg_class);
+  new_reg = cg->AllocTypedTemp(cu, loc.fp, reg_class);
   loc.low_reg = new_reg;
 
   if (update) {
@@ -1092,13 +1120,14 @@ static void DumpCounts(const RefCounts* arr, int size, const char* msg)
  */
 void DoPromotion(CompilationUnit* cu)
 {
+  Codegen* cg = cu->cg.get();
   int reg_bias = cu->num_compiler_temps + 1;
   int dalvik_regs = cu->num_dalvik_registers;
   int num_regs = dalvik_regs + reg_bias;
   const int promotion_threshold = 2;
 
   // Allow target code to add any special registers
-  AdjustSpillMask(cu);
+  cg->AdjustSpillMask(cu);
 
   /*
    * Simple register promotion. Just do a static count of the uses
@@ -1260,6 +1289,42 @@ int VRegOffset(CompilationUnit* cu, int v_reg)
 int SRegOffset(CompilationUnit* cu, int s_reg)
 {
   return VRegOffset(cu, SRegToVReg(cu, s_reg));
+}
+
+RegLocation GetBadLoc()
+{
+  RegLocation res = bad_loc;
+  return res;
+}
+
+/* Mark register usage state and return long retloc */
+RegLocation GetReturnWide(CompilationUnit* cu, bool is_double)
+{
+  Codegen* cg = cu->cg.get();
+  RegLocation gpr_res = cg->LocCReturnWide();
+  RegLocation fpr_res = cg->LocCReturnDouble();
+  RegLocation res = is_double ? fpr_res : gpr_res;
+  Clobber(cu, res.low_reg);
+  Clobber(cu, res.high_reg);
+  LockTemp(cu, res.low_reg);
+  LockTemp(cu, res.high_reg);
+  MarkPair(cu, res.low_reg, res.high_reg);
+  return res;
+}
+
+RegLocation GetReturn(CompilationUnit* cu, bool is_float)
+{
+  Codegen* cg = cu->cg.get();
+  RegLocation gpr_res = cg->LocCReturn();
+  RegLocation fpr_res = cg->LocCReturnFloat();
+  RegLocation res = is_float ? fpr_res : gpr_res;
+  Clobber(cu, res.low_reg);
+  if (cu->instruction_set == kMips) {
+    MarkInUse(cu, res.low_reg);
+  } else {
+    LockTemp(cu, res.low_reg);
+  }
+  return res;
 }
 
 }  // namespace art

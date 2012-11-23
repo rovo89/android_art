@@ -18,13 +18,14 @@
 
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "mips_lir.h"
+#include "codegen_mips.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                    SpecialCaseHandler special_case)
+void MipsCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                                 SpecialCaseHandler special_case)
 {
     // TODO
 }
@@ -60,8 +61,7 @@ void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  * done:
  *
  */
-void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void MipsCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -140,8 +140,7 @@ void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
  *   jr    r_RA
  * done:
  */
-void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void MipsCodegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -224,8 +223,7 @@ void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
-                      RegLocation rl_src)
+void MipsCodegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   // Add the table to the list - we'll process it later
@@ -267,7 +265,7 @@ void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void MipsCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LoadValueDirectFixed(cu, rl_src, rMIPS_ARG0);  // Get obj
@@ -283,7 +281,7 @@ void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void MipsCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LoadValueDirectFixed(cu, rl_src, rMIPS_ARG0);  // Get obj
@@ -299,7 +297,7 @@ void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
+void MipsCodegen::MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
 {
   int reg_card_base = AllocTemp(cu);
   int reg_card_no = AllocTemp(cu);
@@ -313,8 +311,7 @@ void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
   FreeTemp(cu, reg_card_base);
   FreeTemp(cu, reg_card_no);
 }
-void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
-                      RegLocation rl_method)
+void MipsCodegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
 {
   int spill_count = cu->num_core_spills + cu->num_fp_spills;
   /*
@@ -361,7 +358,7 @@ void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
   FreeTemp(cu, rMIPS_ARG3);
 }
 
-void GenExitSequence(CompilationUnit* cu)
+void MipsCodegen::GenExitSequence(CompilationUnit* cu)
 {
   /*
    * In the exit path, rMIPS_RET0/rMIPS_RET1 are live - make sure they aren't

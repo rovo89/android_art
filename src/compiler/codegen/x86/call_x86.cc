@@ -17,13 +17,14 @@
 /* This file contains codegen for the X86 ISA */
 
 #include "x86_lir.h"
+#include "codegen_x86.h"
 #include "../codegen_util.h"
 #include "../ralloc_util.h"
 
 namespace art {
 
-void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                    SpecialCaseHandler special_case)
+void X86Codegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                                SpecialCaseHandler special_case)
 {
   // TODO
 }
@@ -32,10 +33,7 @@ void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-BasicBlock *FindBlock(CompilationUnit* cu, unsigned int code_offset,
-                      bool split, bool create, BasicBlock** immed_pred_block_p);
-void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void X86Codegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -47,9 +45,7 @@ void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
   rl_src = LoadValue(cu, rl_src, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
-    BasicBlock* case_block = FindBlock(cu,
-                                       cu->current_dalvik_offset + targets[i],
-                                       false, false, NULL);
+    BasicBlock* case_block = FindBlock(cu, cu->current_dalvik_offset + targets[i]);
     LIR* label_list = cu->block_label_list;
     OpCmpImmBranch(cu, kCondEq, rl_src.low_reg, key,
                    &label_list[case_block->id]);
@@ -72,8 +68,7 @@ void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
  * jmp  r_start_of_method
  * done:
  */
-void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
-                     RegLocation rl_src)
+void X86Codegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -122,8 +117,6 @@ void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
   branch_over->target = target;
 }
 
-void CallRuntimeHelperRegReg(CompilationUnit* cu, int helper_offset,
-                             int arg0, int arg1, bool safepoint_pc);
 /*
  * Array data table format:
  *  ushort ident = 0x0300   magic value
@@ -134,8 +127,7 @@ void CallRuntimeHelperRegReg(CompilationUnit* cu, int helper_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
-                      RegLocation rl_src)
+void X86Codegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   // Add the table to the list - we'll process it later
@@ -160,7 +152,7 @@ void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
                           rX86_ARG1, true);
 }
 
-void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void X86Codegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LoadValueDirectFixed(cu, rl_src, rCX);  // Get obj
@@ -178,7 +170,7 @@ void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
   branch->target = NewLIR0(cu, kPseudoTargetLabel);
 }
 
-void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void X86Codegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LoadValueDirectFixed(cu, rl_src, rAX);  // Get obj
@@ -202,7 +194,7 @@ void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
+void X86Codegen::MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
 {
   int reg_card_base = AllocTemp(cu);
   int reg_card_no = AllocTemp(cu);
@@ -217,8 +209,7 @@ void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
   FreeTemp(cu, reg_card_no);
 }
 
-void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
-                      RegLocation rl_method)
+void X86Codegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
 {
   /*
    * On entry, rX86_ARG0, rX86_ARG1, rX86_ARG2 are live.  Let the register
@@ -261,7 +252,7 @@ void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
   FreeTemp(cu, rX86_ARG2);
 }
 
-void GenExitSequence(CompilationUnit* cu) {
+void X86Codegen::GenExitSequence(CompilationUnit* cu) {
   /*
    * In the exit path, rX86_RET0/rX86_RET1 are live - make sure they aren't
    * allocated by the register utilities as temps.

@@ -21,242 +21,26 @@
 
 namespace art {
 
-//TODO: remove decl.
-void GenInvoke(CompilationUnit* cu, CallInfo* info);
-
 /*
  * This source files contains "gen" codegen routines that should
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
 
-void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
-{
-  inst->def_mask = ENCODE_ALL;
-  LIR* safepoint_pc = NewLIR0(cu, kPseudoSafepointPC);
-  DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
-}
-
-/*
- * To save scheduling time, helper calls are broken into two parts: generation of
- * the helper target address, and the actuall call to the helper.  Because x86
- * has a memory call operation, part 1 is a NOP for x86.  For other targets,
- * load arguments between the two parts.
- */
-int CallHelperSetup(CompilationUnit* cu, int helper_offset)
-{
-  return (cu->instruction_set == kX86) ? 0 : LoadHelper(cu, helper_offset);
-}
-
-/* NOTE: if r_tgt is a temp, it will be freed following use */
-LIR* CallHelper(CompilationUnit* cu, int r_tgt, int helper_offset, bool safepoint_pc)
-{
-  LIR* call_inst;
-  if (cu->instruction_set == kX86) {
-    call_inst = OpThreadMem(cu, kOpBlx, helper_offset);
-  } else {
-    call_inst = OpReg(cu, kOpBlx, r_tgt);
-    FreeTemp(cu, r_tgt);
-  }
-  if (safepoint_pc) {
-    MarkSafepointPC(cu, call_inst);
-  }
-  return call_inst;
-}
-
-void CallRuntimeHelperImm(CompilationUnit* cu, int helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperReg(CompilationUnit* cu, int helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  OpRegCopy(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegLocation(CompilationUnit* cu, int helper_offset, RegLocation arg0,
-                                  bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  if (arg0.wide == 0) {
-    LoadValueDirectFixed(cu, arg0, TargetReg(kArg0));
-  } else {
-    LoadValueDirectWideFixed(cu, arg0, TargetReg(kArg0), TargetReg(kArg1));
-  }
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
-                             bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  LoadConstant(cu, TargetReg(kArg1), arg1);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmRegLocation(CompilationUnit* cu, int helper_offset, int arg0,
-                                     RegLocation arg1, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  if (arg1.wide == 0) {
-    LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
-  } else {
-    LoadValueDirectWideFixed(cu, arg1, TargetReg(kArg1), TargetReg(kArg2));
-  }
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegLocationImm(CompilationUnit* cu, int helper_offset, RegLocation arg0,
-                                     int arg1, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadValueDirectFixed(cu, arg0, TargetReg(kArg0));
-  LoadConstant(cu, TargetReg(kArg1), arg1);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmReg(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
-                             bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  OpRegCopy(cu, TargetReg(kArg1), arg1);
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
-                             bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  OpRegCopy(cu, TargetReg(kArg0), arg0);
-  LoadConstant(cu, TargetReg(kArg1), arg1);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmMethod(CompilationUnit* cu, int helper_offset, int arg0, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadCurrMethodDirect(cu, TargetReg(kArg1));
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegLocationRegLocation(CompilationUnit* cu, int helper_offset,
-                                             RegLocation arg0, RegLocation arg1, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  if (arg0.wide == 0) {
-    LoadValueDirectFixed(cu, arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0));
-    if (arg1.wide == 0) {
-      if (cu->instruction_set == kMips) {
-        LoadValueDirectFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1));
-      } else {
-        LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
-      }
-    } else {
-      if (cu->instruction_set == kMips) {
-        LoadValueDirectWideFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg1), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg2));
-      } else {
-        LoadValueDirectWideFixed(cu, arg1, TargetReg(kArg1), TargetReg(kArg2));
-      }
-    }
-  } else {
-    LoadValueDirectWideFixed(cu, arg0, arg0.fp ? TargetReg(kFArg0) : TargetReg(kArg0), arg0.fp ? TargetReg(kFArg1) : TargetReg(kArg1));
-    if (arg1.wide == 0) {
-      LoadValueDirectFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2));
-    } else {
-      LoadValueDirectWideFixed(cu, arg1, arg1.fp ? TargetReg(kFArg2) : TargetReg(kArg2), arg1.fp ? TargetReg(kFArg3) : TargetReg(kArg3));
-    }
-  }
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegReg(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
-                             bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
-  OpRegCopy(cu, TargetReg(kArg0), arg0);
-  OpRegCopy(cu, TargetReg(kArg1), arg1);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperRegRegImm(CompilationUnit* cu, int helper_offset, int arg0, int arg1,
-                                int arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  DCHECK_NE(TargetReg(kArg0), arg1);  // check copy into arg0 won't clobber arg1
-  OpRegCopy(cu, TargetReg(kArg0), arg0);
-  OpRegCopy(cu, TargetReg(kArg1), arg1);
-  LoadConstant(cu, TargetReg(kArg2), arg2);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmMethodRegLocation(CompilationUnit* cu, int helper_offset, int arg0,
-                                           RegLocation arg2, bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadValueDirectFixed(cu, arg2, TargetReg(kArg2));
-  LoadCurrMethodDirect(cu, TargetReg(kArg1));
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmMethodImm(CompilationUnit* cu, int helper_offset, int arg0, int arg2,
-                                   bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadCurrMethodDirect(cu, TargetReg(kArg1));
-  LoadConstant(cu, TargetReg(kArg2), arg2);
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
-void CallRuntimeHelperImmRegLocationRegLocation(CompilationUnit* cu, int helper_offset,
-                                                int arg0, RegLocation arg1, RegLocation arg2,
-                                                bool safepoint_pc) {
-  int r_tgt = CallHelperSetup(cu, helper_offset);
-  LoadValueDirectFixed(cu, arg1, TargetReg(kArg1));
-  if (arg2.wide == 0) {
-    LoadValueDirectFixed(cu, arg2, TargetReg(kArg2));
-  } else {
-    LoadValueDirectWideFixed(cu, arg2, TargetReg(kArg2), TargetReg(kArg3));
-  }
-  LoadConstant(cu, TargetReg(kArg0), arg0);
-  ClobberCalleeSave(cu);
-  CallHelper(cu, r_tgt, helper_offset, safepoint_pc);
-}
-
 /*
  * Generate an kPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
-void GenBarrier(CompilationUnit* cu)
+void Codegen::GenBarrier(CompilationUnit* cu)
 {
   LIR* barrier = NewLIR0(cu, kPseudoBarrier);
   /* Mark all resources as being clobbered */
   barrier->def_mask = -1;
 }
 
-
-/* Generate unconditional branch instructions */
-LIR* OpUnconditionalBranch(CompilationUnit* cu, LIR* target)
-{
-  LIR* branch = OpBranchUnconditional(cu, kOpUncondBr);
-  branch->target = target;
-  return branch;
-}
-
 // FIXME: need to do some work to split out targets with
 // condition codes and those without
-LIR* GenCheck(CompilationUnit* cu, ConditionCode c_code,
-              ThrowKind kind)
+LIR* Codegen::GenCheck(CompilationUnit* cu, ConditionCode c_code, ThrowKind kind)
 {
   DCHECK_NE(cu->instruction_set, kMips);
   LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
@@ -267,8 +51,8 @@ LIR* GenCheck(CompilationUnit* cu, ConditionCode c_code,
   return branch;
 }
 
-LIR* GenImmedCheck(CompilationUnit* cu, ConditionCode c_code,
-                   int reg, int imm_val, ThrowKind kind)
+LIR* Codegen::GenImmedCheck(CompilationUnit* cu, ConditionCode c_code, int reg, int imm_val,
+                            ThrowKind kind)
 {
   LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
                     cu->current_dalvik_offset);
@@ -284,7 +68,7 @@ LIR* GenImmedCheck(CompilationUnit* cu, ConditionCode c_code,
 }
 
 /* Perform null-check on a register.  */
-LIR* GenNullCheck(CompilationUnit* cu, int s_reg, int m_reg, int opt_flags)
+LIR* Codegen::GenNullCheck(CompilationUnit* cu, int s_reg, int m_reg, int opt_flags)
 {
   if (!(cu->disable_opt & (1 << kNullCheckElimination)) &&
     opt_flags & MIR_IGNORE_NULL_CHECK) {
@@ -294,8 +78,8 @@ LIR* GenNullCheck(CompilationUnit* cu, int s_reg, int m_reg, int opt_flags)
 }
 
 /* Perform check on two registers */
-LIR* GenRegRegCheck(CompilationUnit* cu, ConditionCode c_code,
-                    int reg1, int reg2, ThrowKind kind)
+LIR* Codegen::GenRegRegCheck(CompilationUnit* cu, ConditionCode c_code, int reg1, int reg2,
+                             ThrowKind kind)
 {
   LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
                     cu->current_dalvik_offset, reg1, reg2);
@@ -305,9 +89,9 @@ LIR* GenRegRegCheck(CompilationUnit* cu, ConditionCode c_code,
   return branch;
 }
 
-void GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
-                         RegLocation rl_src1, RegLocation rl_src2, LIR* taken,
-                         LIR* fall_through)
+void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
+                                  RegLocation rl_src1, RegLocation rl_src2, LIR* taken,
+                                  LIR* fall_through)
 {
   ConditionCode cond;
   rl_src1 = LoadValue(cu, rl_src1, kCoreReg);
@@ -339,8 +123,8 @@ void GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
   OpUnconditionalBranch(cu, fall_through);
 }
 
-void GenCompareZeroAndBranch(CompilationUnit* cu, Instruction::Code opcode,
-                             RegLocation rl_src, LIR* taken, LIR* fall_through)
+void Codegen::GenCompareZeroAndBranch(CompilationUnit* cu, Instruction::Code opcode,
+                                      RegLocation rl_src, LIR* taken, LIR* fall_through)
 {
   ConditionCode cond;
   rl_src = LoadValue(cu, rl_src, kCoreReg);
@@ -376,8 +160,7 @@ void GenCompareZeroAndBranch(CompilationUnit* cu, Instruction::Code opcode,
   OpUnconditionalBranch(cu, fall_through);
 }
 
-void GenIntToLong(CompilationUnit* cu, RegLocation rl_dest,
-                  RegLocation rl_src)
+void Codegen::GenIntToLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   if (rl_src.location == kLocPhysReg) {
@@ -389,8 +172,8 @@ void GenIntToLong(CompilationUnit* cu, RegLocation rl_dest,
   StoreValueWide(cu, rl_dest, rl_result);
 }
 
-void GenIntNarrowing(CompilationUnit* cu, Instruction::Code opcode,
-                     RegLocation rl_dest, RegLocation rl_src)
+void Codegen::GenIntNarrowing(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                              RegLocation rl_src)
 {
    rl_src = LoadValue(cu, rl_src, kCoreReg);
    RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -417,8 +200,8 @@ void GenIntNarrowing(CompilationUnit* cu, Instruction::Code opcode,
  * Array::AllocFromCode(type_idx, method, count);
  * Note: AllocFromCode will handle checks for errNegativeArraySize.
  */
-void GenNewArray(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
-                 RegLocation rl_src)
+void Codegen::GenNewArray(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
+                          RegLocation rl_src)
 {
   FlushAllRegs(cu);  /* Everything to home location */
   int func_offset;
@@ -440,7 +223,7 @@ void GenNewArray(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
  * code throws runtime exception "bad Filled array req" for 'D' and 'J'.
  * Current code also throws internal unimp if not 'L', '[' or 'I'.
  */
-void GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
+void Codegen::GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
 {
   int elems = info->num_arg_words;
   int type_idx = info->index;
@@ -546,8 +329,8 @@ void GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
   }
 }
 
-void GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_src,
-       bool is_long_or_double, bool is_object)
+void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_src,
+                      bool is_long_or_double, bool is_object)
 {
   int field_offset;
   int ssb_index;
@@ -638,8 +421,8 @@ void GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_src,
   }
 }
 
-void GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_dest,
-       bool is_long_or_double, bool is_object)
+void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_dest,
+                      bool is_long_or_double, bool is_object)
 {
   int field_offset;
   int ssb_index;
@@ -732,7 +515,7 @@ void GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_dest,
 
 
 // Debugging routine - if null target, branch to DebugMe
-void GenShowTarget(CompilationUnit* cu)
+void Codegen::GenShowTarget(CompilationUnit* cu)
 {
   DCHECK_NE(cu->instruction_set, kX86) << "unimplemented GenShowTarget";
   LIR* branch_over = OpCmpImmBranch(cu, kCondNe, TargetReg(kInvokeTgt), 0, NULL);
@@ -741,7 +524,7 @@ void GenShowTarget(CompilationUnit* cu)
   branch_over->target = target;
 }
 
-void HandleSuspendLaunchPads(CompilationUnit *cu)
+void Codegen::HandleSuspendLaunchPads(CompilationUnit *cu)
 {
   LIR** suspend_label = reinterpret_cast<LIR**>(cu->suspend_launchpads.elem_list);
   int num_elems = cu->suspend_launchpads.num_used;
@@ -759,7 +542,7 @@ void HandleSuspendLaunchPads(CompilationUnit *cu)
   }
 }
 
-void HandleIntrinsicLaunchPads(CompilationUnit *cu)
+void Codegen::HandleIntrinsicLaunchPads(CompilationUnit *cu)
 {
   LIR** intrinsic_label = reinterpret_cast<LIR**>(cu->intrinsic_launchpads.elem_list);
   int num_elems = cu->intrinsic_launchpads.num_used;
@@ -779,7 +562,7 @@ void HandleIntrinsicLaunchPads(CompilationUnit *cu)
   }
 }
 
-void HandleThrowLaunchPads(CompilationUnit *cu)
+void Codegen::HandleThrowLaunchPads(CompilationUnit *cu)
 {
   LIR** throw_label = reinterpret_cast<LIR**>(cu->throw_launchpads.elem_list);
   int num_elems = cu->throw_launchpads.num_used;
@@ -856,20 +639,9 @@ void HandleThrowLaunchPads(CompilationUnit *cu)
   }
 }
 
-bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
-                  int& field_offset, bool& is_volatile, bool is_put)
-{
-  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-               *cu->dex_file,
-               cu->code_item, cu->method_idx,
-               cu->access_flags);
-  return cu->compiler->ComputeInstanceFieldInfo(field_idx, &m_unit,
-           field_offset, is_volatile, is_put);
-}
-
-void GenIGet(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size,
-             RegLocation rl_dest, RegLocation rl_obj,
-             bool is_long_or_double, bool is_object)
+void Codegen::GenIGet(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size,
+                      RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double,
+                      bool is_object)
 {
   int field_offset;
   bool is_volatile;
@@ -928,8 +700,9 @@ void GenIGet(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size
   }
 }
 
-void GenIPut(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size,
-             RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double, bool is_object)
+void Codegen::GenIPut(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size,
+                      RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double,
+                      bool is_object)
 {
   int field_offset;
   bool is_volatile;
@@ -976,8 +749,7 @@ void GenIPut(CompilationUnit* cu, uint32_t field_idx, int opt_flags, OpSize size
   }
 }
 
-void GenConstClass(CompilationUnit* cu, uint32_t type_idx,
-                   RegLocation rl_dest)
+void Codegen::GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
 {
   RegLocation rl_method = LoadCurrMethod(cu);
   int res_reg = AllocTemp(cu);
@@ -1036,8 +808,7 @@ void GenConstClass(CompilationUnit* cu, uint32_t type_idx,
   }
 }
 
-void GenConstString(CompilationUnit* cu, uint32_t string_idx,
-                    RegLocation rl_dest)
+void Codegen::GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocation rl_dest)
 {
   /* NOTE: Most strings should be available at compile time */
   int32_t offset_of_string = Array::DataOffset(sizeof(String*)).Int32Value() +
@@ -1059,7 +830,7 @@ void GenConstString(CompilationUnit* cu, uint32_t string_idx,
       GenBarrier(cu);
       // For testing, always force through helper
       if (!EXERCISE_SLOWEST_STRING_PATH) {
-        OpIT(cu, kArmCondEq, "T");
+        OpIT(cu, kCondEq, "T");
       }
       OpRegCopy(cu, TargetReg(kArg0), TargetReg(kArg2));   // .eq
       LIR* call_inst = OpReg(cu, kOpBlx, r_tgt);    // .eq, helper(Method*, string_idx)
@@ -1094,7 +865,7 @@ void GenConstString(CompilationUnit* cu, uint32_t string_idx,
  * Let helper function take care of everything.  Will
  * call Class::NewInstanceFromCode(type_idx, method);
  */
-void GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
+void Codegen::GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
 {
   FlushAllRegs(cu);  /* Everything to home location */
   // alloc will always check for resolution, do we also need to verify
@@ -1111,7 +882,7 @@ void GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
+void Codegen::GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
 {
   FlushAllRegs(cu);  /* Everything to home location */
   int func_offset = ENTRYPOINT_OFFSET(pGetAndClearException);
@@ -1125,14 +896,14 @@ void GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void GenThrow(CompilationUnit* cu, RegLocation rl_src)
+void Codegen::GenThrow(CompilationUnit* cu, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   CallRuntimeHelperRegLocation(cu, ENTRYPOINT_OFFSET(pDeliverException), rl_src, true);
 }
 
-void GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
-                   RegLocation rl_src)
+void Codegen::GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
+                            RegLocation rl_src)
 {
   FlushAllRegs(cu);
   // May generate a call - use explicit registers
@@ -1187,7 +958,7 @@ void GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
     /* Uses conditional nullification */
     int r_tgt = LoadHelper(cu, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
     OpRegReg(cu, kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
-    OpIT(cu, kArmCondEq, "EE");   // if-convert the test
+    OpIT(cu, kCondEq, "EE");   // if-convert the test
     LoadConstant(cu, TargetReg(kArg0), 1);     // .eq case - load true
     OpRegCopy(cu, TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
     call_inst = OpReg(cu, kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
@@ -1217,7 +988,7 @@ void GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
   }
 }
 
-void GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_src)
+void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   // May generate a call - use explicit registers
@@ -1289,8 +1060,8 @@ void GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_src)
  * Generate array store
  *
  */
-void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
-          RegLocation rl_index, RegLocation rl_src, int scale)
+void Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
+                             RegLocation rl_index, RegLocation rl_src, int scale)
 {
   int len_offset = Array::LengthOffset().Int32Value();
   int data_offset = Array::DataOffset(sizeof(Object*)).Int32Value();
@@ -1358,9 +1129,8 @@ void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
 /*
  * Generate array load
  */
-void GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size,
-                 RegLocation rl_array, RegLocation rl_index,
-                 RegLocation rl_dest, int scale)
+void Codegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_dest, int scale)
 {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = Array::LengthOffset().Int32Value();
@@ -1457,9 +1227,8 @@ void GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size,
  * Generate array store
  *
  */
-void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size,
-                 RegLocation rl_array, RegLocation rl_index,
-                 RegLocation rl_src, int scale)
+void Codegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_src, int scale)
 {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = Array::LengthOffset().Int32Value();
@@ -1551,9 +1320,8 @@ void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size,
   }
 }
 
-void GenLong3Addr(CompilationUnit* cu, OpKind first_op,
-                  OpKind second_op, RegLocation rl_dest,
-                  RegLocation rl_src1, RegLocation rl_src2)
+void Codegen::GenLong3Addr(CompilationUnit* cu, OpKind first_op, OpKind second_op,
+                           RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   RegLocation rl_result;
   if (cu->instruction_set == kThumb2) {
@@ -1600,8 +1368,8 @@ void GenLong3Addr(CompilationUnit* cu, OpKind first_op,
 }
 
 
-bool GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                    RegLocation rl_src1, RegLocation rl_shift)
+bool Codegen::GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_shift)
 {
   int func_offset;
 
@@ -1630,8 +1398,8 @@ bool GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation r
 }
 
 
-bool GenArithOpInt(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-           RegLocation rl_src1, RegLocation rl_src2)
+bool Codegen::GenArithOpInt(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                            RegLocation rl_src1, RegLocation rl_src2)
 {
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
@@ -1801,9 +1569,10 @@ static bool HandleEasyDivide(CompilationUnit* cu, Instruction::Code dalvik_opcod
   if ((lit < 2) || ((cu->instruction_set != kThumb2) && !IsPowerOfTwo(lit))) {
     return false;
   }
+  Codegen* cg = cu->cg.get();
   // No divide instruction for Arm, so check for more special cases
   if ((cu->instruction_set == kThumb2) && !IsPowerOfTwo(lit)) {
-    return SmallLiteralDivide(cu, dalvik_opcode, rl_src, rl_dest, lit);
+    return cg->SmallLiteralDivide(cu, dalvik_opcode, rl_src, rl_dest, lit);
   }
   int k = LowestSetBit(lit);
   if (k >= 30) {
@@ -1812,38 +1581,38 @@ static bool HandleEasyDivide(CompilationUnit* cu, Instruction::Code dalvik_opcod
   }
   bool div = (dalvik_opcode == Instruction::DIV_INT_LIT8 ||
       dalvik_opcode == Instruction::DIV_INT_LIT16);
-  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  rl_src = cg->LoadValue(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   if (div) {
     int t_reg = AllocTemp(cu);
     if (lit == 2) {
       // Division by 2 is by far the most common division by constant.
-      OpRegRegImm(cu, kOpLsr, t_reg, rl_src.low_reg, 32 - k);
-      OpRegRegReg(cu, kOpAdd, t_reg, t_reg, rl_src.low_reg);
-      OpRegRegImm(cu, kOpAsr, rl_result.low_reg, t_reg, k);
+      cg->OpRegRegImm(cu, kOpLsr, t_reg, rl_src.low_reg, 32 - k);
+      cg->OpRegRegReg(cu, kOpAdd, t_reg, t_reg, rl_src.low_reg);
+      cg->OpRegRegImm(cu, kOpAsr, rl_result.low_reg, t_reg, k);
     } else {
-      OpRegRegImm(cu, kOpAsr, t_reg, rl_src.low_reg, 31);
-      OpRegRegImm(cu, kOpLsr, t_reg, t_reg, 32 - k);
-      OpRegRegReg(cu, kOpAdd, t_reg, t_reg, rl_src.low_reg);
-      OpRegRegImm(cu, kOpAsr, rl_result.low_reg, t_reg, k);
+      cg->OpRegRegImm(cu, kOpAsr, t_reg, rl_src.low_reg, 31);
+      cg->OpRegRegImm(cu, kOpLsr, t_reg, t_reg, 32 - k);
+      cg->OpRegRegReg(cu, kOpAdd, t_reg, t_reg, rl_src.low_reg);
+      cg->OpRegRegImm(cu, kOpAsr, rl_result.low_reg, t_reg, k);
     }
   } else {
     int t_reg1 = AllocTemp(cu);
     int t_reg2 = AllocTemp(cu);
     if (lit == 2) {
-      OpRegRegImm(cu, kOpLsr, t_reg1, rl_src.low_reg, 32 - k);
-      OpRegRegReg(cu, kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
-      OpRegRegImm(cu, kOpAnd, t_reg2, t_reg2, lit -1);
-      OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg2, t_reg1);
+      cg->OpRegRegImm(cu, kOpLsr, t_reg1, rl_src.low_reg, 32 - k);
+      cg->OpRegRegReg(cu, kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
+      cg->OpRegRegImm(cu, kOpAnd, t_reg2, t_reg2, lit -1);
+      cg->OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg2, t_reg1);
     } else {
-      OpRegRegImm(cu, kOpAsr, t_reg1, rl_src.low_reg, 31);
-      OpRegRegImm(cu, kOpLsr, t_reg1, t_reg1, 32 - k);
-      OpRegRegReg(cu, kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
-      OpRegRegImm(cu, kOpAnd, t_reg2, t_reg2, lit - 1);
-      OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg2, t_reg1);
+      cg->OpRegRegImm(cu, kOpAsr, t_reg1, rl_src.low_reg, 31);
+      cg->OpRegRegImm(cu, kOpLsr, t_reg1, t_reg1, 32 - k);
+      cg->OpRegRegReg(cu, kOpAdd, t_reg2, t_reg1, rl_src.low_reg);
+      cg->OpRegRegImm(cu, kOpAnd, t_reg2, t_reg2, lit - 1);
+      cg->OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg2, t_reg1);
     }
   }
-  StoreValue(cu, rl_dest, rl_result);
+  cg->StoreValue(cu, rl_dest, rl_result);
   return true;
 }
 
@@ -1868,32 +1637,31 @@ static bool HandleEasyMultiply(CompilationUnit* cu, RegLocation rl_src,
   } else {
     return false;
   }
-  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  Codegen* cg = cu->cg.get();
+  rl_src = cg->LoadValue(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   if (power_of_two) {
     // Shift.
-    OpRegRegImm(cu, kOpLsl, rl_result.low_reg, rl_src.low_reg,
-                LowestSetBit(lit));
+    cg->OpRegRegImm(cu, kOpLsl, rl_result.low_reg, rl_src.low_reg, LowestSetBit(lit));
   } else if (pop_count_le2) {
     // Shift and add and shift.
     int first_bit = LowestSetBit(lit);
     int second_bit = LowestSetBit(lit ^ (1 << first_bit));
-    GenMultiplyByTwoBitMultiplier(cu, rl_src, rl_result, lit,
-                                  first_bit, second_bit);
+    cg->GenMultiplyByTwoBitMultiplier(cu, rl_src, rl_result, lit, first_bit, second_bit);
   } else {
     // Reverse subtract: (src << (shift + 1)) - src.
     DCHECK(power_of_two_minus_one);
     // TUNING: rsb dst, src, src lsl#LowestSetBit(lit + 1)
     int t_reg = AllocTemp(cu);
-    OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, LowestSetBit(lit + 1));
-    OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg, rl_src.low_reg);
+    cg->OpRegRegImm(cu, kOpLsl, t_reg, rl_src.low_reg, LowestSetBit(lit + 1));
+    cg->OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg, rl_src.low_reg);
   }
-  StoreValue(cu, rl_dest, rl_result);
+  cg->StoreValue(cu, rl_dest, rl_result);
   return true;
 }
 
-bool GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
-                      RegLocation rl_dest, RegLocation rl_src, int lit)
+bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
+                               RegLocation rl_dest, RegLocation rl_src, int lit)
 {
   RegLocation rl_result;
   OpKind op = static_cast<OpKind>(0);    /* Make gcc happy */
@@ -2008,8 +1776,8 @@ bool GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-          RegLocation rl_src1, RegLocation rl_src2)
+bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                             RegLocation rl_src1, RegLocation rl_src2)
 {
   RegLocation rl_result;
   OpKind first_op = kOpBkpt;
@@ -2129,8 +1897,8 @@ bool GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation r
   return false;
 }
 
-bool GenConversionCall(CompilationUnit* cu, int func_offset,
-                       RegLocation rl_dest, RegLocation rl_src)
+bool Codegen::GenConversionCall(CompilationUnit* cu, int func_offset,
+                                RegLocation rl_dest, RegLocation rl_src)
 {
   /*
    * Don't optimize the register usage since it calls out to support
@@ -2156,9 +1924,9 @@ bool GenConversionCall(CompilationUnit* cu, int func_offset,
   return false;
 }
 
-bool GenArithOpFloatPortable(CompilationUnit* cu, Instruction::Code opcode,
-                             RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2)
+bool Codegen::GenArithOpFloatPortable(CompilationUnit* cu, Instruction::Code opcode,
+                                      RegLocation rl_dest, RegLocation rl_src1,
+                                      RegLocation rl_src2)
 {
   RegLocation rl_result;
   int func_offset;
@@ -2198,9 +1966,9 @@ bool GenArithOpFloatPortable(CompilationUnit* cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenArithOpDoublePortable(CompilationUnit* cu, Instruction::Code opcode,
-                              RegLocation rl_dest, RegLocation rl_src1,
-                              RegLocation rl_src2)
+bool Codegen::GenArithOpDoublePortable(CompilationUnit* cu, Instruction::Code opcode,
+                                       RegLocation rl_dest, RegLocation rl_src1,
+                                       RegLocation rl_src2)
 {
   RegLocation rl_result;
   int func_offset;
@@ -2240,8 +2008,8 @@ bool GenArithOpDoublePortable(CompilationUnit* cu, Instruction::Code opcode,
   return false;
 }
 
-bool GenConversionPortable(CompilationUnit* cu, Instruction::Code opcode,
-                           RegLocation rl_dest, RegLocation rl_src)
+bool Codegen::GenConversionPortable(CompilationUnit* cu, Instruction::Code opcode,
+                                    RegLocation rl_dest, RegLocation rl_src)
 {
 
   switch (opcode) {
@@ -2282,7 +2050,7 @@ bool GenConversionPortable(CompilationUnit* cu, Instruction::Code opcode,
 }
 
 /* Check if we need to check for pending suspend request */
-void GenSuspendTest(CompilationUnit* cu, int opt_flags)
+void Codegen::GenSuspendTest(CompilationUnit* cu, int opt_flags)
 {
   if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
     return;
@@ -2297,7 +2065,7 @@ void GenSuspendTest(CompilationUnit* cu, int opt_flags)
 }
 
 /* Check if we need to check for pending suspend request */
-void GenSuspendTestAndBranch(CompilationUnit* cu, int opt_flags, LIR* target)
+void Codegen::GenSuspendTestAndBranch(CompilationUnit* cu, int opt_flags, LIR* target)
 {
   if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
     OpUnconditionalBranch(cu, target);

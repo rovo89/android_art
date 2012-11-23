@@ -39,7 +39,6 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler/dataflow.cc \
 	src/compiler/frontend.cc \
-	src/compiler/intermediate_rep.cc \
 	src/compiler/ralloc.cc \
 	src/compiler/ssa_transformation.cc \
 	src/compiler/compiler_utility.cc \
@@ -48,8 +47,8 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 	src/compiler/codegen/gen_loadstore.cc \
 	src/compiler/codegen/gen_common.cc \
 	src/compiler/codegen/gen_invoke.cc \
-	src/compiler/codegen/method_bitcode.cc \
-	src/compiler/codegen/method_codegen_driver.cc \
+	src/compiler/codegen/mir_to_gbc.cc \
+	src/compiler/codegen/mir_to_lir.cc \
 	src/compiler/codegen/local_optimizations.cc \
 	src/compiler/codegen/arm/target_arm.cc \
 	src/compiler/codegen/arm/assemble_arm.cc \
@@ -57,6 +56,18 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 	src/compiler/codegen/arm/call_arm.cc \
 	src/compiler/codegen/arm/fp_arm.cc \
 	src/compiler/codegen/arm/int_arm.cc \
+	src/compiler/codegen/mips/target_mips.cc \
+	src/compiler/codegen/mips/assemble_mips.cc \
+	src/compiler/codegen/mips/utility_mips.cc \
+	src/compiler/codegen/mips/call_mips.cc \
+	src/compiler/codegen/mips/fp_mips.cc \
+	src/compiler/codegen/mips/int_mips.cc \
+	src/compiler/codegen/x86/target_x86.cc \
+	src/compiler/codegen/x86/assemble_x86.cc \
+	src/compiler/codegen/x86/utility_x86.cc \
+	src/compiler/codegen/x86/call_x86.cc \
+	src/compiler/codegen/x86/fp_x86.cc \
+	src/compiler/codegen/x86/int_x86.cc \
 	src/compiler_llvm/dalvik_reg.cc \
 	src/compiler_llvm/gbc_expander.cc \
 	src/compiler_llvm/method_compiler.cc \

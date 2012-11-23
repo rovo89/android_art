@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_
-#define ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_
+#ifndef ART_SRC_COMPILER_CODEGEN_MIRTOGBC_H_
+#define ART_SRC_COMPILER_CODEGEN_MIRTOGBC_H_
 
 namespace art {
 
@@ -24,4 +24,4 @@ void MethodBitcode2LIR(CompilationUnit* cu);
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_CODEGEN_METHODBITCODE_H_
+#endif // ART_SRC_COMPILER_CODEGEN_MIRTOGBC_H_

@@ -15,6 +15,7 @@
  */
 
 #include "mips_lir.h"
+#include "codegen_mips.h"
 #include "../codegen_util.h"
 
 namespace art {
@@ -80,7 +81,7 @@ namespace art {
  * is expanded to include a nop.  This scheme should be replaced with
  * an assembler pass to fill those slots when possible.
  */
-MipsEncodingMap EncodingMap[kMipsLast] = {
+const MipsEncodingMap MipsCodegen::EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMips32BitData, 0x00000000,
                  kFmtBitBlt, 31, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP,
@@ -305,7 +306,6 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
                  "xori", "!0r,!1r,0x!2h(!2d)", 4),
-#ifdef __mips_hard_float
     ENCODING_MAP(kMipsFadds, 0x46000000,
                  kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
@@ -394,7 +394,6 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
                  "mtc1", "!0r,!1s", 4),
-#endif
     ENCODING_MAP(kMipsDelta, 0x27e00000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, 15, 0,
                  kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | REG_USE_LR |
@@ -514,8 +513,7 @@ static void ConvertShortToLongBranch(CompilationUnit* cu, LIR* lir)
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus AssembleInstructions(CompilationUnit *cu,
-                    uintptr_t start_addr)
+AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr)
 {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
@@ -710,7 +708,7 @@ AssemblerStatus AssembleInstructions(CompilationUnit *cu,
   return res;
 }
 
-int GetInsnSize(LIR* lir)
+int MipsCodegen::GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }
@@ -718,7 +716,7 @@ int GetInsnSize(LIR* lir)
  * Target-dependent offset assignment.
  * independent.
  */
-int AssignInsnOffsets(CompilationUnit* cu)
+int MipsCodegen::AssignInsnOffsets(CompilationUnit* cu)
 {
   LIR* mips_lir;
   int offset = 0;
