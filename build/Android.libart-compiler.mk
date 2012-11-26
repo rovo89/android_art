@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-LIBART_COMPILER_COMMON_SRC_FILES += \
+LIBART_COMPILER_SRC_FILES += \
 	src/compiler/dataflow.cc \
 	src/compiler/frontend.cc \
 	src/compiler/ralloc.cc \
@@ -55,20 +55,10 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/compiler/codegen/x86/int_x86.cc \
 	src/oat/jni/arm/jni_internal_arm.cc \
 	src/oat/jni/mips/jni_internal_mips.cc \
-	src/oat/jni/x86/jni_internal_x86.cc \
-
-LIBART_COMPILER_arm_SRC_FILES += \
-	$(LIBART_COMPILER_COMMON_SRC_FILES)
-
-LIBART_COMPILER_mips_SRC_FILES += \
-	$(LIBART_COMPILER_COMMON_SRC_FILES)
-
-LIBART_COMPILER_x86_SRC_FILES += \
-	$(LIBART_COMPILER_COMMON_SRC_FILES)
+	src/oat/jni/x86/jni_internal_x86.cc
 
 # $(1): target or host
 # $(2): ndebug or debug
-# $(3): architecture name
 define build-libart-compiler
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -83,7 +73,6 @@ define build-libart-compiler
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
-  libart_compiler_arch := $(3)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -91,15 +80,15 @@ define build-libart-compiler
   endif
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
-    LOCAL_MODULE := libart-compiler-$$(libart_compiler_arch)
+    LOCAL_MODULE := libart-compiler
   else # debug
-    LOCAL_MODULE := libartd-compiler-$$(libart_compiler_arch)
+    LOCAL_MODULE := libartd-compiler
   endif
 
   LOCAL_MODULE_TAGS := optional
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
-  LOCAL_SRC_FILES := $$(LIBART_COMPILER_$$(libart_compiler_arch)_SRC_FILES)
+  LOCAL_SRC_FILES := $$(LIBART_COMPILER_SRC_FILES)
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
@@ -127,11 +116,6 @@ define build-libart-compiler
     LOCAL_SHARED_LIBRARIES += libart
   endif
   LOCAL_SHARED_LIBRARIES += libbcc
-
-  # TODO: temporary hack for testing.
-  ifeq ($$(libart_compiler_arch),mips)
-    LOCAL_CFLAGS += -D__mips_hard_float
-  endif
 
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
@@ -173,21 +157,15 @@ define build-libart-compiler
 
 endef
 
-# $(1): target or host
-# $(2): ndebug or debug
-define build-libart-compilers
-  $(foreach arch,arm mips x86,$(eval $(call build-libart-compiler,$(1),$(2),$(arch))))
-endef
-
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart-compiler,target,ndebug,$(TARGET_ARCH)))
+  $(eval $(call build-libart-compiler,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart-compiler,target,debug,$(TARGET_ARCH)))
+  $(eval $(call build-libart-compiler,target,debug))
 endif
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-libart-compilers,host,ndebug))
+  $(eval $(call build-libart-compiler,host,ndebug))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-libart-compilers,host,debug))
+  $(eval $(call build-libart-compiler,host,debug))
 endif

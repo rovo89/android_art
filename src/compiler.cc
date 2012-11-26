@@ -232,18 +232,7 @@ class AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
-static std::string MakeCompilerSoName(CompilerBackend compiler_backend, InstructionSet instruction_set) {
-  // TODO: is the ARM/Thumb2 instruction set distinction really buying us anything,
-  // or just causing hassle like this?
-  if (instruction_set == kThumb2) {
-    instruction_set = kArm;
-  }
-
-  // Lower case the instruction set, because that's what we do in the build system.
-  std::string instruction_set_name(ToStr<InstructionSet>(instruction_set).str());
-  for (size_t i = 0; i < instruction_set_name.size(); ++i) {
-    instruction_set_name[i] = tolower(instruction_set_name[i]);
-  }
+static std::string MakeCompilerSoName(CompilerBackend compiler_backend) {
 
   // Bad things happen if we pull in the libartd-compiler to a libart dex2oat or vice versa,
   // because we end up with both libart and libartd in the same address space!
@@ -254,7 +243,7 @@ static std::string MakeCompilerSoName(CompilerBackend compiler_backend, Instruct
   if ((compiler_backend == kPortable) || (compiler_backend == kIceland)) {
     library_name = StringPrintf("art%s-compiler-llvm", suffix);
   } else {
-    library_name = StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str());
+    library_name = StringPrintf("art%s-compiler", suffix);
   }
   std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
 
@@ -314,7 +303,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
       jni_compiler_(NULL),
       create_invoke_stub_(NULL)
 {
-  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_, instruction_set_));
+  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
     LOG(FATAL) << "Couldn't find compiler library " << compiler_so_name << ": " << dlerror();
@@ -402,7 +391,7 @@ Compiler::~Compiler() {
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
   typedef void (*UninitCompilerContextFn)(Compiler&);
-  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_, instruction_set_));
+  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   UninitCompilerContextFn uninit_compiler_context;
   // Uninitialize compiler_context_
   // TODO: rework to combine initialization/uninitialization
@@ -1753,8 +1742,7 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
   typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
 
   SetBitcodeFileNameFn set_bitcode_file_name =
-    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(compiler_backend_, instruction_set_),
-                                       compiler_library_,
+    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
                                        "compilerLLVMSetBitcodeFileName");
 
   set_bitcode_file_name(*this, filename);
