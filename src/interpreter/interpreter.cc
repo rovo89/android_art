@@ -696,9 +696,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetReferenceAndVReg(dec_insn.vA, s);
         break;
       }
-      case Instruction::CONST_CLASS:
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, mh.ResolveClass(dec_insn.vB));
+      case Instruction::CONST_CLASS: {
+        Class* c = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
+        shadow_frame.SetReferenceAndVReg(dec_insn.vA, c);
         break;
+      }
       case Instruction::MONITOR_ENTER: {
         Object* obj = shadow_frame.GetReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
@@ -718,7 +720,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CHECK_CAST: {
-        Class* c = mh.ResolveClass(dec_insn.vB);
+        Class* c = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
         if (UNLIKELY(c == NULL)) {
           CHECK(self->IsExceptionPending());
         } else {
@@ -733,7 +735,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::INSTANCE_OF: {
-        Class* c = mh.ResolveClass(dec_insn.vC);
+        Class* c = ResolveVerifyAndClinit(dec_insn.vC, shadow_frame.GetMethod(), self, false, true);
         if (UNLIKELY(c == NULL)) {
           CHECK(self->IsExceptionPending());
         } else {
@@ -767,7 +769,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         bool is_range = (dec_insn.opcode == Instruction::FILLED_NEW_ARRAY_RANGE);
         int32_t length = dec_insn.vA;
         CHECK(is_range || length <= 5);
-        Class* arrayClass = mh.ResolveClass(dec_insn.vB);
+        Class* arrayClass = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
         CHECK(arrayClass->IsArrayClass());
         if (arrayClass->GetComponentType()->IsPrimitiveInt()) {
           IntArray* newArray = IntArray::Alloc(self, length);
@@ -1761,6 +1763,10 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   if (code_item != NULL) {
     num_regs =  code_item->registers_size_;
     num_ins = code_item->ins_size_;
+  } else if (method->IsAbstract()) {
+    self->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;", "abstract method \"%s\"",
+                             PrettyMethod(method).c_str());
+    return;
   } else {
     DCHECK(method->IsNative());
     num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());

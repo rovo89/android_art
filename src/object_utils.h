@@ -677,14 +677,6 @@ class MethodHelper {
     return s;
   }
 
-  Class* ResolveClass(uint16_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* c = GetDexCacheResolvedType(type_idx);
-    if (UNLIKELY(c == NULL)) {
-      c = GetClassLinker()->ResolveType(GetDexFile(), type_idx, GetDexCache(), GetClassLoader());
-    }
-    return c;
-  }
-
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
