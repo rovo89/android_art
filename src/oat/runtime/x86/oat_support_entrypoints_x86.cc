@@ -233,8 +233,12 @@ void ChangeDebuggerEntryPoint(EntryPoints*, bool) {
   UNIMPLEMENTED(FATAL);
 }
 
-bool IsInstrumentationExitPc(uintptr_t) {
-  return false;
+uintptr_t GetInstrumentationExitPc() {
+  return 0;
+}
+
+uintptr_t GetDeoptimizationEntryPoint() {
+  return 0;
 }
 
 void* GetInstrumentationEntryPoint() {

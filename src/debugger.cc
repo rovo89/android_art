@@ -1558,7 +1558,7 @@ static int GetStackDepth(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
     CountStackDepthVisitor(const ManagedStack* stack,
-                           const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                           const std::deque<InstrumentationStackFrame>* instrumentation_stack)
         : StackVisitor(stack, instrumentation_stack, NULL), depth(0) {}
 
     bool VisitFrame() {
@@ -1585,10 +1585,12 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   return GetStackDepth(DecodeThread(soa, threadId));
 }
 
-JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf) {
+JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
+                                     size_t frame_count, JDWP::ExpandBuf* buf) {
   class GetFrameVisitor : public StackVisitor {
    public:
-    GetFrameVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+    GetFrameVisitor(const ManagedStack* stack,
+                    const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                     size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, instrumentation_stack, NULL), depth_(0),
@@ -1627,7 +1629,8 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, thread_id);  // Caller already checked thread is suspended.
-  GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), start_frame, frame_count, buf);
+  GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(),
+                          start_frame, frame_count, buf);
   visitor.WalkStack();
   return JDWP::ERR_NONE;
 }
@@ -1695,7 +1698,8 @@ void Dbg::SuspendSelf() {
 }
 
 struct GetThisVisitor : public StackVisitor {
-  GetThisVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+  GetThisVisitor(const ManagedStack* stack,
+                 const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                  Context* context, JDWP::FrameId frameId)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, context), this_object(NULL), frame_id(frameId) {}
@@ -1758,7 +1762,8 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
 void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                         uint8_t* buf, size_t width) {
   struct GetLocalVisitor : public StackVisitor {
-    GetLocalVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+    GetLocalVisitor(const ManagedStack* stack,
+                    const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                     Context* context, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                     uint8_t* buf, size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -1894,7 +1899,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
 void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                         uint64_t value, size_t width) {
   struct SetLocalVisitor : public StackVisitor {
-    SetLocalVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack, Context* context,
+    SetLocalVisitor(const ManagedStack* stack, const std::deque<InstrumentationStackFrame>* instrumentation_stack, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
                     size_t width)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -2193,7 +2198,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 
   struct SingleStepStackVisitor : public StackVisitor {
     SingleStepStackVisitor(const ManagedStack* stack,
-                           const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                           const std::deque<InstrumentationStackFrame>* instrumentation_stack)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, instrumentation_stack, NULL) {
@@ -3179,7 +3184,8 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
 
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(const ManagedStack* stack,
-                          const std::vector<InstrumentationStackFrame>* instrumentation_stack, AllocRecord* record)
+                          const std::deque<InstrumentationStackFrame>* instrumentation_stack,
+                          AllocRecord* record)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, NULL), record(record), depth(0) {}
 

@@ -331,7 +331,8 @@ class PACKED(4) ManagedStack {
 
 class StackVisitor {
  protected:
-  StackVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+  StackVisitor(const ManagedStack* stack,
+               const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                Context* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : stack_start_(stack), instrumentation_stack_(instrumentation_stack), cur_shadow_frame_(NULL),
@@ -388,7 +389,7 @@ class StackVisitor {
 
   size_t GetNumFrames() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (num_frames_ == 0) {
-      num_frames_ = ComputeNumFrames();
+      num_frames_ = ComputeNumFrames(stack_start_, instrumentation_stack_);
     }
     return num_frames_;
   }
@@ -492,17 +493,24 @@ class StackVisitor {
 
   std::string DescribeLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static size_t ComputeNumFrames(const ManagedStack* stack,
+                                 const std::deque<InstrumentationStackFrame>* instr_stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void DescribeStack(const ManagedStack* stack,
+                            const std::deque<InstrumentationStackFrame>* instr_stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
-  size_t ComputeNumFrames() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const {
-    return instrumentation_stack_->at(instrumentation_stack_->size() - depth - 1);
+    return instrumentation_stack_->at(depth);
   }
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const ManagedStack* const stack_start_;
-  const std::vector<InstrumentationStackFrame>* const instrumentation_stack_;
+  const std::deque<InstrumentationStackFrame>* const instrumentation_stack_;
   ShadowFrame* cur_shadow_frame_;
   AbstractMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;

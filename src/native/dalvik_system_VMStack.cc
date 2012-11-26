@@ -51,7 +51,8 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
   }
 }
 
-static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {
+static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread,
+                                           jobjectArray javaSteArray) {
   jobject trace = GetThreadStack(env, javaThread);
   if (trace == NULL) {
     return 0;
@@ -69,10 +70,11 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
-static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
+static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap,
+                                                 jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
     ClosestUserClassLoaderVisitor(const ManagedStack* stack,
-                                  const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+                                  const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                                   Object* bootstrap, Object* system)
       : StackVisitor(stack, instrumentation_stack, NULL),
         bootstrap(bootstrap), system(system), class_loader(NULL) {}

@@ -27,7 +27,6 @@
 #if defined(__arm__)
 #define rSUSPEND r4
 #define rSELF r9
-#define rLR r14
 // Offset of field Thread::suspend_count_ verified in InitCpu
 #define THREAD_FLAGS_OFFSET 0
 // Offset of field Thread::exception_ verified in InitCpu

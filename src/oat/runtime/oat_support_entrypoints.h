@@ -146,8 +146,11 @@ void InitEntryPoints(EntryPoints* points);
 // Change the debugger entry point in the data structure.
 void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled);
 
-// Is the given return_pc the instrumentation exit return pc?
-bool IsInstrumentationExitPc(uintptr_t pc);
+// The return_pc of instrumentation exit stub.
+uintptr_t GetInstrumentationExitPc();
+
+// Entry point for deoptimization.
+uintptr_t GetDeoptimizationEntryPoint();
 
 // Return address of instrumentation stub.
 void* GetInstrumentationEntryPoint();

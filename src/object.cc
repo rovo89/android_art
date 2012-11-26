@@ -591,8 +591,8 @@ uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
       return mapping_table[i + 1];
     }
   }
-  LOG(FATAL) << "Failed to find Dex offset for PC offset 0x" << std::hex << sought_offset
-             << " in " << PrettyMethod(this);
+  LOG(ERROR) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
+             << "(PC " << reinterpret_cast<void*>(pc) << ") in " << PrettyMethod(this);
   return DexFile::kDexNoIndex;
 #else
   // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.

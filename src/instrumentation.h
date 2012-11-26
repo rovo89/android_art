@@ -35,12 +35,13 @@ class Thread;
 uint32_t InstrumentationMethodUnwindFromCode(Thread* self);
 
 struct InstrumentationStackFrame {
-  InstrumentationStackFrame(AbstractMethod* method, uintptr_t return_pc)
-      : method_(method), return_pc_(return_pc) {
+  InstrumentationStackFrame() : method_(NULL), return_pc_(0), frame_id_(0) {}
+  InstrumentationStackFrame(AbstractMethod* method, uintptr_t return_pc, size_t frame_id)
+      : method_(method), return_pc_(return_pc), frame_id_(frame_id) {
   }
-
   AbstractMethod* method_;
   uintptr_t return_pc_;
+  size_t frame_id_;
 };
 
 class Instrumentation {
@@ -49,7 +50,7 @@ class Instrumentation {
   ~Instrumentation();
 
   // Replaces code of each method with a pointer to a stub for method tracing.
-  void InstallStubs();
+  void InstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Restores original code for each method and fixes the return values of each thread's stack.
   void UninstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);

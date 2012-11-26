@@ -41,7 +41,7 @@ static int gJava_StackWalk_refmap_calls = 0;
 
 struct TestReferenceMapVisitor : public StackVisitor {
   explicit TestReferenceMapVisitor(const ManagedStack* stack,
-                                   const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                                   const std::deque<InstrumentationStackFrame>* instrumentation_stack)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, NULL) {
   }

@@ -72,28 +72,83 @@ static bool UninstallStubsClassVisitor(Class* klass, void*)
   return true;
 }
 
-static void InstrumentationRestoreStack(Thread* self, void*) NO_THREAD_SAFETY_ANALYSIS {
-  struct RestoreStackVisitor : public StackVisitor {
-    RestoreStackVisitor(Thread* self)
-        : StackVisitor(self->GetManagedStack(), self->GetInstrumentationStack(), NULL), self_(self) {}
+void InstrumentationInstallStack(Thread* self, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  struct InstallStackVisitor : public StackVisitor {
+    InstallStackVisitor(Thread* self, uintptr_t instrumentation_exit_pc)
+        : StackVisitor(self->GetManagedStack(), self->GetInstrumentationStack(), NULL),
+          self_(self), instrumentation_exit_pc_(instrumentation_exit_pc) {}
 
-    virtual bool VisitFrame() {
+    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      if (GetCurrentQuickFrame() == NULL) {
+        return true;  // Ignore shadow frames.
+      }
+      AbstractMethod* m = GetMethod();
+      if (m == NULL) {
+        return true; // Ignore upcalls.
+      }
+      if (m->GetDexMethodIndex() == DexFile::kDexNoIndex16) {
+        return true;  // Ignore unresolved methods since they will be instrumented after resolution.
+      }
+      uintptr_t pc = GetReturnPc();
+      InstrumentationStackFrame instrumentation_frame(m, pc, GetFrameId());
+      self_->PushBackInstrumentationStackFrame(instrumentation_frame);
+      SetReturnPc(instrumentation_exit_pc_);
+      return true;  // Continue.
+    }
+    Thread* const self_;
+    const uintptr_t instrumentation_exit_pc_;
+  };
+  uintptr_t instrumentation_exit_pc = GetInstrumentationExitPc();
+  InstallStackVisitor visitor(self, instrumentation_exit_pc);
+  visitor.WalkStack(true);
+  Trace* trace = reinterpret_cast<Trace*>(arg);
+  if (trace != NULL) {
+    std::deque<InstrumentationStackFrame>::const_reverse_iterator it =
+        self->GetInstrumentationStack()->rbegin();
+    std::deque<InstrumentationStackFrame>::const_reverse_iterator end =
+        self->GetInstrumentationStack()->rend();
+    for (; it != end; ++it) {
+      trace->LogMethodTraceEvent(self, (*it).method_, Trace::kMethodTraceEnter);
+    }
+  }
+}
+
+static void InstrumentationRestoreStack(Thread* self, void*)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  struct RestoreStackVisitor : public StackVisitor {
+    RestoreStackVisitor(Thread* self, uintptr_t instrumentation_exit_pc)
+        : StackVisitor(self->GetManagedStack(), self->GetInstrumentationStack(), NULL),
+          self_(self), instrumentation_exit_pc_(instrumentation_exit_pc) {}
+
+    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (self_->IsInstrumentationStackEmpty()) {
         return false;  // Stop.
       }
+      AbstractMethod* m = GetMethod();
+      if (m == NULL) {
+        return true;  // Ignore upcalls.
+      }
       uintptr_t pc = GetReturnPc();
-      if (IsInstrumentationExitPc(pc)) {
+      if (pc == instrumentation_exit_pc_) {
         InstrumentationStackFrame instrumentation_frame = self_->PopInstrumentationStackFrame();
         SetReturnPc(instrumentation_frame.return_pc_);
-        CHECK(GetMethod() == instrumentation_frame.method_);
+        CHECK(m == instrumentation_frame.method_);
+        CHECK_EQ(GetFrameId(), instrumentation_frame.frame_id_);
+        Runtime* runtime = Runtime::Current();
+        if (runtime->IsMethodTracingActive()) {
+          Trace* trace = runtime->GetInstrumentation()->GetTrace();
+          trace->LogMethodTraceEvent(self_, m, Trace::kMethodTraceExit);
+        }
       }
       return true;  // Continue.
     }
-
-    Thread* self_;
+    Thread* const self_;
+    const uintptr_t instrumentation_exit_pc_;
   };
-  RestoreStackVisitor visitor(self);
-  visitor.WalkStack();
+  uintptr_t instrumentation_exit_pc = GetInstrumentationExitPc();
+  RestoreStackVisitor visitor(self, instrumentation_exit_pc);
+  visitor.WalkStack(true);
 }
 
 Instrumentation::~Instrumentation() {
@@ -101,7 +156,11 @@ Instrumentation::~Instrumentation() {
 }
 
 void Instrumentation::InstallStubs() {
+  Thread* self = Thread::Current();
+  Locks::thread_list_lock_->AssertNotHeld(self);
   Runtime::Current()->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, NULL);
+  MutexLock mu(self, *Locks::thread_list_lock_);
+  Runtime::Current()->GetThreadList()->ForEach(InstrumentationInstallStack, GetTrace());
 }
 
 void Instrumentation::UninstallStubs() {

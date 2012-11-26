@@ -142,10 +142,11 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
-size_t StackVisitor::ComputeNumFrames() const {
+size_t StackVisitor::ComputeNumFrames(const ManagedStack* stack,
+                                      const std::deque<InstrumentationStackFrame>* instr_stack) {
   struct NumFramesVisitor : public StackVisitor {
     explicit NumFramesVisitor(const ManagedStack* stack,
-                              const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                              const std::deque<InstrumentationStackFrame>* instrumentation_stack)
         : StackVisitor(stack, instrumentation_stack, NULL), frames(0) {}
 
     virtual bool VisitFrame() {
@@ -155,15 +156,35 @@ size_t StackVisitor::ComputeNumFrames() const {
 
     size_t frames;
   };
-
-  NumFramesVisitor visitor(stack_start_, instrumentation_stack_);
+  UNUSED(instr_stack);  // We don't use the instrumentation stack as we don't require dex pcs...
+  NumFramesVisitor visitor(stack, NULL);
   visitor.WalkStack(true);
   return visitor.frames;
 }
 
+void StackVisitor::DescribeStack(const ManagedStack* stack,
+                                 const std::deque<InstrumentationStackFrame>* instr_stack) {
+  struct DescribeStackVisitor : public StackVisitor {
+    explicit DescribeStackVisitor(const ManagedStack* stack,
+                              const std::deque<InstrumentationStackFrame>* instrumentation_stack)
+        : StackVisitor(stack, instrumentation_stack, NULL) {}
+
+    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();
+      return true;
+    }
+  };
+  DescribeStackVisitor visitor(stack, instr_stack);
+  visitor.WalkStack(true);
+}
+
 std::string StackVisitor::DescribeLocation() const {
   std::string result("Visiting method '");
-  result += PrettyMethod(GetMethod());
+  AbstractMethod* m = GetMethod();
+  if (m == NULL) {
+    return "upcall";
+  }
+  result += PrettyMethod(m);
   result += StringPrintf("' at dex PC 0x%04zx", GetDexPc());
   if (!IsShadowFrame()) {
     result += StringPrintf(" (native PC %p)", reinterpret_cast<void*>(GetCurrentQuickFramePc()));
@@ -189,7 +210,7 @@ void StackVisitor::SanityCheckFrame() const {
 }
 
 void StackVisitor::WalkStack(bool include_transitions) {
-  bool method_tracing_active = Runtime::Current()->IsMethodTracingActive();
+  bool method_tracing_active = instrumentation_stack_ != NULL;
   uint32_t instrumentation_stack_depth = 0;
   for (const ManagedStack* current_fragment = stack_start_; current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
@@ -218,7 +239,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
           // TODO: stop using include_transitions as a proxy for is this the catch block visitor.
-          if (IsInstrumentationExitPc(return_pc) && !include_transitions) {
+          if (GetInstrumentationExitPc() == return_pc && !include_transitions) {
             // TODO: unify trace and managed stack.
             InstrumentationStackFrame instrumentation_frame = GetInstrumentationStackFrame(instrumentation_stack_depth);
             instrumentation_stack_depth++;

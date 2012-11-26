@@ -43,7 +43,7 @@ namespace art {
 
 struct ReferenceMap2Visitor : public StackVisitor {
   explicit ReferenceMap2Visitor(const ManagedStack* stack,
-                                const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                                const std::deque<InstrumentationStackFrame>* instrumentation_stack)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, NULL) {
   }

@@ -93,6 +93,21 @@ void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
 #endif
 }
 
+
+void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf, const JValue& ret_val) {
+  CHECK(sf != NULL);
+  deoptimization_shadow_frame_ = sf;
+  deoptimization_return_value_.SetJ(ret_val.GetJ());
+}
+
+ShadowFrame* Thread::GetAndClearDeoptimizationShadowFrame(JValue* ret_val) {
+  ShadowFrame* sf = deoptimization_shadow_frame_;
+  DCHECK(sf != NULL);
+  deoptimization_shadow_frame_ = NULL;
+  ret_val->SetJ(deoptimization_return_value_.GetJ());
+  return sf;
+}
+
 void Thread::InitTid() {
   tid_ = ::art::GetTid();
 }
@@ -965,7 +980,7 @@ Thread::Thread(bool daemon)
       throwing_OutOfMemoryError_(false),
       debug_suspend_count_(0),
       debug_invoke_req_(new DebugInvokeReq),
-      instrumentation_stack_(new std::vector<InstrumentationStackFrame>),
+      instrumentation_stack_(new std::deque<InstrumentationStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
       daemon_(daemon),
       pthread_self_(0),
@@ -1240,7 +1255,7 @@ void Thread::NotifyLocked(Thread* self) {
 class CountStackDepthVisitor : public StackVisitor {
  public:
   CountStackDepthVisitor(const ManagedStack* stack,
-                         const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                         const std::deque<InstrumentationStackFrame>* instrumentation_stack)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, NULL),
         depth_(0), skip_depth_(0), skipping_(true) {}
@@ -1281,7 +1296,7 @@ class CountStackDepthVisitor : public StackVisitor {
 class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
   explicit BuildInternalStackTraceVisitor(Thread* self, const ManagedStack* stack,
-                                          const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+                                          const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                                           int skip_depth)
       : StackVisitor(stack, instrumentation_stack, NULL), self_(self),
         skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL), method_trace_(NULL) {}
@@ -1360,8 +1375,8 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa)
   int32_t skip_depth = count_visitor.GetSkipDepth();
 
   // Build internal stack trace.
-  BuildInternalStackTraceVisitor build_trace_visitor(soa.Self(), GetManagedStack(), GetInstrumentationStack(),
-                                                     skip_depth);
+  BuildInternalStackTraceVisitor build_trace_visitor(soa.Self(), GetManagedStack(),
+                                                     GetInstrumentationStack(), skip_depth);
   if (!build_trace_visitor.Init(depth)) {
     return NULL;  // Allocation failed.
   }
@@ -1703,7 +1718,8 @@ class CatchBlockStackVisitor : public StackVisitor {
         native_method_count_++;
       } else {
         // Unwind stack when an exception occurs during instrumentation
-        if (UNLIKELY(method_tracing_active_ && IsInstrumentationExitPc(GetCurrentQuickFramePc()))) {
+        if (UNLIKELY(method_tracing_active_ &&
+                     GetInstrumentationExitPc() == GetCurrentQuickFramePc())) {
           uintptr_t pc = InstrumentationMethodUnwindFromCode(Thread::Current());
           dex_pc = method->ToDexPc(pc);
         } else {
@@ -1802,7 +1818,7 @@ Context* Thread::GetLongJumpContext() {
 AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(const ManagedStack* stack,
-                         const std::vector<InstrumentationStackFrame>* instrumentation_stack)
+                         const std::deque<InstrumentationStackFrame>* instrumentation_stack)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, instrumentation_stack, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
@@ -1844,7 +1860,8 @@ bool Thread::HoldsLock(Object* object) {
 template <typename RootVisitor>
 class ReferenceMapVisitor : public StackVisitor {
  public:
-  ReferenceMapVisitor(const ManagedStack* stack, const std::vector<InstrumentationStackFrame>* instrumentation_stack,
+  ReferenceMapVisitor(const ManagedStack* stack,
+                      const std::deque<InstrumentationStackFrame>* instrumentation_stack,
                       Context* context, const RootVisitor& visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, instrumentation_stack, context), visitor_(visitor) {}
@@ -2013,8 +2030,8 @@ void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   VerifyCallbackVisitor visitorToCallback(visitor, arg);
-  ReferenceMapVisitor<VerifyCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(), context,
-                                                  visitorToCallback);
+  ReferenceMapVisitor<VerifyCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(),
+                                                    context, visitorToCallback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
 }

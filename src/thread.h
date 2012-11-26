@@ -20,15 +20,16 @@
 #include <pthread.h>
 
 #include <bitset>
+#include <deque>
 #include <iosfwd>
 #include <list>
 #include <string>
-#include <vector>
 
 #include "base/macros.h"
 #include "closure.h"
 #include "globals.h"
 #include "instrumentation.h"
+#include "jvalue.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "locks.h"
 #include "offsets.h"
@@ -566,7 +567,11 @@ class PACKED(4) Thread {
 
   void SetDebuggerUpdatesEnabled(bool enabled);
 
-  const std::vector<InstrumentationStackFrame>* GetInstrumentationStack() const {
+  void SetDeoptimizationShadowFrame(ShadowFrame* sf, const JValue& ret_val);
+
+  ShadowFrame* GetAndClearDeoptimizationShadowFrame(JValue* ret_val);
+
+  const std::deque<InstrumentationStackFrame>* GetInstrumentationStack() const {
     return instrumentation_stack_;
   }
 
@@ -575,12 +580,16 @@ class PACKED(4) Thread {
   }
 
   void PushInstrumentationStackFrame(const InstrumentationStackFrame& frame) {
+    instrumentation_stack_->push_front(frame);
+  }
+
+  void PushBackInstrumentationStackFrame(const InstrumentationStackFrame& frame) {
     instrumentation_stack_->push_back(frame);
   }
 
   InstrumentationStackFrame PopInstrumentationStackFrame() {
-    InstrumentationStackFrame frame = instrumentation_stack_->back();
-    instrumentation_stack_->pop_back();
+    InstrumentationStackFrame frame = instrumentation_stack_->front();
+    instrumentation_stack_->pop_front();
     return frame;
   }
 
@@ -767,9 +776,13 @@ class PACKED(4) Thread {
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
 
+  // Shadow frame that is used temporarily during the deoptimization of a method.
+  ShadowFrame* deoptimization_shadow_frame_;
+  JValue deoptimization_return_value_;
+
   // Additional stack used by method instrumentation to store method and return pc values.
-  // Stored as a pointer since std::vector is not PACKED.
-  std::vector<InstrumentationStackFrame>* instrumentation_stack_;
+  // Stored as a pointer since std::deque is not PACKED.
+  std::deque<InstrumentationStackFrame>* instrumentation_stack_;
 
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;

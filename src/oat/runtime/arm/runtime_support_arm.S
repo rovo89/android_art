@@ -743,7 +743,7 @@ art_test_suspend:
     ldrh    r0, [rSELF, #THREAD_FLAGS_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
-    bxeq   rLR                                @ return if suspend_count_ == 0
+    bxeq   lr                                 @ return if suspend_count_ == 0
     mov    r0, rSELF
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
     mov    r1, sp
@@ -780,19 +780,54 @@ art_proxy_invoke_handler:
      */
     ALIGN_FUNCTION_ENTRY
 art_instrumentation_entry_from_code:
+    mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r3}        @ save arguments (4 words)
     mov   r1, r9         @ pass Thread::Current
-    mov   r2, lr         @ pass LR
-    blx   artInstrumentationMethodEntryFromCode  @ (Method*, Thread*, LR)
+    mov   r2, r12        @ pass SP
+    mov   r3, lr         @ pass LR
+    blx   artInstrumentationMethodEntryFromCode  @ (Method*, Thread*, SP, LR)
     mov   r12, r0        @ r12 holds reference to code
     pop   {r0-r3}        @ restore arguments
     blx   r12            @ call method
 art_instrumentation_exit_from_code:
+    mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r1}        @ save return value
-    blx   artInstrumentationMethodExitFromCode  @ ()
-    mov   lr, r0         @ restore link register
+    sub   sp, #8         @ align stack
+    mov   r0, r9         @ pass Thread::Current
+    mov   r1, r12        @ pass SP
+    blx   artInstrumentationMethodExitFromCode  @ (Thread*, SP)
+    add   sp, #8
+    mov   r2, r0         @ link register saved by instrumentation
+    mov   lr, r1         @ r1 is holding link register if we're to bounce to deoptimize
     pop   {r0, r1}       @ restore return value
-    bx    lr             @ return
+    bx    r2             @ return
+
+    .global art_deoptimize
+    .extern artDeoptimize
+    .extern artEnterInterpreterFromDeoptimize
+    /*
+     * The thread's enter interpreter flag is set and so we should transition to the interpreter
+     * rather than allow execution to continue in the frame below. There may be live results in
+     * registers depending on how complete the operation is when we safepoint - for example, a
+     * set operation may have completed while a get operation needs writing back into the vregs.
+     */
+    ALIGN_FUNCTION_ENTRY
+art_deoptimize:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    mov    r2, r9         @ Set up args.
+    mov    r3, sp
+    blx    artDeoptimize  @ artDeoptimize(return value, Thread*, SP)
+                          @ Returns caller method's frame size.
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0         @ Was the caller an upcall?
+    bxeq   lr             @ Return if caller was upcall.
+    add    r12, sp, r0    @ r12 == bottom of caller's frame.
+    ldr    lr, [r12, #-4] @ Restore lr.
+    mov    sp, r12        @ Remove frame.
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    blx     artEnterInterpreterFromDeoptimize  @ Enter interpreter, callee-save ends stack fragment.
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    bx lr                 @ Return to caller.
 
     .global art_mul_long
     /*

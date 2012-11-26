@@ -546,11 +546,11 @@ static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resu
 }
 
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                      ShadowFrame& shadow_frame) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                      ShadowFrame& shadow_frame, JValue result_register)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const uint16_t* insns = code_item->insns_;
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
   bool entry = (inst->GetDexPc(insns) == 0);
-  JValue result_register;
   while (true) {
     CheckSuspend(self);
     uint32_t dex_pc = inst->GetDexPc(insns);
@@ -1846,7 +1846,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     }
   }
   if (LIKELY(!method->IsNative())) {
-    JValue r = Execute(self, mh, code_item, *shadow_frame.get());
+    JValue r = Execute(self, mh, code_item, *shadow_frame.get(), JValue());
     if (result != NULL) {
       *result = r;
     }
@@ -1860,6 +1860,13 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     }
   }
   self->PopShadowFrame();
+}
+
+JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame, JValue ret_val)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  MethodHelper mh(shadow_frame.GetMethod());
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  return Execute(self, mh, code_item, shadow_frame, ret_val);
 }
 
 }  // namespace interpreter

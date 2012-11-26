@@ -256,6 +256,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_cast.cc \
 	src/oat/runtime/support_debug.cc \
 	src/oat/runtime/support_dexcache.cc \
+	src/oat/runtime/support_deoptimize.cc \
 	src/oat/runtime/support_field.cc \
 	src/oat/runtime/support_fillarray.cc \
 	src/oat/runtime/support_instrumentation.cc \

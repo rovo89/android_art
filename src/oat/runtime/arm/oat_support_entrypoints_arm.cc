@@ -138,6 +138,7 @@ extern "C" void art_throw_stack_overflow_from_code(void*);
 // Instrumentation entrypoints.
 extern "C" void art_instrumentation_entry_from_code(void*);
 extern "C" void art_instrumentation_exit_from_code();
+extern "C" void art_deoptimize();
 
 void InitEntryPoints(EntryPoints* points) {
   // Alloc
@@ -251,9 +252,12 @@ void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled) {
   points->pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
 }
 
-bool IsInstrumentationExitPc(uintptr_t pc) {
-  uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_instrumentation_exit_from_code);
-  return pc == trace_exit;
+uintptr_t GetInstrumentationExitPc() {
+  return reinterpret_cast<uintptr_t>(art_instrumentation_exit_from_code);
+}
+
+uintptr_t GetDeoptimizationEntryPoint() {
+  return reinterpret_cast<uintptr_t>(art_deoptimize);
 }
 
 void* GetInstrumentationEntryPoint() {
