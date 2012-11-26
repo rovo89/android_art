@@ -368,7 +368,6 @@ class Heap {
   GcType CollectGarbageInternal(GcType gc_plan, GcCause gc_cause, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
                      Locks::heap_bitmap_lock_,
-                     Locks::mutator_lock_,
                      Locks::thread_suspend_count_lock_);
 
   void PreGcVerification(GarbageCollector* gc);
@@ -378,7 +377,7 @@ class Heap {
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
   // collection.
-  void GrowForUtilization();
+  void GrowForUtilization(uint64_t gc_duration);
 
   size_t GetPercentFree();
 
@@ -442,7 +441,7 @@ class Heap {
   size_t growth_limit_;
   size_t max_allowed_footprint_;
 
-  // Bytes until concurrent GC starts.
+  // Minimum bytes before concurrent GC starts.
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
   size_t concurrent_start_bytes_;
@@ -485,6 +484,15 @@ class Heap {
 
   // Last trim time
   uint64_t last_trim_time_;
+
+  // The time at which the last GC ended.
+  uint64_t last_gc_time_;
+
+  // How many bytes were allocated at the end of the last GC.
+  uint64_t last_gc_size_;
+
+  // Estimated allocation rate (bytes / second).
+  uint64_t allocation_rate_;
 
   UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
   UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);

@@ -49,7 +49,7 @@ namespace art {
 
 static const uint64_t kSlowGcThreshold = MsToNs(100);
 static const uint64_t kLongGcPauseThreshold = MsToNs(5);
-static const bool kDumpGcPerformanceOnShutdown = true;
+static const bool kDumpGcPerformanceOnShutdown = false;
 const double Heap::kDefaultTargetUtilization = 0.5;
 
 static bool GenerateImage(const std::string& image_file_name) {
@@ -149,7 +149,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       max_allowed_footprint_(initial_size),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
-      concurrent_start_bytes_(initial_size - concurrent_start_size_),
+      concurrent_start_bytes_(concurrent_gc ? initial_size - concurrent_start_size_ :
+          std::numeric_limits<size_t>::max()),
       sticky_gc_count_(0),
       total_bytes_freed_(0),
       total_objects_freed_(0),
@@ -164,6 +165,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       min_alloc_space_size_for_sticky_gc_(2 * MB),
       min_remaining_space_for_sticky_gc_(1 * MB),
       last_trim_time_(0),
+      allocation_rate_(0),
       max_allocation_stack_size_(MB),
       reference_referent_offset_(0),
       reference_queue_offset_(0),
@@ -278,15 +280,18 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   live_stack_.reset(ObjectStack::Create("dalvik-live-stack",
                                       max_allocation_stack_size_));
 
-  // It's still too early to take a lock because there are no threads yet,
-  // but we can create the heap lock now. We don't create it earlier to
-  // make it clear that you can't use locks during heap initialization.
+  // It's still too early to take a lock because there are no threads yet, but we can create locks
+  // now. We don't create it earlier to make it clear that you can't use locks during heap
+  // initialization.
   gc_complete_lock_ = new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
 
   // Create the reference queue lock, this is required so for parrallel object scanning in the GC.
   reference_queue_lock_.reset(new Mutex("reference queue lock"));
+
+  last_gc_time_ = NanoTime();
+  last_gc_size_ = GetBytesAllocated();
 
   // Create our garbage collectors.
   for (size_t i = 0; i < 2; ++i) {
@@ -651,10 +656,7 @@ void Heap::RecordAllocation(size_t size, Object* obj) {
   // This is safe to do since the GC will never free objects which are neither in the allocation
   // stack or the live bitmap.
   while (!allocation_stack_->AtomicPushBack(obj)) {
-    Thread* self = Thread::Current();
-    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
     CollectGarbageInternal(kGcTypeSticky, kGcCauseForAlloc, false);
-    self->TransitionFromSuspendedToRunnable();
   }
 }
 
@@ -742,13 +744,10 @@ Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
     }
 
     if (run_gc) {
-      self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-
       // If we actually ran a different type of Gc than requested, we can skip the index forwards.
       GcType gc_type_ran = CollectGarbageInternal(gc_type, kGcCauseForAlloc, false);
-      DCHECK(static_cast<size_t>(gc_type_ran) >= i);
+      DCHECK_GE(static_cast<size_t>(gc_type_ran), i);
       i = static_cast<size_t>(gc_type_ran);
-      self->TransitionFromSuspendedToRunnable();
 
       // Did we free sufficient memory for the allocation to succeed?
       ptr = TryToAllocate(self, space, alloc_size, false);
@@ -774,9 +773,7 @@ Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
            << " allocation";
 
   // We don't need a WaitForConcurrentGcToComplete here either.
-  self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
   CollectGarbageInternal(kGcTypeFull, kGcCauseForAlloc, true);
-  self->TransitionFromSuspendedToRunnable();
   return TryToAllocate(self, space, alloc_size, true);
 }
 
@@ -868,8 +865,6 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   // last GC will not have necessarily been cleared.
   Thread* self = Thread::Current();
   WaitForConcurrentGcToComplete(self);
-  ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
-  // CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
   CollectGarbageInternal(kGcTypeFull, kGcCauseExplicit, clear_soft_references);
 }
 
@@ -958,8 +953,8 @@ void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, Obj
 
 GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear_soft_references) {
   Thread* self = Thread::Current();
+  ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
-  DCHECK_EQ(self->GetState(), kWaitingPerformingGc);
 
   if (self->IsHandlingStackOverflow()) {
     LOG(WARNING) << "Performing GC on a thread that is handling a stack overflow.";
@@ -997,6 +992,16 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
     sticky_gc_count_ = 0;
   }
 
+  uint64_t gc_start_time = NanoTime();
+  uint64_t gc_start_size = GetBytesAllocated();
+  // Approximate allocation rate in bytes / second.
+  DCHECK_NE(gc_start_time, last_gc_time_);
+  uint64_t ms_delta = NsToMs(gc_start_time - last_gc_time_);
+  if (ms_delta != 0) {
+    allocation_rate_ = (gc_start_size - last_gc_size_) * 1000 / ms_delta;
+    VLOG(heap) << "Allocation rate: " << PrettySize(allocation_rate_) << "/s";
+  }
+
   DCHECK_LT(gc_type, kGcTypeMax);
   DCHECK_NE(gc_type, kGcTypeNone);
   MarkSweep* collector = NULL;
@@ -1015,9 +1020,8 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
   collector->Run();
   total_objects_freed_ += collector->GetFreedObjects();
   total_bytes_freed_ += collector->GetFreedBytes();
-  RequestHeapTrim();
 
-  uint64_t duration = collector->GetDuration();
+  const size_t duration = collector->GetDuration();
   std::vector<uint64_t> pauses = collector->GetPauseTimes();
   bool was_slow = duration > kSlowGcThreshold ||
       (gc_cause == kGcCauseForAlloc && duration > kLongGcPauseThreshold);
@@ -1474,26 +1478,40 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   max_allowed_footprint_ = max_allowed_footprint;
 }
 
-void Heap::GrowForUtilization() {
+void Heap::GrowForUtilization(uint64_t gc_duration) {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
-  size_t target_size = num_bytes_allocated_ / GetTargetHeapUtilization();
-  if (target_size > num_bytes_allocated_ + max_free_) {
-    target_size = num_bytes_allocated_ + max_free_;
-  } else if (target_size < num_bytes_allocated_ + min_free_) {
-    target_size = num_bytes_allocated_ + min_free_;
-  }
+  const size_t bytes_allocated = GetBytesAllocated();
+  last_gc_size_ = bytes_allocated;
+  last_gc_time_ = NanoTime();
 
-  // Calculate when to perform the next ConcurrentGC.
-  if (GetFreeMemory() < concurrent_min_free_) {
-    // Not enough free memory to perform concurrent GC.
-    concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
-  } else {
-    // Start a concurrent Gc when we get close to the target size.
-    concurrent_start_bytes_ = target_size - concurrent_start_size_;
+  size_t target_size = bytes_allocated / GetTargetHeapUtilization();
+  if (target_size > bytes_allocated + max_free_) {
+    target_size = bytes_allocated + max_free_;
+  } else if (target_size < bytes_allocated + min_free_) {
+    target_size = bytes_allocated + min_free_;
   }
 
   SetIdealFootprint(target_size);
+
+  // Calculate when to perform the next ConcurrentGC if we have enough free memory.
+  if (concurrent_gc_ && GetFreeMemory() >= concurrent_min_free_) {
+    // Calculate the estimated GC duration.
+    double gc_duration_seconds = NsToMs(gc_duration) / 1000.0;
+    // Estimate how many remaining bytes we will have when we need to start the next GC.
+    size_t remaining_bytes = allocation_rate_ * gc_duration_seconds;
+    if (remaining_bytes < max_allowed_footprint_) {
+      // Start a concurrent GC when we get close to the estimated remaining bytes. When the
+      // allocation rate is very high, remaining_bytes could tell us that we should start a GC
+      // right away.
+      concurrent_start_bytes_ = std::max(max_allowed_footprint_ - remaining_bytes, bytes_allocated);
+    } else {
+      // The estimated rate is so high that we should request another GC straight away.
+      concurrent_start_bytes_ = bytes_allocated;
+    }
+    DCHECK_LE(concurrent_start_bytes_, max_allowed_footprint_);
+    DCHECK_LE(max_allowed_footprint_, growth_limit_);
+  }
 }
 
 void Heap::ClearGrowthLimit() {
@@ -1630,6 +1648,7 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
 void Heap::RequestConcurrentGC(Thread* self) {
   // Make sure that we can do a concurrent GC.
   Runtime* runtime = Runtime::Current();
+  DCHECK(concurrent_gc_);
   if (runtime == NULL || !runtime->IsFinishedStarting() ||
       !runtime->IsConcurrentGcEnabled()) {
     return;
@@ -1655,14 +1674,13 @@ void Heap::RequestConcurrentGC(Thread* self) {
 void Heap::ConcurrentGC(Thread* self) {
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-    if (Runtime::Current()->IsShuttingDown() || !concurrent_gc_) {
+    if (Runtime::Current()->IsShuttingDown()) {
       return;
     }
   }
 
+  // Wait for any GCs currently running to finish.
   if (WaitForConcurrentGcToComplete(self) == kGcTypeNone) {
-    // Start a concurrent GC as one wasn't in progress
-    ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
     if (alloc_space_->Size() > min_alloc_space_size_for_sticky_gc_) {
       CollectGarbageInternal(kGcTypeSticky, kGcCauseBackground, false);
     } else {

@@ -290,9 +290,6 @@ void MarkSweep::ReclaimPhase() {
     // Unbind the live and mark bitmaps.
     UnBindBitmaps();
   }
-
-  heap_->GrowForUtilization();
-  timings_.AddSplit("GrowForUtilization");
 }
 
 void MarkSweep::SwapBitmaps() {
@@ -1472,6 +1469,12 @@ void MarkSweep::FinishPhase() {
   heap_->EnqueueClearedReferences(&cleared_references);
 
   heap_->PostGcVerification(this);
+
+  heap_->GrowForUtilization(GetDuration());
+  timings_.AddSplit("GrowForUtilization");
+
+  heap_->RequestHeapTrim();
+  timings_.AddSplit("RequestHeapTrim");
 
   // Update the cumulative statistics
   total_time_ += GetDuration();
