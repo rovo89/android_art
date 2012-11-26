@@ -25,6 +25,7 @@
 #include "verifier/method_verifier.h"
 
 #include "compiler/compiler_ir.h"
+#include "compiler/codegen/codegen.h"
 using art::kMIRIgnoreNullCheck;
 using art::kMIRIgnoreRangeCheck;
 
