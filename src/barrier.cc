@@ -40,7 +40,7 @@ void Barrier::SetCountLocked(Thread* self, int count) {
 }
 
 Barrier::~Barrier() {
-  CHECK(!count_) << "Attempted to destory barrier with non zero count";
+  CHECK(!count_) << "Attempted to destroy barrier with non zero count";
 }
 
 }
