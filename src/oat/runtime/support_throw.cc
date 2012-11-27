@@ -35,7 +35,7 @@ extern "C" void* GetAndClearException(Thread* self) SHARED_LOCKS_REQUIRED(Locks:
 extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
-  thread->DeliverException();
+  thread->QuickDeliverException();
 }
 
 // Called by generated call to throw an exception.
@@ -50,12 +50,8 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
    * exception_ in thread and delivering the exception.
    */
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
-  if (exception == NULL) {
-    thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
-  } else {
-    thread->SetException(exception);
-  }
-  thread->DeliverException();
+  thread->DeliverException(exception);
+  thread->QuickDeliverException();
 }
 
 // Called by generated call to throw a NPE exception.
@@ -66,7 +62,7 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
   uint32_t dex_pc;
   AbstractMethod* throw_method = self->GetCurrentMethod(&dex_pc);
   ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
-  self->DeliverException();
+  self->QuickDeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception.
@@ -75,7 +71,7 @@ extern "C" void artThrowDivZeroFromCode(Thread* thread,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
-  thread->DeliverException();
+  thread->QuickDeliverException();
 }
 
 // Called by generated call to throw an array index out of bounds exception.
@@ -85,14 +81,14 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "length=%d; index=%d", limit, index);
-  thread->DeliverException();
+  thread->QuickDeliverException();
 }
 
 extern "C" void artThrowStackOverflowFromCode(Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowStackOverflowError(self);
-  self->DeliverException();
+  self->QuickDeliverException();
 }
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,
@@ -101,7 +97,7 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   AbstractMethod* method = self->GetCurrentMethod();
   ThrowNoSuchMethodError(method_idx, method);
-  self->DeliverException();
+  self->QuickDeliverException();
 }
 
 }  // namespace art

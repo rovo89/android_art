@@ -319,8 +319,16 @@ class PACKED Thread {
     DCHECK(!IsExceptionPending());
   }
 
+  void DeliverException(Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (exception == NULL) {
+      ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
+    } else {
+      SetException(exception);
+    }
+  }
+
   // Find catch block and perform long jump to appropriate exception handle
-  void DeliverException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void QuickDeliverException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Context* GetLongJumpContext();
   void ReleaseLongJumpContext(Context* context) {

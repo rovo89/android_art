@@ -862,7 +862,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::THROW: {
         Throwable* t = shadow_frame.GetReference(dec_insn.vA)->AsThrowable();
-        self->SetException(t);
+        self->DeliverException(t);
         break;
       }
       case Instruction::GOTO:
@@ -918,12 +918,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILL_ARRAY_DATA: {
-        Array* array = shadow_frame.GetReference(dec_insn.vA)->AsArray();
-        if (UNLIKELY(array == NULL)) {
+        Object* obj = shadow_frame.GetReference(dec_insn.vA);
+        if (UNLIKELY(obj == NULL)) {
           Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
               "null array in FILL_ARRAY_DATA");
           break;
         }
+        Array* array = obj->AsArray();
         DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
         uint32_t dex_pc = inst->GetDexPc(insns);
         const Instruction::ArrayDataPayload* payload =
@@ -1023,151 +1024,150 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_BOOLEAN: {
-        BooleanArray* a = shadow_frame.GetReference(dec_insn.vB)->AsBooleanArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVReg(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVReg(dec_insn.vA, a->AsBooleanArray()->Get(index));
         break;
       }
       case Instruction::AGET_BYTE: {
-        ByteArray* a = shadow_frame.GetReference(dec_insn.vB)->AsByteArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVReg(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVReg(dec_insn.vA, a->AsByteArray()->Get(index));
         break;
       }
       case Instruction::AGET_CHAR: {
-        CharArray* a = shadow_frame.GetReference(dec_insn.vB)->AsCharArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVReg(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVReg(dec_insn.vA, a->AsCharArray()->Get(index));
         break;
       }
       case Instruction::AGET_SHORT: {
-        ShortArray* a = shadow_frame.GetReference(dec_insn.vB)->AsShortArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVReg(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVReg(dec_insn.vA, a->AsShortArray()->Get(index));
         break;
       }
       case Instruction::AGET: {
-        IntArray* a = shadow_frame.GetReference(dec_insn.vB)->AsIntArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVReg(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVReg(dec_insn.vA, a->AsIntArray()->Get(index));
         break;
       }
       case Instruction::AGET_WIDE:  {
-        LongArray* a = shadow_frame.GetReference(dec_insn.vB)->AsLongArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        shadow_frame.SetVRegLong(dec_insn.vA, a->Get(index));
+        shadow_frame.SetVRegLong(dec_insn.vA, a->AsLongArray()->Get(index));
         break;
       }
       case Instruction::AGET_OBJECT: {
-        ObjectArray<Object>* a = shadow_frame.GetReference(dec_insn.vB)->AsObjectArray<Object>();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        Object* o = a->Get(index);
-        shadow_frame.SetReferenceAndVReg(dec_insn.vA, o);
+        shadow_frame.SetReferenceAndVReg(dec_insn.vA, a->AsObjectArray<Object>()->Get(index));
         break;
       }
       case Instruction::APUT_BOOLEAN: {
         uint8_t val = shadow_frame.GetVReg(dec_insn.vA);
-        BooleanArray* a = shadow_frame.GetReference(dec_insn.vB)->AsBooleanArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsBooleanArray()->Set(index, val);
         break;
       }
       case Instruction::APUT_BYTE: {
         int8_t val = shadow_frame.GetVReg(dec_insn.vA);
-        ByteArray* a = shadow_frame.GetReference(dec_insn.vB)->AsByteArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsByteArray()->Set(index, val);
         break;
       }
       case Instruction::APUT_CHAR: {
         uint16_t val = shadow_frame.GetVReg(dec_insn.vA);
-        CharArray* a = shadow_frame.GetReference(dec_insn.vB)->AsCharArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsCharArray()->Set(index, val);
         break;
       }
       case Instruction::APUT_SHORT: {
         int16_t val = shadow_frame.GetVReg(dec_insn.vA);
-        ShortArray* a = shadow_frame.GetReference(dec_insn.vB)->AsShortArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsShortArray()->Set(index, val);
         break;
       }
       case Instruction::APUT: {
         int32_t val = shadow_frame.GetVReg(dec_insn.vA);
-        IntArray* a = shadow_frame.GetReference(dec_insn.vB)->AsIntArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsIntArray()->Set(index, val);
         break;
       }
       case Instruction::APUT_WIDE: {
         int64_t val = shadow_frame.GetVRegLong(dec_insn.vA);
-        LongArray* a = shadow_frame.GetReference(dec_insn.vB)->AsLongArray();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsLongArray()->Set(index, val);
         break;
       }
       case Instruction::APUT_OBJECT: {
         Object* val = shadow_frame.GetReference(dec_insn.vA);
-        ObjectArray<Object>* a = shadow_frame.GetReference(dec_insn.vB)->AsObjectArray<Object>();
+        Object* a = shadow_frame.GetReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
-        a->Set(index, val);
+        a->AsObjectArray<Object>()->Set(index, val);
         break;
       }
       case Instruction::IGET_BOOLEAN:
@@ -1787,8 +1787,11 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     shadow_frame->SetReferenceAndVReg(cur_reg, receiver);
     ++cur_reg;
   } else if (!method->GetDeclaringClass()->IsInitializing()) {
-    Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
-                                                            true, true);
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
+                                                                 true, true)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return;
+    }
     CHECK(method->GetDeclaringClass()->IsInitializing());
   }
   const char* shorty = mh.GetShorty();

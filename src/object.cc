@@ -1480,7 +1480,7 @@ bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
 
 bool Array::ThrowArrayStoreException(Object* object) const {
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-      "Can't store an element of type %s into an array of type %s",
+      "%s cannot be stored in an array of type %s",
       PrettyTypeOf(object).c_str(), PrettyTypeOf(this).c_str());
   return false;
 }

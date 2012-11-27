@@ -96,7 +96,7 @@ public class Main {
     static class FieldThread extends Thread {
         public void run() {
             /* allow SlowInit's <clinit> to start */
-            Main.sleep(1000);
+            Main.sleep(5000);
 
             /* collect fields; should delay until class init completes */
             int field0, field1, field2, field3;
@@ -115,7 +115,7 @@ public class Main {
     static class MethodThread extends Thread {
         public void run() {
             /* allow SlowInit's <clinit> to start */
-            Main.sleep(1000);
+            Main.sleep(5000);
 
             /* use a method that shouldn't be accessible yet */
             SlowInit.printMsg("MethodThread message");

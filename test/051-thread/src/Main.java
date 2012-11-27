@@ -67,6 +67,10 @@ public class Main {
             synchronized (MyThread.class) {
                 ++mCount;
             }
+            try {
+                sleep(1000);
+            } catch (Exception ex) {
+            }
         }
     }
 }
