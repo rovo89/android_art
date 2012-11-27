@@ -21,6 +21,7 @@
 #include <cstring>
 #include <iostream>  // NOLINT
 #include <sstream>
+#include <signal.h>
 #include "log_severity.h"
 #include "macros.h"
 
@@ -167,13 +168,7 @@ EAGER_PTR_EVALUATOR(signed char*, signed char*);
 // lots of checks/logging in a function.
 struct LogMessageData {
  public:
-  LogMessageData(int line, LogSeverity severity, int error)
-      : file(NULL),
-        line_number(line),
-        severity(severity),
-        error(error) {
-  }
-
+  LogMessageData(const char* file, int line, LogSeverity severity, int error);
   std::ostringstream buffer;
   const char* file;
   int line_number;
@@ -186,15 +181,18 @@ struct LogMessageData {
 
 class LogMessage {
  public:
-  LogMessage(const char* file, int line, LogSeverity severity, int error);
+  LogMessage(const char* file, int line, LogSeverity severity, int error)
+    : data_(new LogMessageData(file, line, severity, error)) {
+  }
   ~LogMessage() LOCKS_EXCLUDED(Locks::logging_lock_);
   std::ostream& stream();
 
  private:
-  void LogLine(const char*);
+  static void LogLine(const LogMessageData& data, const char*);
 
   LogMessageData* data_;
 
+  friend void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context);
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 

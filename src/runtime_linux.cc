@@ -227,7 +227,15 @@ struct UContext {
   mcontext_t& context;
 };
 
-static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
+void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
+  static bool handlingUnexpectedSignal = false;
+  if (handlingUnexpectedSignal) {
+    LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
+    LogMessage::LogLine(data, "HandleUnexpectedSignal reentered\n");
+    _exit(1);
+  }
+  handlingUnexpectedSignal = true;
+
   gAborting = true;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 

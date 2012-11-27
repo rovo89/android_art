@@ -27,17 +27,11 @@
 
 namespace art {
 
-LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
-    : data_(new LogMessageData(line, severity, error)) {
-  const char* last_slash = strrchr(file, '/');
-  data_->file = (last_slash == NULL) ? file : last_slash + 1;
-}
-
-void LogMessage::LogLine(const char* message) {
-  char severity = "VDIWEFF"[data_->severity];
+void LogMessage::LogLine(const LogMessageData& data, const char* message) {
+  char severity = "VDIWEFF"[data.severity];
   fprintf(stderr, "%s %c %5d %5d %s:%d] %s\n",
           ProgramInvocationShortName(), severity, getpid(), ::art::GetTid(),
-          data_->file, data_->line_number, message);
+          data.file, data.line_number, message);
 }
 
 }  // namespace art

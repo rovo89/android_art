@@ -94,6 +94,15 @@ void InitLogging(char* argv[]) {
   }
 }
 
+LogMessageData::LogMessageData(const char* file, int line, LogSeverity severity, int error)
+    : file(file),
+      line_number(line),
+      severity(severity),
+      error(error) {
+  const char* last_slash = strrchr(file, '/');
+  file = (last_slash == NULL) ? file : last_slash + 1;
+}
+
 LogMessage::~LogMessage() {
   if (data_->severity < gMinimumLogSeverity) {
     return; // No need to format something we're not going to output.
@@ -109,14 +118,14 @@ LogMessage::~LogMessage() {
   {
     MutexLock mu(Thread::Current(), *Locks::logging_lock_);
     if (msg.find('\n') == std::string::npos) {
-      LogLine(msg.c_str());
+      LogLine(*data_, msg.c_str());
     } else {
       msg += '\n';
       size_t i = 0;
       while (i < msg.size()) {
         size_t nl = msg.find('\n', i);
         msg[nl] = '\0';
-        LogLine(&msg[i]);
+        LogLine(*data_, &msg[i]);
         i = nl + 1;
       }
     }

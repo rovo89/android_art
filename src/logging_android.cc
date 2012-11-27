@@ -29,17 +29,11 @@ static const int kLogSeverityToAndroidLogPriority[] = {
   ANDROID_LOG_ERROR, ANDROID_LOG_FATAL, ANDROID_LOG_FATAL
 };
 
-LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
-    : data_(new LogMessageData(line, severity, error)) {
-  const char* last_slash = strrchr(file, '/');
-  data_->file = (last_slash == NULL) ? file : last_slash + 1;
-}
-
-void LogMessage::LogLine(const char* message) {
+void LogMessage::LogLine(const LogMessageData& data, const char* message) {
   const char* tag = ProgramInvocationShortName();
-  int priority = kLogSeverityToAndroidLogPriority[data_->severity];
+  int priority = kLogSeverityToAndroidLogPriority[data.severity];
   if (priority == ANDROID_LOG_FATAL) {
-    LOG_PRI(priority, tag, "%s:%d] %s", data_->file, data_->line_number, message);
+    LOG_PRI(priority, tag, "%s:%d] %s", data.file, data.line_number, message);
   } else {
     LOG_PRI(priority, tag, "%s", message);
   }
