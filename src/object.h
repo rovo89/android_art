@@ -1110,7 +1110,7 @@ class MANAGED Array : public Object {
  protected:
   bool IsValidIndex(int32_t index) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(index < 0 || index >= length_)) {
+    if (UNLIKELY(index < 0 || index >= GetLength())) {
       return ThrowArrayIndexOutOfBoundsException(index);
     }
     return true;
