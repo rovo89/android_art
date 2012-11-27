@@ -72,7 +72,9 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
   DumpUnattachedThreads(os);
 }
 
-static void DumpUnattachedThread(std::ostream& os, pid_t tid) {
+static void DumpUnattachedThread(std::ostream& os, pid_t tid) NO_THREAD_SAFETY_ANALYSIS {
+  // TODO: No thread safety analysis as DumpState with a NULL thread won't access fields, should
+  // refactor DumpState to avoid skipping analysis.
   Thread::DumpState(os, NULL, tid);
   DumpKernelStack(os, tid, "  kernel: ", false);
   // TODO: Reenable this when the native code in system_server can handle it.
@@ -540,17 +542,22 @@ void ThreadList::Unregister(Thread* self) {
   // suspend and so on, must happen at this point, and not in ~Thread.
   self->Destroy();
 
-  {
-    // Remove this thread from the list.
+  uint32_t thin_lock_id = self->thin_lock_id_;
+  self->thin_lock_id_ = 0;
+  ReleaseThreadId(self, thin_lock_id);
+  while (self != NULL) {
+    // Remove and delete the Thread* while holding the thread_list_lock_ and
+    // thread_suspend_count_lock_ so that the unregistering thread cannot be suspended.
     MutexLock mu(self, *Locks::thread_list_lock_);
     CHECK(Contains(self));
-    list_.remove(self);
+    // Note: we don't take the thread_suspend_count_lock_ here as to be suspending a thread other
+    // than yourself you need to hold the thread_list_lock_ (see Thread::ModifySuspendCount).
+    if (!self->IsSuspended()) {
+      list_.remove(self);
+      delete self;
+      self = NULL;
+    }
   }
-
-  // Delete the Thread* and release the thin lock id.
-  uint32_t thin_lock_id = self->thin_lock_id_;
-  ReleaseThreadId(thin_lock_id);
-  delete self;
 
   // Clear the TLS data, so that the underlying native thread is recognizably detached.
   // (It may wish to reattach later.)
@@ -581,8 +588,8 @@ void ThreadList::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) const 
   }
 }
 
-uint32_t ThreadList::AllocThreadId() {
-  MutexLock mu(Thread::Current(), allocated_ids_lock_);
+uint32_t ThreadList::AllocThreadId(Thread* self) {
+  MutexLock mu(self, allocated_ids_lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);
@@ -593,8 +600,8 @@ uint32_t ThreadList::AllocThreadId() {
   return 0;
 }
 
-void ThreadList::ReleaseThreadId(uint32_t id) {
-  MutexLock mu(Thread::Current(), allocated_ids_lock_);
+void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
+  MutexLock mu(self, allocated_ids_lock_);
   --id; // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);

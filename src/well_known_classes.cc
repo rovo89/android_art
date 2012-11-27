@@ -57,7 +57,6 @@ jmethodID WellKnownClasses::java_lang_Double_valueOf;
 jmethodID WellKnownClasses::java_lang_Float_valueOf;
 jmethodID WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
-jmethodID WellKnownClasses::java_lang_Object_notify;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
@@ -151,9 +150,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Daemons_requestGC = CacheMethod(env, java_lang_Daemons, true, "requestGC", "()V");
   java_lang_Daemons_requestHeapTrim = CacheMethod(env, java_lang_Daemons, true, "requestHeapTrim", "()V");
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
-
-  ScopedLocalRef<jclass> java_lang_Object(env, env->FindClass("java/lang/Object"));
-  java_lang_Object_notify = CacheMethod(env, java_lang_Object.get(), false, "notify", "()V");
 
   ScopedLocalRef<jclass> java_lang_ref_FinalizerReference(env, env->FindClass("java/lang/ref/FinalizerReference"));
   java_lang_ref_FinalizerReference_add = CacheMethod(env, java_lang_ref_FinalizerReference.get(), true, "add", "(Ljava/lang/Object;)V");

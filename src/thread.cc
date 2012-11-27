@@ -121,6 +121,13 @@ void* Thread::CreateCallback(void* arg) {
   }
   {
     ScopedObjectAccess soa(self);
+
+    // Copy peer into self, deleting global reference when done.
+    CHECK(self->jpeer_ != NULL);
+    self->opeer_ = soa.Decode<Object*>(self->jpeer_);
+    self->GetJniEnv()->DeleteGlobalRef(self->jpeer_);
+    self->jpeer_ = NULL;
+
     {
       SirtRef<String> thread_name(self, self->GetThreadName(soa));
       self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
@@ -128,10 +135,10 @@ void* Thread::CreateCallback(void* arg) {
     Dbg::PostThreadStart(self);
 
     // Invoke the 'run' method of our java.lang.Thread.
-    CHECK(self->peer_ != NULL);
-    Object* receiver = soa.Decode<Object*>(self->peer_);
+    Object* receiver = self->opeer_;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    AbstractMethod* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
+    AbstractMethod* m =
+        receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     m->Invoke(self, receiver, NULL, NULL);
   }
   // Detach and delete self.
@@ -244,7 +251,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
 
   Thread* child_thread = new Thread(is_daemon);
   // Use global JNI ref to hold peer live while child thread starts.
-  child_thread->peer_ = env->NewGlobalRef(java_peer);
+  child_thread->jpeer_ = env->NewGlobalRef(java_peer);
   stack_size = FixStackSize(stack_size);
 
   // Thread.start is synchronized, so we know that vmData is 0, and know that we're not racing to
@@ -267,8 +274,8 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
       runtime->EndThreadBirth();
     }
     // Manually delete the global reference since Thread::Init will not have been run.
-    env->DeleteGlobalRef(child_thread->peer_);
-    child_thread->peer_ = NULL;
+    env->DeleteGlobalRef(child_thread->jpeer_);
+    child_thread->jpeer_ = NULL;
     delete child_thread;
     child_thread = NULL;
     // TODO: remove from thread group?
@@ -302,7 +309,7 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
   DCHECK_EQ(Thread::Current(), this);
 
-  thin_lock_id_ = thread_list->AllocThreadId();
+  thin_lock_id_ = thread_list->AllocThreadId(this);
   InitStackHwm();
 
   jni_env_ = new JNIEnvExt(this, java_vm);
@@ -367,7 +374,10 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     CHECK(IsExceptionPending());
     return;
   }
-  peer_ = env->NewGlobalRef(peer.get());
+  {
+    ScopedObjectAccess soa(this);
+    opeer_ = soa.Decode<Object*>(peer.get());
+  }
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
                                 WellKnownClasses::java_lang_Thread_init,
@@ -382,19 +392,18 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   ScopedObjectAccess soa(self);
   SirtRef<String> peer_thread_name(soa.Self(), GetThreadName(soa));
   if (peer_thread_name.get() == NULL) {
-    Object* native_peer = soa.Decode<Object*>(peer.get());
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
     soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
-        SetBoolean(native_peer, thread_is_daemon);
+        SetBoolean(opeer_, thread_is_daemon);
     soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
-        SetObject(native_peer, soa.Decode<Object*>(thread_group));
+        SetObject(opeer_, soa.Decode<Object*>(thread_group));
     soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
-        SetObject(native_peer, soa.Decode<Object*>(thread_name.get()));
+        SetObject(opeer_, soa.Decode<Object*>(thread_name.get()));
     soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
-        SetInt(native_peer, thread_priority);
+        SetInt(opeer_, thread_priority);
     peer_thread_name.reset(GetThreadName(soa));
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
@@ -472,7 +481,7 @@ void Thread::ShortDump(std::ostream& os) const {
   }
   os << GetState()
            << ",Thread*=" << this
-           << ",peer=" << peer_
+           << ",peer=" << opeer_
            << ",\"" << *name_ << "\""
            << "]";
 }
@@ -484,8 +493,7 @@ void Thread::Dump(std::ostream& os) const {
 
 String* Thread::GetThreadName(const ScopedObjectAccessUnchecked& soa) const {
   Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  Object* native_peer = soa.Decode<Object*>(peer_);
-  return (peer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(native_peer)) : NULL;
+  return (opeer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(opeer_)) : NULL;
 }
 
 void Thread::GetThreadName(std::string& name) const {
@@ -536,7 +544,9 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
       << delta << " " << debug_suspend_count_ << " " << this;
   DCHECK_GE(suspend_count_, debug_suspend_count_) << this;
   Locks::thread_suspend_count_lock_->AssertHeld(self);
-
+  if (this != self && !IsSuspended()) {
+    Locks::thread_list_lock_->AssertHeld(self);
+  }
   if (UNLIKELY(delta < 0 && suspend_count_ <= 0)) {
     UnsafeLogFatalForSuspendCount(self, this);
     return;
@@ -718,14 +728,13 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   bool is_daemon = false;
   Thread* self = Thread::Current();
 
-  if (thread != NULL && thread->peer_ != NULL) {
-    ScopedObjectAccess soa(self);
-    Object* native_peer = soa.Decode<Object*>(thread->peer_);
-    priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(native_peer);
-    is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(native_peer);
+  if (thread != NULL && thread->opeer_ != NULL) {
+    ScopedObjectAccessUnchecked soa(self);
+    priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->opeer_);
+    is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->opeer_);
 
     Object* thread_group =
-        soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(native_peer);
+        soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(thread->opeer_);
 
     if (thread_group != NULL) {
       Field* group_name_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
@@ -760,7 +769,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     os << "  | group=\"" << group_name << "\""
        << " sCount=" << thread->suspend_count_
        << " dsCount=" << thread->debug_suspend_count_
-       << " obj=" << reinterpret_cast<void*>(thread->peer_)
+       << " obj=" << reinterpret_cast<void*>(thread->opeer_)
        << " self=" << reinterpret_cast<const void*>(thread) << "\n";
   }
 
@@ -936,7 +945,8 @@ Thread::Thread(bool daemon)
       managed_stack_(),
       jni_env_(NULL),
       self_(NULL),
-      peer_(NULL),
+      opeer_(NULL),
+      jpeer_(NULL),
       stack_begin_(NULL),
       stack_size_(0),
       thin_lock_id_(0),
@@ -1002,29 +1012,24 @@ void Thread::Destroy() {
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
 
-  if (peer_ != NULL) {
+  if (opeer_ != NULL) {
+    ScopedObjectAccess soa(self);
     // We may need to call user-supplied managed code, do this before final clean-up.
-    HandleUncaughtExceptions();
-    RemoveFromThreadGroup();
+    HandleUncaughtExceptions(soa);
+    RemoveFromThreadGroup(soa);
 
     // this.vmData = 0;
-    jni_env_->SetIntField(peer_, WellKnownClasses::java_lang_Thread_vmData, 0);
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData)->SetInt(opeer_, 0);
+    Dbg::PostThreadDeath(self);
 
-    {
-      ScopedObjectAccess soa(self);
-      Dbg::PostThreadDeath(self);
-    }
-
-    // Thread.join() is implemented as an Object.wait() on the Thread.lock
-    // object. Signal anyone who is waiting.
-    ScopedLocalRef<jobject> lock(jni_env_,
-                                 jni_env_->GetObjectField(peer_,
-                                                          WellKnownClasses::java_lang_Thread_lock));
+    // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
+    // who is waiting.
+    Object* lock = soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(opeer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
-    if (lock.get() != NULL) {
-      jni_env_->MonitorEnter(lock.get());
-      jni_env_->CallVoidMethod(lock.get(), WellKnownClasses::java_lang_Object_notify);
-      jni_env_->MonitorExit(lock.get());
+    if (lock != NULL) {
+      lock->MonitorEnter(self);
+      lock->Notify();
+      lock->MonitorExit(self);
     }
   }
 
@@ -1035,11 +1040,12 @@ void Thread::Destroy() {
 }
 
 Thread::~Thread() {
-  if (jni_env_ != NULL && peer_ != NULL) {
+  if (jni_env_ != NULL && jpeer_ != NULL) {
     // If pthread_create fails we don't have a jni env here.
-    jni_env_->DeleteGlobalRef(peer_);
+    jni_env_->DeleteGlobalRef(jpeer_);
+    jpeer_ = NULL;
   }
-  peer_ = NULL;
+  opeer_ = NULL;
 
   delete jni_env_;
   jni_env_ = NULL;
@@ -1062,10 +1068,12 @@ Thread::~Thread() {
   TearDownAlternateSignalStack();
 }
 
-void Thread::HandleUncaughtExceptions() {
+void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
   if (!IsExceptionPending()) {
     return;
   }
+  ScopedLocalRef<jobject> peer(jni_env_, soa.AddLocalReference<jobject>(opeer_));
+  ScopedThreadStateChange tsc(this, kNative);
 
   // Get and clear the exception.
   ScopedLocalRef<jthrowable> exception(jni_env_, jni_env_->ExceptionOccurred());
@@ -1073,31 +1081,32 @@ void Thread::HandleUncaughtExceptions() {
 
   // If the thread has its own handler, use that.
   ScopedLocalRef<jobject> handler(jni_env_,
-                                  jni_env_->GetObjectField(peer_,
+                                  jni_env_->GetObjectField(peer.get(),
                                                            WellKnownClasses::java_lang_Thread_uncaughtHandler));
   if (handler.get() == NULL) {
     // Otherwise use the thread group's default handler.
-    handler.reset(jni_env_->GetObjectField(peer_, WellKnownClasses::java_lang_Thread_group));
+    handler.reset(jni_env_->GetObjectField(peer.get(), WellKnownClasses::java_lang_Thread_group));
   }
 
   // Call the handler.
   jni_env_->CallVoidMethod(handler.get(),
                            WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException,
-                           peer_, exception.get());
+                           peer.get(), exception.get());
 
   // If the handler threw, clear that exception too.
   jni_env_->ExceptionClear();
 }
 
-void Thread::RemoveFromThreadGroup() {
+void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  ScopedLocalRef<jobject> group(jni_env_,
-                                jni_env_->GetObjectField(peer_,
-                                                         WellKnownClasses::java_lang_Thread_group));
-  if (group.get() != NULL) {
+  Object* ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(opeer_);
+  if (ogroup != NULL) {
+    ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));
+    ScopedLocalRef<jobject> peer(soa.Env(), soa.AddLocalReference<jobject>(opeer_));
+    ScopedThreadStateChange tsc(soa.Self(), kNative);
     jni_env_->CallVoidMethod(group.get(), WellKnownClasses::java_lang_ThreadGroup_removeThread,
-                             peer_);
+                             peer.get());
   }
 }
 
@@ -1109,7 +1118,7 @@ size_t Thread::NumSirtReferences() {
   return count;
 }
 
-bool Thread::SirtContains(jobject obj) {
+bool Thread::SirtContains(jobject obj) const {
   Object** sirt_entry = reinterpret_cast<Object**>(obj);
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     if (cur->Contains(sirt_entry)) {
@@ -1132,7 +1141,7 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-Object* Thread::DecodeJObject(jobject obj) {
+Object* Thread::DecodeJObject(jobject obj) const {
   Locks::mutator_lock_->AssertSharedHeld(this);
   if (obj == NULL) {
     return NULL;
@@ -1151,7 +1160,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& globals = vm->globals;
-      MutexLock mu(this, vm->globals_lock);
+      MutexLock mu(const_cast<Thread*>(this), vm->globals_lock);
       result = const_cast<Object*>(globals.Get(ref));
       break;
     }
@@ -1159,7 +1168,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& weak_globals = vm->weak_globals;
-      MutexLock mu(this, vm->weak_globals_lock);
+      MutexLock mu(const_cast<Thread*>(this), vm->weak_globals_lock);
       result = const_cast<Object*>(weak_globals.Get(ref));
       if (result == kClearedJniWeakGlobal) {
         // This is a special case where it's okay to return NULL.
@@ -1967,6 +1976,9 @@ void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
   wrapperArg.arg = arg;
   wrapperArg.visitor = visitor;
 
+  if (opeer_ != NULL) {
+    VerifyRootWrapperCallback(opeer_, &wrapperArg);
+  }
   if (exception_ != NULL) {
     VerifyRootWrapperCallback(exception_, &wrapperArg);
   }
@@ -1988,6 +2000,9 @@ void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
 }
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  if (opeer_ != NULL) {
+    visitor(opeer_, arg);
+  }
   if (exception_ != NULL) {
     visitor(exception_, arg);
   }

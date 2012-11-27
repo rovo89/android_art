@@ -1497,7 +1497,7 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
-      Object* peer = soa_.Decode<Object*>(t->GetPeer());
+      Object* peer = t->GetPeer();
       if (IsInDesiredThreadGroup(peer)) {
         thread_ids_.push_back(gRegistry->Add(peer));
       }
@@ -1632,7 +1632,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  return gRegistry->Add(soa.Decode<Object*>(Thread::Current()->GetPeer()));
+  return gRegistry->Add(soa.Self()->GetPeer());
 }
 
 void Dbg::SuspendVM() {
@@ -2755,7 +2755,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
 void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
   if (IsDebuggerActive()) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    JDWP::ObjectId id = gRegistry->Add(soa.Decode<Object*>(t->GetPeer()));
+    JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
     gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
     // If this thread's just joined the party while we're already debugging, make sure it knows
     // to give us updates when it's running.

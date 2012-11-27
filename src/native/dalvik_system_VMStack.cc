@@ -25,10 +25,11 @@ namespace art {
 
 static jobject GetThreadStack(JNIEnv* env, jobject peer) {
   bool timeout;
-  Thread* self = Thread::Current();
-  if (env->IsSameObject(peer, self->GetPeer())) {
+  {
     ScopedObjectAccess soa(env);
-    return self->CreateInternalStackTrace(soa);
+    if (soa.Decode<Object*>(peer) == soa.Self()->GetPeer()) {
+      return soa.Self()->CreateInternalStackTrace(soa);
+    }
   }
   // Suspend thread to build stack trace.
   Thread* thread = Thread::SuspendForDebugger(peer, true, &timeout);

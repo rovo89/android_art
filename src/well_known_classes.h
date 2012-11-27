@@ -68,7 +68,6 @@ struct WellKnownClasses {
   static jmethodID java_lang_Float_valueOf;
   static jmethodID java_lang_Integer_valueOf;
   static jmethodID java_lang_Long_valueOf;
-  static jmethodID java_lang_Object_notify;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;
   static jmethodID java_lang_reflect_InvocationHandler_invoke;

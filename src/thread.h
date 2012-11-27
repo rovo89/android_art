@@ -148,7 +148,8 @@ class PACKED(4) Thread {
   // Dumps the SIGQUIT per-thread header. 'thread' can be NULL for a non-attached thread, in which
   // case we use 'tid' to identify the thread, and we'll include as much information as we can.
   static void DumpState(std::ostream& os, const Thread* thread, pid_t tid)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThreadState GetState() const {
     return static_cast<ThreadState>(state_and_flags_.as_struct.state);
@@ -279,12 +280,14 @@ class PACKED(4) Thread {
   // Sets the thread's name.
   void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  jobject GetPeer() const {
-    return peer_;
+  Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(jpeer_ == NULL);
+    return opeer_;
   }
 
   bool HasPeer() const {
-    return peer_ != NULL;
+    CHECK(jpeer_ == NULL);
+    return opeer_ != NULL;
   }
 
   RuntimeStats* GetStats() {
@@ -386,7 +389,7 @@ class PACKED(4) Thread {
   }
 
   // Convert a jobject into a Object*
-  Object* DecodeJObject(jobject obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Object* DecodeJObject(jobject obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implements java.lang.Thread.interrupted.
   bool Interrupted();
@@ -531,7 +534,7 @@ class PACKED(4) Thread {
   };
 
   // Is the given obj in this thread's stack indirect reference table?
-  bool SirtContains(jobject obj);
+  bool SirtContains(jobject obj) const;
 
   void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
@@ -618,7 +621,7 @@ class PACKED(4) Thread {
   }
   friend class SignalCatcher;  // For SetStateUnsafe.
 
-  void DumpState(std::ostream& os) const;
+  void DumpState(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpStack(std::ostream& os) const
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -630,8 +633,9 @@ class PACKED(4) Thread {
 
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions();
-  void RemoveFromThreadGroup();
+  void HandleUncaughtExceptions(ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RemoveFromThreadGroup(ScopedObjectAccess& soa) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
@@ -698,8 +702,10 @@ class PACKED(4) Thread {
   // is hard. This field can be read off of Thread::Current to give the address.
   Thread* self_;
 
-  // Our managed peer (an instance of java.lang.Thread).
-  jobject peer_;
+  // Our managed peer (an instance of java.lang.Thread). The jobject version is used during thread
+  // start up, until the thread is registered and the local opeer_ is used.
+  Object* opeer_;
+  jobject jpeer_;
 
   // The "lowest addressable byte" of the stack
   byte* stack_begin_;

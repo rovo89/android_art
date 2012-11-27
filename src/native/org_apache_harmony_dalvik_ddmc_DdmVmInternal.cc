@@ -61,7 +61,8 @@ static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
     Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
   }
   if (finder.thread != NULL) {
-    return finder.thread->GetPeer();
+    ScopedObjectAccess soa(env);
+    return soa.AddLocalReference<jobject>(finder.thread->GetPeer());
   } else {
     return NULL;
   }

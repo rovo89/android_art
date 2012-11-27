@@ -98,8 +98,8 @@ class ThreadList {
  private:
   typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
 
-  uint32_t AllocThreadId();
-  void ReleaseThreadId(uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);
+  uint32_t AllocThreadId(Thread* self);
+  void ReleaseThreadId(Thread* self, uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);
 
   bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
   bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);

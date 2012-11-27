@@ -165,8 +165,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
    * passed in), or NULL on failure.
    */
   template<typename T>
-  T AddLocalReference(Object* obj) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  T AddLocalReference(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     if (obj == NULL) {
       return NULL;
