@@ -156,7 +156,7 @@ void art_throw_stack_overflow_from_code()
 void art_throw_exception_from_code(Object* exception)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
-  self->DeliverException(static_cast<Throwable*>(exception));
+  thread->DeliverException(static_cast<Throwable*>(exception));
 }
 
 void* art_get_and_clear_exception(Thread* self)
