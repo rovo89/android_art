@@ -31,7 +31,7 @@
 #if defined(__APPLE__)
 #define ART_USE_FUTEXES 0
 #else
-#define ART_USE_FUTEXES 0
+#define ART_USE_FUTEXES 1
 #endif
 
 // Currently Darwin doesn't support locks with timeouts.
@@ -284,10 +284,9 @@ class ConditionVariable {
   // changed and doesn't enter the wait.
   volatile int32_t state_;
   // Number of threads that have come into to wait, not the length of the waiters on the futex as
-  // waiters may have been requeued onto guard_. A non-zero value indicates that signal and
-  // broadcast should do something. Guarded by guard_.
+  // waiters may have been requeued onto guard_. Guarded by guard_.
   volatile int32_t num_waiters_;
-  // Number of threads that have been awoken out of the pool of waiters.
+  // Number of threads that have been awoken out of the pool of waiters. Guarded by guard_.
   volatile int32_t num_awoken_;
 #else
   pthread_cond_t cond_;
