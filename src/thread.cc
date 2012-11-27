@@ -1770,7 +1770,7 @@ class CatchBlockStackVisitor : public StackVisitor {
   const char* last_no_assert_suspension_cause_;
 };
 
-void Thread::DeliverException() {
+void Thread::QuickDeliverException() {
   Throwable* exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
   // Don't leave exception visible while we try to find the handler, which may cause class

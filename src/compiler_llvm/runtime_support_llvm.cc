@@ -156,11 +156,7 @@ void art_throw_stack_overflow_from_code()
 void art_throw_exception_from_code(Object* exception)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
-  if (exception == NULL) {
-    thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
-  } else {
-    thread->SetException(static_cast<Throwable*>(exception));
-  }
+  self->DeliverException(static_cast<Throwable*>(exception));
 }
 
 void* art_get_and_clear_exception(Thread* self)

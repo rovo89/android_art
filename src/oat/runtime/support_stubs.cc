@@ -347,7 +347,7 @@ extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thr
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
-  thread->DeliverException();
+  thread->QuickDeliverException();
 }
 #else // ART_USE_LLVM_COMPILER
 extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod**)
