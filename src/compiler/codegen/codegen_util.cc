@@ -863,14 +863,39 @@ static int AssignFillArrayDataOffset(CompilationUnit* cu, int offset)
   return offset;
 }
 
+// LIR offset assignment.
+static int AssignInsnOffsets(CompilationUnit* cu)
+{
+  LIR* lir;
+  int offset = 0;
+
+  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
+    lir->offset = offset;
+    if (lir->opcode >= 0) {
+      if (!lir->flags.is_nop) {
+        offset += lir->flags.size;
+      }
+    } else if (lir->opcode == kPseudoPseudoAlign4) {
+      if (offset & 0x2) {
+        offset += 2;
+        lir->operands[0] = 1;
+      } else {
+        lir->operands[0] = 0;
+      }
+    }
+    /* Pseudo opcodes don't consume space */
+  }
+
+  return offset;
+}
+
 /*
  * Walk the compilation unit and assign offsets to instructions
  * and literals and compute the total size of the compiled unit.
  */
 static void AssignOffsets(CompilationUnit* cu)
 {
-  Codegen* cg = cu->cg.get();
-  int offset = cg->AssignInsnOffsets(cu);
+  int offset = AssignInsnOffsets(cu);
 
   /* Const values have to be word aligned */
   offset = (offset + 3) & ~3;
@@ -1056,5 +1081,4 @@ LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str)
   return res;
 }
 
-}
- // namespace art
+} // namespace art

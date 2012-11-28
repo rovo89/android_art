@@ -1417,33 +1417,4 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
   return res;
 }
 
-/*
- * Target-dependent offset assignment.
- * independent.
- */
-int X86Codegen::AssignInsnOffsets(CompilationUnit* cu)
-{
-    LIR* x86_lir;
-    int offset = 0;
-
-    for (x86_lir = cu->first_lir_insn; x86_lir != NULL; x86_lir = NEXT_LIR(x86_lir)) {
-        x86_lir->offset = offset;
-        if (x86_lir->opcode >= 0) {
-            if (!x86_lir->flags.is_nop) {
-                offset += x86_lir->flags.size;
-            }
-        } else if (x86_lir->opcode == kPseudoPseudoAlign4) {
-            if (offset & 0x2) {
-                offset += 2;
-                x86_lir->operands[0] = 1;
-            } else {
-                x86_lir->operands[0] = 0;
-            }
-        }
-        /* Pseudo opcodes don't consume space */
-    }
-
-    return offset;
-}
-
 }  // namespace art
