@@ -280,14 +280,13 @@ class ConditionVariable {
   Mutex& guard_;
 #if ART_USE_FUTEXES
   // A counter that is modified by signals and broadcasts. This ensures that when a waiter gives up
-  // their Mutex and another thread takes it and signals, the waiting thread observes that state_
-  // changed and doesn't enter the wait.
-  volatile int32_t state_;
+  // their Mutex and another thread takes it and signals, the waiting thread observes that sequence_
+  // changed and doesn't enter the wait. Modified while holding guard_, but is read by futex wait
+  // without guard_ held.
+  volatile int32_t sequence_;
   // Number of threads that have come into to wait, not the length of the waiters on the futex as
   // waiters may have been requeued onto guard_. Guarded by guard_.
   volatile int32_t num_waiters_;
-  // Number of threads that have been awoken out of the pool of waiters. Guarded by guard_.
-  volatile int32_t num_awoken_;
 #else
   pthread_cond_t cond_;
 #endif
