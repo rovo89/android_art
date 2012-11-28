@@ -438,6 +438,7 @@ class Heap {
   const bool enforce_heap_growth_rate_;
 
   // Maximum size that the heap can reach.
+  size_t capacity_;
   size_t growth_limit_;
   size_t max_allowed_footprint_;
 

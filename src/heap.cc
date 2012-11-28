@@ -145,6 +145,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       is_gc_running_(false),
       last_gc_type_(kGcTypeNone),
       enforce_heap_growth_rate_(false),
+      capacity_(capacity),
       growth_limit_(growth_limit),
       max_allowed_footprint_(initial_size),
       concurrent_start_size_(128 * KB),
@@ -521,18 +522,26 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
 
     return obj;
   }
+  std::ostringstream oss;
   int64_t total_bytes_free = GetFreeMemory();
-  size_t max_contiguous_allocation = 0;
-  // TODO: C++0x auto
-  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    if ((*it)->IsAllocSpace()) {
-      (*it)->AsAllocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+  uint64_t alloc_space_size = alloc_space_->GetNumBytesAllocated();
+  uint64_t large_object_size = large_object_space_->GetNumObjectsAllocated();
+  oss << "Failed to allocate a " << byte_count << " byte allocation with " << total_bytes_free
+      << " free bytes; allocation space size " << alloc_space_size
+      << "; large object space size " << large_object_size;
+  // If the allocation failed due to fragmentation, print out the largest continuous allocation.
+  if (total_bytes_free >= byte_count) {
+    size_t max_contiguous_allocation = 0;
+    // TODO: C++0x auto
+    for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      if ((*it)->IsAllocSpace()) {
+        (*it)->AsAllocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+      }
     }
+    oss << "; failed due to fragmentation (largest possible contiguous allocation "
+        <<  max_contiguous_allocation << " bytes)";
   }
-
-  std::string msg(StringPrintf("Failed to allocate a %zd-byte %s (%lld total bytes free; largest possible contiguous allocation %zd bytes)",
-                               byte_count, PrettyDescriptor(c).c_str(), total_bytes_free, max_contiguous_allocation));
-  self->ThrowOutOfMemoryError(msg.c_str());
+  self->ThrowOutOfMemoryError(oss.str().c_str());
   return NULL;
 }
 
@@ -1515,6 +1524,7 @@ void Heap::GrowForUtilization(uint64_t gc_duration) {
 }
 
 void Heap::ClearGrowthLimit() {
+  growth_limit_ = capacity_;
   alloc_space_->ClearGrowthLimit();
 }
 
