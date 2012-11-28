@@ -712,33 +712,5 @@ int MipsCodegen::GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }
-/*
- * Target-dependent offset assignment.
- * independent.
- */
-int MipsCodegen::AssignInsnOffsets(CompilationUnit* cu)
-{
-  LIR* mips_lir;
-  int offset = 0;
-
-  for (mips_lir = cu->first_lir_insn; mips_lir != NULL; mips_lir = NEXT_LIR(mips_lir)) {
-    mips_lir->offset = offset;
-    if (mips_lir->opcode >= 0) {
-      if (!mips_lir->flags.is_nop) {
-        offset += mips_lir->flags.size;
-      }
-    } else if (mips_lir->opcode == kPseudoPseudoAlign4) {
-      if (offset & 0x2) {
-        offset += 2;
-        mips_lir->operands[0] = 1;
-      } else {
-        mips_lir->operands[0] = 0;
-      }
-    }
-    /* Pseudo opcodes don't consume space */
-  }
-
-  return offset;
-}
 
 }  // namespace art

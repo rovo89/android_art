@@ -86,27 +86,15 @@ extern int32_t CmpgFloat(float a, float b);
 extern int32_t CmplFloat(float a, float b);
 
 // Math conversions.
-extern "C" float __aeabi_i2f(int32_t op1);         // INT_TO_FLOAT
 extern "C" int32_t __aeabi_f2iz(float op1);        // FLOAT_TO_INT
-extern "C" float __aeabi_d2f(double op1);          // DOUBLE_TO_FLOAT
-extern "C" double __aeabi_f2d(float op1);          // FLOAT_TO_DOUBLE
-extern "C" double __aeabi_i2d(int32_t op1);        // INT_TO_DOUBLE
 extern "C" int32_t __aeabi_d2iz(double op1);       // DOUBLE_TO_INT
 extern "C" float __aeabi_l2f(int64_t op1);         // LONG_TO_FLOAT
 extern "C" double __aeabi_l2d(int64_t op1);        // LONG_TO_DOUBLE
 
 // Single-precision FP arithmetics.
-extern "C" float __aeabi_fadd(float a, float b);   // ADD_FLOAT[_2ADDR]
-extern "C" float __aeabi_fsub(float a, float b);   // SUB_FLOAT[_2ADDR]
-extern "C" float __aeabi_fdiv(float a, float b);   // DIV_FLOAT[_2ADDR]
-extern "C" float __aeabi_fmul(float a, float b);   // MUL_FLOAT[_2ADDR]
 extern "C" float fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
 
 // Double-precision FP arithmetics.
-extern "C" double __aeabi_dadd(double a, double b); // ADD_DOUBLE[_2ADDR]
-extern "C" double __aeabi_dsub(double a, double b); // SUB_DOUBLE[_2ADDR]
-extern "C" double __aeabi_ddiv(double a, double b); // DIV_DOUBLE[_2ADDR]
-extern "C" double __aeabi_dmul(double a, double b); // MUL_DOUBLE[_2ADDR]
 extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
 
 // Integer arithmetics.
@@ -213,22 +201,10 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCmpgFloat = CmpgFloat;
   points->pCmplDouble = CmplDouble;
   points->pCmplFloat = CmplFloat;
-  points->pDadd = __aeabi_dadd;
-  points->pDdiv = __aeabi_ddiv;
-  points->pDmul = __aeabi_dmul;
-  points->pDsub = __aeabi_dsub;
-  points->pF2d = __aeabi_f2d;
   points->pFmod = fmod;
   points->pSqrt = sqrt;
-  points->pI2d = __aeabi_i2d;
   points->pL2d = __aeabi_l2d;
-  points->pD2f = __aeabi_d2f;
-  points->pFadd = __aeabi_fadd;
-  points->pFdiv = __aeabi_fdiv;
   points->pFmodf = fmodf;
-  points->pFmul = __aeabi_fmul;
-  points->pFsub = __aeabi_fsub;
-  points->pI2f = __aeabi_i2f;
   points->pL2f = __aeabi_l2f;
   points->pD2iz = __aeabi_d2iz;
   points->pF2iz = __aeabi_f2iz;

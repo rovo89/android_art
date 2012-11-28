@@ -1366,32 +1366,4 @@ int ArmCodegen::GetInsnSize(LIR* lir)
   return EncodingMap[lir->opcode].size;
 }
 
-/*
- * Target-dependent offset assignment.
- */
-int ArmCodegen::AssignInsnOffsets(CompilationUnit* cu)
-{
-  LIR* arm_lir;
-  int offset = 0;
-
-  for (arm_lir = cu->first_lir_insn; arm_lir != NULL; arm_lir = NEXT_LIR(arm_lir)) {
-    arm_lir->offset = offset;
-    if (arm_lir->opcode >= 0) {
-      if (!arm_lir->flags.is_nop) {
-        offset += arm_lir->flags.size;
-      }
-    } else if (arm_lir->opcode == kPseudoPseudoAlign4) {
-      if (offset & 0x2) {
-        offset += 2;
-        arm_lir->operands[0] = 1;
-      } else {
-        arm_lir->operands[0] = 0;
-      }
-    }
-    /* Pseudo opcodes don't consume space */
-  }
-
-  return offset;
-}
-
 }  // namespace art

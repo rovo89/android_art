@@ -153,12 +153,6 @@ class Codegen {
                         RegLocation rl_src1, RegLocation rl_src2);
     bool GenConversionCall(CompilationUnit* cu, int func_offset, RegLocation rl_dest,
                            RegLocation rl_src);
-    bool GenArithOpFloatPortable(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                                 RegLocation rl_src1, RegLocation rl_src2);
-    bool GenArithOpDoublePortable(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                                  RegLocation rl_src1, RegLocation rl_src2);
-    bool GenConversionPortable(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                               RegLocation rl_src);
     void GenSuspendTest(CompilationUnit* cu, int opt_flags);
     void GenSuspendTestAndBranch(CompilationUnit* cu, int opt_flags, LIR* target);
 
@@ -294,7 +288,6 @@ class Codegen {
     virtual void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir) = 0;
     virtual const char* GetTargetInstFmt(int opcode) = 0;
     virtual const char* GetTargetInstName(int opcode) = 0;
-    virtual int AssignInsnOffsets(CompilationUnit* cu) = 0;
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) = 0;
     virtual uint64_t GetPCUseDefEncoding() = 0;
     virtual uint64_t GetTargetInstFlags(int opcode) = 0;

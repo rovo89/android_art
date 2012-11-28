@@ -89,11 +89,7 @@ extern "C" int64_t artLdivFromCode(int64_t a, int64_t b);
 extern "C" int64_t artLdivmodFromCode(int64_t a, int64_t b);
 
 // Math conversions.
-extern "C" float __floatsisf(int op1);        // INT_TO_FLOAT
 extern "C" int32_t __fixsfsi(float op1);      // FLOAT_TO_INT
-extern "C" float __truncdfsf2(double op1);    // DOUBLE_TO_FLOAT
-extern "C" double __extendsfdf2(float op1);   // FLOAT_TO_DOUBLE
-extern "C" double __floatsidf(int op1);       // INT_TO_DOUBLE
 extern "C" int32_t __fixdfsi(double op1);     // DOUBLE_TO_INT
 extern "C" float __floatdisf(int64_t op1);    // LONG_TO_FLOAT
 extern "C" double __floatdidf(int64_t op1);   // LONG_TO_DOUBLE
@@ -101,17 +97,9 @@ extern "C" int64_t __fixsfdi(float op1);      // FLOAT_TO_LONG
 extern "C" int64_t __fixdfdi(double op1);     // DOUBLE_TO_LONG
 
 // Single-precision FP arithmetics.
-extern "C" float __addsf3(float a, float b);   // ADD_FLOAT[_2ADDR]
-extern "C" float __subsf3(float a, float b);   // SUB_FLOAT[_2ADDR]
-extern "C" float __divsf3(float a, float b);   // DIV_FLOAT[_2ADDR]
-extern "C" float __mulsf3(float a, float b);   // MUL_FLOAT[_2ADDR]
 extern "C" float fmodf(float a, float b);      // REM_FLOAT[_2ADDR]
 
 // Double-precision FP arithmetics.
-extern "C" double __adddf3(double a, double b); // ADD_DOUBLE[_2ADDR]
-extern "C" double __subdf3(double a, double b); // SUB_DOUBLE[_2ADDR]
-extern "C" double __divdf3(double a, double b); // DIV_DOUBLE[_2ADDR]
-extern "C" double __muldf3(double a, double b); // MUL_DOUBLE[_2ADDR]
 extern "C" double fmod(double a, double b);     // REM_DOUBLE[_2ADDR]
 
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
@@ -215,21 +203,9 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCmpgFloat = CmpgFloat;
   points->pCmplDouble = CmplDouble;
   points->pCmplFloat = CmplFloat;
-  points->pDadd = __adddf3;
-  points->pDdiv = __subdf3;
-  points->pDmul = __muldf3;
-  points->pDsub = __subdf3;
-  points->pF2d = __extendsfdf2;
   points->pFmod = fmod;
-  points->pI2d = __floatsidf;
   points->pL2d = __floatdidf;
-  points->pD2f = __truncdfsf2;
-  points->pFadd = __addsf3;
-  points->pFdiv = __divsf3;
   points->pFmodf = fmodf;
-  points->pFmul = __mulsf3;
-  points->pFsub = __subsf3;
-  points->pI2f = __floatsisf;
   points->pL2f = __floatdisf;
   points->pD2iz = __fixdfsi;
   points->pF2iz = __fixsfsi;

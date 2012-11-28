@@ -49,11 +49,14 @@ bool MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
     case Instruction::MUL_FLOAT:
       op = kMipsFmuls;
       break;
-    case Instruction::REM_FLOAT_2ADDR:
-    case Instruction::REM_FLOAT:
-    case Instruction::NEG_FLOAT: {
-      return GenArithOpFloatPortable(cu, opcode, rl_dest, rl_src1, rl_src2);
-    }
+      FlushAllRegs(cu);   // Send everything to home location
+      CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
+      rl_result = GetReturn(cu, true);
+      StoreValue(cu, rl_dest, rl_result);
+      return false;
+    case Instruction::NEG_FLOAT:
+      GenNegFloat(cu, rl_dest, rl_src1);
+      return false;
     default:
       return true;
   }
@@ -91,9 +94,14 @@ bool MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode
       break;
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
-    case Instruction::NEG_DOUBLE: {
-      return GenArithOpDoublePortable(cu, opcode, rl_dest, rl_src1, rl_src2);
-    }
+      FlushAllRegs(cu);   // Send everything to home location
+      CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
+      rl_result = GetReturnWide(cu, true);
+      StoreValueWide(cu, rl_dest, rl_result);
+      return false;
+    case Instruction::NEG_DOUBLE:
+      GenNegDouble(cu, rl_dest, rl_src1);
+      return false;
     default:
       return true;
   }
@@ -130,12 +138,17 @@ bool MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, R
       op = kMipsFcvtdw;
       break;
     case Instruction::FLOAT_TO_INT:
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2iz), rl_dest, rl_src);
     case Instruction::DOUBLE_TO_INT:
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2iz), rl_dest, rl_src);
     case Instruction::LONG_TO_DOUBLE:
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
     case Instruction::FLOAT_TO_LONG:
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
     case Instruction::LONG_TO_FLOAT:
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionPortable(cu, opcode, rl_dest, rl_src);
+      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
     default:
       return true;
   }

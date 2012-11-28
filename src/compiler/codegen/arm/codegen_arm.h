@@ -83,7 +83,6 @@ class ArmCodegen : public Codegen {
     virtual void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir);
     virtual const char* GetTargetInstFmt(int opcode);
     virtual const char* GetTargetInstName(int opcode);
-    virtual int AssignInsnOffsets(CompilationUnit* cu);
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
     virtual uint64_t GetPCUseDefEncoding();
     virtual uint64_t GetTargetInstFlags(int opcode);
