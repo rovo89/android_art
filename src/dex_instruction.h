@@ -38,7 +38,7 @@ class Instruction {
     kArrayDataSignature = 0x0300,
   };
 
-  struct PACKED PackedSwitchPayload {
+  struct PACKED(4) PackedSwitchPayload {
     const uint16_t ident;
     const uint16_t case_count;
     const int32_t first_key;
@@ -47,7 +47,7 @@ class Instruction {
     DISALLOW_COPY_AND_ASSIGN(PackedSwitchPayload);
   };
 
-  struct PACKED SparseSwitchPayload {
+  struct PACKED(4) SparseSwitchPayload {
     const uint16_t ident;
     const uint16_t case_count;
     const int32_t keys_and_targets[];
@@ -65,7 +65,7 @@ class Instruction {
     DISALLOW_COPY_AND_ASSIGN(SparseSwitchPayload);
   };
 
-  struct PACKED ArrayDataPayload {
+  struct PACKED(4) ArrayDataPayload {
     const uint16_t ident;
     const uint16_t element_width;
     const uint32_t element_count;

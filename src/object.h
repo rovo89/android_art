@@ -157,7 +157,7 @@ namespace compiler_llvm {
 
 // Classes shared with the managed side of the world need to be packed
 // so that they don't have extra platform specific padding.
-#define MANAGED PACKED
+#define MANAGED PACKED(4)
 
 // C++ mirror of java.lang.Object
 class MANAGED Object {

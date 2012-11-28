@@ -317,7 +317,7 @@ class Runtime {
   }
 
   AbstractMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
-    CHECK(HasCalleeSaveMethod(type));
+    DCHECK(HasCalleeSaveMethod(type));
     return callee_save_methods_[type];
   }
 

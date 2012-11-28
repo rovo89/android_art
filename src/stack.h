@@ -236,7 +236,7 @@ class ShadowFrame {
 // may either be shadow frames or lists of frames using fixed frame sizes. Transition records are
 // necessary for transitions between code using different frame layouts and transitions into native
 // code.
-class PACKED ManagedStack {
+class PACKED(4) ManagedStack {
  public:
   ManagedStack()
       : link_(NULL), top_shadow_frame_(NULL), top_quick_frame_(NULL), top_quick_frame_pc_(0) {}

@@ -30,7 +30,7 @@ class DvmDex;
 class AbstractMethod;
 class Thread;
 
-struct PACKED EntryPoints {
+struct PACKED(4) EntryPoints {
   // Alloc
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
   void* (*pAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);

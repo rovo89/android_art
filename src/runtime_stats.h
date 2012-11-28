@@ -59,7 +59,7 @@ enum StatKinds {
  * Memory allocation profiler state.  This is used both globally and
  * per-thread.
  */
-struct PACKED RuntimeStats {
+struct PACKED(4) RuntimeStats {
   RuntimeStats() {
     Clear(~0);
   }

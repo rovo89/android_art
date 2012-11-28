@@ -25,7 +25,7 @@
 namespace art {
 
 // header of image files written by ImageWriter, read and validated by Space.
-class PACKED ImageHeader {
+class PACKED(4) ImageHeader {
  public:
   ImageHeader() {}
 

@@ -125,7 +125,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define OFFSETOF_VOLATILE_MEMBER(t, f) \
   (reinterpret_cast<volatile char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<volatile char*>(16)) // NOLINT
 
-#define PACKED __attribute__ ((__packed__))
+#define PACKED(x) __attribute__ ((__aligned__(x),__packed__))
 
 #define LIKELY(x)       __builtin_expect((x), true)
 #define UNLIKELY(x)     __builtin_expect((x), false)

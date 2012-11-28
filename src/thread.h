@@ -103,7 +103,7 @@ enum ThreadFlag {
   kEnterInterpreter = 8,  // Instruct managed code it should enter the interpreter.
 };
 
-class PACKED Thread {
+class PACKED(4) Thread {
  public:
   // Space to throw a StackOverflowError in.
   static const size_t kStackOverflowReservedBytes = 10 * KB;
@@ -657,7 +657,7 @@ class PACKED Thread {
   // 32 bits of atomically changed state and flags. Keeping as 32 bits allows and atomic CAS to
   // change from being Suspended to Runnable without a suspend request occurring.
   union StateAndFlags {
-    struct PACKED {
+    struct PACKED(4) {
       // Bitfield of flag values. Must be changed atomically so that flag values aren't lost. See
       // ThreadFlags for bit field meanings.
       volatile uint16_t flags;

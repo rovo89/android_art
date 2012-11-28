@@ -25,7 +25,7 @@
 
 namespace art {
 
-class PACKED OatHeader {
+class PACKED(4) OatHeader {
  public:
   OatHeader();
   OatHeader(InstructionSet instruction_set,
@@ -68,7 +68,7 @@ class PACKED OatHeader {
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };
 
-class PACKED OatMethodOffsets {
+class PACKED(4) OatMethodOffsets {
  public:
   OatMethodOffsets();
 
