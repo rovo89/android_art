@@ -1230,8 +1230,10 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId refTypeId, JDWP::Object
   } else {
     if (f->IsStatic()) {
       LOG(WARNING) << "Ignoring non-NULL receiver for ObjectReference.SetValues on static field " << PrettyField(f);
-      o = NULL;
     }
+  }
+  if (f->IsStatic()) {
+    o = f->GetDeclaringClass();
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
@@ -1284,8 +1286,10 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId 
   } else {
     if (f->IsStatic()) {
       LOG(WARNING) << "Ignoring non-NULL receiver for ObjectReference.SetValues on static field " << PrettyField(f);
-      o = NULL;
     }
+  }
+  if (f->IsStatic()) {
+    o = f->GetDeclaringClass();
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
@@ -1393,15 +1397,15 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  Object* group =
-      soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup)->GetObject(NULL);
+  Field* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
+  Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
   ScopedObjectAccess soa(Thread::Current());
-  Object* group =
-      soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup)->GetObject(NULL);
+  Field* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
+  Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
 
@@ -1476,10 +1480,10 @@ bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
 void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
   class ThreadListVisitor {
    public:
-    ThreadListVisitor(const ScopedObjectAccessUnchecked& soa, Object* thread_group,
+    ThreadListVisitor(const ScopedObjectAccessUnchecked& soa, Object* desired_thread_group,
                       std::vector<JDWP::ObjectId>& thread_ids)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : soa_(soa), thread_group_(thread_group), thread_ids_(thread_ids) {}
+        : soa_(soa), desired_thread_group_(desired_thread_group), thread_ids_(thread_ids) {}
 
     static void Visit(Thread* t, void* arg) {
       reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
@@ -1493,20 +1497,33 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
-      bool should_add = (thread_group_ == NULL);
       Object* peer = soa_.Decode<Object*>(t->GetPeer());
-      if (!should_add) {
-        Object* group = soa_.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer);
-        should_add = (group == thread_group_);
-      }
-      if (should_add) {
+      if (IsInDesiredThreadGroup(peer)) {
         thread_ids_.push_back(gRegistry->Add(peer));
       }
     }
 
    private:
+    bool IsInDesiredThreadGroup(Object* peer)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      // Do we want threads from all thread groups?
+      if (desired_thread_group_ == NULL) {
+        return true;
+      }
+      // peer might be NULL if the thread is still starting up.
+      if (peer == NULL) {
+        // We can't tell the debugger about this thread yet.
+        // TODO: if we identified threads to the debugger by their Thread*
+        // rather than their peer's Object*, we could fix this.
+        // Doing so might help us report ZOMBIE threads too.
+        return false;
+      }
+      Object* group = soa_.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer);
+      return (group == desired_thread_group_);
+    }
+
     const ScopedObjectAccessUnchecked& soa_;
-    Object* const thread_group_;
+    Object* const desired_thread_group_;
     std::vector<JDWP::ObjectId>& thread_ids_;
   };
 
