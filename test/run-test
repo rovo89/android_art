@@ -214,8 +214,6 @@ if [ '!' -r "$build" ]; then
     cp "${progdir}/etc/default-build" build
 fi
 
-echo "${test_dir}: running..." 1>&2
-
 if [ '!' -r "$run" ]; then
     cp "${progdir}/etc/default-run" run
 fi
@@ -231,14 +229,16 @@ if [ "$dev_mode" = "yes" ]; then
     build_exit="$?"
     echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
-      "./${run}" $run_args "$@" 2>&1
-      echo "run exit status: $?" 1>&2
-      good="yes"
+        echo "${test_dir}: running..." 1>&2
+        "./${run}" $run_args "$@" 2>&1
+        echo "run exit status: $?" 1>&2
+        good="yes"
     fi
 elif [ "$update_mode" = "yes" ]; then
     "./${build}" >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
+        echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
         sed -e 's/[[:cntrl:]]$//g' < "$output" >"${td_expected}"
         good="yes"
@@ -264,6 +264,7 @@ else
     "./${build}" >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
+        echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
     else
         cp "$build_output" "$output"
