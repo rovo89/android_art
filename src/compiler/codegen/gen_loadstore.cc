@@ -35,6 +35,29 @@ LIR* Codegen::LoadConstant(CompilationUnit* cu, int r_dest, int value)
   return LoadConstantNoClobber(cu, r_dest, value);
 }
 
+/*
+ * Temporary workaround for Issue 7250540.  If we're loading a constant zero into a
+ * promoted floating point register, also copy a zero into the int/ref identity of
+ * that sreg.
+ */
+void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int value)
+{
+  if (rl_dest.fp && (value == 0)) {
+    int pmap_index = SRegToPMap(cu, rl_dest.s_reg_low);
+    if (cu->promotion_map[pmap_index].fp_location == kLocPhysReg) {
+      if (cu->promotion_map[pmap_index].core_location == kLocPhysReg) {
+        // Promoted - just copy in a zero
+        LoadConstant(cu, cu->promotion_map[pmap_index].core_reg, 0);
+      } else {
+        // Lives in the frame, need to store.
+        int temp_reg = AllocTemp(cu);
+        LoadConstant(cu, temp_reg, 0);
+        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), temp_reg, kWord);
+      }
+    }
+  }
+}
+
 /* Load a word at base + displacement.  Displacement must be word multiple */
 LIR* Codegen::LoadWordDisp(CompilationUnit* cu, int rBase, int displacement, int r_dest)
 {
@@ -172,7 +195,10 @@ void Codegen::StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation r
                   rl_dest.low_reg, kWord);
     MarkClean(cu, rl_dest);
     def_end = cu->last_lir_insn;
-    MarkDef(cu, rl_dest, def_start, def_end);
+    if (!rl_dest.ref) {
+      // Exclude references from store elimination
+      MarkDef(cu, rl_dest, def_start, def_end);
+    }
   }
 }
 

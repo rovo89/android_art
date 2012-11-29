@@ -146,7 +146,7 @@ void ClobberSReg(CompilationUnit* cu, int s_reg)
  * ssa name (above the last original Dalvik register).  This function
  * maps SSA names to positions in the promotion_map array.
  */
-static int SRegToPMap(CompilationUnit* cu, int s_reg)
+int SRegToPMap(CompilationUnit* cu, int s_reg)
 {
   DCHECK_LT(s_reg, cu->num_ssa_regs);
   DCHECK_GE(s_reg, 0);
