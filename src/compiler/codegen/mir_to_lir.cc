@@ -141,12 +141,14 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
       cg->LoadConstantNoClobber(cu, rl_result.low_reg, vB);
       cg->StoreValue(cu, rl_dest, rl_result);
+      cg->Workaround7250540(cu, rl_dest, vB);
       break;
 
     case Instruction::CONST_HIGH16:
       rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
       cg->LoadConstantNoClobber(cu, rl_result.low_reg, vB << 16);
       cg->StoreValue(cu, rl_dest, rl_result);
+      cg->Workaround7250540(cu, rl_dest, vB);
       break;
 
     case Instruction::CONST_WIDE_16:

@@ -156,6 +156,7 @@ int SRegOffset(CompilationUnit* cu, int reg);
 void RecordCorePromotion(CompilationUnit* cu, int reg, int s_reg);
 void RecordFpPromotion(CompilationUnit* cu, int reg, int s_reg);
 int ComputeFrameSize(CompilationUnit* cu);
+int SRegToPMap(CompilationUnit* cu, int s_reg);
 
 }  // namespace art
 

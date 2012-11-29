@@ -2576,6 +2576,7 @@ static void CvtConst(CompilationUnit* cu, llvm::CallInst* call_inst)
   } else {
     cg->LoadConstantNoClobber(cu, rl_result.low_reg, immval & 0xffffffff);
     cg->StoreValue(cu, rl_dest, rl_result);
+    cg->Workaround7250540(cu, rl_dest, immval & 0xffffffff);
   }
 }
 

@@ -381,6 +381,9 @@ class Codegen {
     virtual void OpRegCopyWide(CompilationUnit* cu, int dest_lo, int dest_hi, int src_lo,
                                int src_hi) = 0;
     virtual void OpTlsCmp(CompilationUnit* cu, int offset, int val) = 0;
+
+    // Temp workaround
+    void Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int value);
     };  // Class Codegen
 
 }  // namespace art
