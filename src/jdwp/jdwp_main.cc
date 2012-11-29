@@ -87,7 +87,7 @@ uint32_t JdwpState::NextEventSerial() {
 
 JdwpState::JdwpState(const JdwpOptions* options)
     : options_(options),
-      thread_start_lock_("JDWP thread start lock"),
+      thread_start_lock_("JDWP thread start lock", kJdwpStartLock),
       thread_start_cond_("JDWP thread start condition variable", thread_start_lock_),
       pthread_(0),
       thread_(NULL),
@@ -96,7 +96,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       run(false),
       transport_(NULL),
       netState(NULL),
-      attach_lock_("JDWP attach lock"),
+      attach_lock_("JDWP attach lock", kJdwpAttachLock),
       attach_cond_("JDWP attach condition variable", attach_lock_),
       last_activity_time_ms_(0),
       serial_lock_("JDWP serial lock", kJdwpSerialLock),
@@ -161,7 +161,6 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
       state->thread_start_cond_.Wait(self);
     } else {
       {
-        MutexLock attach_locker(self, state->attach_lock_);
         /*
          * We have bound to a port, or are trying to connect outbound to a
          * debugger.  Create the JDWP thread and let it continue the mission.
@@ -184,6 +183,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
          */
         {
           ScopedThreadStateChange tsc(self, kWaitingForDebuggerToAttach);
+          MutexLock attach_locker(self, state->attach_lock_);
           state->attach_cond_.Wait(self);
         }
       }
