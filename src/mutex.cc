@@ -158,7 +158,7 @@ void BaseMutex::RegisterAsUnlocked(Thread* self) {
     return;
   }
   if (level_ != kMonitorLock) {
-    if (kDebugLocking) {
+    if (kDebugLocking && !gAborting) {
       CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
     }
     self->SetHeldMutex(level_, NULL);
