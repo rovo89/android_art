@@ -854,6 +854,10 @@ void Runtime::InitNativeMethods() {
     }
     self->TransitionFromRunnableToSuspended(kNative);
   }
+
+  // Initialize well known classes that may invoke runtime native methods.
+  WellKnownClasses::LateInit(env);
+
   VLOG(startup) << "Runtime::InitNativeMethods exiting";
 }
 

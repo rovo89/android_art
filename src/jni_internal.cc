@@ -232,11 +232,12 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
   return soa.EncodeMethod(method);
 }
 
-static ClassLoader* GetClassLoader(Thread* self)
+static ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  AbstractMethod* method = self->GetCurrentMethod();
-  if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
-    return self->GetClassLoaderOverride();
+  AbstractMethod* method = soa.Self()->GetCurrentMethod();
+  if (method == NULL ||
+      method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
+    return soa.Self()->GetClassLoaderOverride();
   }
   return method->GetDeclaringClass()->GetClassLoader();
 }
@@ -253,7 +254,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   Class* field_type;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (sig[1] != '\0') {
-    ClassLoader* cl = GetClassLoader(soa.Self());
+    ClassLoader* cl = GetClassLoader(soa);
     field_type = class_linker->FindClass(sig, cl);
   } else {
     field_type = class_linker->FindPrimitiveClass(*sig);
@@ -313,8 +314,6 @@ static void ThrowSIOOBE(ScopedObjectAccess& soa, jsize start, jsize length,
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause)
     LOCKS_EXCLUDED(Locks::mutator_lock_) {
-  ScopedObjectAccess soa(env);
-
   // Turn the const char* into a java.lang.String.
   ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg));
   if (msg != NULL && s.get() == NULL) {
@@ -339,6 +338,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
   }
   jmethodID mid = env->GetMethodID(exception_class, "<init>", signature);
   if (mid == NULL) {
+    ScopedObjectAccess soa(env);
     LOG(ERROR) << "No <init>" << signature << " in "
         << PrettyClass(soa.Decode<Class*>(exception_class));
     return JNI_ERR;
@@ -349,6 +349,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
     return JNI_ERR;
   }
 
+  ScopedObjectAccess soa(env);
   soa.Self()->SetException(soa.Decode<Throwable*>(exception.get()));
 
   return JNI_OK;
@@ -590,7 +591,7 @@ class JNI {
     std::string descriptor(NormalizeJniClassDescriptor(name));
     Class* c = NULL;
     if (runtime->IsStarted()) {
-      ClassLoader* cl = GetClassLoader(soa.Self());
+      ClassLoader* cl = GetClassLoader(soa);
       c = class_linker->FindClass(descriptor.c_str(), cl);
     } else {
       c = class_linker->FindSystemClass(descriptor.c_str());
@@ -712,11 +713,10 @@ class JNI {
   }
 
   static jint PushLocalFrame(JNIEnv* env, jint capacity) {
-    ScopedObjectAccess soa(env);
-    if (EnsureLocalCapacity(soa, capacity, "PushLocalFrame") != JNI_OK) {
+    if (EnsureLocalCapacity(env, capacity, "PushLocalFrame") != JNI_OK) {
       return JNI_ERR;
     }
-    soa.Env()->PushFrame(capacity);
+    static_cast<JNIEnvExt*>(env)->PushFrame(capacity);
     return JNI_OK;
   }
 
@@ -728,8 +728,7 @@ class JNI {
   }
 
   static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity) {
-    ScopedObjectAccess soa(env);
-    return EnsureLocalCapacity(soa, desired_capacity, "EnsureLocalCapacity");
+    return EnsureLocalCapacity(env, desired_capacity, "EnsureLocalCapacity");
   }
 
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
@@ -749,10 +748,10 @@ class JNI {
     if (obj == NULL) {
       return;
     }
-    ScopedObjectAccess soa(env);
-    JavaVMExt* vm = soa.Vm();
+    JavaVMExt* vm = reinterpret_cast<JNIEnvExt*>(env)->vm;
     IndirectReferenceTable& globals = vm->globals;
-    MutexLock mu(soa.Self(), vm->globals_lock);
+    Thread* self = reinterpret_cast<JNIEnvExt*>(env)->self;
+    MutexLock mu(self, vm->globals_lock);
 
     if (!globals.Remove(IRT_FIRST_SEGMENT, obj)) {
       LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
@@ -796,10 +795,9 @@ class JNI {
     if (obj == NULL) {
       return;
     }
-    ScopedObjectAccess soa(env);
-    IndirectReferenceTable& locals = soa.Env()->locals;
+    IndirectReferenceTable& locals = reinterpret_cast<JNIEnvExt*>(env)->locals;
 
-    uint32_t cookie = soa.Env()->local_ref_cookie;
+    uint32_t cookie = reinterpret_cast<JNIEnvExt*>(env)->local_ref_cookie;
     if (!locals.Remove(cookie, obj)) {
       // Attempting to delete a local reference that is not in the
       // topmost local reference frame is a no-op.  DeleteLocalRef returns
@@ -1730,7 +1728,6 @@ class JNI {
   }
 
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
-    ScopedObjectAccess soa(env);
     return GetStringChars(env, java_string, is_copy);
   }
 
@@ -1740,13 +1737,13 @@ class JNI {
   }
 
   static const char* GetStringUTFChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
-    ScopedObjectAccess soa(env);
     if (java_string == NULL) {
       return NULL;
     }
     if (is_copy != NULL) {
       *is_copy = JNI_TRUE;
     }
+    ScopedObjectAccess soa(env);
     String* s = soa.Decode<String*>(java_string);
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
@@ -1758,7 +1755,6 @@ class JNI {
   }
 
   static void ReleaseStringUTFChars(JNIEnv* env, jstring, const char* chars) {
-    ScopedObjectAccess soa(env);
     delete[] chars;
   }
 
@@ -1863,8 +1859,7 @@ class JNI {
   }
 
   static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static jboolean* GetBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* is_copy) {
@@ -1908,43 +1903,35 @@ class JNI {
   }
 
   static void ReleaseBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseByteArrayElements(JNIEnv* env, jbyteArray array, jbyte*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseCharArrayElements(JNIEnv* env, jcharArray array, jchar*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseDoubleArrayElements(JNIEnv* env, jdoubleArray array, jdouble*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseFloatArrayElements(JNIEnv* env, jfloatArray array, jfloat*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseIntArrayElements(JNIEnv* env, jintArray array, jint*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseLongArrayElements(JNIEnv* env, jlongArray array, jlong*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void ReleaseShortArrayElements(JNIEnv* env, jshortArray array, jshort*, jint mode) {
-    ScopedObjectAccess soa(env);
-    ReleasePrimitiveArray(soa, array, mode);
+    ReleasePrimitiveArray(env, array, mode);
   }
 
   static void GetBooleanArrayRegion(JNIEnv* env, jbooleanArray array, jsize start, jsize length, jboolean* buf) {
@@ -2108,7 +2095,6 @@ class JNI {
   }
 
   static jint GetJavaVM(JNIEnv* env, JavaVM** vm) {
-    ScopedObjectAccess soa(env);
     Runtime* runtime = Runtime::Current();
     if (runtime != NULL) {
       *vm = runtime->GetJavaVM();
@@ -2119,8 +2105,6 @@ class JNI {
   }
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
-    ScopedObjectAccess soa(env);
-
     // The address may not be NULL, and the capacity must be > 0.
     CHECK(address != NULL); // TODO: ReportJniError
     CHECK_GT(capacity, 0); // TODO: ReportJniError
@@ -2134,22 +2118,18 @@ class JNI {
     jobject result = env->NewObject(WellKnownClasses::java_nio_ReadWriteDirectByteBuffer,
                                     WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init,
                                     address_arg, capacity_arg);
-    return soa.Self()->IsExceptionPending() ? NULL : result;
+    return static_cast<JNIEnvExt*>(env)->self->IsExceptionPending() ? NULL : result;
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
-    ScopedObjectAccess soa(env);
     return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
-    ScopedObjectAccess soa(env);
     return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity));
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
-    ScopedObjectAccess soa(env);
-
     CHECK(java_object != NULL); // TODO: ReportJniError
 
     // Do we definitely know what kind of reference this is?
@@ -2157,7 +2137,7 @@ class JNI {
     IndirectRefKind kind = GetIndirectRefKind(ref);
     switch (kind) {
     case kLocal:
-      if (soa.Env()->locals.Get(ref) != kInvalidIndirectRefObject) {
+      if (static_cast<JNIEnvExt*>(env)->locals.Get(ref) != kInvalidIndirectRefObject) {
         return JNILocalRefType;
       }
       return JNIInvalidRefType;
@@ -2167,22 +2147,24 @@ class JNI {
       return JNIWeakGlobalRefType;
     case kSirtOrInvalid:
       // Is it in a stack IRT?
-      if (soa.Self()->SirtContains(java_object)) {
+      if (static_cast<JNIEnvExt*>(env)->self->SirtContains(java_object)) {
         return JNILocalRefType;
       }
 
-      if (!soa.Vm()->work_around_app_jni_bugs) {
+      if (!static_cast<JNIEnvExt*>(env)->vm->work_around_app_jni_bugs) {
         return JNIInvalidRefType;
       }
 
       // If we're handing out direct pointers, check whether it's a direct pointer
       // to a local reference.
-      if (soa.Decode<Object*>(java_object) == reinterpret_cast<Object*>(java_object)) {
-        if (soa.Env()->locals.ContainsDirectPointer(reinterpret_cast<Object*>(java_object))) {
-          return JNILocalRefType;
+      {
+        ScopedObjectAccess soa(env);
+        if (soa.Decode<Object*>(java_object) == reinterpret_cast<Object*>(java_object)) {
+          if (soa.Env()->locals.ContainsDirectPointer(reinterpret_cast<Object*>(java_object))) {
+            return JNILocalRefType;
+          }
         }
       }
-
       return JNIInvalidRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
@@ -2190,18 +2172,18 @@ class JNI {
   }
 
  private:
-  static jint EnsureLocalCapacity(const ScopedObjectAccess& soa, jint desired_capacity,
-                                  const char* caller)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static jint EnsureLocalCapacity(JNIEnv* env, jint desired_capacity,
+                                  const char* caller) {
     // TODO: we should try to expand the table if necessary.
     if (desired_capacity < 1 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
     // TODO: this isn't quite right, since "capacity" includes holes.
-    size_t capacity = soa.Env()->locals.Capacity();
+    size_t capacity = static_cast<JNIEnvExt*>(env)->locals.Capacity();
     bool okay = (static_cast<jint>(kLocalsMax - capacity) >= desired_capacity);
     if (!okay) {
+      ScopedObjectAccess soa(env);
       soa.Self()->ThrowOutOfMemoryError(caller);
     }
     return okay ? JNI_OK : JNI_ERR;
@@ -2228,10 +2210,9 @@ class JNI {
   }
 
   template <typename ArrayT>
-  static void ReleasePrimitiveArray(ScopedObjectAccess& soa, ArrayT java_array,
-                                    jint mode)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static void ReleasePrimitiveArray(JNIEnv* env, ArrayT java_array, jint mode) {
     if (mode != JNI_COMMIT) {
+      ScopedObjectAccess soa(env);
       Array* array = soa.Decode<Array*>(java_array);
       UnpinPrimitiveArray(soa, array);
     }
