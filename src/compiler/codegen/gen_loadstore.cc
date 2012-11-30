@@ -40,19 +40,28 @@ LIR* Codegen::LoadConstant(CompilationUnit* cu, int r_dest, int value)
  * promoted floating point register, also copy a zero into the int/ref identity of
  * that sreg.
  */
-void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int value)
+void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int zero_reg)
 {
-  if (rl_dest.fp && (value == 0)) {
+  if (rl_dest.fp) {
     int pmap_index = SRegToPMap(cu, rl_dest.s_reg_low);
     if (cu->promotion_map[pmap_index].fp_location == kLocPhysReg) {
+      // Now, determine if this vreg is ever used as a reference.  If not, we're done.
+      bool used_as_reference = false;
+      int base_vreg = SRegToVReg(cu, rl_dest.s_reg_low);
+      for (int i = 0; !used_as_reference && (i < cu->num_ssa_regs); i++) {
+        if (SRegToVReg(cu, cu->reg_location[i].s_reg_low) == base_vreg) {
+          used_as_reference |= cu->reg_location[i].ref;
+        }
+      }
+      if (!used_as_reference) {
+        return;
+      }
       if (cu->promotion_map[pmap_index].core_location == kLocPhysReg) {
         // Promoted - just copy in a zero
-        LoadConstant(cu, cu->promotion_map[pmap_index].core_reg, 0);
+        OpRegCopy(cu, cu->promotion_map[pmap_index].core_reg, zero_reg);
       } else {
         // Lives in the frame, need to store.
-        int temp_reg = AllocTemp(cu);
-        LoadConstant(cu, temp_reg, 0);
-        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), temp_reg, kWord);
+        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), zero_reg, kWord);
       }
     }
   }

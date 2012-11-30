@@ -2574,9 +2574,12 @@ static void CvtConst(CompilationUnit* cu, llvm::CallInst* call_inst)
                           (immval) & 0xffffffff, (immval >> 32) & 0xffffffff);
     cg->StoreValueWide(cu, rl_dest, rl_result);
   } else {
-    cg->LoadConstantNoClobber(cu, rl_result.low_reg, immval & 0xffffffff);
+    int immediate = immval & 0xffffffff;
+    cg->LoadConstantNoClobber(cu, rl_result.low_reg, immediate);
     cg->StoreValue(cu, rl_dest, rl_result);
-    cg->Workaround7250540(cu, rl_dest, immval & 0xffffffff);
+    if (immediate == 0) {
+      cg->Workaround7250540(cu, rl_dest, rl_result.low_reg);
+    }
   }
 }
 
