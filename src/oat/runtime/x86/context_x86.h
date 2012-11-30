@@ -25,14 +25,17 @@ namespace x86 {
 
 class X86Context : public Context {
  public:
-  X86Context();
+  X86Context() {
+    Reset();
+  }
   virtual ~X86Context() {}
 
-  // No callee saves on X86
+  virtual void Reset();
+
   virtual void FillCalleeSaves(const StackVisitor& fr);
 
   virtual void SetSP(uintptr_t new_sp) {
-    gprs_[ESP] = new_sp;
+    SetGPR(ESP, new_sp);
   }
 
   virtual void SetPC(uintptr_t new_pc) {
@@ -40,17 +43,23 @@ class X86Context : public Context {
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    CHECK_GE(reg, 0u);
-    CHECK_LT(reg, 8u);
-    return gprs_[reg];
+    CHECK_LT(reg, kNumberOfCpuRegisters);
+    return *gprs_[reg];
   }
+
+  virtual void SetGPR(uint32_t reg, uintptr_t value);
 
   virtual void SmashCallerSaves();
   virtual void DoLongJump();
 
  private:
-  uintptr_t gprs_[8];
-  uintptr_t eip_;
+  // Pointers to register locations, floating point registers are all caller save. Values are
+  // initialized to NULL or the special registers below.
+  uintptr_t* gprs_[kNumberOfCpuRegisters];
+  // Hold values for esp and eip if they are not located within a stack frame. EIP is somewhat
+  // special in that it cannot be encoded normally as a register operand to an instruction (except
+  // in 64bit addressing modes).
+  uintptr_t esp_, eip_;
 };
 }  // namespace x86
 }  // namespace art

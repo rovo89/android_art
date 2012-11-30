@@ -1793,6 +1793,7 @@ Context* Thread::GetLongJumpContext() {
     result = Context::Create();
   } else {
     long_jump_context_ = NULL;  // Avoid context being shared.
+    result->Reset();
   }
   return result;
 }

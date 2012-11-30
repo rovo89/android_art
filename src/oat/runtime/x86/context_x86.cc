@@ -21,14 +21,16 @@
 namespace art {
 namespace x86 {
 
-X86Context::X86Context() {
-#ifndef NDEBUG
-  // Initialize registers with easy to spot debug values.
-  for (int i = 0; i < 8; i++) {
-    gprs_[i] = kBadGprBase + i;
+static const uint32_t gZero = 0;
+
+void X86Context::Reset() {
+  for (int i = 0; i < kNumberOfCpuRegisters; i++) {
+    gprs_[i] = NULL;
   }
-  eip_ = 0xEBAD601F;
-#endif
+  gprs_[ESP] = &esp_;
+  // Initialize registers with easy to spot debug values.
+  esp_ = X86Context::kBadGprBase + ESP;
+  eip_ = X86Context::kBadGprBase + kNumberOfCpuRegisters;
 }
 
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
@@ -38,11 +40,11 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   DCHECK_EQ(method->GetFpSpillMask(), 0u);
   size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context.
+    // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 2;  // Offset j to skip return address spill.
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < kNumberOfCpuRegisters; i++) {
       if (((core_spills >> i) & 1) != 0) {
-        gprs_[i] = fr.LoadCalleeSave(spill_count - j, frame_size);
+        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_size);
         j++;
       }
     }
@@ -50,37 +52,40 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
 }
 
 void X86Context::SmashCallerSaves() {
-  gprs_[EAX] = 0; // This needs to be 0 because we want a null/zero return value.
-  gprs_[ECX] = kBadGprBase + ECX;
-  gprs_[EDX] = kBadGprBase + EDX;
-  gprs_[EBX] = kBadGprBase + EBX;
+  // This needs to be 0 because we want a null/zero return value.
+  gprs_[EAX] = const_cast<uint32_t*>(&gZero);
+  gprs_[EDX] = const_cast<uint32_t*>(&gZero);
+  gprs_[ECX] = NULL;
+  gprs_[EBX] = NULL;
+}
+
+void X86Context::SetGPR(uint32_t reg, uintptr_t value){
+  CHECK_LT(reg, kNumberOfCpuRegisters);
+  CHECK_NE(gprs_[reg], &gZero);
+  CHECK(gprs_[reg] != NULL);
+  *gprs_[reg] = value;
 }
 
 void X86Context::DoLongJump() {
 #if defined(__i386__)
-  // We push all the registers using memory-memory pushes, we then pop-all to get the registers
-  // set up, we then pop esp which will move us down the stack to the delivery address. At the frame
-  // where the exception will be delivered, we push EIP so that the return will take us to the
-  // correct delivery instruction.
-  gprs_[ESP] -= 4;
-  *(reinterpret_cast<uintptr_t*>(gprs_[ESP])) = eip_;
+  // Array of GPR values, filled from the context backward for the long jump pop. We add a slot at
+  // the top for the stack pointer that doesn't get popped in a pop-all.
+  volatile uintptr_t gprs[kNumberOfCpuRegisters + 1];
+  for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
+    gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != NULL ? *gprs_[i] : X86Context::kBadGprBase + i;
+  }
+  // We want to load the stack pointer one slot below so that the ret will pop eip.
+  uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - kWordSize;
+  gprs[kNumberOfCpuRegisters] = esp;
+  *(reinterpret_cast<uintptr_t*>(esp)) = eip_;
   __asm__ __volatile__(
-      "pushl %4\n\t"
-      "pushl %0\n\t"
-      "pushl %1\n\t"
-      "pushl %2\n\t"
-      "pushl %3\n\t"
-      "pushl %4\n\t"
-      "pushl %5\n\t"
-      "pushl %6\n\t"
-      "pushl %7\n\t"
-      "popal\n\t"
-      "popl %%esp\n\t"
-      "ret\n\t"
-      :  //output
-      : "g"(gprs_[EAX]), "g"(gprs_[ECX]), "g"(gprs_[EDX]), "g"(gprs_[EBX]),
-        "g"(gprs_[ESP]), "g"(gprs_[EBP]), "g"(gprs_[ESI]), "g"(gprs_[EDI])
-      :);  // clobber
+      "movl %0, %%esp\n\t"  // ESP points to gprs.
+      "popal\n\t"           // Load all registers except ESP and EIP with values in gprs.
+      "popl %%esp\n\t"      // Load stack pointer.
+      "ret\n\t"             // From higher in the stack pop eip.
+      :  // output.
+      : "g"(&gprs[0])  // input.
+      :);  // clobber.
 #else
     UNIMPLEMENTED(FATAL);
 #endif

@@ -17,6 +17,7 @@
 #ifndef ART_SRC_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
 #define ART_SRC_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
 
+#include "locks.h"
 #include "constants_arm.h"
 #include "oat/runtime/context.h"
 
@@ -25,31 +26,39 @@ namespace arm {
 
 class ArmContext : public Context {
  public:
-  ArmContext();
+  ArmContext() {
+    Reset();
+  }
+
   virtual ~ArmContext() {}
+
+  virtual void Reset();
 
   virtual void FillCalleeSaves(const StackVisitor& fr);
 
   virtual void SetSP(uintptr_t new_sp) {
-    gprs_[SP] = new_sp;
+    SetGPR(SP, new_sp);
   }
 
   virtual void SetPC(uintptr_t new_pc) {
-    gprs_[PC] = new_pc;
+    SetGPR(PC, new_pc);
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    CHECK_GE(reg, 0u);
-    CHECK_LT(reg, 16u);
-    return gprs_[reg];
+    CHECK_LT(reg, kNumberOfCoreRegisters);
+    return *gprs_[reg];
   }
 
+  virtual void SetGPR(uint32_t reg, uintptr_t value);
   virtual void SmashCallerSaves();
   virtual void DoLongJump();
 
  private:
-  uintptr_t gprs_[16];
-  uint32_t fprs_[32];
+  // Pointers to register locations, initialized to NULL or the specific registers below.
+  uintptr_t* gprs_[kNumberOfCoreRegisters];
+  uint32_t* fprs_[kNumberOfSRegisters];
+  // Hold values for sp and pc if they are not located within a stack frame.
+  uintptr_t sp_, pc_;
 };
 
 }  // namespace arm

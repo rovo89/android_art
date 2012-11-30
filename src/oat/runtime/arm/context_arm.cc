@@ -21,16 +21,20 @@
 namespace art {
 namespace arm {
 
-ArmContext::ArmContext() {
-#ifndef NDEBUG
-  // Initialize registers with easy to spot debug values
-  for (int i = 0; i < 16; i++) {
-    gprs_[i] = kBadGprBase + i;
+static const uint32_t gZero = 0;
+
+void ArmContext::Reset() {
+  for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
+    gprs_[i] = NULL;
   }
-  for (int i = 0; i < 32; i++) {
-    fprs_[i] = kBadFprBase + i;
+  for (size_t i = 0; i < kNumberOfSRegisters; i++) {
+    fprs_[i] = NULL;
   }
-#endif
+  gprs_[SP] = &sp_;
+  gprs_[PC] = &pc_;
+  // Initialize registers with easy to spot debug values.
+  sp_ = ArmContext::kBadGprBase + SP;
+  pc_ = ArmContext::kBadGprBase + PC;
 }
 
 void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
@@ -41,40 +45,55 @@ void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
   size_t fp_spill_count = __builtin_popcount(fp_core_spills);
   size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context
+    // Lowest number spill is farthest away, walk registers and fill into context
     int j = 1;
-    for (int i = 0; i < 16; i++) {
+    for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
       if (((core_spills >> i) & 1) != 0) {
-        gprs_[i] = fr.LoadCalleeSave(spill_count - j, frame_size);
+        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_size);
         j++;
       }
     }
   }
   if (fp_spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context
+    // Lowest number spill is farthest away, walk registers and fill into context
     int j = 1;
-    for (int i = 0; i < 32; i++) {
+    for (size_t i = 0; i < kNumberOfSRegisters; i++) {
       if (((fp_core_spills >> i) & 1) != 0) {
-        fprs_[i] = fr.LoadCalleeSave(spill_count + fp_spill_count - j, frame_size);
+        fprs_[i] = fr.CalleeSaveAddress(spill_count + fp_spill_count - j, frame_size);
         j++;
       }
     }
   }
 }
 
+void ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
+  CHECK_LT(reg, kNumberOfCoreRegisters);
+  CHECK_NE(gprs_[reg], &gZero); // Can't overwrite this static value since they are never reset.
+  CHECK(gprs_[reg] != NULL);
+  *gprs_[reg] = value;
+}
+
 void ArmContext::SmashCallerSaves() {
-  gprs_[0] = 0; // This needs to be 0 because we want a null/zero return value.
-  gprs_[1] = kBadGprBase + 1;
-  gprs_[2] = kBadGprBase + 2;
-  gprs_[3] = kBadGprBase + 3;
-  gprs_[IP] = kBadGprBase + IP;
-  gprs_[LR] = kBadGprBase + LR;
+  // This needs to be 0 because we want a null/zero return value.
+  gprs_[R0] = const_cast<uint32_t*>(&gZero);
+  gprs_[R1] = const_cast<uint32_t*>(&gZero);
+  gprs_[R2] = NULL;
+  gprs_[R3] = NULL;
 }
 
 extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
 
 void ArmContext::DoLongJump() {
-  art_do_long_jump(&gprs_[0], &fprs_[S0]);
+  uintptr_t gprs[16];
+  uint32_t fprs[32];
+  for (size_t i = 0; i < kNumberOfCoreRegisters; ++i) {
+    gprs[i] = gprs_[i] != NULL ? *gprs_[i] : ArmContext::kBadGprBase + i;
+  }
+  for (size_t i = 0; i < kNumberOfSRegisters; ++i) {
+    fprs[i] = fprs_[i] != NULL ? *fprs_[i] : ArmContext::kBadGprBase + i;
+  }
+  DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
+  art_do_long_jump(gprs, fprs);
 }
 
 }  // namespace arm
