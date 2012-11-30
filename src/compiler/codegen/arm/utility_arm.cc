@@ -47,10 +47,19 @@ static int EncodeImmSingle(int value)
 
 static LIR* LoadFPConstantValue(CompilationUnit* cu, int r_dest, int value)
 {
-  int encoded_imm = EncodeImmSingle(value);
   DCHECK(ARM_SINGLEREG(r_dest));
-  if (encoded_imm >= 0) {
-    return NewLIR2(cu, kThumb2Vmovs_IMM8, r_dest, encoded_imm);
+  if (value == 0) {
+    // TODO: we need better info about the target CPU.  a vector exclusive or
+    //       would probably be better here if we could rely on its existance.
+    // Load an immediate +2.0 (which encodes to 0)
+    NewLIR2(cu, kThumb2Vmovs_IMM8, r_dest, 0);
+    // +0.0 = +2.0 - +2.0
+    return NewLIR3(cu, kThumb2Vsubs, r_dest, r_dest, r_dest);
+  } else {
+    int encoded_imm = EncodeImmSingle(value);
+    if (encoded_imm >= 0) {
+      return NewLIR2(cu, kThumb2Vmovs_IMM8, r_dest, encoded_imm);
+    }
   }
   LIR* data_target = ScanLiteralPool(cu->literal_list, value, 0);
   if (data_target == NULL) {
@@ -600,24 +609,33 @@ static int EncodeImmDouble(int val_lo, int val_hi)
 LIR* ArmCodegen::LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
                                        int val_lo, int val_hi)
 {
-  int encoded_imm = EncodeImmDouble(val_lo, val_hi);
   LIR* res;
+  int target_reg = S2d(r_dest_lo, r_dest_hi);
   if (ARM_FPREG(r_dest_lo)) {
-    if (encoded_imm >= 0) {
-      res = NewLIR2(cu, kThumb2Vmovd_IMM8, S2d(r_dest_lo, r_dest_hi),
-              encoded_imm);
+    if ((val_lo == 0) && (val_hi == 0)) {
+      // TODO: we need better info about the target CPU.  a vector exclusive or
+      //       would probably be better here if we could rely on its existance.
+      // Load an immediate +2.0 (which encodes to 0)
+      NewLIR2(cu, kThumb2Vmovd_IMM8, target_reg, 0);
+      // +0.0 = +2.0 - +2.0
+      res = NewLIR3(cu, kThumb2Vsubd, target_reg, target_reg, target_reg);
     } else {
-      LIR* data_target = ScanLiteralPoolWide(cu->literal_list, val_lo, val_hi);
-      if (data_target == NULL) {
-        data_target = AddWideData(cu, &cu->literal_list, val_lo, val_hi);
+      int encoded_imm = EncodeImmDouble(val_lo, val_hi);
+      if (encoded_imm >= 0) {
+        res = NewLIR2(cu, kThumb2Vmovd_IMM8, target_reg, encoded_imm);
+      } else {
+        LIR* data_target = ScanLiteralPoolWide(cu->literal_list, val_lo, val_hi);
+        if (data_target == NULL) {
+          data_target = AddWideData(cu, &cu->literal_list, val_lo, val_hi);
+        }
+        LIR* load_pc_rel =
+            RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrd,
+                   target_reg, r15pc, 0, 0, 0, data_target);
+        SetMemRefType(cu, load_pc_rel, true, kLiteral);
+        load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
+        AppendLIR(cu, load_pc_rel);
+        res = load_pc_rel;
       }
-      LIR* load_pc_rel =
-          RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrd,
-                 S2d(r_dest_lo, r_dest_hi), r15pc, 0, 0, 0, data_target);
-      SetMemRefType(cu, load_pc_rel, true, kLiteral);
-      load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
-      AppendLIR(cu, load_pc_rel);
-      res = load_pc_rel;
     }
   } else {
     res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
