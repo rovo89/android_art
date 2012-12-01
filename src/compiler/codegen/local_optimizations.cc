@@ -20,7 +20,7 @@ namespace art {
 
 #define DEBUG_OPT(X)
 
-/* Check RAW, WAR, and WAR dependency on the register operands */
+/* Check RAW, WAR, and RAW dependency on the register operands */
 #define CHECK_REG_DEP(use, def, check) ((def & check->use_mask) || \
                                         ((use | def) & check->def_mask))
 

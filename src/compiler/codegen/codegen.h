@@ -211,6 +211,7 @@ class Codegen {
     bool GenInlinedDoubleCvt(CompilationUnit *cu, CallInfo* info);
     bool GenInlinedIndexOf(CompilationUnit* cu, CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info);
+    bool GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info);
     bool GenIntrinsic(CompilationUnit* cu, CallInfo* info);
 
     // Shared by all targets - implemented in gen_loadstore.cc.

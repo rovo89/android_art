@@ -1636,6 +1636,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   DO_THREAD_OFFSET(state_and_flags_);
   DO_THREAD_OFFSET(card_table_);
   DO_THREAD_OFFSET(exception_);
+  DO_THREAD_OFFSET(opeer_);
   DO_THREAD_OFFSET(jni_env_);
   DO_THREAD_OFFSET(self_);
   DO_THREAD_OFFSET(stack_end_);

@@ -442,6 +442,10 @@ class PACKED(4) Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, exception_));
   }
 
+  static ThreadOffset PeerOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, opeer_));
+  }
+
   static ThreadOffset ThinLockIdOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, thin_lock_id_));
   }

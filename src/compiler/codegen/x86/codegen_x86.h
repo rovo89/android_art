@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_CODEGEN_X86_CODEGENX86_H_
 
 #include "../../compiler_internals.h"
+#include "x86_lir.h"
 
 namespace art {
 

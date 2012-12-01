@@ -431,6 +431,7 @@ void X86Codegen::OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int 
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
   case kOpCmp: opcode = kX86Cmp32RT;  break;
+  case kOpMov: opcode = kX86Mov32RT;  break;
   default:
     LOG(FATAL) << "Bad opcode: " << op;
     break;

@@ -18,6 +18,7 @@
 #include "../compiler_ir.h"
 #include "ralloc_util.h"
 #include "codegen_util.h"
+#include "x86/codegen_x86.h"
 
 namespace art {
 
@@ -1105,6 +1106,20 @@ bool Codegen::GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info)
   return true;
 }
 
+bool Codegen::GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info) {
+  RegLocation rl_dest = InlineTarget(cu, info);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  int offset = Thread::PeerOffset().Int32Value();
+  if (cu->instruction_set == kThumb2) {
+    LoadWordDisp(cu, TargetReg(kSelf), offset, rl_result.low_reg);
+  } else {
+    CHECK(cu->instruction_set == kX86);
+    ((X86Codegen*)this)->OpRegThreadMem(cu, kOpMov, rl_result.low_reg, offset);
+  }
+  StoreValue(cu, rl_dest, rl_result);
+  return true;
+}
+
 bool Codegen::GenIntrinsic(CompilationUnit* cu, CallInfo* info)
 {
   if (info->opt_flags & MIR_INLINED) {
@@ -1171,6 +1186,9 @@ bool Codegen::GenIntrinsic(CompilationUnit* cu, CallInfo* info)
     }
     if (tgt_method == "int java.lang.String.length()") {
       return GenInlinedStringIsEmptyOrLength(cu, info, false /* is_empty */);
+    }
+    if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
+      return GenInlinedCurrentThread(cu, info);
     }
   } else if (tgt_method.find("boolean sun.misc.Unsafe.compareAndSwap") != std::string::npos) {
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
