@@ -43,16 +43,6 @@ LIR* X86Codegen::GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code,
  *    x = y     return  0
  *    x < y     return -1
  *    x > y     return  1
- *
- *    slt   t0,  x.hi, y.hi;        # (x.hi < y.hi) ? 1:0
- *    sgt   t1,  x.hi, y.hi;        # (y.hi > x.hi) ? 1:0
- *    subu  res, t0, t1             # res = -1:1:0 for [ < > = ]
- *    bnez  res, finish
- *    sltu  t0, x.lo, y.lo
- *    sgtu  r1, x.lo, y.lo
- *    subu  res, t0, t1
- * finish:
- *
  */
 void X86Codegen::GenCmpLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
@@ -335,6 +325,8 @@ LIR* X86Codegen::OpIT(CompilationUnit* cu, ConditionCode cond, const char* guide
 bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                          RegLocation rl_src2)
 {
+  // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
+  // enough.
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
   LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
@@ -351,6 +343,8 @@ bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
 bool X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
+  // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
+  // enough.
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
   LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
@@ -367,13 +361,15 @@ bool X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
 bool X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
+  // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
+  // enough.
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
   LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
   LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
-  // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cu, kOpAnd, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cu, kOpAnd, r1, r3);  // r1 = r1 - r3 - CF
+  // Compute (r1:r0) = (r1:r0) & (r2:r3)
+  OpRegReg(cu, kOpAnd, r0, r2);  // r0 = r0 & r2
+  OpRegReg(cu, kOpAnd, r1, r3);  // r1 = r1 & r3
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
@@ -383,13 +379,15 @@ bool X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
 bool X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2)
 {
+  // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
+  // enough.
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
   LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
   LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
-  // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cu, kOpOr, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cu, kOpOr, r1, r3);  // r1 = r1 - r3 - CF
+  // Compute (r1:r0) = (r1:r0) | (r2:r3)
+  OpRegReg(cu, kOpOr, r0, r2);  // r0 = r0 | r2
+  OpRegReg(cu, kOpOr, r1, r3);  // r1 = r1 | r3
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
@@ -399,13 +397,15 @@ bool X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
 bool X86Codegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2)
 {
+  // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
+  // enough.
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
   LoadValueDirectWideFixed(cu, rl_src1, r0, r1);
   LoadValueDirectWideFixed(cu, rl_src2, r2, r3);
-  // Compute (r1:r0) = (r1:r0) + (r2:r3)
-  OpRegReg(cu, kOpXor, r0, r2);  // r0 = r0 - r2
-  OpRegReg(cu, kOpXor, r1, r3);  // r1 = r1 - r3 - CF
+  // Compute (r1:r0) = (r1:r0) ^ (r2:r3)
+  OpRegReg(cu, kOpXor, r0, r2);  // r0 = r0 ^ r2
+  OpRegReg(cu, kOpXor, r1, r3);  // r1 = r1 ^ r3
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
