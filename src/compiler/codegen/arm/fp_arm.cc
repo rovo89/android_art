@@ -259,6 +259,7 @@ bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLoca
   if (is_double) {
     rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
     rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
+    // In case result vreg is also a src vreg, break association to avoid useless copy by EvalLoc()
     ClobberSReg(cu, rl_dest.s_reg_low);
     rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
     LoadConstant(cu, rl_result.low_reg, default_result);
@@ -267,6 +268,7 @@ bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLoca
   } else {
     rl_src1 = LoadValue(cu, rl_src1, kFPReg);
     rl_src2 = LoadValue(cu, rl_src2, kFPReg);
+    // In case result vreg is also a srcvreg, break association to avoid useless copy by EvalLoc()
     ClobberSReg(cu, rl_dest.s_reg_low);
     rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
     LoadConstant(cu, rl_result.low_reg, default_result);

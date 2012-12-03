@@ -158,6 +158,7 @@ bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, Re
     case Instruction::FLOAT_TO_INT: {
       rl_src = LoadValue(cu, rl_src, kFPReg);
       src_reg = rl_src.low_reg;
+      // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
       ClobberSReg(cu, rl_dest.s_reg_low);
       rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
       int temp_reg = AllocTempFloat(cu);
@@ -179,6 +180,7 @@ bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, Re
     case Instruction::DOUBLE_TO_INT: {
       rl_src = LoadValueWide(cu, rl_src, kFPReg);
       src_reg = rl_src.low_reg;
+      // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
       ClobberSReg(cu, rl_dest.s_reg_low);
       rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
       int temp_reg = AllocTempDouble(cu) | X86_FP_DOUBLE;
@@ -245,6 +247,7 @@ bool X86Codegen::GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocati
     rl_src2 = LoadValueWide(cu, rl_src2, kFPReg);
     src_reg2 = S2d(rl_src2.low_reg, rl_src2.high_reg);
   }
+  // In case result vreg is also src vreg, break association to avoid useless copy by EvalLoc()
   ClobberSReg(cu, rl_dest.s_reg_low);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   LoadConstantNoClobber(cu, rl_result.low_reg, unordered_gt ? 1 : 0);

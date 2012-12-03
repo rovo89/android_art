@@ -124,7 +124,17 @@ static void ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
   }
 }
 
-/* Clobber any temp associated with an s_reg.  Could be in either class */
+/*
+ * Break the association between a Dalvik vreg and a physical temp register of either register
+ * class.
+ * TODO: Ideally, the public version of this code should not exist.  Besides its local usage
+ * in the register utilities, is is also used by code gen routines to work around a deficiency in
+ * local register allocation, which fails to distinguish between the "in" and "out" identities
+ * of Dalvik vregs.  This can result in useless register copies when the same Dalvik vreg
+ * is used both as the source and destination register of an operation in which the type
+ * changes (for example: INT_TO_FLOAT v1, v1).  Revisit when improved register allocation is
+ * addressed.
+ */
 void ClobberSReg(CompilationUnit* cu, int s_reg)
 {
 #ifndef NDEBUG
