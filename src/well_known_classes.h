@@ -30,7 +30,8 @@ class Class;
 
 struct WellKnownClasses {
   static void InitClasses(JNIEnv* env);
-  static void Init(JNIEnv* env);
+  static void Init(JNIEnv* env);  // Run before native methods are registered.
+  static void LateInit(JNIEnv* env);  // Run after native methods are registered.
 
   static Class* ToClass(jclass global_jclass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -71,6 +72,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;
   static jmethodID java_lang_reflect_InvocationHandler_invoke;
+  static jmethodID java_lang_Runtime_nativeLoad;
   static jmethodID java_lang_Short_valueOf;
   static jmethodID java_lang_Thread_init;
   static jmethodID java_lang_Thread_run;
