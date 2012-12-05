@@ -19,18 +19,19 @@
 namespace art {
 
 const char* extended_mir_op_names[kMirOpLast - kMirOpFirst] = {
-  "kMirOpPhi",
-  "kMirOpCopy",
-  "kMirFusedCmplFloat",
-  "kMirFusedCmpgFloat",
-  "kMirFusedCmplDouble",
-  "kMirFusedCmpgDouble",
-  "kMirFusedCmpLong",
-  "kMirNop",
-  "kMirOpNullCheck",
-  "kMirOpRangeCheck",
-  "kMirOpDivZeroCheck",
-  "kMirOpCheck",
+  "Phi",
+  "Copy",
+  "FusedCmplFloat",
+  "FusedCmpgFloat",
+  "FusedCmplDouble",
+  "FusedCmpgDouble",
+  "FusedCmpLong",
+  "Nop",
+  "OpNullCheck",
+  "OpRangeCheck",
+  "OpDivZeroCheck",
+  "Check1",
+  "Check2",
 };
 
 #ifdef WITH_MEMSTATS

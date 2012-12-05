@@ -484,22 +484,6 @@ void X86Codegen::CompilerInitializeRegAlloc(CompilationUnit* cu) {
   for (int i = 0; i < num_fp_temps; i++) {
     MarkTemp(cu, fp_temps[i]);
   }
-  // Construct the alias map.
-  cu->phi_alias_map = static_cast<int*>
-      (NewMem(cu, cu->num_ssa_regs * sizeof(cu->phi_alias_map[0]), false, kAllocDFInfo));
-  for (int i = 0; i < cu->num_ssa_regs; i++) {
-    cu->phi_alias_map[i] = i;
-  }
-  for (MIR* phi = cu->phi_list; phi != NULL; phi = phi->meta.phi_next) {
-    int def_reg = phi->ssa_rep->defs[0];
-    for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
-      for (int j = 0; j < cu->num_ssa_regs; j++) {
-        if (cu->phi_alias_map[j] == phi->ssa_rep->uses[i]) {
-          cu->phi_alias_map[j] = def_reg;
-        }
-      }
-    }
-  }
 }
 
 void X86Codegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,

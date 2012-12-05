@@ -113,7 +113,7 @@ static bool ContentIsInsn(const uint16_t* code_ptr) {
  * Parse an instruction, return the length of the instruction
  */
 static int ParseInsn(CompilationUnit* cu, const uint16_t* code_ptr,
-                     DecodedInstruction* decoded_instruction, bool verbose)
+                     DecodedInstruction* decoded_instruction)
 {
   // Don't parse instruction data
   if (!ContentIsInsn(code_ptr)) {
@@ -123,12 +123,6 @@ static int ParseInsn(CompilationUnit* cu, const uint16_t* code_ptr,
   const Instruction* instruction = Instruction::At(code_ptr);
   *decoded_instruction = DecodedInstruction(instruction);
 
-  if (verbose) {
-    char* decoded_string = GetDalvikDisassembly(cu, *decoded_instruction,
-                                                  NULL);
-    LOG(INFO) << code_ptr << ": 0x" << std::hex << static_cast<int>(decoded_instruction->opcode)
-              << " " << decoded_string;
-  }
   return instruction->SizeInCodeUnits();
 }
 
@@ -311,7 +305,7 @@ void DumpCFG(CompilationUnit* cu, const char* dir_prefix)
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
             fprintf(file, "    {%04x %s\\l}%s\\\n", mir->offset,
-                    mir->ssa_rep ? FullDisassembler(cu, mir) :
+                    mir->ssa_rep ? GetDalvikDisassembly(cu, mir) :
                     Instruction::Name(mir->dalvikInsn.opcode),
                     mir->next ? " | " : " ");
         }
@@ -932,7 +926,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   while (code_ptr < code_end) {
     MIR *insn = static_cast<MIR *>(NewMem(cu.get(), sizeof(MIR), true, kAllocMIR));
     insn->offset = cur_offset;
-    int width = ParseInsn(cu.get(), code_ptr, &insn->dalvikInsn, false);
+    int width = ParseInsn(cu.get(), code_ptr, &insn->dalvikInsn);
     insn->width = width;
     Instruction::Code opcode = insn->dalvikInsn.opcode;
     if (cu->opcode_count != NULL) {

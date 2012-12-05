@@ -158,9 +158,7 @@ struct LoopInfo {
 };
 
 int SRegToVReg(const CompilationUnit* cu, int ssa_reg);
-char* GetDalvikDisassembly(CompilationUnit* cu, const DecodedInstruction& insn, const char* note);
-char* FullDisassembler(CompilationUnit* cu, const MIR* mir);
-char* GetSSAString(CompilationUnit* cu, SSARepresentation* ssa_rep);
+char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir);
 bool FindLocalLiveIn(CompilationUnit* cu, BasicBlock* bb);
 bool DoSSAConversion(CompilationUnit* cu, BasicBlock* bb);
 bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb);

@@ -1337,7 +1337,8 @@ CallInfo* Codegen::NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
     info->result.location = kLocInvalid;
   } else {
     info->result = GetRawDest(cu, move_result_mir);
-    move_result_mir->dalvikInsn.opcode = Instruction::NOP;
+    move_result_mir->meta.original_opcode = move_result_mir->dalvikInsn.opcode;
+    move_result_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
   info->num_arg_words = mir->ssa_rep->num_uses;
   info->args = (info->num_arg_words == 0) ? NULL : static_cast<RegLocation*>

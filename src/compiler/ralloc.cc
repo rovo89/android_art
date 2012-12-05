@@ -68,26 +68,6 @@ static bool SetHigh(CompilationUnit* cu, int index, bool is_high) {
   return change;
 }
 
-static bool RemapNames(CompilationUnit* cu, BasicBlock* bb)
-{
-  if (bb->block_type != kDalvikByteCode && bb->block_type != kEntryBlock &&
-      bb->block_type != kExitBlock)
-    return false;
-
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    SSARepresentation *ssa_rep = mir->ssa_rep;
-    if (ssa_rep) {
-      for (int i = 0; i < ssa_rep->num_uses; i++) {
-        ssa_rep->uses[i] = cu->phi_alias_map[ssa_rep->uses[i]];
-      }
-      for (int i = 0; i < ssa_rep->num_defs; i++) {
-        ssa_rep->defs[i] = cu->phi_alias_map[ssa_rep->defs[i]];
-      }
-    }
-  }
-  return false;
-}
-
 /*
  * Infer types and sizes.  We don't need to track change on sizes,
  * as it doesn't propagate.  We're guaranteed at least one pass through
@@ -368,10 +348,11 @@ static void DumpRegLocTable(CompilationUnit* cu, RegLocation* table, int count)
 {
   Codegen* cg = cu->cg.get();
   for (int i = 0; i < count; i++) {
-    LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
+    LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c %c%d %c%d S%d",
         table[i].orig_sreg, storage_name[table[i].location],
         table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
         table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
+        table[i].is_const ? 'c' : 'n',
         table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
         cg->IsFpReg(table[i].low_reg) ? 's' : 'r',
         table[i].low_reg & cg->FpRegMask(),
@@ -478,13 +459,6 @@ void SimpleRegAlloc(CompilationUnit* cu)
         }
         s_reg++;
       }
-  }
-
-  if (!cu->gen_bitcode) {
-    /* Remap names */
-    DataFlowAnalysisDispatcher(cu, RemapNames,
-                                  kPreOrderDFSTraversal,
-                                  false /* is_iterative */);
   }
 
   /* Do type & size inference pass */

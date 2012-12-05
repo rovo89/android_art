@@ -1824,6 +1824,7 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
       SSARepresentation* ssa_rep = work_half->ssa_rep;
       work_half->ssa_rep = mir->ssa_rep;
       mir->ssa_rep = ssa_rep;
+      work_half->meta.original_opcode = work_half->dalvikInsn.opcode;
       work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
       if (bb->successor_block_list.block_list_type == kCatch) {
         llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(

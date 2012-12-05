@@ -177,7 +177,6 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
  * Debugging macros
  */
 #define DUMP_RESOURCE_MASK(X)
-#define DUMP_SSA_REP(X)
 
 /* Pretty-print a LIR instruction */
 void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
@@ -198,12 +197,6 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
       break;
     case kPseudoBarrier:
       LOG(INFO) << "-------- BARRIER";
-      break;
-    case kPseudoExtended:
-      LOG(INFO) << "-------- " << reinterpret_cast<char*>(dest);
-      break;
-    case kPseudoSSARep:
-      DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  reinterpret_cast<char*>(dest));
       break;
     case kPseudoEntryBlock:
       LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;

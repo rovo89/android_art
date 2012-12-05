@@ -214,10 +214,10 @@ struct MIR {
   SSARepresentation* ssa_rep;
   int optimization_flags;
   union {
-    // Used to quickly locate all Phi opcodes.
-    MIR* phi_next;
     // Establish link between two halves of throwing instructions.
     MIR* throw_insn;
+    // Saved opcode for NOP'd MIRs
+    Instruction::Code original_opcode;
   } meta;
 };
 
@@ -307,8 +307,6 @@ struct CompilationUnit {
       ssa_last_defs(NULL),
       is_constant_v(NULL),
       constant_values(NULL),
-      phi_alias_map(NULL),
-      phi_list(NULL),
       reg_location(NULL),
       promotion_map(NULL),
       method_sreg(0),
@@ -420,8 +418,6 @@ struct CompilationUnit {
   int* ssa_last_defs;              // length == method->registers_size
   ArenaBitVector* is_constant_v;   // length == num_ssa_reg
   int* constant_values;            // length == num_ssa_reg
-  int* phi_alias_map;              // length == num_ssa_reg
-  MIR* phi_list;
 
   // Use counts of ssa names.
   GrowableList use_counts;         // Weighted by nesting depth

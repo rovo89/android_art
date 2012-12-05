@@ -129,13 +129,8 @@ void ArmCodegen::GenPrintLabel(CompilationUnit *cu, MIR* mir)
 {
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* inst_str = cu->verbose ?
-     GetDalvikDisassembly(cu, mir->dalvikInsn, "") : NULL;
+     GetDalvikDisassembly(cu, mir) : NULL;
   MarkBoundary(cu, mir->offset, inst_str);
-  /* Don't generate the SSA annotation unless verbose mode is on */
-  if (cu->verbose && mir->ssa_rep) {
-    char* ssa_string = GetSSAString(cu, mir->ssa_rep);
-    NewLIR1(cu, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssa_string));
-  }
 }
 
 static MIR* SpecialIGet(CompilationUnit* cu, BasicBlock** bb, MIR* mir,

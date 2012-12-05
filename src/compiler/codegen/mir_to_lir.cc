@@ -611,29 +611,11 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
   return res;
 }
 
-// Process extended MIR instructions (such as PHI).
+// Process extended MIR instructions
 static void HandleExtendedMethodMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   Codegen* cg = cu->cg.get();
-  int op_offset = mir->dalvikInsn.opcode - kMirOpFirst;
-  char* msg = NULL;
-  if (cu->verbose) {
-    msg = static_cast<char*>(NewMem(cu, strlen(extended_mir_op_names[op_offset]) + 1,
-                                    false, kAllocDebugInfo));
-    strcpy(msg, extended_mir_op_names[op_offset]);
-  }
-  LIR* op = NewLIR1(cu, kPseudoExtended, reinterpret_cast<uintptr_t>(msg));
-
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
-    case kMirOpPhi: {
-      char* ssa_string = NULL;
-      if (cu->verbose) {
-        ssa_string = GetSSAString(cu, mir->ssa_rep);
-      }
-      op->flags.is_nop = true;
-      NewLIR1(cu, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssa_string));
-      break;
-    }
     case kMirOpCopy: {
       RegLocation rl_src = GetSrc(cu, mir, 0);
       RegLocation rl_dest = GetDest(cu, mir);
@@ -719,19 +701,13 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
 
     // Mark the beginning of a Dalvik instruction for line tracking.
     char* inst_str = cu->verbose ?
-       GetDalvikDisassembly(cu, mir->dalvikInsn, "") : NULL;
+       GetDalvikDisassembly(cu, mir) : NULL;
     boundary_lir = MarkBoundary(cu, mir->offset, inst_str);
     // Remember the first LIR for this block.
     if (head_lir == NULL) {
       head_lir = boundary_lir;
       // Set the first boundary_lir as a scheduling barrier.
       head_lir->def_mask = ENCODE_ALL;
-    }
-
-    // Don't generate the SSA annotation unless verbose mode is on.
-    if (cu->verbose && mir->ssa_rep) {
-      char* ssa_string = GetSSAString(cu, mir->ssa_rep);
-      NewLIR1(cu, kPseudoSSARep, reinterpret_cast<uintptr_t>(ssa_string));
     }
 
     if (opcode == kMirOpCheck) {
@@ -742,7 +718,7 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
       SSARepresentation* ssa_rep = work_half->ssa_rep;
       work_half->ssa_rep = mir->ssa_rep;
       mir->ssa_rep = ssa_rep;
-      work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+      work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpCheckPart2);
     }
 
     if (opcode >= kMirOpFirst) {

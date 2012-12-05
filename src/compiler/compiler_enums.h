@@ -80,17 +80,15 @@ enum ResourceEncodingPos {
 
 // Shared pseudo opcodes - must be < 0.
 enum LIRPseudoOpcode {
-  kPseudoExportedPC = -18,
-  kPseudoSafepointPC = -17,
-  kPseudoIntrinsicRetry = -16,
-  kPseudoSuspendTarget = -15,
-  kPseudoThrowTarget = -14,
-  kPseudoCaseLabel = -13,
-  kPseudoMethodEntry = -12,
-  kPseudoMethodExit = -11,
-  kPseudoBarrier = -10,
-  kPseudoExtended = -9,
-  kPseudoSSARep = -8,
+  kPseudoExportedPC = -16,
+  kPseudoSafepointPC = -15,
+  kPseudoIntrinsicRetry = -14,
+  kPseudoSuspendTarget = -13,
+  kPseudoThrowTarget = -12,
+  kPseudoCaseLabel = -11,
+  kPseudoMethodEntry = -10,
+  kPseudoMethodExit = -9,
+  kPseudoBarrier = -8,
   kPseudoEntryBlock = -7,
   kPseudoExitBlock = -6,
   kPseudoTargetLabel = -5,
@@ -114,6 +112,7 @@ enum ExtendedMIROpcode {
   kMirOpRangeCheck,
   kMirOpDivZeroCheck,
   kMirOpCheck,
+  kMirOpCheckPart2,
   kMirOpLast,
 };
 
