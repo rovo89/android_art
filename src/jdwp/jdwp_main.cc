@@ -102,7 +102,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       serial_lock_("JDWP serial lock", kJdwpSerialLock),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
-      event_list_lock_("JDWP event list lock"),
+      event_list_lock_("JDWP event list lock", kJdwpEventListLock),
       event_list_(NULL),
       event_list_size_(0),
       event_thread_lock_("JDWP event thread lock"),

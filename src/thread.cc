@@ -1725,8 +1725,6 @@ class CatchBlockStackVisitor : public StackVisitor {
 
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     AbstractMethod* catch_method = *handler_quick_frame_;
-    Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
-                       catch_method, handler_dex_pc_, exception_);
     if (kDebugExceptionDelivery) {
       if (catch_method == NULL) {
         LOG(INFO) << "Handler is upcall";
@@ -1738,6 +1736,9 @@ class CatchBlockStackVisitor : public StackVisitor {
     }
     self_->SetException(exception_);  // Exception back in root set.
     self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
+    // Do debugger PostException after allowing thread suspension again.
+    Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
+                       catch_method, handler_dex_pc_, exception_);
     // Place context back on thread so it will be available when we continue.
     self_->ReleaseLongJumpContext(context_);
     context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));

@@ -128,9 +128,11 @@ class PACKED(4) Thread {
   }
 
   static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, Object* thread_peer)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, jobject thread)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -384,16 +384,18 @@ void ThreadList::SuspendSelfForDebugger() {
   Thread* debug_thread = Dbg::GetDebugThread();
   CHECK(debug_thread != NULL);
   CHECK(self != debug_thread);
+  CHECK_NE(self->GetState(), kRunnable);
+  Locks::mutator_lock_->AssertNotHeld(self);
 
-  // Collisions with other suspends aren't really interesting. We want
-  // to ensure that we're the only one fiddling with the suspend count
-  // though.
-  MutexLock mu(self, *Locks::thread_suspend_count_lock_);
-  self->ModifySuspendCount(self, +1, true);
+  {
+    // Collisions with other suspends aren't really interesting. We want
+    // to ensure that we're the only one fiddling with the suspend count
+    // though.
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    self->ModifySuspendCount(self, +1, true);
+    CHECK_GT(self->suspend_count_, 0);
+  }
 
-  // Suspend ourselves.
-  CHECK_GT(self->suspend_count_, 0);
-  self->SetState(kSuspended);
   VLOG(threads) << *self << " self-suspending (debugger)";
 
   // Tell JDWP that we've completed suspension. The JDWP thread can't
@@ -401,19 +403,22 @@ void ThreadList::SuspendSelfForDebugger() {
   // suspend count lock.
   Dbg::ClearWaitForEventThread();
 
-  while (self->suspend_count_ != 0) {
-    Thread::resume_cond_->Wait(self);
-    if (self->suspend_count_ != 0) {
-      // The condition was signaled but we're still suspended. This
-      // can happen if the debugger lets go while a SIGQUIT thread
-      // dump event is pending (assuming SignalCatcher was resumed for
-      // just long enough to try to grab the thread-suspend lock).
-      LOG(DEBUG) << *self << " still suspended after undo "
-                 << "(suspend count=" << self->suspend_count_ << ")";
+  {
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    while (self->suspend_count_ != 0) {
+      Thread::resume_cond_->Wait(self);
+      if (self->suspend_count_ != 0) {
+        // The condition was signaled but we're still suspended. This
+        // can happen if the debugger lets go while a SIGQUIT thread
+        // dump event is pending (assuming SignalCatcher was resumed for
+        // just long enough to try to grab the thread-suspend lock).
+        LOG(DEBUG) << *self << " still suspended after undo "
+                   << "(suspend count=" << self->suspend_count_ << ")";
+      }
     }
+    CHECK_EQ(self->suspend_count_, 0);
   }
-  CHECK_EQ(self->suspend_count_, 0);
-  self->SetState(kRunnable);
+
   VLOG(threads) << *self << " self-reviving (debugger)";
 }
 

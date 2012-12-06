@@ -277,7 +277,10 @@ static JdwpError VM_Dispose(JdwpState*, const uint8_t*, int, ExpandBuf*)
  */
 static JdwpError VM_Suspend(JdwpState*, const uint8_t*, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
   Dbg::SuspendVM();
+  self->TransitionFromSuspendedToRunnable();
   return ERR_NONE;
 }
 

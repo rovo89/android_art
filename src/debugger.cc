@@ -224,6 +224,7 @@ static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status)
 }
 
 static Thread* DecodeThread(ScopedObjectAccessUnchecked& soa, JDWP::ObjectId threadId)
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
     LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* thread_peer = gRegistry->Get<Object*>(threadId);
@@ -1334,9 +1335,8 @@ std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
 }
 
 bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
-  Thread* self = Thread::Current();
-  MutexLock mu(self, *Locks::thread_list_lock_);
-  ScopedObjectAccessUnchecked soa(self);
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return false;
@@ -1581,6 +1581,7 @@ static int GetStackDepth(Thread* thread)
 
 int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   ScopedObjectAccess soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   return GetStackDepth(DecodeThread(soa, threadId));
 }
 
@@ -1624,6 +1625,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
   };
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, thread_id);  // Caller already checked thread is suspended.
   GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), start_frame, frame_count, buf);
   visitor.WalkStack();
@@ -1669,8 +1671,11 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId threadId, bool request_suspens
 void Dbg::ResumeThread(JDWP::ObjectId threadId) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* peer = gRegistry->Get<Object*>(threadId);
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread = Thread::FromManagedThread(soa, peer);
+  Thread* thread;
+  {
+    MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+    thread = Thread::FromManagedThread(soa, peer);
+  }
   if (thread == NULL) {
     LOG(WARNING) << "No such thread for resume: " << peer;
     return;
@@ -1878,6 +1883,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   };
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
   GetLocalVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(),
@@ -1961,6 +1967,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   };
 
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
   SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(), context.get(),
@@ -2165,12 +2172,13 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
 JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size,
                                    JDWP::JdwpStepDepth step_depth) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
 
-  MutexLock mu(soa.Self(), gBreakpointsLock);
+  MutexLock mu2(soa.Self(), gBreakpointsLock);
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
   if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {

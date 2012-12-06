@@ -286,7 +286,7 @@ struct JdwpState {
   explicit JdwpState(const JdwpOptions* options);
   bool InvokeInProgress();
   bool IsConnected();
-  void SuspendByPolicy(JdwpSuspendPolicy suspend_policy,  JDWP::ObjectId thread_self_id)
+  void SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId thread_self_id)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy suspend_policy,
                                      ObjectId threadId)
