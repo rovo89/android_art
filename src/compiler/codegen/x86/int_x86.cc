@@ -439,4 +439,148 @@ void X86Codegen::OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int 
   NewLIR2(cu, opcode, r_dest, thread_offset);
 }
 
+/*
+ * Generate array load
+ */
+void X86Codegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_dest, int scale)
+{
+  RegisterClass reg_class = oat_reg_class_by_size(size);
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset;
+  RegLocation rl_result;
+  rl_array = LoadValue(cu, rl_array, kCoreReg);
+  rl_index = LoadValue(cu, rl_index, kCoreReg);
+
+  if (size == kLong || size == kDouble) {
+    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+  } else {
+    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+  }
+
+  /* null object? */
+  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+
+  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
+    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
+    GenRegMemCheck(cu, kCondUge, rl_index.low_reg, rl_array.low_reg,
+                   len_offset, kThrowArrayBounds);
+  }
+  if ((size == kLong) || (size == kDouble)) {
+    int reg_addr = AllocTemp(cu);
+    OpLea(cu, reg_addr, rl_array.low_reg, rl_index.low_reg, scale, data_offset);
+    FreeTemp(cu, rl_array.low_reg);
+    FreeTemp(cu, rl_index.low_reg);
+    rl_result = EvalLoc(cu, rl_dest, reg_class, true);
+    LoadBaseIndexedDisp(cu, reg_addr, INVALID_REG, 0, 0, rl_result.low_reg,
+                        rl_result.high_reg, size, INVALID_SREG);
+    StoreValueWide(cu, rl_dest, rl_result);
+  } else {
+    rl_result = EvalLoc(cu, rl_dest, reg_class, true);
+
+    LoadBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale,
+                        data_offset, rl_result.low_reg, INVALID_REG, size,
+                        INVALID_SREG);
+
+    StoreValue(cu, rl_dest, rl_result);
+  }
+}
+
+/*
+ * Generate array store
+ *
+ */
+void X86Codegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_src, int scale)
+{
+  RegisterClass reg_class = oat_reg_class_by_size(size);
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset;
+
+  if (size == kLong || size == kDouble) {
+    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+  } else {
+    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+  }
+
+  rl_array = LoadValue(cu, rl_array, kCoreReg);
+  rl_index = LoadValue(cu, rl_index, kCoreReg);
+
+  /* null object? */
+  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+
+  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
+    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
+    GenRegMemCheck(cu, kCondUge, rl_index.low_reg, rl_array.low_reg, len_offset, kThrowArrayBounds);
+  }
+  if ((size == kLong) || (size == kDouble)) {
+    rl_src = LoadValueWide(cu, rl_src, reg_class);
+  } else {
+    rl_src = LoadValue(cu, rl_src, reg_class);
+  }
+  // If the src reg can't be byte accessed, move it to a temp first.
+  if ((size == kSignedByte || size == kUnsignedByte) && rl_src.low_reg >= 4) {
+    int temp = AllocTemp(cu);
+    OpRegCopy(cu, temp, rl_src.low_reg);
+    StoreBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale, data_offset, temp,
+                         INVALID_REG, size, INVALID_SREG);
+  } else {
+    StoreBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale, data_offset, rl_src.low_reg,
+                         rl_src.high_reg, size, INVALID_SREG);
+  }
+}
+
+/*
+ * Generate array store
+ *
+ */
+void X86Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
+                             RegLocation rl_index, RegLocation rl_src, int scale)
+{
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset = Array::DataOffset(sizeof(Object*)).Int32Value();
+
+  FlushAllRegs(cu);  // Use explicit registers
+  LockCallTemps(cu);
+
+  int r_value = TargetReg(kArg0);  // Register holding value
+  int r_array_class = TargetReg(kArg1);  // Register holding array's Class
+  int r_array = TargetReg(kArg2);  // Register holding array
+  int r_index = TargetReg(kArg3);  // Register holding index into array
+
+  LoadValueDirectFixed(cu, rl_array, r_array);  // Grab array
+  LoadValueDirectFixed(cu, rl_src, r_value);  // Grab value
+  LoadValueDirectFixed(cu, rl_index, r_index);  // Grab index
+
+  GenNullCheck(cu, rl_array.s_reg_low, r_array, opt_flags);  // NPE?
+
+  // Store of null?
+  LIR* null_value_check = OpCmpImmBranch(cu, kCondEq, r_value, 0, NULL);
+
+  // Get the array's class.
+  LoadWordDisp(cu, r_array, Object::ClassOffset().Int32Value(), r_array_class);
+  CallRuntimeHelperRegReg(cu, ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
+                          r_array_class, true);
+  // Redo LoadValues in case they didn't survive the call.
+  LoadValueDirectFixed(cu, rl_array, r_array);  // Reload array
+  LoadValueDirectFixed(cu, rl_index, r_index);  // Reload index
+  LoadValueDirectFixed(cu, rl_src, r_value);  // Reload value
+  r_array_class = INVALID_REG;
+
+  // Branch here if value to be stored == null
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  null_value_check->target = target;
+
+  // make an extra temp available for card mark below
+  FreeTemp(cu, TargetReg(kArg1));
+  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
+    /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
+    GenRegMemCheck(cu, kCondUge, r_index, r_array, len_offset, kThrowArrayBounds);
+  }
+  StoreBaseIndexedDisp(cu, r_array, r_index, scale,
+                       data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
+  FreeTemp(cu, r_index);
+  MarkGCCard(cu, r_value, r_array);
+}
+
 }  // namespace art

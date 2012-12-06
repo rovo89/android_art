@@ -52,6 +52,19 @@ LIR* MipsCodegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
+bool MipsCodegen::InexpensiveConstant(int reg, int value)
+{
+  bool res = false;
+  if (value == 0) {
+    res = true;
+  } else if (IsUint(16, value)) {
+    res = true;
+  } else if ((value < 0) && (value >= -32768)) {
+    res = true;
+  }
+  return res;
+}
+
 /*
  * Load a immediate using a shortcut if possible; otherwise
  * grab from the per-translation literal pool.  If target is
@@ -638,12 +651,6 @@ LIR* MipsCodegen::StoreBaseDispWide(CompilationUnit *cu, int rBase, int displace
                                     int r_src_lo, int r_src_hi)
 {
   return StoreBaseDispBody(cu, rBase, displacement, r_src_lo, r_src_hi, kLong);
-}
-
-void MipsCodegen::LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg)
-{
-  LoadWordDisp(cu, base, LOWORD_OFFSET , low_reg);
-  LoadWordDisp(cu, base, HIWORD_OFFSET , high_reg);
 }
 
 LIR* MipsCodegen::OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)

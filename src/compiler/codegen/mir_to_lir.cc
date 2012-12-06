@@ -278,11 +278,22 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       LIR* fall_through = &label_list[bb->fall_through->id];
       bool backward_branch;
       backward_branch = (bb->taken->start_offset <= mir->offset);
-      if (backward_branch) {
-        cg->GenSuspendTest(cu, opt_flags);
+      // Result known at compile time?
+      if (rl_src[0].is_const && rl_src[1].is_const) {
+        bool is_taken = EvaluateBranch(opcode, cu->constant_values[rl_src[0].orig_sreg],
+                                       cu->constant_values[rl_src[1].orig_sreg]);
+        if (is_taken && backward_branch) {
+          cg->GenSuspendTest(cu, opt_flags);
+        }
+        int id = is_taken ? bb->taken->id : bb->fall_through->id;
+        cg->OpUnconditionalBranch(cu, &label_list[id]);
+      } else {
+        if (backward_branch) {
+          cg->GenSuspendTest(cu, opt_flags);
+        }
+        cg->GenCompareAndBranch(cu, opcode, rl_src[0], rl_src[1], taken,
+                                fall_through);
       }
-      cg->GenCompareAndBranch(cu, opcode, rl_src[0], rl_src[1], taken,
-                          fall_through);
       break;
       }
 
@@ -296,10 +307,20 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       LIR* fall_through = &label_list[bb->fall_through->id];
       bool backward_branch;
       backward_branch = (bb->taken->start_offset <= mir->offset);
-      if (backward_branch) {
-        cg->GenSuspendTest(cu, opt_flags);
+      // Result known at compile time?
+      if (rl_src[0].is_const) {
+        bool is_taken = EvaluateBranch(opcode, cu->constant_values[rl_src[0].orig_sreg], 0);
+        if (is_taken && backward_branch) {
+          cg->GenSuspendTest(cu, opt_flags);
+        }
+        int id = is_taken ? bb->taken->id : bb->fall_through->id;
+        cg->OpUnconditionalBranch(cu, &label_list[id]);
+      } else {
+        if (backward_branch) {
+          cg->GenSuspendTest(cu, opt_flags);
+        }
+        cg->GenCompareZeroAndBranch(cu, opcode, rl_src[0], taken, fall_through);
       }
-      cg->GenCompareZeroAndBranch(cu, opcode, rl_src[0], taken, fall_through);
       break;
       }
 
@@ -504,29 +525,49 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       cg->GenConversion(cu, opcode, rl_dest, rl_src[0]);
       break;
 
+
     case Instruction::ADD_INT:
-    case Instruction::SUB_INT:
-    case Instruction::MUL_INT:
-    case Instruction::DIV_INT:
-    case Instruction::REM_INT:
-    case Instruction::AND_INT:
-    case Instruction::OR_INT:
-    case Instruction::XOR_INT:
-    case Instruction::SHL_INT:
-    case Instruction::SHR_INT:
-    case Instruction::USHR_INT:
     case Instruction::ADD_INT_2ADDR:
-    case Instruction::SUB_INT_2ADDR:
+    case Instruction::MUL_INT:
     case Instruction::MUL_INT_2ADDR:
-    case Instruction::DIV_INT_2ADDR:
-    case Instruction::REM_INT_2ADDR:
+    case Instruction::AND_INT:
     case Instruction::AND_INT_2ADDR:
+    case Instruction::OR_INT:
     case Instruction::OR_INT_2ADDR:
+    case Instruction::XOR_INT:
     case Instruction::XOR_INT_2ADDR:
+      if (rl_src[0].is_const &&
+          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[0].orig_sreg])) {
+        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[1],
+                             cu->constant_values[rl_src[0].orig_sreg]);
+      } else if (rl_src[1].is_const &&
+          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[1].orig_sreg])) {
+        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0],
+                             cu->constant_values[rl_src[1].orig_sreg]);
+      } else {
+        cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      }
+      break;
+
+    case Instruction::SUB_INT:
+    case Instruction::SUB_INT_2ADDR:
+    case Instruction::DIV_INT:
+    case Instruction::DIV_INT_2ADDR:
+    case Instruction::REM_INT:
+    case Instruction::REM_INT_2ADDR:
+    case Instruction::SHL_INT:
     case Instruction::SHL_INT_2ADDR:
+    case Instruction::SHR_INT:
     case Instruction::SHR_INT_2ADDR:
+    case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
-      cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      if (rl_src[1].is_const &&
+          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[1].orig_sreg])) {
+        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0],
+                             cu->constant_values[rl_src[1].orig_sreg]);
+      } else {
+        cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      }
       break;
 
     case Instruction::ADD_LONG:

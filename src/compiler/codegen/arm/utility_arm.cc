@@ -126,6 +126,21 @@ int ArmCodegen::ModifiedImmediate(uint32_t value)
    return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
 }
 
+bool ArmCodegen::InexpensiveConstant(int reg, int value)
+{
+  bool res = false;
+  if (ARM_FPREG(reg)) {
+    res = (EncodeImmSingle(value) >= 0);
+  } else {
+    if (ARM_LOWREG(reg) && (value >= 0) && (IsUint(8, value))) {
+      res = true;
+    } else {
+      res = (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
+    }
+  }
+  return res;
+}
+
 /*
  * Load a immediate using a shortcut if possible; otherwise
  * grab from the per-translation literal pool.
@@ -1009,11 +1024,6 @@ LIR* ArmCodegen::StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacem
                                    int r_src_lo, int r_src_hi)
 {
   return StoreBaseDispBody(cu, rBase, displacement, r_src_lo, r_src_hi, kLong);
-}
-
-void ArmCodegen::LoadPair(CompilationUnit* cu, int base, int low_reg, int high_reg)
-{
-  LoadBaseDispWide(cu, base, 0, low_reg, high_reg, INVALID_SREG);
 }
 
 LIR* ArmCodegen::OpFpRegCopy(CompilationUnit* cu, int r_dest, int r_src)

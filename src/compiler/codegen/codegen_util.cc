@@ -1074,4 +1074,27 @@ LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str)
   return res;
 }
 
+bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
+{
+  bool is_taken;
+  switch (opcode) {
+    case Instruction::IF_EQ: is_taken = (src1 == src2); break;
+    case Instruction::IF_NE: is_taken = (src1 != src2); break;
+    case Instruction::IF_LT: is_taken = (src1 < src2); break;
+    case Instruction::IF_GE: is_taken = (src1 >= src2); break;
+    case Instruction::IF_GT: is_taken = (src1 > src2); break;
+    case Instruction::IF_LE: is_taken = (src1 <= src2); break;
+    case Instruction::IF_EQZ: is_taken = (src1 == 0); break;
+    case Instruction::IF_NEZ: is_taken = (src1 != 0); break;
+    case Instruction::IF_LTZ: is_taken = (src1 < 0); break;
+    case Instruction::IF_GEZ: is_taken = (src1 >= 0); break;
+    case Instruction::IF_GTZ: is_taken = (src1 > 0); break;
+    case Instruction::IF_LEZ: is_taken = (src1 <= 0); break;
+    default:
+      LOG(FATAL) << "Unexpected opcode " << opcode;
+      is_taken = false;
+  }
+  return is_taken;
+}
+
 } // namespace art

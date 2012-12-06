@@ -50,6 +50,11 @@ LIR* X86Codegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
+bool X86Codegen::InexpensiveConstant(int reg, int value)
+{
+  return true;
+}
+
 /*
  * Load a immediate using a shortcut if possible; otherwise
  * grab from the per-translation literal pool.  If target is
@@ -557,11 +562,6 @@ LIR* X86Codegen::StoreBaseDispWide(CompilationUnit *cu, int rBase, int displacem
 {
   return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
                               r_src_lo, r_src_hi, kLong, INVALID_SREG);
-}
-
-void X86Codegen::LoadPair(CompilationUnit *cu, int base, int low_reg, int high_reg)
-{
-  LoadBaseDispWide(cu, base, 0, low_reg, high_reg, INVALID_SREG);
 }
 
 }  // namespace art

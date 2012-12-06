@@ -89,13 +89,28 @@ LIR* Codegen::GenRegRegCheck(CompilationUnit* cu, ConditionCode c_code, int reg1
   return branch;
 }
 
+// Convert relation of src1/src2 to src2/src1
+ConditionCode FlipComparisonOrder(ConditionCode before) {
+  ConditionCode res;
+  switch (before) {
+    case kCondEq: res = kCondEq; break;
+    case kCondNe: res = kCondNe; break;
+    case kCondLt: res = kCondGt; break;
+    case kCondGt: res = kCondLt; break;
+    case kCondLe: res = kCondGe; break;
+    case kCondGe: res = kCondLe; break;
+    default:
+      res = static_cast<ConditionCode>(0);
+      LOG(FATAL) << "Unexpected ccode " << before;
+  }
+  return res;
+}
+
 void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
                                   RegLocation rl_src1, RegLocation rl_src2, LIR* taken,
                                   LIR* fall_through)
 {
   ConditionCode cond;
-  rl_src1 = LoadValue(cu, rl_src1, kCoreReg);
-  rl_src2 = LoadValue(cu, rl_src2, kCoreReg);
   switch (opcode) {
     case Instruction::IF_EQ:
       cond = kCondEq;
@@ -119,6 +134,29 @@ void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
       cond = static_cast<ConditionCode>(0);
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
+
+  // Normalize such that if either operand is constant, src2 will be constant
+  if (rl_src1.is_const) {
+    RegLocation rl_temp = rl_src1;
+    rl_src1 = rl_src2;
+    rl_src2 = rl_temp;
+    cond = FlipComparisonOrder(cond);
+  }
+
+  rl_src1 = LoadValue(cu, rl_src1, kCoreReg);
+  // Is this really an immediate comparison?
+  if (rl_src2.is_const) {
+    int immval = cu->constant_values[rl_src2.orig_sreg];
+    // If it's already live in a register or not easily materialized, just keep going
+    RegLocation rl_temp = UpdateLoc(cu, rl_src2);
+    if ((rl_temp.location == kLocDalvikFrame) && InexpensiveConstant(rl_src1.low_reg, immval)) {
+      // OK - convert this to a compare immediate and branch
+      OpCmpImmBranch(cu, cond, rl_src1.low_reg, immval, taken);
+      OpUnconditionalBranch(cu, fall_through);
+      return;
+    }
+  }
+  rl_src2 = LoadValue(cu, rl_src2, kCoreReg);
   OpCmpBranch(cu, cond, rl_src1.low_reg, rl_src2.low_reg, taken);
   OpUnconditionalBranch(cu, fall_through);
 }
@@ -151,12 +189,7 @@ void Codegen::GenCompareZeroAndBranch(CompilationUnit* cu, Instruction::Code opc
       cond = static_cast<ConditionCode>(0);
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
-  if (cu->instruction_set == kThumb2) {
-    OpRegImm(cu, kOpCmp, rl_src.low_reg, 0);
-    OpCondBranch(cu, cond, taken);
-  } else {
-    OpCmpImmBranch(cu, cond, rl_src.low_reg, 0, taken);
-  }
+  OpCmpImmBranch(cu, cond, rl_src.low_reg, 0, taken);
   OpUnconditionalBranch(cu, fall_through);
 }
 
@@ -668,7 +701,7 @@ void Codegen::GenIGet(CompilationUnit* cu, uint32_t field_idx, int opt_flags, Op
         int reg_ptr = AllocTemp(cu);
         OpRegRegImm(cu, kOpAdd, reg_ptr, rl_obj.low_reg, field_offset);
         rl_result = EvalLoc(cu, rl_dest, reg_class, true);
-        LoadPair(cu, reg_ptr, rl_result.low_reg, rl_result.high_reg);
+        LoadBaseDispWide(cu, reg_ptr, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
         if (is_volatile) {
           GenMemBarrier(cu, kLoadLoad);
         }
@@ -1056,270 +1089,6 @@ void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation r
   branch2->target = target;
 }
 
-/*
- * Generate array store
- *
- */
-void Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale)
-{
-  int len_offset = Array::LengthOffset().Int32Value();
-  int data_offset = Array::DataOffset(sizeof(Object*)).Int32Value();
-
-  FlushAllRegs(cu);  // Use explicit registers
-  LockCallTemps(cu);
-
-  int r_value = TargetReg(kArg0);  // Register holding value
-  int r_array_class = TargetReg(kArg1);  // Register holding array's Class
-  int r_array = TargetReg(kArg2);  // Register holding array
-  int r_index = TargetReg(kArg3);  // Register holding index into array
-
-  LoadValueDirectFixed(cu, rl_array, r_array);  // Grab array
-  LoadValueDirectFixed(cu, rl_src, r_value);  // Grab value
-  LoadValueDirectFixed(cu, rl_index, r_index);  // Grab index
-
-  GenNullCheck(cu, rl_array.s_reg_low, r_array, opt_flags);  // NPE?
-
-  // Store of null?
-  LIR* null_value_check = OpCmpImmBranch(cu, kCondEq, r_value, 0, NULL);
-
-  // Get the array's class.
-  LoadWordDisp(cu, r_array, Object::ClassOffset().Int32Value(), r_array_class);
-  CallRuntimeHelperRegReg(cu, ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
-                          r_array_class, true);
-  // Redo LoadValues in case they didn't survive the call.
-  LoadValueDirectFixed(cu, rl_array, r_array);  // Reload array
-  LoadValueDirectFixed(cu, rl_index, r_index);  // Reload index
-  LoadValueDirectFixed(cu, rl_src, r_value);  // Reload value
-  r_array_class = INVALID_REG;
-
-  // Branch here if value to be stored == null
-  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
-  null_value_check->target = target;
-
-  if (cu->instruction_set == kX86) {
-    // make an extra temp available for card mark below
-    FreeTemp(cu, TargetReg(kArg1));
-    if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-      /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-      GenRegMemCheck(cu, kCondUge, r_index, r_array, len_offset, kThrowArrayBounds);
-    }
-    StoreBaseIndexedDisp(cu, r_array, r_index, scale,
-                         data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
-  } else {
-    bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
-    int reg_len = INVALID_REG;
-    if (needs_range_check) {
-      reg_len = TargetReg(kArg1);
-      LoadWordDisp(cu, r_array, len_offset, reg_len);  // Get len
-    }
-    /* r_ptr -> array data */
-    int r_ptr = AllocTemp(cu);
-    OpRegRegImm(cu, kOpAdd, r_ptr, r_array, data_offset);
-    if (needs_range_check) {
-      GenRegRegCheck(cu, kCondCs, r_index, reg_len, kThrowArrayBounds);
-    }
-    StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
-    FreeTemp(cu, r_ptr);
-  }
-  FreeTemp(cu, r_index);
-  MarkGCCard(cu, r_value, r_array);
-}
-
-/*
- * Generate array load
- */
-void Codegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale)
-{
-  RegisterClass reg_class = oat_reg_class_by_size(size);
-  int len_offset = Array::LengthOffset().Int32Value();
-  int data_offset;
-  RegLocation rl_result;
-  rl_array = LoadValue(cu, rl_array, kCoreReg);
-  rl_index = LoadValue(cu, rl_index, kCoreReg);
-
-  if (size == kLong || size == kDouble) {
-    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
-  } else {
-    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
-  }
-
-  /* null object? */
-  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
-
-  if (cu->instruction_set == kX86) {
-    if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-      /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-      GenRegMemCheck(cu, kCondUge, rl_index.low_reg, rl_array.low_reg,
-                     len_offset, kThrowArrayBounds);
-    }
-    if ((size == kLong) || (size == kDouble)) {
-      int reg_addr = AllocTemp(cu);
-      OpLea(cu, reg_addr, rl_array.low_reg, rl_index.low_reg, scale, data_offset);
-      FreeTemp(cu, rl_array.low_reg);
-      FreeTemp(cu, rl_index.low_reg);
-      rl_result = EvalLoc(cu, rl_dest, reg_class, true);
-      LoadBaseIndexedDisp(cu, reg_addr, INVALID_REG, 0, 0, rl_result.low_reg,
-                          rl_result.high_reg, size, INVALID_SREG);
-      StoreValueWide(cu, rl_dest, rl_result);
-    } else {
-      rl_result = EvalLoc(cu, rl_dest, reg_class, true);
-
-      LoadBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale,
-                          data_offset, rl_result.low_reg, INVALID_REG, size,
-                          INVALID_SREG);
-
-      StoreValue(cu, rl_dest, rl_result);
-    }
-  } else {
-    int reg_ptr = AllocTemp(cu);
-    bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
-    int reg_len = INVALID_REG;
-    if (needs_range_check) {
-      reg_len = AllocTemp(cu);
-      /* Get len */
-      LoadWordDisp(cu, rl_array.low_reg, len_offset, reg_len);
-    }
-    /* reg_ptr -> array data */
-    OpRegRegImm(cu, kOpAdd, reg_ptr, rl_array.low_reg, data_offset);
-    FreeTemp(cu, rl_array.low_reg);
-    if ((size == kLong) || (size == kDouble)) {
-      if (scale) {
-        int r_new_index = AllocTemp(cu);
-        OpRegRegImm(cu, kOpLsl, r_new_index, rl_index.low_reg, scale);
-        OpRegReg(cu, kOpAdd, reg_ptr, r_new_index);
-        FreeTemp(cu, r_new_index);
-      } else {
-        OpRegReg(cu, kOpAdd, reg_ptr, rl_index.low_reg);
-      }
-      FreeTemp(cu, rl_index.low_reg);
-      rl_result = EvalLoc(cu, rl_dest, reg_class, true);
-
-      if (needs_range_check) {
-        // TODO: change kCondCS to a more meaningful name, is the sense of
-        // carry-set/clear flipped?
-        GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
-        FreeTemp(cu, reg_len);
-      }
-      LoadPair(cu, reg_ptr, rl_result.low_reg, rl_result.high_reg);
-
-      FreeTemp(cu, reg_ptr);
-      StoreValueWide(cu, rl_dest, rl_result);
-    } else {
-      rl_result = EvalLoc(cu, rl_dest, reg_class, true);
-
-      if (needs_range_check) {
-        // TODO: change kCondCS to a more meaningful name, is the sense of
-        // carry-set/clear flipped?
-        GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
-        FreeTemp(cu, reg_len);
-      }
-      LoadBaseIndexed(cu, reg_ptr, rl_index.low_reg, rl_result.low_reg, scale, size);
-
-      FreeTemp(cu, reg_ptr);
-      StoreValue(cu, rl_dest, rl_result);
-    }
-  }
-}
-
-/*
- * Generate array store
- *
- */
-void Codegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale)
-{
-  RegisterClass reg_class = oat_reg_class_by_size(size);
-  int len_offset = Array::LengthOffset().Int32Value();
-  int data_offset;
-
-  if (size == kLong || size == kDouble) {
-    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
-  } else {
-    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
-  }
-
-  rl_array = LoadValue(cu, rl_array, kCoreReg);
-  rl_index = LoadValue(cu, rl_index, kCoreReg);
-  int reg_ptr = INVALID_REG;
-  if (cu->instruction_set != kX86) {
-    if (IsTemp(cu, rl_array.low_reg)) {
-      Clobber(cu, rl_array.low_reg);
-      reg_ptr = rl_array.low_reg;
-    } else {
-      reg_ptr = AllocTemp(cu);
-      OpRegCopy(cu, reg_ptr, rl_array.low_reg);
-    }
-  }
-
-  /* null object? */
-  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
-
-  if (cu->instruction_set == kX86) {
-    if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-      /* if (rl_index >= [rl_array + len_offset]) goto kThrowArrayBounds */
-      GenRegMemCheck(cu, kCondUge, rl_index.low_reg, rl_array.low_reg, len_offset, kThrowArrayBounds);
-    }
-    if ((size == kLong) || (size == kDouble)) {
-      rl_src = LoadValueWide(cu, rl_src, reg_class);
-    } else {
-      rl_src = LoadValue(cu, rl_src, reg_class);
-    }
-    // If the src reg can't be byte accessed, move it to a temp first.
-    if ((size == kSignedByte || size == kUnsignedByte) && rl_src.low_reg >= 4) {
-      int temp = AllocTemp(cu);
-      OpRegCopy(cu, temp, rl_src.low_reg);
-      StoreBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale, data_offset, temp,
-                           INVALID_REG, size, INVALID_SREG);
-    } else {
-      StoreBaseIndexedDisp(cu, rl_array.low_reg, rl_index.low_reg, scale, data_offset, rl_src.low_reg,
-                           rl_src.high_reg, size, INVALID_SREG);
-    }
-  } else {
-    bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
-    int reg_len = INVALID_REG;
-    if (needs_range_check) {
-      reg_len = AllocTemp(cu);
-      //NOTE: max live temps(4) here.
-      /* Get len */
-      LoadWordDisp(cu, rl_array.low_reg, len_offset, reg_len);
-    }
-    /* reg_ptr -> array data */
-    OpRegImm(cu, kOpAdd, reg_ptr, data_offset);
-    /* at this point, reg_ptr points to array, 2 live temps */
-    if ((size == kLong) || (size == kDouble)) {
-      //TUNING: specific wide routine that can handle fp regs
-      if (scale) {
-        int r_new_index = AllocTemp(cu);
-        OpRegRegImm(cu, kOpLsl, r_new_index, rl_index.low_reg, scale);
-        OpRegReg(cu, kOpAdd, reg_ptr, r_new_index);
-        FreeTemp(cu, r_new_index);
-      } else {
-        OpRegReg(cu, kOpAdd, reg_ptr, rl_index.low_reg);
-      }
-      rl_src = LoadValueWide(cu, rl_src, reg_class);
-
-      if (needs_range_check) {
-        GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
-        FreeTemp(cu, reg_len);
-      }
-
-      StoreBaseDispWide(cu, reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
-
-      FreeTemp(cu, reg_ptr);
-    } else {
-      rl_src = LoadValue(cu, rl_src, reg_class);
-      if (needs_range_check) {
-        GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
-        FreeTemp(cu, reg_len);
-      }
-      StoreBaseIndexed(cu, reg_ptr, rl_index.low_reg, rl_src.low_reg,
-                       scale, size);
-    }
-  }
-}
-
 void Codegen::GenLong3Addr(CompilationUnit* cu, OpKind first_op, OpKind second_op,
                            RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
@@ -1683,10 +1452,18 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
       break;
     }
 
+    case Instruction::SUB_INT:
+    case Instruction::SUB_INT_2ADDR:
+      lit = -lit;
+      // Intended fallthrough
+    case Instruction::ADD_INT:
+    case Instruction::ADD_INT_2ADDR:
     case Instruction::ADD_INT_LIT8:
     case Instruction::ADD_INT_LIT16:
       op = kOpAdd;
       break;
+    case Instruction::MUL_INT:
+    case Instruction::MUL_INT_2ADDR:
     case Instruction::MUL_INT_LIT8:
     case Instruction::MUL_INT_LIT16: {
       if (HandleEasyMultiply(cu, rl_src, rl_dest, lit)) {
@@ -1695,39 +1472,52 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
       op = kOpMul;
       break;
     }
+    case Instruction::AND_INT:
+    case Instruction::AND_INT_2ADDR:
     case Instruction::AND_INT_LIT8:
     case Instruction::AND_INT_LIT16:
       op = kOpAnd;
       break;
+    case Instruction::OR_INT:
+    case Instruction::OR_INT_2ADDR:
     case Instruction::OR_INT_LIT8:
     case Instruction::OR_INT_LIT16:
       op = kOpOr;
       break;
+    case Instruction::XOR_INT:
+    case Instruction::XOR_INT_2ADDR:
     case Instruction::XOR_INT_LIT8:
     case Instruction::XOR_INT_LIT16:
       op = kOpXor;
       break;
     case Instruction::SHL_INT_LIT8:
     case Instruction::SHL_INT:
+    case Instruction::SHL_INT_2ADDR:
       lit &= 31;
       shift_op = true;
       op = kOpLsl;
       break;
     case Instruction::SHR_INT_LIT8:
     case Instruction::SHR_INT:
+    case Instruction::SHR_INT_2ADDR:
       lit &= 31;
       shift_op = true;
       op = kOpAsr;
       break;
     case Instruction::USHR_INT_LIT8:
     case Instruction::USHR_INT:
+    case Instruction::USHR_INT_2ADDR:
       lit &= 31;
       shift_op = true;
       op = kOpLsr;
       break;
 
+    case Instruction::DIV_INT:
+    case Instruction::DIV_INT_2ADDR:
     case Instruction::DIV_INT_LIT8:
     case Instruction::DIV_INT_LIT16:
+    case Instruction::REM_INT:
+    case Instruction::REM_INT_2ADDR:
     case Instruction::REM_INT_LIT8:
     case Instruction::REM_INT_LIT16: {
       if (lit == 0) {
@@ -1738,6 +1528,8 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
         return false;
       }
       if ((opcode == Instruction::DIV_INT_LIT8) ||
+          (opcode == Instruction::DIV_INT) ||
+          (opcode == Instruction::DIV_INT_2ADDR) ||
           (opcode == Instruction::DIV_INT_LIT16)) {
         is_div = true;
       } else {
@@ -1762,7 +1554,7 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
       break;
     }
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   rl_src = LoadValue(cu, rl_src, kCoreReg);
   rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
