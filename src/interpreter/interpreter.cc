@@ -405,11 +405,6 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   } else {
     UnstartedRuntimeInvoke(self, target_method, receiver, arg_array.get(), result);
   }
-  // Check the return type if the result is non-null. We do the GetReturnType
-  // after the null check to avoid resolution when there's an exception pending.
-  if (result->GetL() != NULL && !mh.GetReturnType()->IsPrimitive()) {
-    CHECK(mh.GetReturnType()->IsAssignableFrom(result->GetL()->GetClass()));
-  }
   mh.ChangeMethod(shadow_frame.GetMethod());
 }
 
@@ -768,24 +763,48 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         bool is_range = (dec_insn.opcode == Instruction::FILLED_NEW_ARRAY_RANGE);
         int32_t length = dec_insn.vA;
         CHECK(is_range || length <= 5);
+        if (UNLIKELY(length < 0)) {
+          self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+          break;
+        }
         Class* arrayClass = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
+        if (UNLIKELY(arrayClass == NULL)) {
+          CHECK(self->IsExceptionPending());
+          break;
+        }
         CHECK(arrayClass->IsArrayClass());
-        if (arrayClass->GetComponentType()->IsPrimitiveInt()) {
-          IntArray* newArray = IntArray::Alloc(self, length);
-          if (newArray != NULL) {
-            for (int32_t i = 0; i < length; ++i) {
-              if (is_range) {
-                newArray->Set(i, shadow_frame.GetVReg(dec_insn.vC + i));
+        Class* componentClass = arrayClass->GetComponentType();
+        if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
+          if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
+            self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
+                                     "Bad filled array request for type %s",
+                                     PrettyDescriptor(componentClass).c_str());
+          } else {
+            self->ThrowNewExceptionF("Ljava/lang/InternalError;",
+                                     "Found type %s; filled-new-array not implemented for anything but \'int\'",
+                                     PrettyDescriptor(componentClass).c_str());
+          }
+          break;
+        }
+        Object* newArray = Array::Alloc(self, arrayClass, length);
+        if (newArray != NULL) {
+          for (int32_t i = 0; i < length; ++i) {
+            if (is_range) {
+              if (componentClass->IsPrimitiveInt()) {
+                newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(dec_insn.vC + i));
               } else {
-                newArray->Set(i, shadow_frame.GetVReg(dec_insn.arg[i]));
+                newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(dec_insn.vC + i));
+              }
+            } else {
+              if (componentClass->IsPrimitiveInt()) {
+                newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(dec_insn.arg[i]));
+              } else {
+                newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(dec_insn.arg[i]));
               }
             }
           }
-          result_register.SetL(newArray);
-        } else {
-          UNIMPLEMENTED(FATAL) << inst->DumpString(&mh.GetDexFile())
-              << " for array type: " << PrettyDescriptor(arrayClass);
         }
+        result_register.SetL(newArray);
         break;
       }
       case Instruction::CMPL_FLOAT: {
@@ -1287,13 +1306,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetVReg(dec_insn.vA, -shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::NOT_INT:
-        shadow_frame.SetVReg(dec_insn.vA, 0 ^ shadow_frame.GetVReg(dec_insn.vB));
+        shadow_frame.SetVReg(dec_insn.vA, ~shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::NEG_LONG:
         shadow_frame.SetVRegLong(dec_insn.vA, -shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::NOT_LONG:
-        shadow_frame.SetVRegLong(dec_insn.vA, 0 ^ shadow_frame.GetVRegLong(dec_insn.vB));
+        shadow_frame.SetVRegLong(dec_insn.vA, ~shadow_frame.GetVRegLong(dec_insn.vB));
         break;
       case Instruction::NEG_FLOAT:
         shadow_frame.SetVRegFloat(dec_insn.vA, -shadow_frame.GetVRegFloat(dec_insn.vB));
@@ -1407,17 +1426,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                     shadow_frame.GetVReg(dec_insn.vC));
         break;
       case Instruction::SHL_INT:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vB) << shadow_frame.GetVReg(dec_insn.vC));
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) <<
+                             (shadow_frame.GetVReg(dec_insn.vC) & 0x1f));
         break;
       case Instruction::SHR_INT:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vB) >> shadow_frame.GetVReg(dec_insn.vC));
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) >>
+                             (shadow_frame.GetVReg(dec_insn.vC) & 0x1f));
         break;
       case Instruction::USHR_INT:
         shadow_frame.SetVReg(dec_insn.vA,
                              static_cast<uint32_t>(shadow_frame.GetVReg(dec_insn.vB)) >>
-                             shadow_frame.GetVReg(dec_insn.vC));
+                             (shadow_frame.GetVReg(dec_insn.vC) & 0x1f));
         break;
       case Instruction::AND_INT:
         shadow_frame.SetVReg(dec_insn.vA,
@@ -1472,17 +1491,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::SHL_LONG:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  shadow_frame.GetVRegLong(dec_insn.vB) <<
-                                 shadow_frame.GetVReg(dec_insn.vC));
+                                 (shadow_frame.GetVReg(dec_insn.vC) & 0x3f));
         break;
       case Instruction::SHR_LONG:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  shadow_frame.GetVRegLong(dec_insn.vB) >>
-                                 shadow_frame.GetVReg(dec_insn.vC));
+                                 (shadow_frame.GetVReg(dec_insn.vC) & 0x3f));
         break;
       case Instruction::USHR_LONG:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  static_cast<uint64_t>(shadow_frame.GetVRegLong(dec_insn.vB)) >>
-                                 shadow_frame.GetVReg(dec_insn.vC));
+                                 (shadow_frame.GetVReg(dec_insn.vC) & 0x3f));
         break;
       case Instruction::ADD_FLOAT:
         shadow_frame.SetVRegFloat(dec_insn.vA,
@@ -1551,17 +1570,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                        shadow_frame.GetVReg(dec_insn.vB));
         break;
       case Instruction::SHL_INT_2ADDR:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vA) << shadow_frame.GetVReg(dec_insn.vB));
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vA) <<
+                             (shadow_frame.GetVReg(dec_insn.vB) & 0x1f));
         break;
       case Instruction::SHR_INT_2ADDR:
-        shadow_frame.SetVReg(dec_insn.vA,
-                             shadow_frame.GetVReg(dec_insn.vA) >> shadow_frame.GetVReg(dec_insn.vB));
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vA) >>
+                             (shadow_frame.GetVReg(dec_insn.vB) & 0x1f));
         break;
       case Instruction::USHR_INT_2ADDR:
         shadow_frame.SetVReg(dec_insn.vA,
                              static_cast<uint32_t>(shadow_frame.GetVReg(dec_insn.vA)) >>
-                             shadow_frame.GetVReg(dec_insn.vB));
+                             (shadow_frame.GetVReg(dec_insn.vB) & 0x1f));
         break;
       case Instruction::AND_INT_2ADDR:
         shadow_frame.SetVReg(dec_insn.vA,
@@ -1620,17 +1639,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::SHL_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  shadow_frame.GetVRegLong(dec_insn.vA) <<
-                                 shadow_frame.GetVReg(dec_insn.vB));
+                                 (shadow_frame.GetVReg(dec_insn.vB) & 0x3f));
         break;
       case Instruction::SHR_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  shadow_frame.GetVRegLong(dec_insn.vA) >>
-                                 shadow_frame.GetVReg(dec_insn.vB));
+                                 (shadow_frame.GetVReg(dec_insn.vB) & 0x3f));
         break;
       case Instruction::USHR_LONG_2ADDR:
         shadow_frame.SetVRegLong(dec_insn.vA,
                                  static_cast<uint64_t>(shadow_frame.GetVRegLong(dec_insn.vA)) >>
-                                 shadow_frame.GetVReg(dec_insn.vB));
+                                 (shadow_frame.GetVReg(dec_insn.vB) & 0x3f));
         break;
       case Instruction::ADD_FLOAT_2ADDR:
         shadow_frame.SetVRegFloat(dec_insn.vA,
@@ -1717,15 +1736,17 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) ^ dec_insn.vC);
         break;
       case Instruction::SHL_INT_LIT8:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) << dec_insn.vC);
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) <<
+                             (dec_insn.vC & 0x1f));
         break;
       case Instruction::SHR_INT_LIT8:
-        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) >> dec_insn.vC);
+        shadow_frame.SetVReg(dec_insn.vA, shadow_frame.GetVReg(dec_insn.vB) >>
+                             (dec_insn.vC & 0x1f));
         break;
       case Instruction::USHR_INT_LIT8:
         shadow_frame.SetVReg(dec_insn.vA,
                              static_cast<uint32_t>(shadow_frame.GetVReg(dec_insn.vB)) >>
-                             dec_insn.vC);
+                             (dec_insn.vC & 0x1f));
         break;
       default:
         LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
