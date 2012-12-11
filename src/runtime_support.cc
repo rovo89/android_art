@@ -208,13 +208,18 @@ Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thr
 }
 
 // Slow path method resolution
-AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, const AbstractMethod* referrer,
+AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, AbstractMethod* referrer,
                            Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_direct = type == kStatic || type == kDirect;
   AbstractMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+    return NULL;  // Failure.
+  } else if (UNLIKELY(this_object == NULL && type != kStatic)) {
+    // Maintain interpreter-like semantics where NullPointerException is thrown
+    // after potential NoSuchMethodError from class linker.
+    ThrowNullPointerExceptionForMethodAccess(referrer, method_idx, type);
     return NULL;  // Failure.
   } else {
     if (!access_check) {
