@@ -432,4 +432,207 @@ bool MipsCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocati
   return false;
 }
 
+/*
+ * Generate array load
+ */
+void MipsCodegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_dest, int scale)
+{
+  RegisterClass reg_class = oat_reg_class_by_size(size);
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset;
+  RegLocation rl_result;
+  rl_array = LoadValue(cu, rl_array, kCoreReg);
+  rl_index = LoadValue(cu, rl_index, kCoreReg);
+
+  if (size == kLong || size == kDouble) {
+    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+  } else {
+    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+  }
+
+  /* null object? */
+  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+
+  int reg_ptr = AllocTemp(cu);
+  bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
+  int reg_len = INVALID_REG;
+  if (needs_range_check) {
+    reg_len = AllocTemp(cu);
+    /* Get len */
+    LoadWordDisp(cu, rl_array.low_reg, len_offset, reg_len);
+  }
+  /* reg_ptr -> array data */
+  OpRegRegImm(cu, kOpAdd, reg_ptr, rl_array.low_reg, data_offset);
+  FreeTemp(cu, rl_array.low_reg);
+  if ((size == kLong) || (size == kDouble)) {
+    if (scale) {
+      int r_new_index = AllocTemp(cu);
+      OpRegRegImm(cu, kOpLsl, r_new_index, rl_index.low_reg, scale);
+      OpRegReg(cu, kOpAdd, reg_ptr, r_new_index);
+      FreeTemp(cu, r_new_index);
+    } else {
+      OpRegReg(cu, kOpAdd, reg_ptr, rl_index.low_reg);
+    }
+    FreeTemp(cu, rl_index.low_reg);
+    rl_result = EvalLoc(cu, rl_dest, reg_class, true);
+
+    if (needs_range_check) {
+      // TODO: change kCondCS to a more meaningful name, is the sense of
+      // carry-set/clear flipped?
+      GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      FreeTemp(cu, reg_len);
+    }
+    LoadBaseDispWide(cu, reg_ptr, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+
+    FreeTemp(cu, reg_ptr);
+    StoreValueWide(cu, rl_dest, rl_result);
+  } else {
+    rl_result = EvalLoc(cu, rl_dest, reg_class, true);
+
+    if (needs_range_check) {
+      // TODO: change kCondCS to a more meaningful name, is the sense of
+      // carry-set/clear flipped?
+      GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      FreeTemp(cu, reg_len);
+    }
+    LoadBaseIndexed(cu, reg_ptr, rl_index.low_reg, rl_result.low_reg, scale, size);
+
+    FreeTemp(cu, reg_ptr);
+    StoreValue(cu, rl_dest, rl_result);
+  }
+}
+
+/*
+ * Generate array store
+ *
+ */
+void MipsCodegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                          RegLocation rl_index, RegLocation rl_src, int scale)
+{
+  RegisterClass reg_class = oat_reg_class_by_size(size);
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset;
+
+  if (size == kLong || size == kDouble) {
+    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+  } else {
+    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+  }
+
+  rl_array = LoadValue(cu, rl_array, kCoreReg);
+  rl_index = LoadValue(cu, rl_index, kCoreReg);
+  int reg_ptr = INVALID_REG;
+  if (IsTemp(cu, rl_array.low_reg)) {
+    Clobber(cu, rl_array.low_reg);
+    reg_ptr = rl_array.low_reg;
+  } else {
+    reg_ptr = AllocTemp(cu);
+    OpRegCopy(cu, reg_ptr, rl_array.low_reg);
+  }
+
+  /* null object? */
+  GenNullCheck(cu, rl_array.s_reg_low, rl_array.low_reg, opt_flags);
+
+  bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
+  int reg_len = INVALID_REG;
+  if (needs_range_check) {
+    reg_len = AllocTemp(cu);
+    //NOTE: max live temps(4) here.
+    /* Get len */
+    LoadWordDisp(cu, rl_array.low_reg, len_offset, reg_len);
+  }
+  /* reg_ptr -> array data */
+  OpRegImm(cu, kOpAdd, reg_ptr, data_offset);
+  /* at this point, reg_ptr points to array, 2 live temps */
+  if ((size == kLong) || (size == kDouble)) {
+    //TUNING: specific wide routine that can handle fp regs
+    if (scale) {
+      int r_new_index = AllocTemp(cu);
+      OpRegRegImm(cu, kOpLsl, r_new_index, rl_index.low_reg, scale);
+      OpRegReg(cu, kOpAdd, reg_ptr, r_new_index);
+      FreeTemp(cu, r_new_index);
+    } else {
+      OpRegReg(cu, kOpAdd, reg_ptr, rl_index.low_reg);
+    }
+    rl_src = LoadValueWide(cu, rl_src, reg_class);
+
+    if (needs_range_check) {
+      GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      FreeTemp(cu, reg_len);
+    }
+
+    StoreBaseDispWide(cu, reg_ptr, 0, rl_src.low_reg, rl_src.high_reg);
+
+    FreeTemp(cu, reg_ptr);
+  } else {
+    rl_src = LoadValue(cu, rl_src, reg_class);
+    if (needs_range_check) {
+      GenRegRegCheck(cu, kCondCs, rl_index.low_reg, reg_len, kThrowArrayBounds);
+      FreeTemp(cu, reg_len);
+    }
+    StoreBaseIndexed(cu, reg_ptr, rl_index.low_reg, rl_src.low_reg,
+                     scale, size);
+  }
+}
+
+/*
+ * Generate array store
+ *
+ */
+void MipsCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
+                             RegLocation rl_index, RegLocation rl_src, int scale)
+{
+  int len_offset = Array::LengthOffset().Int32Value();
+  int data_offset = Array::DataOffset(sizeof(Object*)).Int32Value();
+
+  FlushAllRegs(cu);  // Use explicit registers
+  LockCallTemps(cu);
+
+  int r_value = TargetReg(kArg0);  // Register holding value
+  int r_array_class = TargetReg(kArg1);  // Register holding array's Class
+  int r_array = TargetReg(kArg2);  // Register holding array
+  int r_index = TargetReg(kArg3);  // Register holding index into array
+
+  LoadValueDirectFixed(cu, rl_array, r_array);  // Grab array
+  LoadValueDirectFixed(cu, rl_src, r_value);  // Grab value
+  LoadValueDirectFixed(cu, rl_index, r_index);  // Grab index
+
+  GenNullCheck(cu, rl_array.s_reg_low, r_array, opt_flags);  // NPE?
+
+  // Store of null?
+  LIR* null_value_check = OpCmpImmBranch(cu, kCondEq, r_value, 0, NULL);
+
+  // Get the array's class.
+  LoadWordDisp(cu, r_array, Object::ClassOffset().Int32Value(), r_array_class);
+  CallRuntimeHelperRegReg(cu, ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
+                          r_array_class, true);
+  // Redo LoadValues in case they didn't survive the call.
+  LoadValueDirectFixed(cu, rl_array, r_array);  // Reload array
+  LoadValueDirectFixed(cu, rl_index, r_index);  // Reload index
+  LoadValueDirectFixed(cu, rl_src, r_value);  // Reload value
+  r_array_class = INVALID_REG;
+
+  // Branch here if value to be stored == null
+  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  null_value_check->target = target;
+
+  bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
+  int reg_len = INVALID_REG;
+  if (needs_range_check) {
+    reg_len = TargetReg(kArg1);
+    LoadWordDisp(cu, r_array, len_offset, reg_len);  // Get len
+  }
+  /* r_ptr -> array data */
+  int r_ptr = AllocTemp(cu);
+  OpRegRegImm(cu, kOpAdd, r_ptr, r_array, data_offset);
+  if (needs_range_check) {
+    GenRegRegCheck(cu, kCondCs, r_index, reg_len, kThrowArrayBounds);
+  }
+  StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
+  FreeTemp(cu, r_ptr);
+  FreeTemp(cu, r_index);
+  MarkGCCard(cu, r_value, r_array);
+}
+
 }  // namespace art

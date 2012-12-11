@@ -51,6 +51,7 @@ void DumpSparseSwitchTable(const uint16_t* table);
 void DumpPackedSwitchTable(const uint16_t* table);
 LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str);
 void NopLIR(LIR* lir);
+bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
 
 }  // namespace art
 

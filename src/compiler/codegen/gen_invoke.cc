@@ -602,7 +602,10 @@ static int LoadArgRegs(CompilationUnit* cu, CallInfo* info, int call_state,
       next_reg++;
       next_arg++;
     } else {
-      rl_arg.wide = false;
+      if (rl_arg.wide) {
+        rl_arg.wide = false;
+        rl_arg.is_const = false;
+      }
       cg->LoadValueDirectFixed(cu, rl_arg, next_reg);
     }
     call_state = next_call_insn(cu, info, call_state, dex_idx, method_idx,

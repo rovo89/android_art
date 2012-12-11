@@ -39,7 +39,6 @@ class MipsCodegen : public Codegen {
     virtual LIR* LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int value);
     virtual LIR* LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
                                        int val_lo, int val_hi);
-    virtual void LoadPair(CompilationUnit* cu, int base, int low_reg, int high_reg);
     virtual LIR* StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_src,
                                OpSize size);
     virtual LIR* StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacement, int r_src_lo,
@@ -90,6 +89,12 @@ class MipsCodegen : public Codegen {
     virtual bool IsUnconditionalBranch(LIR* lir);
 
     // Required for target - Dalvik-level generators.
+    virtual void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
+                                RegLocation rl_index, RegLocation rl_src, int scale);
+    virtual void GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                             RegLocation rl_index, RegLocation rl_dest, int scale);
+    virtual void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+                             RegLocation rl_index, RegLocation rl_src, int scale);
     virtual bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
     virtual bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
@@ -184,6 +189,7 @@ class MipsCodegen : public Codegen {
     void SpillCoreRegs(CompilationUnit* cu);
     void UnSpillCoreRegs(CompilationUnit* cu);
     static const MipsEncodingMap EncodingMap[kMipsLast];
+    bool InexpensiveConstant(int reg, int value);
 };
 
 }  // namespace art

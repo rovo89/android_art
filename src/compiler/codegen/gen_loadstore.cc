@@ -92,7 +92,11 @@ void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_des
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
+    if (rl_src.is_const && InexpensiveConstant(r_dest, cu->constant_values[rl_src.orig_sreg])) {
+      LoadConstantNoClobber(cu, r_dest, cu->constant_values[rl_src.orig_sreg]);
+    } else {
+      LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
+    }
   }
 }
 

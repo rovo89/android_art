@@ -1091,12 +1091,18 @@ static void CountRefs(CompilationUnit *cu, BasicBlock* bb, RefCounts* core_count
     RegLocation loc = cu->reg_location[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
     int p_map_idx = SRegToPMap(cu, loc.s_reg_low);
+    int sample_reg = loc.fp ? cu->reg_pool->FPRegs[0].reg : cu->reg_pool->core_regs[0].reg;
+    bool simple_immediate = loc.is_const &&
+        !cu->cg->InexpensiveConstant(sample_reg, cu->constant_values[loc.orig_sreg]);
     if (loc.defined) {
-      counts[p_map_idx].count += cu->use_counts.elem_list[i];
+      // Don't count easily regenerated immediates
+      if (!simple_immediate) {
+        counts[p_map_idx].count += cu->use_counts.elem_list[i];
+      }
     }
     if (loc.wide) {
       if (loc.defined) {
-        if (loc.fp) {
+        if (loc.fp && !simple_immediate) {
           counts[p_map_idx].double_start = true;
           counts[p_map_idx+1].count += cu->use_counts.elem_list[i+1];
         }
