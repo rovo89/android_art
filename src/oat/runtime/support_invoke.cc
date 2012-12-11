@@ -137,10 +137,6 @@ static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Abstra
   AbstractMethod* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
-    if (UNLIKELY(this_object == NULL && type != kDirect && type != kStatic)) {
-      ThrowNullPointerExceptionForMethodAccess(caller_method, method_idx, type);
-      return 0;  // failure
-    }
     method = FindMethodFromCode(method_idx, this_object, caller_method, self, access_check, type);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());

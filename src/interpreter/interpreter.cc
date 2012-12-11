@@ -378,11 +378,6 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     receiver = NULL;
   } else {
     receiver = shadow_frame.GetVRegReference(dec_insn.vC);
-    if (UNLIKELY(receiver == NULL)) {
-      ThrowNullPointerExceptionForMethodAccess(shadow_frame.GetMethod(), dec_insn.vB, type);
-      result->SetJ(0);
-      return;
-    }
   }
   uint32_t method_idx = dec_insn.vB;
   AbstractMethod* target_method = FindMethodFromCode(method_idx, receiver,

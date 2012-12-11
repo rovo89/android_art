@@ -223,7 +223,7 @@ static inline AbstractMethod* FindMethodFast(uint32_t method_idx, Object* this_o
   }
 }
 
-extern AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, const AbstractMethod* referrer,
+extern AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, AbstractMethod* referrer,
                                   Thread* self, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
