@@ -25,32 +25,38 @@ namespace mips {
 
 class MipsContext : public Context {
  public:
-  MipsContext();
+  MipsContext() {
+    Reset();
+  }
   virtual ~MipsContext() {}
 
-  // No callee saves on mips
+  virtual void Reset();
+
   virtual void FillCalleeSaves(const StackVisitor& fr);
 
   virtual void SetSP(uintptr_t new_sp) {
-    gprs_[SP] = new_sp;
+    SetGPR(SP, new_sp);
   }
 
   virtual void SetPC(uintptr_t new_pc) {
-    gprs_[RA] = new_pc;
+    SetGPR(RA, new_pc);
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    CHECK_GE(reg, 0u);
-    CHECK_LT(reg, 32u);
+    CHECK_LT(reg, kNumberOfCoreRegisters);
     return gprs_[reg];
   }
 
+  virtual void SetGPR(uint32_t reg, uintptr_t value);
   virtual void SmashCallerSaves();
   virtual void DoLongJump();
 
  private:
-  uintptr_t gprs_[32];
-  uint32_t fprs_[32];
+  // Pointers to registers in the stack, initialized to NULL except for the special cases below.
+  uintptr_t* gprs_[kNumberOfCoreRegisters];
+  uint32_t* fprs_[kNumberOfFRegisters];
+  // Hold values for sp and ra (return address) if they are not located within a stack frame.
+  uintptr_t sp_, ra_;
 };
 }  // namespace mips
 }  // namespace art

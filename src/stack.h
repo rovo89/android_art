@@ -51,9 +51,10 @@ enum VRegKind {
   kUndefined,
 };
 
-// ShadowFrame has 3 possible layouts: portable (VRegs & references overlap),
-// interpreter (VRegs and separate references array), JNI (just VRegs, but where
-// VRegs really => references).
+// ShadowFrame has 3 possible layouts:
+//  - portable - a unified array of VRegs and references. Precise references need GC maps.
+//  - interpreter - separate VRegs and reference arrays. References are in the reference array.
+//  - JNI - just VRegs, but where every VReg holds a reference.
 class ShadowFrame {
  public:
   // Create ShadowFrame for interpreter.
@@ -77,7 +78,6 @@ class ShadowFrame {
   }
 
   void SetNumberOfVRegs(uint32_t number_of_vregs) {
-    DCHECK(number_of_vregs < kHasReferenceArray);
     number_of_vregs_ = number_of_vregs | (number_of_vregs_ & kHasReferenceArray);
   }
 
@@ -207,18 +207,21 @@ class ShadowFrame {
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, AbstractMethod* method, uint32_t dex_pc,
               bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
+    CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
     if (has_reference_array) {
       number_of_vregs_ |= kHasReferenceArray;
       for (size_t i = 0; i < num_vregs; ++i) {
         SetVRegReference(i, NULL);
       }
-    }
-    for (size_t i = 0; i < num_vregs; ++i) {
-      SetVReg(i, 0);
+    } else {
+      for (size_t i = 0; i < num_vregs; ++i) {
+        SetVReg(i, 0);
+      }
     }
   }
 
   Object* const* References() const {
+    DCHECK(HasReferenceArray());
     const uint32_t* vreg_end = &vregs_[NumberOfVRegs()];
     return reinterpret_cast<Object* const*>(vreg_end);
   }
@@ -362,16 +365,15 @@ class StackVisitor {
 
   size_t GetNativePcOffset() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uintptr_t LoadCalleeSave(int num, size_t frame_size) const {
+  uintptr_t* CalleeSaveAddress(int num, size_t frame_size) const {
     // Callee saves are held at the top of the frame
-    AbstractMethod* method = GetMethod();
-    DCHECK(method != NULL);
+    DCHECK(GetMethod() != NULL);
     byte* save_addr =
         reinterpret_cast<byte*>(cur_quick_frame_) + frame_size - ((num + 1) * kPointerSize);
 #if defined(__i386__)
     save_addr -= kPointerSize;  // account for return address
 #endif
-    return *reinterpret_cast<uintptr_t*>(save_addr);
+    return reinterpret_cast<uintptr_t*>(save_addr);
   }
 
   // Returns the height of the stack in the managed stack frames, including transitions.
@@ -398,6 +400,7 @@ class StackVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t GetGPR(uint32_t reg) const;
+  void SetGPR(uint32_t reg, uintptr_t value);
 
   uint32_t GetVReg(AbstractMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                    uint32_t core_spills, uint32_t fp_spills, size_t frame_size,

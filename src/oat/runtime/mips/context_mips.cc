@@ -21,16 +21,20 @@
 namespace art {
 namespace mips {
 
-MipsContext::MipsContext() {
-#ifndef NDEBUG
+static const uint32_t gZero = 0;
+
+void MipsContext::Reset() {
+  for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
+    gprs_[i] = NULL;
+  }
+  for (size_t i = 0; i < kNumberOfFRegisters; i++) {
+    fprs_[i] = NULL;
+  }
+  gprs_[SP] = &sp_;
+  gprs_[RA] = &ra_;
   // Initialize registers with easy to spot debug values.
-  for (int i = 0; i < 32; i++) {
-    gprs_[i] = kBadGprBase + i;
-  }
-  for (int i = 0; i < 32; i++) {
-    fprs_[i] = kBadGprBase + i;
-  }
-#endif
+  sp_ = MipsContext::kBadGprBase + SP;
+  ra_ = MipsContext::kBadGprBase + RA;
 }
 
 void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
@@ -41,39 +45,55 @@ void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
   size_t fp_spill_count = __builtin_popcount(fp_core_spills);
   size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context.
+    // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 1;
-    for (int i = 0; i < 32; i++) {
+    for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
       if (((core_spills >> i) & 1) != 0) {
-        gprs_[i] = fr.LoadCalleeSave(spill_count - j, frame_size);
+        gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_size);
         j++;
       }
     }
   }
   if (fp_spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context.
+    // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 1;
-    for (int i = 0; i < 32; i++) {
+    for (size_t i = 0; i < kNumberOfFRegisters; i++) {
       if (((fp_core_spills >> i) & 1) != 0) {
-        fprs_[i] = fr.LoadCalleeSave(spill_count + fp_spill_count - j, frame_size);
+        fprs_[i] = fr.CalleeSaveAddress(spill_count + fp_spill_count - j, frame_size);
         j++;
       }
     }
   }
 }
 
+void MipsContext::SetGPR(uint32_t reg, uintptr_t value) {
+  CHECK_LT(reg, kNumberOfCoreRegisters);
+  CHECK_NE(gprs_[reg], &gZero); // Can't overwrite this static value since they are never reset.
+  CHECK(gprs_[reg] != NULL);
+  *gprs_[reg] = value;
+}
+
 void MipsContext::SmashCallerSaves() {
-  gprs_[V0] = 0; // This needs to be 0 because we want a null/zero return value.
-  gprs_[V1] = 0; // This needs to be 0 because we want a null/zero return value.
-  gprs_[A1] = kBadGprBase + A1;
-  gprs_[A2] = kBadGprBase + A2;
-  gprs_[A3] = kBadGprBase + A3;
+  // This needs to be 0 because we want a null/zero return value.
+  gprs_[V0] = const_cast<uint32_t*>(&gZero);
+  gprs_[V1] = const_cast<uint32_t*>(&gZero);
+  gprs_[A1] = NULL;
+  gprs_[A2] = NULL;
+  gprs_[A3] = NULL;
 }
 
 extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
 
 void MipsContext::DoLongJump() {
-  art_do_long_jump(&gprs_[ZERO], &fprs_[F0]);
+  uintptr_t gprs[kNumberOfCoreRegisters];
+  uint32_t fprs[kNumberOfFRegisters];
+  for (size_t i = 0; i < kNumberOfCoreRegisters; ++i) {
+    gprs[i] = gprs_[i] != NULL ? *gprs_[i] : MipsContext::kBadGprBase + i;
+  }
+  for (size_t i = 0; i < kNumberOfFRegisters; ++i) {
+    fprs[i] = fprs_[i] != NULL ? *fprs_[i] : MipsContext::kBadGprBase + i;
+  }
+  art_do_long_jump(gprs, fprs);
 }
 
 }  // namespace mips

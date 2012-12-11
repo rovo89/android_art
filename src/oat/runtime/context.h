@@ -24,13 +24,17 @@ namespace art {
 
 class StackVisitor;
 
-// Representation of a thread's context on the executing machine
+// Representation of a thread's context on the executing machine, used to implement long jumps in
+// the quick stack frame layout.
 class Context {
  public:
   // Creates a context for the running architecture
   static Context* Create();
 
   virtual ~Context() {}
+
+  // Re-initializes the registers for context re-use.
+  virtual void Reset() = 0;
 
   // Read values from callee saves in the given frame. The frame also holds
   // the method that holds the layout.
@@ -45,12 +49,16 @@ class Context {
   // Read the given GPR
   virtual uintptr_t GetGPR(uint32_t reg) = 0;
 
+  // Set the given GPR.
+  virtual void SetGPR(uint32_t reg, uintptr_t value) = 0;
+
   // Smash the caller save registers. If we're throwing, we don't want to return bogus values.
   virtual void SmashCallerSaves() = 0;
 
   // Switch execution of the executing context to this context
   virtual void DoLongJump() = 0;
 
+ protected:
   enum {
     kBadGprBase = 0xebad6070,
     kBadFprBase = 0xebad8070,

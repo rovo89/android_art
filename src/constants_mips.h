@@ -27,14 +27,14 @@ namespace mips {
 
 enum Register {
   ZERO =  0,
-  AT   =  1,
-  V0   =  2,
+  AT   =  1,  // Assembler temporary.
+  V0   =  2,  // Values.
   V1   =  3,
-  A0   =  4,
+  A0   =  4,  // Arguments.
   A1   =  5,
   A2   =  6,
   A3   =  7,
-  T0   =  8,
+  T0   =  8,  // Temporaries.
   T1   =  9,
   T2   = 10,
   T3   = 11,
@@ -42,7 +42,7 @@ enum Register {
   T5   = 13,
   T6   = 14,
   T7   = 15,
-  S0   = 16,
+  S0   = 16,  // Saved values.
   S1   = 17,
   S2   = 18,
   S3   = 19,
@@ -50,14 +50,14 @@ enum Register {
   S5   = 21,
   S6   = 22,
   S7   = 23,
-  T8   = 24,
+  T8   = 24,  // More temporaries.
   T9   = 25,
-  K0   = 26,
+  K0   = 26,  // Reserved for trap handler.
   K1   = 27,
-  GP   = 28,
-  SP   = 29,
-  FP   = 30,
-  RA   = 31,
+  GP   = 28,  // Global pointer.
+  SP   = 29,  // Stack pointer.
+  FP   = 30,  // Saved value/frame pointer.
+  RA   = 31,  // Return address.
   kNumberOfCoreRegisters = 32,
   kNoRegister = -1  // Signals an illegal register.
 };
