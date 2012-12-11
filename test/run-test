@@ -168,7 +168,7 @@ if [ "$usage" = "yes" ]; then
         echo "  Runtime Options:"
         echo "    -O             Run oatexec rather than oatexecd (off by default)."
         echo "    --debug        Wait for a debugger to attach."
-        #echo "    --gdb          Run under gdb; incompatible with some tests."
+        echo "    --gdb          Run under gdb; incompatible with some tests."
         echo "    --build-only   Build test files only (off by default)."
         echo "    --interpreter  Enable interpreter only mode (off by default)."
         echo "    --no-verify    Turn off verification (on by default)."

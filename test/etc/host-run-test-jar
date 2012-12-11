@@ -2,13 +2,6 @@
 #
 # Run the code in test.jar using the host-mode virtual machine. The jar should
 # contain a top-level class named Main to run.
-#
-# Options:
-#   --quiet       -- don't chatter
-#   --debug       -- wait for debugger to attach
-#   --interpreter -- enable interpreter only mode (off by default)
-#   --no-verify   -- turn off verification (on by default)
-#   --no-optimize -- turn off optimization (on by default)
 
 msg() {
     if [ "$QUIET" = "n" ]; then
