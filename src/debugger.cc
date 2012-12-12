@@ -177,13 +177,13 @@ static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 
 // Breakpoints and single-stepping.
-static Mutex gBreakpointsLock DEFAULT_MUTEX_ACQUIRED_AFTER ("breakpoints lock");
-static std::vector<Breakpoint> gBreakpoints GUARDED_BY(gBreakpointsLock);
-static SingleStepControl gSingleStepControl GUARDED_BY(gBreakpointsLock);
+static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
+static SingleStepControl gSingleStepControl GUARDED_BY(Locks::breakpoint_lock_);
 
 static bool IsBreakpoint(AbstractMethod* m, uint32_t dex_pc)
+    LOCKS_EXCLUDED(Locks::breakpoint_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MutexLock mu(Thread::Current(), gBreakpointsLock);
+  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == dex_pc) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
@@ -508,7 +508,7 @@ void Dbg::GoActive() {
 
   {
     // TODO: dalvik only warned if there were breakpoints left over. clear in Dbg::Disconnected?
-    MutexLock mu(Thread::Current(), gBreakpointsLock);
+    MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
     CHECK_EQ(gBreakpoints.size(), 0U);
   }
 
@@ -1572,7 +1572,7 @@ static int GetStackDepth(Thread* thread)
 
   if (kIsDebugBuild) {
     MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
-    CHECK(thread->IsSuspended());
+    CHECK(thread == Thread::Current() || thread->IsSuspended());
   }
   CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
   visitor.WalkStack();
@@ -2065,63 +2065,63 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
     event_flags |= kBreakpoint;
   }
 
-  // If the debugger is single-stepping one of our threads, check to
-  // see if we're that thread and we've reached a step point.
-  MutexLock mu(Thread::Current(), gBreakpointsLock);
-  if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
-    CHECK(!m->IsNative());
-    if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
-      // Step into method calls.  We break when the line number
-      // or method pointer changes.  If we're in SS_MIN mode, we
-      // always stop.
-      if (gSingleStepControl.method != m) {
-        event_flags |= kSingleStep;
-        VLOG(jdwp) << "SS new method";
-      } else if (gSingleStepControl.step_size == JDWP::SS_MIN) {
-        event_flags |= kSingleStep;
-        VLOG(jdwp) << "SS new instruction";
-      } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
-        event_flags |= kSingleStep;
-        VLOG(jdwp) << "SS new line";
-      }
-    } else if (gSingleStepControl.step_depth == JDWP::SD_OVER) {
-      // Step over method calls.  We break when the line number is
-      // different and the frame depth is <= the original frame
-      // depth.  (We can't just compare on the method, because we
-      // might get unrolled past it by an exception, and it's tricky
-      // to identify recursion.)
-
-      // TODO: can we just use the value of 'sp'?
-      int stack_depth = GetStackDepth(self);
-
-      if (stack_depth < gSingleStepControl.stack_depth) {
-        // popped up one or more frames, always trigger
-        event_flags |= kSingleStep;
-        VLOG(jdwp) << "SS method pop";
-      } else if (stack_depth == gSingleStepControl.stack_depth) {
-        // same depth, see if we moved
-        if (gSingleStepControl.step_size == JDWP::SS_MIN) {
+  {
+    // If the debugger is single-stepping one of our threads, check to
+    // see if we're that thread and we've reached a step point.
+    MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+    if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
+      CHECK(!m->IsNative());
+      if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
+        // Step into method calls.  We break when the line number
+        // or method pointer changes.  If we're in SS_MIN mode, we
+        // always stop.
+        if (gSingleStepControl.method != m) {
+          event_flags |= kSingleStep;
+          VLOG(jdwp) << "SS new method";
+        } else if (gSingleStepControl.step_size == JDWP::SS_MIN) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS new instruction";
         } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS new line";
         }
-      }
-    } else {
-      CHECK_EQ(gSingleStepControl.step_depth, JDWP::SD_OUT);
-      // Return from the current method.  We break when the frame
-      // depth pops up.
+      } else if (gSingleStepControl.step_depth == JDWP::SD_OVER) {
+        // Step over method calls.  We break when the line number is
+        // different and the frame depth is <= the original frame
+        // depth.  (We can't just compare on the method, because we
+        // might get unrolled past it by an exception, and it's tricky
+        // to identify recursion.)
 
-      // This differs from the "method exit" break in that it stops
-      // with the PC at the next instruction in the returned-to
-      // function, rather than the end of the returning function.
+        int stack_depth = GetStackDepth(self);
 
-      // TODO: can we just use the value of 'sp'?
-      int stack_depth = GetStackDepth(self);
-      if (stack_depth < gSingleStepControl.stack_depth) {
-        event_flags |= kSingleStep;
-        VLOG(jdwp) << "SS method pop";
+        if (stack_depth < gSingleStepControl.stack_depth) {
+          // popped up one or more frames, always trigger
+          event_flags |= kSingleStep;
+          VLOG(jdwp) << "SS method pop";
+        } else if (stack_depth == gSingleStepControl.stack_depth) {
+          // same depth, see if we moved
+          if (gSingleStepControl.step_size == JDWP::SS_MIN) {
+            event_flags |= kSingleStep;
+            VLOG(jdwp) << "SS new instruction";
+          } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
+            event_flags |= kSingleStep;
+            VLOG(jdwp) << "SS new line";
+          }
+        }
+      } else {
+        CHECK_EQ(gSingleStepControl.step_depth, JDWP::SD_OUT);
+        // Return from the current method.  We break when the frame
+        // depth pops up.
+
+        // This differs from the "method exit" break in that it stops
+        // with the PC at the next instruction in the returned-to
+        // function, rather than the end of the returning function.
+
+        int stack_depth = GetStackDepth(self);
+        if (stack_depth < gSingleStepControl.stack_depth) {
+          event_flags |= kSingleStep;
+          VLOG(jdwp) << "SS method pop";
+        }
       }
     }
   }
@@ -2151,14 +2151,14 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
 }
 
 void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
-  MutexLock mu(Thread::Current(), gBreakpointsLock);
+  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   AbstractMethod* m = FromMethodId(location->method_id);
   gBreakpoints.push_back(Breakpoint(m, location->dex_pc));
   VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
 void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
-  MutexLock mu(Thread::Current(), gBreakpointsLock);
+  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   AbstractMethod* m = FromMethodId(location->method_id);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->dex_pc) {
@@ -2178,7 +2178,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     return JDWP::ERR_INVALID_THREAD;
   }
 
-  MutexLock mu2(soa.Self(), gBreakpointsLock);
+  MutexLock mu2(soa.Self(), *Locks::breakpoint_lock_);
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
   if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
@@ -2194,10 +2194,9 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   struct SingleStepStackVisitor : public StackVisitor {
     SingleStepStackVisitor(const ManagedStack* stack,
                            const std::vector<InstrumentationStackFrame>* instrumentation_stack)
-        EXCLUSIVE_LOCKS_REQUIRED(gBreakpointsLock)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, instrumentation_stack, NULL) {
-      gBreakpointsLock.AssertHeld(Thread::Current());
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
@@ -2205,7 +2204,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
-      gBreakpointsLock.AssertHeld(Thread::Current());
+      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
       const AbstractMethod* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
@@ -2230,13 +2229,15 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   //
 
   struct DebugCallbackContext {
-    DebugCallbackContext() {
+    DebugCallbackContext() EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) {
       last_pc_valid = false;
       last_pc = 0;
     }
 
-    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
-      MutexLock mu(Thread::Current(), gBreakpointsLock); // Keep GCC happy.
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) NO_THREAD_SAFETY_ANALYSIS {
+      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
       if (static_cast<int32_t>(line_number) == gSingleStepControl.line_number) {
         if (!context->last_pc_valid) {
@@ -2256,8 +2257,10 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
       return false; // There may be multiple entries for any given line.
     }
 
-    ~DebugCallbackContext() {
-      MutexLock mu(Thread::Current(), gBreakpointsLock); // Keep GCC happy.
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    ~DebugCallbackContext() NO_THREAD_SAFETY_ANALYSIS {
+      Locks::breakpoint_lock_->AssertHeld(Thread::Current());
       // If the line number was the last in the position table...
       if (last_pc_valid) {
         size_t end = MethodHelper(gSingleStepControl.method).GetCodeItem()->insns_size_in_code_units_;
@@ -2307,7 +2310,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 }
 
 void Dbg::UnconfigureStep(JDWP::ObjectId /*threadId*/) {
-  MutexLock mu(Thread::Current(), gBreakpointsLock);
+  MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
 
   gSingleStepControl.is_active = false;
   gSingleStepControl.thread = NULL;
