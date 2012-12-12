@@ -94,7 +94,7 @@ class Dbg {
    * when the debugger attaches.
    */
   static void Connected();
-  static void GoActive();
+  static void GoActive() LOCKS_EXCLUDED(Locks::breakpoint_lock_);
   static void Disconnected();
   static void Disposed();
 
@@ -295,17 +295,20 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(int32_t dex_pc, Thread* self)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void WatchLocation(const JDWP::JdwpLocation* pLoc)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
-      LOCKS_EXCLUDED(gBreakpointsLock)
+      LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void UnconfigureStep(JDWP::ObjectId threadId);
+  static void UnconfigureStep(JDWP::ObjectId threadId) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
 
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId,
                                       JDWP::RefTypeId classId, JDWP::MethodId methodId,

@@ -21,6 +21,7 @@
 namespace art {
 
 Mutex* Locks::abort_lock_ = NULL;
+Mutex* Locks::breakpoint_lock_ = NULL;
 Mutex* Locks::classlinker_classes_lock_ = NULL;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = NULL;
 Mutex* Locks::logging_lock_ = NULL;
@@ -34,6 +35,7 @@ void Locks::Init() {
   if (logging_lock_ != NULL) {
     // Already initialized.
     DCHECK(abort_lock_ != NULL);
+    DCHECK(breakpoint_lock_ != NULL);
     DCHECK(classlinker_classes_lock_ != NULL);
     DCHECK(heap_bitmap_lock_ != NULL);
     DCHECK(logging_lock_ != NULL);
@@ -45,6 +47,8 @@ void Locks::Init() {
     logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
     abort_lock_ = new Mutex("abort lock", kAbortLock, true);
 
+    DCHECK(breakpoint_lock_ == NULL);
+    breakpoint_lock_ = new Mutex("breakpoint lock", kBreakpointLock);
     DCHECK(classlinker_classes_lock_ == NULL);
     classlinker_classes_lock_ = new Mutex("ClassLinker classes lock", kClassLinkerClassesLock);
     DCHECK(heap_bitmap_lock_ == NULL);

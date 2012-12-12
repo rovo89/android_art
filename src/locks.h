@@ -40,16 +40,17 @@ enum LockLevel {
   kAllocSpaceLock = 5,
   kLoadLibraryLock = 6,
   kClassLinkerClassesLock = 7,
-  kThreadListLock = 8,
-  kJdwpEventListLock = 9,
-  kJdwpAttachLock = 10,
-  kJdwpStartLock = 11,
-  kJdwpSerialLock = 12,
-  kRuntimeShutdownLock = 13,
-  kHeapBitmapLock = 14,
-  kMonitorLock = 15,
-  kMutatorLock = 16,
-  kZygoteCreationLock = 17,
+  kBreakpointLock = 8,
+  kThreadListLock = 9,
+  kJdwpEventListLock = 10,
+  kJdwpAttachLock = 11,
+  kJdwpStartLock = 12,
+  kJdwpSerialLock = 13,
+  kRuntimeShutdownLock = 14,
+  kHeapBitmapLock = 15,
+  kMonitorLock = 16,
+  kMutatorLock = 17,
+  kZygoteCreationLock = 18,
   kMaxMutexLevel = kZygoteCreationLock,
 };
 std::ostream& operator<<(std::ostream& os, const LockLevel& rhs);
@@ -129,8 +130,11 @@ class Locks {
   // attaching and detaching.
   static Mutex* thread_list_lock_ ACQUIRED_AFTER(runtime_shutdown_lock_);
 
+  // Guards breakpoints and single-stepping.
+  static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
+
   // Guards lists of classes within the class linker.
-  static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(thread_list_lock_);
+  static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);
 
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.
