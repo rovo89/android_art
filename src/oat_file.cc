@@ -32,27 +32,25 @@ std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
-                       RelocationBehavior reloc,
                        bool writable) {
   CHECK(!filename.empty()) << location;
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), writable, false));
   if (file.get() == NULL) {
     return NULL;
   }
-  return Open(*file.get(), location, requested_base, reloc, writable);
+  return Open(*file.get(), location, requested_base, writable);
 }
 
 OatFile* OatFile::Open(File& file,
                        const std::string& location,
                        byte* requested_base,
-                       RelocationBehavior reloc,
                        bool writable) {
   CHECK(!location.empty());
   if (!IsValidOatFilename(location)) {
     LOG(WARNING) << "Attempting to open oat file with unknown extension '" << location << "'";
   }
   UniquePtr<OatFile> oat_file(new OatFile(location));
-  bool success = oat_file->Map(file, requested_base, reloc, writable);
+  bool success = oat_file->Map(file, requested_base, writable);
   if (!success) {
     return NULL;
   }
@@ -70,7 +68,6 @@ OatFile::~OatFile() {
 
 bool OatFile::Map(File& file,
                   byte* requested_base,
-                  RelocationBehavior /*UNUSED*/,
                   bool writable) {
   OatHeader oat_header;
   bool success = file.ReadFully(&oat_header, sizeof(oat_header));

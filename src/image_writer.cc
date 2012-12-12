@@ -64,8 +64,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     dex_caches_.insert(dex_cache);
   }
 
-  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL,
-                            OatFile::kRelocNone, true);
+  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL, true);
   if (oat_file_ == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;

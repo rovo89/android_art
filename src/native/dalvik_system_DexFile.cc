@@ -206,8 +206,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an oat file next to the dex file.
   std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
-  UniquePtr<const OatFile> oat_file(
-      OatFile::Open(oat_filename, oat_filename, NULL, OatFile::kRelocNone));
+  UniquePtr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, NULL));
   if (oat_file.get() != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
     uint32_t location_checksum;
     // If we have no classes.dex checksum such as in a user build, assume up-to-date.
@@ -229,8 +228,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an oat file in the cache
   std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
-  oat_file.reset(
-      OatFile::Open(cache_location, oat_filename, NULL, OatFile::kRelocNone));
+  oat_file.reset(OatFile::Open(cache_location, oat_filename, NULL));
   if (oat_file.get() == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " does not exist for " << filename.c_str();

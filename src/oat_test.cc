@@ -92,8 +92,7 @@ TEST_F(OatTest, WriteRead) {
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(),
                                             tmp.GetFilename(),
-                                            NULL,
-                                            OatFile::kRelocNone));
+                                            NULL));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());

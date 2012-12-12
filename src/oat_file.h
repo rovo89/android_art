@@ -29,11 +29,6 @@ namespace art {
 
 class OatFile {
  public:
-  enum RelocationBehavior {
-    kRelocNone,
-    kRelocAll,
-  };
-
   // Returns an OatFile name based on a DexFile location
   static std::string DexFilenameToOatFilename(const std::string& location);
 
@@ -42,14 +37,12 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
-                       RelocationBehavior reloc,
                        bool writable = false);
 
   // Open an oat file from an already opened File with the given location.
   static OatFile* Open(File& file,
                        const std::string& location,
                        byte* requested_base,
-                       RelocationBehavior reloc,
                        bool writable = false);
 
   ~OatFile();
@@ -227,7 +220,7 @@ class OatFile {
 
  private:
   explicit OatFile(const std::string& filename);
-  bool Map(File& file, byte* requested_base, RelocationBehavior reloc, bool writable);
+  bool Map(File& file, byte* requested_base, bool writable);
 
   const byte* Begin() const;
   const byte* End() const;

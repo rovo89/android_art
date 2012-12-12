@@ -702,9 +702,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
   runtime->GetHeap()->UnReserveOatFileAddressRange();
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename,
-                                    image_header.GetOatBegin(),
-                                    OatFile::kRelocNone);
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatBegin());
   VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
@@ -743,8 +741,7 @@ const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& 
 static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
                                                uint32_t dex_location_checksum,
                                                const std::string& oat_location) {
-  UniquePtr<OatFile> oat_file(
-      OatFile::Open(oat_location, oat_location, NULL, OatFile::kRelocAll));
+  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL));
   if (oat_file.get() == NULL) {
     return NULL;
   }
@@ -805,8 +802,7 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::s
     LOG(ERROR) << "Failed to seek to start of generated oat file: " << oat_location;
     return NULL;
   }
-  const OatFile* oat_file =
-      OatFile::Open(*file.get(), oat_location, NULL, OatFile::kRelocAll);
+  const OatFile* oat_file = OatFile::Open(*file.get(), oat_location, NULL);
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open generated oat file: " << oat_location;
     return NULL;
@@ -955,8 +951,7 @@ const OatFile* ClassLinker::FindOatFileFromOatLocationLocked(const std::string& 
     return oat_file;
   }
 
-  oat_file = OatFile::Open(oat_location, oat_location, NULL,
-                           OatFile::kRelocAll);
+  oat_file = OatFile::Open(oat_location, oat_location, NULL);
   if (oat_file == NULL) {
     return NULL;
   }
