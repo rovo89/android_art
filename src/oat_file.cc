@@ -208,12 +208,6 @@ std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
   return result;
 }
 
-void OatFile::RelocateExecutable() {
-#if defined(ART_USE_LLVM_COMPILER)
-  UNIMPLEMENTED(WARNING) << "Relocate the executable";
-#endif
-}
-
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& dex_file_location,
                                 uint32_t dex_file_location_checksum,

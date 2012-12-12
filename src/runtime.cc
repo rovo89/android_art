@@ -652,9 +652,6 @@ void Runtime::Start() {
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
-  // Relocate the OatFiles (ELF images).
-  class_linker_->RelocateExecutable();
-
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
   Thread* self = Thread::Current();
   self->ThrowNewException("Ljava/lang/OutOfMemoryError;",

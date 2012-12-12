@@ -3871,11 +3871,4 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {
   class_roots_->Set(class_root, klass);
 }
 
-void ClassLinker::RelocateExecutable() {
-  MutexLock mu(Thread::Current(), dex_lock_);
-  for (size_t i = 0; i < oat_files_.size(); ++i) {
-    const_cast<OatFile*>(oat_files_[i])->RelocateExecutable();
-  }
-}
-
 }  // namespace art

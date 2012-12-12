@@ -375,9 +375,6 @@ class ClassLinker {
   // Get the oat code for a method from a method index.
   const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx);
 
-  // Relocate the OatFiles (ELF images)
-  void RelocateExecutable() LOCKS_EXCLUDED(dex_lock_);
-
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.
 

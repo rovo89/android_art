@@ -216,8 +216,6 @@ class OatFile {
     return End() - Begin();
   }
 
-  void RelocateExecutable();
-
  private:
   explicit OatFile(const std::string& filename);
   bool Map(File& file, byte* requested_base, bool writable);
