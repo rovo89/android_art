@@ -16,10 +16,10 @@
 
 #include "dex_file_verifier.h"
 
+#include "base/stringprintf.h"
 #include "leb128.h"
 #include "object.h"
 #include "safe_map.h"
-#include "stringprintf.h"
 #include "UniquePtr.h"
 #include "zip_archive.h"
 

@@ -38,6 +38,7 @@
 #include <set>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
@@ -49,7 +50,6 @@
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "gc/space.h"
-#include "stringprintf.h"
 #include "thread_list.h"
 
 namespace art {

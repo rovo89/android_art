@@ -22,8 +22,8 @@
 #include <string>
 
 #include "base/macros.h"
+#include "base/stringpiece.h"
 #include "base/unix_file/random_access_file.h"
-#include "stringpiece.h"
 
 namespace unix_file {
 

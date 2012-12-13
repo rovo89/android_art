@@ -19,7 +19,7 @@
 #include <iostream>
 
 #include "base/logging.h"
-#include "stringprintf.h"
+#include "base/stringprintf.h"
 #include "thread.h"
 
 namespace art {

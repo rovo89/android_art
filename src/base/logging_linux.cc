@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "logging.h"
+
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -21,8 +23,7 @@
 #include <cstring>
 #include <iostream>
 
-#include "logging.h"
-#include "stringprintf.h"
+#include "base/stringprintf.h"
 #include "utils.h"
 
 namespace art {

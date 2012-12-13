@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "base/stringpiece.h"
 #include "globals.h"
 #include "heap.h"
 #include "instruction_set.h"
@@ -33,7 +34,6 @@
 #include "locks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
-#include "stringpiece.h"
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/procedure_linkage_table.h"

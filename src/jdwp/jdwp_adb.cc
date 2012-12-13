@@ -21,9 +21,9 @@
 #include <unistd.h>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "jdwp/jdwp_handler.h"
 #include "jdwp/jdwp_priv.h"
-#include "stringprintf.h"
 
 #ifdef HAVE_ANDROID_OS
 #include "cutils/sockets.h"

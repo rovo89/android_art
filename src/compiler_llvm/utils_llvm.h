@@ -17,7 +17,7 @@
 #ifndef ART_SRC_UTILS_LLVM_H_
 #define ART_SRC_UTILS_LLVM_H_
 
-#include "stringprintf.h"
+#include "base/stringprintf.h"
 
 #include <llvm/Analysis/Verifier.h>
 

@@ -34,12 +34,12 @@
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/stringprintf.h"
 #include "debugger.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_event.h"
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_priv.h"
-#include "stringprintf.h"
 
 namespace art {
 

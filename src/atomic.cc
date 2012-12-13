@@ -17,11 +17,12 @@
 #include "atomic.h"
 
 #include <pthread.h>
+
 #include <vector>
 
 #include "base/mutex.h"
 #include "base/stl_util.h"
-#include "stringprintf.h"
+#include "base/stringprintf.h"
 #include "thread.h"
 
 #if defined(__APPLE__)

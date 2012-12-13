@@ -22,7 +22,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "stringprintf.h"
+#include "base/stringprintf.h"
 #include "thread.h"
 #include "utils.h"
 

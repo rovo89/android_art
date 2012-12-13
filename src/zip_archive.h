@@ -21,12 +21,12 @@
 #include <zlib.h>
 
 #include "base/logging.h"
+#include "base/stringpiece.h"
 #include "base/unix_file/random_access_file.h"
 #include "globals.h"
 #include "mem_map.h"
 #include "os.h"
 #include "safe_map.h"
-#include "stringpiece.h"
 #include "UniquePtr.h"
 
 namespace art {

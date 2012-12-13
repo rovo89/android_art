@@ -132,6 +132,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
 	src/base/logging.cc \
 	src/base/mutex.cc \
+	src/base/stringpiece.cc \
+	src/base/stringprintf.cc \
 	src/base/unix_file/fd_file.cc \
 	src/base/unix_file/mapped_file.cc \
 	src/base/unix_file/null_file.cc \
@@ -227,8 +229,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/runtime_support.cc \
 	src/signal_catcher.cc \
 	src/stack.cc \
-	src/stringpiece.cc \
-	src/stringprintf.cc \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/thread_pool.cc \

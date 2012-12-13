@@ -20,11 +20,11 @@
 #include <iosfwd>
 #include <vector>
 
-#include "UniquePtr.h"
 #include "atomic.h"
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/stringpiece.h"
 #include "globals.h"
 #include "heap.h"
 #include "invoke_type.h"
@@ -32,8 +32,8 @@
 #include "offsets.h"
 #include "primitive.h"
 #include "runtime.h"
-#include "stringpiece.h"
 #include "thread.h"
+#include "UniquePtr.h"
 #include "utf.h"
 
 namespace art {

@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "class_linker.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
@@ -32,7 +33,6 @@
 #include "object.h"
 #include "os.h"
 #include "safe_map.h"
-#include "stringprintf.h"
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utf.h"

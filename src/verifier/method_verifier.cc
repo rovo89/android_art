@@ -19,19 +19,19 @@
 #include <iostream>
 
 #include "base/logging.h"
+#include "base/stringpiece.h"
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
-#include "verifier/dex_gc_map.h"
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
 #include "object_utils.h"
 #include "runtime.h"
-#include "stringpiece.h"
+#include "verifier/dex_gc_map.h"
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "greenland/backend_types.h"

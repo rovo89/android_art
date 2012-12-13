@@ -21,13 +21,13 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/stringpiece.h"
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
 #include "mem_map.h"
 #include "modifiers.h"
 #include "safe_map.h"
-#include "stringpiece.h"
 #include "UniquePtr.h"
 #include "utils.h"
 

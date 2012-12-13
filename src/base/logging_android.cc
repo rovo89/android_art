@@ -15,11 +15,12 @@
  */
 
 #include "logging.h"
-#include "stringprintf.h"
 
-#include <iostream>
 #include <unistd.h>
 
+#include <iostream>
+
+#include "base/stringprintf.h"
 #include "cutils/log.h"
 
 namespace art {

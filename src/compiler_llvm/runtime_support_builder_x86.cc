@@ -16,8 +16,8 @@
 
 #include "runtime_support_builder_x86.h"
 
+#include "base/stringprintf.h"
 #include "ir_builder.h"
-#include "stringprintf.h"
 #include "thread.h"
 #include "utils_llvm.h"
 

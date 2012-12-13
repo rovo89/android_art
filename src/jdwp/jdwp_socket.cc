@@ -27,9 +27,9 @@
 #include <unistd.h>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "jdwp/jdwp_handler.h"
 #include "jdwp/jdwp_priv.h"
-#include "stringprintf.h"
 
 #define kBasePort           8000
 #define kMaxPort            8040

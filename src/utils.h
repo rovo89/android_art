@@ -17,15 +17,16 @@
 #ifndef ART_SRC_UTILS_H_
 #define ART_SRC_UTILS_H_
 
-#include "base/logging.h"
-#include "globals.h"
-#include "primitive.h"
-#include "stringpiece.h"
-#include "stringprintf.h"
-
 #include <pthread.h>
+
 #include <string>
 #include <vector>
+
+#include "base/logging.h"
+#include "base/stringpiece.h"
+#include "base/stringprintf.h"
+#include "globals.h"
+#include "primitive.h"
 
 namespace art {
 

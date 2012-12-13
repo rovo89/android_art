@@ -15,7 +15,8 @@
  */
 
 #include "ir_builder.h"
-#include "stringprintf.h"
+
+#include "base/stringprintf.h"
 
 #include <llvm/Module.h>
 

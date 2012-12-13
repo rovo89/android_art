@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef STRINGPRINTF_H_
-#define STRINGPRINTF_H_
+#ifndef ART_SRC_BASE_STRINGPRINTF_H_
+#define ART_SRC_BASE_STRINGPRINTF_H_
 
 #include <stdarg.h>
 #include <string>
@@ -35,4 +35,4 @@ void StringAppendV(std::string* dst, const char* format, va_list ap);
 
 }  // namespace art
 
-#endif  // STRINGPRINTF_H_
+#endif  // ART_SRC_BASE_STRINGPRINTF_H_

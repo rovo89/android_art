@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_instruction.h"
@@ -36,7 +37,6 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "stringpiece.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
