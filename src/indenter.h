@@ -17,7 +17,7 @@
 #ifndef ART_SRC_INDENTER_H_
 #define ART_SRC_INDENTER_H_
 
-#include "macros.h"
+#include "base/macros.h"
 #include <streambuf>
 
 const char kIndentChar =' ';

@@ -17,9 +17,9 @@
 #ifndef ART_SRC_DEX_CACHE_H_
 #define ART_SRC_DEX_CACHE_H_
 
+#include "base/macros.h"
 #include "dex_file.h"
 #include "globals.h"
-#include "macros.h"
 #include "object.h"
 
 namespace art {

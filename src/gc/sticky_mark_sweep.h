@@ -17,8 +17,8 @@
 #ifndef ART_SRC_STICKY_MARK_SWEEP_H_
 #define ART_SRC_STICKY_MARK_SWEEP_H_
 
+#include "base/macros.h"
 #include "locks.h"
-#include "macros.h"
 #include "partial_mark_sweep.h"
 #include "utils.h"
 

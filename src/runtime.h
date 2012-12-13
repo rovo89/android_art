@@ -25,11 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "base/macros.h"
 #include "globals.h"
 #include "heap.h"
 #include "instruction_set.h"
 #include "jobject_comparator.h"
-#include "macros.h"
 #include "locks.h"
 #include "runtime_stats.h"
 #include "safe_map.h"

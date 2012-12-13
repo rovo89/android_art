@@ -17,10 +17,10 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 #define ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 
+#include "base/macros.h"
 #include "compiler.h"
 #include "dex_file.h"
 #include "instruction_set.h"
-#include "macros.h"
 #include "object.h"
 #include "procedure_linkage_table.h"
 

@@ -20,9 +20,9 @@
 #include <string>
 
 #include "atomic_integer.h"
+#include "base/macros.h"
 #include "UniquePtr.h"
 #include "logging.h"
-#include "macros.h"
 #include "mem_map.h"
 #include "utils.h"
 

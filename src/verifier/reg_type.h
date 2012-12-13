@@ -17,7 +17,7 @@
 #ifndef ART_SRC_VERIFIER_REG_TYPE_H_
 #define ART_SRC_VERIFIER_REG_TYPE_H_
 
-#include "macros.h"
+#include "base/macros.h"
 #include "object.h"
 
 #include <stdint.h>

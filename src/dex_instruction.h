@@ -17,9 +17,9 @@
 #ifndef ART_SRC_DEX_INSTRUCTION_H_
 #define ART_SRC_DEX_INSTRUCTION_H_
 
+#include "base/macros.h"
 #include "globals.h"
 #include "logging.h"
-#include "macros.h"
 
 namespace art {
 

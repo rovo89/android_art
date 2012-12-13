@@ -21,7 +21,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "file_linux.h"
+#include "base/unix_file/fd_file.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -35,15 +36,11 @@ File* OS::OpenFile(const char* name, bool writable, bool create) {
   } else {
     flags |= O_RDONLY;
   }
-  int fd = open(name, flags, 0666);
-  if (fd < 0) {
+  UniquePtr<File> file(new File);
+  if (!file->Open(name, flags, 0666)) {
     return NULL;
   }
-  return new LinuxFile(name, fd, true);
-}
-
-File* OS::FileFromFd(const char* name, int fd) {
-  return new LinuxFile(name, fd, false);
+  return file.release();
 }
 
 bool OS::FileExists(const char* name) {

@@ -36,11 +36,11 @@ TEST_F(ZipArchiveTest, FindAndExtract) {
 
   ScratchFile tmp;
   ASSERT_NE(-1, tmp.GetFd());
-  UniquePtr<File> file(OS::FileFromFd(tmp.GetFilename().c_str(), tmp.GetFd()));
+  UniquePtr<File> file(new File(tmp.GetFd(), tmp.GetFilename()));
   ASSERT_TRUE(file.get() != NULL);
   bool success = zip_entry->ExtractToFile(*file);
   ASSERT_TRUE(success);
-  close(tmp.GetFd());
+  file.reset(NULL);
 
   uint32_t computed_crc = crc32(0L, Z_NULL, 0);
   int fd = open(tmp.GetFilename().c_str(), O_RDONLY);

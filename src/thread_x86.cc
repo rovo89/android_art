@@ -20,7 +20,7 @@
 #include <sys/types.h>
 
 #include "asm_support.h"
-#include "macros.h"
+#include "base/macros.h"
 #include "thread.h"
 #include "thread_list.h"
 

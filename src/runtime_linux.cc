@@ -34,7 +34,7 @@ struct Backtrace {
   }
 };
 
-struct OS {
+struct OsInfo {
   void Dump(std::ostream& os) {
     utsname info;
     uname(&info);
@@ -242,7 +242,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
                       signal_number == SIGFPE || signal_number == SIGSEGV);
 
-  OS os_info;
+  OsInfo os_info;
   const char* cmd_line = GetCmdLine();
   if (cmd_line == NULL) {
     cmd_line = "<unset>"; // Because no-one called InitLogging.
@@ -258,7 +258,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                                       info->si_code,
                                       GetSignalCodeName(signal_number, info->si_code))
                       << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << "\n"
-                      << "OS: " << Dumpable<OS>(os_info) << "\n"
+                      << "OS: " << Dumpable<OsInfo>(os_info) << "\n"
                       << "Cmdline: " << cmd_line << "\n"
                       << "Thread: " << tid << " \"" << thread_name << "\"\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"

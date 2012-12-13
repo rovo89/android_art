@@ -21,8 +21,8 @@
 
 #include <iosfwd>
 
+#include "base/macros.h"
 #include "instruction_set.h"
-#include "macros.h"
 
 namespace art {
 

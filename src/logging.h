@@ -22,8 +22,8 @@
 #include <iostream>  // NOLINT
 #include <sstream>
 #include <signal.h>
+#include "base/macros.h"
 #include "log_severity.h"
-#include "macros.h"
 
 #define CHECK(x) \
   if (UNLIKELY(!(x))) \

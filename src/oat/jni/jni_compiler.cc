@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "base/macros.h"
 #include "calling_convention.h"
 #include "class_linker.h"
 #include "compiled_method.h"
@@ -24,7 +25,6 @@
 #include "disassembler.h"
 #include "jni_internal.h"
 #include "logging.h"
-#include "macros.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "oat/utils/assembler.h"
 #include "oat/utils/managed_register.h"

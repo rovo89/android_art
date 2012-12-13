@@ -19,9 +19,9 @@
 
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
-#include "macros.h"
 
 namespace art {
 

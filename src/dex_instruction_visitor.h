@@ -17,8 +17,8 @@
 #ifndef ART_SRC_DEX_INSTRUCTION_VISITOR_H_
 #define ART_SRC_DEX_INSTRUCTION_VISITOR_H_
 
+#include "base/macros.h"
 #include "dex_instruction.h"
-#include "macros.h"
 
 namespace art {
 

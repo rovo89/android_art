@@ -18,6 +18,7 @@
 
 #include <sys/uio.h>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_cache.h"
@@ -179,7 +180,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     if (trace_fd < 0) {
       trace_file = OS::OpenFile(trace_filename, true);
     } else {
-      trace_file = OS::FileFromFd("tracefile", trace_fd);
+      trace_file = new File(trace_fd, "tracefile");
+      trace_file->DisableAutoClose();
     }
     if (trace_file == NULL) {
       PLOG(ERROR) << "Unable to open trace file '" << trace_filename << "'";

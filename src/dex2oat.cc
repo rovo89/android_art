@@ -23,10 +23,10 @@
 #include <string>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
-#include "file.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "oat_writer.h"
@@ -274,7 +274,7 @@ class Dex2Oat {
                            image_file_location_oat_begin,
                            image_file_location,
                            *compiler.get())) {
-      LOG(ERROR) << "Failed to create oat file " << oat_file->name();
+      LOG(ERROR) << "Failed to create oat file " << oat_file->GetPath();
       return NULL;
     }
     return compiler.release();
@@ -797,7 +797,8 @@ static int dex2oat(int argc, char** argv) {
       oat_location = oat_filename;
     }
   } else {
-    oat_file.reset(OS::FileFromFd(oat_location.c_str(), oat_fd));
+    oat_file.reset(new File(oat_fd, oat_location));
+    oat_file->DisableAutoClose();
   }
   if (oat_file.get() == NULL) {
     PLOG(ERROR) << "Failed to create oat file: " << oat_location;

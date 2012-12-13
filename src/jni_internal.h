@@ -19,9 +19,9 @@
 
 #include "jni.h"
 
+#include "base/macros.h"
 #include "heap.h"
 #include "indirect_reference_table.h"
-#include "macros.h"
 #include "mutex.h"
 #include "reference_table.h"
 #include "runtime.h"

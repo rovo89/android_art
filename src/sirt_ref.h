@@ -17,8 +17,8 @@
 #ifndef ART_SRC_SIRT_REF_H_
 #define ART_SRC_SIRT_REF_H_
 
+#include "base/macros.h"
 #include "logging.h"
-#include "macros.h"
 #include "thread.h"
 
 namespace art {

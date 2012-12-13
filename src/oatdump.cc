@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
-#include "file.h"
 #include "gc_map.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
@@ -792,7 +792,7 @@ class ImageDumper {
     }
     os << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFile(image_filename_.c_str(), false));
-    stats_.file_bytes = file->Length();
+    stats_.file_bytes = file->GetLength();
     size_t header_bytes = sizeof(ImageHeader);
     stats_.header_bytes = header_bytes;
     size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;

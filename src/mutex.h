@@ -23,10 +23,10 @@
 #include <iosfwd>
 #include <string>
 
+#include "base/macros.h"
 #include "globals.h"
 #include "locks.h"
 #include "logging.h"
-#include "macros.h"
 
 #if defined(__APPLE__)
 #define ART_USE_FUTEXES 0

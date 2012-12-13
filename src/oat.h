@@ -19,9 +19,9 @@
 
 #include <vector>
 
+#include "base/macros.h"
 #include "dex_file.h"
 #include "instruction_set.h"
-#include "macros.h"
 
 namespace art {
 

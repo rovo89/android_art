@@ -17,9 +17,10 @@
 #ifndef ART_SRC_UTF_H_
 #define ART_SRC_UTF_H_
 
+#include "base/macros.h"
+
 #include <stddef.h>
 #include <stdint.h>
-#include "macros.h"
 
 /*
  * All UTF-8 in art is actually modified UTF-8. Mostly, this distinction

@@ -23,6 +23,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "base/unix_file/fd_file.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -243,13 +244,13 @@ bool ZipEntry::ExtractToFile(File& file) {
   uint32_t length = GetUncompressedLength();
   int result = TEMP_FAILURE_RETRY(ftruncate(file.Fd(), length));
   if (result == -1) {
-    PLOG(WARNING) << "Zip: failed to ftruncate " << file.name() << " to length " << length;
+    PLOG(WARNING) << "Zip: failed to ftruncate " << file.GetPath() << " to length " << length;
     return false;
   }
 
   UniquePtr<MemMap> map(MemMap::MapFile(length, PROT_READ | PROT_WRITE, MAP_SHARED, file.Fd(), 0));
   if (map.get() == NULL) {
-    LOG(WARNING) << "Zip: failed to mmap space for " << file.name();
+    LOG(WARNING) << "Zip: failed to mmap space for " << file.GetPath();
     return false;
   }
 

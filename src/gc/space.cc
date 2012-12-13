@@ -17,8 +17,8 @@
 #include "space.h"
 
 #include "UniquePtr.h"
+#include "base/unix_file/fd_file.h"
 #include "dlmalloc.h"
-#include "file.h"
 #include "image.h"
 #include "logging.h"
 #include "os.h"
@@ -485,7 +485,7 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
     return NULL;
   }
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
-                                                 file->Length(),
+                                                 file->GetLength(),
                                                  // TODO: selectively PROT_EXEC stubs
                                                  PROT_READ | PROT_WRITE | PROT_EXEC,
                                                  MAP_PRIVATE | MAP_FIXED,

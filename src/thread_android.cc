@@ -24,7 +24,7 @@
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
-#include "macros.h"
+#include "base/macros.h"
 
 namespace art {
 

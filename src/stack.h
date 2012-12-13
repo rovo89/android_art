@@ -17,11 +17,11 @@
 #ifndef ART_SRC_STACK_H_
 #define ART_SRC_STACK_H_
 
+#include "base/macros.h"
 #include "dex_file.h"
 #include "heap.h"
 #include "instrumentation.h"
 #include "jni.h"
-#include "macros.h"
 #include "oat/runtime/context.h"
 
 #include <stdint.h>

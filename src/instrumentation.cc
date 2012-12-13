@@ -18,6 +18,7 @@
 
 #include <sys/uio.h>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_cache.h"

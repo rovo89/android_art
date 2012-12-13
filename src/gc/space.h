@@ -21,9 +21,9 @@
 
 #include "../mutex.h"
 #include "UniquePtr.h"
+#include "base/macros.h"
 #include "globals.h"
 #include "image.h"
-#include "macros.h"
 #include "dlmalloc.h"
 #include "mem_map.h"
 

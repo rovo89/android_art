@@ -26,6 +26,7 @@
  */
 
 #include "atomic.h"
+#include "base/macros.h"
 #include "debugger.h"
 #include "jdwp/jdwp_priv.h"
 #include "jdwp/jdwp_handler.h"
@@ -33,7 +34,6 @@
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
 #include "logging.h"
-#include "macros.h"
 #include "stringprintf.h"
 
 #include <stdlib.h>
