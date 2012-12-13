@@ -24,8 +24,8 @@
 #include <unistd.h>
 
 #include "UniquePtr.h"
+#include "base/unix_file/fd_file.h"
 #include "class_loader.h"
-#include "file.h"
 #include "object.h"
 #include "object_utils.h"
 #include "os.h"
@@ -95,14 +95,14 @@ void GetThreadStack(pthread_t thread, void*& stack_base, size_t& stack_size) {
 }
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
-  UniquePtr<File> file(OS::OpenFile(file_name.c_str(), false));
-  if (file.get() == NULL) {
+  UniquePtr<File> file(new File);
+  if (!file->Open(file_name, O_RDONLY)) {
     return false;
   }
 
   std::vector<char> buf(8 * KB);
   while (true) {
-    int64_t n = file->Read(&buf[0], buf.size());
+    int64_t n = TEMP_FAILURE_RETRY(read(file->Fd(), &buf[0], buf.size()));
     if (n == -1) {
       return false;
     }

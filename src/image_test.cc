@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "common_test.h"
-#include "file.h"
 #include "image.h"
 #include "image_writer.h"
 #include "oat_writer.h"
@@ -71,7 +70,7 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
     ASSERT_TRUE(space->IsAllocSpace());
-    ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
+    ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.

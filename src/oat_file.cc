@@ -16,7 +16,7 @@
 
 #include "oat_file.h"
 
-#include "file.h"
+#include "base/unix_file/fd_file.h"
 #include "os.h"
 #include "stl_util.h"
 
@@ -89,33 +89,33 @@ bool OatFile::Map(File& file,
     flags |= MAP_FIXED;
   }
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(requested_base,
-                                                 file.Length(),
+                                                 file.GetLength(),
                                                  prot,
                                                  flags,
                                                  file.Fd(),
                                                  0));
   if (map.get() == NULL) {
-    LOG(WARNING) << "Failed to map oat file from " << file.name() << " for " << GetLocation();
+    LOG(WARNING) << "Failed to map oat file from " << file.GetPath() << " for " << GetLocation();
     return false;
   }
   CHECK(requested_base == 0 || requested_base == map->Begin())
-      << file.name() << " for " << GetLocation() << " " << reinterpret_cast<void*>(map->Begin());
+      << file.GetPath() << " for " << GetLocation() << " " << reinterpret_cast<void*>(map->Begin());
   DCHECK_EQ(0, memcmp(&oat_header, map->Begin(), sizeof(OatHeader)))
-      << file.name() << " for " << GetLocation();
+      << file.GetPath() << " for " << GetLocation();
 
   off_t code_offset = oat_header.GetExecutableOffset();
-  if (code_offset < file.Length()) {
+  if (code_offset < file.GetLength()) {
     byte* code_address = map->Begin() + code_offset;
-    size_t code_length = file.Length() - code_offset;
+    size_t code_length = file.GetLength() - code_offset;
     if (mprotect(code_address, code_length, prot | PROT_EXEC) != 0) {
       PLOG(ERROR) << "Failed to make oat code executable in "
-                  << file.name() << " for " << GetLocation();
+                  << file.GetPath() << " for " << GetLocation();
       return false;
     }
   } else {
     // its possible to have no code if all the methods were abstract, native, etc
-    DCHECK_EQ(code_offset, RoundUp(file.Length(), kPageSize))
-        << file.name() << " for " << GetLocation();
+    DCHECK_EQ(code_offset, RoundUp(file.GetLength(), kPageSize))
+        << file.GetPath() << " for " << GetLocation();
   }
 
   const byte* oat = map->Begin();
@@ -128,40 +128,40 @@ bool OatFile::Map(File& file,
     << "+" << sizeof(OatHeader)
     << "+" << oat_header.GetImageFileLocationSize()
     << "<=" << reinterpret_cast<void*>(map->End())
-    << " " << file.name() << " for " << GetLocation();
+    << " " << file.GetPath() << " for " << GetLocation();
   for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_location_size, 0U) << file.name() << " for " << GetLocation();
+    CHECK_GT(dex_file_location_size, 0U) << file.GetPath() << " for " << GetLocation();
     oat += sizeof(dex_file_location_size);
-    CHECK_LT(oat, map->End()) << file.name() << " for " << GetLocation();
+    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
 
     const char* dex_file_location_data = reinterpret_cast<const char*>(oat);
     oat += dex_file_location_size;
-    CHECK_LT(oat, map->End()) << file.name() << " for " << GetLocation();
+    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
 
     std::string dex_file_location(dex_file_location_data, dex_file_location_size);
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);
-    CHECK_LT(oat, map->End()) << file.name() << " for " << GetLocation();
+    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
 
     uint32_t dex_file_offset = *reinterpret_cast<const uint32_t*>(oat);
-    CHECK_GT(dex_file_offset, 0U) << file.name() << " for " << GetLocation();
-    CHECK_LT(dex_file_offset, static_cast<uint32_t>(file.Length()))
-        << file.name() << " for " << GetLocation();
+    CHECK_GT(dex_file_offset, 0U) << file.GetPath() << " for " << GetLocation();
+    CHECK_LT(dex_file_offset, static_cast<uint32_t>(file.GetLength()))
+        << file.GetPath() << " for " << GetLocation();
     oat += sizeof(dex_file_offset);
-    CHECK_LT(oat, map->End()) << file.name() << " for " << GetLocation();
+    CHECK_LT(oat, map->End()) << file.GetPath() << " for " << GetLocation();
 
     uint8_t* dex_file_pointer = map->Begin() + dex_file_offset;
     CHECK(DexFile::IsMagicValid(dex_file_pointer))
-        << file.name() << " for " << GetLocation() << " " << dex_file_pointer;
+        << file.GetPath() << " for " << GetLocation() << " " << dex_file_pointer;
     CHECK(DexFile::IsVersionValid(dex_file_pointer))
-        << file.name() << " for " << GetLocation() << " "  << dex_file_pointer;
+        << file.GetPath() << " for " << GetLocation() << " "  << dex_file_pointer;
     const DexFile::Header* header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer);
     const uint32_t* methods_offsets_pointer = reinterpret_cast<const uint32_t*>(oat);
 
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
-    CHECK_LE(oat, map->End()) << file.name() << " for " << GetLocation();
+    CHECK_LE(oat, map->End()) << file.GetPath() << " for " << GetLocation();
 
     oat_dex_files_.Put(dex_file_location, new OatDexFile(this,
                                                          dex_file_location,

@@ -25,8 +25,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "file.h"
 #include "heap.h"
 #include "os.h"
 #include "runtime.h"
@@ -106,13 +106,12 @@ void SignalCatcher::Output(const std::string& s) {
     PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
     return;
   }
-  UniquePtr<File> file(OS::FileFromFd(stack_trace_file_.c_str(), fd));
+  UniquePtr<File> file(new File(fd, stack_trace_file_));
   if (!file->WriteFully(s.data(), s.size())) {
     PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file_ << "'";
   } else {
     LOG(INFO) << "Wrote stack traces to '" << stack_trace_file_ << "'";
   }
-  close(fd);
 }
 
 void SignalCatcher::HandleSigQuit() {

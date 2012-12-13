@@ -18,7 +18,6 @@
 
 #include "compiled_method.h"
 #include "compiler_llvm.h"
-#include "file.h"
 #include "instruction_set.h"
 #include "ir_builder.h"
 #include "logging.h"

@@ -17,7 +17,7 @@
 #ifndef ART_SRC_VERIFIER_REG_TYPE_CACHE_H_
 #define ART_SRC_VERIFIER_REG_TYPE_CACHE_H_
 
-#include "macros.h"
+#include "base/macros.h"
 #include "reg_type.h"
 #include "stl_util.h"
 

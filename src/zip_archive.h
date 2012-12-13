@@ -20,10 +20,11 @@
 #include <stdint.h>
 #include <zlib.h>
 
-#include "file.h"
+#include "base/unix_file/random_access_file.h"
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
+#include "os.h"
 #include "safe_map.h"
 #include "stringpiece.h"
 #include "UniquePtr.h"

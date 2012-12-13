@@ -18,8 +18,8 @@
 #define ART_SRC_MARK_SWEEP_H_
 
 #include "atomic_stack.h"
+#include "base/macros.h"
 #include "garbage_collector.h"
-#include "macros.h"
 #include "heap_bitmap.h"
 #include "object.h"
 #include "offsets.h"

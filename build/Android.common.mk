@@ -132,6 +132,11 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
+	src/base/unix_file/fd_file.cc \
+	src/base/unix_file/mapped_file.cc \
+	src/base/unix_file/null_file.cc \
+	src/base/unix_file/random_access_file_utils.cc \
+	src/base/unix_file/string_file.cc \
 	src/barrier.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
@@ -148,8 +153,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
 	src/dlmalloc.cc \
-	src/file.cc \
-	src/file_linux.cc \
 	src/gc/card_table.cc \
 	src/gc/garbage_collector.cc \
 	src/gc/heap_bitmap.cc \
@@ -358,13 +361,17 @@ LIBARTTEST_COMMON_SRC_FILES := \
 
 TEST_COMMON_SRC_FILES := \
 	src/barrier_test.cc \
+	src/base/unix_file/fd_file_test.cc \
+	src/base/unix_file/mapped_file_test.cc \
+	src/base/unix_file/null_file_test.cc \
+	src/base/unix_file/random_access_file_utils_test.cc \
+	src/base/unix_file/string_file_test.cc \
 	src/class_linker_test.cc \
 	src/compiler_test.cc \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/exception_test.cc \
-	src/file_test.cc \
 	src/gc/space_bitmap_test.cc \
 	src/gc/space_test.cc \
 	src/gtest_test.cc \

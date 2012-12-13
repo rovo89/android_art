@@ -18,10 +18,11 @@
 #define ART_SRC_OAT_UTILS_MIPS_ASSEMBLER_MIPS_H_
 
 #include <vector>
+
+#include "base/macros.h"
 #include "constants_mips.h"
 #include "globals.h"
 #include "managed_register_mips.h"
-#include "macros.h"
 #include "oat/utils/assembler.h"
 #include "offsets.h"
 #include "utils.h"

@@ -17,19 +17,20 @@
 #ifndef ART_SRC_OS_H_
 #define ART_SRC_OS_H_
 
+namespace unix_file {
+class FdFile;
+}  // namespace unix_file
+
 namespace art {
+
+typedef ::unix_file::FdFile File;
 
 // Interface to the underlying OS platform.
 
-class File;
-
 class OS {
  public:
-  // Open a file. The returned file must be deleted by the caller.
+  // Open a file. The returned pointer must be deleted by the caller.
   static File* OpenFile(const char* name, bool writable, bool create = true);
-
-  // Create a file from an already open file descriptor
-  static File* FileFromFd(const char* name, int fd);
 
   // Check if a file exists.
   static bool FileExists(const char* name);

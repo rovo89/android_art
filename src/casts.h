@@ -19,7 +19,7 @@
 
 #include <assert.h>
 #include <string.h>
-#include "macros.h"
+#include "base/macros.h"
 
 namespace art {
 

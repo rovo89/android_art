@@ -20,12 +20,12 @@
 
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_cache.h"
-#include "file.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
 #include "globals.h"

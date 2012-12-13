@@ -17,8 +17,8 @@
 #ifndef ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 #define ART_SRC_STACK_INDIRECT_REFERENCE_TABLE_H_
 
+#include "base/macros.h"
 #include "logging.h"
-#include "macros.h"
 
 namespace art {
 

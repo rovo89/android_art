@@ -21,9 +21,8 @@
 #include <set>
 #include <string>
 
-#include "file.h"
+#include "base/macros.h"
 #include "globals.h"
-#include "macros.h"
 #include "safe_map.h"
 #include "trace.h"
 #include "UniquePtr.h"

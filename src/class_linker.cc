@@ -27,6 +27,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "casts.h"
 #include "class_loader.h"
 #include "debugger.h"

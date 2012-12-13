@@ -37,9 +37,9 @@
 
 #include <set>
 
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
-#include "file.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"
@@ -459,7 +459,7 @@ class Hprof {
         }
       }
 
-      UniquePtr<File> file(OS::FileFromFd(filename_.c_str(), out_fd));
+      UniquePtr<File> file(new File(out_fd, filename_));
       okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
           file->WriteFully(body_data_ptr_, body_data_size_);
       if (!okay) {
@@ -468,7 +468,6 @@ class Hprof {
         self->ThrowNewException("Ljava/lang/RuntimeException;", msg.c_str());
         LOG(ERROR) << msg;
       }
-      close(out_fd);
     }
 
     // Throw out a log message for the benefit of "runhat".

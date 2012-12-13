@@ -25,10 +25,10 @@
 #include <string>
 #include <vector>
 
+#include "base/macros.h"
 #include "closure.h"
 #include "globals.h"
 #include "instrumentation.h"
-#include "macros.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "locks.h"
 #include "offsets.h"

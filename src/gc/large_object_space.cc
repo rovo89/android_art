@@ -17,7 +17,6 @@
 #include "large_object_space.h"
 #include "UniquePtr.h"
 #include "dlmalloc.h"
-#include "file.h"
 #include "image.h"
 #include "logging.h"
 #include "os.h"

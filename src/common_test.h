@@ -20,15 +20,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "base/macros.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
 #include "dex_file.h"
-#include "file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
 #include "instruction_set.h"
-#include "macros.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "os.h"
@@ -143,16 +143,14 @@ class ScratchFile {
   ScratchFile() {
     filename_ = getenv("ANDROID_DATA");
     filename_ += "/TmpFile-XXXXXX";
-    fd_ = mkstemp(&filename_[0]);
-    CHECK_NE(-1, fd_);
-    file_.reset(OS::FileFromFd(GetFilename().c_str(), fd_));
+    int fd = mkstemp(&filename_[0]);
+    CHECK_NE(-1, fd);
+    file_.reset(new File(fd, GetFilename()));
   }
 
   ~ScratchFile() {
     int unlink_result = unlink(filename_.c_str());
     CHECK_EQ(0, unlink_result);
-    int close_result = close(fd_);
-    CHECK_EQ(0, close_result);
   }
 
   const std::string& GetFilename() const {
@@ -164,12 +162,11 @@ class ScratchFile {
   }
 
   int GetFd() const {
-    return fd_;
+    return file_->Fd();
   }
 
  private:
   std::string filename_;
-  int fd_;
   UniquePtr<File> file_;
 };
 
@@ -289,11 +286,8 @@ class CommonTest : public testing::Test {
 #endif
   }
 
- protected:
-  virtual void SetUp() {
-    is_host_ = getenv("ANDROID_BUILD_TOP") != NULL;
-
-    if (is_host_) {
+  static void SetEnvironmentVariables(std::string& android_data) {
+    if (IsHost()) {
       // $ANDROID_ROOT is set on the device, but not on the host.
       // We need to set this so that icu4c can find its locale data.
       std::string root;
@@ -310,11 +304,20 @@ class CommonTest : public testing::Test {
     }
 
     // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of art-cache
-    android_data_ = (is_host_ ? "/tmp/art-data-XXXXXX" : "/data/art-cache/art-data-XXXXXX");
-    if (mkdtemp(&android_data_[0]) == NULL) {
-      PLOG(FATAL) << "mkdtemp(\"" << &android_data_[0] << "\") failed";
+    android_data = (IsHost() ? "/tmp/art-data-XXXXXX" : "/data/art-cache/art-data-XXXXXX");
+    if (mkdtemp(&android_data[0]) == NULL) {
+      PLOG(FATAL) << "mkdtemp(\"" << &android_data[0] << "\") failed";
     }
-    setenv("ANDROID_DATA", android_data_.c_str(), 1);
+    setenv("ANDROID_DATA", android_data.c_str(), 1);
+  }
+
+ protected:
+  static bool IsHost() {
+    return (getenv("ANDROID_BUILD_TOP") != NULL);
+  }
+
+  virtual void SetUp() {
+    SetEnvironmentVariables(android_data_);
     art_cache_.append(android_data_.c_str());
     art_cache_.append("/art-cache");
     int mkdir_result = mkdir(art_cache_.c_str(), 0700);
@@ -434,7 +437,7 @@ class CommonTest : public testing::Test {
   }
 
   std::string GetLibCoreDexFileName() {
-    if (is_host_) {
+    if (IsHost()) {
       const char* host_dir = getenv("ANDROID_HOST_OUT");
       CHECK(host_dir != NULL);
       return StringPrintf("%s/framework/core-hostdex.jar", host_dir);
@@ -445,7 +448,7 @@ class CommonTest : public testing::Test {
   const DexFile* OpenTestDexFile(const char* name) {
     CHECK(name != NULL);
     std::string filename;
-    if (is_host_) {
+    if (IsHost()) {
       filename += getenv("ANDROID_HOST_OUT");
       filename += "/framework/";
     } else {
@@ -524,7 +527,6 @@ class CommonTest : public testing::Test {
     CompileMethod(method);
   }
 
-  bool is_host_;
   std::string android_data_;
   std::string art_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_

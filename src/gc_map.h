@@ -17,8 +17,8 @@
 #ifndef ART_SRC_GC_MAP_H_
 #define ART_SRC_GC_MAP_H_
 
+#include "base/macros.h"
 #include "logging.h"
-#include "macros.h"
 #include <stdint.h>
 
 namespace art {

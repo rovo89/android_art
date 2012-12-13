@@ -22,11 +22,11 @@
 #include <set>
 #include <vector>
 
+#include "base/macros.h"
 #include "casts.h"
 #include "compiler.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "macros.h"
 #include "object.h"
 #include "reg_type.h"
 #include "reg_type_cache.h"

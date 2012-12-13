@@ -22,12 +22,12 @@
 
 #include "UniquePtr.h"
 #include "atomic.h"
+#include "base/macros.h"
 #include "casts.h"
 #include "globals.h"
 #include "heap.h"
 #include "invoke_type.h"
 #include "logging.h"
-#include "macros.h"
 #include "modifiers.h"
 #include "offsets.h"
 #include "primitive.h"

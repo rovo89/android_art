@@ -18,9 +18,10 @@
 #define ART_SRC_MEMORY_REGION_H_
 
 #include <stdint.h>
+
+#include "base/macros.h"
 #include "globals.h"
 #include "logging.h"
-#include "macros.h"
 #include "memory_region.h"
 
 namespace art {
