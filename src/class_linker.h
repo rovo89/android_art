@@ -22,11 +22,11 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
-#include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
 #include "safe_map.h"

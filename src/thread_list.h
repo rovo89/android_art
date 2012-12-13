@@ -17,7 +17,7 @@
 #ifndef ART_SRC_THREAD_LIST_H_
 #define ART_SRC_THREAD_LIST_H_
 
-#include "mutex.h"
+#include "base/mutex.h"
 #include "thread.h"
 
 namespace art {

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+#include "base/mutex.h"
 #include "debugger.h"
 #include "jni_internal.h"
 #include "logging.h"
-#include "../mutex.h"  // Avoid pulling in icu4c's mutex.h
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"

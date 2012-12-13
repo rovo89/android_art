@@ -18,9 +18,9 @@
 
 #include <vector>
 
+#include "base/mutex.h"
 #include "class_linker.h"
 #include "dex_instruction.h"
-#include "mutex.h"
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"

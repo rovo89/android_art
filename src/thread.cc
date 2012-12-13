@@ -28,6 +28,7 @@
 #include <iostream>
 #include <list>
 
+#include "base/mutex.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "cutils/atomic.h"
@@ -37,7 +38,6 @@
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
-#include "mutex.h"
 #include "oat/runtime/context.h"
 #include "object.h"
 #include "object_utils.h"

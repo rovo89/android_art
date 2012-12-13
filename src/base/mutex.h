@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MUTEX_H_
-#define ART_SRC_MUTEX_H_
+#ifndef ART_SRC_BASE_MUTEX_H_
+#define ART_SRC_BASE_MUTEX_H_
 
 #include <pthread.h>
 #include <stdint.h>
@@ -359,4 +359,4 @@ class SCOPED_LOCKABLE WriterMutexLock {
 
 }  // namespace art
 
-#endif  // ART_SRC_MUTEX_H_
+#endif  // ART_SRC_BASE_MUTEX_H_

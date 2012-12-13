@@ -22,12 +22,12 @@
 #include <utility>
 #include <vector>
 
+#include "base/mutex.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "invoke_arg_array_builder.h"
 #include "jni.h"
 #include "logging.h"
-#include "mutex.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime.h"

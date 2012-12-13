@@ -21,13 +21,13 @@
 #include <string>
 #include <vector>
 
+#include "base/mutex.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "dex_cache.h"
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
-#include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"

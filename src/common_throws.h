@@ -17,7 +17,7 @@
 #ifndef ART_SRC_COMMON_THROWS__H_
 #define ART_SRC_COMMON_THROWS_H_
 
-#include "mutex.h"
+#include "base/mutex.h"
 #include "object.h"
 
 namespace art {

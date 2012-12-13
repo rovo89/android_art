@@ -23,8 +23,8 @@
 #include <iosfwd>
 #include <list>
 
+#include "base/mutex.h"
 #include "heap.h"
-#include "mutex.h"
 #include "thread.h"
 
 namespace art {

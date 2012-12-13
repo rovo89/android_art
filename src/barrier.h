@@ -17,7 +17,7 @@
 #ifndef ART_SRC_BARRIER_H_
 #define ART_SRC_BARRIER_H_
 
-#include "../src/mutex.h"
+#include "base/mutex.h"
 #include "locks.h"
 #include "UniquePtr.h"
 
@@ -53,4 +53,3 @@ class Barrier {
 
 }  // namespace art
 #endif  // ART_SRC_GC_BARRIER_H_
-

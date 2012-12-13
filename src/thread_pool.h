@@ -21,9 +21,9 @@
 #include <vector>
 
 #include "barrier.h"
+#include "base/mutex.h"
 #include "closure.h"
 #include "locks.h"
-#include "../src/mutex.h"
 
 namespace art {
 

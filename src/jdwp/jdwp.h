@@ -17,10 +17,10 @@
 #ifndef ART_JDWP_JDWP_H_
 #define ART_JDWP_JDWP_H_
 
+#include "base/mutex.h"
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
-#include "../mutex.h" // TODO: fix our include path!
 
 #include <pthread.h>
 #include <stddef.h>

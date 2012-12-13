@@ -16,7 +16,7 @@
 
 #include "locks.h"
 
-#include "mutex.h"
+#include "base/mutex.h"
 
 namespace art {
 

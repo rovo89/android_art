@@ -19,9 +19,9 @@
 
 #include <string>
 
-#include "../mutex.h"
 #include "UniquePtr.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "globals.h"
 #include "image.h"
 #include "dlmalloc.h"

@@ -17,7 +17,7 @@
 #ifndef ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
 #define ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
 
-#include "../src/mutex.h"
+#include "base/mutex.h"
 #include "thread.h"
 
 namespace art {

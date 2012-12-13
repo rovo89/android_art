@@ -130,6 +130,7 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
+	src/base/mutex.cc \
 	src/base/unix_file/fd_file.cc \
 	src/base/unix_file/mapped_file.cc \
 	src/base/unix_file/null_file.cc \
@@ -181,7 +182,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/mem_map.cc \
 	src/memory_region.cc \
 	src/monitor.cc \
-	src/mutex.cc \
 	src/native/dalvik_system_DexFile.cc \
 	src/native/dalvik_system_VMDebug.cc \
 	src/native/dalvik_system_VMRuntime.cc \
@@ -337,6 +337,7 @@ endif # HOST_ARCH != x86
 
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	src/base/mutex.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
 	src/gc/space.h \
@@ -347,7 +348,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
 	src/locks.h \
-	src/mutex.h \
 	src/object.h \
 	src/thread.h \
 	src/verifier/method_verifier.h \
@@ -359,6 +359,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
 
 TEST_COMMON_SRC_FILES := \
 	src/barrier_test.cc \
+	src/base/mutex_test.cc \
 	src/base/unix_file/fd_file_test.cc \
 	src/base/unix_file/mapped_file_test.cc \
 	src/base/unix_file/null_file_test.cc \
@@ -382,7 +383,6 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_compiler_test.cc \
 	src/oat/utils/arm/managed_register_arm_test.cc \
 	src/oat/utils/x86/managed_register_x86_test.cc \
-	src/mutex_test.cc \
 	src/oat_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \

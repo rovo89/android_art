@@ -17,7 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
-#include "../mutex.h"
+#include "base/mutex.h"
 #include "globals.h"
 #if defined(ART_USE_DEXLANG_FRONTEND)
 # include "greenland/dex_lang.h"

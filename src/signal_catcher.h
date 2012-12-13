@@ -17,7 +17,7 @@
 #ifndef ART_SRC_SIGNAL_CATCHER_H_
 #define ART_SRC_SIGNAL_CATCHER_H_
 
-#include "mutex.h"
+#include "base/mutex.h"
 
 namespace art {
 

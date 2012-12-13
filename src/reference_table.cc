@@ -16,8 +16,8 @@
 
 #include "reference_table.h"
 
+#include "base/mutex.h"
 #include "indirect_reference_table.h"
-#include "mutex.h"
 
 #include "object.h"
 

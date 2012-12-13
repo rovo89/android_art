@@ -19,8 +19,8 @@
 
 #include <iosfwd>
 
+#include "base/mutex.h"
 #include "heap.h"
-#include "mutex.h"
 #include "object.h"
 #include "safe_map.h"
 

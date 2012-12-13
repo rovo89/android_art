@@ -17,8 +17,8 @@
 #ifndef ART_SRC_WELL_KNOWN_CLASSES_H_
 #define ART_SRC_WELL_KNOWN_CLASSES_H_
 
+#include "base/mutex.h"
 #include "jni.h"
-#include "mutex.h"
 
 namespace art {
 
