@@ -18,8 +18,8 @@
 #define ART_SRC_VERIFIER_REG_TYPE_CACHE_H_
 
 #include "base/macros.h"
+#include "base/stl_util.h"
 #include "reg_type.h"
-#include "stl_util.h"
 
 namespace art {
 namespace verifier {

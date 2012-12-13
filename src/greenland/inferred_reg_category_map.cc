@@ -16,10 +16,11 @@
 
 #include "inferred_reg_category_map.h"
 
-#include "stl_util.h"
-
 #include <stdint.h>
+
 #include <vector>
+
+#include "base/stl_util.h"
 
 namespace art {
 namespace greenland {

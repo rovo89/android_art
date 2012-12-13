@@ -22,6 +22,7 @@
 
 #include "../../external/icu4c/common/unicode/uvernum.h"
 #include "base/macros.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
@@ -36,7 +37,6 @@
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
-#include "stl_util.h"
 #include "stringprintf.h"
 #include "thread.h"
 #include "UniquePtr.h"

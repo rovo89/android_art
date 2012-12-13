@@ -21,8 +21,8 @@
 
 #include <iosfwd>
 
+#include "base/casts.h"
 #include "base/logging.h"
-#include "casts.h"
 #include "globals.h"
 
 namespace art {

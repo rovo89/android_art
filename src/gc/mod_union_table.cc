@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include "mod_union_table.h"
+
+#include "base/stl_util.h"
 #include "heap.h"
 #include "heap_bitmap.h"
 #include "mark_sweep.h"
-#include "mod_union_table.h"
 #include "space.h"
-#include "stl_util.h"
 #include "UniquePtr.h"
 
 namespace art {

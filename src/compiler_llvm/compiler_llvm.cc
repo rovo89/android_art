@@ -16,6 +16,7 @@
 
 #include "compiler_llvm.h"
 
+#include "base/stl_util.h"
 #include "backend_options.h"
 #include "class_linker.h"
 #include "compilation_unit.h"
@@ -28,7 +29,6 @@
 #endif
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
-#include "stl_util.h"
 #include "stub_compiler.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"

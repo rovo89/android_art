@@ -16,14 +16,14 @@
 
 #include "space.h"
 
-#include "UniquePtr.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dlmalloc.h"
 #include "image.h"
 #include "os.h"
 #include "space_bitmap.h"
-#include "stl_util.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {

@@ -22,6 +22,7 @@
 #include <limits>
 #include <vector>
 
+#include "base/stl_util.h"
 #include "debugger.h"
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
@@ -39,7 +40,6 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "stl_util.h"
 #include "thread_list.h"
 #include "timing_logger.h"
 #include "UniquePtr.h"

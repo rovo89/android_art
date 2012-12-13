@@ -16,9 +16,9 @@
 
 #include "oat_file.h"
 
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "os.h"
-#include "stl_util.h"
 
 namespace art {
 

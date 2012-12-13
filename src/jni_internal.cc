@@ -24,6 +24,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "base/stl_util.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "invoke_arg_array_builder.h"
@@ -34,7 +35,6 @@
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
-#include "stl_util.h"
 #include "stringpiece.h"
 #include "thread.h"
 #include "UniquePtr.h"

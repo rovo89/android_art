@@ -18,6 +18,7 @@
 
 #include <zlib.h>
 
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
@@ -25,7 +26,6 @@
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "gc/space.h"
-#include "stl_util.h"
 #include "verifier/method_verifier.h"
 
 namespace art {

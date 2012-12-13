@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CASTS_H_
-#define ART_SRC_CASTS_H_
+#ifndef ART_SRC_BASE_CASTS_H_
+#define ART_SRC_BASE_CASTS_H_
 
 #include <assert.h>
 #include <string.h>
@@ -90,4 +90,4 @@ inline Dest bit_cast(const Source& source) {
 
 }  // namespace art
 
-#endif  // ART_SRC_CASTS_H_
+#endif  // ART_SRC_BASE_CASTS_H_

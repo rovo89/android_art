@@ -21,6 +21,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
+#include "base/stl_util.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
@@ -33,7 +34,6 @@
 #include "gc/space.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
-#include "stl_util.h"
 #include "thread.h"
 #include "thread_pool.h"
 #include "timing_logger.h"

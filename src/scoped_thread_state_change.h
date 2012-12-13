@@ -17,7 +17,7 @@
 #ifndef ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
 #define ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
 
-#include "casts.h"
+#include "base/casts.h"
 #include "jni_internal.h"
 #include "thread.h"
 

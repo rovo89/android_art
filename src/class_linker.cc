@@ -27,9 +27,10 @@
 #include <utility>
 #include <vector>
 
+#include "base/casts.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
-#include "casts.h"
 #include "class_loader.h"
 #include "debugger.h"
 #include "dex_cache.h"
@@ -53,7 +54,6 @@
 #include "gc/space.h"
 #include "gc/space_bitmap.h"
 #include "stack_indirect_reference_table.h"
-#include "stl_util.h"
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utils.h"

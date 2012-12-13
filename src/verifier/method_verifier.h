@@ -22,8 +22,9 @@
 #include <set>
 #include <vector>
 
+#include "base/casts.h"
 #include "base/macros.h"
-#include "casts.h"
+#include "base/stl_util.h"
 #include "compiler.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
@@ -32,7 +33,6 @@
 #include "reg_type_cache.h"
 #include "register_line.h"
 #include "safe_map.h"
-#include "stl_util.h"
 #include "UniquePtr.h"
 
 namespace art {

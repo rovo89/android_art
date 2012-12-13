@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
@@ -36,7 +37,6 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "stl_util.h"
 #include "stringpiece.h"
 #include "timing_logger.h"
 #include "well_known_classes.h"

@@ -18,6 +18,7 @@
 
 #include "backend_types.h"
 #include "base/logging.h"
+#include "base/stl_util.h"
 #include "compilation_unit.h"
 #include "compiler.h"
 #include "dalvik_reg.h"
@@ -28,7 +29,6 @@
 #include "object_utils.h"
 #include "runtime_support_func.h"
 #include "runtime_support_llvm.h"
-#include "stl_util.h"
 #include "stringprintf.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"

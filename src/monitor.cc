@@ -19,12 +19,12 @@
 #include <vector>
 
 #include "base/mutex.h"
+#include "base/stl_util.h"
 #include "class_linker.h"
 #include "dex_instruction.h"
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
-#include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
