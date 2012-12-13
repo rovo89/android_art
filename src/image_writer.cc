@@ -20,6 +20,7 @@
 
 #include <vector>
 
+#include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_loader.h"
@@ -32,7 +33,6 @@
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
-#include "logging.h"
 #include "oat_file.h"
 #include "object.h"
 #include "object_utils.h"

@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+#include "memory_region.h"
+
 #include <stdint.h>
 #include <string.h>
+
+#include "base/logging.h"
 #include "globals.h"
-#include "logging.h"
-#include "memory_region.h"
 
 namespace art {
 

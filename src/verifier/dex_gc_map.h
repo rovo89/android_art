@@ -17,9 +17,10 @@
 #ifndef ART_SRC_VERIFIER_DEX_GC_MAP_H_
 #define ART_SRC_VERIFIER_DEX_GC_MAP_H_
 
-#include "base/macros.h"
-#include "logging.h"
 #include <stdint.h>
+
+#include "base/logging.h"
+#include "base/macros.h"
 
 namespace art {
 namespace verifier {

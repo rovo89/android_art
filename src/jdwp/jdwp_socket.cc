@@ -13,25 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
- * JDWP TCP socket network code.
- */
-#include "jdwp/jdwp_priv.h"
-#include "jdwp/jdwp_handler.h"
-#include "logging.h"
-#include "stringprintf.h"
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <string.h>
+#include <arpa/inet.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "base/logging.h"
+#include "jdwp/jdwp_handler.h"
+#include "jdwp/jdwp_priv.h"
+#include "stringprintf.h"
 
 #define kBasePort           8000
 #define kMaxPort            8040

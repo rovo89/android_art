@@ -19,6 +19,8 @@
 #ifndef ART_JDWP_EXPANDBUF_H_
 #define ART_JDWP_EXPANDBUF_H_
 
+#include <string>
+
 #include <stddef.h>
 #include <stdint.h>
 

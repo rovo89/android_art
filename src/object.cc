@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
@@ -31,7 +32,6 @@
 #include "heap.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
-#include "logging.h"
 #include "monitor.h"
 #include "object_utils.h"
 #include "runtime.h"

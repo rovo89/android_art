@@ -16,7 +16,7 @@
 
 #include "heap_bitmap.h"
 
-#include "logging.h"
+#include "base/logging.h"
 #include "UniquePtr.h"
 #include "utils.h"
 

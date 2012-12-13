@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "barrier.h"
+#include "base/logging.h"
 #include "base/macros.h"
 #include "card_table.h"
 #include "class_loader.h"
@@ -31,7 +32,6 @@
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "large_object_space.h"
-#include "logging.h"
 #include "monitor.h"
 #include "object.h"
 #include "runtime.h"

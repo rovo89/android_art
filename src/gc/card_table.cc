@@ -18,9 +18,9 @@
 
 #include <dynamic_annotations.h>
 
+#include "base/logging.h"
 #include "heap.h"
 #include "heap_bitmap.h"
-#include "logging.h"
 #include "runtime.h"
 #include "space.h"
 #include "utils.h"

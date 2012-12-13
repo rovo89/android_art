@@ -21,8 +21,8 @@
 #include <cstring>
 #include <string>
 
+#include "base/logging.h"
 #include "jni.h"
-#include "logging.h"
 #include "object.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"

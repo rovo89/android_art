@@ -17,7 +17,7 @@
 #ifndef ART_SRC_GREENLAND_BACKEND_TYPES_H_
 #define ART_SRC_GREENLAND_BACKEND_TYPES_H_
 
-#include "logging.h"
+#include "base/logging.h"
 
 namespace art {
 namespace greenland {

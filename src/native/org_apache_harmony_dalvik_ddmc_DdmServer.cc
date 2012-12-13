@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "debugger.h"
-#include "logging.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedPrimitiveArray.h"
 

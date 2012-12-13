@@ -19,8 +19,8 @@
 #include <sys/mman.h>
 #include <zlib.h>
 
+#include "base/logging.h"
 #include "class_linker.h"
-#include "logging.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "gc/space.h"

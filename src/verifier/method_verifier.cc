@@ -18,6 +18,7 @@
 
 #include <iostream>
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "compiler.h"
 #include "dex_cache.h"
@@ -28,7 +29,6 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
-#include "logging.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "stringpiece.h"

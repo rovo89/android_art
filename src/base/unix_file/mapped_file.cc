@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "base/unix_file/mapped_file.h"
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -22,7 +23,6 @@
 #include <unistd.h>
 #include <algorithm>
 #include <string>
-#include "logging.h"
 
 namespace unix_file {
 

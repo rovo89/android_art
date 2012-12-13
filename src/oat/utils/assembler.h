@@ -19,12 +19,12 @@
 
 #include <vector>
 
+#include "base/logging.h"
 #include "base/macros.h"
 #include "constants_arm.h"
 #include "constants_mips.h"
 #include "constants_x86.h"
 #include "instruction_set.h"
-#include "logging.h"
 #include "managed_register.h"
 #include "memory_region.h"
 #include "offsets.h"

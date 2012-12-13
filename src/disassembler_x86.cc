@@ -18,7 +18,7 @@
 
 #include <iostream>
 
-#include "logging.h"
+#include "base/logging.h"
 #include "stringprintf.h"
 #include "thread.h"
 

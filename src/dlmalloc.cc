@@ -16,7 +16,7 @@
 
 #include "dlmalloc.h"
 
-#include "logging.h"
+#include "base/logging.h"
 
 // ART specific morecore implementation defined in space.cc.
 #define MORECORE(x) art_heap_morecore(m, x)

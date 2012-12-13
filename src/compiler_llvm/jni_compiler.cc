@@ -16,13 +16,13 @@
 
 #include "jni_compiler.h"
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
-#include "logging.h"
 #include "oat_compilation_unit.h"
 #include "object.h"
 #include "runtime.h"

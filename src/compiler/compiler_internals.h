@@ -22,20 +22,19 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "gc/card_table.h"
+#include "base/logging.h"
 #include "class_linker.h"
+#include "codegen/codegen.h"
 #include "compiler.h"
+#include "compiler_ir.h"
+#include "compiler_utility.h"
 #include "dex_cache.h"
-#include "logging.h"
+#include "frontend.h"
+#include "gc/card_table.h"
 #include "monitor.h"
 #include "object.h"
+#include "ralloc.h"
 #include "thread.h"
 #include "utils.h"
-
-#include "frontend.h"
-#include "ralloc.h"
-#include "compiler_utility.h"
-#include "compiler_ir.h"
-#include "codegen/codegen.h"
 
 #endif  // ART_SRC_COMPILER_COMPILER_INTERNAL_H_

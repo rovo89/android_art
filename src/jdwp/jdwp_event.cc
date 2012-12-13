@@ -13,22 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
- * Send events to the debugger.
- */
-#include "debugger.h"
-#include "jdwp/jdwp_priv.h"
-#include "jdwp/jdwp_constants.h"
-#include "jdwp/jdwp_handler.h"
-#include "jdwp/jdwp_event.h"
-#include "jdwp/jdwp_expand_buf.h"
-#include "logging.h"
-#include "stringprintf.h"
 
+#include "jdwp/jdwp_event.h"
+
+#include <stddef.h>     /* for offsetof() */
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>     /* for offsetof() */
 #include <unistd.h>
+
+#include "base/logging.h"
+#include "debugger.h"
+#include "jdwp/jdwp_constants.h"
+#include "jdwp/jdwp_expand_buf.h"
+#include "jdwp/jdwp_handler.h"
+#include "jdwp/jdwp_priv.h"
+#include "stringprintf.h"
 
 /*
 General notes:

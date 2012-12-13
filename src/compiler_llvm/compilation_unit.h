@@ -17,13 +17,13 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
+#include "base/logging.h"
 #include "base/mutex.h"
 #include "globals.h"
 #if defined(ART_USE_DEXLANG_FRONTEND)
 # include "greenland/dex_lang.h"
 #endif
 #include "instruction_set.h"
-#include "logging.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 #include "safe_map.h"

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "gtest/gtest.h"
-#include "logging.h"
 
 int main(int argc, char **argv) {
   art::InitLogging(argv);

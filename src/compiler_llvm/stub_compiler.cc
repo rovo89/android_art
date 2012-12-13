@@ -16,12 +16,12 @@
 
 #include "stub_compiler.h"
 
+#include "base/logging.h"
 #include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
-#include "logging.h"
 #include "object.h"
 #include "runtime_support_func.h"
 #include "utils_llvm.h"

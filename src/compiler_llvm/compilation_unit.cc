@@ -16,11 +16,11 @@
 
 #include "compilation_unit.h"
 
+#include "base/logging.h"
 #include "compiled_method.h"
 #include "compiler_llvm.h"
 #include "instruction_set.h"
 #include "ir_builder.h"
-#include "logging.h"
 #include "os.h"
 
 #include "runtime_support_builder_arm.h"

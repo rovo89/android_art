@@ -17,12 +17,12 @@
 #include "method_compiler.h"
 
 #include "backend_types.h"
+#include "base/logging.h"
 #include "compilation_unit.h"
 #include "compiler.h"
 #include "dalvik_reg.h"
 #include "greenland/inferred_reg_category_map.h"
 #include "ir_builder.h"
-#include "logging.h"
 #include "oat_compilation_unit.h"
 #include "object.h"
 #include "object_utils.h"

@@ -24,11 +24,11 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
-#include "logging.h"
 #include "object.h"
 #include "os.h"
 #include "safe_map.h"

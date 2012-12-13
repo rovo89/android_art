@@ -16,7 +16,7 @@
 
 #include "verifier/dex_gc_map.h"
 
-#include "logging.h"
+#include "base/logging.h"
 
 namespace art {
 namespace verifier {

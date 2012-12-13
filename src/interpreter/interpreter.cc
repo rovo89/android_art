@@ -18,11 +18,11 @@
 
 #include <math.h>
 
+#include "base/logging.h"
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_instruction.h"
 #include "invoke_arg_array_builder.h"
-#include "logging.h"
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"

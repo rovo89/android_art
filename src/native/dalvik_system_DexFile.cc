@@ -16,18 +16,18 @@
 
 #include <unistd.h>
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_file.h"
+#include "gc/space.h"
 #include "image.h"
 #include "jni_internal.h"
-#include "logging.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "gc/space.h"
 #include "toStringArray.h"
 #include "zip_archive.h"
 

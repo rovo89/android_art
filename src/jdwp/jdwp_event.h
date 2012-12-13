@@ -19,6 +19,7 @@
 #ifndef ART_JDWP_JDWPEVENT_H_
 #define ART_JDWP_JDWPEVENT_H_
 
+#include "jdwp/jdwp.h"
 #include "jdwp/jdwp_constants.h"
 #include "jdwp/jdwp_expand_buf.h"
 

@@ -15,7 +15,8 @@
  */
 
 #include "calling_convention_mips.h"
-#include "logging.h"
+
+#include "base/logging.h"
 #include "oat/utils/mips/managed_register_mips.h"
 
 namespace art {

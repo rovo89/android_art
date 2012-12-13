@@ -19,10 +19,9 @@
 
 #include <stdint.h>
 
+#include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
-#include "logging.h"
-#include "memory_region.h"
 
 namespace art {
 

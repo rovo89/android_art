@@ -17,13 +17,14 @@
 #ifndef ART_SRC_OAT_UTILS_ARM_ASSEMBLER_ARM_H_
 #define ART_SRC_OAT_UTILS_ARM_ASSEMBLER_ARM_H_
 
+#include <vector>
+
+#include "base/logging.h"
 #include "constants_arm.h"
-#include "logging.h"
 #include "oat/utils/arm/managed_register_arm.h"
 #include "oat/utils/assembler.h"
 #include "offsets.h"
 #include "utils.h"
-#include <vector>
 
 namespace art {
 namespace arm {

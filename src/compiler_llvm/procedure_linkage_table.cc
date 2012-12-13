@@ -16,10 +16,10 @@
 
 #include "procedure_linkage_table.h"
 
+#include "base/logging.h"
 #include "compiler_runtime_func_list.h"
 #include "globals.h"
 #include "instruction_set.h"
-#include "logging.h"
 #include "runtime_support_func_list.h"
 #include "runtime_support_llvm.h"
 #include "utils_llvm.h"

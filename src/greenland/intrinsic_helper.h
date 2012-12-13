@@ -17,7 +17,7 @@
 #ifndef ART_SRC_GREENLAND_INTRINSIC_HELPER_H_
 #define ART_SRC_GREENLAND_INTRINSIC_HELPER_H_
 
-#include "logging.h"
+#include "base/logging.h"
 
 #include <llvm/ADT/DenseMap.h>
 

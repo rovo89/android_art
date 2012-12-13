@@ -16,7 +16,7 @@
 
 #include "utf.h"
 
-#include "logging.h"
+#include "base/logging.h"
 #include "object.h"
 
 namespace art {

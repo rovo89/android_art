@@ -17,12 +17,13 @@
 #ifndef ART_SRC_INDIRECT_REFERENCE_TABLE_H_
 #define ART_SRC_INDIRECT_REFERENCE_TABLE_H_
 
-#include "heap.h"
-#include "logging.h"
+#include <stdint.h>
 
 #include <iosfwd>
-#include <stdint.h>
 #include <string>
+
+#include "base/logging.h"
+#include "heap.h"
 
 namespace art {
 

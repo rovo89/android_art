@@ -20,8 +20,8 @@
 #include <string.h>
 #include <sys/utsname.h>
 
+#include "base/logging.h"
 #include "base/mutex.h"
-#include "logging.h"
 #include "stringprintf.h"
 #include "thread.h"
 #include "utils.h"

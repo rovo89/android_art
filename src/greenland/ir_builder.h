@@ -20,7 +20,7 @@
 #include "backend_types.h"
 #include "intrinsic_helper.h"
 
-#include "logging.h"
+#include "base/logging.h"
 
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/Support/NoFolder.h>

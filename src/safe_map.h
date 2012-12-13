@@ -19,7 +19,7 @@
 
 #include <map>
 
-#include "logging.h"
+#include "base/logging.h"
 
 namespace art {
 

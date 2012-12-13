@@ -17,8 +17,8 @@
 #ifndef ART_SRC_GC_CARDTABLE_H_
 #define ART_SRC_GC_CARDTABLE_H_
 
+#include "base/logging.h"
 #include "globals.h"
-#include "logging.h"
 #include "mem_map.h"
 #include "space_bitmap.h"
 #include "UniquePtr.h"

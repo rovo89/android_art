@@ -15,12 +15,12 @@
  */
 
 #include "base/unix_file/mapped_file.h"
+#include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "base/unix_file/random_access_file_test.h"
 #include "base/unix_file/random_access_file_utils.h"
 #include "base/unix_file/string_file.h"
 #include "gtest/gtest.h"
-#include "logging.h"
 
 namespace unix_file {
 

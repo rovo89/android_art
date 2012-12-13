@@ -18,10 +18,12 @@
 #define ART_SRC_CONSTANTS_ARM_H_
 
 #include <stdint.h>
+
 #include <iosfwd>
+
+#include "base/logging.h"
 #include "casts.h"
 #include "globals.h"
-#include "logging.h"
 
 namespace art {
 namespace arm {

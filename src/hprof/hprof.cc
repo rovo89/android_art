@@ -37,12 +37,12 @@
 
 #include <set>
 
+#include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
 #include "globals.h"
 #include "heap.h"
-#include "logging.h"
 #include "object.h"
 #include "object_utils.h"
 #include "os.h"

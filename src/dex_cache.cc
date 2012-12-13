@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "dex_cache.h"
 #include "heap.h"
 #include "globals.h"
-#include "logging.h"
 #include "object.h"
 
 namespace art {

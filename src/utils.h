@@ -17,8 +17,8 @@
 #ifndef ART_SRC_UTILS_H_
 #define ART_SRC_UTILS_H_
 
+#include "base/logging.h"
 #include "globals.h"
-#include "logging.h"
 #include "primitive.h"
 #include "stringpiece.h"
 #include "stringprintf.h"

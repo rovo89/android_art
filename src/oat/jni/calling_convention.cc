@@ -16,10 +16,10 @@
 
 #include "calling_convention.h"
 
+#include "base/logging.h"
 #include "oat/jni/arm/calling_convention_arm.h"
 #include "oat/jni/mips/calling_convention_mips.h"
 #include "oat/jni/x86/calling_convention_x86.h"
-#include "logging.h"
 #include "utils.h"
 
 namespace art {

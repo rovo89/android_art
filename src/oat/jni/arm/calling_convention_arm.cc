@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "calling_convention_arm.h"
-#include "logging.h"
 #include "oat/utils/arm/managed_register_arm.h"
 
 namespace art {

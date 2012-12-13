@@ -17,7 +17,7 @@
 #include "base/unix_file/string_file.h"
 #include <errno.h>
 #include <algorithm>
-#include "logging.h"
+#include "base/logging.h"
 
 namespace unix_file {
 

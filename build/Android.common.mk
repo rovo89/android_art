@@ -130,6 +130,7 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
+	src/base/logging.cc \
 	src/base/mutex.cc \
 	src/base/unix_file/fd_file.cc \
 	src/base/unix_file/mapped_file.cc \
@@ -178,7 +179,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/jni_internal.cc \
 	src/jobject_comparator.cc \
 	src/locks.cc \
-	src/logging.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
 	src/monitor.cc \
@@ -270,8 +270,8 @@ LIBART_COMMON_SRC_FILES += \
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
+	src/base/logging_android.cc \
 	src/jdwp/jdwp_adb.cc \
-	src/logging_android.cc \
 	src/monitor_android.cc \
 	src/runtime_android.cc \
 	src/thread_android.cc
@@ -315,7 +315,7 @@ endif # TARGET_ARCH != arm
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
-	src/logging_linux.cc \
+	src/base/logging_linux.cc \
 	src/monitor_linux.cc \
 	src/runtime_linux.cc \
 	src/thread_linux.cc

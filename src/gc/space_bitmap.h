@@ -22,11 +22,11 @@
 #include <stdint.h>
 #include <vector>
 
+#include "base/logging.h"
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
 #include "UniquePtr.h"
 #include "globals.h"
-#include "logging.h"
 #include "mem_map.h"
 #include "utils.h"
 

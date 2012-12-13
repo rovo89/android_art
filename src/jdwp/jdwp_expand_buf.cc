@@ -18,13 +18,14 @@
  * primitive values, e.g. JDWP replies.
  */
 
-#include "jdwp/jdwp.h"
-#include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_expand_buf.h"
-#include "logging.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#include "base/logging.h"
+#include "jdwp/jdwp.h"
+#include "jdwp/jdwp_bits.h"
 
 namespace art {
 

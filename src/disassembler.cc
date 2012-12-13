@@ -18,10 +18,10 @@
 
 #include <iostream>
 
+#include "base/logging.h"
 #include "disassembler_arm.h"
 #include "disassembler_mips.h"
 #include "disassembler_x86.h"
-#include "logging.h"
 
 namespace art {
 

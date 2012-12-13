@@ -18,7 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_H_
 
 #include "backend_types.h"
-#include "logging.h"
+#include "base/logging.h"
 #include "runtime_support_func.h"
 
 #include <stdint.h>

@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 
-#include "logging.h"
+#include "base/logging.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
 

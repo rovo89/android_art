@@ -18,9 +18,10 @@
 #define ART_SRC_CONSTANTS_MIPS_H_
 
 #include <iosfwd>
+
+#include "base/logging.h"
 #include "base/macros.h"
 #include "globals.h"
-#include "logging.h"
 
 namespace art {
 namespace mips {

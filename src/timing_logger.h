@@ -17,7 +17,7 @@
 #ifndef ART_SRC_TIMING_LOGGER_H_
 #define ART_SRC_TIMING_LOGGER_H_
 
-#include "logging.h"
+#include "base/logging.h"
 #include "utils.h"
 
 #include <cmath>

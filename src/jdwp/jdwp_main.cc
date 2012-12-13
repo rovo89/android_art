@@ -14,21 +14,17 @@
  * limitations under the License.
  */
 
-/*
- * JDWP initialization.
- */
-
-#include "atomic.h"
-#include "debugger.h"
-#include "jdwp/jdwp_priv.h"
-#include "logging.h"
-#include "scoped_thread_state_change.h"
-
+#include <errno.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
-#include <errno.h>
+#include <unistd.h>
+
+#include "atomic.h"
+#include "base/logging.h"
+#include "debugger.h"
+#include "jdwp/jdwp_priv.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 

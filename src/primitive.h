@@ -19,8 +19,8 @@
 
 #include <sys/types.h>
 
+#include "base/logging.h"
 #include "base/macros.h"
-#include "logging.h"
 
 namespace art {
 

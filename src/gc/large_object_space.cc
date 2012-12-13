@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include "base/logging.h"
 #include "large_object_space.h"
 #include "UniquePtr.h"
 #include "dlmalloc.h"
 #include "image.h"
-#include "logging.h"
 #include "os.h"
 #include "space_bitmap.h"
 #include "stl_util.h"

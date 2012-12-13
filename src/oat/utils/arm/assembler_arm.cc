@@ -16,7 +16,7 @@
 
 #include "assembler_arm.h"
 
-#include "logging.h"
+#include "base/logging.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "offsets.h"
 #include "thread.h"

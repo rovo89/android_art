@@ -16,9 +16,9 @@
 
 #include "common_throws.h"
 
+#include "base/logging.h"
 #include "dex_instruction.h"
 #include "invoke_type.h"
-#include "logging.h"
 #include "object_utils.h"
 #include "thread.h"
 
