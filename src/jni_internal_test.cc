@@ -16,6 +16,7 @@
 
 #include "jni_internal.h"
 
+#include <cfloat>
 #include <cmath>
 
 #include "common_test.h"

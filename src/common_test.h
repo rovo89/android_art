@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "../../external/icu4c/common/unicode/uvernum.h"
 #include "base/macros.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
@@ -38,8 +39,6 @@
 #include "stl_util.h"
 #include "stringprintf.h"
 #include "thread.h"
-#include "unicode/uclean.h"
-#include "unicode/uvernum.h"
 #include "UniquePtr.h"
 #include "well_known_classes.h"
 

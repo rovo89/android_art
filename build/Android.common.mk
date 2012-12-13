@@ -53,8 +53,6 @@ ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \
 	external/gtest/include \
-	external/icu4c/common \
-	external/icu4c/i18n \
 	external/valgrind/dynamic_annotations \
 	external/zlib \
 	art/src
