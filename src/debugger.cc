@@ -1506,10 +1506,6 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
    private:
     bool IsInDesiredThreadGroup(Object* peer)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      // Do we want threads from all thread groups?
-      if (desired_thread_group_ == NULL) {
-        return true;
-      }
       // peer might be NULL if the thread is still starting up.
       if (peer == NULL) {
         // We can't tell the debugger about this thread yet.
@@ -1517,6 +1513,10 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
         // rather than their peer's Object*, we could fix this.
         // Doing so might help us report ZOMBIE threads too.
         return false;
+      }
+      // Do we want threads from all thread groups?
+      if (desired_thread_group_ == NULL) {
+        return true;
       }
       Object* group = soa_.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer);
       return (group == desired_thread_group_);
