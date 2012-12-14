@@ -341,6 +341,13 @@ LIR* MipsCodegen::OpIT(CompilationUnit* cu, ConditionCode cond, const char* guid
   return NULL;
 }
 
+void MipsCodegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                             RegLocation rl_src2)
+{
+  LOG(FATAL) << "Unexpected use of GenMulLong for Mips";
+  return;
+}
+
 bool MipsCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                              RegLocation rl_src2)
 {
@@ -633,6 +640,20 @@ void MipsCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation
   FreeTemp(cu, r_ptr);
   FreeTemp(cu, r_index);
   MarkGCCard(cu, r_value, r_array);
+}
+
+bool MipsCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                                    RegLocation rl_src1, RegLocation rl_shift)
+{
+  // Default implementation is just to ignore the constant case.
+  return GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
+}
+
+bool MipsCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
+{
+  // Default - bail to non-const handler.
+  return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
 }
 
 }  // namespace art

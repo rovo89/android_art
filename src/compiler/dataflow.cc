@@ -867,16 +867,15 @@ static std::string GetSSANameWithConst(const CompilationUnit* cu, int ssa_reg, b
     // Pre-SSA - just use the standard name
     return GetSSAName(cu, ssa_reg);
   }
-  if (cu->reg_location[ssa_reg].is_const) {
+  if (IsConst(cu, cu->reg_location[ssa_reg])) {
     if (!singles_only && cu->reg_location[ssa_reg].wide) {
-      int64_t immval = cu->constant_values[ssa_reg + 1];
-      immval = (immval << 32) | cu->constant_values[ssa_reg];
       return StringPrintf("v%d_%d#0x%llx", SRegToVReg(cu, ssa_reg),
-                          SRegToSubscript(cu, ssa_reg), immval);
+                          SRegToSubscript(cu, ssa_reg),
+                          ConstantValueWide(cu, cu->reg_location[ssa_reg]));
     } else {
-      int32_t immval = cu->constant_values[ssa_reg];
       return StringPrintf("v%d_%d#0x%x", SRegToVReg(cu, ssa_reg),
-                          SRegToSubscript(cu, ssa_reg), immval);
+                          SRegToSubscript(cu, ssa_reg),
+                          ConstantValue(cu, cu->reg_location[ssa_reg]));
     }
   } else {
     return StringPrintf("v%d_%d", SRegToVReg(cu, ssa_reg), SRegToSubscript(cu, ssa_reg));
@@ -1300,10 +1299,17 @@ bool DoSSAConversion(CompilationUnit* cu, BasicBlock* bb)
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-static void SetConstant(CompilationUnit* cu, int ssa_reg, int value)
+static void SetConstant(CompilationUnit* cu, int32_t ssa_reg, int value)
 {
   SetBit(cu, cu->is_constant_v, ssa_reg);
   cu->constant_values[ssa_reg] = value;
+}
+
+static void SetConstantWide(CompilationUnit* cu, int ssa_reg, int64_t value)
+{
+  SetBit(cu, cu->is_constant_v, ssa_reg);
+  cu->constant_values[ssa_reg] = Low32Bits(value);
+  cu->constant_values[ssa_reg + 1] = High32Bits(value);
 }
 
 bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb)
@@ -1321,27 +1327,25 @@ bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb)
     /* Handle instructions that set up constants directly */
     if (df_attributes & DF_SETS_CONST) {
       if (df_attributes & DF_DA) {
+        int32_t vB = static_cast<int32_t>(d_insn->vB);
         switch (d_insn->opcode) {
           case Instruction::CONST_4:
           case Instruction::CONST_16:
           case Instruction::CONST:
-            SetConstant(cu, mir->ssa_rep->defs[0], d_insn->vB);
+            SetConstant(cu, mir->ssa_rep->defs[0], vB);
             break;
           case Instruction::CONST_HIGH16:
-            SetConstant(cu, mir->ssa_rep->defs[0], d_insn->vB << 16);
+            SetConstant(cu, mir->ssa_rep->defs[0], vB << 16);
             break;
           case Instruction::CONST_WIDE_16:
           case Instruction::CONST_WIDE_32:
-            SetConstant(cu, mir->ssa_rep->defs[0], d_insn->vB);
-            SetConstant(cu, mir->ssa_rep->defs[1], 0);
+            SetConstantWide(cu, mir->ssa_rep->defs[0], static_cast<int64_t>(vB));
             break;
           case Instruction::CONST_WIDE:
-            SetConstant(cu, mir->ssa_rep->defs[0], static_cast<int>(d_insn->vB_wide));
-            SetConstant(cu, mir->ssa_rep->defs[1], static_cast<int>(d_insn->vB_wide >> 32));
+            SetConstantWide(cu, mir->ssa_rep->defs[0],d_insn->vB_wide);
             break;
           case Instruction::CONST_WIDE_HIGH16:
-            SetConstant(cu, mir->ssa_rep->defs[0], 0);
-            SetConstant(cu, mir->ssa_rep->defs[1], d_insn->vB << 16);
+            SetConstantWide(cu, mir->ssa_rep->defs[0], static_cast<int64_t>(vB) << 48);
             break;
           default:
             break;
@@ -1361,6 +1365,18 @@ bool DoConstantPropogation(CompilationUnit* cu, BasicBlock* bb)
         if (df_attributes & DF_A_WIDE) {
           SetConstant(cu, mir->ssa_rep->defs[1],
                       cu->constant_values[mir->ssa_rep->uses[1]]);
+        }
+      }
+    } else if (df_attributes & DF_NULL_TRANSFER_N) {
+      /*
+       * Mark const sregs that appear in merges.  Need to flush those to home location.
+       * TUNING: instead of flushing on def, we could insert a flush on the appropriate
+       * edge[s].
+       */
+      DCHECK_EQ(static_cast<int32_t>(d_insn->opcode), kMirOpPhi);
+      for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+        if (IsConst(cu, mir->ssa_rep->uses[i])) {
+          SetBit(cu, cu->must_flush_constant_v, mir->ssa_rep->uses[i]);
         }
       }
     }
@@ -1705,6 +1721,28 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
               mir_next->ssa_rep->num_defs = 0;
               mir->ssa_rep->num_uses = 0;
               mir->ssa_rep->num_defs = 0;
+            }
+          }
+          break;
+        case Instruction::GOTO:
+        case Instruction::GOTO_16:
+        case Instruction::GOTO_32:
+        case Instruction::IF_EQ:
+        case Instruction::IF_NE:
+        case Instruction::IF_LT:
+        case Instruction::IF_GE:
+        case Instruction::IF_GT:
+        case Instruction::IF_LE:
+        case Instruction::IF_EQZ:
+        case Instruction::IF_NEZ:
+        case Instruction::IF_LTZ:
+        case Instruction::IF_GEZ:
+        case Instruction::IF_GTZ:
+        case Instruction::IF_LEZ:
+          if (bb->taken->dominates_return) {
+            mir->optimization_flags |= MIR_IGNORE_SUSPEND_CHECK;
+            if (cu->verbose) {
+              LOG(INFO) << "Suppressed suspend check at 0x" << std::hex << mir->offset;
             }
           }
           break;
@@ -2056,13 +2094,24 @@ bool BuildExtendedBBList(struct CompilationUnit* cu, struct BasicBlock* bb)
   if (cu->verbose) {
     LOG(INFO) << "Extended bb head " << bb->id;
   }
+  BasicBlock* start_bb = bb;
   cu->extended_basic_blocks.push_back(bb);
+  bool has_return = false;
   // Visit blocks strictly dominated by this head.
   while (bb != NULL) {
     bb->visited = true;
+    has_return |= bb->has_return;
     bb = NextDominatedBlock(cu, bb);
     if (cu->verbose && (bb != NULL)) {
       LOG(INFO) << "...added bb " << bb->id;
+    }
+  }
+  if (has_return) {
+    // This extended basic block contains a return, so mark all members.
+    bb = start_bb;
+    while (bb != NULL) {
+      bb->dominates_return = true;
+      bb = NextDominatedBlock(cu, bb);
     }
   }
   return false; // Not iterative - return value will be ignored

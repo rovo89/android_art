@@ -236,8 +236,8 @@ class Codegen {
                                      int displacement, int r_dest, int r_dest_hi, OpSize size,
                                      int s_reg) = 0;
     virtual LIR* LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int value) = 0;
-    virtual LIR* LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
-                                       int val_lo, int val_hi) = 0;
+    virtual LIR* LoadConstantWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
+                                  int64_t value) = 0;
     virtual LIR* StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_src,
                                OpSize size) = 0;
     virtual LIR* StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacement, int r_src_lo,
@@ -288,6 +288,10 @@ class Codegen {
     virtual bool IsUnconditionalBranch(LIR* lir) = 0;
 
     // Required for target - Dalvik-level generators.
+    virtual bool GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                                   RegLocation rl_src1, RegLocation rl_src2) = 0;
+    virtual void GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2) = 0;
     virtual bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2) = 0;
     virtual bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
@@ -349,6 +353,9 @@ class Codegen {
                              RegLocation rl_index, RegLocation rl_dest, int scale) = 0;
     virtual void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
                      RegLocation rl_index, RegLocation rl_src, int scale) = 0;
+    virtual bool GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+                                   RegLocation rl_dest, RegLocation rl_src1,
+                                   RegLocation rl_shift) = 0;
 
     // Required for target - single operation generators.
     virtual LIR* OpUnconditionalBranch(CompilationUnit* cu, LIR* target) = 0;
@@ -381,7 +388,10 @@ class Codegen {
     virtual void OpRegCopyWide(CompilationUnit* cu, int dest_lo, int dest_hi, int src_lo,
                                int src_hi) = 0;
     virtual void OpTlsCmp(CompilationUnit* cu, int offset, int val) = 0;
-    virtual bool InexpensiveConstant(int reg, int value) = 0;
+    virtual bool InexpensiveConstantInt(int32_t value) = 0;
+    virtual bool InexpensiveConstantFloat(int32_t value) = 0;
+    virtual bool InexpensiveConstantLong(int64_t value) = 0;
+    virtual bool InexpensiveConstantDouble(int64_t value) = 0;
 
     // Temp workaround
     void Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int value);

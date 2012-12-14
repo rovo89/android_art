@@ -164,23 +164,21 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:
       rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
-      cg->LoadConstantValueWide(cu, rl_result.low_reg, rl_result.high_reg, vB,
-                            (vB & 0x80000000) ? -1 : 0);
+      cg->LoadConstantWide(cu, rl_result.low_reg, rl_result.high_reg,
+                           static_cast<int64_t>(static_cast<int32_t>(vB)));
       cg->StoreValueWide(cu, rl_dest, rl_result);
       break;
 
     case Instruction::CONST_WIDE:
       rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
-      cg->LoadConstantValueWide(cu, rl_result.low_reg, rl_result.high_reg,
-                            mir->dalvikInsn.vB_wide & 0xffffffff,
-                            (mir->dalvikInsn.vB_wide >> 32) & 0xffffffff);
+      cg->LoadConstantWide(cu, rl_result.low_reg, rl_result.high_reg, mir->dalvikInsn.vB_wide);
       cg->StoreValueWide(cu, rl_dest, rl_result);
       break;
 
     case Instruction::CONST_WIDE_HIGH16:
       rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
-      cg->LoadConstantValueWide(cu, rl_result.low_reg, rl_result.high_reg,
-                            0, vB << 16);
+      cg->LoadConstantWide(cu, rl_result.low_reg, rl_result.high_reg,
+                           static_cast<int64_t>(vB) << 48);
       cg->StoreValueWide(cu, rl_dest, rl_result);
       break;
 
@@ -543,11 +541,11 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::XOR_INT:
     case Instruction::XOR_INT_2ADDR:
       if (rl_src[0].is_const &&
-          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[0].orig_sreg])) {
+          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[0]))) {
         cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[1],
                              cu->constant_values[rl_src[0].orig_sreg]);
       } else if (rl_src[1].is_const &&
-          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[1].orig_sreg])) {
+          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[1]))) {
         cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0],
                              cu->constant_values[rl_src[1].orig_sreg]);
       } else {
@@ -568,9 +566,8 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
       if (rl_src[1].is_const &&
-          cu->cg->InexpensiveConstant(0, cu->constant_values[rl_src[1].orig_sreg])) {
-        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0],
-                             cu->constant_values[rl_src[1].orig_sreg]);
+          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[1]))) {
+        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0], ConstantValue(cu, rl_src[1]));
       } else {
         cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
       }
@@ -578,20 +575,26 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
 
     case Instruction::ADD_LONG:
     case Instruction::SUB_LONG:
-    case Instruction::MUL_LONG:
-    case Instruction::DIV_LONG:
-    case Instruction::REM_LONG:
     case Instruction::AND_LONG:
     case Instruction::OR_LONG:
     case Instruction::XOR_LONG:
     case Instruction::ADD_LONG_2ADDR:
     case Instruction::SUB_LONG_2ADDR:
-    case Instruction::MUL_LONG_2ADDR:
-    case Instruction::DIV_LONG_2ADDR:
-    case Instruction::REM_LONG_2ADDR:
     case Instruction::AND_LONG_2ADDR:
     case Instruction::OR_LONG_2ADDR:
     case Instruction::XOR_LONG_2ADDR:
+      if (rl_src[0].is_const || rl_src[1].is_const) {
+        cg->GenArithImmOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+        break;
+      }
+      // Note: intentional fallthrough.
+
+    case Instruction::MUL_LONG:
+    case Instruction::DIV_LONG:
+    case Instruction::REM_LONG:
+    case Instruction::MUL_LONG_2ADDR:
+    case Instruction::DIV_LONG_2ADDR:
+    case Instruction::REM_LONG_2ADDR:
       cg->GenArithOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
       break;
 
@@ -601,7 +604,11 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::SHL_LONG_2ADDR:
     case Instruction::SHR_LONG_2ADDR:
     case Instruction::USHR_LONG_2ADDR:
-      cg->GenShiftOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      if (rl_src[1].is_const) {
+        cg->GenShiftImmOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      } else {
+        cg->GenShiftOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      }
       break;
 
     case Instruction::ADD_FLOAT:

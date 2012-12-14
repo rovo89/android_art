@@ -45,6 +45,32 @@ static int EncodeImmSingle(int value)
   return res;
 }
 
+/*
+ * Determine whether value can be encoded as a Thumb2 floating point
+ * immediate.  If not, return -1.  If so return encoded 8-bit value.
+ */
+static int EncodeImmDouble(int64_t value)
+{
+  int res;
+  int bit_a = (value & 0x8000000000000000ll) >> 63;
+  int not_bit_b = (value & 0x4000000000000000ll) >> 62;
+  int bit_b = (value & 0x2000000000000000ll) >> 61;
+  int b_smear = (value & 0x3fc0000000000000ll) >> 54;
+  int slice =  (value & 0x003f000000000000ll) >> 48;
+  uint64_t zeroes = (value & 0x0000ffffffffffffll);
+  if (zeroes != 0)
+    return -1;
+  if (bit_b) {
+    if ((not_bit_b != 0) || (b_smear != 0xff))
+      return -1;
+  } else {
+    if ((not_bit_b != 1) || (b_smear != 0x0))
+      return -1;
+  }
+  res = (bit_a << 7) | (bit_b << 6) | slice;
+  return res;
+}
+
 static LIR* LoadFPConstantValue(CompilationUnit* cu, int r_dest, int value)
 {
   DCHECK(ARM_SINGLEREG(r_dest));
@@ -126,19 +152,24 @@ int ArmCodegen::ModifiedImmediate(uint32_t value)
    return value | ((0x8 + z_leading) << 7); /* [01000..11111]:bcdefgh */
 }
 
-bool ArmCodegen::InexpensiveConstant(int reg, int value)
+bool ArmCodegen::InexpensiveConstantInt(int32_t value)
 {
-  bool res = false;
-  if (ARM_FPREG(reg)) {
-    res = (EncodeImmSingle(value) >= 0);
-  } else {
-    if (ARM_LOWREG(reg) && (value >= 0) && (IsUint(8, value))) {
-      res = true;
-    } else {
-      res = (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
-    }
-  }
-  return res;
+  return (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
+}
+
+bool ArmCodegen::InexpensiveConstantFloat(int32_t value)
+{
+  return EncodeImmSingle(value) >= 0;
+}
+
+bool ArmCodegen::InexpensiveConstantLong(int64_t value)
+{
+  return InexpensiveConstantInt(High32Bits(value)) && InexpensiveConstantInt(Low32Bits(value));
+}
+
+bool ArmCodegen::InexpensiveConstantDouble(int64_t value)
+{
+  return EncodeImmDouble(value) >= 0;
 }
 
 /*
@@ -178,25 +209,9 @@ LIR* ArmCodegen::LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int valu
     res = NewLIR2(cu, kThumb2MovImm16, r_dest, value);
     return res;
   }
-  /* No shortcut - go ahead and use literal pool */
-  LIR* data_target = ScanLiteralPool(cu->literal_list, value, 0);
-  if (data_target == NULL) {
-    data_target = AddWordData(cu, &cu->literal_list, value);
-  }
-  LIR* load_pc_rel = RawLIR(cu, cu->current_dalvik_offset,
-                          kThumb2LdrPcRel12, r_dest, 0, 0, 0, 0, data_target);
-  SetMemRefType(cu, load_pc_rel, true, kLiteral);
-  load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
-  res = load_pc_rel;
-  AppendLIR(cu, load_pc_rel);
-
-  /*
-   * To save space in the constant pool, we use the ADD_RRI8 instruction to
-   * add up to 255 to an existing constant value.
-   */
-  if (data_target->operands[0] != value) {
-    OpRegImm(cu, kOpAdd, r_dest, value - data_target->operands[0]);
-  }
+  /* Do a low/high pair */
+  res = NewLIR2(cu, kThumb2MovImm16, r_dest, Low16Bits(value));
+  NewLIR2(cu, kThumb2MovImm16H, r_dest, High16Bits(value));
   return res;
 }
 
@@ -514,7 +529,7 @@ LIR* ArmCodegen::OpRegRegImm(CompilationUnit* cu, OpKind op, int r_dest, int r_s
       int mod_imm = ModifiedImmediate(value);
       LIR* res;
       if (mod_imm >= 0) {
-        res = NewLIR2(cu, kThumb2CmpRI8, r_src1, mod_imm);
+        res = NewLIR2(cu, kThumb2CmpRI12, r_src1, mod_imm);
       } else {
         int r_tmp = AllocTemp(cu);
         res = LoadConstant(cu, r_tmp, value);
@@ -587,44 +602,11 @@ LIR* ArmCodegen::OpRegImm(CompilationUnit* cu, OpKind op, int r_dest_src1, int v
   }
 }
 
-/*
- * Determine whether value can be encoded as a Thumb2 floating point
- * immediate.  If not, return -1.  If so return encoded 8-bit value.
- */
-static int EncodeImmDoubleHigh(int value)
+LIR* ArmCodegen::LoadConstantWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi, int64_t value)
 {
-  int res;
-  int bit_a =  (value & 0x80000000) >> 31;
-  int not_bit_b = (value & 0x40000000) >> 30;
-  int bit_b =  (value & 0x20000000) >> 29;
-  int b_smear =  (value & 0x3fc00000) >> 22;
-  int slice =   (value & 0x003f0000) >> 16;
-  int zeroes =  (value & 0x0000ffff);
-  if (zeroes != 0)
-    return -1;
-  if (bit_b) {
-    if ((not_bit_b != 0) || (b_smear != 0xff))
-      return -1;
-  } else {
-    if ((not_bit_b != 1) || (b_smear != 0x0))
-      return -1;
-  }
-  res = (bit_a << 7) | (bit_b << 6) | slice;
-  return res;
-}
-
-static int EncodeImmDouble(int val_lo, int val_hi)
-{
-  int res = -1;
-  if (val_lo == 0)
-    res = EncodeImmDoubleHigh(val_hi);
-  return res;
-}
-
-LIR* ArmCodegen::LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
-                                       int val_lo, int val_hi)
-{
-  LIR* res;
+  LIR* res = NULL;
+  int32_t val_lo = Low32Bits(value);
+  int32_t val_hi = High32Bits(value);
   int target_reg = S2d(r_dest_lo, r_dest_hi);
   if (ARM_FPREG(r_dest_lo)) {
     if ((val_lo == 0) && (val_hi == 0)) {
@@ -635,26 +617,33 @@ LIR* ArmCodegen::LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r
       // +0.0 = +2.0 - +2.0
       res = NewLIR3(cu, kThumb2Vsubd, target_reg, target_reg, target_reg);
     } else {
-      int encoded_imm = EncodeImmDouble(val_lo, val_hi);
+      int encoded_imm = EncodeImmDouble(value);
       if (encoded_imm >= 0) {
         res = NewLIR2(cu, kThumb2Vmovd_IMM8, target_reg, encoded_imm);
-      } else {
-        LIR* data_target = ScanLiteralPoolWide(cu->literal_list, val_lo, val_hi);
-        if (data_target == NULL) {
-          data_target = AddWideData(cu, &cu->literal_list, val_lo, val_hi);
-        }
-        LIR* load_pc_rel =
-            RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrd,
-                   target_reg, r15pc, 0, 0, 0, data_target);
-        SetMemRefType(cu, load_pc_rel, true, kLiteral);
-        load_pc_rel->alias_info = reinterpret_cast<uintptr_t>(data_target);
-        AppendLIR(cu, load_pc_rel);
-        res = load_pc_rel;
       }
     }
   } else {
-    res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
-    LoadConstantNoClobber(cu, r_dest_hi, val_hi);
+    if ((InexpensiveConstantInt(val_lo) && (InexpensiveConstantInt(val_hi)))) {
+      res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
+      LoadConstantNoClobber(cu, r_dest_hi, val_hi);
+    }
+  }
+  if (res == NULL) {
+    // No short form - load from the literal pool.
+    LIR* data_target = ScanLiteralPoolWide(cu->literal_list, val_lo, val_hi);
+    if (data_target == NULL) {
+      data_target = AddWideData(cu, &cu->literal_list, val_lo, val_hi);
+    }
+    if (ARM_FPREG(r_dest_lo)) {
+      res = RawLIR(cu, cu->current_dalvik_offset, kThumb2Vldrd,
+                   target_reg, r15pc, 0, 0, 0, data_target);
+    } else {
+      res = RawLIR(cu, cu->current_dalvik_offset, kThumb2LdrdPcRel8,
+                   r_dest_lo, r_dest_hi, r15pc, 0, 0, data_target);
+    }
+    SetMemRefType(cu, res, true, kLiteral);
+    res->alias_info = reinterpret_cast<uintptr_t>(data_target);
+    AppendLIR(cu, res);
   }
   return res;
 }
@@ -732,7 +721,7 @@ LIR* ArmCodegen::StoreBaseIndexed(CompilationUnit* cu, int rBase, int r_index, i
                                   int scale, OpSize size)
 {
   bool all_low_regs = ARM_LOWREG(rBase) && ARM_LOWREG(r_index) && ARM_LOWREG(r_src);
-  LIR* store;
+  LIR* store = NULL;
   ArmOpcode opcode = kThumbBkpt;
   bool thumb_form = (all_low_regs && (scale == 0));
   int reg_ptr;
@@ -798,14 +787,14 @@ LIR* ArmCodegen::LoadBaseDispBody(CompilationUnit* cu, int rBase, int displaceme
                                   int r_dest_hi, OpSize size, int s_reg)
 {
   Codegen* cg = cu->cg.get();
-  LIR* res;
-  LIR* load;
+  LIR* load = NULL;
   ArmOpcode opcode = kThumbBkpt;
   bool short_form = false;
   bool thumb2Form = (displacement < 4092 && displacement >= 0);
   bool all_low_regs = (ARM_LOWREG(rBase) && ARM_LOWREG(r_dest));
   int encoded_disp = displacement;
   bool is64bit = false;
+  bool already_generated = false;
   switch (size) {
     case kDouble:
     case kLong:
@@ -822,11 +811,15 @@ LIR* ArmCodegen::LoadBaseDispBody(CompilationUnit* cu, int rBase, int displaceme
         }
         break;
       } else {
-        res = LoadBaseDispBody(cu, rBase, displacement, r_dest,
-                               -1, kWord, s_reg);
-        LoadBaseDispBody(cu, rBase, displacement + 4, r_dest_hi,
-                         -1, kWord, INVALID_SREG);
-        return res;
+        if (displacement <= 1020) {
+          load = NewLIR4(cu, kThumb2LdrdI8, r_dest, r_dest_hi, rBase, displacement >> 2);
+        } else {
+          load = LoadBaseDispBody(cu, rBase, displacement, r_dest,
+                                 -1, kWord, s_reg);
+          LoadBaseDispBody(cu, rBase, displacement + 4, r_dest_hi,
+                           -1, kWord, INVALID_SREG);
+        }
+        already_generated = true;
       }
     case kSingle:
     case kWord:
@@ -894,13 +887,15 @@ LIR* ArmCodegen::LoadBaseDispBody(CompilationUnit* cu, int rBase, int displaceme
       LOG(FATAL) << "Bad size: " << size;
   }
 
-  if (short_form) {
-    load = res = NewLIR3(cu, opcode, r_dest, rBase, encoded_disp);
-  } else {
-    int reg_offset = AllocTemp(cu);
-    res = cg->LoadConstant(cu, reg_offset, encoded_disp);
-    load = cg->LoadBaseIndexed(cu, rBase, reg_offset, r_dest, 0, size);
-    FreeTemp(cu, reg_offset);
+  if (!already_generated) {
+    if (short_form) {
+      load = NewLIR3(cu, opcode, r_dest, rBase, encoded_disp);
+    } else {
+      int reg_offset = AllocTemp(cu);
+      cg->LoadConstant(cu, reg_offset, encoded_disp);
+      load = cg->LoadBaseIndexed(cu, rBase, reg_offset, r_dest, 0, size);
+      FreeTemp(cu, reg_offset);
+    }
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
@@ -926,30 +921,36 @@ LIR* ArmCodegen::LoadBaseDispWide(CompilationUnit* cu, int rBase, int displaceme
 LIR* ArmCodegen::StoreBaseDispBody(CompilationUnit* cu, int rBase, int displacement,
                                    int r_src, int r_src_hi, OpSize size) {
   Codegen* cg = cu->cg.get();
-  LIR* res, *store;
+  LIR* store = NULL;
   ArmOpcode opcode = kThumbBkpt;
   bool short_form = false;
   bool thumb2Form = (displacement < 4092 && displacement >= 0);
   bool all_low_regs = (ARM_LOWREG(rBase) && ARM_LOWREG(r_src));
   int encoded_disp = displacement;
   bool is64bit = false;
+  bool already_generated = false;
   switch (size) {
     case kLong:
     case kDouble:
       is64bit = true;
       if (!ARM_FPREG(r_src)) {
-        res = StoreBaseDispBody(cu, rBase, displacement, r_src, -1, kWord);
-        StoreBaseDispBody(cu, rBase, displacement + 4, r_src_hi, -1, kWord);
-        return res;
-      }
-      if (ARM_SINGLEREG(r_src)) {
-        DCHECK(ARM_FPREG(r_src_hi));
-        r_src = cg->S2d(r_src, r_src_hi);
-      }
-      opcode = kThumb2Vstrd;
-      if (displacement <= 1020) {
-        short_form = true;
-        encoded_disp >>= 2;
+        if (displacement <= 1020) {
+          store = NewLIR4(cu, kThumb2StrdI8, r_src, r_src_hi, rBase, displacement >> 2);
+        } else {
+          store = StoreBaseDispBody(cu, rBase, displacement, r_src, -1, kWord);
+          StoreBaseDispBody(cu, rBase, displacement + 4, r_src_hi, -1, kWord);
+        }
+        already_generated = true;
+      } else {
+        if (ARM_SINGLEREG(r_src)) {
+          DCHECK(ARM_FPREG(r_src_hi));
+          r_src = cg->S2d(r_src, r_src_hi);
+        }
+        opcode = kThumb2Vstrd;
+        if (displacement <= 1020) {
+          short_form = true;
+          encoded_disp >>= 2;
+        }
       }
       break;
     case kSingle:
@@ -998,20 +999,22 @@ LIR* ArmCodegen::StoreBaseDispBody(CompilationUnit* cu, int rBase, int displacem
     default:
       LOG(FATAL) << "Bad size: " << size;
   }
-  if (short_form) {
-    store = res = NewLIR3(cu, opcode, r_src, rBase, encoded_disp);
-  } else {
-    int r_scratch = AllocTemp(cu);
-    res = cg->LoadConstant(cu, r_scratch, encoded_disp);
-    store = cg->StoreBaseIndexed(cu, rBase, r_scratch, r_src, 0, size);
-    FreeTemp(cu, r_scratch);
+  if (!already_generated) {
+    if (short_form) {
+      store = NewLIR3(cu, opcode, r_src, rBase, encoded_disp);
+    } else {
+      int r_scratch = AllocTemp(cu);
+      cg->LoadConstant(cu, r_scratch, encoded_disp);
+      store = cg->StoreBaseIndexed(cu, rBase, r_scratch, r_src, 0, size);
+      FreeTemp(cu, r_scratch);
+    }
   }
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses
   if (rBase == rARM_SP) {
     AnnotateDalvikRegAccess(cu, store, displacement >> 2, false /* is_load */, is64bit);
   }
-  return res;
+  return store;
 }
 
 LIR* ArmCodegen::StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_src,

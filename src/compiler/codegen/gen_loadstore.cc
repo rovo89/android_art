@@ -59,12 +59,20 @@ void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int ze
           return;
         }
       }
+      int temp_reg = zero_reg;
+      if (temp_reg == INVALID_REG) {
+        temp_reg = AllocTemp(cu);
+        cu->cg->LoadConstant(cu, temp_reg, 0);
+      }
       if (cu->promotion_map[pmap_index].core_location == kLocPhysReg) {
         // Promoted - just copy in a zero
-        OpRegCopy(cu, cu->promotion_map[pmap_index].core_reg, zero_reg);
+        OpRegCopy(cu, cu->promotion_map[pmap_index].core_reg, temp_reg);
       } else {
         // Lives in the frame, need to store.
-        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), zero_reg, kWord);
+        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), temp_reg, kWord);
+      }
+      if (zero_reg == INVALID_REG) {
+        FreeTemp(cu, temp_reg);
       }
     }
   }
@@ -92,14 +100,12 @@ void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_des
   rl_src = UpdateLoc(cu, rl_src);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(cu, r_dest, rl_src.low_reg);
+  } else if (IsInexpensiveConstant(cu, rl_src)) {
+    LoadConstantNoClobber(cu, r_dest, ConstantValue(cu, rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    if (rl_src.is_const && InexpensiveConstant(r_dest, cu->constant_values[rl_src.orig_sreg])) {
-      LoadConstantNoClobber(cu, r_dest, cu->constant_values[rl_src.orig_sreg]);
-    } else {
-      LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
-    }
+    LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
   }
 }
 
@@ -126,6 +132,8 @@ void Codegen::LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int r
   rl_src = UpdateLocWide(cu, rl_src);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopyWide(cu, reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
+  } else if (IsInexpensiveConstant(cu, rl_src)) {
+    LoadConstantWide(cu, reg_lo, reg_hi, ConstantValueWide(cu, rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
@@ -152,9 +160,7 @@ void Codegen::LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src, 
 RegLocation Codegen::LoadValue(CompilationUnit* cu, RegLocation rl_src, RegisterClass op_kind)
 {
   rl_src = EvalLoc(cu, rl_src, op_kind, false);
-  if (rl_src.location != kLocPhysReg) {
-    DCHECK((rl_src.location == kLocDalvikFrame) ||
-           (rl_src.location == kLocCompilerTemp));
+  if (IsInexpensiveConstant(cu, rl_src) || rl_src.location != kLocPhysReg) {
     LoadValueDirect(cu, rl_src, rl_src.low_reg);
     rl_src.location = kLocPhysReg;
     MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
@@ -222,14 +228,11 @@ RegLocation Codegen::LoadValueWide(CompilationUnit* cu, RegLocation rl_src, Regi
 {
   DCHECK(rl_src.wide);
   rl_src = EvalLoc(cu, rl_src, op_kind, false);
-  if (rl_src.location != kLocPhysReg) {
-    DCHECK((rl_src.location == kLocDalvikFrame) ||
-        (rl_src.location == kLocCompilerTemp));
+  if (IsInexpensiveConstant(cu, rl_src) || rl_src.location != kLocPhysReg) {
     LoadValueDirectWide(cu, rl_src, rl_src.low_reg, rl_src.high_reg);
     rl_src.location = kLocPhysReg;
     MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
-    MarkLive(cu, rl_src.high_reg,
-                GetSRegHi(rl_src.s_reg_low));
+    MarkLive(cu, rl_src.high_reg, GetSRegHi(rl_src.s_reg_low));
   }
   return rl_src;
 }

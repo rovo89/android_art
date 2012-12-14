@@ -55,7 +55,7 @@ LIR* Codegen::GenImmedCheck(CompilationUnit* cu, ConditionCode c_code, int reg, 
                             ThrowKind kind)
 {
   LIR* tgt = RawLIR(cu, 0, kPseudoThrowTarget, kind,
-                    cu->current_dalvik_offset);
+                    cu->current_dalvik_offset, reg, imm_val);
   LIR* branch;
   if (c_code == kCondAl) {
     branch = OpUnconditionalBranch(cu, tgt);
@@ -87,23 +87,6 @@ LIR* Codegen::GenRegRegCheck(CompilationUnit* cu, ConditionCode c_code, int reg1
   // Remember branch target - will process later
   InsertGrowableList(cu, &cu->throw_launchpads, reinterpret_cast<uintptr_t>(tgt));
   return branch;
-}
-
-// Convert relation of src1/src2 to src2/src1
-ConditionCode FlipComparisonOrder(ConditionCode before) {
-  ConditionCode res;
-  switch (before) {
-    case kCondEq: res = kCondEq; break;
-    case kCondNe: res = kCondNe; break;
-    case kCondLt: res = kCondGt; break;
-    case kCondGt: res = kCondLt; break;
-    case kCondLe: res = kCondGe; break;
-    case kCondGe: res = kCondLe; break;
-    default:
-      res = static_cast<ConditionCode>(0);
-      LOG(FATAL) << "Unexpected ccode " << before;
-  }
-  return res;
 }
 
 void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
@@ -146,12 +129,12 @@ void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
   rl_src1 = LoadValue(cu, rl_src1, kCoreReg);
   // Is this really an immediate comparison?
   if (rl_src2.is_const) {
-    int immval = cu->constant_values[rl_src2.orig_sreg];
     // If it's already live in a register or not easily materialized, just keep going
     RegLocation rl_temp = UpdateLoc(cu, rl_src2);
-    if ((rl_temp.location == kLocDalvikFrame) && InexpensiveConstant(rl_src1.low_reg, immval)) {
+    if ((rl_temp.location == kLocDalvikFrame) &&
+        InexpensiveConstantInt(ConstantValue(cu, rl_src2))) {
       // OK - convert this to a compare immediate and branch
-      OpCmpImmBranch(cu, cond, rl_src1.low_reg, immval, taken);
+      OpCmpImmBranch(cu, cond, rl_src1.low_reg, ConstantValue(cu, rl_src2), taken);
       OpUnconditionalBranch(cu, fall_through);
       return;
     }
@@ -613,6 +596,18 @@ void Codegen::HandleThrowLaunchPads(CompilationUnit *cu)
     switch (lab->operands[0]) {
       case kThrowNullPointer:
         func_offset = ENTRYPOINT_OFFSET(pThrowNullPointerFromCode);
+        break;
+      case kThrowConstantArrayBounds: // v1 is length reg (for Arm/Mips), v2 constant index
+        // v1 holds the constant array index.  Mips/Arm uses v2 for length, x86 reloads.
+        if (target_x86) {
+          OpRegMem(cu, kOpMov, TargetReg(kArg1), v1, mirror::Array::LengthOffset().Int32Value());
+        } else {
+          OpRegCopy(cu, TargetReg(kArg1), v1);
+        }
+        // Make sure the following LoadConstant doesn't mess with kArg1.
+        LockTemp(cu, TargetReg(kArg1));
+        LoadConstant(cu, TargetReg(kArg0), v2);
+        func_offset = ENTRYPOINT_OFFSET(pThrowArrayBoundsFromCode);
         break;
       case kThrowArrayBounds:
         // Move v1 (array index) to kArg0 and v2 (array length) to kArg1
@@ -1602,9 +1597,14 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
       break;
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
-      call_out = true;
-      ret_reg = TargetReg(kRet0);
-      func_offset = ENTRYPOINT_OFFSET(pLmul);
+      if (cu->instruction_set == kThumb2) {
+        GenMulLong(cu, rl_dest, rl_src1, rl_src2);
+        return false;
+      } else {
+        call_out = true;
+        ret_reg = TargetReg(kRet0);
+        func_offset = ENTRYPOINT_OFFSET(pLmul);
+      }
       break;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:

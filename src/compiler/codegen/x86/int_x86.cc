@@ -322,6 +322,13 @@ LIR* X86Codegen::OpIT(CompilationUnit* cu, ConditionCode cond, const char* guide
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   return NULL;
 }
+
+void X86Codegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2)
+{
+  LOG(FATAL) << "Unexpected use of GenX86Long for x86";
+  return;
+}
 bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                          RegLocation rl_src2)
 {
@@ -581,6 +588,20 @@ void X86Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
                        data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
   FreeTemp(cu, r_index);
   MarkGCCard(cu, r_value, r_array);
+}
+
+bool X86Codegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                                   RegLocation rl_src1, RegLocation rl_shift)
+{
+  // Default implementation is just to ignore the constant case.
+  return GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
+}
+
+bool X86Codegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
+{
+  // Default - bail to non-const handler.
+  return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
 }
 
 }  // namespace art

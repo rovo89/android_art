@@ -230,7 +230,8 @@ struct BasicBlock {
   bool catch_entry;
   bool explicit_throw;
   bool conditional_branch;
-  bool has_return;
+  bool has_return;                  // Contains a return.
+  bool dominates_return;            // Is a member of return extended basic block
   uint16_t start_offset;
   uint16_t nesting_depth;
   BBType block_type;
@@ -306,6 +307,7 @@ struct CompilationUnit {
       vreg_to_ssa_map(NULL),
       ssa_last_defs(NULL),
       is_constant_v(NULL),
+      must_flush_constant_v(NULL),
       constant_values(NULL),
       reg_location(NULL),
       promotion_map(NULL),
@@ -418,6 +420,7 @@ struct CompilationUnit {
   int* vreg_to_ssa_map;            // length == method->registers_size
   int* ssa_last_defs;              // length == method->registers_size
   ArenaBitVector* is_constant_v;   // length == num_ssa_reg
+  ArenaBitVector* must_flush_constant_v;   // length == num_ssa_reg
   int* constant_values;            // length == num_ssa_reg
 
   // Use counts of ssa names.
@@ -578,6 +581,35 @@ static const CodePattern special_patterns[] = {
   {{Instruction::RETURN_OBJECT}, kIdentity},
   {{Instruction::RETURN_WIDE}, kIdentity},
 };
+
+static inline bool IsConst(const CompilationUnit* cu, int32_t s_reg)
+{
+  return (IsBitSet(cu->is_constant_v, s_reg));
+}
+
+static inline bool IsConst(const CompilationUnit* cu, RegLocation loc)
+{
+  return (IsConst(cu, loc.orig_sreg));
+}
+
+static inline int32_t ConstantValue(const CompilationUnit* cu, RegLocation loc)
+{
+  DCHECK(IsConst(cu, loc));
+  return cu->constant_values[loc.orig_sreg];
+}
+
+static inline int64_t ConstantValueWide(const CompilationUnit* cu, RegLocation loc)
+{
+  DCHECK(IsConst(cu, loc));
+  return (static_cast<int64_t>(cu->constant_values[loc.orig_sreg + 1]) << 32) |
+      Low32Bits(static_cast<int64_t>(cu->constant_values[loc.orig_sreg]));
+}
+
+static inline bool MustFlushConstant(const CompilationUnit* cu, RegLocation loc)
+{
+  DCHECK(IsConst(cu, loc));
+  return IsBitSet(cu->must_flush_constant_v, loc.orig_sreg);
+}
 
 }  // namespace art
 

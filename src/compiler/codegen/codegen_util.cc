@@ -23,6 +23,27 @@
 
 namespace art {
 
+bool IsInexpensiveConstant(CompilationUnit* cu, RegLocation rl_src)
+{
+  bool res = false;
+  if (rl_src.is_const) {
+    if (rl_src.wide) {
+      if (rl_src.fp) {
+         res = cu->cg->InexpensiveConstantDouble(ConstantValueWide(cu, rl_src));
+      } else {
+         res = cu->cg->InexpensiveConstantLong(ConstantValueWide(cu, rl_src));
+      }
+    } else {
+      if (rl_src.fp) {
+         res = cu->cg->InexpensiveConstantFloat(ConstantValue(cu, rl_src));
+      } else {
+         res = cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src));
+      }
+    }
+  }
+  return res;
+}
+
 void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
 {
   inst->def_mask = ENCODE_ALL;
@@ -202,6 +223,9 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
       LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
       break;
     case kPseudoDalvikByteCodeBoundary:
+      if (lir->operands[0] == 0) {
+         lir->operands[0] = reinterpret_cast<uintptr_t>("No instruction string");
+      }
       LOG(INFO) << "-------- dalvik offset: 0x" << std::hex
                 << lir->dalvik_offset << " @ " << reinterpret_cast<char*>(lir->operands[0]);
       break;
@@ -471,6 +495,8 @@ LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
   LIR* lo_target = NULL;
   while (data_target) {
     if (lo_match && (data_target->operands[0] == val_hi)) {
+      // Record high word in case we need to expand this later.
+      lo_target->operands[1] = val_hi;
       return lo_target;
     }
     lo_match = false;
@@ -488,7 +514,7 @@ LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
  * instruction streams.
  */
 
-/* Add a 32-bit constant either in the constant pool */
+/* Add a 32-bit constant to the constant pool */
 LIR* AddWordData(CompilationUnit* cu, LIR* *constant_list_p, int value)
 {
   /* Add the constant to the literal pool */
@@ -1095,6 +1121,23 @@ bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
       is_taken = false;
   }
   return is_taken;
+}
+
+// Convert relation of src1/src2 to src2/src1
+ConditionCode FlipComparisonOrder(ConditionCode before) {
+  ConditionCode res;
+  switch (before) {
+    case kCondEq: res = kCondEq; break;
+    case kCondNe: res = kCondNe; break;
+    case kCondLt: res = kCondGt; break;
+    case kCondGt: res = kCondLt; break;
+    case kCondLe: res = kCondGe; break;
+    case kCondGe: res = kCondLe; break;
+    default:
+      res = static_cast<ConditionCode>(0);
+      LOG(FATAL) << "Unexpected ccode " << before;
+  }
+  return res;
 }
 
 } // namespace art

@@ -81,13 +81,20 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
   if (head_lir == tail_lir) return;
 
   for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
+
+    if (is_pseudo_opcode(this_lir->opcode)) continue;
+
     int sink_distance = 0;
+
+    uint64_t target_flags = cg->GetTargetInstFlags(this_lir->opcode);
 
     /* Skip non-interesting instructions */
     if ((this_lir->flags.is_nop == true) ||
-        is_pseudo_opcode(this_lir->opcode) ||
-        (cg->GetTargetInstFlags(this_lir->opcode) & IS_BRANCH) ||
-        !(cg->GetTargetInstFlags(this_lir->opcode) & (IS_LOAD | IS_STORE))) {
+        (target_flags & IS_BRANCH) ||
+        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||  // Skip wide loads.
+        ((target_flags & (REG_USE0 | REG_USE1 | REG_USE2)) ==
+         (REG_USE0 | REG_USE1 | REG_USE2)) ||  // Skip wide stores.
+        !(target_flags & (IS_LOAD | IS_STORE))) {
       continue;
     }
 
@@ -130,7 +137,7 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
        * Skip already dead instructions (whose dataflow information is
        * outdated and misleading).
        */
-      if (check_lir->flags.is_nop) continue;
+      if (check_lir->flags.is_nop || is_pseudo_opcode(check_lir->opcode)) continue;
 
       uint64_t check_mem_mask = (check_lir->use_mask | check_lir->def_mask) & ENCODE_MEM;
       uint64_t alias_condition = this_mem_mask & check_mem_mask;
@@ -139,14 +146,18 @@ static void ApplyLoadStoreElimination(CompilationUnit* cu, LIR* head_lir, LIR* t
       /*
        * Potential aliases seen - check the alias relations
        */
-      if (check_mem_mask != ENCODE_MEM && alias_condition != 0) {
-        bool is_check_lir_load = cg->GetTargetInstFlags(check_lir->opcode) & IS_LOAD;
+      uint64_t check_flags = cg->GetTargetInstFlags(check_lir->opcode);
+      // TUNING: Support instructions with multiple register targets.
+      if ((check_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) {
+        stop_here = true;
+      } else if (check_mem_mask != ENCODE_MEM && alias_condition != 0) {
+        bool is_check_lir_load = check_flags & IS_LOAD;
         if  (alias_condition == ENCODE_LITERAL) {
           /*
            * Should only see literal loads in the instruction
            * stream.
            */
-          DCHECK(!(cg->GetTargetInstFlags(check_lir->opcode) & IS_STORE));
+          DCHECK(!(check_flags & IS_STORE));
           /* Same value && same register type */
           if (check_lir->alias_info == this_lir->alias_info &&
               cg->SameRegType(check_lir->operands[0], native_reg_id)) {
@@ -276,10 +287,13 @@ void ApplyLoadHoisting(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir)
   /* Start from the second instruction */
   for (this_lir = NEXT_LIR(head_lir); this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
 
+    if (is_pseudo_opcode(this_lir->opcode)) continue;
+
+    uint64_t target_flags = cg->GetTargetInstFlags(this_lir->opcode);
     /* Skip non-interesting instructions */
     if ((this_lir->flags.is_nop == true) ||
-        is_pseudo_opcode(this_lir->opcode) ||
-        !(cg->GetTargetInstFlags(this_lir->opcode) & IS_LOAD)) {
+        ((target_flags & (REG_DEF0 | REG_DEF1)) == (REG_DEF0 | REG_DEF1)) ||
+        !(target_flags & IS_LOAD)) {
       continue;
     }
 

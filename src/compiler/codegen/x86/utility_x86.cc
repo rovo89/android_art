@@ -50,9 +50,24 @@ LIR* X86Codegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
-bool X86Codegen::InexpensiveConstant(int reg, int value)
+bool X86Codegen::InexpensiveConstantInt(int32_t value)
 {
   return true;
+}
+
+bool X86Codegen::InexpensiveConstantFloat(int32_t value)
+{
+  return false;
+}
+
+bool X86Codegen::InexpensiveConstantLong(int64_t value)
+{
+  return true;
+}
+
+bool X86Codegen::InexpensiveConstantDouble(int64_t value)
+{
+  return false; // TUNING
 }
 
 /*
@@ -316,13 +331,14 @@ LIR* X86Codegen::OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
   return NewLIR2(cu, opcode, rBase, disp);
 }
 
-LIR* X86Codegen::LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo,
-                                       int r_dest_hi, int val_lo, int val_hi)
+LIR* X86Codegen::LoadConstantWide(CompilationUnit *cu, int r_dest_lo, int r_dest_hi, int64_t value)
 {
+    int32_t val_lo = Low32Bits(value);
+    int32_t val_hi = High32Bits(value);
     LIR *res;
     if (X86_FPREG(r_dest_lo)) {
       DCHECK(X86_FPREG(r_dest_hi));  // ignore r_dest_hi
-      if (val_lo == 0 && val_hi == 0) {
+      if (value == 0) {
         return NewLIR2(cu, kX86XorpsRR, r_dest_lo, r_dest_lo);
       } else {
         if (val_lo == 0) {

@@ -646,7 +646,7 @@ const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_USE_LIST0
                  | IS_STORE | NEEDS_FIXUP, "push", "<!0R>", 4),
-    ENCODING_MAP(kThumb2CmpRI8, 0xf1b00f00,
+    ENCODING_MAP(kThumb2CmpRI12, 0xf1b00f00,
                  kFmtBitBlt, 19, 16, kFmtModImm, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_BINARY_OP | REG_USE0 | SETS_CCODES,
@@ -917,8 +917,8 @@ const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
                  "b", "!0t", 4),
     ENCODING_MAP(kThumb2MovImm16H,       0xf2c00000,
                  kFmtBitBlt, 11, 8, kFmtImm16, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
-                 "movh", "!0C, #!1M", 4),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | REG_USE0,
+                 "movt", "!0C, #!1M", 4),
     ENCODING_MAP(kThumb2AddPCR,      0x4487,
                  kFmtBitBlt, 6, 3, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
@@ -936,8 +936,8 @@ const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
                  "mov", "!0C, #!1M", 4),
     ENCODING_MAP(kThumb2MovImm16HST,     0xf2c00000,
                  kFmtBitBlt, 11, 8, kFmtImm16, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | NEEDS_FIXUP,
-                 "movh", "!0C, #!1M", 4),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | REG_USE0 | NEEDS_FIXUP,
+                 "movt", "!0C, #!1M", 4),
     ENCODING_MAP(kThumb2LdmiaWB,         0xe8b00000,
                  kFmtBitBlt, 19, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
@@ -972,7 +972,21 @@ const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
                  kFmtBitBlt, 3, 0,
                  IS_QUAD_OP | REG_DEF0 | REG_DEF1 | REG_USE2 | REG_USE3,
                  "smull", "!0C, !1C, !2C, !3C", 4),
-
+    ENCODING_MAP(kThumb2LdrdPcRel8,  0xe9df0000,
+                 kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 8, kFmtBitBlt, 7, 0,
+                 kFmtUnused, -1, -1,
+                 IS_TERTIARY_OP | REG_DEF0 | REG_DEF1 | REG_USE_PC | IS_LOAD | NEEDS_FIXUP,
+                 "ldrd", "!0C, !1C, [pc, #!2E]", 4),
+    ENCODING_MAP(kThumb2LdrdI8, 0xe9d00000,
+                 kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16,
+                 kFmtBitBlt, 7, 0,
+                 IS_QUAD_OP | REG_DEF0 | REG_DEF1 | REG_USE2 | IS_LOAD,
+                 "ldrd", "!0C, !1C, [!2C, #!3E]", 4),
+    ENCODING_MAP(kThumb2StrdI8, 0xe9c00000,
+                 kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16,
+                 kFmtBitBlt, 7, 0,
+                 IS_QUAD_OP | REG_USE0 | REG_USE1 | REG_USE2 | IS_STORE,
+                 "strd", "!0C, !1C, [!2C, #!3E]", 4),
 };
 
 /*
@@ -1023,13 +1037,14 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
       if (lir->opcode == kThumbLdrPcRel ||
           lir->opcode == kThumb2LdrPcRel12 ||
           lir->opcode == kThumbAddPcRel ||
+          lir->opcode == kThumb2LdrdPcRel8 ||
           ((lir->opcode == kThumb2Vldrd) && (lir->operands[1] == r15pc)) ||
           ((lir->opcode == kThumb2Vldrs) && (lir->operands[1] == r15pc))) {
         /*
          * PC-relative loads are mostly used to load immediates
          * that are too large to materialize directly in one shot.
          * However, if the load displacement exceeds the limit,
-         * we revert to a 2-instruction materialization sequence.
+         * we revert to a multiple-instruction materialization sequence.
          */
         LIR *lir_target = lir->target;
         uintptr_t pc = (lir->offset + 4) & ~3;
@@ -1044,8 +1059,9 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
           // Shouldn't happen in current codegen.
           LOG(FATAL) << "Unexpected pc-rel offset " << delta;
         }
-        // Now, check for the two difficult cases
+        // Now, check for the difficult cases
         if (((lir->opcode == kThumb2LdrPcRel12) && (delta > 4091)) ||
+            ((lir->opcode == kThumb2LdrdPcRel8) && (delta > 1020)) ||
             ((lir->opcode == kThumb2Vldrs) && (delta > 1020)) ||
             ((lir->opcode == kThumb2Vldrd) && (delta > 1020))) {
           /*
@@ -1053,26 +1069,34 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
            * vldrs/vldrd we include REG_DEF_LR in the resource
            * masks for these instructions.
            */
-          int base_reg = (lir->opcode == kThumb2LdrPcRel12) ?
-            lir->operands[0] : rARM_LR;
+          int base_reg = ((lir->opcode == kThumb2LdrdPcRel8) || (lir->opcode == kThumb2LdrPcRel12))
+              ?  lir->operands[0] : rARM_LR;
 
-          // Add new Adr to generate the address
+          // Add new Adr to generate the address.
           LIR* new_adr = RawLIR(cu, lir->dalvik_offset, kThumb2Adr,
                      base_reg, 0, 0, 0, 0, lir->target);
           InsertLIRBefore(lir, new_adr);
 
-          // Convert to normal load
+          // Convert to normal load.
           if (lir->opcode == kThumb2LdrPcRel12) {
             lir->opcode = kThumb2LdrRRI12;
+          } else if (lir->opcode == kThumb2LdrdPcRel8) {
+            lir->opcode = kThumb2LdrdI8;
           }
-          // Change the load to be relative to the new Adr base
-          lir->operands[1] = base_reg;
-          lir->operands[2] = 0;
+          // Change the load to be relative to the new Adr base.
+          if (lir->opcode == kThumb2LdrdI8) {
+            lir->operands[3] = 0;
+            lir->operands[2] = base_reg;
+          } else {
+            lir->operands[2] = 0;
+            lir->operands[1] = base_reg;
+          }
           SetupResourceMasks(cu, lir);
           res = kRetryAll;
         } else {
           if ((lir->opcode == kThumb2Vldrs) ||
-              (lir->opcode == kThumb2Vldrd)) {
+              (lir->opcode == kThumb2Vldrd) ||
+              (lir->opcode == kThumb2LdrdPcRel8)) {
             lir->operands[2] = delta >> 2;
           } else {
             lir->operands[1] = (lir->opcode == kThumb2LdrPcRel12) ?  delta :

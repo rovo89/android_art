@@ -1018,7 +1018,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRet(GetLLVMValue(cu, rl_src[0].orig_sreg));
-        bb->has_return = true;
+        DCHECK(bb->has_return);
       }
       break;
 
@@ -1028,7 +1028,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRetVoid();
-        bb->has_return = true;
+        DCHECK(bb->has_return);
       }
       break;
 
@@ -2572,8 +2572,7 @@ static void CvtConst(CompilationUnit* cu, llvm::CallInst* call_inst)
   RegLocation rl_dest = GetLoc(cu, call_inst);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
   if (rl_dest.wide) {
-    cg->LoadConstantValueWide(cu, rl_result.low_reg, rl_result.high_reg,
-                          (immval) & 0xffffffff, (immval >> 32) & 0xffffffff);
+    cg->LoadConstantWide(cu, rl_result.low_reg, rl_result.high_reg, immval);
     cg->StoreValueWide(cu, rl_dest, rl_result);
   } else {
     int immediate = immval & 0xffffffff;

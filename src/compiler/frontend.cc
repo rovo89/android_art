@@ -66,13 +66,13 @@ extern "C" void ArtUnInitQuickCompilerContext(art::Compiler& compiler) {
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 | // Disable specific optimizations
-  //(1 << kLoadStoreElimination) |
+  (1 << kLoadStoreElimination) |
   //(1 << kLoadHoisting) |
   //(1 << kSuppressLoads) |
   //(1 << kNullCheckElimination) |
   //(1 << kPromoteRegs) |
   //(1 << kTrackLiveTemps) |
-  //(1 << kSkipLargeMethodOptimization) |
+  (1 << kSkipLargeMethodOptimization) |
   //(1 << kSafeOptimizations) |
   //(1 << kBBOpt) |
   //(1 << kMatch) |
@@ -972,6 +972,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
       cur_block = ProcessCanBranch(cu.get(), cur_block, insn, cur_offset,
                                   width, flags, code_ptr, code_end);
     } else if (flags & Instruction::kReturn) {
+      cur_block->has_return = true;
       cur_block->fall_through = exit_block;
       InsertGrowableList(cu.get(), exit_block->predecessors,
                             reinterpret_cast<uintptr_t>(cur_block));
@@ -1078,10 +1079,9 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   }
 
   /* Do constant propagation */
-  // TODO: Probably need to make these expandable to support new ssa names
-  // introducted during MIR optimization passes
-  cu->is_constant_v = AllocBitVector(cu.get(), cu->num_ssa_regs,
-                                         false  /* not expandable */);
+  cu->is_constant_v = AllocBitVector(cu.get(), cu->num_ssa_regs, false  /* not expandable */);
+  cu->must_flush_constant_v = AllocBitVector(cu.get(), cu->num_ssa_regs,
+                                             false  /* not expandable */);
   cu->constant_values =
       static_cast<int*>(NewMem(cu.get(), sizeof(int) * cu->num_ssa_regs, true, kAllocDFInfo));
   DataFlowAnalysisDispatcher(cu.get(), DoConstantPropogation,

@@ -52,17 +52,24 @@ LIR* MipsCodegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
   return res;
 }
 
-bool MipsCodegen::InexpensiveConstant(int reg, int value)
+bool MipsCodegen::InexpensiveConstantInt(int32_t value)
 {
-  bool res = false;
-  if (value == 0) {
-    res = true;
-  } else if (IsUint(16, value)) {
-    res = true;
-  } else if ((value < 0) && (value >= -32768)) {
-    res = true;
-  }
-  return res;
+  return ((value == 0) || IsUint(16, value) || ((value < 0) && (value >= -32768)));
+}
+
+bool MipsCodegen::InexpensiveConstantFloat(int32_t value)
+{
+  return false;  // TUNING
+}
+
+bool MipsCodegen::InexpensiveConstantLong(int64_t value)
+{
+  return false;  // TUNING
+}
+
+bool MipsCodegen::InexpensiveConstantDouble(int64_t value)
+{
+  return false; // TUNING
 }
 
 /*
@@ -336,12 +343,11 @@ LIR* MipsCodegen::OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int 
   return NewLIR2(cu, opcode, r_dest_src1, r_src2);
 }
 
-LIR* MipsCodegen::LoadConstantValueWide(CompilationUnit *cu, int r_dest_lo, int r_dest_hi,
-                                        int val_lo, int val_hi)
+LIR* MipsCodegen::LoadConstantWide(CompilationUnit *cu, int r_dest_lo, int r_dest_hi, int64_t value)
 {
   LIR *res;
-  res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
-  LoadConstantNoClobber(cu, r_dest_hi, val_hi);
+  res = LoadConstantNoClobber(cu, r_dest_lo, Low32Bits(value));
+  LoadConstantNoClobber(cu, r_dest_hi, High32Bits(value));
   return res;
 }
 

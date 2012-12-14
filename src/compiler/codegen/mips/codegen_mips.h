@@ -38,8 +38,7 @@ class MipsCodegen : public Codegen {
                                      int displacement, int r_dest, int r_dest_hi, OpSize size,
                                      int s_reg);
     virtual LIR* LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int value);
-    virtual LIR* LoadConstantValueWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi,
-                                       int val_lo, int val_hi);
+    virtual LIR* LoadConstantWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi, int64_t value);
     virtual LIR* StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_src,
                                OpSize size);
     virtual LIR* StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacement, int r_src_lo,
@@ -90,12 +89,18 @@ class MipsCodegen : public Codegen {
     virtual bool IsUnconditionalBranch(LIR* lir);
 
     // Required for target - Dalvik-level generators.
+    virtual bool GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+                                   RegLocation rl_src1, RegLocation rl_src2);
     virtual void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
                                 RegLocation rl_index, RegLocation rl_src, int scale);
     virtual void GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale);
     virtual void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale);
+    virtual bool GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_shift);
+    virtual void GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2);
     virtual bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
     virtual bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
@@ -191,7 +196,10 @@ class MipsCodegen : public Codegen {
     void SpillCoreRegs(CompilationUnit* cu);
     void UnSpillCoreRegs(CompilationUnit* cu);
     static const MipsEncodingMap EncodingMap[kMipsLast];
-    bool InexpensiveConstant(int reg, int value);
+    bool InexpensiveConstantInt(int32_t value);
+    bool InexpensiveConstantFloat(int32_t value);
+    bool InexpensiveConstantLong(int64_t value);
+    bool InexpensiveConstantDouble(int64_t value);
 };
 
 }  // namespace art

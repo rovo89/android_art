@@ -91,20 +91,20 @@ static inline bool IsAbsoluteUint(int N, word value) {
   return IsUint(N, value);
 }
 
-static inline int32_t Low16Bits(int32_t value) {
-  return static_cast<int32_t>(value & 0xffff);
+static inline uint16_t Low16Bits(uint32_t value) {
+  return static_cast<uint16_t>(value);
 }
 
-static inline int32_t High16Bits(int32_t value) {
-  return static_cast<int32_t>(value >> 16);
+static inline uint16_t High16Bits(uint32_t value) {
+  return static_cast<uint16_t>(value >> 16);
 }
 
-static inline int32_t Low32Bits(int64_t value) {
-  return static_cast<int32_t>(value);
+static inline uint32_t Low32Bits(uint64_t value) {
+  return static_cast<uint32_t>(value);
 }
 
-static inline int32_t High32Bits(int64_t value) {
-  return static_cast<int32_t>(value >> 32);
+static inline uint32_t High32Bits(uint64_t value) {
+  return static_cast<uint32_t>(value >> 32);
 }
 
 template<typename T>

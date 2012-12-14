@@ -479,6 +479,39 @@ void SimpleRegAlloc(CompilationUnit* cu)
     }
   }
 
+  /*
+   * Now that everything is typed and constants propagated, identify those constants
+   * that can be cheaply materialized and don't need to be flushed to a home location.
+   * The default is to not flush, and some have already been marked as must flush.
+   */
+  for (i=0; i < cu->num_ssa_regs; i++) {
+    if (IsBitSet(cu->is_constant_v, i)) {
+      bool flush = false;
+      RegLocation loc = cu->reg_location[i];
+      if (loc.wide) {
+        int64_t value = ConstantValueWide(cu, loc);
+        if (loc.fp) {
+          flush = !cu->cg->InexpensiveConstantDouble(value);
+        } else {
+          flush = !cu->cg->InexpensiveConstantLong(value);
+        }
+      } else {
+        int32_t value = ConstantValue(cu, loc);
+        if (loc.fp) {
+          flush = !cu->cg->InexpensiveConstantFloat(value);
+        } else {
+          flush = !cu->cg->InexpensiveConstantInt(value);
+        }
+      }
+      if (flush) {
+        SetBit(cu, cu->must_flush_constant_v, i);
+      }
+      if (loc.wide) {
+        i++;  // Skip the high word
+      }
+    }
+  }
+
   cu->core_spill_mask = 0;
   cu->fp_spill_mask = 0;
   cu->num_core_spills = 0;

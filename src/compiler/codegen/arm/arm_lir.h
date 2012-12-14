@@ -371,7 +371,7 @@ enum ArmOpcode {
   kThumb2StrbRRI12,  // strb rt,[rn,#imm12] [111110001000] rt[15..12] rn[19..16] imm12[11..0].
   kThumb2Pop,        // pop   [1110100010111101] list[15-0]*/
   kThumb2Push,       // push  [1110100100101101] list[15-0]*/
-  kThumb2CmpRI8,     // cmp rn, #<const> [11110] i [011011] rn[19-16] [0] imm3 [1111] imm8[7..0].
+  kThumb2CmpRI12,    // cmp rn, #<const> [11110] i [011011] rn[19-16] [0] imm3 [1111] imm8[7..0].
   kThumb2AdcRRR,     // adc [111010110101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2AndRRR,     // and [111010100000] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2BicRRR,     // bic [111010100010] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
@@ -445,6 +445,9 @@ enum ArmOpcode {
   kThumb2Pop1,       // t3 encoding of pop.
   kThumb2RsubRRR,    // rsb [111010111101] rn[19..16] [0000] rd[11..8] [0000] rm[3..0].
   kThumb2Smull,      // smull [111110111000] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
+  kThumb2LdrdPcRel8, // ldrd rt, rt2, pc +-/1024.
+  kThumb2LdrdI8,     // ldrd rt, rt2, [rn +-/1024].
+  kThumb2StrdI8,     // strd rt, rt2, [rn +-/1024].
   kArmLast,
 };
 

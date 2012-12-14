@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "compiler/compiler_enums.h"
+#include "compiler/compiler_ir.h"
 
 namespace art {
 
@@ -59,6 +60,8 @@ void DumpPackedSwitchTable(const uint16_t* table);
 LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str);
 void NopLIR(LIR* lir);
 bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
+bool IsInexpensiveConstant(CompilationUnit* cu, RegLocation rl_src);
+ConditionCode FlipComparisonOrder(ConditionCode before);
 
 }  // namespace art
 
