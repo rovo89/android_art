@@ -1118,8 +1118,8 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::Expand
     end = -1;
   } else {
     start = 0;
-    // TODO: what are the units supposed to be? *2?
-    end = mh.GetCodeItem()->insns_size_in_code_units_;
+    // Return the index of the last instruction
+    end = mh.GetCodeItem()->insns_size_in_code_units_ - 1;
   }
 
   expandBufAdd8BE(pReply, start);
