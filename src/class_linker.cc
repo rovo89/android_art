@@ -3603,11 +3603,11 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
 }
 
 AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
-                                   uint32_t method_idx,
-                                   DexCache* dex_cache,
-                                   ClassLoader* class_loader,
-                                   const AbstractMethod* referrer,
-                                   InvokeType type) {
+                                           uint32_t method_idx,
+                                           DexCache* dex_cache,
+                                           ClassLoader* class_loader,
+                                           const AbstractMethod* referrer,
+                                           InvokeType type) {
   DCHECK(dex_cache != NULL);
   // Check for hit in the dex cache.
   AbstractMethod* resolved = dex_cache->GetResolvedMethod(method_idx);
@@ -3630,6 +3630,7 @@ AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
       break;
     case kInterface:
       resolved = klass->FindInterfaceMethod(dex_cache, method_idx);
+      DCHECK(resolved == NULL || resolved->GetDeclaringClass()->IsInterface());
       break;
     case kSuper:  // Fall-through.
     case kVirtual:
@@ -3649,6 +3650,7 @@ AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
         break;
       case kInterface:
         resolved = klass->FindInterfaceMethod(name, signature);
+        DCHECK(resolved == NULL || resolved->GetDeclaringClass()->IsInterface());
         break;
       case kSuper:  // Fall-through.
       case kVirtual:

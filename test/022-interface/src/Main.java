@@ -67,10 +67,31 @@ public class Main {
         };
     doObjectOverrideTests(o);
   }
+
+  private static interface SubInterface extends Cloneable, SubObjectOverridingInterface {
+  }
+
+  private static class SubInterfaceImpl implements SubInterface {
+    public int length() {
+      return 0;
+    }
+    public char charAt(int i) {
+      return '!';
+    }
+    public CharSequence subSequence(int s, int e) {
+      return "";
+    }
+  }
+
+  static String subObjectOverrideTests(SubInterface i) {
+    return i.toString();
+  }
+
   static void doObjectOverrideTests(ObjectOverridingInterface o) {
     check(o.equals(null));
     check(o.hashCode() == 0xC001D00D);
     check(o.toString().equals("Mallet's Mallet"));
+    check(subObjectOverrideTests(new SubInterfaceImpl()) != null);
     System.out.println("objectOverrideTests: SUCCESS");
   }
 }

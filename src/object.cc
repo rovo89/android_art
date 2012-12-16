@@ -1098,7 +1098,7 @@ AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* method) {
   return NULL;
 }
 
-AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& signature) const {
+AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {
   // Check the current class before checking the interfaces.
   AbstractMethod* method = FindDeclaredVirtualMethod(name, signature);
   if (method != NULL) {
@@ -1108,7 +1108,7 @@ AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name,  const Strin
   int32_t iftable_count = GetIfTableCount();
   IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    method = iftable->GetInterface(i)->FindVirtualMethod(name, signature);
+    method = iftable->GetInterface(i)->FindDeclaredVirtualMethod(name, signature);
     if (method != NULL) {
       return method;
     }
@@ -1126,7 +1126,7 @@ AbstractMethod* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t d
   int32_t iftable_count = GetIfTableCount();
   IfTable* iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
-    method = iftable->GetInterface(i)->FindVirtualMethod(dex_cache, dex_method_idx);
+    method = iftable->GetInterface(i)->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }

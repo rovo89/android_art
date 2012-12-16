@@ -986,7 +986,7 @@ class MANAGED AbstractMethod : public Object {
   ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<Class>* dex_cache_resolved_methods_;
+  ObjectArray<AbstractMethod>* dex_cache_resolved_methods_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<Class>* dex_cache_resolved_types_;

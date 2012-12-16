@@ -14,11 +14,5 @@
  * limitations under the License.
  */
 
-/**
- * Interface methods that override those of Object, the parent of all interfaces
- */
-public interface ObjectOverridingInterface extends CharSequence {
-  public boolean equals(Object o);
-  public int hashCode();
-  public String toString();
+public interface SubObjectOverridingInterface extends ObjectOverridingInterface {
 }
