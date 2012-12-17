@@ -545,11 +545,16 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                       ShadowFrame& shadow_frame) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const uint16_t* insns = code_item->insns_;
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
+  bool entry = (inst->GetDexPc(insns) == 0);
   JValue result_register;
   while (true) {
     CheckSuspend(self);
     uint32_t dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
+    if (entry) {
+      Dbg::UpdateDebugger(-1, self);
+    }
+    entry = false;
     Dbg::UpdateDebugger(dex_pc, self);
     DecodedInstruction dec_insn(inst);
     const bool kTracing = false;
