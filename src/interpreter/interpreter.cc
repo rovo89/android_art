@@ -39,6 +39,10 @@ static const int32_t kMinInt = std::numeric_limits<int32_t>::min();
 static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
 static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
 
+static JDWP::FrameId throw_frame_id_ = 0;
+static AbstractMethod* throw_method_ = NULL;
+static uint32_t throw_dex_pc_ = 0;
+
 static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
                                    Object* receiver, JValue* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1753,6 +1757,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
     }
     if (UNLIKELY(self->IsExceptionPending())) {
+      if (throw_frame_id_ == 0) {
+        throw_method_ = shadow_frame.GetMethod();
+        throw_dex_pc_ = dex_pc;
+      }
+      throw_frame_id_++;
       uint32_t found_dex_pc =
           shadow_frame.GetMethod()->FindCatchBlock(self->GetException()->GetClass(),
                                                    inst->GetDexPc(insns));
@@ -1761,6 +1770,9 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         result.SetJ(0);
         return result;  // Handler in caller.
       } else {
+        Dbg::PostException(self, throw_frame_id_, throw_method_, throw_dex_pc_,
+                           shadow_frame.GetMethod(), found_dex_pc, self->GetException());
+        throw_frame_id_ = 0;
         next_inst = Instruction::At(insns + found_dex_pc);
       }
     }

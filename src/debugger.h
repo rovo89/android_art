@@ -42,7 +42,7 @@ struct DebugInvokeReq {
         receiver_(NULL), thread_(NULL), class_(NULL), method_(NULL),
         arg_count_(0), arg_values_(NULL), options_(0), error(JDWP::ERR_NONE),
         result_tag(JDWP::JT_VOID), exception(0),
-        lock_("a DebugInvokeReq lock"),
+        lock_("a DebugInvokeReq lock", kBreakpointInvokeLock),
         cond_("a DebugInvokeReq condition variable", lock_) {
   }
 
