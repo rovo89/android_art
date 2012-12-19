@@ -644,7 +644,9 @@ class JNI {
 
   static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass java_class) {
     ScopedObjectAccess soa(env);
-    CHECK_NE(static_cast<jclass>(NULL), java_class); // TODO: ReportJniError
+    if (java_class == NULL) {
+      JniAbortF("IsInstanceOf", "null class (second argument)");
+    }
     if (jobj == NULL) {
       // Note: JNI is different from regular Java instanceof in this respect
       return JNI_TRUE;
@@ -1761,7 +1763,9 @@ class JNI {
   static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
     ScopedObjectAccess soa(env);
     Object* obj = soa.Decode<Object*>(java_array);
-    CHECK(obj->IsArrayInstance()); // TODO: ReportJniError
+    if (!obj->IsArrayInstance()) {
+      JniAbortF("GetArrayLength", "not an array: %s", PrettyTypeOf(obj).c_str());
+    }
     Array* array = obj->AsArray();
     return array->GetLength();
   }
@@ -1817,7 +1821,9 @@ class JNI {
 
   static jobjectArray NewObjectArray(JNIEnv* env, jsize length, jclass element_jclass, jobject initial_element) {
     ScopedObjectAccess soa(env);
-    CHECK_GE(length, 0); // TODO: ReportJniError
+    if (length < 0) {
+      JniAbortF("NewObjectArray", "negative array length: %d", length);
+    }
 
     // Compute the array class corresponding to the given element class.
     Class* element_class = soa.Decode<Class*>(element_jclass);
@@ -2105,11 +2111,14 @@ class JNI {
   }
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
-    // The address may not be NULL, and the capacity must be > 0.
-    CHECK(address != NULL); // TODO: ReportJniError
-    CHECK_GT(capacity, 0); // TODO: ReportJniError
+    if (capacity < 0) {
+      JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %d", capacity);
+    }
+    if (address == NULL) {
+      JniAbortF("NewDirectByteBuffer", "NULL pointer passed for buffer address");
+    }
 
-    // At the moment, the Java side is limited to 32 bisoa.
+    // At the moment, the Java side is limited to 32 bits.
     CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
     CHECK_LE(capacity, 0xffffffff);
     jint address_arg = reinterpret_cast<jint>(address);
@@ -2130,7 +2139,9 @@ class JNI {
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
-    CHECK(java_object != NULL); // TODO: ReportJniError
+    if (java_object == NULL) {
+      JniAbortF("GetObjectRefType", "null object");
+    }
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
@@ -2192,7 +2203,9 @@ class JNI {
   template<typename JniT, typename ArtT>
   static JniT NewPrimitiveArray(const ScopedObjectAccess& soa, jsize length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK_GE(length, 0); // TODO: ReportJniError
+    if (length < 0) {
+      JniAbortF("NewPrimitiveArray", "negative array length: %d", length);
+    }
     ArtT* result = ArtT::Alloc(soa.Self(), length);
     return soa.AddLocalReference<JniT>(result);
   }

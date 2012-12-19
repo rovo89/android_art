@@ -748,7 +748,7 @@ class ScopedCheck {
    */
   void CheckReleaseMode(jint mode) {
     if (mode != 0 && mode != JNI_COMMIT && mode != JNI_ABORT) {
-      JniAbortF(function_name_, "bad value for release mode: %d", mode);
+      JniAbortF(function_name_, "unknown value for release mode: %d", mode);
     }
   }
 
