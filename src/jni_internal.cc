@@ -2114,8 +2114,8 @@ class JNI {
     if (capacity < 0) {
       JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %d", capacity);
     }
-    if (address == NULL) {
-      JniAbortF("NewDirectByteBuffer", "NULL pointer passed for buffer address");
+    if (address == NULL && capacity != 0) {
+      JniAbortF("NewDirectByteBuffer", "non-zero capacity for NULL pointer: %d", capacity);
     }
 
     // At the moment, the Java side is limited to 32 bits.
