@@ -862,6 +862,10 @@ static std::string GetSSAName(const CompilationUnit* cu, int ssa_reg)
 // Similar to GetSSAName, but if ssa name represents an immediate show that as well.
 static std::string GetSSANameWithConst(const CompilationUnit* cu, int ssa_reg, bool singles_only)
 {
+  if (cu->reg_location == NULL) {
+    // Pre-SSA - just use the Dalvik vreg
+    return StringPrintf("v%d", ssa_reg);
+  }
   if (cu->reg_location[ssa_reg].is_const) {
     if (!singles_only && cu->reg_location[ssa_reg].wide) {
       int64_t immval = cu->constant_values[ssa_reg + 1];
@@ -940,8 +944,7 @@ char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir)
         break;
       case Instruction::k22t:
         str.append(StringPrintf(" %s, %s,", GetSSANameWithConst(cu, ssa_rep->uses[0], false).c_str(),
-                   GetSSANameWithConst(cu, ssa_rep->uses[cu->reg_location[ssa_rep->uses[0]].wide
-                                       ? 2 : 1], false).c_str()));
+                   GetSSANameWithConst(cu, ssa_rep->uses[1], false).c_str()));
         offset = insn.vC;
         break;
       case Instruction::k10t:
@@ -967,7 +970,7 @@ char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir)
     for (int i = 0; i < uses; i++) {
       str.append(
           StringPrintf(" %s", GetSSANameWithConst(cu, ssa_rep->uses[i], show_singles).c_str()));
-      if (!show_singles && cu->reg_location[i].wide) {
+      if (!show_singles && (cu->reg_location != NULL) && cu->reg_location[i].wide) {
         // For the listing, skip the high sreg.
         i++;
       }

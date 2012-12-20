@@ -1643,6 +1643,9 @@ static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
       if (rl_dest.high_word) {
         return;  // No Phi node - handled via low word
       }
+      // LLVM requires that all Phi nodes are at the beginning of the block
+      llvm::IRBuilderBase::InsertPoint ip = cu->irb->saveAndClearIP();
+      cu->irb->SetInsertPoint(llvm_bb);
       int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
       llvm::Type* phi_type =
           LlvmTypeFromLocRec(cu, rl_dest);
@@ -1662,6 +1665,8 @@ static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
         phi->addIncoming(GetLLVMValue(cu, loc.orig_sreg),
                          GetLLVMBlock(cu, it->second));
       }
+      // Now that Phi node is emitted, add definition at old insert point
+      cu->irb->restoreIP(ip);
       DefineValue(cu, phi, rl_dest.orig_sreg);
       break;
     }
@@ -1789,9 +1794,7 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
             greenland::IntrinsicHelper::AllocaShadowFrame;
     llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
     llvm::Value* entries = cu->irb->getInt32(cu->num_shadow_frame_entries);
-    llvm::Value* dalvik_regs = cu->irb->getInt32(cu->num_dalvik_registers);
-    llvm::Value* args[] = { entries, dalvik_regs };
-    cu->irb->CreateCall(func, args);
+    cu->irb->CreateCall(func, entries);
   } else if (bb->block_type == kExitBlock) {
     /*
      * Because of the differences between how MIR/LIR and llvm handle exit
