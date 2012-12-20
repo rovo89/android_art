@@ -674,7 +674,7 @@ void GetBlockName(BasicBlock* bb, char* name)
                bb->id);
       break;
     default:
-      snprintf(name, BLOCK_NAME_LEN, "??_%d", bb->id);
+      snprintf(name, BLOCK_NAME_LEN, "_%d", bb->id);
       break;
   }
 }

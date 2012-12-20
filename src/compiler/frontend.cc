@@ -269,7 +269,7 @@ void ReplaceSpecialChars(std::string& str)
 }
 
 /* Dump the CFG into a DOT graph */
-void DumpCFG(CompilationUnit* cu, const char* dir_prefix)
+void DumpCFG(CompilationUnit* cu, const char* dir_prefix, bool all_blocks)
 {
   FILE* file;
   std::string fname(PrettyMethod(cu->method_idx, *cu->dex_file));
@@ -284,12 +284,12 @@ void DumpCFG(CompilationUnit* cu, const char* dir_prefix)
 
   fprintf(file, "  rankdir=TB\n");
 
-  int num_reachable_blocks = cu->num_reachable_blocks;
+  int num_blocks = all_blocks ? cu->num_blocks : cu->num_reachable_blocks;
   int idx;
   const GrowableList *block_list = &cu->block_list;
 
-  for (idx = 0; idx < num_reachable_blocks; idx++) {
-    int block_idx = cu->dfs_order.elem_list[idx];
+  for (idx = 0; idx < num_blocks; idx++) {
+    int block_idx = all_blocks ? idx : cu->dfs_order.elem_list[idx];
     BasicBlock *bb = reinterpret_cast<BasicBlock*>(GrowableListGetElement(block_list, block_idx));
     if (bb == NULL) break;
     if (bb->block_type == kDead) continue;
@@ -304,9 +304,13 @@ void DumpCFG(CompilationUnit* cu, const char* dir_prefix)
         fprintf(file, "    {block id %d\\l}%s\\\n", bb->id,
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
-            fprintf(file, "    {%04x %s\\l}%s\\\n", mir->offset,
+            int opcode = mir->dalvikInsn.opcode;
+            fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
                     mir->ssa_rep ? GetDalvikDisassembly(cu, mir) :
-                    Instruction::Name(mir->dalvikInsn.opcode),
+                    (opcode < kMirOpFirst) ?  Instruction::Name(mir->dalvikInsn.opcode) :
+                    extended_mir_op_names[opcode - kMirOpFirst],
+                    (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
+                    (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
                     mir->next ? " | " : " ");
         }
         fprintf(file, "  }\"];\n\n");
@@ -386,13 +390,15 @@ void DumpCFG(CompilationUnit* cu, const char* dir_prefix)
     }
     fprintf(file, "\n");
 
-    /* Display the dominator tree */
-    GetBlockName(bb, block_name1);
-    fprintf(file, "  cfg%s [label=\"%s\", shape=none];\n",
-            block_name1, block_name1);
-    if (bb->i_dom) {
-      GetBlockName(bb->i_dom, block_name2);
-      fprintf(file, "  cfg%s:s -> cfg%s:n\n\n", block_name2, block_name1);
+    if (cu->verbose) {
+      /* Display the dominator tree */
+      GetBlockName(bb, block_name1);
+      fprintf(file, "  cfg%s [label=\"%s\", shape=none];\n",
+              block_name1, block_name1);
+      if (bb->i_dom) {
+        GetBlockName(bb->i_dom, block_name2);
+        fprintf(file, "  cfg%s:s -> cfg%s:n\n\n", block_name2, block_name1);
+      }
     }
   }
   fprintf(file, "}\n");
@@ -432,7 +438,7 @@ static bool VerifyPredInfo(CompilationUnit* cu, BasicBlock* bb)
       char block_name1[BLOCK_NAME_LEN], block_name2[BLOCK_NAME_LEN];
       GetBlockName(bb, block_name1);
       GetBlockName(pred_bb, block_name2);
-      DumpCFG(cu, "/sdcard/cfg/");
+      DumpCFG(cu, "/sdcard/cfg/", false);
       LOG(FATAL) << "Successor " << block_name1 << "not found from "
                  << block_name2;
     }
@@ -804,10 +810,6 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
     cu->gen_bitcode = true;
   }
   DCHECK_NE(compiler_backend, kIceland);  // TODO: remove when Portable/Iceland merge complete
-  // TODO: remove this once x86 is tested
-  if (cu->gen_bitcode && (cu->instruction_set != kThumb2)) {
-    UNIMPLEMENTED(WARNING) << "GBC generation untested for non-Thumb targets";
-  }
   cu->llvm_info = llvm_info;
   /* Adjust this value accordingly once inlining is performed */
   cu->num_dalvik_registers = code_item->registers_size_;
@@ -1025,6 +1027,10 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
     }
   }
 
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/1_post_parse_cfg/", true);
+  }
+
   if (!(cu->disable_opt & (1 << kSkipLargeMethodOptimization))) {
     if ((cu->num_blocks > MANY_BLOCKS) ||
         ((cu->num_blocks > MANY_BLOCKS_INITIALIZER) &&
@@ -1053,6 +1059,10 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   /* Do a code layout pass */
   CodeLayout(cu.get());
 
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/2_post_layout_cfg/", true);
+  }
+
   if (cu->enable_debug & (1 << kDebugVerifyDataflow)) {
     /* Verify if all blocks are connected as claimed */
     DataFlowAnalysisDispatcher(cu.get(), VerifyPredInfo, kAllNodes,
@@ -1061,6 +1071,10 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
 
   /* Perform SSA transformation for the whole method */
   SSATransformation(cu.get());
+
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/3_post_ssa_cfg/", false);
+  }
 
   /* Do constant propagation */
   // TODO: Probably need to make these expandable to support new ssa names
@@ -1082,11 +1096,24 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   /* Perform null check elimination */
   NullCheckElimination(cu.get());
 
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/4_post_nce_cfg/", false);
+  }
+
   /* Combine basic blocks where possible */
   BasicBlockCombine(cu.get());
 
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/5_post_bbcombine_cfg/", false);
+  }
+
   /* Do some basic block optimizations */
   BasicBlockOptimization(cu.get());
+
+  // Debugging only
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/6_post_bbo_cfg/", false);
+  }
 
   if (cu->enable_debug & (1 << kDebugDumpCheckStats)) {
     DumpCheckStats(cu.get());
@@ -1122,11 +1149,6 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
     if (cu->first_lir_insn == NULL) {
       MethodMIR2LIR(cu.get());
     }
-  }
-
-  // Debugging only
-  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
-    DumpCFG(cu.get(), "/sdcard/cfg/");
   }
 
   /* Method is not empty */

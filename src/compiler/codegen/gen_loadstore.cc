@@ -46,15 +46,18 @@ void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int ze
     int pmap_index = SRegToPMap(cu, rl_dest.s_reg_low);
     if (cu->promotion_map[pmap_index].fp_location == kLocPhysReg) {
       // Now, determine if this vreg is ever used as a reference.  If not, we're done.
-      bool used_as_reference = false;
-      int base_vreg = SRegToVReg(cu, rl_dest.s_reg_low);
-      for (int i = 0; !used_as_reference && (i < cu->num_ssa_regs); i++) {
-        if (SRegToVReg(cu, cu->reg_location[i].s_reg_low) == base_vreg) {
-          used_as_reference |= cu->reg_location[i].ref;
+      if (!cu->gen_bitcode) {
+        // TUNING: We no longer have this info for QuickGBC - assume the worst
+        bool used_as_reference = false;
+        int base_vreg = SRegToVReg(cu, rl_dest.s_reg_low);
+        for (int i = 0; !used_as_reference && (i < cu->num_ssa_regs); i++) {
+          if (SRegToVReg(cu, cu->reg_location[i].s_reg_low) == base_vreg) {
+            used_as_reference |= cu->reg_location[i].ref;
+          }
         }
-      }
-      if (!used_as_reference) {
-        return;
+        if (!used_as_reference) {
+          return;
+        }
       }
       if (cu->promotion_map[pmap_index].core_location == kLocPhysReg) {
         // Promoted - just copy in a zero
