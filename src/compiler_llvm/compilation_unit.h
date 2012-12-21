@@ -29,7 +29,7 @@
 #include "safe_map.h"
 
 #if defined(ART_USE_PORTABLE_COMPILER)
-# include "compiler/Dalvik.h"
+# include "compiler/compiler_internals.h"
 # include "compiler.h"
 # include "oat_compilation_unit.h"
 #endif

@@ -50,8 +50,22 @@ static llvm::Value* GetLLVMValue(CompilationUnit* cu, int s_reg)
   return reinterpret_cast<llvm::Value*>(GrowableListGetElement(&cu->llvm_values, s_reg));
 }
 
+static void SetVregOnValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
+{
+  // Set vreg for debugging
+  if (cu->compiler->IsDebuggingSupported()) {
+    greenland::IntrinsicHelper::IntrinsicId id =
+        greenland::IntrinsicHelper::SetVReg;
+    llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+    int v_reg = SRegToVReg(cu, s_reg);
+    llvm::Value* table_slot = cu->irb->getInt32(v_reg);
+    llvm::Value* args[] = { table_slot, val };
+    cu->irb->CreateCall(func, args);
+  }
+}
+
 // Replace the placeholder value with the real definition
-static void DefineValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
+static void DefineValueOnly(CompilationUnit* cu, llvm::Value* val, int s_reg)
 {
   llvm::Value* placeholder = GetLLVMValue(cu, s_reg);
   if (placeholder == NULL) {
@@ -66,16 +80,12 @@ static void DefineValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
   DCHECK(inst != NULL);
   inst->eraseFromParent();
 
-  // Set vreg for debugging
-  if (!cu->compiler->IsDebuggingSupported()) {
-    greenland::IntrinsicHelper::IntrinsicId id =
-        greenland::IntrinsicHelper::SetVReg;
-    llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
-    int v_reg = SRegToVReg(cu, s_reg);
-    llvm::Value* table_slot = cu->irb->getInt32(v_reg);
-    llvm::Value* args[] = { table_slot, val };
-    cu->irb->CreateCall(func, args);
-  }
+}
+
+static void DefineValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
+{
+  DefineValueOnly(cu, val, s_reg);
+  SetVregOnValue(cu, val, s_reg);
 }
 
 static llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cu, RegLocation loc)
@@ -1625,83 +1635,6 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
   return res;
 }
 
-/* Extended MIR instructions like PHI */
-static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                               llvm::BasicBlock* llvm_bb)
-{
-
-  switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
-    case kMirOpPhi: {
-      RegLocation rl_dest = cu->reg_location[mir->ssa_rep->defs[0]];
-      /*
-       * The Art compiler's Phi nodes only handle 32-bit operands,
-       * representing wide values using a matched set of Phi nodes
-       * for the lower and upper halves.  In the llvm world, we only
-       * want a single Phi for wides.  Here we will simply discard
-       * the Phi node representing the high word.
-       */
-      if (rl_dest.high_word) {
-        return;  // No Phi node - handled via low word
-      }
-      // LLVM requires that all Phi nodes are at the beginning of the block
-      llvm::IRBuilderBase::InsertPoint ip = cu->irb->saveAndClearIP();
-      cu->irb->SetInsertPoint(llvm_bb);
-      int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
-      llvm::Type* phi_type =
-          LlvmTypeFromLocRec(cu, rl_dest);
-      llvm::PHINode* phi = cu->irb->CreatePHI(phi_type, mir->ssa_rep->num_uses);
-      for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
-        RegLocation loc;
-        // Don't check width here.
-        loc = GetRawSrc(cu, mir, i);
-        DCHECK_EQ(rl_dest.wide, loc.wide);
-        DCHECK_EQ(rl_dest.wide & rl_dest.high_word, loc.wide & loc.high_word);
-        DCHECK_EQ(rl_dest.fp, loc.fp);
-        DCHECK_EQ(rl_dest.core, loc.core);
-        DCHECK_EQ(rl_dest.ref, loc.ref);
-        SafeMap<unsigned int, unsigned int>::iterator it;
-        it = cu->block_id_map.find(incoming[i]);
-        DCHECK(it != cu->block_id_map.end());
-        phi->addIncoming(GetLLVMValue(cu, loc.orig_sreg),
-                         GetLLVMBlock(cu, it->second));
-      }
-      // Now that Phi node is emitted, add definition at old insert point
-      cu->irb->restoreIP(ip);
-      DefineValue(cu, phi, rl_dest.orig_sreg);
-      break;
-    }
-    case kMirOpCopy: {
-      UNIMPLEMENTED(WARNING) << "unimp kMirOpPhi";
-      break;
-    }
-    case kMirOpNop:
-      if ((mir == bb->last_mir_insn) && (bb->taken == NULL) &&
-          (bb->fall_through == NULL)) {
-        cu->irb->CreateUnreachable();
-      }
-      break;
-
-    // TODO: need GBC intrinsic to take advantage of fused operations
-    case kMirOpFusedCmplFloat:
-      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpFloat unsupported";
-      break;
-    case kMirOpFusedCmpgFloat:
-      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmgFloat unsupported";
-      break;
-    case kMirOpFusedCmplDouble:
-      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmplDouble unsupported";
-      break;
-    case kMirOpFusedCmpgDouble:
-      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpgDouble unsupported";
-      break;
-    case kMirOpFusedCmpLong:
-      UNIMPLEMENTED(FATAL) << "kMirOpLongCmpBranch unsupported";
-      break;
-    default:
-      break;
-  }
-}
-
 static void SetDexOffset(CompilationUnit* cu, int32_t offset)
 {
   cu->current_dalvik_offset = offset;
@@ -1742,6 +1675,104 @@ static void SetMethodInfo(CompilationUnit* cu)
   llvm::MDNode* map_node = llvm::MDNode::get(*cu->context, pmap);
   inst->setMetadata("PromotionMap", map_node);
   SetDexOffset(cu, cu->current_dalvik_offset);
+}
+
+static void HandlePhiNodes(CompilationUnit* cu, BasicBlock* bb, llvm::BasicBlock* llvm_bb)
+{
+  SetDexOffset(cu, bb->start_offset);
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    int opcode = mir->dalvikInsn.opcode;
+    if (opcode < kMirOpFirst) {
+      // Stop after first non-pseudo MIR op.
+      continue;
+    }
+    if (opcode != kMirOpPhi) {
+      // Skip other mir Pseudos.
+      continue;
+    }
+    RegLocation rl_dest = cu->reg_location[mir->ssa_rep->defs[0]];
+    /*
+     * The Art compiler's Phi nodes only handle 32-bit operands,
+     * representing wide values using a matched set of Phi nodes
+     * for the lower and upper halves.  In the llvm world, we only
+     * want a single Phi for wides.  Here we will simply discard
+     * the Phi node representing the high word.
+     */
+    if (rl_dest.high_word) {
+      continue;  // No Phi node - handled via low word
+    }
+    int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
+    llvm::Type* phi_type =
+        LlvmTypeFromLocRec(cu, rl_dest);
+    llvm::PHINode* phi = cu->irb->CreatePHI(phi_type, mir->ssa_rep->num_uses);
+    for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+      RegLocation loc;
+      // Don't check width here.
+      loc = GetRawSrc(cu, mir, i);
+      DCHECK_EQ(rl_dest.wide, loc.wide);
+      DCHECK_EQ(rl_dest.wide & rl_dest.high_word, loc.wide & loc.high_word);
+      DCHECK_EQ(rl_dest.fp, loc.fp);
+      DCHECK_EQ(rl_dest.core, loc.core);
+      DCHECK_EQ(rl_dest.ref, loc.ref);
+      SafeMap<unsigned int, unsigned int>::iterator it;
+      it = cu->block_id_map.find(incoming[i]);
+      DCHECK(it != cu->block_id_map.end());
+      DCHECK(GetLLVMValue(cu, loc.orig_sreg) != NULL);
+      DCHECK(GetLLVMBlock(cu, it->second) != NULL);
+      phi->addIncoming(GetLLVMValue(cu, loc.orig_sreg),
+                       GetLLVMBlock(cu, it->second));
+    }
+    DefineValueOnly(cu, phi, rl_dest.orig_sreg);
+  }
+}
+
+/* Extended MIR instructions like PHI */
+static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+                               llvm::BasicBlock* llvm_bb)
+{
+
+  switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
+    case kMirOpPhi: {
+      // The llvm Phi node already emitted - just DefineValue() here.
+      RegLocation rl_dest = cu->reg_location[mir->ssa_rep->defs[0]];
+      if (!rl_dest.high_word) {
+        // Only consider low word of pairs.
+        DCHECK(GetLLVMValue(cu, rl_dest.orig_sreg) != NULL);
+        llvm::Value* phi = GetLLVMValue(cu, rl_dest.orig_sreg);
+        if (1) SetVregOnValue(cu, phi, rl_dest.orig_sreg);
+      }
+      break;
+    }
+    case kMirOpCopy: {
+      UNIMPLEMENTED(WARNING) << "unimp kMirOpPhi";
+      break;
+    }
+    case kMirOpNop:
+      if ((mir == bb->last_mir_insn) && (bb->taken == NULL) &&
+          (bb->fall_through == NULL)) {
+        cu->irb->CreateUnreachable();
+      }
+      break;
+
+    // TODO: need GBC intrinsic to take advantage of fused operations
+    case kMirOpFusedCmplFloat:
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpFloat unsupported";
+      break;
+    case kMirOpFusedCmpgFloat:
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmgFloat unsupported";
+      break;
+    case kMirOpFusedCmplDouble:
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmplDouble unsupported";
+      break;
+    case kMirOpFusedCmpgDouble:
+      UNIMPLEMENTED(FATAL) << "kMirOpFusedCmpgDouble unsupported";
+      break;
+    case kMirOpFusedCmpLong:
+      UNIMPLEMENTED(FATAL) << "kMirOpLongCmpBranch unsupported";
+      break;
+    default:
+      break;
+  }
 }
 
 /* Handle the content in each basic block */
@@ -1810,6 +1841,8 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
     llvm_bb->eraseFromParent();
     return false;
   }
+
+  HandlePhiNodes(cu, bb, llvm_bb);
 
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
 
