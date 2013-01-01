@@ -16,6 +16,7 @@
 
 #include "compiler_internals.h"
 #include "dataflow.h"
+#include "bb_opt.h"
 
 namespace art {
 
@@ -863,8 +864,8 @@ static std::string GetSSAName(const CompilationUnit* cu, int ssa_reg)
 static std::string GetSSANameWithConst(const CompilationUnit* cu, int ssa_reg, bool singles_only)
 {
   if (cu->reg_location == NULL) {
-    // Pre-SSA - just use the Dalvik vreg
-    return StringPrintf("v%d", ssa_reg);
+    // Pre-SSA - just use the standard name
+    return GetSSAName(cu, ssa_reg);
   }
   if (cu->reg_location[ssa_reg].is_const) {
     if (!singles_only && cu->reg_location[ssa_reg].wide) {
@@ -1564,8 +1565,8 @@ void DataFlowAnalysisDispatcher(CompilationUnit* cu,
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
-static MIR* AdvanceMIR(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir,
-                       ArenaBitVector* bv, bool clear_mark) {
+static MIR* AdvanceMIR(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir)
+{
   BasicBlock* bb = *p_bb;
   if (mir != NULL) {
     mir = mir->next;
@@ -1574,16 +1575,10 @@ static MIR* AdvanceMIR(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir,
       if ((bb == NULL) || bb->predecessors->num_used != 1) {
         mir = NULL;
       } else {
-        if (bv) {
-          SetBit(cu, bv, bb->id);
-        }
       *p_bb = bb;
       mir = bb->first_mir_insn;
       }
     }
-  }
-  if (mir && clear_mark) {
-    mir->optimization_flags &= ~MIR_MARK;
   }
   return mir;
 }
@@ -1598,7 +1593,7 @@ static MIR* AdvanceMIR(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir,
 MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   BasicBlock* tbb = bb;
-  mir = AdvanceMIR(cu, &tbb, mir, NULL, false);
+  mir = AdvanceMIR(cu, &tbb, mir);
   while (mir != NULL) {
     int opcode = mir->dalvikInsn.opcode;
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
@@ -1610,178 +1605,114 @@ MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
     if (opcode < kNumPackedOpcodes) {
       mir = NULL;
     } else {
-      mir = AdvanceMIR(cu, &tbb, mir, NULL, false);
+      mir = AdvanceMIR(cu, &tbb, mir);
     }
   }
   return mir;
 }
 
-static void SquashDupRangeChecks(CompilationUnit* cu, BasicBlock** p_bp, MIR* mir,
-                                 int array_sreg, int index_sreg)
+static BasicBlock* NextDominatedBlock(CompilationUnit* cu, BasicBlock* bb)
 {
-  while (true) {
-    mir = AdvanceMIR(cu, p_bp, mir, NULL, false);
-    if (!mir) {
-      break;
-    }
-    if ((mir->ssa_rep == NULL) ||
-        (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK)) {
-       continue;
-    }
-    int check_array = INVALID_SREG;
-    int check_index = INVALID_SREG;
-    switch (mir->dalvikInsn.opcode) {
-      case Instruction::AGET:
-      case Instruction::AGET_OBJECT:
-      case Instruction::AGET_BOOLEAN:
-      case Instruction::AGET_BYTE:
-      case Instruction::AGET_CHAR:
-      case Instruction::AGET_SHORT:
-      case Instruction::AGET_WIDE:
-        check_array = mir->ssa_rep->uses[0];
-        check_index = mir->ssa_rep->uses[1];
-        break;
-      case Instruction::APUT:
-      case Instruction::APUT_OBJECT:
-      case Instruction::APUT_SHORT:
-      case Instruction::APUT_CHAR:
-      case Instruction::APUT_BYTE:
-      case Instruction::APUT_BOOLEAN:
-        check_array = mir->ssa_rep->uses[1];
-        check_index = mir->ssa_rep->uses[2];
-        break;
-      case Instruction::APUT_WIDE:
-        check_array = mir->ssa_rep->uses[2];
-        check_index = mir->ssa_rep->uses[3];
-      default:
-        break;
-    }
-    if (check_array == INVALID_SREG) {
-      continue;
-    }
-    if ((array_sreg == check_array) && (index_sreg == check_index)) {
-      if (cu->verbose) {
-        LOG(INFO) << "Squashing range check @ 0x" << std::hex << mir->offset;
-      }
-      mir->optimization_flags |= MIR_IGNORE_RANGE_CHECK;
-    }
+  DCHECK((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
+      || (bb->block_type == kExitBlock));
+  bb = bb->fall_through;
+  if (bb == NULL || (bb->predecessors->num_used != 1)) {
+    return NULL;
   }
+  DCHECK((bb->block_type == kDalvikByteCode) || (bb->block_type == kExitBlock));
+  return bb;
 }
 
-/* Do some MIR-level basic block optimizations */
+/* Do some MIR-level extended basic block optimizations */
 static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
 {
   int num_temps = 0;
-
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    // Look for interesting opcodes, skip otherwise
-    Instruction::Code opcode = mir->dalvikInsn.opcode;
-    switch (opcode) {
-      case Instruction::AGET:
-      case Instruction::AGET_OBJECT:
-      case Instruction::AGET_BOOLEAN:
-      case Instruction::AGET_BYTE:
-      case Instruction::AGET_CHAR:
-      case Instruction::AGET_SHORT:
-      case Instruction::AGET_WIDE:
-        if (!(mir->optimization_flags & MIR_IGNORE_RANGE_CHECK)) {
-          int arr_sreg = mir->ssa_rep->uses[0];
-          int idx_sreg = mir->ssa_rep->uses[1];
-          BasicBlock* tbb = bb;
-          SquashDupRangeChecks(cu, &tbb, mir, arr_sreg, idx_sreg);
-        }
-        break;
-      case Instruction::APUT:
-      case Instruction::APUT_OBJECT:
-      case Instruction::APUT_SHORT:
-      case Instruction::APUT_CHAR:
-      case Instruction::APUT_BYTE:
-      case Instruction::APUT_BOOLEAN:
-      case Instruction::APUT_WIDE:
-        if (!(mir->optimization_flags & MIR_IGNORE_RANGE_CHECK)) {
-          int start = (opcode == Instruction::APUT_WIDE) ? 2 : 1;
-          int arr_sreg = mir->ssa_rep->uses[start];
-          int idx_sreg = mir->ssa_rep->uses[start + 1];
-          BasicBlock* tbb = bb;
-          SquashDupRangeChecks(cu, &tbb, mir, arr_sreg, idx_sreg);
-        }
-        break;
-      case Instruction::CMPL_FLOAT:
-      case Instruction::CMPL_DOUBLE:
-      case Instruction::CMPG_FLOAT:
-      case Instruction::CMPG_DOUBLE:
-      case Instruction::CMP_LONG:
-        if (cu->gen_bitcode) {
-          // Bitcode doesn't allow this optimization.
-          break;
-        }
-        if (mir->next != NULL) {
-          MIR* mir_next = mir->next;
-          Instruction::Code br_opcode = mir_next->dalvikInsn.opcode;
-          ConditionCode ccode = kCondNv;
-          switch(br_opcode) {
-            case Instruction::IF_EQZ:
-              ccode = kCondEq;
-              break;
-            case Instruction::IF_NEZ:
-              ccode = kCondNe;
-              break;
-            case Instruction::IF_LTZ:
-              ccode = kCondLt;
-              break;
-            case Instruction::IF_GEZ:
-              ccode = kCondGe;
-              break;
-            case Instruction::IF_GTZ:
-              ccode = kCondGt;
-              break;
-            case Instruction::IF_LEZ:
-              ccode = kCondLe;
-              break;
-            default:
-              break;
+  BBOpt bb_opt(cu);
+  while (bb != NULL) {
+    for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+      // TUNING: use the returned value number for CSE.
+      bb_opt.GetValueNumber(mir);
+      // Look for interesting opcodes, skip otherwise
+      Instruction::Code opcode = mir->dalvikInsn.opcode;
+      switch (opcode) {
+        case Instruction::CMPL_FLOAT:
+        case Instruction::CMPL_DOUBLE:
+        case Instruction::CMPG_FLOAT:
+        case Instruction::CMPG_DOUBLE:
+        case Instruction::CMP_LONG:
+          if (cu->gen_bitcode) {
+            // Bitcode doesn't allow this optimization.
+            break;
           }
-          // Make sure result of cmp is used by next insn and nowhere else
-          if ((ccode != kCondNv) &&
-              (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
-              (GetSSAUseCount(cu, mir->ssa_rep->defs[0]) == 1)) {
-            mir_next->dalvikInsn.arg[0] = ccode;
-            switch(opcode) {
-              case Instruction::CMPL_FLOAT:
-                mir_next->dalvikInsn.opcode =
-                    static_cast<Instruction::Code>(kMirOpFusedCmplFloat);
+          if (mir->next != NULL) {
+            MIR* mir_next = mir->next;
+            Instruction::Code br_opcode = mir_next->dalvikInsn.opcode;
+            ConditionCode ccode = kCondNv;
+            switch(br_opcode) {
+              case Instruction::IF_EQZ:
+                ccode = kCondEq;
                 break;
-              case Instruction::CMPL_DOUBLE:
-                mir_next->dalvikInsn.opcode =
-                    static_cast<Instruction::Code>(kMirOpFusedCmplDouble);
+              case Instruction::IF_NEZ:
+                ccode = kCondNe;
                 break;
-              case Instruction::CMPG_FLOAT:
-                mir_next->dalvikInsn.opcode =
-                    static_cast<Instruction::Code>(kMirOpFusedCmpgFloat);
+              case Instruction::IF_LTZ:
+                ccode = kCondLt;
                 break;
-              case Instruction::CMPG_DOUBLE:
-                mir_next->dalvikInsn.opcode =
-                    static_cast<Instruction::Code>(kMirOpFusedCmpgDouble);
+              case Instruction::IF_GEZ:
+                ccode = kCondGe;
                 break;
-              case Instruction::CMP_LONG:
-                mir_next->dalvikInsn.opcode =
-                    static_cast<Instruction::Code>(kMirOpFusedCmpLong);
+              case Instruction::IF_GTZ:
+                ccode = kCondGt;
                 break;
-              default: LOG(ERROR) << "Unexpected opcode: " << opcode;
+              case Instruction::IF_LEZ:
+                ccode = kCondLe;
+                break;
+              default:
+                break;
             }
-            mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-            mir_next->ssa_rep->num_uses = mir->ssa_rep->num_uses;
-            mir_next->ssa_rep->uses = mir->ssa_rep->uses;
-            mir_next->ssa_rep->fp_use = mir->ssa_rep->fp_use;
-            mir_next->ssa_rep->num_defs = 0;
-            mir->ssa_rep->num_uses = 0;
-            mir->ssa_rep->num_defs = 0;
+            // Make sure result of cmp is used by next insn and nowhere else
+            if ((ccode != kCondNv) &&
+                (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
+                (GetSSAUseCount(cu, mir->ssa_rep->defs[0]) == 1)) {
+              mir_next->dalvikInsn.arg[0] = ccode;
+              switch(opcode) {
+                case Instruction::CMPL_FLOAT:
+                  mir_next->dalvikInsn.opcode =
+                      static_cast<Instruction::Code>(kMirOpFusedCmplFloat);
+                  break;
+                case Instruction::CMPL_DOUBLE:
+                  mir_next->dalvikInsn.opcode =
+                      static_cast<Instruction::Code>(kMirOpFusedCmplDouble);
+                  break;
+                case Instruction::CMPG_FLOAT:
+                  mir_next->dalvikInsn.opcode =
+                      static_cast<Instruction::Code>(kMirOpFusedCmpgFloat);
+                  break;
+                case Instruction::CMPG_DOUBLE:
+                  mir_next->dalvikInsn.opcode =
+                      static_cast<Instruction::Code>(kMirOpFusedCmpgDouble);
+                  break;
+                case Instruction::CMP_LONG:
+                  mir_next->dalvikInsn.opcode =
+                      static_cast<Instruction::Code>(kMirOpFusedCmpLong);
+                  break;
+                default: LOG(ERROR) << "Unexpected opcode: " << opcode;
+              }
+              mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+              mir_next->ssa_rep->num_uses = mir->ssa_rep->num_uses;
+              mir_next->ssa_rep->uses = mir->ssa_rep->uses;
+              mir_next->ssa_rep->fp_use = mir->ssa_rep->fp_use;
+              mir_next->ssa_rep->num_defs = 0;
+              mir->ssa_rep->num_uses = 0;
+              mir->ssa_rep->num_defs = 0;
+            }
           }
-        }
-        break;
-      default:
-        break;
+          break;
+        default:
+          break;
+      }
     }
+    bb = NextDominatedBlock(cu, bb);
   }
 
   if (num_temps > cu->num_compiler_temps) {
@@ -2112,13 +2043,46 @@ void DumpCheckStats(CompilationUnit *cu)
   }
 }
 
+bool BuildExtendedBBList(struct CompilationUnit* cu, struct BasicBlock* bb)
+{
+  if (bb->visited) return false;
+  if (!((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
+      || (bb->block_type == kExitBlock))) {
+    // Ignore special blocks
+    bb->visited = true;
+    return false;
+  }
+  // Must be head of extended basic block.
+  if (cu->verbose) {
+    LOG(INFO) << "Extended bb head " << bb->id;
+  }
+  cu->extended_basic_blocks.push_back(bb);
+  // Visit blocks strictly dominated by this head.
+  while (bb != NULL) {
+    bb->visited = true;
+    bb = NextDominatedBlock(cu, bb);
+    if (cu->verbose && (bb != NULL)) {
+      LOG(INFO) << "...added bb " << bb->id;
+    }
+  }
+  return false; // Not iterative - return value will be ignored
+}
+
 void BasicBlockOptimization(CompilationUnit *cu)
 {
   if (!(cu->disable_opt & (1 << kBBOpt))) {
     CompilerInitGrowableList(cu, &cu->compiler_temps, 6, kListMisc);
     DCHECK_EQ(cu->num_compiler_temps, 0);
-    DataFlowAnalysisDispatcher(cu, BasicBlockOpt,
+    // Mark all blocks as not visited
+    DataFlowAnalysisDispatcher(cu, ClearVisitedFlag,
                                   kAllNodes, false /* is_iterative */);
+    DataFlowAnalysisDispatcher(cu, BuildExtendedBBList,
+                                  kPreOrderDFSTraversal,
+                                  false /* is_iterative */);
+    // Perform extended basic block optimizations.
+    for (unsigned int i = 0; i < cu->extended_basic_blocks.size(); i++) {
+      BasicBlockOpt(cu, cu->extended_basic_blocks[i]);
+    }
   }
 }
 

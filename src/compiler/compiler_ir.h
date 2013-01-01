@@ -196,7 +196,6 @@ struct SSARepresentation;
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 #define MIR_DUP                         (1 << kMIRDup)
-#define MIR_MARK                        (1 << kMIRMark)
 
 struct Checkstats {
   int null_checks;
@@ -400,6 +399,7 @@ struct CompilationUnit {
   std::vector<uint32_t> core_vmap_table;
   std::vector<uint32_t> fp_vmap_table;
   std::vector<uint8_t> native_gc_map;
+  std::vector<BasicBlock*> extended_basic_blocks;
   bool verbose;
   bool has_loop;                       // Contains a loop.
   bool has_invoke;                     // Contains an invoke instruction.
