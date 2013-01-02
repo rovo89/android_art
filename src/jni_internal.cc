@@ -57,17 +57,6 @@ static size_t gGlobalsMax = 51200; // Arbitrary sanity check.
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
 
-void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
-                           size_t method_count) {
-  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
-  if (c.get() == NULL) {
-    LOG(FATAL) << "Couldn't find class: " << jni_class_name;
-  }
-  if (env->RegisterNatives(c.get(), methods, method_count) != JNI_OK) {
-    LOG(FATAL) << "Failed to register natives methods: " << jni_class_name;
-  }
-}
-
 void SetJniGlobalsMax(size_t max) {
   if (max != 0) {
     gGlobalsMax = max;
@@ -2021,10 +2010,14 @@ class JNI {
   }
 
   static jint RegisterNatives(JNIEnv* env, jclass java_class, const JNINativeMethod* methods, jint method_count) {
+    return RegisterNativeMethods(env, java_class, methods, method_count, true);
+  }
+
+  static jint RegisterNativeMethods(JNIEnv* env, jclass java_class, const JNINativeMethod* methods, size_t method_count, bool return_errors) {
     ScopedObjectAccess soa(env);
     Class* c = soa.Decode<Class*>(java_class);
 
-    for (int i = 0; i < method_count; i++) {
+    for (size_t i = 0; i < method_count; ++i) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
 
@@ -2038,11 +2031,14 @@ class JNI {
         m = c->FindVirtualMethod(name, sig);
       }
       if (m == NULL) {
-        LOG(INFO) << "Failed to register native method " << name << sig;
+        LOG(return_errors ? ERROR : FATAL) << "Failed to register native method "
+                                           << PrettyDescriptor(c) << "." << name << sig;
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
-        LOG(INFO) << "Failed to register non-native method " << name << sig << " as native";
+        LOG(return_errors ? ERROR : FATAL) << "Failed to register non-native method "
+                                           << PrettyDescriptor(c) << "." << name << sig
+                                           << " as native";
         ThrowNoSuchMethodError(soa, c, name, sig, "native");
         return JNI_ERR;
       }
@@ -2875,6 +2871,15 @@ void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
     pin_table.VisitRoots(visitor, arg);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).
+}
+
+void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
+                           size_t method_count) {
+  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
+  if (c.get() == NULL) {
+    LOG(FATAL) << "Couldn't find class: " << jni_class_name;
+  }
+  JNI::RegisterNativeMethods(env, c.get(), methods, method_count, false);
 }
 
 }  // namespace art
