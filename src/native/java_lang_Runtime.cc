@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <dlfcn.h>
 #include <limits.h>
 #include <unistd.h>
 
@@ -36,18 +37,26 @@ static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   exit(status);
 }
 
-/*
- * static String nativeLoad(String filename, ClassLoader loader)
- *
- * Load the specified full path as a dynamic library filled with
- * JNI-compatible methods. Returns null on success, or a failure
- * message on failure.
- */
-static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader) {
+static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader, jstring javaLdLibraryPath) {
   ScopedObjectAccess soa(env);
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
+  }
+
+  if (javaLdLibraryPath != NULL) {
+    ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
+    if (ldLibraryPath.c_str() == NULL) {
+      return NULL;
+    }
+    void* sym = dlsym(RTLD_DEFAULT, "android_update_LD_LIBRARY_PATH");
+    if (sym != NULL) {
+      typedef void (*Fn)(const char*);
+      Fn android_update_LD_LIBRARY_PATH = reinterpret_cast<Fn>(sym);
+      (*android_update_LD_LIBRARY_PATH)(ldLibraryPath.c_str());
+    } else {
+      LOG(ERROR) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+    }
   }
 
   ClassLoader* classLoader = soa.Decode<ClassLoader*>(javaLoader);
@@ -78,7 +87,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Runtime, gc, "()V"),
   NATIVE_METHOD(Runtime, maxMemory, "()J"),
   NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;"),
   NATIVE_METHOD(Runtime, totalMemory, "()J"),
 };
 
