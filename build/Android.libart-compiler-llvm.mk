@@ -40,6 +40,7 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 	src/compiler/dataflow.cc \
 	src/compiler/frontend.cc \
 	src/compiler/ralloc.cc \
+	src/compiler/bb_opt.cc \
 	src/compiler/ssa_transformation.cc \
 	src/compiler/compiler_utility.cc \
 	src/compiler/codegen/ralloc_util.cc \
