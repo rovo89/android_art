@@ -1124,6 +1124,11 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   /* Allocate Registers using simple local allocation scheme */
   SimpleRegAlloc(cu.get());
 
+  if (cu->enable_debug & (1 << kDebugDumpCFG)) {
+    DumpCFG(cu.get(), "/sdcard/7_post_ralloc_cfg/", true);
+  }
+
+
   /* Go the LLVM path? */
   if (cu->gen_bitcode) {
     // MIR->Bitcode
