@@ -221,7 +221,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
       AbstractMethod* method = *cur_quick_frame_;
-      do {
+      while (method != NULL) {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
         if (UNLIKELY(!should_continue)) {
@@ -253,7 +253,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         cur_quick_frame_ = reinterpret_cast<AbstractMethod**>(next_frame);
         cur_depth_++;
         method = *cur_quick_frame_;
-      } while (method != NULL);
+      }
     } else if (cur_shadow_frame_ != NULL) {
       do {
         SanityCheckFrame();

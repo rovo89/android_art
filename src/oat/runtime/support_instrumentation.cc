@@ -25,15 +25,12 @@ namespace art {
 extern "C" const void* artInstrumentationMethodEntryFromCode(AbstractMethod* method, Thread* self,
                                                              AbstractMethod** sp, uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (*sp != NULL) {
-    self->SetTopOfStack(sp, lr);
-  }
+  self->SetTopOfStack(sp, lr);
   self->VerifyStack();
   Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   // +1 as frame id's start at 1, +1 as we haven't yet built this method's frame.
-  const size_t kFrameIdAdjust = 2;
   size_t frame_id = StackVisitor::ComputeNumFrames(self->GetManagedStack(),
-                                                   self->GetInstrumentationStack()) + kFrameIdAdjust;
+                                                   self->GetInstrumentationStack()) + 2;
   InstrumentationStackFrame instrumentation_frame(method, lr, frame_id);
   self->PushInstrumentationStackFrame(instrumentation_frame);
 
@@ -47,26 +44,17 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(AbstractMethod* met
 
 extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (*sp != NULL) {
-    self->SetTopOfStack(sp, 0);
-  }
+  self->SetTopOfStack(sp, 0);
   self->VerifyStack();
-
-  /*
-  // TODO: ComputeNumFrames currently fails here, so it's disabled.
   // +1 as frame id's start at 1, +1 as we want the called frame not the frame being returned into.
-  const size_t kFrameIdAdjust = 2;
   size_t frame_id = StackVisitor::ComputeNumFrames(self->GetManagedStack(),
-                                                   self->GetInstrumentationStack()) + kFrameIdAdjust;
-  */
+                                                   self->GetInstrumentationStack()) + 2;
   InstrumentationStackFrame instrumentation_frame;
   instrumentation_frame = self->PopInstrumentationStackFrame();
-  /*
   if (frame_id != instrumentation_frame.frame_id_) {
     LOG(ERROR) << "Expected frame_id=" << frame_id << " but found " << instrumentation_frame.frame_id_;
     StackVisitor::DescribeStack(self->GetManagedStack(), self->GetInstrumentationStack());
   }
-  */
   Runtime* runtime = Runtime::Current();
   if (runtime->IsMethodTracingActive()) {
     Trace* trace = runtime->GetInstrumentation()->GetTrace();
