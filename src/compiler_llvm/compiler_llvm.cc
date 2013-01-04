@@ -259,9 +259,11 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
+                                                 uint32_t class_def_idx,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file) {
+  UNUSED(class_def_idx);  // TODO: this is used with Compiler::RequiresConstructorBarrier.
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
   art::OatCompilationUnit oat_compilation_unit(

@@ -86,6 +86,11 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       cg->GenMoveException(cu, rl_dest);
       break;
     case Instruction::RETURN_VOID:
+      if (((cu->access_flags & kAccConstructor) != 0) &&
+          cu->compiler->RequiresConstructorBarrier(Thread::Current(), cu->dex_file,
+                                                   cu->class_def_idx)) {
+        cg->GenMemBarrier(cu, kStoreStore);
+      }
       if (!(cu->attrs & METHOD_IS_LEAF)) {
         cg->GenSuspendTest(cu, opt_flags);
       }

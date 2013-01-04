@@ -773,8 +773,8 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
                                      const CompilerBackend compiler_backend,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
-                                     uint32_t method_idx, jobject class_loader,
-                                     const DexFile& dex_file,
+                                     uint32_t class_def_idx, uint32_t method_idx,
+                                     jobject class_loader, const DexFile& dex_file,
                                      LLVMInfo* llvm_info)
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
@@ -792,6 +792,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   cu->compiler = &compiler;
   cu->class_linker = class_linker;
   cu->dex_file = &dex_file;
+  cu->class_def_idx = class_def_idx;
   cu->method_idx = method_idx;
   cu->code_item = code_item;
   cu->access_flags = access_flags;
@@ -1224,12 +1225,12 @@ CompiledMethod* CompileOneMethod(Compiler& compiler,
                                  const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, InvokeType invoke_type,
-                                 uint32_t method_idx, jobject class_loader,
+                                 uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                                  const DexFile& dex_file,
                                  LLVMInfo* llvm_info)
 {
-  return CompileMethod(compiler, backend, code_item, access_flags, invoke_type, method_idx, class_loader,
-                       dex_file, llvm_info);
+  return CompileMethod(compiler, backend, code_item, access_flags, invoke_type, class_def_idx,
+                       method_idx, class_loader, dex_file, llvm_info);
 }
 
 }  // namespace art
@@ -1238,11 +1239,12 @@ extern "C" art::CompiledMethod*
     ArtQuickCompileMethod(art::Compiler& compiler,
                           const art::DexFile::CodeItem* code_item,
                           uint32_t access_flags, art::InvokeType invoke_type,
-                          uint32_t method_idx, jobject class_loader,
+                          uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                           const art::DexFile& dex_file)
 {
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use build default
   art::CompilerBackend backend = compiler.GetCompilerBackend();
   return art::CompileOneMethod(compiler, backend, code_item, access_flags, invoke_type,
-                               method_idx, class_loader, dex_file, NULL /* use thread llvm_info */);
+                               class_def_idx, method_idx, class_loader, dex_file,
+                               NULL /* use thread llvm_info */);
 }
