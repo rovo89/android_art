@@ -131,6 +131,9 @@ class Compiler {
 
   const CompiledInvokeStub* FindProxyStub(const char* shorty) const;
 
+  void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
+  bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
+
   // Callbacks from compiler to see what runtime checks must be generated.
 
   bool CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx)
@@ -296,7 +299,7 @@ class Compiler {
                       ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                     InvokeType invoke_type, uint32_t method_idx,
+                     InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
@@ -315,18 +318,22 @@ class Compiler {
 
   InstructionSet instruction_set_;
 
+  // All class references that require
+  mutable Mutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::set<ClassReference> freezing_constructor_classes_ GUARDED_BY(freezing_constructor_lock_);
+
   typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
-  // All class references that this compiler has compiled
+  // All class references that this compiler has compiled.
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
   typedef SafeMap<const MethodReference, CompiledMethod*> MethodTable;
-  // All method references that this compiler has compiled
+  // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
   typedef SafeMap<std::string, const CompiledInvokeStub*> InvokeStubTable;
-  // Invocation stubs created to allow invocation of the compiled methods
+  // Invocation stubs created to allow invocation of the compiled methods.
   mutable Mutex compiled_invoke_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   InvokeStubTable compiled_invoke_stubs_ GUARDED_BY(compiled_invoke_stubs_lock_);
 
@@ -355,8 +362,8 @@ class Compiler {
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
                                         const DexFile::CodeItem* code_item,
                                         uint32_t access_flags, InvokeType invoke_type,
-                                        uint32_t method_idx, jobject class_loader,
-                                        const DexFile& dex_file);
+                                        uint32_t class_dex_idx, uint32_t method_idx,
+                                        jobject class_loader, const DexFile& dex_file);
   CompilerFn compiler_;
 
   void* compiler_context_;

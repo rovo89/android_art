@@ -285,6 +285,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
                    bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
+      freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
@@ -500,8 +501,8 @@ void Compiler::CompileOne(const AbstractMethod* method) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject class_loader;
-  const DexCache* dex_cache;
   const DexFile* dex_file;
+  uint32_t class_def_idx;
   {
     ScopedObjectAccessUnchecked soa(self);
     ScopedLocalRef<jobject>
@@ -509,8 +510,9 @@ void Compiler::CompileOne(const AbstractMethod* method) {
                     soa.AddLocalReference<jobject>(method->GetDeclaringClass()->GetClassLoader()));
     class_loader = soa.Env()->NewGlobalRef(local_class_loader.get());
     // Find the dex_file
-    dex_cache = method->GetDeclaringClass()->GetDexCache();
-    dex_file = dex_cache->GetDexFile();
+    MethodHelper mh(method);
+    dex_file = &mh.GetDexFile();
+    class_def_idx = mh.GetClassDefIndex();
   }
   self->TransitionFromRunnableToSuspended(kNative);
 
@@ -524,7 +526,7 @@ void Compiler::CompileOne(const AbstractMethod* method) {
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
   CompileMethod(code_item, method->GetAccessFlags(), method->GetInvokeType(),
-                method_idx, class_loader, *dex_file);
+                class_def_idx, method_idx, class_loader, *dex_file);
 
   self->GetJniEnv()->DeleteGlobalRef(class_loader);
 
@@ -1124,7 +1126,14 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
     }
     it.Next();
   }
+  // If an instance field is final then we need to have a barrier on the return, static final
+  // fields are assigned within the lock held for class initialization.
+  bool requires_constructor_barrier = false;
   while (it.HasNextInstanceField()) {
+    if ((it.GetMemberAccessFlags() & kAccFinal) != 0) {
+      requires_constructor_barrier = true;
+    }
+
     Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
                                               class_loader, false);
     if (field == NULL) {
@@ -1133,9 +1142,14 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
     }
     it.Next();
   }
+  if (requires_constructor_barrier) {
+    context->GetCompiler()->AddRequiresConstructorBarrier(soa.Self(), context->GetDexFile(),
+                                                          class_def_index);
+  }
   while (it.HasNextDirectMethod()) {
     AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, NULL, it.GetMethodInvokeType(class_def));
+                                                         class_loader, NULL,
+                                                         it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1144,7 +1158,8 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
   }
   while (it.HasNextVirtualMethod()) {
     AbstractMethod* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, NULL, it.GetMethodInvokeType(class_def));
+                                                         class_loader, NULL,
+                                                         it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1570,8 +1585,8 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
     }
     previous_direct_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMethodInvokeType(class_def), method_idx,
-                                          class_loader, dex_file);
+                                          it.GetMethodInvokeType(class_def), class_def_index,
+                                          method_idx, class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
@@ -1586,8 +1601,8 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
     }
     previous_virtual_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMethodInvokeType(class_def), method_idx,
-                                          class_loader, dex_file);
+                                          it.GetMethodInvokeType(class_def), class_def_index,
+                                          method_idx, class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -1609,8 +1624,8 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                             InvokeType invoke_type, uint32_t method_idx, jobject class_loader,
-                             const DexFile& dex_file) {
+                             InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
+                             jobject class_loader, const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
 
@@ -1619,8 +1634,8 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, method_idx,
-                                   class_loader, dex_file);
+    compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+                                   method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
@@ -1746,6 +1761,19 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
                                        "compilerLLVMSetBitcodeFileName");
 
   set_bitcode_file_name(*this, filename);
+}
+
+
+void Compiler::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+                                             size_t class_def_index) {
+  MutexLock mu(self, freezing_constructor_lock_);
+  freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
+}
+
+bool Compiler::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+                                          size_t class_def_index) {
+  MutexLock mu(self, freezing_constructor_lock_);
+  return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
 }  // namespace art
