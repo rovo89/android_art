@@ -175,9 +175,11 @@ class CumulativeLogger {
         mean -= mean % (divisor / 1000);
         std_dev -= std_dev % (divisor / 1000);
       }
-      os << name_ << ": " << std::setw(8)
-         << FormatDuration(mean * kAdjust, tu) << " std_dev "
-         << FormatDuration(std_dev * kAdjust, tu) << " " << labels_[i] << "\n";
+      os << StringPrintf("%s: %10s (std_dev %8s) %s\n",
+                         name_.c_str(),
+                         FormatDuration(mean * kAdjust, tu).c_str(),
+                         FormatDuration(std_dev * kAdjust, tu).c_str(),
+                         labels_[i].c_str());
     }
     uint64_t total_mean_x2 = total_time_squared_;
     uint64_t mean_total_ns = GetTotalTime();

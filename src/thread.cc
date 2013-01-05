@@ -773,7 +773,11 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     }
     os << " prio=" << priority
        << " tid=" << thread->GetThinLockId()
-       << " " << thread->GetState() << "\n";
+       << " " << thread->GetState();
+    if (thread->IsStillStarting()) {
+      os << " (still starting up)";
+    }
+    os << "\n";
   } else {
     os << '"' << ::art::GetThreadName(tid) << '"'
        << " prio=" << priority
@@ -996,12 +1000,12 @@ Thread::Thread(bool daemon)
 
 bool Thread::IsStillStarting() const {
   // You might think you can check whether the state is kStarting, but for much of thread startup,
-  // the thread might also be in kVmWait.
+  // the thread is in kNative; it might also be in kVmWait.
   // You might think you can check whether the peer is NULL, but the peer is actually created and
   // assigned fairly early on, and needs to be.
   // It turns out that the last thing to change is the thread name; that's a good proxy for "has
   // this thread _ever_ entered kRunnable".
-  return (*name_ == kThreadNameDuringStartup);
+  return (jpeer_ == NULL && opeer_ == NULL) || (*name_ == kThreadNameDuringStartup);
 }
 
 void Thread::AssertNoPendingException() const {

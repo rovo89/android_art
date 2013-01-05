@@ -227,7 +227,7 @@ class MethodVerifier {
  private:
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-      uint32_t method_idx, AbstractMethod* method, uint32_t access_flags)
+      uint32_t method_idx, AbstractMethod* method, uint32_t access_flags, bool can_load_classes)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
@@ -670,6 +670,8 @@ class MethodVerifier {
   // The number of occurrences of specific opcodes.
   size_t new_instance_count_;
   size_t monitor_enter_count_;
+
+  const bool can_load_classes_;
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 

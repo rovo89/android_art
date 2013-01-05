@@ -173,7 +173,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
     }
   } else {
     if (!IsUnresolvedMergedReference() && !IsUnresolvedSuperClass() &&
-        GetDescriptor()->CharAt(0) == '[') {
+        GetDescriptor()[0] == '[') {
       // Super class of all arrays is Object.
       return cache->JavaLangObject(true);
     } else {

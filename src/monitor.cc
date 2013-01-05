@@ -901,41 +901,35 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
     return; // No "tries" implies no synchronization, so no held locks to report.
   }
 
-  // TODO: Enable dex register lock descriptions, disabling as for the portable path GetVReg is
-  // unimplemented. There is also a possible deadlock relating to the verifier calling
-  // ClassLoader.loadClass and reentering managed code whilst the ThreadList lock is held.
-  const bool kEnableDexRegisterLockDescriptions = false;
-  if (kEnableDexRegisterLockDescriptions) {
-    // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
-    // the locks held in this stack frame.
-    std::vector<uint32_t> monitor_enter_dex_pcs;
-    verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), monitor_enter_dex_pcs);
-    if (monitor_enter_dex_pcs.empty()) {
-      return;
+  // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
+  // the locks held in this stack frame.
+  std::vector<uint32_t> monitor_enter_dex_pcs;
+  verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), monitor_enter_dex_pcs);
+  if (monitor_enter_dex_pcs.empty()) {
+    return;
+  }
+
+  // Verification is an iterative process, so it can visit the same monitor-enter instruction
+  // repeatedly with increasingly accurate type information. We don't want duplicates.
+  // TODO: is this fixed if we share the other std::vector-returning verifier code?
+  STLSortAndRemoveDuplicates(&monitor_enter_dex_pcs);
+
+  for (size_t i = 0; i < monitor_enter_dex_pcs.size(); ++i) {
+    // The verifier works in terms of the dex pcs of the monitor-enter instructions.
+    // We want the registers used by those instructions (so we can read the values out of them).
+    uint32_t dex_pc = monitor_enter_dex_pcs[i];
+    uint16_t monitor_enter_instruction = code_item->insns_[dex_pc];
+
+    // Quick sanity check.
+    if ((monitor_enter_instruction & 0xff) != Instruction::MONITOR_ENTER) {
+      LOG(FATAL) << "expected monitor-enter @" << dex_pc << "; was "
+                 << reinterpret_cast<void*>(monitor_enter_instruction);
     }
 
-    // Verification is an iterative process, so it can visit the same monitor-enter instruction
-    // repeatedly with increasingly accurate type information. Our callers don't want to see
-    // duplicates.
-    STLSortAndRemoveDuplicates(&monitor_enter_dex_pcs);
-
-    for (size_t i = 0; i < monitor_enter_dex_pcs.size(); ++i) {
-      // The verifier works in terms of the dex pcs of the monitor-enter instructions.
-      // We want the registers used by those instructions (so we can read the values out of them).
-      uint32_t dex_pc = monitor_enter_dex_pcs[i];
-      uint16_t monitor_enter_instruction = code_item->insns_[dex_pc];
-
-      // Quick sanity check.
-      if ((monitor_enter_instruction & 0xff) != Instruction::MONITOR_ENTER) {
-        LOG(FATAL) << "expected monitor-enter @" << dex_pc << "; was "
-            << reinterpret_cast<void*>(monitor_enter_instruction);
-      }
-
-      uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
-      Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register,
-                                                                   kReferenceVReg));
-      DumpLockedObject(os, o);
-    }
+    uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
+    Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register,
+                                                                 kReferenceVReg));
+    DumpLockedObject(os, o);
   }
 }
 

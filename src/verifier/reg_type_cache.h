@@ -26,7 +26,8 @@ namespace verifier {
 
 class RegTypeCache {
  public:
-  explicit RegTypeCache() : entries_(RegType::kRegTypeLastFixedLocation + 1) {
+  explicit RegTypeCache(bool can_load_classes)
+      : entries_(RegType::kRegTypeLastFixedLocation + 1), can_load_classes_(can_load_classes) {
     Undefined();  // ensure Undefined is initialized
   }
   ~RegTypeCache() {
@@ -142,6 +143,8 @@ class RegTypeCache {
  private:
   // The allocated entries
   std::vector<RegType*> entries_;
+  // Whether or not we're allowed to load classes.
+  const bool can_load_classes_;
 
   DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
 };
