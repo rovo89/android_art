@@ -295,7 +295,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, co
   uint64_t start_ns = NanoTime();
 
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
-                          method, method_access_flags);
+                          method, method_access_flags, true);
   if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
@@ -331,7 +331,7 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
                                          const DexFile::CodeItem* code_item, AbstractMethod* method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
-                          dex_method_idx, method, method_access_flags);
+                          dex_method_idx, method, method_access_flags, true);
   verifier.Verify();
   verifier.DumpFailures(os);
   os << verifier.info_messages_.str();
@@ -346,15 +346,17 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_method_idx,
                                                    AbstractMethod* method,
                                                    uint32_t method_access_flags, uint32_t dex_pc) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
-                          dex_method_idx, method, method_access_flags);
+                          dex_method_idx, method, method_access_flags, true);
   verifier.Verify();
   return verifier.DescribeVRegs(dex_pc);
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
     ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    uint32_t dex_method_idx, AbstractMethod* method, uint32_t method_access_flags)
-    : work_insn_idx_(-1),
+    uint32_t dex_method_idx, AbstractMethod* method, uint32_t method_access_flags,
+    bool can_load_classes)
+    : reg_types_(can_load_classes),
+      work_insn_idx_(-1),
       dex_method_idx_(dex_method_idx),
       foo_method_(method),
       method_access_flags_(method_access_flags),
@@ -368,7 +370,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
-      monitor_enter_count_(0) {
+      monitor_enter_count_(0),
+      can_load_classes_(can_load_classes) {
 }
 
 void MethodVerifier::FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
@@ -376,7 +379,7 @@ void MethodVerifier::FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
                           mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
-                          m, m->GetAccessFlags());
+                          m, m->GetAccessFlags(), false);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = &monitor_enter_dex_pcs;
   verifier.FindLocksAtDexPc();

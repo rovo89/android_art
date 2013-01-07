@@ -396,7 +396,8 @@ void Heap::DumpGcPerformanceInfo() {
     LOG(INFO) << "Total time spent in GC: " << PrettyDuration(total_duration);
     LOG(INFO) << "Mean GC size throughput: "
               << PrettySize(GetTotalBytesFreed() / total_seconds) << "/s";
-    LOG(INFO) << "Mean GC object throughput: " << GetTotalObjectsFreed() / total_seconds << "/s";
+    LOG(INFO) << "Mean GC object throughput: "
+              << (GetTotalObjectsFreed() / total_seconds) << " objects/s";
   }
   LOG(INFO) << "Total number of allocations: " << total_objects_allocated;
   LOG(INFO) << "Total bytes allocated " << PrettySize(total_bytes_allocated);
@@ -406,7 +407,7 @@ void Heap::DumpGcPerformanceInfo() {
               << PrettyDuration(allocation_time / total_objects_allocated);
   }
   LOG(INFO) << "Total mutator paused time: " << PrettyDuration(total_paused_time);
-  LOG(INFO) << "Total time waiting for GC to complete time: " << PrettyDuration(total_wait_time_);
+  LOG(INFO) << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_);
 }
 
 Heap::~Heap() {

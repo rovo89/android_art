@@ -289,8 +289,7 @@ class PACKED(4) Thread {
   }
 
   bool HasPeer() const {
-    CHECK(jpeer_ == NULL);
-    return opeer_ != NULL;
+    return jpeer_ != NULL || opeer_ != NULL;
   }
 
   RuntimeStats* GetStats() {

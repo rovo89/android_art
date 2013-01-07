@@ -263,9 +263,8 @@ class RegType {
 
   Class* GetClass() const {
     DCHECK(!IsUnresolvedReference());
-    DCHECK(klass_or_descriptor_ != NULL);
-    DCHECK(klass_or_descriptor_->IsClass());
-    return down_cast<Class*>(klass_or_descriptor_);
+    DCHECK(klass_ != NULL);
+    return klass_;
   }
 
   bool IsJavaLangObject() const {
@@ -274,7 +273,7 @@ class RegType {
 
   bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-      return GetDescriptor()->CharAt(0) == '[';
+      return descriptor_[0] == '[';
     } else if (HasClass()) {
       return GetClass()->IsArrayClass();
     } else {
@@ -285,8 +284,8 @@ class RegType {
   bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       // Primitive arrays will always resolve
-      DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
-      return GetDescriptor()->CharAt(0) == '[';
+      DCHECK(descriptor_[1] == 'L' || descriptor_[1] == '[');
+      return descriptor_[0] == '[';
     } else if (HasClass()) {
       Class* type = GetClass();
       return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
@@ -330,11 +329,9 @@ class RegType {
     return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
   }
 
-  String* GetDescriptor() const {
+  std::string GetDescriptor() const {
     DCHECK(IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass());
-    DCHECK(klass_or_descriptor_ != NULL);
-    DCHECK(klass_or_descriptor_->GetClass()->IsStringClass());
-    return down_cast<String*>(klass_or_descriptor_);
+    return descriptor_;
   }
 
   uint16_t GetId() const {
@@ -402,9 +399,9 @@ class RegType {
  private:
   friend class RegTypeCache;
 
-  RegType(Type type, Object* klass_or_descriptor,
+  RegType(Type type, Class* klass,
           uint32_t allocation_pc_or_constant_or_merged_types, uint16_t cache_id)
-      : type_(type), klass_or_descriptor_(klass_or_descriptor),
+      : type_(type), klass_(klass),
         allocation_pc_or_constant_or_merged_types_(allocation_pc_or_constant_or_merged_types),
         cache_id_(cache_id) {
     DCHECK(IsConstant() || IsConstantLo() || IsConstantHi() ||
@@ -412,16 +409,26 @@ class RegType {
            allocation_pc_or_constant_or_merged_types == 0);
     if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
         !IsConflict() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-      DCHECK(klass_or_descriptor != NULL);
-      DCHECK(IsUnresolvedTypes() || klass_or_descriptor_->IsClass());
-      DCHECK(!IsUnresolvedTypes() || klass_or_descriptor_->GetClass()->IsStringClass());
+      DCHECK(klass_ != NULL);
+      DCHECK(klass_->IsClass());
+      DCHECK(!IsUnresolvedTypes());
     }
+  }
+
+  RegType(Type type, const std::string& descriptor, uint32_t allocation_pc, uint16_t cache_id)
+      : type_(type),
+        klass_(NULL),
+        descriptor_(descriptor),
+        allocation_pc_or_constant_or_merged_types_(allocation_pc),
+        cache_id_(cache_id) {
   }
 
   const Type type_;  // The current type of the register
 
-  // If known the type of the register, else a String for the descriptor
-  Object* klass_or_descriptor_;
+  // If known the type of the register...
+  Class* klass_;
+  // ...else a String for the descriptor.
+  std::string descriptor_;
 
   // Overloaded field that:
   //   - if IsConstant() holds a 32bit constant value

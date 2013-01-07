@@ -124,7 +124,7 @@ void SignalCatcher::HandleSigQuit() {
   thread_list->SuspendAll();
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-  const char* old_cause = self->StartAssertNoThreadSuspension("Handling sigquit");
+  const char* old_cause = self->StartAssertNoThreadSuspension("Handling SIGQUIT");
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
 
   std::ostringstream os;

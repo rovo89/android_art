@@ -27,7 +27,7 @@ class RegTypeTest : public CommonTest {};
 
 TEST_F(RegTypeTest, Primitives) {
   ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache;
+  RegTypeCache cache(true);
 
   const RegType& bool_reg_type = cache.Boolean();
   EXPECT_FALSE(bool_reg_type.IsUndefined());

@@ -74,11 +74,11 @@ const RegType& RegTypeCache::From(RegType::Type type, ClassLoader* loader, const
     DCHECK_GT(entries_.size(), static_cast<size_t>(type));
     RegType* entry = entries_[type];
     if (entry == NULL) {
-      Class* klass = NULL;
+      Class* c = NULL;
       if (strlen(descriptor) != 0) {
-        klass = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor);
+        c = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor);
       }
-      entry = new RegType(type, klass, 0, type);
+      entry = new RegType(type, c, 0, type);
       entries_[type] = entry;
     }
     return *entry;
@@ -95,30 +95,37 @@ const RegType& RegTypeCache::From(RegType::Type type, ClassLoader* loader, const
           return *cur_entry;
         }
       } else if (cur_entry->IsUnresolvedReference() &&
-                 cur_entry->GetDescriptor()->Equals(descriptor)) {
+                 cur_entry->GetDescriptor() == descriptor) {
         return *cur_entry;
       }
     }
-    Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, loader);
-    if (klass != NULL) {
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    Class* c;
+    if (can_load_classes_) {
+      c = class_linker->FindClass(descriptor, loader);
+    } else {
+      c = class_linker->LookupClass(descriptor, loader);
+    }
+    if (c != NULL) {
       // Able to resolve so create resolved register type that is precise if we
       // know the type is final.
-      RegType* entry = new RegType(klass->IsFinal() ? RegType::kRegTypePreciseReference
-                                                    : RegType::kRegTypeReference,
-                                   klass, 0, entries_.size());
+      RegType* entry = new RegType(c->IsFinal() ? RegType::kRegTypePreciseReference
+                                                : RegType::kRegTypeReference,
+                                   c, 0, entries_.size());
       entries_.push_back(entry);
       return *entry;
     } else {
       // TODO: we assume unresolved, but we may be able to do better by validating whether the
       // descriptor string is valid
       // Unable to resolve so create unresolved register type
-      DCHECK(Thread::Current()->IsExceptionPending());
-      Thread::Current()->ClearException();
+      if (can_load_classes_) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        Thread::Current()->ClearException();
+      } else {
+        DCHECK(!Thread::Current()->IsExceptionPending());
+      }
       if (IsValidDescriptor(descriptor)) {
-        String* string_descriptor =
-            Runtime::Current()->GetInternTable()->InternStrong(descriptor);
-        RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, string_descriptor, 0,
-                                     entries_.size());
+        RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, descriptor, 0, entries_.size());
         entries_.push_back(entry);
         return *entry;
       } else {
@@ -214,7 +221,7 @@ const RegType& RegTypeCache::FromUnresolvedSuperClass(const RegType& child) {
 const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
   RegType* entry;
   if (type.IsUnresolvedTypes()) {
-    String* descriptor = type.GetDescriptor();
+    std::string descriptor(type.GetDescriptor());
     for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       if (cur_entry->IsUnresolvedAndUninitializedReference() &&
@@ -245,7 +252,7 @@ const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocat
 const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
   RegType* entry;
   if (uninit_type.IsUnresolvedTypes()) {
-    String* descriptor = uninit_type.GetDescriptor();
+    std::string descriptor(uninit_type.GetDescriptor());
     for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       if (cur_entry->IsUnresolvedReference() && cur_entry->GetDescriptor() == descriptor) {
@@ -271,7 +278,7 @@ const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
   // TODO: implement descriptor version.
   RegType* entry;
   if (type.IsUnresolvedTypes()) {
-    String* descriptor = type.GetDescriptor();
+    std::string descriptor(type.GetDescriptor());
     for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
       if (cur_entry->IsUnresolvedAndUninitializedThisReference() &&
@@ -354,7 +361,7 @@ const RegType& RegTypeCache::FromCat2ConstHi(int32_t value, bool precise) {
 const RegType& RegTypeCache::GetComponentType(const RegType& array, ClassLoader* loader) {
   CHECK(array.IsArrayTypes());
   if (array.IsUnresolvedTypes()) {
-    std::string descriptor(array.GetDescriptor()->ToModifiedUtf8());
+    std::string descriptor(array.GetDescriptor());
     std::string component(descriptor.substr(1, descriptor.size() - 1));
     return FromDescriptor(loader, component.c_str(), false);
   } else {
