@@ -40,4 +40,4 @@ ANDROID_DATA=/tmp/android-data\
  LD_LIBRARY_PATH=$ANDROID_HOST_OUT/lib\
  exec $invoke_with $ANDROID_HOST_OUT/bin/$oatexec\
  -Ximage:$ANDROID_HOST_OUT/framework/core.art \
- $*
+ "$@"
