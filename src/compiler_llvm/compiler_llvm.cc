@@ -164,6 +164,18 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
     return method_compiler->Compile();
   } else {
+
+#if 1
+  /*
+   * FIXME: temporary workaround
+   * Until Portable/llvm is fixed, use Iceland.
+   */
+  UniquePtr<MethodCompiler> method_compiler(
+      new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
+
+  return method_compiler->Compile();
+#endif
+
     // TODO: consolidate ArtCompileMethods
     CompileOneMethod(*compiler_,
                      kPortable,
@@ -181,9 +193,10 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
     cunit->Materialize();
 
-    Compiler::MethodReference mref(dex_file_, method_idx_);
-    return new CompiledMethod(cunit_->GetInstructionSet(),
-                              cunit_->GetCompiledCode(),
+    Compiler::MethodReference mref(oat_compilation_unit->GetDexFile(),
+                                   oat_compilation_unit->GetDexMethodIndex());
+    return new CompiledMethod(compiler_->GetInstructionSet(),
+                              cunit->GetCompiledCode(),
                               *verifier::MethodVerifier::GetDexGcMap(mref));
   }
 #else

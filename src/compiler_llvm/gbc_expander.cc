@@ -45,7 +45,7 @@ using namespace art::compiler_llvm;
 using art::greenland::IntrinsicHelper;
 
 namespace art {
-extern char remapShorty(char shortyType);
+extern char RemapShorty(char shortyType);
 };
 
 namespace {
@@ -2485,7 +2485,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
 
   char ret_shorty = shorty[0];
 #if defined(ART_USE_PORTABLE_COMPILER)
-  ret_shorty = art::remapShorty(ret_shorty);
+  ret_shorty = art::RemapShorty(ret_shorty);
 #endif
   llvm::Type* ret_type = irb_.getJType(ret_shorty, kAccurate);
 
@@ -2500,7 +2500,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-    char shorty_type = art::remapShorty(shorty[i]);
+    char shorty_type = art::RemapShorty(shorty[i]);
     args_type.push_back(irb_.getJType(shorty_type, kAccurate));
 #else
     args_type.push_back(irb_.getJType(shorty[i], kAccurate));
@@ -2635,7 +2635,7 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
   // Emit the code to return default value (zero) for the given return type.
   char ret_shorty = oat_compilation_unit_->GetShorty()[0];
 #if defined(ART_USE_PORTABLE_COMPILER)
-  ret_shorty = art::remapShorty(ret_shorty);
+  ret_shorty = art::RemapShorty(ret_shorty);
 #endif
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();

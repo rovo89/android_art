@@ -145,6 +145,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
+                                                 uint32_t class_dex_idx,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file);
