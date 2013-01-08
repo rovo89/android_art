@@ -49,7 +49,6 @@ struct WellKnownClasses {
   static jclass java_lang_StackOverflowError;
   static jclass java_lang_Thread;
   static jclass java_lang_ThreadGroup;
-  static jclass java_lang_ThreadLock;
   static jclass java_lang_Thread$UncaughtExceptionHandler;
   static jclass java_lang_Throwable;
   static jclass java_nio_ReadWriteDirectByteBuffer;
@@ -93,7 +92,6 @@ struct WellKnownClasses {
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
   static jfieldID java_lang_ThreadGroup_systemThreadGroup;
-  static jfieldID java_lang_ThreadLock_thread;
   static jfieldID java_nio_ReadWriteDirectByteBuffer_capacity;
   static jfieldID java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;

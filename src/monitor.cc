@@ -430,7 +430,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
    */
   self->TransitionFromRunnableToSuspended(why);
 
-  bool wasInterrupted = false;
+  bool was_interrupted = false;
   {
     // Pseudo-atomically wait on self's wait_cond_ and release the monitor lock.
     MutexLock mu(self, *self->wait_mutex_);
@@ -444,12 +444,9 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
     // Release the monitor lock.
     Unlock(self, true);
 
-    /*
-     * Handle the case where the thread was interrupted before we called
-     * wait().
-     */
+    // Handle the case where the thread was interrupted before we called wait().
     if (self->interrupted_) {
-      wasInterrupted = true;
+      was_interrupted = true;
     } else {
       // Wait for a notification or a timeout to occur.
       if (why == kWaiting) {
@@ -459,19 +456,27 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
         self->wait_cond_->TimedWait(self, ms, ns);
       }
       if (self->interrupted_) {
-        wasInterrupted = true;
+        was_interrupted = true;
       }
       self->interrupted_ = false;
     }
-    self->wait_monitor_ = NULL;
   }
 
   // Set self->status back to kRunnable, and self-suspend if needed.
   self->TransitionFromSuspendedToRunnable();
 
+  {
+    // We reset the thread's wait_monitor_ field after transitioning back to runnable so
+    // that a thread in a waiting/sleeping state has a non-null wait_monitor_ for debugging
+    // and diagnostic purposes. (If you reset this earlier, stack dumps will claim that threads
+    // are waiting on "null".)
+    MutexLock mu(self, *self->wait_mutex_);
+    DCHECK(self->wait_monitor_ != NULL);
+    self->wait_monitor_ = NULL;
+  }
+
   // Re-acquire the monitor lock.
   Lock(self);
-
 
   self->wait_mutex_->AssertNotHeld(self);
 
@@ -487,7 +492,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
   locking_dex_pc_ = saved_dex_pc;
   RemoveFromWaitSet(self);
 
-  if (wasInterrupted) {
+  if (was_interrupted) {
     /*
      * We were interrupted while waiting, or somebody interrupted an
      * un-interruptible thread earlier and we're bailing out immediately.
@@ -809,43 +814,25 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
   }
 }
 
-static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
-  ScopedObjectAccess soa(Thread::Current());
-  if (thread_lock == NULL ||
-      thread_lock->GetClass() != soa.Decode<Class*>(WellKnownClasses::java_lang_ThreadLock)) {
-    return ThreadList::kInvalidId;
-  }
-  Field* thread_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
-  Object* managed_thread = thread_field->GetObject(thread_lock);
-  if (managed_thread == NULL) {
-    return ThreadList::kInvalidId;
-  }
-  Field* vmData_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
-  uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
-  Thread* thread = reinterpret_cast<Thread*>(vmData);
-  if (thread == NULL) {
-    return ThreadList::kInvalidId;
-  }
-  return thread->GetThinLockId();
-}
-
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   ThreadState state;
   state = thread->GetState();
 
   Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
-  if (state == kWaiting || state == kTimedWaiting) {
-    os << "  - waiting on ";
-    Monitor* monitor;
+  if (state == kWaiting || state == kTimedWaiting || state == kSleeping) {
+    if (state == kSleeping) {
+      os << "  - sleeping on ";
+    } else {
+      os << "  - waiting on ";
+    }
     {
       MutexLock mu(Thread::Current(), *thread->wait_mutex_);
-      monitor = thread->wait_monitor_;
+      Monitor* monitor = thread->wait_monitor_;
+      if (monitor != NULL) {
+        object = monitor->obj_;
+      }
     }
-    if (monitor != NULL) {
-      object = monitor->obj_;
-    }
-    lock_owner = LockOwnerFromThreadLock(object);
   } else if (state == kBlocked) {
     os << "  - waiting to lock ";
     object = thread->monitor_enter_object_;
@@ -857,10 +844,10 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     return;
   }
 
-  // - waiting on <0x613f83d8> (a java.lang.ThreadLock) held by thread 5
   // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
   os << "<" << object << "> (a " << PrettyTypeOf(object) << ")";
 
+  // - waiting to lock <0x613f83d8> (a java.lang.ThreadLock) held by thread 5
   if (lock_owner != ThreadList::kInvalidId) {
     os << " held by thread " << lock_owner;
   }
