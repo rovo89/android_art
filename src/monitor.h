@@ -82,7 +82,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void NotifyAll(Thread* self, Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow)
+  static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow, ThreadState why)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void DescribeWait(std::ostream& os, const Thread* thread)
@@ -125,9 +125,9 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow)
+  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow, ThreadState why)
       NO_THREAD_SAFETY_ANALYSIS;
-  void WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow)
+  void WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow, ThreadState why)
       EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

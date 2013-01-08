@@ -379,8 +379,11 @@ bool Monitor::Unlock(Thread* self, bool for_wait) {
  * Since we're allowed to wake up "early", we clamp extremely long durations
  * to return at the end of the 32-bit time epoch.
  */
-void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow) {
+void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
+                   bool interruptShouldThrow, ThreadState why) {
   DCHECK(self != NULL);
+  DCHECK(why == kTimedWaiting || why == kWaiting || why == kSleeping);
+  DCHECK(why != kWaiting || (ms == 0 && ns == 0));
 
   // Make sure that we hold the lock.
   if (owner_ != self) {
@@ -388,10 +391,12 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
     return;
   }
   monitor_lock_.AssertHeld(self);
-  WaitWithLock(self, ms, ns, interruptShouldThrow);
+
+  WaitWithLock(self, ms, ns, interruptShouldThrow, why);
 }
 
-void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow) {
+void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
+                           bool interruptShouldThrow, ThreadState why) {
   // Enforce the timeout range.
   if (ms < 0 || ns < 0 || ns > 999999) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
@@ -419,12 +424,11 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
   locking_dex_pc_ = 0;
 
   /*
-   * Update thread status.  If the GC wakes up, it'll ignore us, knowing
+   * Update thread state. If the GC wakes up, it'll ignore us, knowing
    * that we won't touch any references in this state, and we'll check
    * our suspend mode before we transition out.
    */
-  bool timed = (ms != 0 || ns != 0);
-  self->TransitionFromRunnableToSuspended(timed ? kTimedWaiting : kWaiting);
+  self->TransitionFromRunnableToSuspended(why);
 
   bool wasInterrupted = false;
   {
@@ -448,9 +452,10 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptS
       wasInterrupted = true;
     } else {
       // Wait for a notification or a timeout to occur.
-      if (!timed) {
+      if (why == kWaiting) {
         self->wait_cond_->Wait(self);
       } else {
+        DCHECK(why == kTimedWaiting || why == kSleeping) << why;
         self->wait_cond_->TimedWait(self, ms, ns);
       }
       if (self->interrupted_) {
@@ -733,7 +738,8 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
 /*
  * Object.wait().  Also called for class init.
  */
-void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool interruptShouldThrow) {
+void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns,
+                   bool interruptShouldThrow, ThreadState why) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
   // If the lock is still thin, we need to fatten it.
@@ -753,7 +759,7 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool inter
     Inflate(self, obj);
     VLOG(monitor) << StringPrintf("monitor: thread %d fattened lock %p by wait()", self->GetThinLockId(), thinp);
   }
-  LW_MONITOR(*thinp)->Wait(self, ms, ns, interruptShouldThrow);
+  LW_MONITOR(*thinp)->Wait(self, ms, ns, interruptShouldThrow, why);
 }
 
 void Monitor::Notify(Thread* self, Object *obj) {

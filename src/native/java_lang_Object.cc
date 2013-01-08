@@ -18,37 +18,49 @@
 #include "object.h"
 #include "scoped_thread_state_change.h"
 
+// TODO: better support for overloading.
+#undef NATIVE_METHOD
+#define NATIVE_METHOD(className, functionName, signature, identifier) \
+    { #functionName, signature, reinterpret_cast<void*>(className ## _ ## identifier) }
+
 namespace art {
 
-static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
+static jobject Object_internalClone(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(javaThis);
+  Object* o = soa.Decode<Object*>(java_this);
   return soa.AddLocalReference<jobject>(o->Clone(soa.Self()));
 }
 
-static void Object_notify(JNIEnv* env, jobject javaThis) {
+static void Object_notify(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(javaThis);
+  Object* o = soa.Decode<Object*>(java_this);
   o->Notify();
 }
 
-static void Object_notifyAll(JNIEnv* env, jobject javaThis) {
+static void Object_notifyAll(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(javaThis);
+  Object* o = soa.Decode<Object*>(java_this);
   o->NotifyAll();
 }
 
-static void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
+static void Object_wait(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(javaThis);
+  Object* o = soa.Decode<Object*>(java_this);
+  o->Wait();
+}
+
+static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(java_this);
   o->Wait(ms, ns);
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Object, internalClone, "()Ljava/lang/Object;"),
-  NATIVE_METHOD(Object, notify, "()V"),
-  NATIVE_METHOD(Object, notifyAll, "()V"),
-  NATIVE_METHOD(Object, wait, "(JI)V"),
+  NATIVE_METHOD(Object, internalClone, "()Ljava/lang/Object;", internalClone),
+  NATIVE_METHOD(Object, notify, "()V", notify),
+  NATIVE_METHOD(Object, notifyAll, "()V", notifyAll),
+  NATIVE_METHOD(Object, wait, "()V", wait),
+  NATIVE_METHOD(Object, wait, "(JI)V", waitJI),
 };
 
 void register_java_lang_Object(JNIEnv* env) {

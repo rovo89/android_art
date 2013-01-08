@@ -77,23 +77,25 @@ enum ThreadPriority {
 };
 
 enum ThreadState {
-  kTerminated                     = 0,   // Thread.TERMINATED     JDWP TS_ZOMBIE
-  kRunnable                       = 1,   // Thread.RUNNABLE       JDWP TS_RUNNING
-  kTimedWaiting                   = 2,   // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
-  kBlocked                        = 3,   // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
-  kWaiting                        = 4,   // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
-  kWaitingForGcToComplete         = 5,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for GC
-  kWaitingPerformingGc            = 6,   // Thread.WAITING        JDWP TS_WAIT    - performing GC
-  kWaitingForDebuggerSend         = 7,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for events to be sent
-  kWaitingForDebuggerToAttach     = 8,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for debugger to attach
-  kWaitingInMainDebuggerLoop      = 9,   // Thread.WAITING        JDWP TS_WAIT    - blocking/reading/processing debugger events
-  kWaitingForDebuggerSuspension   = 10,  // Thread.WAITING        JDWP TS_WAIT    - waiting for debugger suspend all
-  kWaitingForJniOnLoad            = 11,  // Thread.WAITING        JDWP TS_WAIT    - waiting for execution of dlopen and JNI on load code
-  kWaitingForSignalCatcherOutput  = 12,  // Thread.WAITING        JDWP TS_WAIT    - waiting for signal catcher IO to complete
-  kWaitingInMainSignalCatcherLoop = 13,  // Thread.WAITING        JDWP TS_WAIT    - blocking/reading/processing signals
-  kStarting                       = 14,  // Thread.NEW            JDWP TS_WAIT    - native thread started, not yet ready to run managed code
-  kNative                         = 15,  // Thread.RUNNABLE       JDWP TS_RUNNING - running in a JNI native method
-  kSuspended                      = 16,  // Thread.RUNNABLE       JDWP TS_RUNNING - suspended by GC or debugger
+  //                                  Thread.State   JDWP state
+  kTerminated,                     // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
+  kRunnable,                       // RUNNABLE       TS_RUNNING   runnable
+  kTimedWaiting,                   // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
+  kSleeping,                       // TIMED_WAITING  TS_SLEEPING  in Thread.sleep()
+  kBlocked,                        // BLOCKED        TS_MONITOR   blocked on a monitor
+  kWaiting,                        // WAITING        TS_WAIT      in Object.wait()
+  kWaitingForGcToComplete,         // WAITING        TS_WAIT      blocked waiting for GC
+  kWaitingPerformingGc,            // WAITING        TS_WAIT      performing GC
+  kWaitingForDebuggerSend,         // WAITING        TS_WAIT      blocked waiting for events to be sent
+  kWaitingForDebuggerToAttach,     // WAITING        TS_WAIT      blocked waiting for debugger to attach
+  kWaitingInMainDebuggerLoop,      // WAITING        TS_WAIT      blocking/reading/processing debugger events
+  kWaitingForDebuggerSuspension,   // WAITING        TS_WAIT      waiting for debugger suspend all
+  kWaitingForJniOnLoad,            // WAITING        TS_WAIT      waiting for execution of dlopen and JNI on load code
+  kWaitingForSignalCatcherOutput,  // WAITING        TS_WAIT      waiting for signal catcher IO to complete
+  kWaitingInMainSignalCatcherLoop, // WAITING        TS_WAIT      blocking/reading/processing signals
+  kStarting,                       // NEW            TS_WAIT      native thread started, not yet ready to run managed code
+  kNative,                         // RUNNABLE       TS_RUNNING   running in a JNI native method
+  kSuspended,                      // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
 
 enum ThreadFlag {

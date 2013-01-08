@@ -1424,6 +1424,7 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
     case kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
     case kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
     case kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kSleeping:     *pThreadStatus = JDWP::TS_SLEEPING; break;
     case kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
     case kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
     case kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
@@ -1440,34 +1441,6 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
                         *pThreadStatus = JDWP::TS_WAIT;     break;
     case kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
-  }
-
-  if (thread->GetState() == kTimedWaiting) {
-    // Since Thread.sleep is implemented using Object.wait, see if Thread.sleep
-    // is on the stack and change state to TS_SLEEPING if it is.
-    struct SleepMethodVisitor : public StackVisitor {
-      SleepMethodVisitor(const ManagedStack* stack,
-                         const std::deque<InstrumentationStackFrame>* instrumentation_stack)
-          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-          : StackVisitor(stack, instrumentation_stack, NULL), found_(false) {}
-
-      virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-        std::string name(PrettyMethod(GetMethod(), false));
-        if (name == "java.lang.Thread.sleep") {
-          found_ = true;
-          return false;
-        }
-        return true;
-      }
-
-      bool found_;
-    };
-
-    SleepMethodVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
-    visitor.WalkStack(false);
-    if (visitor.found_) {
-      *pThreadStatus = JDWP::TS_SLEEPING;
-    }
   }
 
   *pSuspendStatus = (thread->IsSuspended() ? JDWP::SUSPEND_STATUS_SUSPENDED : JDWP::SUSPEND_STATUS_NOT_SUSPENDED);

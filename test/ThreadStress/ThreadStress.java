@@ -34,7 +34,10 @@ class ThreadStress implements Runnable {
         ALLOC(60),
         STACKTRACE(20),
         EXIT(50),
-        WAIT(50);
+
+        SLEEP(25),
+        TIMED_WAIT(10),
+        WAIT(15);
 
         private final int frequency;
         Operation(int frequency) {
@@ -48,7 +51,7 @@ class ThreadStress implements Runnable {
         final int totalOperations = 1000;
         final int operationsPerThread = totalOperations/numberOfThreads;
 
-        // Lock used to notify threads performin Operation.WAIT
+        // Lock used to notify threads performing Operation.WAIT
         final Object lock = new Object();
 
         // Each thread is going to do operationsPerThread
@@ -203,11 +206,26 @@ class ThreadStress implements Runnable {
                         } catch (ErrnoException ex) {
                         }
                     }
+                    case SLEEP: {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException ignored) {
+                        }
+                    }
+                    case TIMED_WAIT: {
+                        synchronized (lock) {
+                            try {
+                                lock.wait(100, 0);
+                            } catch (InterruptedException ignored) {
+                            }
+                        }
+                        break;
+                    }
                     case WAIT: {
                         synchronized (lock) {
                             try {
                                 lock.wait();
-                            } catch (InterruptedException e) {
+                            } catch (InterruptedException ignored) {
                             }
                         }
                         break;

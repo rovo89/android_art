@@ -164,10 +164,11 @@ class MANAGED Object {
 
   void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void Wait() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void Wait(int64_t timeout) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Wait(int64_t timeout, int32_t nanos)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Wait(int64_t timeout, int32_t nanos) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsClass() const;
 

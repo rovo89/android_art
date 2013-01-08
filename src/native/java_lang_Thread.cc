@@ -16,6 +16,7 @@
 
 #include "debugger.h"
 #include "jni_internal.h"
+#include "monitor.h"
 #include "object.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
@@ -65,6 +66,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
     case kTerminated:                     return kJavaTerminated;
     case kRunnable:                       return kJavaRunnable;
     case kTimedWaiting:                   return kJavaTimedWaiting;
+    case kSleeping:                       return kJavaTimedWaiting;
     case kBlocked:                        return kJavaBlocked;
     case kWaiting:                        return kJavaWaiting;
     case kStarting:                       return kJavaNew;
@@ -145,6 +147,12 @@ static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_
   }
 }
 
+static void Thread_sleep(JNIEnv* env, jclass, jobject java_lock, jlong ms, jint ns) {
+  ScopedObjectAccess soa(env);
+  Object* lock = soa.Decode<Object*>(java_lock);
+  Monitor::Wait(Thread::Current(), lock, ms, ns, true, kSleeping);
+}
+
 /*
  * Causes the thread to temporarily pause and allow other threads to execute.
  *
@@ -165,6 +173,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, nativeInterrupt, "()V"),
   NATIVE_METHOD(Thread, nativeSetName, "(Ljava/lang/String;)V"),
   NATIVE_METHOD(Thread, nativeSetPriority, "(I)V"),
+  NATIVE_METHOD(Thread, sleep, "(Ljava/lang/Object;JI)V"),
   NATIVE_METHOD(Thread, yield, "()V"),
 };
 

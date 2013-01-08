@@ -44,7 +44,7 @@ class ObjectLock {
   }
 
   void Wait() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Monitor::Wait(self_, obj_, 0, 0, false);
+    return Monitor::Wait(self_, obj_, 0, 0, false, kWaiting);
   }
 
   void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

@@ -156,8 +156,12 @@ void Object::NotifyAll() {
   Monitor::NotifyAll(Thread::Current(), this);
 }
 
+void Object::Wait() {
+  Monitor::Wait(Thread::Current(), this, 0, 0, true, kWaiting);
+}
+
 void Object::Wait(int64_t ms, int32_t ns) {
-  Monitor::Wait(Thread::Current(), this, ms, ns, true);
+  Monitor::Wait(Thread::Current(), this, ms, ns, true, kTimedWaiting);
 }
 
 #if VERIFY_OBJECT_ENABLED
