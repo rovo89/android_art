@@ -125,110 +125,110 @@ class Dbg {
    */
   static std::string GetClassName(JDWP::RefTypeId id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId)
+  static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& class_object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId)
+  static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclass_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetReflectedType(JDWP::RefTypeId classId, JDWP::ExpandBuf* pReply)
+  static JDWP::JdwpError GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag,
+  static JDWP::JdwpError GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag,
                                       uint32_t* pStatus, std::string* pDescriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply);
-  static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature)
+  static JDWP::JdwpError GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetSignature(JDWP::RefTypeId ref_type_id, std::string& signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file)
+  static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId ref_type_id, std::string& source_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetObjectTag(JDWP::ObjectId objectId, uint8_t& tag)
+  static JDWP::JdwpError GetObjectTag(JDWP::ObjectId object_id, uint8_t& tag)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
-  static JDWP::JdwpError GetArrayLength(JDWP::ObjectId arrayId, int& length)
+  static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count,
+  static JDWP::JdwpError OutputArray(JDWP::ObjectId array_id, int offset, int count,
                                      JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count,
+  static JDWP::JdwpError SetArrayElements(JDWP::ObjectId array_id, int offset, int count,
                                           const uint8_t* buf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId CreateString(const std::string& str)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object)
+  static JDWP::JdwpError CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId& new_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length,
+  static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t length,
                                            JDWP::ObjectId& new_array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId)
+  static bool MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Method and Field
    */
-  static std::string GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id)
+  static std::string GetMethodName(JDWP::RefTypeId ref_type_id, JDWP::MethodId id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric,
+  static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId ref_type_id, bool with_generic,
                                               JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric,
+  static JDWP::JdwpError OutputDeclaredMethods(JDWP::RefTypeId ref_type_id, bool with_generic,
                                                JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId,
+  static JDWP::JdwpError OutputDeclaredInterfaces(JDWP::RefTypeId ref_type_id,
                                                   JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId,
+  static void OutputLineTable(JDWP::RefTypeId ref_type_id, JDWP::MethodId method_id,
                               JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric,
+  static void OutputVariableTable(JDWP::RefTypeId ref_type_id, JDWP::MethodId id, bool with_generic,
                                   JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId fieldId)
+  static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId field_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId)
+  static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId field_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);;
-  static JDWP::JdwpError GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
+  static JDWP::JdwpError GetFieldValue(JDWP::ObjectId object_id, JDWP::FieldId field_id,
                                        JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
+  static JDWP::JdwpError SetFieldValue(JDWP::ObjectId object_id, JDWP::FieldId field_id,
                                        uint64_t value, int width)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId,
+  static JDWP::JdwpError GetStaticFieldValue(JDWP::RefTypeId ref_type_id, JDWP::FieldId field_id,
                                              JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width)
+  static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId field_id, uint64_t value, int width)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static std::string StringToUtf8(JDWP::ObjectId strId)
+  static std::string StringToUtf8(JDWP::ObjectId string_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Thread, ThreadGroup, Frame
    */
-  static JDWP::JdwpError GetThreadName(JDWP::ObjectId threadId, std::string& name)
+  static JDWP::JdwpError GetThreadName(JDWP::ObjectId thread_id, std::string& name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
-  static std::string GetThreadGroupName(JDWP::ObjectId threadGroupId);
-  static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId threadGroupId)
+  static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
+  static std::string GetThreadGroupName(JDWP::ObjectId thread_group_id);
+  static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId thread_group_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetSystemThreadGroupId()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetMainThreadGroupId();
 
-  static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
-  static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
-  static JDWP::JdwpError IsSuspended(JDWP::ObjectId threadId, bool& result);
-  //static void WaitForSuspend(JDWP::ObjectId threadId);
+  static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
+  static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError IsSuspended(JDWP::ObjectId thread_id, bool& result);
+  //static void WaitForSuspend(JDWP::ObjectId thread_id);
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
   // returns all threads.
@@ -237,7 +237,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
 
-  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId threadId, size_t& result);
+  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
                                          size_t frame_count, JDWP::ExpandBuf* buf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -248,12 +248,12 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
   static void ResumeVM();
-  static JDWP::JdwpError SuspendThread(JDWP::ObjectId threadId, bool request_suspension = true)
+  static JDWP::JdwpError SuspendThread(JDWP::ObjectId thread_id, bool request_suspension = true)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
 
-  static void ResumeThread(JDWP::ObjectId threadId)
+  static void ResumeThread(JDWP::ObjectId thread_id)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -264,10 +264,10 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot,
+  static void GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
                             JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot,
+  static void SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
                             JDWP::JdwpTag tag, uint64_t value, size_t width)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -303,14 +303,14 @@ class Dbg {
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size,
+  static JDWP::JdwpError ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void UnconfigureStep(JDWP::ObjectId threadId) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
+  static void UnconfigureStep(JDWP::ObjectId thread_id) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
 
-  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId,
-                                      JDWP::RefTypeId classId, JDWP::MethodId methodId,
+  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId object_id,
+                                      JDWP::RefTypeId class_id, JDWP::MethodId method_id,
                                       uint32_t arg_count, uint64_t* arg_values,
                                       JDWP::JdwpTag* arg_types, uint32_t options,
                                       JDWP::JdwpTag* pResultTag, uint64_t* pResultValue,
