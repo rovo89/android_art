@@ -34,9 +34,9 @@ bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
                   int& field_offset, bool& is_volatile, bool is_put)
 {
   OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-               *cu->dex_file,
-               cu->code_item, cu->method_idx,
-               cu->access_flags);
+                            *cu->dex_file, cu->code_item,
+                            cu->class_def_idx, cu->method_idx,
+                            cu->access_flags);
   return cu->compiler->ComputeInstanceFieldInfo(field_idx, &m_unit,
            field_offset, is_volatile, is_put);
 }

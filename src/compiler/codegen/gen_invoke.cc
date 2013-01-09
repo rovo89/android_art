@@ -1219,9 +1219,9 @@ void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
   LockCallTemps(cu);
 
   OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-                           *cu->dex_file,
-                           cu->code_item, cu->method_idx,
-                           cu->access_flags);
+                            *cu->dex_file, cu->code_item,
+                            cu->class_def_idx, cu->method_idx,
+                            cu->access_flags);
 
   uint32_t dex_method_idx = info->index;
   int vtable_idx;

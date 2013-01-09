@@ -355,8 +355,6 @@ struct CompilationUnit {
       entry_bb(NULL),
       entryTarget_bb(NULL),
       temp_name(0),
-      num_shadow_frame_entries(0),
-      shadow_map(NULL),
 #ifndef NDEBUG
       live_sreg(0),
 #endif
@@ -520,8 +518,6 @@ struct CompilationUnit {
   SafeMap<llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label.
   SafeMap<int32_t, llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb.
   SafeMap<llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec.
-  int num_shadow_frame_entries;
-  int* shadow_map;
   std::set<llvm::BasicBlock*> llvm_blocks;
 #ifndef NDEBUG
   /*

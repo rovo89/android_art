@@ -45,7 +45,7 @@ void CompileOneMethod(Compiler& compiler,
                       const CompilerBackend compilerBackend,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
-                      uint32_t method_idx, jobject class_loader,
+                      uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                       const DexFile& dex_file,
                       LLVMInfo* llvm_info);
 }
@@ -165,23 +165,13 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
     return method_compiler->Compile();
   } else {
 
-#if 1
-  /*
-   * FIXME: temporary workaround
-   * Until Portable/llvm is fixed, use Iceland.
-   */
-  UniquePtr<MethodCompiler> method_compiler(
-      new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
-
-  return method_compiler->Compile();
-#endif
-
     // TODO: consolidate ArtCompileMethods
     CompileOneMethod(*compiler_,
                      kPortable,
                      oat_compilation_unit->GetCodeItem(),
                      oat_compilation_unit->access_flags_,
                      invoke_type,
+                     oat_compilation_unit->GetClassDefIndex(),
                      oat_compilation_unit->GetDexMethodIndex(),
                      oat_compilation_unit->GetClassLoader(),
                      *oat_compilation_unit->GetDexFile(),
@@ -281,7 +271,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
 
   art::OatCompilationUnit oat_compilation_unit(
     class_loader, class_linker, dex_file, code_item,
-    method_idx, access_flags);
+    class_def_idx, method_idx, access_flags);
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit, invoke_type);
   return result;
@@ -294,7 +284,7 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
 
   art::OatCompilationUnit oat_compilation_unit(
     NULL, class_linker, dex_file, NULL,
-    method_idx, access_flags);
+    0, method_idx, access_flags);
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&oat_compilation_unit);

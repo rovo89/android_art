@@ -370,8 +370,8 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
   bool is_volatile;
   bool is_referrers_class;
 
-  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker, *cu->dex_file,
-                           cu->code_item, cu->method_idx, cu->access_flags);
+  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker, *cu->dex_file, cu->code_item,
+                            cu->class_def_idx, cu->method_idx, cu->access_flags);
 
   bool fast_path =
       cu->compiler->ComputeStaticFieldInfo(field_idx, &m_unit,
@@ -463,9 +463,9 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
   bool is_referrers_class;
 
   OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-                           *cu->dex_file,
-                           cu->code_item, cu->method_idx,
-                           cu->access_flags);
+                            *cu->dex_file, cu->code_item,
+                            cu->class_def_idx, cu->method_idx,
+                            cu->access_flags);
 
   bool fast_path =
     cu->compiler->ComputeStaticFieldInfo(field_idx, &m_unit,

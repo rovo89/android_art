@@ -53,15 +53,13 @@ static llvm::Value* GetLLVMValue(CompilationUnit* cu, int s_reg)
 static void SetVregOnValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
 {
   // Set vreg for debugging
-  if (cu->compiler->IsDebuggingSupported()) {
-    greenland::IntrinsicHelper::IntrinsicId id =
-        greenland::IntrinsicHelper::SetVReg;
-    llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
-    int v_reg = SRegToVReg(cu, s_reg);
-    llvm::Value* table_slot = cu->irb->getInt32(v_reg);
-    llvm::Value* args[] = { table_slot, val };
-    cu->irb->CreateCall(func, args);
-  }
+  greenland::IntrinsicHelper::IntrinsicId id =
+      greenland::IntrinsicHelper::SetVReg;
+  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  int v_reg = SRegToVReg(cu, s_reg);
+  llvm::Value* table_slot = cu->irb->getInt32(v_reg);
+  llvm::Value* args[] = { table_slot, val };
+  cu->irb->CreateCall(func, args);
 }
 
 // Replace the placeholder value with the real definition
@@ -1799,33 +1797,44 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
 
   if (bb->block_type == kEntryBlock) {
     SetMethodInfo(cu);
-    bool *can_be_ref = static_cast<bool*>(NewMem(cu, sizeof(bool) * cu->num_dalvik_registers,
-                                               true, kAllocMisc));
-    for (int i = 0; i < cu->num_ssa_regs; i++) {
-      int v_reg = SRegToVReg(cu, i);
-      if (v_reg > SSA_METHOD_BASEREG) {
-        can_be_ref[SRegToVReg(cu, i)] |= cu->reg_location[i].ref;
-      }
+
+    { // Allocate shadowframe.
+      greenland::IntrinsicHelper::IntrinsicId id =
+              greenland::IntrinsicHelper::AllocaShadowFrame;
+      llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+      llvm::Value* entries = cu->irb->getInt32(cu->num_dalvik_registers);
+      cu->irb->CreateCall(func, entries);
     }
-    for (int i = 0; i < cu->num_dalvik_registers; i++) {
-      if (can_be_ref[i]) {
-        cu->num_shadow_frame_entries++;
+
+    { // Store arguments to vregs.
+      uint16_t arg_reg = cu->num_regs;
+
+      llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
+      llvm::Function::arg_iterator arg_end(cu->func->arg_end());
+
+      const char* shorty = cu->shorty;
+      uint32_t shorty_size = strlen(shorty);
+      CHECK_GE(shorty_size, 1u);
+
+      ++arg_iter; // skip method object
+
+      if ((cu->access_flags & kAccStatic) == 0) {
+        SetVregOnValue(cu, arg_iter, arg_reg);
+        ++arg_iter;
+        ++arg_reg;
       }
-    }
-    if (cu->num_shadow_frame_entries > 0) {
-      cu->shadow_map = static_cast<int*>(NewMem(cu, sizeof(int) * cu->num_shadow_frame_entries,
-                                                  true, kAllocMisc));
-      for (int i = 0, j = 0; i < cu->num_dalvik_registers; i++) {
-        if (can_be_ref[i]) {
-          cu->shadow_map[j++] = i;
+
+      for (uint32_t i = 1; i < shorty_size; ++i, ++arg_iter) {
+        SetVregOnValue(cu, arg_iter, arg_reg);
+
+        ++arg_reg;
+        if (shorty[i] == 'J' || shorty[i] == 'D') {
+          // Wide types, such as long and double, are using a pair of registers
+          // to store the value, so we have to increase arg_reg again.
+          ++arg_reg;
         }
       }
     }
-    greenland::IntrinsicHelper::IntrinsicId id =
-            greenland::IntrinsicHelper::AllocaShadowFrame;
-    llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
-    llvm::Value* entries = cu->irb->getInt32(cu->num_shadow_frame_entries);
-    cu->irb->CreateCall(func, entries);
   } else if (bb->block_type == kExitBlock) {
     /*
      * Because of the differences between how MIR/LIR and llvm handle exit
