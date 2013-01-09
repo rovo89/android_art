@@ -1249,7 +1249,9 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteLocalRef(s);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid local reference: 0x1500001");
+
+    std::string expected(StringPrintf("native code passing in reference to invalid local reference: %p", s));
+    check_jni_abort_catcher.Check(expected.c_str());
   }
 
   s = env_->NewStringUTF("");
@@ -1330,7 +1332,9 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteGlobalRef(o);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid global reference: 0x10005a");
+
+    std::string expected(StringPrintf("native code passing in reference to invalid global reference: %p", o));
+    check_jni_abort_catcher.Check(expected.c_str());
   }
 
   jobject o1 = env_->NewGlobalRef(s);
@@ -1372,7 +1376,9 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteWeakGlobalRef(o);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid weak global reference: 0x100003");
+
+    std::string expected(StringPrintf("native code passing in reference to invalid weak global reference: %p", o));
+    check_jni_abort_catcher.Check(expected.c_str());
   }
 
   jobject o1 = env_->NewWeakGlobalRef(s);
