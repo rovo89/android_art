@@ -852,7 +852,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
   os << "<" << object << "> (a " << PrettyTypeOf(object) << ")";
 
-  // - waiting to lock <0x613f83d8> (a java.lang.ThreadLock) held by thread 5
+  // - waiting to lock <0x613f83d8> (a java.lang.Object) held by thread 5
   if (lock_owner != ThreadList::kInvalidId) {
     os << " held by thread " << lock_owner;
   }

@@ -165,7 +165,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
 
   java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
   java_lang_Thread_group = CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
-  java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/ThreadLock;");
+  java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
   java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
   java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
   java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
