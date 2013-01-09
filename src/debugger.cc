@@ -1494,19 +1494,6 @@ JDWP::JdwpError Dbg::GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::IsSuspended(JDWP::ObjectId thread_id, bool& result) {
-  ScopedObjectAccess soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
-  }
-  MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
-  result = thread->IsSuspended();
-  return JDWP::ERR_NONE;
-}
-
 void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
   class ThreadListVisitor {
    public:
@@ -1609,6 +1596,11 @@ static int GetStackDepth(Thread* thread)
   return visitor.depth;
 }
 
+static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thread) {
+  MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
+  return thread->IsSuspended() && thread->GetDebugSuspendCount() > 0;
+}
+
 JDWP::JdwpError Dbg::GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result) {
   ScopedObjectAccess soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
@@ -1616,6 +1608,9 @@ JDWP::JdwpError Dbg::GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& resul
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
   if (error != JDWP::ERR_NONE) {
     return error;
+  }
+  if (!IsSuspendedForDebugger(soa, thread)) {
+    return JDWP::ERR_THREAD_NOT_SUSPENDED;
   }
   result = GetStackDepth(thread);
   return JDWP::ERR_NONE;
@@ -1662,13 +1657,15 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
     JDWP::ExpandBuf* buf_;
   };
 
-  // Caller already checked thread is suspended.
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
   if (error != JDWP::ERR_NONE) {
     return error;
+  }
+  if (!IsSuspendedForDebugger(soa, thread)) {
+    return JDWP::ERR_THREAD_NOT_SUSPENDED;
   }
   GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack(),
                           start_frame, frame_count, buf);

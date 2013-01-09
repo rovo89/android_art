@@ -1010,18 +1010,8 @@ static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
   uint32_t start_frame = Read4BE(&buf);
   uint32_t length = Read4BE(&buf);
 
-  bool is_suspended;
-  JdwpError error = Dbg::IsSuspended(thread_id, is_suspended);
-  if (error != ERR_NONE) {
-    return error;
-  }
-  if (!is_suspended) {
-    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %#llx", thread_id);
-    return ERR_THREAD_NOT_SUSPENDED;
-  }
-
   size_t actual_frame_count;
-  error = Dbg::GetThreadFrameCount(thread_id, actual_frame_count);
+  JdwpError error = Dbg::GetThreadFrameCount(thread_id, actual_frame_count);
   if (error != ERR_NONE) {
     return error;
   }
@@ -1051,18 +1041,8 @@ static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_id = ReadObjectId(&buf);
 
-  bool is_suspended;
-  JdwpError error = Dbg::IsSuspended(thread_id, is_suspended);
-  if (error != ERR_NONE) {
-    return error;
-  }
-  if (!is_suspended) {
-    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %#llx", thread_id);
-    return ERR_THREAD_NOT_SUSPENDED;
-  }
-
   size_t frame_count;
-  error = Dbg::GetThreadFrameCount(thread_id, frame_count);
+  JdwpError error = Dbg::GetThreadFrameCount(thread_id, frame_count);
   if (error != ERR_NONE) {
     return error;
   }

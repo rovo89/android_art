@@ -227,7 +227,6 @@ class Dbg {
 
   static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
   static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply);
-  static JDWP::JdwpError IsSuspended(JDWP::ObjectId thread_id, bool& result);
   //static void WaitForSuspend(JDWP::ObjectId thread_id);
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
