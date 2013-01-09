@@ -383,7 +383,6 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why) {
   DCHECK(self != NULL);
   DCHECK(why == kTimedWaiting || why == kWaiting || why == kSleeping);
-  DCHECK(why != kWaiting || (ms == 0 && ns == 0));
 
   // Make sure that we hold the lock.
   if (owner_ != self) {
@@ -391,6 +390,12 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
     return;
   }
   monitor_lock_.AssertHeld(self);
+
+  // We need to turn a zero-length timed wait into a regular wait because
+  // Object.wait(0, 0) is defined as Object.wait(0), which is defined as Object.wait().
+  if (why == kTimedWaiting && (ms == 0 && ns == 0)) {
+    why = kWaiting;
+  }
 
   WaitWithLock(self, ms, ns, interruptShouldThrow, why);
 }
