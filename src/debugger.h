@@ -214,7 +214,7 @@ class Dbg {
   /*
    * Thread, ThreadGroup, Frame
    */
-  static bool GetThreadName(JDWP::ObjectId threadId, std::string& name)
+  static JDWP::JdwpError GetThreadName(JDWP::ObjectId threadId, std::string& name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
@@ -225,10 +225,9 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetMainThreadGroupId();
 
-  static bool GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
+  static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
   static JDWP::JdwpError GetThreadDebugSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
-  static bool ThreadExists(JDWP::ObjectId threadId);
-  static bool IsSuspended(JDWP::ObjectId threadId);
+  static JDWP::JdwpError IsSuspended(JDWP::ObjectId threadId, bool& result);
   //static void WaitForSuspend(JDWP::ObjectId threadId);
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
@@ -238,7 +237,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
 
-  static int GetThreadFrameCount(JDWP::ObjectId threadId);
+  static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId threadId, size_t& result);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
                                          size_t frame_count, JDWP::ExpandBuf* buf)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
