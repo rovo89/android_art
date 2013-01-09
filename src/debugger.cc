@@ -193,6 +193,13 @@ static bool IsBreakpoint(AbstractMethod* m, uint32_t dex_pc)
   return false;
 }
 
+static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thread) {
+  MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
+  // A thread may be suspended for GC; in this code, we really want to know whether
+  // there's a debugger suspension active.
+  return thread->IsSuspended() && thread->GetDebugSuspendCount() > 0;
+}
+
 static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* o = gRegistry->Get<Object*>(id);
@@ -1439,45 +1446,44 @@ JDWP::ObjectId Dbg::GetMainThreadGroupId() {
 JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
   ScopedObjectAccess soa(Thread::Current());
 
+  *pSuspendStatus = JDWP::SUSPEND_STATUS_NOT_SUSPENDED;
+
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread;
   JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
   if (error != JDWP::ERR_NONE) {
     if (error == JDWP::ERR_THREAD_NOT_ALIVE) {
       *pThreadStatus = JDWP::TS_ZOMBIE;
-      *pSuspendStatus = JDWP::SUSPEND_STATUS_NOT_SUSPENDED;
       return JDWP::ERR_NONE;
     }
     return error;
   }
 
-  MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
-
-  switch (thread->GetState()) {
-    case kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kSleeping:     *pThreadStatus = JDWP::TS_SLEEPING; break;
-    case kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
-    case kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kWaitingForGcToComplete:  // Fall-through.
-    case kWaitingPerformingGc:  // Fall-through.
-    case kWaitingForDebuggerSend:  // Fall-through.
-    case kWaitingForDebuggerToAttach:  // Fall-through.
-    case kWaitingInMainDebuggerLoop:  // Fall-through.
-    case kWaitingForDebuggerSuspension:  // Fall-through.
-    case kWaitingForJniOnLoad:  // Fall-through.
-    case kWaitingForSignalCatcherOutput:  // Fall-through.
-    case kWaitingInMainSignalCatcherLoop:
-                        *pThreadStatus = JDWP::TS_WAIT;     break;
-    case kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
-    // Don't add a 'default' here so the compiler can spot incompatible enum changes.
+  if (IsSuspendedForDebugger(soa, thread)) {
+    *pSuspendStatus = JDWP::SUSPEND_STATUS_SUSPENDED;
   }
 
-  *pSuspendStatus = (thread->IsSuspended() ? JDWP::SUSPEND_STATUS_SUSPENDED : JDWP::SUSPEND_STATUS_NOT_SUSPENDED);
-
+  switch (thread->GetState()) {
+    case kBlocked:                        *pThreadStatus = JDWP::TS_MONITOR;  break;
+    case kNative:                         *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kRunnable:                       *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kSleeping:                       *pThreadStatus = JDWP::TS_SLEEPING; break;
+    case kStarting:                       *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+    case kSuspended:                      *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kTerminated:                     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+    case kTimedWaiting:                   *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForDebuggerSend:         *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForDebuggerSuspension:   *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForDebuggerToAttach:     *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForGcToComplete:         *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForJniOnLoad:            *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForSignalCatcherOutput:  *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingInMainDebuggerLoop:      *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingInMainSignalCatcherLoop: *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingPerformingGc:            *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaiting:                        *pThreadStatus = JDWP::TS_WAIT;     break;
+    // Don't add a 'default' here so the compiler can spot incompatible enum changes.
+  }
   return JDWP::ERR_NONE;
 }
 
@@ -1594,11 +1600,6 @@ static int GetStackDepth(Thread* thread)
   CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
   visitor.WalkStack();
   return visitor.depth;
-}
-
-static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thread) {
-  MutexLock mu(soa.Self(), *Locks::thread_suspend_count_lock_);
-  return thread->IsSuspended() && thread->GetDebugSuspendCount() > 0;
 }
 
 JDWP::JdwpError Dbg::GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result) {
@@ -1785,8 +1786,7 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
     if (error != JDWP::ERR_NONE) {
       return error;
     }
-    MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
-    if (!thread->IsSuspended()) {
+    if (!IsSuspendedForDebugger(soa, thread)) {
       return JDWP::ERR_THREAD_NOT_SUSPENDED;
     }
   }
