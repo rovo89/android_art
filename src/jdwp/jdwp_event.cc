@@ -107,6 +107,9 @@ namespace JDWP {
  * The rest will be zeroed.
  */
 struct ModBasket {
+  ModBasket() : pLoc(NULL), threadId(0), classId(0), excepClassId(0),
+                caught(false), field(0), thisPtr(0) { }
+
   const JdwpLocation* pLoc;           /* LocationOnly */
   std::string         className;      /* ClassMatch/ClassExclude */
   ObjectId            threadId;       /* ThreadOnly */
@@ -720,7 +723,6 @@ bool JdwpState::PostVMStart() {
 bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags) {
   ModBasket basket;
 
-  memset(&basket, 0, sizeof(basket));
   basket.pLoc = pLoc;
   basket.classId = pLoc->class_id;
   basket.thisPtr = thisPtr;
@@ -821,7 +823,6 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
   }
 
   ModBasket basket;
-  memset(&basket, 0, sizeof(basket));
   basket.threadId = threadId;
 
   ExpandBuf* pReq = NULL;
@@ -898,7 +899,6 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
                               const JdwpLocation* pCatchLoc, ObjectId thisPtr) {
   ModBasket basket;
 
-  memset(&basket, 0, sizeof(basket));
   basket.pLoc = pThrowLoc;
   basket.classId = pThrowLoc->class_id;
   basket.threadId = Dbg::GetThreadSelfId();
@@ -973,7 +973,6 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
                                  int status) {
   ModBasket basket;
 
-  memset(&basket, 0, sizeof(basket));
   basket.classId = refTypeId;
   basket.threadId = Dbg::GetThreadSelfId();
   basket.className = Dbg::GetClassName(basket.classId);

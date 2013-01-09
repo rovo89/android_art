@@ -374,6 +374,17 @@ TWO_ARG_DOWNCALL art_initialize_static_storage_from_code, artInitializeStaticSto
 TWO_ARG_DOWNCALL art_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
+DEFINE_FUNCTION art_update_debugger
+    mov  %eax, %ebx               // stash away eax so that it's saved as if it were an argument
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    pushl %esp                    // pass arg2 (sp)
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass arg0 (dex pc)
+    call SYMBOL(artUpdateDebuggerFromCode) // artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    mov  %ebx, %eax               // restore original eax
+    ret
+
 DEFINE_FUNCTION art_get_and_clear_exception
     subl LITERAL(8), %esp         // alignment padding
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
@@ -734,6 +745,14 @@ DEFINE_FUNCTION art_proxy_invoke_handler
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
+DEFINE_FUNCTION art_instrumentation_entry_from_code
+    ret
+DEFINE_FUNCTION art_instrumentation_exit_from_code
+    ret
+
+DEFINE_FUNCTION art_deoptimize
+    ret
+
     /*
      * String's indexOf.
      *
@@ -836,5 +855,4 @@ VAR(name, 0):
 END_MACRO
 
     // TODO: implement these!
-UNIMPLEMENTED art_update_debugger
 UNIMPLEMENTED art_memcmp16

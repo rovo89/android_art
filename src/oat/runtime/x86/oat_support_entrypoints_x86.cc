@@ -34,6 +34,7 @@ extern "C" void art_check_cast_from_code(void*, void*);
 
 // Debug entrypoints.
 extern void DebugMe(AbstractMethod* method, uint32_t info);
+extern "C" void art_update_debugger(void*, void*, int32_t, void*);
 
 // DexCache entrypoints.
 extern "C" void* art_initialize_static_storage_from_code(uint32_t, void*);
@@ -121,6 +122,11 @@ extern "C" void art_throw_div_zero_from_code();
 extern "C" void art_throw_no_such_method_from_code(int32_t method_idx);
 extern "C" void art_throw_null_pointer_exception_from_code();
 extern "C" void art_throw_stack_overflow_from_code(void*);
+
+// Instrumentation entrypoints.
+extern "C" void art_instrumentation_entry_from_code(void*);
+extern "C" void art_instrumentation_exit_from_code();
+extern "C" void art_deoptimize();
 
 void InitEntryPoints(EntryPoints* points) {
   // Alloc
@@ -229,20 +235,21 @@ void InitEntryPoints(EntryPoints* points) {
   points->pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
 };
 
-void ChangeDebuggerEntryPoint(EntryPoints*, bool) {
-  UNIMPLEMENTED(FATAL);
+void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled) {
+  points->pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
 }
 
 uintptr_t GetInstrumentationExitPc() {
-  return 0;
+  return reinterpret_cast<uintptr_t>(art_instrumentation_exit_from_code);
 }
 
 uintptr_t GetDeoptimizationEntryPoint() {
-  return 0;
+  UNIMPLEMENTED(FATAL);
+  return reinterpret_cast<uintptr_t>(art_deoptimize);
 }
 
 void* GetInstrumentationEntryPoint() {
-  return NULL;
+  return reinterpret_cast<void*>(art_instrumentation_entry_from_code);
 }
 
 }  // namespace art
