@@ -42,7 +42,7 @@ static std::ostream& operator<<(std::ostream& os, map_info_t* rhs) {
   return os;
 }
 
-void CheckMapRequest(byte* addr, size_t byte_count) {
+static void CheckMapRequest(byte* addr, size_t byte_count) {
   if (addr == NULL) {
     return;
   }
@@ -69,7 +69,6 @@ static void CheckMapRequest(byte*, size_t) { }
 
 MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, int prot) {
   CHECK_NE(0U, byte_count);
-  CHECK_NE(0, prot);
   size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
   CheckMapRequest(addr, page_aligned_byte_count);
 
