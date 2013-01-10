@@ -222,7 +222,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     uintptr_t reserve_end = RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr), kPageSize);
     oat_file_map_.reset(MemMap::MapAnonymous("oat file reserve",
                                              reinterpret_cast<byte*>(reserve_begin),
-                                             reserve_end - reserve_begin, PROT_READ));
+                                             reserve_end - reserve_begin, PROT_NONE));
 
     if (oat_end_addr > requested_begin) {
       requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),

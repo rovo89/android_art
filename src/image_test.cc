@@ -23,11 +23,24 @@
 #include "oat_writer.h"
 #include "signal_catcher.h"
 #include "gc/space.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {
 
-class ImageTest : public CommonTest {};
+class ImageTest : public CommonTest {
+
+ protected:
+  virtual void SetUp() {
+    // Reserve where the image will be loaded up front so that other parts of test set up don't
+    // accidentally end up colliding with the fixed memory address when we need to load the image.
+    image_reservation_.reset(MemMap::MapAnonymous("Image reservation", (byte*)ART_BASE_ADDRESS,
+                                                  (size_t)100 * 1024 *1024,  // 100MB
+                                                  PROT_NONE));
+    CommonTest::SetUp();
+  }
+  UniquePtr<MemMap> image_reservation_;
+};
 
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
@@ -74,14 +87,17 @@ TEST_F(ImageTest, WriteRead) {
   }
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.
-  delete compiler_.release();
+  compiler_.reset();
 
-  // tear down old runtime before making a new one, clearing out misc state
-  delete runtime_.release();
+  // Tear down old runtime before making a new one, clearing out misc state.
+  runtime_.reset();
   java_lang_dex_file_ = NULL;
 
   UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName()));
   ASSERT_TRUE(dex.get() != NULL);
+
+  // Remove the reservation of the memory for use to load the image.
+  image_reservation_.reset();
 
   Runtime::Options options;
   std::string image("-Ximage:");
