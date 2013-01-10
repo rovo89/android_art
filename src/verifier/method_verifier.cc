@@ -434,7 +434,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_ACCESS_METHOD:
     case VERIFY_ERROR_INSTANTIATION:
     case VERIFY_ERROR_CLASS_CHANGE:
-      if (Runtime::Current()->IsCompiler()) {
+      if (Runtime::Current()->IsCompiler() || !can_load_classes_) {
         // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
         // class change and instantiation errors into soft verification errors so that we re-verify
         // at runtime. We may fail to find or to agree on access because of not yet available class
@@ -1049,7 +1049,6 @@ bool MethodVerifier::VerifyCodeFlow() {
   verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
 #endif
 
-
   return true;
 }
 
@@ -1340,19 +1339,12 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
 }
 
 bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
-#ifdef VERIFIER_STATS
-  if (CurrentInsnFlags().IsVisited()) {
-    gDvm.verifierStats.instrsReexamined++;
-  } else {
-    gDvm.verifierStats.instrsExamined++;
-  }
-#endif
-
   // If we're doing FindLocksAtDexPc, check whether we're at the dex pc we care about.
   // We want the state _before_ the instruction, for the case where the dex pc we're
   // interested in is itself a monitor-enter instruction (which is a likely place
   // for a thread to be suspended).
   if (monitor_enter_dex_pcs_ != NULL && work_insn_idx_ == interesting_dex_pc_) {
+    monitor_enter_dex_pcs_->clear(); // The new work line is more accurate than the previous one.
     for (size_t i = 0; i < work_line_->GetMonitorEnterCount(); ++i) {
       monitor_enter_dex_pcs_->push_back(work_line_->GetMonitorEnterDexPc(i));
     }

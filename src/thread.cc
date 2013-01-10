@@ -85,7 +85,6 @@ void Thread::InitFunctionPointers() {
 }
 
 void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
-  LOG(INFO) << "Turning debugger updates " << (enabled ? "on" : "off") << " for " << *this;
 #if !defined(ART_USE_LLVM_COMPILER)
   ChangeDebuggerEntryPoint(&entrypoints_, enabled);
 #else
@@ -887,13 +886,20 @@ struct StackDumpVisitor : public StackVisitor {
         Monitor::DescribeWait(os, thread);
       }
       if (can_allocate) {
-        Monitor::DescribeLocks(os, this);
+        Monitor::VisitLocks(this, DumpLockedObject, &os);
       }
     }
 
     ++frame_count;
     return true;
   }
+
+  static void DumpLockedObject(Object* o, void* context)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    std::ostream& os = *reinterpret_cast<std::ostream*>(context);
+    os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
+  }
+
   std::ostream& os;
   const Thread* thread;
   bool can_allocate;

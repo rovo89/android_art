@@ -48,7 +48,7 @@ namespace JDWP {
 /*
  * Helper function: read a "location" from an input buffer.
  */
-static void JdwpReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
+static void ReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
   memset(pLoc, 0, sizeof(*pLoc));     /* allows memcmp() later */
   pLoc->type_tag = ReadTypeTag(pBuf);
   pLoc->class_id = ReadObjectId(pBuf);
@@ -59,7 +59,7 @@ static void JdwpReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
 /*
  * Helper function: read a variable-width value from the input buffer.
  */
-static uint64_t JdwpReadValue(const uint8_t** pBuf, size_t width) {
+static uint64_t ReadValue(const uint8_t** pBuf, size_t width) {
   uint64_t value = -1;
   switch (width) {
   case 1:     value = Read1(pBuf); break;
@@ -74,7 +74,7 @@ static uint64_t JdwpReadValue(const uint8_t** pBuf, size_t width) {
 /*
  * Helper function: write a variable-width value into the output input buffer.
  */
-static void JdwpWriteValue(ExpandBuf* pReply, int width, uint64_t value) {
+static void WriteValue(ExpandBuf* pReply, int width, uint64_t value) {
   switch (width) {
   case 1:     expandBufAdd1(pReply, value); break;
   case 2:     expandBufAdd2BE(pReply, value); break;
@@ -82,6 +82,17 @@ static void JdwpWriteValue(ExpandBuf* pReply, int width, uint64_t value) {
   case 8:     expandBufAdd8BE(pReply, value); break;
   default:    LOG(FATAL) << width; break;
   }
+}
+
+static JdwpError WriteTaggedObject(ExpandBuf* reply, ObjectId object_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint8_t tag;
+  JdwpError rc = Dbg::GetObjectTag(object_id, tag);
+  if (rc == ERR_NONE) {
+    expandBufAdd1(reply, tag);
+    expandBufAddObjectId(reply, object_id);
+  }
+  return rc;
 }
 
 /*
@@ -109,7 +120,7 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
   for (uint32_t i = 0; i < arg_count; ++i) {
     argTypes[i] = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(argTypes[i]);
-    argValues[i] = JdwpReadValue(&buf, width);
+    argValues[i] = ReadValue(&buf, width);
     VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): %#llx", width, argValues[i]);
   }
 
@@ -137,7 +148,7 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
     size_t width = Dbg::GetTagWidth(resultTag);
     expandBufAdd1(pReply, resultTag);
     if (width != 0) {
-      JdwpWriteValue(pReply, width, resultValue);
+      WriteValue(pReply, width, resultValue);
     }
     expandBufAdd1(pReply, JT_OBJECT);
     expandBufAddObjectId(pReply, exceptObjId);
@@ -325,21 +336,6 @@ static JdwpError VM_CreateString(JdwpState*, const uint8_t* buf, int, ExpandBuf*
   return ERR_NONE;
 }
 
-/*
- * Tell the debugger what we are capable of.
- */
-static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  expandBufAdd1(pReply, false);   // canWatchFieldModification
-  expandBufAdd1(pReply, false);   // canWatchFieldAccess
-  expandBufAdd1(pReply, false);   // canGetBytecodes
-  expandBufAdd1(pReply, true);    // canGetSyntheticAttribute
-  expandBufAdd1(pReply, false);   // canGetOwnedMonitorInfo
-  expandBufAdd1(pReply, false);   // canGetCurrentContendedMonitor
-  expandBufAdd1(pReply, true);    // canGetMonitorInfo
-  return ERR_NONE;
-}
-
 static JdwpError VM_ClassPaths(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   expandBufAddUtf8String(pReply, "/");
@@ -371,36 +367,42 @@ static JdwpError VM_DisposeObjects(JdwpState*, const uint8_t*, int, ExpandBuf*)
   return ERR_NONE;
 }
 
-/*
- * Tell the debugger what we are capable of.
- */
-static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  expandBufAdd1(pReply, false);   // canWatchFieldModification
-  expandBufAdd1(pReply, false);   // canWatchFieldAccess
-  expandBufAdd1(pReply, false);   // canGetBytecodes
-  expandBufAdd1(pReply, true);    // canGetSyntheticAttribute
-  expandBufAdd1(pReply, false);   // canGetOwnedMonitorInfo
-  expandBufAdd1(pReply, false);   // canGetCurrentContendedMonitor
-  expandBufAdd1(pReply, true);    // canGetMonitorInfo
-  expandBufAdd1(pReply, false);   // canRedefineClasses
-  expandBufAdd1(pReply, false);   // canAddMethod
-  expandBufAdd1(pReply, false);   // canUnrestrictedlyRedefineClasses
-  expandBufAdd1(pReply, false);   // canPopFrames
-  expandBufAdd1(pReply, false);   // canUseInstanceFilters
-  expandBufAdd1(pReply, false);   // canGetSourceDebugExtension
-  expandBufAdd1(pReply, false);   // canRequestVMDeathEvent
-  expandBufAdd1(pReply, false);   // canSetDefaultStratum
-  expandBufAdd1(pReply, false);   // 1.6: canGetInstanceInfo
-  expandBufAdd1(pReply, false);   // 1.6: canRequestMonitorEvents
-  expandBufAdd1(pReply, false);   // 1.6: canGetMonitorFrameInfo
-  expandBufAdd1(pReply, false);   // 1.6: canUseSourceNameFilters
-  expandBufAdd1(pReply, false);   // 1.6: canGetConstantPool
-  expandBufAdd1(pReply, false);   // 1.6: canForceEarlyReturn
+  expandBufAdd1(reply, false);   // canWatchFieldModification
+  expandBufAdd1(reply, false);   // canWatchFieldAccess
+  expandBufAdd1(reply, false);   // canGetBytecodes
+  expandBufAdd1(reply, true);    // canGetSyntheticAttribute
+  expandBufAdd1(reply, true);    // canGetOwnedMonitorInfo
+  expandBufAdd1(reply, false);   // canGetCurrentContendedMonitor
+  expandBufAdd1(reply, true);    // canGetMonitorInfo
+  return ERR_NONE;
+}
 
-  /* fill in reserved22 through reserved32; note count started at 1 */
-  for (int i = 22; i <= 32; i++) {
-    expandBufAdd1(pReply, false);   /* reservedN */
+static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+
+  // The first few capabilities are the same as those reported by the older call.
+  VM_Capabilities(NULL, NULL, 0, reply);
+
+  expandBufAdd1(reply, false);   // canRedefineClasses
+  expandBufAdd1(reply, false);   // canAddMethod
+  expandBufAdd1(reply, false);   // canUnrestrictedlyRedefineClasses
+  expandBufAdd1(reply, false);   // canPopFrames
+  expandBufAdd1(reply, false);   // canUseInstanceFilters
+  expandBufAdd1(reply, false);   // canGetSourceDebugExtension
+  expandBufAdd1(reply, false);   // canRequestVMDeathEvent
+  expandBufAdd1(reply, false);   // canSetDefaultStratum
+  expandBufAdd1(reply, false);   // 1.6: canGetInstanceInfo
+  expandBufAdd1(reply, false);   // 1.6: canRequestMonitorEvents
+  expandBufAdd1(reply, false);   // 1.6: canGetMonitorFrameInfo
+  expandBufAdd1(reply, false);   // 1.6: canUseSourceNameFilters
+  expandBufAdd1(reply, false);   // 1.6: canGetConstantPool
+  expandBufAdd1(reply, false);   // 1.6: canForceEarlyReturn
+
+  // Fill in reserved22 through reserved32; note count started at 1.
+  for (size_t i = 22; i <= 32; ++i) {
+    expandBufAdd1(reply, false);
   }
   return ERR_NONE;
 }
@@ -652,7 +654,7 @@ static JdwpError CT_SetValues(JdwpState* , const uint8_t* buf, int, ExpandBuf*)
     FieldId fieldId = ReadFieldId(&buf);
     JDWP::JdwpTag fieldTag = Dbg::GetStaticFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
-    uint64_t value = JdwpReadValue(&buf, width);
+    uint64_t value = ReadValue(&buf, width);
 
     VLOG(jdwp) << "    --> field=" << fieldId << " tag=" << fieldTag << " -> " << value;
     JdwpError status = Dbg::SetStaticFieldValue(fieldId, value, width);
@@ -825,7 +827,7 @@ static JdwpError OR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
 
     JDWP::JdwpTag fieldTag = Dbg::GetFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
-    uint64_t value = JdwpReadValue(&buf, width);
+    uint64_t value = ReadValue(&buf, width);
 
     VLOG(jdwp) << "    --> fieldId=" << fieldId << " tag=" << fieldTag << "(" << width << ") value=" << value;
     JdwpError status = Dbg::SetFieldValue(object_id, fieldId, value, width);
@@ -1048,12 +1050,32 @@ static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
   ObjectId thread_id = ReadObjectId(&buf);
 
   size_t frame_count;
-  JdwpError error = Dbg::GetThreadFrameCount(thread_id, frame_count);
-  if (error != ERR_NONE) {
-    return error;
+  JdwpError rc = Dbg::GetThreadFrameCount(thread_id, frame_count);
+  if (rc != ERR_NONE) {
+    return rc;
   }
   expandBufAdd4BE(pReply, static_cast<uint32_t>(frame_count));
 
+  return ERR_NONE;
+}
+
+static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectId thread_id = ReadObjectId(&buf);
+
+  std::vector<ObjectId> monitors;
+  JdwpError rc = Dbg::GetOwnedMonitors(thread_id, monitors);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+
+  expandBufAdd4BE(reply, monitors.size());
+  for (size_t i = 0; i < monitors.size(); ++i) {
+    rc = WriteTaggedObject(reply, monitors[i]);
+    if (rc != ERR_NONE) {
+      return rc;
+    }
+  }
   return ERR_NONE;
 }
 
@@ -1278,7 +1300,7 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
     case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
       {
         JdwpLocation loc;
-        JdwpReadLocation(&buf, &loc);
+        ReadLocation(&buf, &loc);
         VLOG(jdwp) << "    LocationOnly: " << loc;
         mod.locationOnly.loc = loc;
       }
@@ -1423,7 +1445,7 @@ static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     uint32_t slot = Read4BE(&buf);
     JDWP::JdwpTag sigByte = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(sigByte);
-    uint64_t value = JdwpReadValue(&buf, width);
+    uint64_t value = ReadValue(&buf, width);
 
     VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
     Dbg::SetLocalValue(thread_id, frame_id, slot, sigByte, value, width);
@@ -1432,32 +1454,21 @@ static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
   return ERR_NONE;
 }
 
-/*
- * Returns the value of "this" for the specified frame.
- */
-static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_id = ReadObjectId(&buf);
   FrameId frame_id = ReadFrameId(&buf);
 
-  ObjectId id;
-  JdwpError rc = Dbg::GetThisObject(thread_id, frame_id, &id);
+  ObjectId object_id;
+  JdwpError rc = Dbg::GetThisObject(thread_id, frame_id, &object_id);
   if (rc != ERR_NONE) {
     return rc;
   }
 
-  uint8_t tag;
-  rc = Dbg::GetObjectTag(id, tag);
-  if (rc != ERR_NONE) {
-    return rc;
-  }
+  VLOG(jdwp) << StringPrintf("  Req for 'this' in thread_id=%#llx frame=%lld --> %#llx",
+                             thread_id, frame_id, object_id);
 
-  VLOG(jdwp) << StringPrintf("  Req for 'this' in thread_id=%#llx frame=%lld --> %#llx '%c'",
-                             thread_id, frame_id, id, static_cast<char>(tag));
-  expandBufAdd1(pReply, tag);
-  expandBufAddObjectId(pReply, id);
-
-  return ERR_NONE;
+  return WriteTaggedObject(reply, object_id);
 }
 
 /*
@@ -1609,7 +1620,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 11,   5,  TR_ThreadGroup,             "ThreadReference.ThreadGroup" },
   { 11,   6,  TR_Frames,                  "ThreadReference.Frames" },
   { 11,   7,  TR_FrameCount,              "ThreadReference.FrameCount" },
-  { 11,   8,  NULL,                       "ThreadReference.OwnedMonitors" },
+  { 11,   8,  TR_OwnedMonitors,           "ThreadReference.OwnedMonitors" },
   { 11,   9,  TR_CurrentContendedMonitor, "ThreadReference.CurrentContendedMonitor" },
   { 11,   10, NULL,                       "ThreadReference.Stop" },
   { 11,   11, NULL,                       "ThreadReference.Interrupt" },

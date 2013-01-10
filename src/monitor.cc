@@ -863,12 +863,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   os << "\n";
 }
 
-static void DumpLockedObject(std::ostream& os, Object* o)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
-}
-
-void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
+void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context) {
   AbstractMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
@@ -877,7 +872,7 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
   if (m->IsNative()) {
     if (m->IsSynchronized()) {
       Object* jni_this = stack_visitor->GetCurrentSirt()->GetReference(0);
-      DumpLockedObject(os, jni_this);
+      callback(jni_this, callback_context);
     }
     return;
   }
@@ -891,7 +886,7 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
   // <clinit> is another special case. The runtime holds the class lock while calling <clinit>.
   MethodHelper mh(m);
   if (mh.IsClassInitializer()) {
-    DumpLockedObject(os, m->GetDeclaringClass());
+    callback(m->GetDeclaringClass(), callback_context);
     // Fall through because there might be synchronization in the user code too.
   }
 
@@ -910,11 +905,6 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
     return;
   }
 
-  // Verification is an iterative process, so it can visit the same monitor-enter instruction
-  // repeatedly with increasingly accurate type information. We don't want duplicates.
-  // TODO: is this fixed if we share the other std::vector-returning verifier code?
-  STLSortAndRemoveDuplicates(&monitor_enter_dex_pcs);
-
   for (size_t i = 0; i < monitor_enter_dex_pcs.size(); ++i) {
     // The verifier works in terms of the dex pcs of the monitor-enter instructions.
     // We want the registers used by those instructions (so we can read the values out of them).
@@ -930,7 +920,7 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
     uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
     Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register,
                                                                  kReferenceVReg));
-    DumpLockedObject(os, o);
+    callback(o, callback_context);
   }
 }
 

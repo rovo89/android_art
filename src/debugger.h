@@ -153,6 +153,8 @@ class Dbg {
 
   static JDWP::JdwpError GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP::ObjectId>& monitors)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
