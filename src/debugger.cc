@@ -1724,7 +1724,6 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
     peer.reset(soa.AddLocalReference<jobject>(gRegistry->Get<Object*>(thread_id)));
   }
   if (peer.get() == NULL) {
-    LOG(WARNING) << "No such thread for suspend: " << thread_id;
     return JDWP::ERR_THREAD_NOT_ALIVE;
   }
   // Suspend thread to build stack trace.
