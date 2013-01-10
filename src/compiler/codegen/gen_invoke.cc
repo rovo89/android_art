@@ -1113,7 +1113,7 @@ bool Codegen::GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info) {
   RegLocation rl_dest = InlineTarget(cu, info);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   int offset = Thread::PeerOffset().Int32Value();
-  if (cu->instruction_set == kThumb2) {
+  if (cu->instruction_set == kThumb2 || cu->instruction_set == kMips) {
     LoadWordDisp(cu, TargetReg(kSelf), offset, rl_result.low_reg);
   } else {
     CHECK(cu->instruction_set == kX86);
