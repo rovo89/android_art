@@ -24,7 +24,6 @@
 namespace art {
 
 static jobject GetThreadStack(JNIEnv* env, jobject peer) {
-  bool timeout;
   {
     ScopedObjectAccess soa(env);
     if (soa.Decode<Object*>(peer) == soa.Self()->GetPeer()) {
@@ -32,7 +31,8 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
     }
   }
   // Suspend thread to build stack trace.
-  Thread* thread = Thread::SuspendForDebugger(peer, true, &timeout);
+  bool timed_out;
+  Thread* thread = Thread::SuspendForDebugger(peer, true, &timed_out);
   if (thread != NULL) {
     jobject trace;
     {
@@ -43,7 +43,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
     Runtime::Current()->GetThreadList()->Resume(thread, true);
     return trace;
   } else {
-    if (timeout) {
+    if (timed_out) {
       LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
           "generous timeout.";
     }

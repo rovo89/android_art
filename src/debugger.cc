@@ -639,6 +639,36 @@ JDWP::JdwpError Dbg::GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* o = gRegistry->Get<Object*>(object_id);
+  if (o == NULL || o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+
+  // Ensure all threads are suspended while we read objects' lock words.
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->SharedUnlock(self);
+  Locks::mutator_lock_->ExclusiveLock(self);
+
+  MonitorInfo monitor_info(o);
+
+  Locks::mutator_lock_->ExclusiveUnlock(self);
+  Locks::mutator_lock_->SharedLock(self);
+
+  if (monitor_info.owner != NULL) {
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.owner->GetPeer()));
+  } else {
+    expandBufAddObjectId(reply, gRegistry->Add(NULL));
+  }
+  expandBufAdd4BE(reply, monitor_info.entry_count);
+  expandBufAdd4BE(reply, monitor_info.waiters.size());
+  for (size_t i = 0; i < monitor_info.waiters.size(); ++i) {
+    expandBufAddObjectId(reply, gRegistry->Add(monitor_info.waiters[i]->GetPeer()));
+  }
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(class_id, status);
@@ -1688,8 +1718,6 @@ void Dbg::ResumeVM() {
 }
 
 JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspension) {
-
-  bool timeout;
   ScopedLocalRef<jobject> peer(Thread::Current()->GetJniEnv(), NULL);
   {
     ScopedObjectAccess soa(Thread::Current());
@@ -1700,10 +1728,11 @@ JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspen
     return JDWP::ERR_THREAD_NOT_ALIVE;
   }
   // Suspend thread to build stack trace.
-  Thread* thread = Thread::SuspendForDebugger(peer.get(), request_suspension, &timeout);
+  bool timed_out;
+  Thread* thread = Thread::SuspendForDebugger(peer.get(), request_suspension, &timed_out);
   if (thread != NULL) {
     return JDWP::ERR_NONE;
-  } else if (timeout) {
+  } else if (timed_out) {
     return JDWP::ERR_INTERNAL;
   } else {
     return JDWP::ERR_THREAD_NOT_ALIVE;

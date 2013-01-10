@@ -39,48 +39,27 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
   return Dbg::IsAllocTrackingEnabled();
 }
 
-static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
-  struct ThreadFinder {
-    explicit ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
-    }
-
-    static void Callback(Thread* t, void* context) {
-      ThreadFinder* finder = reinterpret_cast<ThreadFinder*>(context);
-      if (t->GetThinLockId() == finder->thin_lock_id) {
-        finder->thread = t;
-      }
-    }
-
-    uint32_t thin_lock_id;
-    Thread* thread;
-  };
-  ThreadFinder finder(thin_lock_id);
-  {
-    Thread* self = static_cast<JNIEnvExt*>(env)->self;
-    MutexLock mu(self, *Locks::thread_list_lock_);
-    Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
-  }
-  if (finder.thread != NULL) {
-    ScopedObjectAccess soa(env);
-    return soa.AddLocalReference<jobject>(finder.thread->GetPeer());
-  } else {
-    return NULL;
-  }
-}
-
 /*
  * Get a stack trace as an array of StackTraceElement objects.  Returns
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
-  ScopedLocalRef<jobject> peer(env,
-                               FindThreadByThinLockId(env, static_cast<uint32_t>(thin_lock_id)));
+  ScopedLocalRef<jobject> peer(env, NULL);
+  {
+    Thread* t = Runtime::Current()->GetThreadList()->FindThreadByThinLockId(thin_lock_id);
+    if (t == NULL) {
+      return NULL;
+    }
+    ScopedObjectAccess soa(env);
+    peer.reset(soa.AddLocalReference<jobject>(t->GetPeer()));
+  }
   if (peer.get() == NULL) {
     return NULL;
   }
-  bool timeout;
+
   // Suspend thread to build stack trace.
-  Thread* thread = Thread::SuspendForDebugger(peer.get(), true, &timeout);
+  bool timed_out;
+  Thread* thread = Thread::SuspendForDebugger(peer.get(), true, &timed_out);
   if (thread != NULL) {
     jobject trace;
     {
@@ -91,7 +70,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     Runtime::Current()->GetThreadList()->Resume(thread, true);
     return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
   } else {
-    if (timeout) {
+    if (timed_out) {
       LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
           "within a generous timeout.";
     }

@@ -612,4 +612,14 @@ void ThreadList::ReleaseThreadId(Thread* self, uint32_t id) {
   allocated_ids_.reset(id);
 }
 
+Thread* ThreadList::FindThreadByThinLockId(uint32_t thin_lock_id) {
+  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    if ((*it)->GetThinLockId() == thin_lock_id) {
+      return *it;
+    }
+  }
+  return NULL;
+}
+
 }  // namespace art

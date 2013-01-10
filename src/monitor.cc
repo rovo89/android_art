@@ -77,6 +77,9 @@ namespace art {
  * TODO: the various members of monitor are not SMP-safe.
  */
 
+// The shape is the bottom bit; either LW_SHAPE_THIN or LW_SHAPE_FAT.
+#define LW_SHAPE_MASK 0x1
+#define LW_SHAPE(x) static_cast<int>((x) & LW_SHAPE_MASK)
 
 /*
  * Monitor accessor.  Extracts a monitor structure pointer from a fat
@@ -972,6 +975,26 @@ void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
       it = list_.erase(it);
     } else {
       ++it;
+    }
+  }
+}
+
+MonitorInfo::MonitorInfo(Object* o) : owner(NULL), entry_count(0) {
+  uint32_t lock_word = *o->GetRawLockWordAddress();
+  if (LW_SHAPE(lock_word) == LW_SHAPE_THIN) {
+    uint32_t owner_thin_lock_id = LW_LOCK_OWNER(lock_word);
+    if (owner_thin_lock_id != 0) {
+      owner = Runtime::Current()->GetThreadList()->FindThreadByThinLockId(owner_thin_lock_id);
+      entry_count = 1 + LW_LOCK_COUNT(lock_word);
+    }
+    // Thin locks have no waiters.
+  } else {
+    CHECK_EQ(LW_SHAPE(lock_word), LW_SHAPE_FAT);
+    Monitor* monitor = LW_MONITOR(lock_word);
+    owner = monitor->owner_;
+    entry_count = 1 + monitor->lock_count_;
+    for (Thread* waiter = monitor->wait_set_; waiter != NULL; waiter = waiter->wait_next_) {
+      waiters.push_back(waiter);
     }
   }
 }

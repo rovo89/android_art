@@ -22,6 +22,7 @@
 
 #include <iosfwd>
 #include <list>
+#include <vector>
 
 #include "base/mutex.h"
 #include "heap.h"
@@ -34,8 +35,6 @@ namespace art {
  */
 #define LW_SHAPE_THIN 0
 #define LW_SHAPE_FAT 1
-#define LW_SHAPE_MASK 0x1
-#define LW_SHAPE(x) ((x) & LW_SHAPE_MASK)
 
 /*
  * Hash state field.  Used to signify that an object has had its
@@ -159,6 +158,7 @@ class Monitor {
   const AbstractMethod* locking_method_ GUARDED_BY(monitor_lock_);
   uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
 
+  friend class MonitorInfo;
   friend class MonitorList;
   friend class Object;
   DISALLOW_COPY_AND_ASSIGN(Monitor);
@@ -179,6 +179,21 @@ class MonitorList {
   std::list<Monitor*> list_ GUARDED_BY(monitor_list_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
+};
+
+// Collects information about the current state of an object's monitor.
+// This is very unsafe, and must only be called when all threads are suspended.
+// For use only by the JDWP implementation.
+class MonitorInfo {
+ public:
+  MonitorInfo(Object* o) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  Thread* owner;
+  size_t entry_count;
+  std::vector<Thread*> waiters;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MonitorInfo);
 };
 
 }  // namespace art

@@ -668,12 +668,12 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
   return static_cast<ThreadState>(old_state);
 }
 
-Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timeout) {
+Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timed_out) {
   static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
   useconds_t total_delay_us = 0;
   useconds_t delay_us = 0;
   bool did_suspend_request = false;
-  *timeout = false;
+  *timed_out = false;
   while (true) {
     Thread* thread;
     {
@@ -707,7 +707,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
           if (did_suspend_request) {
             thread->ModifySuspendCount(soa.Self(), -1, true /* for_debugger */);
           }
-          *timeout = true;
+          *timed_out = true;
           return NULL;
         }
       }

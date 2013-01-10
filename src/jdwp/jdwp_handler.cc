@@ -330,13 +330,13 @@ static JdwpError VM_CreateString(JdwpState*, const uint8_t* buf, int, ExpandBuf*
  */
 static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  expandBufAdd1(pReply, false);   /* canWatchFieldModification */
-  expandBufAdd1(pReply, false);   /* canWatchFieldAccess */
-  expandBufAdd1(pReply, false);   /* canGetBytecodes */
-  expandBufAdd1(pReply, true);    /* canGetSyntheticAttribute */
-  expandBufAdd1(pReply, false);   /* canGetOwnedMonitorInfo */
-  expandBufAdd1(pReply, false);   /* canGetCurrentContendedMonitor */
-  expandBufAdd1(pReply, false);   /* canGetMonitorInfo */
+  expandBufAdd1(pReply, false);   // canWatchFieldModification
+  expandBufAdd1(pReply, false);   // canWatchFieldAccess
+  expandBufAdd1(pReply, false);   // canGetBytecodes
+  expandBufAdd1(pReply, true);    // canGetSyntheticAttribute
+  expandBufAdd1(pReply, false);   // canGetOwnedMonitorInfo
+  expandBufAdd1(pReply, false);   // canGetCurrentContendedMonitor
+  expandBufAdd1(pReply, true);    // canGetMonitorInfo
   return ERR_NONE;
 }
 
@@ -376,27 +376,27 @@ static JdwpError VM_DisposeObjects(JdwpState*, const uint8_t*, int, ExpandBuf*)
  */
 static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  expandBufAdd1(pReply, false);   /* canWatchFieldModification */
-  expandBufAdd1(pReply, false);   /* canWatchFieldAccess */
-  expandBufAdd1(pReply, false);   /* canGetBytecodes */
-  expandBufAdd1(pReply, true);    /* canGetSyntheticAttribute */
-  expandBufAdd1(pReply, false);   /* canGetOwnedMonitorInfo */
-  expandBufAdd1(pReply, false);   /* canGetCurrentContendedMonitor */
-  expandBufAdd1(pReply, false);   /* canGetMonitorInfo */
-  expandBufAdd1(pReply, false);   /* canRedefineClasses */
-  expandBufAdd1(pReply, false);   /* canAddMethod */
-  expandBufAdd1(pReply, false);   /* canUnrestrictedlyRedefineClasses */
-  expandBufAdd1(pReply, false);   /* canPopFrames */
-  expandBufAdd1(pReply, false);   /* canUseInstanceFilters */
-  expandBufAdd1(pReply, false);   /* canGetSourceDebugExtension */
-  expandBufAdd1(pReply, false);   /* canRequestVMDeathEvent */
-  expandBufAdd1(pReply, false);   /* canSetDefaultStratum */
-  expandBufAdd1(pReply, false);   /* 1.6: canGetInstanceInfo */
-  expandBufAdd1(pReply, false);   /* 1.6: canRequestMonitorEvents */
-  expandBufAdd1(pReply, false);   /* 1.6: canGetMonitorFrameInfo */
-  expandBufAdd1(pReply, false);   /* 1.6: canUseSourceNameFilters */
-  expandBufAdd1(pReply, false);   /* 1.6: canGetConstantPool */
-  expandBufAdd1(pReply, false);   /* 1.6: canForceEarlyReturn */
+  expandBufAdd1(pReply, false);   // canWatchFieldModification
+  expandBufAdd1(pReply, false);   // canWatchFieldAccess
+  expandBufAdd1(pReply, false);   // canGetBytecodes
+  expandBufAdd1(pReply, true);    // canGetSyntheticAttribute
+  expandBufAdd1(pReply, false);   // canGetOwnedMonitorInfo
+  expandBufAdd1(pReply, false);   // canGetCurrentContendedMonitor
+  expandBufAdd1(pReply, true);    // canGetMonitorInfo
+  expandBufAdd1(pReply, false);   // canRedefineClasses
+  expandBufAdd1(pReply, false);   // canAddMethod
+  expandBufAdd1(pReply, false);   // canUnrestrictedlyRedefineClasses
+  expandBufAdd1(pReply, false);   // canPopFrames
+  expandBufAdd1(pReply, false);   // canUseInstanceFilters
+  expandBufAdd1(pReply, false);   // canGetSourceDebugExtension
+  expandBufAdd1(pReply, false);   // canRequestVMDeathEvent
+  expandBufAdd1(pReply, false);   // canSetDefaultStratum
+  expandBufAdd1(pReply, false);   // 1.6: canGetInstanceInfo
+  expandBufAdd1(pReply, false);   // 1.6: canRequestMonitorEvents
+  expandBufAdd1(pReply, false);   // 1.6: canGetMonitorFrameInfo
+  expandBufAdd1(pReply, false);   // 1.6: canUseSourceNameFilters
+  expandBufAdd1(pReply, false);   // 1.6: canGetConstantPool
+  expandBufAdd1(pReply, false);   // 1.6: canForceEarlyReturn
 
   /* fill in reserved22 through reserved32; note count started at 1 */
   for (int i = 22; i <= 32; i++) {
@@ -835,6 +835,12 @@ static JdwpError OR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
   }
 
   return ERR_NONE;
+}
+
+static JdwpError OR_MonitorInfo(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectId object_id = ReadObjectId(&buf);
+  return Dbg::GetMonitorInfo(object_id, reply);
 }
 
 /*
@@ -1518,47 +1524,47 @@ struct JdwpHandlerMap {
  */
 static const JdwpHandlerMap gHandlerMap[] = {
   /* VirtualMachine command set (1) */
-  { 1,    1,  VM_Version,       "VirtualMachine.Version" },
-  { 1,    2,  VM_ClassesBySignature, "VirtualMachine.ClassesBySignature" },
-  { 1,    3,  VM_AllClasses,    "VirtualMachine.AllClasses" },
-  { 1,    4,  VM_AllThreads,    "VirtualMachine.AllThreads" },
-  { 1,    5,  VM_TopLevelThreadGroups, "VirtualMachine.TopLevelThreadGroups" },
-  { 1,    6,  VM_Dispose,       "VirtualMachine.Dispose" },
-  { 1,    7,  VM_IDSizes,       "VirtualMachine.IDSizes" },
-  { 1,    8,  VM_Suspend,       "VirtualMachine.Suspend" },
-  { 1,    9,  VM_Resume,        "VirtualMachine.Resume" },
-  { 1,    10, VM_Exit,          "VirtualMachine.Exit" },
-  { 1,    11, VM_CreateString,  "VirtualMachine.CreateString" },
-  { 1,    12, VM_Capabilities,  "VirtualMachine.Capabilities" },
-  { 1,    13, VM_ClassPaths,    "VirtualMachine.ClassPaths" },
-  { 1,    14, VM_DisposeObjects, "VirtualMachine.DisposeObjects" },
-  { 1,    15, NULL, "VirtualMachine.HoldEvents" },
-  { 1,    16, NULL, "VirtualMachine.ReleaseEvents" },
-  { 1,    17, VM_CapabilitiesNew, "VirtualMachine.CapabilitiesNew" },
-  { 1,    18, NULL, "VirtualMachine.RedefineClasses" },
-  { 1,    19, NULL, "VirtualMachine.SetDefaultStratum" },
+  { 1,    1,  VM_Version,               "VirtualMachine.Version" },
+  { 1,    2,  VM_ClassesBySignature,    "VirtualMachine.ClassesBySignature" },
+  { 1,    3,  VM_AllClasses,            "VirtualMachine.AllClasses" },
+  { 1,    4,  VM_AllThreads,            "VirtualMachine.AllThreads" },
+  { 1,    5,  VM_TopLevelThreadGroups,  "VirtualMachine.TopLevelThreadGroups" },
+  { 1,    6,  VM_Dispose,               "VirtualMachine.Dispose" },
+  { 1,    7,  VM_IDSizes,               "VirtualMachine.IDSizes" },
+  { 1,    8,  VM_Suspend,               "VirtualMachine.Suspend" },
+  { 1,    9,  VM_Resume,                "VirtualMachine.Resume" },
+  { 1,    10, VM_Exit,                  "VirtualMachine.Exit" },
+  { 1,    11, VM_CreateString,          "VirtualMachine.CreateString" },
+  { 1,    12, VM_Capabilities,          "VirtualMachine.Capabilities" },
+  { 1,    13, VM_ClassPaths,            "VirtualMachine.ClassPaths" },
+  { 1,    14, VM_DisposeObjects,        "VirtualMachine.DisposeObjects" },
+  { 1,    15, NULL,                     "VirtualMachine.HoldEvents" },
+  { 1,    16, NULL,                     "VirtualMachine.ReleaseEvents" },
+  { 1,    17, VM_CapabilitiesNew,       "VirtualMachine.CapabilitiesNew" },
+  { 1,    18, NULL,                     "VirtualMachine.RedefineClasses" },
+  { 1,    19, NULL,                     "VirtualMachine.SetDefaultStratum" },
   { 1,    20, VM_AllClassesWithGeneric, "VirtualMachine.AllClassesWithGeneric" },
-  { 1,    21, NULL, "VirtualMachine.InstanceCounts" },
+  { 1,    21, NULL,                     "VirtualMachine.InstanceCounts" },
 
   /* ReferenceType command set (2) */
-  { 2,    1,  RT_Signature,     "ReferenceType.Signature" },
-  { 2,    2,  RT_ClassLoader,   "ReferenceType.ClassLoader" },
-  { 2,    3,  RT_Modifiers,     "ReferenceType.Modifiers" },
-  { 2,    4,  RT_Fields,        "ReferenceType.Fields" },
-  { 2,    5,  RT_Methods,       "ReferenceType.Methods" },
-  { 2,    6,  RT_GetValues,     "ReferenceType.GetValues" },
-  { 2,    7,  RT_SourceFile,    "ReferenceType.SourceFile" },
-  { 2,    8,  NULL, "ReferenceType.NestedTypes" },
-  { 2,    9,  RT_Status,        "ReferenceType.Status" },
-  { 2,    10, RT_Interfaces,    "ReferenceType.Interfaces" },
-  { 2,    11, RT_ClassObject,   "ReferenceType.ClassObject" },
+  { 2,    1,  RT_Signature,            "ReferenceType.Signature" },
+  { 2,    2,  RT_ClassLoader,          "ReferenceType.ClassLoader" },
+  { 2,    3,  RT_Modifiers,            "ReferenceType.Modifiers" },
+  { 2,    4,  RT_Fields,               "ReferenceType.Fields" },
+  { 2,    5,  RT_Methods,              "ReferenceType.Methods" },
+  { 2,    6,  RT_GetValues,            "ReferenceType.GetValues" },
+  { 2,    7,  RT_SourceFile,           "ReferenceType.SourceFile" },
+  { 2,    8,  NULL,                    "ReferenceType.NestedTypes" },
+  { 2,    9,  RT_Status,               "ReferenceType.Status" },
+  { 2,    10, RT_Interfaces,           "ReferenceType.Interfaces" },
+  { 2,    11, RT_ClassObject,          "ReferenceType.ClassObject" },
   { 2,    12, RT_SourceDebugExtension, "ReferenceType.SourceDebugExtension" },
   { 2,    13, RT_SignatureWithGeneric, "ReferenceType.SignatureWithGeneric" },
-  { 2,    14, RT_FieldsWithGeneric, "ReferenceType.FieldsWithGeneric" },
-  { 2,    15, RT_MethodsWithGeneric, "ReferenceType.MethodsWithGeneric" },
-  { 2,    16, NULL, "ReferenceType.Instances" },
-  { 2,    17, NULL, "ReferenceType.ClassFileVersion" },
-  { 2,    18, NULL, "ReferenceType.ConstantPool" },
+  { 2,    14, RT_FieldsWithGeneric,    "ReferenceType.FieldsWithGeneric" },
+  { 2,    15, RT_MethodsWithGeneric,   "ReferenceType.MethodsWithGeneric" },
+  { 2,    16, NULL,                    "ReferenceType.Instances" },
+  { 2,    17, NULL,                    "ReferenceType.ClassFileVersion" },
+  { 2,    18, NULL,                    "ReferenceType.ConstantPool" },
 
   /* ClassType command set (3) */
   { 3,    1,  CT_Superclass,    "ClassType.Superclass" },
@@ -1572,44 +1578,44 @@ static const JdwpHandlerMap gHandlerMap[] = {
   /* InterfaceType command set (5) */
 
   /* Method command set (6) */
-  { 6,    1,  M_LineTable,      "Method.LineTable" },
-  { 6,    2,  M_VariableTable,  "Method.VariableTable" },
-  { 6,    3,  NULL, "Method.Bytecodes" },
-  { 6,    4,  NULL, "Method.IsObsolete" },
+  { 6,    1,  M_LineTable,                "Method.LineTable" },
+  { 6,    2,  M_VariableTable,            "Method.VariableTable" },
+  { 6,    3,  NULL,                       "Method.Bytecodes" },
+  { 6,    4,  NULL,                       "Method.IsObsolete" },
   { 6,    5,  M_VariableTableWithGeneric, "Method.VariableTableWithGeneric" },
 
   /* Field command set (8) */
 
   /* ObjectReference command set (9) */
-  { 9,    1,  OR_ReferenceType, "ObjectReference.ReferenceType" },
-  { 9,    2,  OR_GetValues,     "ObjectReference.GetValues" },
-  { 9,    3,  OR_SetValues,     "ObjectReference.SetValues" },
-  { 9,    4,  NULL, "ObjectReference.UNUSED" },
-  { 9,    5,  NULL, "ObjectReference.MonitorInfo" },
-  { 9,    6,  OR_InvokeMethod,  "ObjectReference.InvokeMethod" },
+  { 9,    1,  OR_ReferenceType,     "ObjectReference.ReferenceType" },
+  { 9,    2,  OR_GetValues,         "ObjectReference.GetValues" },
+  { 9,    3,  OR_SetValues,         "ObjectReference.SetValues" },
+  { 9,    4,  NULL,                 "ObjectReference.UNUSED" },
+  { 9,    5,  OR_MonitorInfo,       "ObjectReference.MonitorInfo" },
+  { 9,    6,  OR_InvokeMethod,      "ObjectReference.InvokeMethod" },
   { 9,    7,  OR_DisableCollection, "ObjectReference.DisableCollection" },
-  { 9,    8,  OR_EnableCollection, "ObjectReference.EnableCollection" },
-  { 9,    9,  OR_IsCollected,   "ObjectReference.IsCollected" },
-  { 9,    10, NULL, "ObjectReference.ReferringObjects" },
+  { 9,    8,  OR_EnableCollection,  "ObjectReference.EnableCollection" },
+  { 9,    9,  OR_IsCollected,       "ObjectReference.IsCollected" },
+  { 9,    10, NULL,                 "ObjectReference.ReferringObjects" },
 
   /* StringReference command set (10) */
   { 10,   1,  SR_Value,         "StringReference.Value" },
 
   /* ThreadReference command set (11) */
-  { 11,   1,  TR_Name,          "ThreadReference.Name" },
-  { 11,   2,  TR_Suspend,       "ThreadReference.Suspend" },
-  { 11,   3,  TR_Resume,        "ThreadReference.Resume" },
-  { 11,   4,  TR_Status,        "ThreadReference.Status" },
-  { 11,   5,  TR_ThreadGroup,   "ThreadReference.ThreadGroup" },
-  { 11,   6,  TR_Frames,        "ThreadReference.Frames" },
-  { 11,   7,  TR_FrameCount,    "ThreadReference.FrameCount" },
-  { 11,   8,  NULL, "ThreadReference.OwnedMonitors" },
+  { 11,   1,  TR_Name,                    "ThreadReference.Name" },
+  { 11,   2,  TR_Suspend,                 "ThreadReference.Suspend" },
+  { 11,   3,  TR_Resume,                  "ThreadReference.Resume" },
+  { 11,   4,  TR_Status,                  "ThreadReference.Status" },
+  { 11,   5,  TR_ThreadGroup,             "ThreadReference.ThreadGroup" },
+  { 11,   6,  TR_Frames,                  "ThreadReference.Frames" },
+  { 11,   7,  TR_FrameCount,              "ThreadReference.FrameCount" },
+  { 11,   8,  NULL,                       "ThreadReference.OwnedMonitors" },
   { 11,   9,  TR_CurrentContendedMonitor, "ThreadReference.CurrentContendedMonitor" },
-  { 11,   10, NULL, "ThreadReference.Stop" },
-  { 11,   11, NULL, "ThreadReference.Interrupt" },
-  { 11,   12, TR_DebugSuspendCount, "ThreadReference.SuspendCount" },
-  { 11,   13, NULL, "ThreadReference.OwnedMonitorsStackDepthInfo" },
-  { 11,   14, NULL, "ThreadReference.ForceEarlyReturn" },
+  { 11,   10, NULL,                       "ThreadReference.Stop" },
+  { 11,   11, NULL,                       "ThreadReference.Interrupt" },
+  { 11,   12, TR_DebugSuspendCount,       "ThreadReference.SuspendCount" },
+  { 11,   13, NULL,                       "ThreadReference.OwnedMonitorsStackDepthInfo" },
+  { 11,   14, NULL,                       "ThreadReference.ForceEarlyReturn" },
 
   /* ThreadGroupReference command set (12) */
   { 12,   1,  TGR_Name,         "ThreadGroupReference.Name" },
@@ -1627,19 +1633,19 @@ static const JdwpHandlerMap gHandlerMap[] = {
   /* EventRequest command set (15) */
   { 15,   1,  ER_Set,           "EventRequest.Set" },
   { 15,   2,  ER_Clear,         "EventRequest.Clear" },
-  { 15,   3,  NULL, "EventRequest.ClearAllBreakpoints" },
+  { 15,   3,  NULL,             "EventRequest.ClearAllBreakpoints" },
 
   /* StackFrame command set (16) */
   { 16,   1,  SF_GetValues,     "StackFrame.GetValues" },
   { 16,   2,  SF_SetValues,     "StackFrame.SetValues" },
   { 16,   3,  SF_ThisObject,    "StackFrame.ThisObject" },
-  { 16,   4,  NULL, "StackFrame.PopFrames" },
+  { 16,   4,  NULL,             "StackFrame.PopFrames" },
 
   /* ClassObjectReference command set (17) */
   { 17,   1,  COR_ReflectedType, "ClassObjectReference.ReflectedType" },
 
   /* Event command set (64) */
-  { 64,  100, NULL, "Event.Composite" }, // sent from VM to debugger, never received by VM
+  { 64, 100,  NULL, "Event.Composite" }, // sent from VM to debugger, never received by VM
 
   { 199,  1,  DDM_Chunk,        "DDM.Chunk" },
 };

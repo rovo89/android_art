@@ -151,6 +151,9 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
+  static JDWP::JdwpError GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputArray(JDWP::ObjectId array_id, int offset, int count,

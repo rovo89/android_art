@@ -95,6 +95,8 @@ class ThreadList {
     return list_;
   }
 
+  Thread* FindThreadByThinLockId(uint32_t thin_lock_id);
+
  private:
   typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
 

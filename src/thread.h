@@ -201,7 +201,7 @@ class PACKED(4) Thread {
   // Wait for a debugger suspension on the thread associated with the given peer. Returns the
   // thread on success, else NULL. If the thread should be suspended then request_suspension should
   // be true on entry. If the suspension times out then *timeout is set to true.
-  static Thread* SuspendForDebugger(jobject peer,  bool request_suspension, bool* timeout)
+  static Thread* SuspendForDebugger(jobject peer,  bool request_suspension, bool* timed_out)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -752,6 +752,7 @@ class PACKED(4) Thread {
   Object* monitor_enter_object_;
 
   friend class Monitor;
+  friend class MonitorInfo;
 
   // Top of linked list of stack indirect reference tables or NULL for none
   StackIndirectReferenceTable* top_sirt_;
