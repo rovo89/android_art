@@ -29,6 +29,11 @@
     .balign 16
 .endm
 
+    /* Generates $gp for function calls */
+.macro GENERATE_GLOBAL_POINTER
+    .cpload $t9
+.endm
+
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
@@ -160,13 +165,14 @@
      */
     ALIGN_FUNCTION_ENTRY
 art_update_debugger:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     move    $a3, $a0        # stash away $a0 so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     move    $a0, $a2        # arg0 is dex PC
     move    $a1, rSELF      # arg1 is Thread*
     move    $a2, $sp        # arg2 is $sp
     jal     artUpdateDebuggerFromCode      # artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
+    nop
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     jr      $ra
     move    $a0, $a3        # restore original $a0
@@ -253,7 +259,7 @@ art_do_long_jump:
      */
     ALIGN_FUNCTION_ENTRY
 art_deliver_exception_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, rSELF                 # pass Thread::Current
     la   $t9, artDeliverExceptionFromCode
@@ -267,7 +273,7 @@ art_deliver_exception_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_throw_null_pointer_exception_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowNullPointerExceptionFromCode
@@ -281,7 +287,7 @@ art_throw_null_pointer_exception_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_throw_div_zero_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowDivZeroFromCode
@@ -295,7 +301,7 @@ art_throw_div_zero_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_throw_array_bounds_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a2, rSELF                 # pass Thread::Current
     la   $t9, artThrowArrayBoundsFromCode
@@ -309,7 +315,7 @@ art_throw_array_bounds_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_throw_stack_overflow_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowStackOverflowFromCode
@@ -323,7 +329,7 @@ art_throw_stack_overflow_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_throw_no_such_method_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, rSELF                 # pass Thread::Current
     la   $t9, artThrowNoSuchMethodFromCode
@@ -350,7 +356,7 @@ art_throw_no_such_method_from_code:
     .global \c_name
     .extern \cxx_name
 \c_name:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
     lw    $a2, 48($sp)                    # pass caller Method*
     move  $t0, $sp                        # save $sp
@@ -387,7 +393,7 @@ INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirt
      */
     ALIGN_FUNCTION_ENTRY
 art_work_around_app_jni_bugs:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     # save registers that may contain arguments and LR that will be crushed by a call
     addiu    $sp, $sp, -32
     sw       $ra, 28($sp)
@@ -415,7 +421,7 @@ art_work_around_app_jni_bugs:
      */
     ALIGN_FUNCTION_ENTRY
 art_handle_fill_data_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                         # pass Thread::Current
     jal     artHandleFillArrayDataFromCode     # (Array*, const DexFile::Payload*, Thread*, $sp)
@@ -429,7 +435,7 @@ art_handle_fill_data_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_lock_object_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME      # save callee saves in case we block
     move    $a1, rSELF                    # pass Thread::Current
     jal     artLockObjectFromCode         # (Object* obj, Thread*, $sp)
@@ -443,7 +449,7 @@ art_lock_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_unlock_object_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a1, rSELF                # pass Thread::Current
     jal     artUnlockObjectFromCode   # (Object* obj, Thread*, $sp)
@@ -457,7 +463,7 @@ art_unlock_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_cast_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artCheckCastFromCode      # (Class* a, Class* b, Thread*, $sp)
@@ -472,7 +478,7 @@ art_check_cast_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_can_put_array_element_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                     # pass Thread::Current
     jal     artCanPutArrayElementFromCode  # (Object* element, Class* array_class, Thread*, $sp)
@@ -488,7 +494,7 @@ art_can_put_array_element_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_static_storage_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME            # save callee saves in case of GC
     move    $a2, rSELF                          # pass Thread::Current
     # artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
@@ -503,7 +509,7 @@ art_initialize_static_storage_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_type_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
     move    $a2, rSELF                         # pass Thread::Current
     # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
@@ -519,7 +525,7 @@ art_initialize_type_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_type_and_verify_access_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
     move    $a2, rSELF                         # pass Thread::Current
     # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
@@ -534,7 +540,7 @@ art_initialize_type_and_verify_access_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get32_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
@@ -549,7 +555,7 @@ art_get32_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get64_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
@@ -564,7 +570,7 @@ art_get64_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get_obj_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
     move   $a2, rSELF                    # pass Thread::Current
@@ -579,7 +585,7 @@ art_get_obj_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get32_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
@@ -594,7 +600,7 @@ art_get32_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get64_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
@@ -609,7 +615,7 @@ art_get64_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get_obj_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
@@ -624,7 +630,7 @@ art_get_obj_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set32_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
@@ -639,7 +645,7 @@ art_set32_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set64_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
@@ -654,7 +660,7 @@ art_set64_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set_obj_static_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
     move   $a3, rSELF                    # pass Thread::Current
@@ -669,7 +675,7 @@ art_set_obj_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set32_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a3, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
@@ -684,7 +690,7 @@ art_set32_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set64_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, Thread*, $sp)
@@ -698,7 +704,7 @@ art_set64_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set_obj_instance_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a3, 64($sp)                  # pass referrer's Method*
     sw     rSELF, 16($sp)                # pass Thread::Current
@@ -716,7 +722,7 @@ art_set_obj_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_resolve_string_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
     # artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, $sp)
@@ -731,7 +737,7 @@ art_resolve_string_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_object_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artAllocObjectFromCode    # (uint32_t type_idx, Method* method, Thread*, $sp)
@@ -746,7 +752,7 @@ art_alloc_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_object_from_code_with_access_check:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artAllocObjectFromCodeWithAccessCheck  # (uint32_t type_idx, Method* method, Thread*, $sp)
@@ -760,7 +766,7 @@ art_alloc_object_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_array_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
     # artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, $sp)
@@ -776,7 +782,7 @@ art_alloc_array_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_array_from_code_with_access_check:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
     # artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, $sp)
@@ -791,7 +797,7 @@ art_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_and_alloc_array_from_code:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
     # artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , $sp)
@@ -806,7 +812,7 @@ art_check_and_alloc_array_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_and_alloc_array_from_code_with_access_check:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
     # artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , $sp)
@@ -821,7 +827,7 @@ art_check_and_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_test_suspend:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
     addi  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
@@ -842,7 +848,7 @@ art_test_suspend:
      */
     ALIGN_FUNCTION_ENTRY
 art_proxy_invoke_handler:
-    .cpload $25
+    GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     sw      $a0, 0($sp)            # place proxy method at bottom of frame
     move    $a2, rSELF             # pass Thread::Current
@@ -868,14 +874,16 @@ art_proxy_invoke_handler:
      */
     ALIGN_FUNCTION_ENTRY
 art_instrumentation_entry_from_code:
-    .cpload $25
-    addiu    $sp, $sp, -16
+    GENERATE_GLOBAL_POINTER
+    move     $t0, $sp       # remember bottom of caller's frame
+    addiu    $sp, $sp, -16  # save arguments (4 words)
     sw       $a0, 0($sp)
     sw       $a1, 4($sp)
     sw       $a2, 8($sp)
     sw       $a3, 12($sp)
-    move     $a2, $ra       # pass $ra
-    jal      artInstrumentationMethodEntryFromCode  # (Method*, Thread*, LR)
+    move     $a3, $ra       # pass $ra
+    move     $a2, $t0       # pass $sp
+    jal      artInstrumentationMethodEntryFromCode  # (Method*, Thread*, SP, LR)
     move     $a1, rSELF     # pass Thread::Current
     move     $t9, $v0       # $t9 holds reference to code
     lw       $a0, 0($sp)
@@ -886,16 +894,53 @@ art_instrumentation_entry_from_code:
     addiu    $sp, $sp, 16
     /* intentional fallthrough */
 art_instrumentation_exit_from_code:
-    .cpload $25
-    addiu    $sp, $sp, -16
+    addiu    $t9, $ra, 4    # put current address into $t9 to rebuild $gp
+    GENERATE_GLOBAL_POINTER
+    move     $t0, $sp       # remember bottom of caller's frame
+    addiu    $sp, $sp, -16  # save return values
     sw       $v0, 0($sp)
-    jal      artInstrumentationMethodExitFromCode  # ()
     sw       $v1, 4($sp)
-    move     $ra, $v0         # restore link register
+    move     $a1, $t0       # pass $sp
+    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP)
+    move     $a0, rSELF     # pass Thread::Current
+    move     $t0, $v0       # set aside returned link register
+    move     $ra, $v1       # set link register for deoptimization
     lw       $v0, 0($sp)
     lw       $v1, 4($sp)
-    jr       $ra              # return
+    jr       $t0            # return
     addiu    $sp, $sp, 16
+
+    .global art_deoptimize
+    .extern artDeoptimize
+    .extern artEnterInterpreterFromDeoptimize
+    /*
+     * The thread's enter interpreter flag is set and so we should transition to the interpreter
+     * rather than allow execution to continue in the frame below. There may be live results in
+     * registers depending on how complete the operation is when we safepoint - for example, a
+     * set operation may have completed while a get operation needs writing back into the vregs.
+     */
+    ALIGN_FUNCTION_ENTRY
+art_deoptimize:
+    GENERATE_GLOBAL_POINTER
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    move     $a0, $v0       # pass first half of return value
+    move     $a1, $v1       # pass second half of return value
+    move     $a2, rSELF     # pass Thread::current
+    jal      artDeoptimize  # artDeoptimize(return value, Thread*, SP)
+                            # Returns caller method's frame size.
+    move     $a3, $sp       # pass $sp
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    beqz     $v0, 1f        # Return if caller was upcall.
+    add      $t9, $sp, $v0  # $t9 == bottom of caller's frame.
+    lw       $ra, -4($t9)   # Restore $ra.
+    move     $sp, $t9       # Remove frame.
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    jal      artEnterInterpreterFromDeoptimize  # Enter interpreter, callee-save ends stack fragment.
+    nop
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+1:
+    jr       $ra            # Return to caller.
+    nop
 
     .global art_shl_long
     /*

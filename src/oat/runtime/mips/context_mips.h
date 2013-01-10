@@ -44,7 +44,7 @@ class MipsContext : public Context {
 
   virtual uintptr_t GetGPR(uint32_t reg) {
     CHECK_LT(reg, kNumberOfCoreRegisters);
-    return gprs_[reg];
+    return *gprs_[reg];
   }
 
   virtual void SetGPR(uint32_t reg, uintptr_t value);
