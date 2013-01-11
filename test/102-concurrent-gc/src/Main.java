@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Random;
 
-public class ConcurrentGC {
+public class Main {
     private static final int buckets = 16 * 1024;
     private static final int bufferSize = 1024;
 
@@ -66,5 +62,6 @@ public class ConcurrentGC {
             }
         } catch (OutOfMemoryError e) {
         }
+        System.out.println("Test complete");
     }
 }
