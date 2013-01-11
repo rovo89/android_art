@@ -437,7 +437,6 @@ TEST_OAT_DIRECTORIES := \
 	MemUsage \
 	ParallelGC \
 	ReferenceMap \
-	ReflectionTest \
 	StackWalk \
 	ThreadStress
 

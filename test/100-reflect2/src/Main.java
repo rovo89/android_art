@@ -17,7 +17,7 @@
 import java.lang.reflect.*;
 import java.util.*;
 
-class ReflectionTest {
+class Main {
   private static boolean z = true;
   private static byte b = 8;
   private static char c = 'x';
@@ -30,114 +30,114 @@ class ReflectionTest {
   public static void testFieldReflection() throws Exception {
     Field f;
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     System.out.println(f.getBoolean(null));
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     System.out.println(f.getByte(null));
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     System.out.println(f.getChar(null));
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     System.out.println(f.getDouble(null));
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     System.out.println(f.getFloat(null));
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     System.out.println(f.getInt(null));
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     System.out.println(f.getLong(null));
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     System.out.println(f.getShort(null));
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     f.setBoolean(null, false);
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     f.setByte(null, (byte) 7);
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     f.setChar(null, 'y');
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     f.setDouble(null, 2.7);
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     f.setFloat(null, 2.7f);
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     f.setInt(null, 31);
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     f.setLong(null, 63);
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     f.setShort(null, (short) 15);
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     System.out.println(f.getBoolean(null));
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     System.out.println(f.getByte(null));
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     System.out.println(f.getChar(null));
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     System.out.println(f.getDouble(null));
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     System.out.println(f.getFloat(null));
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     System.out.println(f.getInt(null));
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     System.out.println(f.getLong(null));
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     System.out.println(f.getShort(null));
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     f.set(null, Boolean.valueOf(true));
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     f.set(null, Byte.valueOf((byte) 6));
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     f.set(null, Character.valueOf('z'));
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     f.set(null, Double.valueOf(1.3));
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     f.set(null, Float.valueOf(1.3f));
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     f.set(null, Integer.valueOf(30));
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     f.set(null, Long.valueOf(62));
     f.set(null, Integer.valueOf(62));
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     f.set(null, Short.valueOf((short) 14));
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     System.out.println(f.getBoolean(null));
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     System.out.println(f.getByte(null));
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     System.out.println(f.getChar(null));
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     System.out.println(f.getDouble(null));
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     System.out.println(f.getFloat(null));
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     System.out.println(f.getInt(null));
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     System.out.println(f.getLong(null));
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     System.out.println(f.getShort(null));
 
     try {
-      f = ReflectionTest.class.getDeclaredField("s");
+      f = Main.class.getDeclaredField("s");
       f.set(null, Integer.valueOf(14));
     } catch (IllegalArgumentException expected) {
       expected.printStackTrace();
     }
 
-    f = ReflectionTest.class.getDeclaredField("z");
+    f = Main.class.getDeclaredField("z");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("b");
+    f = Main.class.getDeclaredField("b");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("c");
+    f = Main.class.getDeclaredField("c");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("d");
+    f = Main.class.getDeclaredField("d");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("f");
+    f = Main.class.getDeclaredField("f");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("i");
+    f = Main.class.getDeclaredField("i");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("j");
+    f = Main.class.getDeclaredField("j");
     show(f.get(null));
-    f = ReflectionTest.class.getDeclaredField("s");
+    f = Main.class.getDeclaredField("s");
     show(f.get(null));
 
     /*
@@ -161,10 +161,10 @@ class ReflectionTest {
     System.out.println(Arrays.toString(String.class.getDeclaredFields()));
     System.out.println(Arrays.toString(String.class.getDeclaredMethods()));
 
-    System.out.println(Arrays.toString(ReflectionTest.class.getInterfaces()));
+    System.out.println(Arrays.toString(Main.class.getInterfaces()));
     System.out.println(Arrays.toString(String.class.getInterfaces()));
 
-    System.out.println(ReflectionTest.class.getModifiers());
+    System.out.println(Main.class.getModifiers());
     System.out.println(String.class.getModifiers());
 
     System.out.println(String.class.isAssignableFrom(Object.class));
@@ -175,37 +175,37 @@ class ReflectionTest {
 
     Method m;
 
-    m = ReflectionTest.class.getDeclaredMethod("IV", int.class);
+    m = Main.class.getDeclaredMethod("IV", int.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, 4444));
     System.out.println(Arrays.toString(m.getParameterTypes()));
 
-    m = ReflectionTest.class.getDeclaredMethod("IIV", int.class, int.class);
+    m = Main.class.getDeclaredMethod("IIV", int.class, int.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, 1111, 2222));
 
-    m = ReflectionTest.class.getDeclaredMethod("III", int.class, int.class);
+    m = Main.class.getDeclaredMethod("III", int.class, int.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, 1111, 2222));
 
-    m = ReflectionTest.class.getDeclaredMethod("sumArray", int[].class);
+    m = Main.class.getDeclaredMethod("sumArray", int[].class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, new int[] { 1, 2, 3, 4 }));
 
-    m = ReflectionTest.class.getDeclaredMethod("concat", String[].class);
+    m = Main.class.getDeclaredMethod("concat", String[].class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, (Object) new String[] { "h", "e", "l", "l", "o" }));
 
-    m = ReflectionTest.class.getDeclaredMethod("ZBCDFIJSV", boolean.class, byte.class, char.class, double.class, float.class, int.class, long.class, short.class);
+    m = Main.class.getDeclaredMethod("ZBCDFIJSV", boolean.class, byte.class, char.class, double.class, float.class, int.class, long.class, short.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, true, (byte) 0, '1', 2, 3, 4, 5, (short) 6));
 
-    m = ReflectionTest.class.getDeclaredMethod("ZBCDLFIJSV", boolean.class, byte.class, char.class, double.class, String.class, float.class, int.class, long.class, short.class);
+    m = Main.class.getDeclaredMethod("ZBCDLFIJSV", boolean.class, byte.class, char.class, double.class, String.class, float.class, int.class, long.class, short.class);
     System.out.println(Arrays.toString(m.getParameterTypes()));
     show(m.invoke(null, true, (byte) 0, '1', 2, "hello world", 3, 4, 5, (short) 6));
 
     try {
-      m = ReflectionTest.class.getDeclaredMethod("thrower");
+      m = Main.class.getDeclaredMethod("thrower");
       System.out.println(Arrays.toString(m.getParameterTypes()));
       show(m.invoke(null));
       System.out.println("************* should have thrown!");
