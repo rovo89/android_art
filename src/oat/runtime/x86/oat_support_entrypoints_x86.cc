@@ -244,7 +244,6 @@ uintptr_t GetInstrumentationExitPc() {
 }
 
 uintptr_t GetDeoptimizationEntryPoint() {
-  UNIMPLEMENTED(FATAL);
   return reinterpret_cast<uintptr_t>(art_deoptimize);
 }
 
