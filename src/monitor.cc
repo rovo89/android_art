@@ -823,8 +823,7 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
 }
 
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
-  ThreadState state;
-  state = thread->GetState();
+  ThreadState state = thread->GetState();
 
   Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
@@ -835,7 +834,8 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
       os << "  - waiting on ";
     }
     {
-      MutexLock mu(Thread::Current(), *thread->wait_mutex_);
+      Thread* self = Thread::Current();
+      MutexLock mu(self, *thread->wait_mutex_);
       Monitor* monitor = thread->wait_monitor_;
       if (monitor != NULL) {
         object = monitor->obj_;
@@ -861,6 +861,24 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   }
 
   os << "\n";
+}
+
+Object* Monitor::GetContendedMonitor(Thread* thread) {
+  // This is used to implement JDWP's ThreadReference.CurrentContendedMonitor, and has a bizarre
+  // definition of contended that includes a monitor a thread is trying to enter...
+  Object* result = thread->monitor_enter_object_;
+  if (result != NULL) {
+    return result;
+  }
+  // ...but also a monitor that the thread is waiting on.
+  {
+    MutexLock mu(Thread::Current(), *thread->wait_mutex_);
+    Monitor* monitor = thread->wait_monitor_;
+    if (monitor != NULL) {
+      return monitor->obj_;
+    }
+  }
+  return NULL;
 }
 
 void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context) {

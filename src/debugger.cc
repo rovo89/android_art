@@ -713,6 +713,24 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+  Thread* thread;
+  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
+  if (!IsSuspendedForDebugger(soa, thread)) {
+    return JDWP::ERR_THREAD_NOT_SUSPENDED;
+  }
+
+  contended_monitor = gRegistry->Add(Monitor::GetContendedMonitor(thread));
+
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(class_id, status);
@@ -1571,6 +1589,18 @@ JDWP::JdwpError Dbg::GetThreadDebugSuspendCount(JDWP::ObjectId thread_id, JDWP::
   }
   MutexLock mu2(soa.Self(), *Locks::thread_suspend_count_lock_);
   expandBufAdd4BE(pReply, thread->GetDebugSuspendCount());
+  return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::Interrupt(JDWP::ObjectId thread_id) {
+  ScopedObjectAccess soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+  Thread* thread;
+  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
+  thread->Interrupt();
   return JDWP::ERR_NONE;
 }
 

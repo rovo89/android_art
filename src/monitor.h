@@ -88,6 +88,9 @@ class Monitor {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Used to implement JDWP's ThreadReference.CurrentContendedMonitor.
+  static Object* GetContendedMonitor(Thread* thread);
+
   // Calls 'callback' once for each lock held in the single stack frame represented by
   // the current state of 'stack_visitor'.
   static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context)

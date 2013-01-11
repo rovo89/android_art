@@ -155,6 +155,8 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP::ObjectId>& monitors)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -274,6 +276,8 @@ class Dbg {
   static void SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
                             JDWP::JdwpTag tag, uint64_t value, size_t width)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static JDWP::JdwpError Interrupt(JDWP::ObjectId thread_id);
 
   /*
    * Debugger notification
