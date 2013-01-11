@@ -395,7 +395,7 @@ static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* 
   expandBufAdd1(reply, false);   // canSetDefaultStratum
   expandBufAdd1(reply, false);   // 1.6: canGetInstanceInfo
   expandBufAdd1(reply, false);   // 1.6: canRequestMonitorEvents
-  expandBufAdd1(reply, false);   // 1.6: canGetMonitorFrameInfo
+  expandBufAdd1(reply, true);    // 1.6: canGetMonitorFrameInfo
   expandBufAdd1(reply, false);   // 1.6: canUseSourceNameFilters
   expandBufAdd1(reply, false);   // 1.6: canGetConstantPool
   expandBufAdd1(reply, false);   // 1.6: canForceEarlyReturn
@@ -1059,12 +1059,13 @@ static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
   return ERR_NONE;
 }
 
-static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError TR_OwnedMonitors(const uint8_t* buf, ExpandBuf* reply, bool with_stack_depths)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_id = ReadObjectId(&buf);
 
   std::vector<ObjectId> monitors;
-  JdwpError rc = Dbg::GetOwnedMonitors(thread_id, monitors);
+  std::vector<uint32_t> stack_depths;
+  JdwpError rc = Dbg::GetOwnedMonitors(thread_id, monitors, stack_depths);
   if (rc != ERR_NONE) {
     return rc;
   }
@@ -1075,8 +1076,21 @@ static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf
     if (rc != ERR_NONE) {
       return rc;
     }
+    if (with_stack_depths) {
+      expandBufAdd4BE(reply, stack_depths[i]);
+    }
   }
   return ERR_NONE;
+}
+
+static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return TR_OwnedMonitors(buf, reply, false);
+}
+
+static JdwpError TR_OwnedMonitorsStackDepthInfo(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return TR_OwnedMonitors(buf, reply, true);
 }
 
 static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
@@ -1618,20 +1632,20 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 10,   1,  SR_Value,         "StringReference.Value" },
 
   /* ThreadReference command set (11) */
-  { 11,   1,  TR_Name,                    "ThreadReference.Name" },
-  { 11,   2,  TR_Suspend,                 "ThreadReference.Suspend" },
-  { 11,   3,  TR_Resume,                  "ThreadReference.Resume" },
-  { 11,   4,  TR_Status,                  "ThreadReference.Status" },
-  { 11,   5,  TR_ThreadGroup,             "ThreadReference.ThreadGroup" },
-  { 11,   6,  TR_Frames,                  "ThreadReference.Frames" },
-  { 11,   7,  TR_FrameCount,              "ThreadReference.FrameCount" },
-  { 11,   8,  TR_OwnedMonitors,           "ThreadReference.OwnedMonitors" },
-  { 11,   9,  TR_CurrentContendedMonitor, "ThreadReference.CurrentContendedMonitor" },
-  { 11,   10, NULL,                       "ThreadReference.Stop" },
-  { 11,   11, TR_Interrupt,               "ThreadReference.Interrupt" },
-  { 11,   12, TR_DebugSuspendCount,       "ThreadReference.SuspendCount" },
-  { 11,   13, NULL,                       "ThreadReference.OwnedMonitorsStackDepthInfo" },
-  { 11,   14, NULL,                       "ThreadReference.ForceEarlyReturn" },
+  { 11,   1,  TR_Name,                        "ThreadReference.Name" },
+  { 11,   2,  TR_Suspend,                     "ThreadReference.Suspend" },
+  { 11,   3,  TR_Resume,                      "ThreadReference.Resume" },
+  { 11,   4,  TR_Status,                      "ThreadReference.Status" },
+  { 11,   5,  TR_ThreadGroup,                 "ThreadReference.ThreadGroup" },
+  { 11,   6,  TR_Frames,                      "ThreadReference.Frames" },
+  { 11,   7,  TR_FrameCount,                  "ThreadReference.FrameCount" },
+  { 11,   8,  TR_OwnedMonitors,               "ThreadReference.OwnedMonitors" },
+  { 11,   9,  TR_CurrentContendedMonitor,     "ThreadReference.CurrentContendedMonitor" },
+  { 11,   10, NULL,                           "ThreadReference.Stop" },
+  { 11,   11, TR_Interrupt,                   "ThreadReference.Interrupt" },
+  { 11,   12, TR_DebugSuspendCount,           "ThreadReference.SuspendCount" },
+  { 11,   13, TR_OwnedMonitorsStackDepthInfo, "ThreadReference.OwnedMonitorsStackDepthInfo" },
+  { 11,   14, NULL,                           "ThreadReference.ForceEarlyReturn" },
 
   /* ThreadGroupReference command set (12) */
   { 12,   1,  TGR_Name,         "ThreadGroupReference.Name" },

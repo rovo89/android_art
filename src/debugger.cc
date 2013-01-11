@@ -669,7 +669,9 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP::ObjectId>& monitors)
+JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id,
+                                      std::vector<JDWP::ObjectId>& monitors,
+                                      std::vector<uint32_t>& stack_depths)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
@@ -686,28 +688,34 @@ JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP
     OwnedMonitorVisitor(const ManagedStack* stack,
                         const std::deque<InstrumentationStackFrame>* instrumentation_stack)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(stack, instrumentation_stack, NULL) {}
+        : StackVisitor(stack, instrumentation_stack, NULL), current_stack_depth(0) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
     bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (!GetMethod()->IsRuntimeMethod()) {
         Monitor::VisitLocks(this, AppendOwnedMonitors, this);
+        ++current_stack_depth;
       }
       return true;
     }
 
     static void AppendOwnedMonitors(Object* owned_monitor, void* context) {
-      reinterpret_cast<OwnedMonitorVisitor*>(context)->monitors.push_back(owned_monitor);
+      OwnedMonitorVisitor* visitor = reinterpret_cast<OwnedMonitorVisitor*>(context);
+      visitor->monitors.push_back(owned_monitor);
+      visitor->stack_depths.push_back(visitor->current_stack_depth);
     }
 
+    size_t current_stack_depth;
     std::vector<Object*> monitors;
+    std::vector<uint32_t> stack_depths;
   };
   OwnedMonitorVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
   visitor.WalkStack();
 
   for (size_t i = 0; i < visitor.monitors.size(); ++i) {
     monitors.push_back(gRegistry->Add(visitor.monitors[i]));
+    stack_depths.push_back(visitor.stack_depths[i]);
   }
 
   return JDWP::ERR_NONE;
