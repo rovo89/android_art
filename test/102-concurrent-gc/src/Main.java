@@ -25,42 +25,39 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        try {
-            ByteContainer[] l = new ByteContainer[buckets];
+        ByteContainer[] l = new ByteContainer[buckets];
 
-            for (int i = 0; i < buckets; ++i) {
-                l[i] = new ByteContainer();
+        for (int i = 0; i < buckets; ++i) {
+            l[i] = new ByteContainer();
+        }
+
+        Random rnd = new Random(123456);
+        for (int i = 0; i < buckets / 256; ++i) {
+            int index = rnd.nextInt(buckets);
+            l[index].bytes = new byte[bufferSize];
+
+            // Try to get GC to run if we can
+            Runtime.getRuntime().gc();
+
+            // Shuffle the array to try cause the lost object problem:
+            // This problem occurs when an object is white, it may be
+            // only referenced from a white or grey object. If the white
+            // object is moved during a CMS to be a black object's field, it
+            // causes the moved object to not get marked. This can result in
+            // heap corruption. A typical way to address this issue is by
+            // having a card table.
+            // This aspect of the test is meant to ensure that card
+            // dirtying works and that we check the marked cards after
+            // marking.
+            // If these operations are not done, a segfault / failed assert
+            // should occur.
+            for (int j = 0; j < l.length; ++j) {
+                int a = l.length - i - 1;
+                int b = rnd.nextInt(a);
+                byte[] temp = l[a].bytes;
+                l[a].bytes = l[b].bytes;
+                l[b].bytes = temp;
             }
-
-            Random rnd = new Random(123456);
-            for (int i = 0; i < buckets / 256; ++i) {
-                int index = rnd.nextInt(buckets);
-                l[index].bytes = new byte[bufferSize];
-
-                // Try to get GC to run if we can
-                Runtime.getRuntime().gc();
-
-                // Shuffle the array to try cause the lost object problem:
-                // This problem occurs when an object is white, it may be
-                // only referenced from a white or grey object. If the white
-                // object is moved during a CMS to be a black object's field, it
-                // causes the moved object to not get marked. This can result in
-                // heap corruption. A typical way to address this issue is by
-                // having a card table.
-                // This aspect of the test is meant to ensure that card
-                // dirtying works and that we check the marked cards after
-                // marking.
-                // If these operations are not done, a segfault / failed assert
-                // should occur.
-                for (int j = 0; j < l.length; ++j) {
-                    int a = l.length - i - 1;
-                    int b = rnd.nextInt(a);
-                    byte[] temp = l[a].bytes;
-                    l[a].bytes = l[b].bytes;
-                    l[b].bytes = temp;
-                }
-            }
-        } catch (OutOfMemoryError e) {
         }
         System.out.println("Test complete");
     }
