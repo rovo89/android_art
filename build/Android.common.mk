@@ -430,7 +430,6 @@ TEST_OAT_DIRECTORIES := \
 	\
 	ExceptionTest \
 	IntMath \
-	Invoke \
 	ParallelGC \
 	ReferenceMap \
 	StackWalk \

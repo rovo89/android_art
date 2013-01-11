@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class Invoke implements InvokeInterface {
+class Main implements InvokeInterface {
 
     int virI_I(int a) {
         return a + 123;
@@ -69,7 +69,7 @@ class Invoke implements InvokeInterface {
     }
 
     static int invoke(int a) {
-        Invoke foo = new Invoke();
+        Main foo = new Main();
 
         return foo.virI_I(a) +
                foo.virI_II(a, 1) +
