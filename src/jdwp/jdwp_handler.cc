@@ -374,7 +374,7 @@ static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* rep
   expandBufAdd1(reply, false);   // canGetBytecodes
   expandBufAdd1(reply, true);    // canGetSyntheticAttribute
   expandBufAdd1(reply, true);    // canGetOwnedMonitorInfo
-  expandBufAdd1(reply, false);   // canGetCurrentContendedMonitor
+  expandBufAdd1(reply, true);    // canGetCurrentContendedMonitor
   expandBufAdd1(reply, true);    // canGetMonitorInfo
   return ERR_NONE;
 }
@@ -1079,17 +1079,22 @@ static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf
   return ERR_NONE;
 }
 
-/*
- * Get the monitor that the thread is waiting on.
- */
-static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ReadObjectId(&buf);  // thread_id
+  ObjectId thread_id = ReadObjectId(&buf);
 
-  // TODO: create an Object to represent the monitor (we're currently
-  // just using a raw Monitor struct in the VM)
+  ObjectId contended_monitor;
+  JdwpError rc = Dbg::GetContendedMonitor(thread_id, contended_monitor);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+  return WriteTaggedObject(reply, contended_monitor);
+}
 
-  return ERR_NOT_IMPLEMENTED;
+static JdwpError TR_Interrupt(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectId thread_id = ReadObjectId(&buf);
+  return Dbg::Interrupt(thread_id);
 }
 
 /*
@@ -1623,7 +1628,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 11,   8,  TR_OwnedMonitors,           "ThreadReference.OwnedMonitors" },
   { 11,   9,  TR_CurrentContendedMonitor, "ThreadReference.CurrentContendedMonitor" },
   { 11,   10, NULL,                       "ThreadReference.Stop" },
-  { 11,   11, NULL,                       "ThreadReference.Interrupt" },
+  { 11,   11, TR_Interrupt,               "ThreadReference.Interrupt" },
   { 11,   12, TR_DebugSuspendCount,       "ThreadReference.SuspendCount" },
   { 11,   13, NULL,                       "ThreadReference.OwnedMonitorsStackDepthInfo" },
   { 11,   14, NULL,                       "ThreadReference.ForceEarlyReturn" },
