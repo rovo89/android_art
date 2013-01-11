@@ -431,7 +431,6 @@ TEST_OAT_DIRECTORIES := \
 	ExceptionTest \
 	GrowthLimit \
 	IntMath \
-	Invoke \
 	ParallelGC \
 	ReferenceMap \
 	StackWalk \
