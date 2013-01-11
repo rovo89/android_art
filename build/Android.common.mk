@@ -434,7 +434,6 @@ TEST_OAT_DIRECTORIES := \
 	ConcurrentGC \
 	IntMath \
 	Invoke \
-	MemUsage \
 	ParallelGC \
 	ReferenceMap \
 	ReflectionTest \
