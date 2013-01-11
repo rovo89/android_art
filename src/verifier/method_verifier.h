@@ -224,6 +224,10 @@ class MethodVerifier {
   static bool IsClassRejected(Compiler::ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
 
+  bool CanLoadClasses() const {
+    return can_load_classes_;
+  }
+
  private:
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,

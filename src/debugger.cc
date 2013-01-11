@@ -669,6 +669,50 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetOwnedMonitors(JDWP::ObjectId thread_id, std::vector<JDWP::ObjectId>& monitors)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+  Thread* thread;
+  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
+  if (!IsSuspendedForDebugger(soa, thread)) {
+    return JDWP::ERR_THREAD_NOT_SUSPENDED;
+  }
+
+  struct OwnedMonitorVisitor : public StackVisitor {
+    OwnedMonitorVisitor(const ManagedStack* stack,
+                        const std::deque<InstrumentationStackFrame>* instrumentation_stack)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        : StackVisitor(stack, instrumentation_stack, NULL) {}
+
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
+      if (!GetMethod()->IsRuntimeMethod()) {
+        Monitor::VisitLocks(this, AppendOwnedMonitors, this);
+      }
+      return true;
+    }
+
+    static void AppendOwnedMonitors(Object* owned_monitor, void* context) {
+      reinterpret_cast<OwnedMonitorVisitor*>(context)->monitors.push_back(owned_monitor);
+    }
+
+    std::vector<Object*> monitors;
+  };
+  OwnedMonitorVisitor visitor(thread->GetManagedStack(), thread->GetInstrumentationStack());
+  visitor.WalkStack();
+
+  for (size_t i = 0; i < visitor.monitors.size(); ++i) {
+    monitors.push_back(gRegistry->Add(visitor.monitors[i]));
+  }
+
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(class_id, status);

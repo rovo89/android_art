@@ -42,7 +42,8 @@ bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   } else if (new_type.IsConflict()) {  // should only be set during a merge
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
     return false;
-  } else if (!Runtime::Current()->IsCompiler() && new_type.IsUnresolvedTypes()) {
+  } else if (verifier_->CanLoadClasses() && !Runtime::Current()->IsCompiler() &&
+      new_type.IsUnresolvedTypes()) {
     // Unresolvable classes at runtime are bad and marked as a rewrite error.
     verifier_->Fail(VERIFY_ERROR_NO_CLASS) << "Set register to unresolved class '"
                                            << new_type << "' at runtime";

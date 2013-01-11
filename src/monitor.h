@@ -87,7 +87,10 @@ class Monitor {
   static void DescribeWait(std::ostream& os, const Thread* thread)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void DescribeLocks(std::ostream& os, StackVisitor* stack_visitor)
+
+  // Calls 'callback' once for each lock held in the single stack frame represented by
+  // the current state of 'stack_visitor'.
+  static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Object* GetObject();
