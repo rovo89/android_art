@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class Fibonacci {
+class Main {
 
 /*
     // Iterative version

@@ -423,11 +423,10 @@ TEST_DEX_DIRECTORIES := \
 	XandY
 
 # subdirectories of test/ which are used with test-art-target-oat
-# Declare the simplest tests (Main, HelloWorld, and Fibonacci) first, the rest are alphabetical
+# Declare the simplest tests (Main, HelloWorld) first, the rest are alphabetical
 TEST_OAT_DIRECTORIES := \
 	Main \
 	HelloWorld \
-	Fibonacci \
 	\
 	ExceptionTest \
 	GrowthLimit \
