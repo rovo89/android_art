@@ -429,7 +429,6 @@ TEST_OAT_DIRECTORIES := \
 	HelloWorld \
 	\
 	ExceptionTest \
-	GrowthLimit \
 	IntMath \
 	Invoke \
 	ParallelGC \

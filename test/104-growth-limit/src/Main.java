@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-public class GrowthLimit {
+public class Main {
 
     public static void main(String[] args) throws Exception {
 
@@ -35,8 +32,13 @@ public class GrowthLimit {
             }
         } catch (OutOfMemoryError e) {
         }
-        // Expand the heap to the maximum size
-        dalvik.system.VMRuntime.getRuntime().clearGrowthLimit();
+        // Expand the heap to the maximum size.
+        // Reflective equivalent of: dalvik.system.VMRuntime.getRuntime().clearGrowthLimit();
+        Class<?> vm_runtime = Class.forName("dalvik.system.VMRuntime");
+        Method get_runtime = vm_runtime.getDeclaredMethod("getRuntime");
+        Object runtime = get_runtime.invoke(null);
+        Method clear_growth_limit = vm_runtime.getDeclaredMethod("clearGrowthLimit");
+        clear_growth_limit.invoke(runtime);
 
         int alloc2 = 1;
         try {
@@ -53,5 +55,6 @@ public class GrowthLimit {
                 System.exit(1);
             }
         }
+        System.out.println("Test complete");
     }
 }
