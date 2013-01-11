@@ -374,15 +374,20 @@ TWO_ARG_DOWNCALL art_initialize_static_storage_from_code, artInitializeStaticSto
 TWO_ARG_DOWNCALL art_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
+    /*
+     * On entry, eax and ecx must be preserved, edx is dex PC
+     */
 DEFINE_FUNCTION art_update_debugger
-    mov  %eax, %ebx               // stash away eax so that it's saved as if it were an argument
+    mov %eax, %ebx                // stash away eax so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    subl LITERAL(4), %esp         // alignment padding
     pushl %esp                    // pass arg2 (sp)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %edx                    // pass arg0 (dex pc)
     call SYMBOL(artUpdateDebuggerFromCode) // artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    mov  %ebx, %eax               // restore original eax
+    mov %ebx, %eax                // restore original eax
     ret
 
 DEFINE_FUNCTION art_get_and_clear_exception
@@ -745,13 +750,68 @@ DEFINE_FUNCTION art_proxy_invoke_handler
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
+    /*
+     * Routine that intercepts method calls and returns.
+     */
 DEFINE_FUNCTION art_instrumentation_entry_from_code
-    ret
+    xchgl %eax, (%esp)            // place LR in eax, save eax
+    pushl %ecx                    // save ecx
+    pushl %edx                    // save edx
+    pushl %ebx                    // save ebx
+    lea   16(%esp), %edx          // remember bottom of caller's frame
+    pushl %eax                    // pass LR
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl 24(%esp)                // pass Method*
+    call  SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Thread*, SP, LR)
+    addl  LITERAL(16), %esp       // pop arguments
+    popl  %ebx                    // restore ebx
+    popl  %edx                    // restore edx
+    movl  (%esp), %ecx            // restore ecx (without popping)
+    movl  %eax, (%esp)            // place method's code pointer on stack
+    movl  4(%esp), %eax           // restore eax (without popping)
+    movl  LITERAL(SYMBOL(art_instrumentation_exit_from_code)), 4(%esp)
+                                  // place instrumentation exit as return pc
+    ret                           // call method (and pop)
 DEFINE_FUNCTION art_instrumentation_exit_from_code
-    ret
+    mov   %esp, %ecx              // remember bottom of caller's frame
+    pushl %edx                    // save return value
+    pushl %eax                    // save other half of return value
+    pushl %ecx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current
+    call  SYMBOL(artInstrumentationMethodExitFromCode)  // (Thread*, SP)
+    mov   %eax, %ecx              // move returned link register
+    // TODO: Set link register for deopt
+    addl  LITERAL(8), %esp        // pop arguments
+    popl  %eax                    // restore return value
+    popl  %edx                    // restore other half of return value
+    jmp   *%ecx                   // return
 
+    /*
+     * The thread's enter interpreter flag is set and so we should transition to the interpreter
+     * rather than allow execution to continue in the frame below. There may be live results in
+     * registers depending on how complete the operation is when we safepoint - for example, a
+     * set operation may have completed while a get operation needs writing back into the vregs.
+     */
 DEFINE_FUNCTION art_deoptimize
-    ret
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    pushl %esp                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // push half of return value
+    pushl %eax                    // push other half of return value
+    call SYMBOL(artDeoptimize)    // artDeoptimize(return value, Thread*, SP)
+                                  // Returns caller method's frame size.
+    addl LITERAL(16), %esp        // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    testl %eax, %eax              // Was the caller an upcall?
+    jz    1f                      // Return if caller was upcall.
+    lea   (%esp, %eax), %edx      // edx == bottom of caller's frame.
+    mov   %edx, %esp              // Remove frame.
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    call SYMBOL(artEnterInterpreterFromDeoptimize) // Enter interpreter, callee-save ends stack fragment.
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+1:
+    ret                           // Return to caller.
 
     /*
      * String's indexOf.
