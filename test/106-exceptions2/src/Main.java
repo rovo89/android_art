@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-class ExceptionTest {
+class Main {
 
     public int ifoo;
 
     /* Test requires visual inspection of object code to verify */
-    int noThrow(ExceptionTest nonNullA,
-                ExceptionTest nonNullB,
-                ExceptionTest nonNullC) {
+    int noThrow(Main nonNullA,
+                Main nonNullB,
+                Main nonNullC) {
 
         // "this" check should be eliminated on both IGET/IPUT
         ifoo++;
@@ -53,12 +53,12 @@ class ExceptionTest {
     }
 
     /* Test to ensure we don't remove necessary null checks */
-    int checkThrow(ExceptionTest nonNullA,
-                   ExceptionTest nonNullB,
-                   ExceptionTest nonNullC,
-                   ExceptionTest nullA,
-                   ExceptionTest nullB,
-                   ExceptionTest nullC) {
+    int checkThrow(Main nonNullA,
+                   Main nonNullB,
+                   Main nonNullC,
+                   Main nullA,
+                   Main nullB,
+                   Main nullC) {
 
         // "this" check should be eliminated on both IGET/IPUT
         ifoo++;
@@ -131,22 +131,22 @@ class ExceptionTest {
 
 
     static int nullCheckTestNoThrow(int x) {
-        ExceptionTest base = new ExceptionTest();
-        ExceptionTest a = new ExceptionTest();
-        ExceptionTest b = new ExceptionTest();
-        ExceptionTest c = new ExceptionTest();
+        Main base = new Main();
+        Main a = new Main();
+        Main b = new Main();
+        Main c = new Main();
         base.ifoo = x;
         return base.noThrow(a,b,c);
     }
 
     static int nullCheckTestThrow(int x) {
-        ExceptionTest base = new ExceptionTest();
-        ExceptionTest a = new ExceptionTest();
-        ExceptionTest b = new ExceptionTest();
-        ExceptionTest c = new ExceptionTest();
-        ExceptionTest d = null;
-        ExceptionTest e = null;
-        ExceptionTest f = null;
+        Main base = new Main();
+        Main a = new Main();
+        Main b = new Main();
+        Main c = new Main();
+        Main d = null;
+        Main e = null;
+        Main f = null;
         base.ifoo = x;
         return base.checkThrow(a,b,c,d,e,f);
     }

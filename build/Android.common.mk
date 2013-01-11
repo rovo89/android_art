@@ -428,7 +428,6 @@ TEST_OAT_DIRECTORIES := \
 	Main \
 	HelloWorld \
 	\
-	ExceptionTest \
 	IntMath \
 	ParallelGC \
 	ReferenceMap \
