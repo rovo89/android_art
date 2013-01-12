@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class IntMath extends IntMathBase {
+class Main extends IntMathBase {
 
     public static boolean mBoolean1, mBoolean2;
     public static byte mByte1, mByte2;
@@ -29,12 +29,12 @@ class IntMath extends IntMathBase {
 
     private int foo_;
 
-    public IntMath(int stuff) {
+    public Main(int stuff) {
         super();
         foo_ = stuff;
     }
 
-    public IntMath() {
+    public Main() {
         super();
         foo_ = 123;
     }
@@ -66,7 +66,7 @@ class IntMath extends IntMathBase {
 
     static int instanceTest(int x) {
         IntMathBase a = new IntMathBase();
-        IntMath b = new IntMath();
+        Main b = new Main();
 
         if (!(null instanceof IntMathBase)) {
             x = x + 42;
@@ -76,7 +76,7 @@ class IntMath extends IntMathBase {
             x = x * 2;
         }
 
-        if (a instanceof IntMath) {
+        if (a instanceof Main) {
             x = x + 13;
         }
 
@@ -84,7 +84,7 @@ class IntMath extends IntMathBase {
             x = x -1;
         }
 
-        if (b instanceof IntMath) {
+        if (b instanceof Main) {
             x = x + 1333;
         }
         return x;
@@ -96,8 +96,8 @@ class IntMath extends IntMathBase {
     }
 
     static int superTest(int x) {
-        IntMath instance = new IntMath();
-        IntMath base = instance;
+        Main instance = new Main();
+        Main base = instance;
         int val1 = instance.tryThing();
         int val2 = base.tryThing();
         return val1 + val2 + x;
@@ -770,14 +770,14 @@ class IntMath extends IntMathBase {
 
     static int staticCall(int a)
     {
-        IntMath foo = new IntMath();
+        Main foo = new Main();
         return foo.virtualCall(a);
     }
 
     static int testIGetPut(int a)
     {
-        IntMath foo = new IntMath(99);
-        IntMath foo123 = new IntMath();
+        Main foo = new Main(99);
+        Main foo123 = new Main();
         int z  = foo.getFoo();
         z += a;
         z += foo123.getFoo();

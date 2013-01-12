@@ -408,7 +408,6 @@ TEST_DEX_DIRECTORIES := \
 	AllFields \
 	CreateMethodSignature \
 	ExceptionHandle \
-	IntMath \
 	Interfaces \
 	Main \
 	MyClass \
@@ -428,7 +427,6 @@ TEST_OAT_DIRECTORIES := \
 	Main \
 	HelloWorld \
 	\
-	IntMath \
 	ParallelGC \
 	ReferenceMap \
 	StackWalk \

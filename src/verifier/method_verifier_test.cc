@@ -55,13 +55,5 @@ TEST_F(MethodVerifierTest, LibCore) {
   VerifyDexFile(java_lang_dex_file_);
 }
 
-TEST_F(MethodVerifierTest, IntMath) {
-  ScopedObjectAccess soa(Thread::Current());
-  jobject class_loader = LoadDex("IntMath");
-  Class* klass = class_linker_->FindClass("LIntMath;", soa.Decode<ClassLoader*>(class_loader));
-  std::string error_msg;
-  ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg) == MethodVerifier::kNoFailure) << error_msg;
-}
-
 }  // namespace verifier
 }  // namespace art
