@@ -2064,8 +2064,8 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   RootCallbackVisitor visitorToCallback(visitor, arg);
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(), context,
-                                                  visitorToCallback);
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(),
+                                                  context, visitorToCallback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
 }
@@ -2079,8 +2079,8 @@ static void VerifyObject(const Object* obj, void* arg) {
 void Thread::VerifyStack() {
   UniquePtr<Context> context(Context::Create());
   RootCallbackVisitor visitorToCallback(VerifyObject, Runtime::Current()->GetHeap());
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(), context.get(),
-                                                  visitorToCallback);
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(),
+                                                  context.get(), visitorToCallback);
   mapper.WalkStack();
 }
 #endif

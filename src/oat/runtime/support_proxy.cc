@@ -38,6 +38,9 @@
 #define ARG2_OFFSET_IN_WORDS 8 // offset to 3rd arg; skip callee saves, LR, Method* and out arg spills for OUT0 to OUT2
 #else
 #error "Unsupported architecture"
+#define SP_OFFSET_IN_BYTES 0
+#define FRAME_SIZE_IN_BYTES 0
+#define ARG2_OFFSET_IN_WORDS 0
 #endif
 
 namespace art {
@@ -49,21 +52,25 @@ namespace art {
 extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* receiver,
                                       Thread* self, byte* stack_args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // Register the top of the managed stack
+  // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
+  const char* old_cause =
+      self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
+  // Register the top of the managed stack, making stack crawlable.
   AbstractMethod** proxy_sp = reinterpret_cast<AbstractMethod**>(stack_args - SP_OFFSET_IN_BYTES);
   DCHECK_EQ(*proxy_sp, proxy_method);
   self->SetTopOfStack(proxy_sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), FRAME_SIZE_IN_BYTES);
-  // Start new JNI local reference state
+  self->VerifyStack();
+  // Start new JNI local reference state.
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);
   ScopedJniEnvLocalRefState env_state(env);
-  // Create local ref. copies of proxy method and the receiver
+  // Create local ref. copies of proxy method and the receiver.
   jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
   jobject proxy_method_jobj = soa.AddLocalReference<jobject>(proxy_method);
 
   // Placing into local references incoming arguments from the caller's register arguments,
-  // replacing original Object* with jobject
+  // replacing original Object* with jobject.
   MethodHelper proxy_mh(proxy_method);
   const size_t num_params = proxy_mh.NumArgs();
   size_t args_in_regs = 0;
@@ -85,7 +92,7 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
     param_index++;
   }
-  // Placing into local references incoming arguments from the caller's stack arguments
+  // Placing into local references incoming arguments from the caller's stack arguments.
   cur_arg += ARG2_OFFSET_IN_WORDS;
   while (param_index < num_params) {
     if (proxy_mh.IsParamAReference(param_index)) {
@@ -96,11 +103,15 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
     param_index++;
   }
-  // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
+  self->EndAssertNoThreadSuspension(old_cause);
+  // Sanity check writing the jobjects over the Object*s in place didn't damage the stack.
+  self->VerifyStack();
+
+  // Set up arguments array and place in local IRT during boxing (which may allocate/GC).
   jvalue args_jobj[3];
   args_jobj[0].l = rcvr_jobj;
   args_jobj[1].l = proxy_method_jobj;
-  // Args array, if no arguments then NULL (don't include receiver in argument count)
+  // Args array, if no arguments then NULL (don't include receiver in argument count).
   args_jobj[2].l = NULL;
   ObjectArray<Object>* args = NULL;
   if ((num_params - 1) > 0) {
@@ -111,14 +122,14 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     }
     args_jobj[2].l = soa.AddLocalReference<jobjectArray>(args);
   }
-  // Convert proxy method into expected interface method
+  // Convert proxy method into expected interface method.
   AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   args_jobj[1].l = soa.AddLocalReference<jobject>(interface_method);
-  // Box arguments
-  cur_arg = 0;  // reset stack location to read to start
-  // reset index, will index into param type array which doesn't include the receiver
+  // Box primitive type arguments.
+  cur_arg = 0;  // Stack location to read to start.
+  // Reset index, will index into param type array which doesn't include the receiver.
   param_index = 0;
   ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes(self);
   if (param_types == NULL) {
@@ -135,8 +146,9 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     } else {
       JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
       if (cur_arg == 1 && (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble())) {
-        // long/double split over regs and stack, mask in high half from stack arguments
-        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + ((ARG2_OFFSET_IN_WORDS + 2) * kPointerSize));
+        // long/double split over regs and stack, mask in high half from stack arguments.
+        uint64_t high_half =
+            *reinterpret_cast<uint32_t*>(stack_args + ((ARG2_OFFSET_IN_WORDS + 2) * kPointerSize));
         val.SetJ((val.GetJ() & 0xffffffffULL) | (high_half << 32));
       }
       BoxPrimitive(param_type->GetPrimitiveType(), val);
@@ -149,7 +161,7 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);
     param_index++;
   }
-  // Placing into local references incoming arguments from the caller's stack arguments
+  // Placing into local references incoming arguments from the caller's stack arguments.
   cur_arg += ARG2_OFFSET_IN_WORDS;
   while (param_index < (num_params - 1)) {
     Class* param_type = param_types->Get(param_index);
@@ -168,17 +180,20 @@ extern "C" void artProxyInvokeHandler(AbstractMethod* proxy_method, Object* rece
     cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);
     param_index++;
   }
-  // Get the InvocationHandler method and the field that holds it within the Proxy object
+  // Get the InvocationHandler method and the field that holds it within the Proxy object.
   DCHECK(env->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
   jobject inv_hand = env->GetObjectField(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy_h);
-  // Call InvocationHandler.invoke
-  jobject result = env->CallObjectMethodA(inv_hand, WellKnownClasses::java_lang_reflect_InvocationHandler_invoke, args_jobj);
-  // Place result in stack args
+  // Call InvocationHandler.invoke.
+  jobject result =
+      env->CallObjectMethodA(inv_hand, WellKnownClasses::java_lang_reflect_InvocationHandler_invoke,
+                             args_jobj);
+  // Place result in stack args.
   if (!self->IsExceptionPending()) {
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(), result_unboxed);
+      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(),
+                                                  result_unboxed);
       if (!unboxed_okay) {
         self->ClearException();
         self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
