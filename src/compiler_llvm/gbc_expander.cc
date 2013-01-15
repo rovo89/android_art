@@ -1178,9 +1178,9 @@ void GBCExpanderPass::Expand_UpdateDexPC(llvm::Value* dex_pc_value) {
 }
 
 void GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
-  // DexLang generates all alloca instruction in the first basic block of the
-  // FUNC and also there's no any alloca instructions after the first non-alloca
-  // instruction
+  // All alloca instructions are generated in the first basic block of the
+  // function, and there are no alloca instructions after the first non-alloca
+  // instruction.
 
   llvm::BasicBlock* first_basic_block = &func.front();
 

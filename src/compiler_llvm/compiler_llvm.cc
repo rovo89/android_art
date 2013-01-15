@@ -24,9 +24,7 @@
 #include "compiler.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
-#ifndef ART_USE_DEXLANG_FRONTEND
-# include "method_compiler.h"
-#endif
+#include "method_compiler.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "stub_compiler.h"
@@ -141,20 +139,7 @@ CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_type) {
   UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
-#if defined(ART_USE_DEXLANG_FRONTEND)
-  // Run DexLang for Dex to Greenland Bitcode
-  UniquePtr<greenland::DexLang> dex_lang(
-      new greenland::DexLang(*cunit->GetDexLangContext(), *compiler_,
-                             *oat_compilation_unit));
-
-  llvm::Function* func = dex_lang->Build();
-  CHECK(func != NULL);
-
-  cunit->Materialize();
-
-  return new CompiledMethod(cunit->GetInstructionSet(),
-                            cunit->GetCompiledCode());
-#elif defined(ART_USE_PORTABLE_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
                                       *oat_compilation_unit->GetDexFile()));
   if (insn_set_ == kX86) {

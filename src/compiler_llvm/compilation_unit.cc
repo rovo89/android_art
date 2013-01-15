@@ -80,11 +80,7 @@
 namespace art {
 namespace compiler_llvm {
 
-#if defined(ART_USE_DEXLANG_FRONTEND)
-llvm::FunctionPass*
-CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper,
-                      IRBuilder& irb);
-#elif defined(ART_USE_PORTABLE_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
@@ -110,10 +106,6 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
   // Include the runtime function declaration
   makeLLVMModuleContents(module_);
 
-#if defined(ART_USE_DEXLANG_FRONTEND)
-  dex_lang_ctx_ = new greenland::DexLang::Context(*module_);
-#endif
-
   // Create IRBuilder
   irb_.reset(new IRBuilder(*context_, *module_));
 
@@ -138,9 +130,7 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 
 
 CompilationUnit::~CompilationUnit() {
-#if defined(ART_USE_DEXLANG_FRONTEND)
-  delete dex_lang_ctx_;
-#elif defined(ART_USE_PORTABLE_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
   CHECK(llvm_context != NULL);
 #endif
