@@ -2660,17 +2660,35 @@ void GBCExpanderPass::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
 }
 
 void GBCExpanderPass::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
-  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
-
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+  llvm::BasicBlock* block_flags = CreateBasicBlockWithDexPC(dex_pc, "flags");
+  llvm::BasicBlock* block_suspend = CreateBasicBlockWithDexPC(dex_pc, "suspend");
+
+  llvm::Value* flags =
+      irb_.Runtime().EmitLoadFromThreadOffset(art::Thread::ThreadFlagsOffset().Int32Value(),
+                                              irb_.getInt16Ty(),
+                                              kTBAARuntimeInfo);
+  llvm::Value* flags_set = irb_.CreateICmpNE(flags, irb_.getInt16(0));
+  irb_.CreateCondBr(flags_set, block_flags, block_cont, kUnlikely);
+
+  irb_.SetInsertPoint(block_flags);
+  llvm::Value* exception_pending = irb_.CreateAnd(flags, irb_.getInt16(art::kExceptionPending));
+  llvm::Value* exception_set = irb_.CreateICmpNE(exception_pending, irb_.getInt16(0));
 
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
     landing_pad_phi_mapping_[lpad].push_back(std::make_pair(current_bb_->getUniquePredecessor(),
                                                             irb_.GetInsertBlock()));
-    irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
+    irb_.CreateCondBr(exception_set, lpad, block_suspend, kLikely);
   } else {
-    irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont, kUnlikely);
+    irb_.CreateCondBr(exception_set, GetUnwindBasicBlock(), block_suspend, kLikely);
   }
+
+  irb_.SetInsertPoint(block_suspend);
+  if (dex_pc != art::DexFile::kDexNoIndex) {
+    EmitUpdateDexPC(dex_pc);
+  }
+  irb_.Runtime().EmitTestSuspend();
+  irb_.CreateBr(block_cont);
 
   irb_.SetInsertPoint(block_cont);
 }
