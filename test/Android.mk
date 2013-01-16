@@ -22,9 +22,9 @@ TEST_ART_RUN_TEST_MAKE_TARGETS :=
 # $(1): the test number
 define declare-make-art-run-test
 dmart_target := $(TARGET_OUT_DATA)/art-run-tests/$(1)/touch
-$$(dmart_target): $(DX)
+$$(dmart_target): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
-	$(hide) DX=$(abspath $(DX)) $(LOCAL_PATH)/run-test --build-only --output-path $$(abspath $$(dir $$@)) $(1)
+	$(hide) DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) $(LOCAL_PATH)/run-test --build-only --output-path $$(abspath $$(dir $$@)) $(1)
 	$(hide) touch $$@
 
 TEST_ART_RUN_TEST_MAKE_TARGETS += $$(dmart_target)

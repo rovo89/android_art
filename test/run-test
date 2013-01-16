@@ -46,6 +46,12 @@ if [ -z "$DX" ]; then
   export DX="dx"
 fi
 
+# If jasmin was not set by the environment variable, assume it is in the path.
+if [ -z "$JASMIN" ]; then
+  export JASMIN="jasmin"
+fi
+
+
 info="info.txt"
 build="build"
 run="run"

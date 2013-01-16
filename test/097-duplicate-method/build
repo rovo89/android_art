@@ -19,7 +19,7 @@ set -e
 
 mkdir classes
 ${JAVAC} -d classes src/*.java
-jasmin -d classes src/*.j
+${JASMIN} -d classes src/*.j
 
 ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip $TEST_NAME.jar classes.dex
