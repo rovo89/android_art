@@ -879,6 +879,43 @@ void Heap::CountInstances(const std::vector<Class*>& classes, bool use_is_assign
   GetLiveBitmap()->Visit(counter);
 }
 
+class InstanceCollector {
+ public:
+  InstanceCollector(Class* c, int32_t max_count, std::vector<Object*>& instances)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : class_(c), max_count_(max_count), instances_(instances) {
+  }
+
+  void operator()(const Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const Class* instance_class = o->GetClass();
+    if (instance_class == class_) {
+      if (max_count_ == 0 || instances_.size() < max_count_) {
+        instances_.push_back(const_cast<Object*>(o));
+      }
+    }
+  }
+
+ private:
+  Class* class_;
+  uint32_t max_count_;
+  std::vector<Object*>& instances_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstanceCollector);
+};
+
+void Heap::GetInstances(Class* c, int32_t max_count, std::vector<Object*>& instances) {
+  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
+  // is empty, so the live bitmap is the only place we need to look.
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kNative);
+  CollectGarbage(false);
+  self->TransitionFromSuspendedToRunnable();
+
+  InstanceCollector collector(c, max_count, instances);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  GetLiveBitmap()->Visit(collector);
+}
+
 void Heap::CollectGarbage(bool clear_soft_references) {
   // Even if we waited for a GC we still need to do another GC since weaks allocated during the
   // last GC will not have necessarily been cleared.
