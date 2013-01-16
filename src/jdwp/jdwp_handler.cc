@@ -649,6 +649,30 @@ static JdwpError RT_Methods(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRep
   return Dbg::OutputDeclaredMethods(refTypeId, false, pReply);
 }
 
+static JdwpError RT_Instances(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  RefTypeId class_id = ReadRefTypeId(&buf);
+  int32_t max_count = Read4BE(&buf);
+  if (max_count < 0) {
+    return ERR_ILLEGAL_ARGUMENT;
+  }
+
+  std::vector<ObjectId> instances;
+  JdwpError rc = Dbg::GetInstances(class_id, max_count, instances);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+
+  expandBufAdd4BE(reply, instances.size());
+  for (size_t i = 0; i < instances.size(); ++i) {
+    rc = WriteTaggedObject(reply, instances[i]);
+    if (rc != ERR_NONE) {
+      return rc;
+    }
+  }
+  return ERR_NONE;
+}
+
 /*
  * Return the immediate superclass of a class.
  */
@@ -1616,7 +1640,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 2,    13, RT_SignatureWithGeneric, "ReferenceType.SignatureWithGeneric" },
   { 2,    14, RT_FieldsWithGeneric,    "ReferenceType.FieldsWithGeneric" },
   { 2,    15, RT_MethodsWithGeneric,   "ReferenceType.MethodsWithGeneric" },
-  { 2,    16, NULL,                    "ReferenceType.Instances" },
+  { 2,    16, RT_Instances,            "ReferenceType.Instances" },
   { 2,    17, NULL,                    "ReferenceType.ClassFileVersion" },
   { 2,    18, NULL,                    "ReferenceType.ConstantPool" },
 
