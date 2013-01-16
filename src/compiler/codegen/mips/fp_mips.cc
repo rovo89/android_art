@@ -49,6 +49,8 @@ bool MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
     case Instruction::MUL_FLOAT:
       op = kMipsFmuls;
       break;
+    case Instruction::REM_FLOAT_2ADDR:
+    case Instruction::REM_FLOAT:
       FlushAllRegs(cu);   // Send everything to home location
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
       rl_result = GetReturn(cu, true);
