@@ -192,6 +192,9 @@ class Dbg {
   static JDWP::JdwpError GetInstances(JDWP::RefTypeId class_id, int32_t max_count,
                                       std::vector<JDWP::ObjectId>& instances)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetReferringObjects(JDWP::ObjectId object_id, int32_t max_count,
+                                             std::vector<JDWP::ObjectId>& referring_objects)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Method and Field

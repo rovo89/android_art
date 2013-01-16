@@ -916,6 +916,49 @@ void Heap::GetInstances(Class* c, int32_t max_count, std::vector<Object*>& insta
   GetLiveBitmap()->Visit(collector);
 }
 
+class ReferringObjectsFinder {
+ public:
+  ReferringObjectsFinder(Object* object, int32_t max_count, std::vector<Object*>& referring_objects)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : object_(object), max_count_(max_count), referring_objects_(referring_objects) {
+  }
+
+  // For bitmap Visit.
+  // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
+  // annotalysis on visitors.
+  void operator()(const Object* o) const NO_THREAD_SAFETY_ANALYSIS {
+    MarkSweep::VisitObjectReferences(o, *this);
+  }
+
+  // For MarkSweep::VisitObjectReferences.
+  void operator ()(const Object* referrer, const Object* object, const MemberOffset&, bool) const {
+    if (object == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
+      referring_objects_.push_back(const_cast<Object*>(referrer));
+    }
+  }
+
+ private:
+  Object* object_;
+  uint32_t max_count_;
+  std::vector<Object*>& referring_objects_;
+
+  DISALLOW_COPY_AND_ASSIGN(ReferringObjectsFinder);
+};
+
+void Heap::GetReferringObjects(Object* o, int32_t max_count,
+                               std::vector<Object*>& referring_objects) {
+  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
+  // is empty, so the live bitmap is the only place we need to look.
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kNative);
+  CollectGarbage(false);
+  self->TransitionFromSuspendedToRunnable();
+
+  ReferringObjectsFinder finder(o, max_count, referring_objects);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  GetLiveBitmap()->Visit(finder);
+}
+
 void Heap::CollectGarbage(bool clear_soft_references) {
   // Even if we waited for a GC we still need to do another GC since weaks allocated during the
   // last GC will not have necessarily been cleared.

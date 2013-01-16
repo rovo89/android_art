@@ -775,6 +775,22 @@ JDWP::JdwpError Dbg::GetInstances(JDWP::RefTypeId class_id, int32_t max_count, s
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_count,
+                                         std::vector<JDWP::ObjectId>& referring_objects)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Object* o = gRegistry->Get<Object*>(object_id);
+  if (o == NULL || o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+
+  std::vector<Object*> raw_instances;
+  Runtime::Current()->GetHeap()->GetReferringObjects(o, max_count, raw_instances);
+  for (size_t i = 0; i < raw_instances.size(); ++i) {
+    referring_objects.push_back(gRegistry->Add(raw_instances[i]));
+  }
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(class_id, status);

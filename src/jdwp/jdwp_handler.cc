@@ -95,6 +95,18 @@ static JdwpError WriteTaggedObject(ExpandBuf* reply, ObjectId object_id)
   return rc;
 }
 
+static JdwpError WriteTaggedObjectList(ExpandBuf* reply, const std::vector<ObjectId>& objects)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  expandBufAdd4BE(reply, objects.size());
+  for (size_t i = 0; i < objects.size(); ++i) {
+    JdwpError rc = WriteTaggedObject(reply, objects[i]);
+    if (rc != ERR_NONE) {
+      return rc;
+    }
+  }
+  return ERR_NONE;
+}
+
 /*
  * Common code for *_InvokeMethod requests.
  *
@@ -663,14 +675,7 @@ static JdwpError RT_Instances(JdwpState*, const uint8_t* buf, int, ExpandBuf* re
     return rc;
   }
 
-  expandBufAdd4BE(reply, instances.size());
-  for (size_t i = 0; i < instances.size(); ++i) {
-    rc = WriteTaggedObject(reply, instances[i]);
-    if (rc != ERR_NONE) {
-      return rc;
-    }
-  }
-  return ERR_NONE;
+  return WriteTaggedObjectList(reply, instances);
 }
 
 /*
@@ -947,6 +952,23 @@ static JdwpError OR_IsCollected(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
   expandBufAdd1(pReply, 0);
 
   return ERR_NONE;
+}
+
+static JdwpError OR_ReferringObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectId object_id = ReadObjectId(&buf);
+  int32_t max_count = Read4BE(&buf);
+  if (max_count < 0) {
+    return ERR_ILLEGAL_ARGUMENT;
+  }
+
+  std::vector<ObjectId> referring_objects;
+  JdwpError rc = Dbg::GetReferringObjects(object_id, max_count, referring_objects);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+
+  return WriteTaggedObjectList(reply, referring_objects);
 }
 
 /*
@@ -1674,7 +1696,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 9,    7,  OR_DisableCollection, "ObjectReference.DisableCollection" },
   { 9,    8,  OR_EnableCollection,  "ObjectReference.EnableCollection" },
   { 9,    9,  OR_IsCollected,       "ObjectReference.IsCollected" },
-  { 9,    10, NULL,                 "ObjectReference.ReferringObjects" },
+  { 9,    10, OR_ReferringObjects,  "ObjectReference.ReferringObjects" },
 
   /* StringReference command set (10) */
   { 10,   1,  SR_Value,         "StringReference.Value" },

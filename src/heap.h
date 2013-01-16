@@ -177,6 +177,10 @@ class Heap {
   void GetInstances(Class* c, int32_t max_count, std::vector<Object*>& instances)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Implements JDWP OR_ReferringObjects.
+  void GetReferringObjects(Object* o, int32_t max_count, std::vector<Object*>& referring_objects)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
   // implement dalvik.system.VMRuntime.clearGrowthLimit.
