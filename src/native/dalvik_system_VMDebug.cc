@@ -224,7 +224,11 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
   if (c == NULL) {
     return 0;
   }
-  return Runtime::Current()->GetHeap()->CountInstances(c, countAssignable);
+  std::vector<Class*> classes;
+  classes.push_back(c);
+  uint64_t count = 0;
+  Runtime::Current()->GetHeap()->CountInstances(classes, countAssignable, &count);
+  return count;
 }
 
 static JNINativeMethod gMethods[] = {

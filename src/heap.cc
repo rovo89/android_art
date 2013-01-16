@@ -837,37 +837,46 @@ size_t Heap::GetTotalBytesAllocated() const {
 
 class InstanceCounter {
  public:
-  InstanceCounter(Class* c, bool count_assignable, size_t* const count)
+  InstanceCounter(const std::vector<Class*>& classes, bool use_is_assignable_from, uint64_t* counts)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : class_(c), count_assignable_(count_assignable), count_(count) {
-
+      : classes_(classes), use_is_assignable_from_(use_is_assignable_from), counts_(counts) {
   }
 
   void operator()(const Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const Class* instance_class = o->GetClass();
-    if (count_assignable_) {
-      if (instance_class == class_) {
-        ++*count_;
-      }
-    } else {
-      if (instance_class != NULL && class_->IsAssignableFrom(instance_class)) {
-        ++*count_;
+    for (size_t i = 0; i < classes_.size(); ++i) {
+      const Class* instance_class = o->GetClass();
+      if (use_is_assignable_from_) {
+        if (instance_class != NULL && classes_[i]->IsAssignableFrom(instance_class)) {
+          ++counts_[i];
+        }
+      } else {
+        if (instance_class == classes_[i]) {
+          ++counts_[i];
+        }
       }
     }
   }
 
  private:
-  Class* class_;
-  bool count_assignable_;
-  size_t* const count_;
+  const std::vector<Class*>& classes_;
+  bool use_is_assignable_from_;
+  uint64_t* const counts_;
+
+  DISALLOW_COPY_AND_ASSIGN(InstanceCounter);
 };
 
-int64_t Heap::CountInstances(Class* c, bool count_assignable) {
-  size_t count = 0;
-  InstanceCounter counter(c, count_assignable, &count);
-  ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+void Heap::CountInstances(const std::vector<Class*>& classes, bool use_is_assignable_from,
+                          uint64_t* counts) {
+  // We only want reachable instances, so do a GC. This also ensures that the alloc stack
+  // is empty, so the live bitmap is the only place we need to look.
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kNative);
+  CollectGarbage(false);
+  self->TransitionFromSuspendedToRunnable();
+
+  InstanceCounter counter(classes, use_is_assignable_from, counts);
+  ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
   GetLiveBitmap()->Visit(counter);
-  return count;
 }
 
 void Heap::CollectGarbage(bool clear_soft_references) {

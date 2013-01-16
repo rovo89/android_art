@@ -151,15 +151,6 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
-  static JDWP::JdwpError GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id,
-                                          std::vector<JDWP::ObjectId>& monitors,
-                                          std::vector<uint32_t>& stack_depths)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId array_id, int& length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputArray(JDWP::ObjectId array_id, int offset, int count,
@@ -178,6 +169,25 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  //
+  // Monitors.
+  //
+  static JDWP::JdwpError GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetOwnedMonitors(JDWP::ObjectId thread_id,
+                                          std::vector<JDWP::ObjectId>& monitors,
+                                          std::vector<uint32_t>& stack_depths)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectId& contended_monitor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  //
+  // Heap.
+  //
+  static JDWP::JdwpError GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class_ids,
+                                           std::vector<uint64_t>& counts)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

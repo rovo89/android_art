@@ -393,7 +393,7 @@ static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* 
   expandBufAdd1(reply, false);   // canGetSourceDebugExtension
   expandBufAdd1(reply, false);   // canRequestVMDeathEvent
   expandBufAdd1(reply, false);   // canSetDefaultStratum
-  expandBufAdd1(reply, false);   // 1.6: canGetInstanceInfo
+  expandBufAdd1(reply, true);    // 1.6: canGetInstanceInfo
   expandBufAdd1(reply, false);   // 1.6: canRequestMonitorEvents
   expandBufAdd1(reply, true);    // 1.6: canGetMonitorFrameInfo
   expandBufAdd1(reply, false);   // 1.6: canUseSourceNameFilters
@@ -446,6 +446,30 @@ static JdwpError VM_AllClasses(JdwpState*, const uint8_t*, int, ExpandBuf* pRepl
 static JdwpError VM_AllClassesWithGeneric(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return VM_AllClassesImpl(pReply, true, true);
+}
+
+static JdwpError VM_InstanceCounts(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  int32_t class_count = static_cast<int32_t>(Read4BE(&buf));
+  if (class_count < 0) {
+    return ERR_ILLEGAL_ARGUMENT;
+  }
+  std::vector<RefTypeId> class_ids;
+  for (int32_t i = 0; i < class_count; ++i) {
+    class_ids.push_back(ReadRefTypeId(&buf));
+  }
+
+  std::vector<uint64_t> counts;
+  JdwpError rc = Dbg::GetInstanceCounts(class_ids, counts);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+
+  expandBufAdd4BE(pReply, counts.size());
+  for (size_t i = 0; i < counts.size(); ++i) {
+    expandBufAdd8BE(pReply, counts[i]);
+  }
+  return ERR_NONE;
 }
 
 static JdwpError RT_Modifiers(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
@@ -1574,7 +1598,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 1,    18, NULL,                     "VirtualMachine.RedefineClasses" },
   { 1,    19, NULL,                     "VirtualMachine.SetDefaultStratum" },
   { 1,    20, VM_AllClassesWithGeneric, "VirtualMachine.AllClassesWithGeneric" },
-  { 1,    21, NULL,                     "VirtualMachine.InstanceCounts" },
+  { 1,    21, VM_InstanceCounts,        "VirtualMachine.InstanceCounts" },
 
   /* ReferenceType command set (2) */
   { 2,    1,  RT_Signature,            "ReferenceType.Signature" },

@@ -167,8 +167,10 @@ class Heap {
   // Implements java.lang.Runtime.freeMemory.
   int64_t GetFreeMemory() const;
 
-  // Implements VMDebug.countInstancesOfClass.
-  int64_t CountInstances(Class* c, bool count_assignable)
+  // Implements VMDebug.countInstancesOfClass and JDWP VM_InstanceCount.
+  // The boolean decides whether to use IsAssignableFrom or == when comparing classes.
+  void CountInstances(const std::vector<Class*>& classes, bool use_is_assignable_from,
+                      uint64_t* counts)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

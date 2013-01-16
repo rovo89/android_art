@@ -739,6 +739,26 @@ JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectI
   return JDWP::ERR_NONE;
 }
 
+JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class_ids,
+                                       std::vector<uint64_t>& counts)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+
+  std::vector<Class*> classes;
+  counts.clear();
+  for (size_t i = 0; i < class_ids.size(); ++i) {
+    JDWP::JdwpError status;
+    Class* c = DecodeClass(class_ids[i], status);
+    if (c == NULL) {
+      return status;
+    }
+    classes.push_back(c);
+    counts.push_back(0);
+  }
+
+  Runtime::Current()->GetHeap()->CountInstances(classes, false, &counts[0]);
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(class_id, status);
