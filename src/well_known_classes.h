@@ -42,6 +42,7 @@ struct WellKnownClasses {
   static jclass java_lang_ClassNotFoundException;
   static jclass java_lang_Daemons;
   static jclass java_lang_Error;
+  static jclass java_lang_Object;
   static jclass java_lang_reflect_InvocationHandler;
   static jclass java_lang_reflect_AbstractMethod;
   static jclass java_lang_reflect_Proxy;

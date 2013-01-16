@@ -30,6 +30,7 @@ jclass WellKnownClasses::java_lang_ClassLoader;
 jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
 jclass WellKnownClasses::java_lang_Error;
+jclass WellKnownClasses::java_lang_Object;
 jclass WellKnownClasses::java_lang_reflect_InvocationHandler;
 jclass WellKnownClasses::java_lang_reflect_AbstractMethod;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
@@ -123,6 +124,7 @@ void WellKnownClasses::InitClasses(JNIEnv* env) {
   java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
   java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
   java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
+  java_lang_Object = CacheClass(env, "java/lang/Object");
   java_lang_Error = CacheClass(env, "java/lang/Error");
   java_lang_reflect_InvocationHandler = CacheClass(env, "java/lang/reflect/InvocationHandler");
   java_lang_reflect_AbstractMethod = CacheClass(env, "java/lang/reflect/AbstractMethod");

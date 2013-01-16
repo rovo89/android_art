@@ -101,9 +101,8 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   if (!GetFieldValue(soa, o, f, value, true)) {
     return NULL;
   }
-  BoxPrimitive(FieldHelper(f).GetTypeAsPrimitiveType(), value);
-
-  return soa.AddLocalReference<jobject>(value.GetL());
+  return
+      soa.AddLocalReference<jobject>(BoxPrimitive(FieldHelper(f).GetTypeAsPrimitiveType(), value));
 }
 
 static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {

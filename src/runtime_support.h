@@ -28,6 +28,7 @@
 #include "thread.h"
 #include "verifier/method_verifier.h"
 
+extern "C" void art_interpreter_invoke_handler();
 extern "C" void art_proxy_invoke_handler();
 extern "C" void art_work_around_app_jni_bugs();
 
@@ -282,8 +283,7 @@ static inline void CheckReferenceResult(Object* o, Thread* self)
   }
 }
 
-static inline void CheckSuspend(Thread* thread)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   for (;;) {
     if (thread->ReadFlag(kCheckpointRequest)) {
       thread->RunCheckpointFunction();
@@ -295,6 +295,11 @@ static inline void CheckSuspend(Thread* thread)
     }
   }
 }
+
+JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
+                                    jobject rcvr_jobj, jobject interface_method_jobj,
+                                    std::vector<jvalue>& args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ;
 
 }  // namespace art
 

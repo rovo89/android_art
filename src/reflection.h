@@ -29,10 +29,10 @@ class AbstractMethod;
 class Object;
 class ScopedObjectAccess;
 
-void BoxPrimitive(Primitive::Type src_class, JValue& value)
+Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, AbstractMethod* m,
-                               size_t index)
+bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value,
+                               AbstractMethod* m, size_t index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

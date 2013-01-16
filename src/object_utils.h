@@ -566,8 +566,7 @@ class MethodHelper {
     return method_->GetDeclaringClass()->GetClassLoader();
   }
 
-  bool IsStatic()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsStatic() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->IsStatic();
   }
 
@@ -581,28 +580,26 @@ class MethodHelper {
     return (IsStatic() ? 0 : 1) + GetShortyLength() - 1;
   }
 
-  // Is the specified parameter a long or double, where parameter 0 is 'this' for instance methods
-  bool IsParamALongOrDouble(size_t param)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Get the primitive type associated with the given parameter.
+  Primitive::Type GetParamPrimitiveType(size_t param) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_LT(param, NumArgs());
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
-      return false;  // this argument
+      return Primitive::kPrimNot;
     }
-    char ch = GetShorty()[param];
-    return (ch == 'J' || ch == 'D');
+    return Primitive::GetType(GetShorty()[param]);
   }
 
-  // Is the specified parameter a reference, where parameter 0 is 'this' for instance methods
+  // Is the specified parameter a long or double, where parameter 0 is 'this' for instance methods.
+  bool IsParamALongOrDouble(size_t param) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Primitive::Type type = GetParamPrimitiveType(param);
+    return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
+  }
+
+  // Is the specified parameter a reference, where parameter 0 is 'this' for instance methods.
   bool IsParamAReference(size_t param) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CHECK_LT(param, NumArgs());
-    if (IsStatic()) {
-      param++;  // 0th argument must skip return value at start of the shorty
-    } else if (param == 0) {
-      return true;  // this argument
-    }
-    return GetShorty()[param] == 'L';  // An array also has a shorty character of 'L' (not '[')
+    return GetParamPrimitiveType(param) == Primitive::kPrimNot;
   }
 
   bool HasSameNameAndSignature(MethodHelper* other)

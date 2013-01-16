@@ -16,6 +16,8 @@
 
 #include "runtime_support.h"
 
+#include "reflection.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "well_known_classes.h"
 
@@ -370,6 +372,105 @@ void ThrowStackOverflowError(Thread* self) {
     CHECK(self->IsExceptionPending());
   }
   self->ResetDefaultStackEnd();  // Return to default stack size.
+}
+
+JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
+                                    jobject rcvr_jobj, jobject interface_method_jobj,
+                                    std::vector<jvalue>& args) {
+  DCHECK(soa.Env()->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
+
+  // Build argument array possibly triggering GC.
+  soa.Self()->AssertThreadSuspensionIsAllowable();
+  jobjectArray args_jobj = NULL;
+  const JValue zero;
+  if (args.size() > 0) {
+    args_jobj = soa.Env()->NewObjectArray(args.size(), WellKnownClasses::java_lang_Object, NULL);
+    if (args_jobj == NULL) {
+      CHECK(soa.Self()->IsExceptionPending());
+      return zero;
+    }
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (shorty[i + 1] == 'L') {
+        jobject val = args.at(i).l;
+        soa.Env()->SetObjectArrayElement(args_jobj, i, val);
+      } else {
+        JValue jv;
+        jv.SetJ(args.at(i).j);
+        Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
+        if (val == NULL) {
+          CHECK(soa.Self()->IsExceptionPending());
+          return zero;
+        }
+        soa.Decode<ObjectArray<Object>* >(args_jobj)->Set(i, val);
+      }
+    }
+  }
+
+  // Call InvocationHandler.invoke(Object proxy, Method method, Object[] args).
+  jobject inv_hand = soa.Env()->GetObjectField(rcvr_jobj,
+                                               WellKnownClasses::java_lang_reflect_Proxy_h);
+  jvalue invocation_args[3];
+  invocation_args[0].l = rcvr_jobj;
+  invocation_args[1].l = interface_method_jobj;
+  invocation_args[2].l = args_jobj;
+  jobject result =
+      soa.Env()->CallObjectMethodA(inv_hand,
+                                   WellKnownClasses::java_lang_reflect_InvocationHandler_invoke,
+                                   invocation_args);
+
+  // Unbox result and handle error conditions.
+  if (!soa.Self()->IsExceptionPending()) {
+    if (shorty[0] == 'V' || result == NULL) {
+      // Do nothing.
+      return zero;
+    } else {
+      JValue result_unboxed;
+      MethodHelper mh(soa.Decode<AbstractMethod*>(interface_method_jobj));
+      Class* result_type = mh.GetReturnType();
+      Object* result_ref = soa.Decode<Object*>(result);
+      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, result_type, result_unboxed);
+      if (!unboxed_okay) {
+        soa.Self()->ThrowNewWrappedException("Ljava/lang/ClassCastException;",
+                                             StringPrintf("Couldn't convert result of type %s to %s",
+                                                          PrettyTypeOf(result_ref).c_str(),
+                                                          PrettyDescriptor(result_type).c_str()
+                                             ).c_str());
+      }
+      return result_unboxed;
+    }
+  } else {
+    // In the case of checked exceptions that aren't declared, the exception must be wrapped by
+    // a UndeclaredThrowableException.
+    Throwable* exception = soa.Self()->GetException();
+    if (exception->IsCheckedException()) {
+      Object* rcvr = soa.Decode<Object*>(rcvr_jobj);
+      SynthesizedProxyClass* proxy_class = down_cast<SynthesizedProxyClass*>(rcvr->GetClass());
+      AbstractMethod* interface_method = soa.Decode<AbstractMethod*>(interface_method_jobj);
+      AbstractMethod* proxy_method =
+          rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
+      int throws_index = -1;
+      size_t num_virt_methods = proxy_class->NumVirtualMethods();
+      for (size_t i = 0; i < num_virt_methods; i++) {
+        if (proxy_class->GetVirtualMethod(i) == proxy_method) {
+          throws_index = i;
+          break;
+        }
+      }
+      CHECK_NE(throws_index, -1);
+      ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+      Class* exception_class = exception->GetClass();
+      bool declares_exception = false;
+      for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
+        Class* declared_exception = declared_exceptions->Get(i);
+        declares_exception = declared_exception->IsAssignableFrom(exception_class);
+      }
+      if (!declares_exception) {
+        soa.Self()->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;",
+                                             NULL);
+      }
+    }
+    return zero;
+  }
 }
 
 }  // namespace art

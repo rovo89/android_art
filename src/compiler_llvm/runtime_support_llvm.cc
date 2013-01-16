@@ -730,8 +730,9 @@ static void* art_find_compiler_runtime_func(const char* name) {
   }
 }
 
-// Handler for invocation on proxy methods. We create a boxed argument array. And we invoke
-// the invocation handler which is a field within the proxy object receiver.
+// Handler for invocation on proxy methods. Create a boxed argument array and invoke the invocation
+// handler which is a field within the proxy object receiver. The var args encode the arguments
+// with the last argument being a pointer to a JValue to store the result in.
 void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   va_list ap;
@@ -740,141 +741,59 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
   Object* receiver = va_arg(ap, Object*);
   Thread* self = va_arg(ap, Thread*);
   MethodHelper proxy_mh(proxy_method);
-  const size_t num_params = proxy_mh.NumArgs();
 
-  // Start new JNI local reference state
+  // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
+  const char* old_cause =
+      self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
+  self->VerifyStack();
+
+  // Start new JNI local reference state.
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);
   ScopedJniEnvLocalRefState env_state(env);
 
-  // Create local ref. copies of the receiver
+  // Create local ref. copies of the receiver.
   jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
 
-  // Convert proxy method into expected interface method
+  // Convert proxy method into expected interface method.
   AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
+  jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
 
-  // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
-  jvalue args_jobj[3];
-  args_jobj[0].l = rcvr_jobj;
-  args_jobj[1].l = soa.AddLocalReference<jobject>(interface_method);
-  // Args array, if no arguments then NULL (don't include receiver in argument count)
-  args_jobj[2].l = NULL;
-  ObjectArray<Object>* args = NULL;
-  if ((num_params - 1) > 0) {
-    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(self, num_params - 1);
-    if (args == NULL) {
-      CHECK(self->IsExceptionPending());
-      return;
-    }
-    args_jobj[2].l = soa.AddLocalReference<jobjectArray>(args);
-  }
-
-  // Get parameter types.
-  const char* shorty = proxy_mh.GetShorty();
-  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes(self);
-  if (param_types == NULL) {
-    CHECK(self->IsExceptionPending());
-    return;
-  }
-
-  // Box arguments.
-  for (size_t i = 0; i < (num_params - 1);++i) {
-    JValue val;
-    switch (shorty[i+1]) {
-      case 'Z':
-        val.SetZ(va_arg(ap, jint));
+  // Record arguments and turn Object* arguments into jobject to survive GC.
+  std::vector<jvalue> args;
+  const size_t num_params = proxy_mh.NumArgs();
+  for (size_t i = 1; i < num_params; ++i) {
+    jvalue val;
+    switch (proxy_mh.GetParamPrimitiveType(i)) {
+      case Primitive::kPrimNot:
+        val.l = soa.AddLocalReference<jobject>(va_arg(ap, Object*));
         break;
-      case 'B':
-        val.SetB(va_arg(ap, jint));
+      case Primitive::kPrimBoolean:  // Fall-through.
+      case Primitive::kPrimByte:     // Fall-through.
+      case Primitive::kPrimChar:     // Fall-through.
+      case Primitive::kPrimShort:    // Fall-through.
+      case Primitive::kPrimInt:      // Fall-through.
+        val.i = va_arg(ap, jint);
         break;
-      case 'C':
-        val.SetC(va_arg(ap, jint));
-        break;
-      case 'S':
-        val.SetS(va_arg(ap, jint));
-        break;
-      case 'I':
-        val.SetI(va_arg(ap, jint));
-        break;
-      case 'F':
-        val.SetI(va_arg(ap, jint)); // TODO: is this right?
-        break;
-      case 'L':
-        val.SetL(va_arg(ap, Object*));
+      case Primitive::kPrimFloat:
+        val.f = va_arg(ap, jfloat);
         break;
       case 'D':
+        val.d(va_arg(ap, jdouble));
+        break;
       case 'J':
-        val.SetJ(va_arg(ap, jlong)); // TODO: is this right for double?
+        val.j(va_arg(ap, jlong));
         break;
     }
-    Class* param_type = param_types->Get(i);
-    if (param_type->IsPrimitive()) {
-      BoxPrimitive(param_type->GetPrimitiveType(), val);
-      if (self->IsExceptionPending()) {
-        return;
-      }
-    }
-    args->Set(i, val.GetL());
+    args.push_back(val);
   }
-
-  DCHECK(env->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
-
-  jobject inv_hand = env->GetObjectField(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy_h);
-  // Call InvocationHandler.invoke
-  jobject result = env->CallObjectMethodA(inv_hand, WellKnownClasses::java_lang_reflect_InvocationHandler_invoke, args_jobj);
-
-  // Place result in stack args
-  if (!self->IsExceptionPending()) {
-    if (shorty[0] == 'V') {
-      return;
-    }
-    Object* result_ref = self->DecodeJObject(result);
-    JValue* result_unboxed = va_arg(ap, JValue*);
-    if (result_ref == NULL) {
-      result_unboxed->SetL(NULL);
-    } else {
-      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(), *result_unboxed);
-      if (!unboxed_okay) {
-        self->ClearException();
-        self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-                                 "Couldn't convert result of type %s to %s",
-                                 PrettyTypeOf(result_ref).c_str(),
-                                 PrettyDescriptor(proxy_mh.GetReturnType()).c_str());
-        return;
-      }
-    }
-  } else {
-    // In the case of checked exceptions that aren't declared, the exception must be wrapped by
-    // a UndeclaredThrowableException.
-    Throwable* exception = self->GetException();
-    if (exception->IsCheckedException()) {
-      SynthesizedProxyClass* proxy_class =
-          down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
-      int throws_index = -1;
-      size_t num_virt_methods = proxy_class->NumVirtualMethods();
-      for (size_t i = 0; i < num_virt_methods; i++) {
-        if (proxy_class->GetVirtualMethod(i) == proxy_method) {
-          throws_index = i;
-          break;
-        }
-      }
-      CHECK_NE(throws_index, -1);
-      ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
-      Class* exception_class = exception->GetClass();
-      bool declares_exception = false;
-      for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
-        Class* declared_exception = declared_exceptions->Get(i);
-        declares_exception = declared_exception->IsAssignableFrom(exception_class);
-      }
-      if (!declares_exception) {
-        self->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
-      }
-    }
-  }
-
+  self->EndAssertNoThreadSuspension(old_cause);
+  JValue* result_unboxed = va_arg(ap, JValue*);
   va_end(ap);
+  *result_unboxed = InvokeProxyInvocationHandler(soa, proxy_mh.GetShorty(),
+                                                 rcvr_jobj, interface_method_jobj, args);
 }
 
 void* art_find_runtime_support_func(void* context, const char* name) {

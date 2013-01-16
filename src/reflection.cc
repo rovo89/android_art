@@ -90,8 +90,7 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   }
 
   // Box if necessary and return.
-  BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value);
-  return soa.AddLocalReference<jobject>(value.GetL());
+  return soa.AddLocalReference<jobject>(BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value));
 }
 
 bool VerifyObjectInClass(Object* o, Class* c) {
@@ -195,9 +194,9 @@ bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
   return false;
 }
 
-void BoxPrimitive(Primitive::Type src_class, JValue& value) {
+Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   if (src_class == Primitive::kPrimNot) {
-    return;
+    return value.GetL();
   }
 
   jmethodID m = NULL;
@@ -228,8 +227,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
-    value.SetL(NULL);
-    return;
+    return NULL;
   default:
     LOG(FATAL) << static_cast<int>(src_class);
   }
@@ -239,7 +237,9 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     CHECK_EQ(soa.Self()->GetState(), kRunnable);
   }
   JValue args[1] = { value };
-  soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &value);
+  JValue result;
+  soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &result);
+  return result.GetL();
 }
 
 static std::string UnboxingFailureKind(AbstractMethod* m, int index, Field* f)

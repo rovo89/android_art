@@ -853,11 +853,9 @@ art_proxy_invoke_handler:
     sw      $a0, 0($sp)            # place proxy method at bottom of frame
     move    $a2, rSELF             # pass Thread::Current
     jal     artProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, args...)
-    addiu   $a3, $sp, 8            # pointer to a2/a3/ra/caller's Method**/out-args as second arg
+    move    $a3, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     lw      $ra, 44($sp)           # restore $ra
-    lw      $v0, 8($sp)
-    lw      $v1, 12($sp)
     bnez    $t0, 1f
     addiu   $sp, $sp, 48           # pop frame
     jr      $ra

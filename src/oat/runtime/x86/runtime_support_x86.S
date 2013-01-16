@@ -738,15 +738,14 @@ DEFINE_FUNCTION art_get_obj_static_from_code
 
 DEFINE_FUNCTION art_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
-    lea 8(%esp), %ebx             // pointer to r2/r3/LR/caller's Method**/out-args as second arg
-    pushl %ebx                    // pass args
+    pushl %esp                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass receiver
     pushl %eax                    // pass proxy method
-    call SYMBOL(artProxyInvokeHandler)     // (proxy method, receiver, Thread*, args...)
-    mov 24(%esp), %eax            // get ret0 which was written into r2 on the stack
-    mov 28(%esp), %edx            // get ret1 which was written into r3 on the stack
-    movsd 24(%esp), %xmm0         // get ret0/ret1 from stack for floating point
+    call SYMBOL(artProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    movd %eax, %xmm0              // place return value also into floating point return value
+    movd %edx, %xmm1
+    punpckldq %xmm1, %xmm0
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
