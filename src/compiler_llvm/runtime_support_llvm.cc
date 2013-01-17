@@ -778,13 +778,18 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
         val.i = va_arg(ap, jint);
         break;
       case Primitive::kPrimFloat:
-        val.f = va_arg(ap, jfloat);
+        // TODO: should this be jdouble? Floats aren't passed to var arg routines.
+        val.f = va_arg(ap, jint);
         break;
-      case 'D':
-        val.d(va_arg(ap, jdouble));
+      case Primitive::kPrimDouble:
+        val.d = (va_arg(ap, jdouble));
         break;
-      case 'J':
-        val.j(va_arg(ap, jlong));
+      case Primitive::kPrimLong:
+        val.j = (va_arg(ap, jlong));
+        break;
+      case Primitive::kPrimVoid:
+        LOG(FATAL) << "UNREACHABLE";
+        val.j = 0;
         break;
     }
     args.push_back(val);
