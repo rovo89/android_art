@@ -127,11 +127,11 @@ test-art-gtest: test-art-host-gtest test-art-target-gtest
 	@echo test-art-gtest PASSED
 
 .PHONY: test-art-oat
-test-art-oat: test-art-host-oat test-art-target-oat
+test-art-oat: test-art-host-oat test-art-target-oat test-art-host-interpreter-oat
 	@echo test-art-oat PASSED
 
 .PHONY: test-art-run-test
-test-art-run-test: test-art-host-run-test test-art-target-run-test
+test-art-run-test: test-art-host-run-test test-art-target-run-test test-art-host-interpreter-run-test
 	@echo test-art-run-test PASSED
 
 ########################################################################
@@ -139,8 +139,12 @@ test-art-run-test: test-art-host-run-test test-art-target-run-test
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test
+test-art-host: test-art-host-gtest test-art-host-oat test-art-host-run-test test-art-host-interpreter
 	@echo test-art-host PASSED
+
+.PHONY: test-art-host-interpreter
+test-art-host-interpreter: test-art-host-interpreter-oat test-art-host-interpreter-run-test
+	@echo test-art-host-interpreter PASSED
 
 .PHONY: test-art-host-dependencies
 test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION)
@@ -168,6 +172,10 @@ tsan-test-art-host-gtest: test-art-host-dependencies
 .PHONY: test-art-host-oat
 test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
 	@echo test-art-host-oat PASSED
+
+.PHONY: test-art-host-interpreter-oat
+test-art-host-interpreter-oat: $(ART_TEST_HOST_INTERPRETER_OAT_TARGETS)
+	@echo test-art-host-interpreter-oat PASSED
 
 define declare-test-art-host-run-test
 .PHONY: test-art-host-run-test-$(1)

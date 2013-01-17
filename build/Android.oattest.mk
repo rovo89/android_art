@@ -52,6 +52,7 @@ $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test
 
 ART_TEST_TARGET_OAT_TARGETS :=
 ART_TEST_HOST_OAT_TARGETS :=
+ART_TEST_HOST_INTERPRETER_OAT_TARGETS :=
 
 # $(1): directory
 # $(2): arguments
@@ -75,9 +76,20 @@ test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-depe
           && echo test-art-host-oat-$(1) PASSED || (echo test-art-host-oat-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-$(1)
 
+.PHONY: test-art-host-interpreter-oat-$(1)
+test-art-host-interpreter-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-dependencies
+	mkdir -p /tmp/android-data/test-art-host-interpreter-oat-$(1)
+	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar --oat-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat --instruction-set=$(HOST_ARCH) --host-prefix=""
+	ANDROID_DATA=/tmp/android-data/test-art-host-interpreter-oat-$(1) \
+	  ANDROID_ROOT=$(HOST_OUT) \
+	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
+	  oatexecd -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -Xint -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+          && echo test-art-host-interpreter-oat-$(1) PASSED || (echo test-art-host-interpreter-oat-$(1) FAILED && exit 1)
+	$(hide) rm -r /tmp/android-data/test-art-host-interpreter-oat-$(1)
 
 ART_TEST_TARGET_OAT_TARGETS += test-art-target-oat-$(1)
 ART_TEST_HOST_OAT_TARGETS += test-art-host-oat-$(1)
+ART_TEST_HOST_INTERPRETER_OAT_TARGETS += test-art-host-interpreter-oat-$(1)
 endef
 $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call declare-test-art-oat-targets,$(dir))))
 
