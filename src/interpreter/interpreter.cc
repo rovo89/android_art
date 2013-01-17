@@ -883,7 +883,8 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::THROW: {
-        Throwable* t = shadow_frame.GetVRegReference(dec_insn.vA)->AsThrowable();
+        Object* o = shadow_frame.GetVRegReference(dec_insn.vA);
+        Throwable* t = (o == NULL) ? NULL : o->AsThrowable();
         self->DeliverException(t);
         break;
       }
