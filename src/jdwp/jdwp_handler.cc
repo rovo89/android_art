@@ -180,22 +180,21 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
   return err;
 }
 
-
-/*
- * Request for version info.
- */
 static JdwpError VM_Version(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  /* text information on runtime version */
+  // Text information on runtime version.
   std::string version(StringPrintf("Android Runtime %s", Runtime::Current()->GetVersion()));
   expandBufAddUtf8String(pReply, version);
-  /* JDWP version numbers */
-  expandBufAdd4BE(pReply, 1);        // major
-  expandBufAdd4BE(pReply, 5);        // minor
-  /* VM JRE version */
-  expandBufAddUtf8String(pReply, "1.6.0");  /* e.g. 1.6.0_22 */
-  /* target VM name */
-  expandBufAddUtf8String(pReply, "DalvikVM");
+
+  // JDWP version numbers, major and minor.
+  expandBufAdd4BE(pReply, 1);
+  expandBufAdd4BE(pReply, 6);
+
+  // "java.version".
+  expandBufAddUtf8String(pReply, "1.6.0");
+
+  // "java.vm.name".
+  expandBufAddUtf8String(pReply, "Dalvik");
 
   return ERR_NONE;
 }
@@ -944,7 +943,7 @@ static JdwpError OR_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataL
  */
 static JdwpError OR_DisableCollection(JdwpState*, const uint8_t*, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // this is currently a no-op
+  // TODO: this is currently a no-op.
   return ERR_NONE;
 }
 
@@ -953,7 +952,7 @@ static JdwpError OR_DisableCollection(JdwpState*, const uint8_t*, int, ExpandBuf
  */
 static JdwpError OR_EnableCollection(JdwpState*, const uint8_t*, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // this is currently a no-op
+  // TODO: this is currently a no-op.
   return ERR_NONE;
 }
 
