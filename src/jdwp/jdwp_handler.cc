@@ -383,7 +383,7 @@ static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* rep
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   expandBufAdd1(reply, false);   // canWatchFieldModification
   expandBufAdd1(reply, false);   // canWatchFieldAccess
-  expandBufAdd1(reply, false);   // canGetBytecodes
+  expandBufAdd1(reply, true);    // canGetBytecodes
   expandBufAdd1(reply, true);    // canGetSyntheticAttribute
   expandBufAdd1(reply, true);    // canGetOwnedMonitorInfo
   expandBufAdd1(reply, true);    // canGetCurrentContendedMonitor
@@ -826,6 +826,25 @@ static JdwpError M_VariableTableWithGeneric(JdwpState* state, const uint8_t* buf
                                             ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return M_VariableTable(state, buf, dataLen, pReply, true);
+}
+
+static JdwpError M_Bytecodes(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  RefTypeId class_id = ReadRefTypeId(&buf);
+  MethodId method_id = ReadMethodId(&buf);
+
+  std::vector<uint8_t> bytecodes;
+  JdwpError rc = Dbg::GetBytecodes(class_id, method_id, bytecodes);
+  if (rc != ERR_NONE) {
+    return rc;
+  }
+
+  expandBufAdd4BE(reply, bytecodes.size());
+  for (size_t i = 0; i < bytecodes.size(); ++i) {
+    expandBufAdd1(reply, bytecodes[i]);
+  }
+
+  return ERR_NONE;
 }
 
 /*
@@ -1680,7 +1699,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   /* Method command set (6) */
   { 6,    1,  M_LineTable,                "Method.LineTable" },
   { 6,    2,  M_VariableTable,            "Method.VariableTable" },
-  { 6,    3,  NULL,                       "Method.Bytecodes" },
+  { 6,    3,  M_Bytecodes,                "Method.Bytecodes" },
   { 6,    4,  NULL,                       "Method.IsObsolete" },
   { 6,    5,  M_VariableTableWithGeneric, "Method.VariableTableWithGeneric" },
 

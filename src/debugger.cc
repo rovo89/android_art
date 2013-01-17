@@ -1359,6 +1359,24 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
   JDWP::Set4BE(expandBufGetBuffer(pReply) + variable_count_offset, context.variable_count);
 }
 
+JDWP::JdwpError Dbg::GetBytecodes(JDWP::RefTypeId, JDWP::MethodId method_id,
+                                  std::vector<uint8_t>& bytecodes)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  AbstractMethod* m = FromMethodId(method_id);
+  if (m == NULL) {
+    return JDWP::ERR_INVALID_METHODID;
+  }
+  MethodHelper mh(m);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  size_t byte_count = code_item->insns_size_in_code_units_ * 2;
+  const uint8_t* begin = reinterpret_cast<const uint8_t*>(code_item->insns_);
+  const uint8_t* end = begin + byte_count;
+  for (const uint8_t* p = begin; p != end; ++p) {
+    bytecodes.push_back(*p);
+  }
+  return JDWP::ERR_NONE;
+}
+
 JDWP::JdwpTag Dbg::GetFieldBasicTag(JDWP::FieldId field_id) {
   return BasicTagFromDescriptor(FieldHelper(FromFieldId(field_id)).GetTypeDescriptor());
 }
