@@ -199,7 +199,7 @@ class Dbg {
   //
   // Methods and fields.
   //
-  static std::string GetMethodName(JDWP::RefTypeId ref_type_id, JDWP::MethodId id)
+  static std::string GetMethodName(JDWP::MethodId method_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId ref_type_id, bool with_generic,
                                               JDWP::ExpandBuf* pReply)
@@ -220,6 +220,8 @@ class Dbg {
                                       std::vector<uint8_t>& bytecodes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static std::string GetFieldName(JDWP::FieldId field_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId field_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId field_id)

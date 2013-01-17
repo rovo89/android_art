@@ -31,6 +31,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <string>
+
 #include "atomic.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -45,15 +47,21 @@ namespace art {
 
 namespace JDWP {
 
-/*
- * Helper function: read a "location" from an input buffer.
- */
-static void ReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
-  memset(pLoc, 0, sizeof(*pLoc));     /* allows memcmp() later */
-  pLoc->type_tag = ReadTypeTag(pBuf);
-  pLoc->class_id = ReadObjectId(pBuf);
-  pLoc->method_id = ReadMethodId(pBuf);
-  pLoc->dex_pc = Read8BE(pBuf);
+static std::string DescribeField(const FieldId& field_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return StringPrintf("%#x (%s)", field_id, Dbg::GetFieldName(field_id).c_str());
+}
+
+static std::string DescribeMethod(const MethodId& method_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return StringPrintf("%#x (%s)", method_id, Dbg::GetMethodName(method_id).c_str());
+}
+
+static std::string DescribeRefTypeId(const RefTypeId& ref_type_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::string signature("unknown");
+  Dbg::GetSignature(ref_type_id, signature);
+  return StringPrintf("%#llx (%s)", ref_type_id, signature.c_str());
 }
 
 /*
@@ -69,6 +77,103 @@ static uint64_t ReadValue(const uint8_t** pBuf, size_t width) {
   default:    LOG(FATAL) << width; break;
   }
   return value;
+}
+
+static int32_t ReadSigned32(const char* what, const uint8_t** pBuf) {
+  int32_t value = static_cast<int32_t>(Read4BE(pBuf));
+  VLOG(jdwp) << "    " << what << " " << value;
+  return value;
+}
+
+uint32_t ReadUnsigned32(const char* what, const uint8_t** pBuf) {
+  uint32_t value = Read4BE(pBuf);
+  VLOG(jdwp) << "    " << what << " " << value;
+  return value;
+}
+
+static FieldId ReadFieldId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  FieldId id = Read4BE(pBuf);
+  VLOG(jdwp) << "    field id " << DescribeField(id);
+  return id;
+}
+
+static MethodId ReadMethodId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  MethodId id = Read4BE(pBuf);
+  VLOG(jdwp) << "    method id " << DescribeMethod(id);
+  return id;
+}
+
+static ObjectId ReadObjectId(const char* specific_kind, const uint8_t** pBuf) {
+  ObjectId id = Read8BE(pBuf);
+  VLOG(jdwp) << StringPrintf("    %s id %#llx", specific_kind, id);
+  return id;
+}
+
+static ObjectId ReadArrayId(const uint8_t** pBuf) {
+  return ReadObjectId("array", pBuf);
+}
+
+ObjectId ReadObjectId(const uint8_t** pBuf) {
+  return ReadObjectId("object", pBuf);
+}
+
+static ObjectId ReadThreadId(const uint8_t** pBuf) {
+  return ReadObjectId("thread", pBuf);
+}
+
+static ObjectId ReadThreadGroupId(const uint8_t** pBuf) {
+  return ReadObjectId("thread group", pBuf);
+}
+
+static RefTypeId ReadRefTypeId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  RefTypeId id = Read8BE(pBuf);
+  VLOG(jdwp) << "    ref type id " << DescribeRefTypeId(id);
+  return id;
+}
+
+static FrameId ReadFrameId(const uint8_t** pBuf) {
+  FrameId id = Read8BE(pBuf);
+  VLOG(jdwp) << "    frame id " << id;
+  return id;
+}
+
+static JdwpTag ReadTag(const uint8_t** pBuf) {
+  JdwpTag tag = static_cast<JdwpTag>(Read1(pBuf));
+  VLOG(jdwp) << "    tag " << tag;
+  return tag;
+}
+
+static JdwpTypeTag ReadTypeTag(const uint8_t** pBuf) {
+  JdwpTypeTag tag = static_cast<JdwpTypeTag>(Read1(pBuf));
+  VLOG(jdwp) << "    type tag " << tag;
+  return tag;
+}
+
+static JdwpLocation ReadLocation(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  JdwpLocation location;
+  memset(&location, 0, sizeof(location)); // Allows memcmp(3) later.
+  location.type_tag = ReadTypeTag(pBuf);
+  location.class_id = ReadObjectId(pBuf);
+  location.method_id = ReadMethodId(pBuf);
+  location.dex_pc = Read8BE(pBuf);
+  VLOG(jdwp) << "    location " << location;
+  return location;
+}
+
+static std::string ReadUtf8String(unsigned char const** ppSrc) {
+  uint32_t length = Read4BE(ppSrc);
+  std::string s;
+  s.resize(length);
+  memcpy(&s[0], *ppSrc, length);
+  (*ppSrc) += length;
+  VLOG(jdwp) << "    string \"" << s << "\"";
+  return s;
+}
+
+static JdwpModKind ReadModKind(const uint8_t** pBuf) {
+  JdwpModKind mod_kind = static_cast<JdwpModKind>(Read1(pBuf));
+  VLOG(jdwp) << "    mod kind " << mod_kind;
+  return mod_kind;
 }
 
 /*
@@ -119,17 +224,17 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(!is_constructor || object_id != 0);
 
-  uint32_t arg_count = Read4BE(&buf);
+  int32_t arg_count = ReadSigned32("argument count", &buf);
 
   VLOG(jdwp) << StringPrintf("    --> thread_id=%#llx object_id=%#llx", thread_id, object_id);
   VLOG(jdwp) << StringPrintf("        class_id=%#llx method_id=%x %s.%s", class_id,
                              method_id, Dbg::GetClassName(class_id).c_str(),
-                             Dbg::GetMethodName(class_id, method_id).c_str());
+                             Dbg::GetMethodName(method_id).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
   UniquePtr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
   UniquePtr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
-  for (uint32_t i = 0; i < arg_count; ++i) {
+  for (int32_t i = 0; i < arg_count; ++i) {
     argTypes[i] = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(argTypes[i]);
     argValues[i] = ReadValue(&buf, width);
@@ -206,8 +311,7 @@ static JdwpError VM_Version(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
  */
 static JdwpError VM_ClassesBySignature(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string classDescriptor(ReadNewUtf8String(&buf));
-  VLOG(jdwp) << "  Req for class by signature '" << classDescriptor << "'";
+  std::string classDescriptor(ReadUtf8String(&buf));
 
   std::vector<RefTypeId> ids;
   Dbg::FindLoadedClassBySignature(classDescriptor.c_str(), ids);
@@ -263,8 +367,6 @@ static JdwpError VM_TopLevelThreadGroups(JdwpState*, const uint8_t*, int, Expand
    */
   uint32_t groups = 1;
   expandBufAdd4BE(pReply, groups);
-  //thread_group_id = debugGetMainThreadGroup();
-  //expandBufAdd8BE(pReply, thread_group_id);
   ObjectId thread_group_id = Dbg::GetSystemThreadGroupId();
   expandBufAddObjectId(pReply, thread_group_id);
 
@@ -337,8 +439,7 @@ static JdwpError VM_Exit(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
  */
 static JdwpError VM_CreateString(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string str(ReadNewUtf8String(&buf));
-  VLOG(jdwp) << "  Req to create string '" << str << "'";
+  std::string str(ReadUtf8String(&buf));
   ObjectId stringId = Dbg::CreateString(str);
   if (stringId == 0) {
     return ERR_OUT_OF_MEMORY;
@@ -461,7 +562,7 @@ static JdwpError VM_AllClassesWithGeneric(JdwpState*, const uint8_t*, int, Expan
 
 static JdwpError VM_InstanceCounts(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  int32_t class_count = static_cast<int32_t>(Read4BE(&buf));
+  int32_t class_count = ReadSigned32("class count", &buf);
   if (class_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
@@ -495,9 +596,9 @@ static JdwpError RT_Modifiers(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 static JdwpError RT_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  uint32_t field_count = Read4BE(&buf);
+  int32_t field_count = ReadSigned32("field count", &buf);
   expandBufAdd4BE(pReply, field_count);
-  for (uint32_t i = 0; i < field_count; i++) {
+  for (int32_t i = 0; i < field_count; ++i) {
     FieldId fieldId = ReadFieldId(&buf);
     JdwpError status = Dbg::GetStaticFieldValue(refTypeId, fieldId, pReply);
     if (status != ERR_NONE) {
@@ -544,7 +645,6 @@ static JdwpError RT_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 static JdwpError RT_Interfaces(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for interfaces in %#llx (%s)", refTypeId, Dbg::GetClassName(refTypeId).c_str());
   return Dbg::OutputDeclaredInterfaces(refTypeId, pReply);
 }
 
@@ -554,13 +654,13 @@ static JdwpError RT_Interfaces(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
 static JdwpError RT_ClassObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  ObjectId classObjectId;
-  JdwpError status = Dbg::GetClassObject(refTypeId, classObjectId);
+  ObjectId class_object_id;
+  JdwpError status = Dbg::GetClassObject(refTypeId, class_object_id);
   if (status != ERR_NONE) {
     return status;
   }
-  VLOG(jdwp) << StringPrintf("  RefTypeId %#llx -> ObjectId %#llx", refTypeId, classObjectId);
-  expandBufAddObjectId(pReply, classObjectId);
+  VLOG(jdwp) << StringPrintf("    --> ObjectId %#llx", class_object_id);
+  expandBufAddObjectId(pReply, class_object_id);
   return ERR_NONE;
 }
 
@@ -580,9 +680,7 @@ static JdwpError RT_Signature(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=%#llx", refTypeId);
   std::string signature;
-
   JdwpError status = Dbg::GetSignature(refTypeId, signature);
   if (status != ERR_NONE) {
     return status;
@@ -615,13 +713,6 @@ static JdwpError RT_ClassLoader(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
   return Dbg::GetClassLoader(refTypeId, pReply);
 }
 
-static std::string Describe(const RefTypeId& refTypeId)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string signature("unknown");
-  Dbg::GetSignature(refTypeId, signature);
-  return StringPrintf("refTypeId=%#llx (%s)", refTypeId, signature.c_str());
-}
-
 /*
  * Given a referenceTypeId, return a block of stuff that describes the
  * fields declared by a class.
@@ -629,7 +720,6 @@ static std::string Describe(const RefTypeId& refTypeId)
 static JdwpError RT_FieldsWithGeneric(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << "  Req for fields in " << Describe(refTypeId);
   return Dbg::OutputDeclaredFields(refTypeId, true, pReply);
 }
 
@@ -637,7 +727,6 @@ static JdwpError RT_FieldsWithGeneric(JdwpState*, const uint8_t* buf, int, Expan
 static JdwpError RT_Fields(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << "  Req for fields in " << Describe(refTypeId);
   return Dbg::OutputDeclaredFields(refTypeId, false, pReply);
 }
 
@@ -648,7 +737,6 @@ static JdwpError RT_Fields(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 static JdwpError RT_MethodsWithGeneric(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << "  Req for methods in " << Describe(refTypeId);
   return Dbg::OutputDeclaredMethods(refTypeId, true, pReply);
 }
 
@@ -656,14 +744,13 @@ static JdwpError RT_MethodsWithGeneric(JdwpState*, const uint8_t* buf, int, Expa
 static JdwpError RT_Methods(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << "  Req for methods in " << Describe(refTypeId);
   return Dbg::OutputDeclaredMethods(refTypeId, false, pReply);
 }
 
 static JdwpError RT_Instances(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId class_id = ReadRefTypeId(&buf);
-  int32_t max_count = Read4BE(&buf);
+  int32_t max_count = ReadSigned32("max count", &buf);
   if (max_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
@@ -698,17 +785,17 @@ static JdwpError CT_Superclass(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
 static JdwpError CT_SetValues(JdwpState* , const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId class_id = ReadRefTypeId(&buf);
-  uint32_t values = Read4BE(&buf);
+  int32_t values_count = ReadSigned32("values count", &buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d values in class_id=%#llx", values, class_id);
+  UNUSED(class_id);
 
-  for (uint32_t i = 0; i < values; i++) {
+  for (int32_t i = 0; i < values_count; ++i) {
     FieldId fieldId = ReadFieldId(&buf);
     JDWP::JdwpTag fieldTag = Dbg::GetStaticFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = ReadValue(&buf, width);
 
-    VLOG(jdwp) << "    --> field=" << fieldId << " tag=" << fieldTag << " -> " << value;
+    VLOG(jdwp) << "    --> field=" << fieldId << " tag=" << fieldTag << " --> " << value;
     JdwpError status = Dbg::SetStaticFieldValue(fieldId, value, width);
     if (status != ERR_NONE) {
       return status;
@@ -728,7 +815,7 @@ static JdwpError CT_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataL
                                  ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId class_id = ReadRefTypeId(&buf);
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   MethodId method_id = ReadMethodId(&buf);
 
   return FinishInvoke(state, buf, dataLen, pReply, thread_id, 0, class_id, method_id, false);
@@ -745,10 +832,9 @@ static JdwpError CT_NewInstance(JdwpState* state, const uint8_t* buf, int dataLe
                                 ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId class_id = ReadRefTypeId(&buf);
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   MethodId method_id = ReadMethodId(&buf);
 
-  VLOG(jdwp) << "Creating instance of " << Dbg::GetClassName(class_id);
   ObjectId object_id;
   JdwpError status = Dbg::CreateObject(class_id, object_id);
   if (status != ERR_NONE) {
@@ -766,9 +852,8 @@ static JdwpError CT_NewInstance(JdwpState* state, const uint8_t* buf, int dataLe
 static JdwpError AT_newInstance(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId arrayTypeId = ReadRefTypeId(&buf);
-  uint32_t length = Read4BE(&buf);
+  int32_t length = ReadSigned32("length", &buf);
 
-  VLOG(jdwp) << "Creating array " << Dbg::GetClassName(arrayTypeId) << "[" << length << "]";
   ObjectId object_id;
   JdwpError status = Dbg::CreateArrayObject(arrayTypeId, length, object_id);
   if (status != ERR_NONE) {
@@ -790,8 +875,6 @@ static JdwpError M_LineTable(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRe
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   MethodId method_id = ReadMethodId(&buf);
 
-  VLOG(jdwp) << "  Req for line table in " << Dbg::GetClassName(refTypeId) << "." << Dbg::GetMethodName(refTypeId, method_id);
-
   Dbg::OutputLineTable(refTypeId, method_id, pReply);
 
   return ERR_NONE;
@@ -802,10 +885,6 @@ static JdwpError M_VariableTable(JdwpState*, const uint8_t* buf, int, ExpandBuf*
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   RefTypeId class_id = ReadRefTypeId(&buf);
   MethodId method_id = ReadMethodId(&buf);
-
-  VLOG(jdwp) << StringPrintf("  Req for LocalVarTab in class=%s method=%s",
-                             Dbg::GetClassName(class_id).c_str(),
-                             Dbg::GetMethodName(class_id, method_id).c_str());
 
   // We could return ERR_ABSENT_INFORMATION here if the DEX file was built without local variable
   // information. That will cause Eclipse to make a best-effort attempt at displaying local
@@ -856,7 +935,6 @@ static JdwpError M_Bytecodes(JdwpState*, const uint8_t* buf, int, ExpandBuf* rep
 static JdwpError OR_ReferenceType(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId object_id = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for type of object_id=%#llx", object_id);
   return Dbg::GetReferenceType(object_id, pReply);
 }
 
@@ -866,13 +944,10 @@ static JdwpError OR_ReferenceType(JdwpState*, const uint8_t* buf, int, ExpandBuf
 static JdwpError OR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId object_id = ReadObjectId(&buf);
-  uint32_t field_count = Read4BE(&buf);
-
-  VLOG(jdwp) << StringPrintf("  Req for %d fields from object_id=%#llx", field_count, object_id);
+  int32_t field_count = ReadSigned32("field count", &buf);
 
   expandBufAdd4BE(pReply, field_count);
-
-  for (uint32_t i = 0; i < field_count; i++) {
+  for (int32_t i = 0; i < field_count; ++i) {
     FieldId fieldId = ReadFieldId(&buf);
     JdwpError status = Dbg::GetFieldValue(object_id, fieldId, pReply);
     if (status != ERR_NONE) {
@@ -889,11 +964,9 @@ static JdwpError OR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 static JdwpError OR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId object_id = ReadObjectId(&buf);
-  uint32_t field_count = Read4BE(&buf);
+  int32_t field_count = ReadSigned32("field count", &buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d fields in object_id=%#llx", field_count, object_id);
-
-  for (uint32_t i = 0; i < field_count; i++) {
+  for (int32_t i = 0; i < field_count; ++i) {
     FieldId fieldId = ReadFieldId(&buf);
 
     JDWP::JdwpTag fieldTag = Dbg::GetFieldBasicTag(fieldId);
@@ -931,7 +1004,7 @@ static JdwpError OR_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataL
                                  ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId object_id = ReadObjectId(&buf);
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   RefTypeId class_id = ReadRefTypeId(&buf);
   MethodId method_id = ReadMethodId(&buf);
 
@@ -961,10 +1034,7 @@ static JdwpError OR_EnableCollection(JdwpState*, const uint8_t*, int, ExpandBuf*
  */
 static JdwpError OR_IsCollected(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id;
-
-  object_id = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req IsCollected(%#llx)", object_id);
+  //ObjectId object_id = ReadObjectId(&buf);
 
   // TODO: currently returning false; must integrate with GC
   expandBufAdd1(pReply, 0);
@@ -975,7 +1045,7 @@ static JdwpError OR_IsCollected(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
 static JdwpError OR_ReferringObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId object_id = ReadObjectId(&buf);
-  int32_t max_count = Read4BE(&buf);
+  int32_t max_count = ReadSigned32("max count", &buf);
   if (max_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
@@ -997,7 +1067,7 @@ static JdwpError SR_Value(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
   ObjectId stringObject = ReadObjectId(&buf);
   std::string str(Dbg::StringToUtf8(stringObject));
 
-  VLOG(jdwp) << StringPrintf("  Req for str %#llx --> %s", stringObject, PrintableString(str).c_str());
+  VLOG(jdwp) << StringPrintf("    --> %s", PrintableString(str).c_str());
 
   expandBufAddUtf8String(pReply, str);
 
@@ -1009,9 +1079,8 @@ static JdwpError SR_Value(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
  */
 static JdwpError TR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for name of thread %#llx", thread_id);
   std::string name;
   JdwpError error = Dbg::GetThreadName(thread_id, name);
   if (error != ERR_NONE) {
@@ -1031,13 +1100,13 @@ static JdwpError TR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
  */
 static JdwpError TR_Suspend(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   if (thread_id == Dbg::GetThreadSelfId()) {
     LOG(INFO) << "  Warning: ignoring request to suspend self";
     return ERR_THREAD_NOT_SUSPENDED;
   }
-  VLOG(jdwp) << StringPrintf("  Req to suspend thread %#llx", thread_id);
+
   Thread* self = Thread::Current();
   self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
   JdwpError result = Dbg::SuspendThread(thread_id);
@@ -1050,13 +1119,13 @@ static JdwpError TR_Suspend(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
  */
 static JdwpError TR_Resume(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   if (thread_id == Dbg::GetThreadSelfId()) {
     LOG(INFO) << "  Warning: ignoring request to resume self";
     return ERR_NONE;
   }
-  VLOG(jdwp) << StringPrintf("  Req to resume thread %#llx", thread_id);
+
   Dbg::ResumeThread(thread_id);
   return ERR_NONE;
 }
@@ -1066,9 +1135,7 @@ static JdwpError TR_Resume(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
  */
 static JdwpError TR_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
-
-  VLOG(jdwp) << StringPrintf("  Req for status of thread %#llx", thread_id);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   JDWP::JdwpThreadStatus threadStatus;
   JDWP::JdwpSuspendStatus suspendStatus;
@@ -1090,7 +1157,7 @@ static JdwpError TR_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
  */
 static JdwpError TR_ThreadGroup(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   return Dbg::GetThreadGroup(thread_id, pReply);
 }
 
@@ -1102,9 +1169,9 @@ static JdwpError TR_ThreadGroup(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
  */
 static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
-  uint32_t start_frame = Read4BE(&buf);
-  uint32_t length = Read4BE(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
+  uint32_t start_frame = ReadUnsigned32("start frame", &buf);
+  uint32_t length = ReadUnsigned32("length", &buf);
 
   size_t actual_frame_count;
   JdwpError error = Dbg::GetThreadFrameCount(thread_id, actual_frame_count);
@@ -1112,9 +1179,8 @@ static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
     return error;
   }
 
-  VLOG(jdwp) << StringPrintf("  Request for frames: thread_id=%#llx start=%d length=%d [count=%zd]", thread_id, start_frame, length, actual_frame_count);
   if (actual_frame_count <= 0) {
-    return ERR_THREAD_NOT_SUSPENDED;    /* == 0 means 100% native */
+    return ERR_THREAD_NOT_SUSPENDED; // 0 means no managed frames (which means "in native").
   }
 
   if (start_frame > actual_frame_count) {
@@ -1135,7 +1201,7 @@ static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
  */
 static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   size_t frame_count;
   JdwpError rc = Dbg::GetThreadFrameCount(thread_id, frame_count);
@@ -1149,7 +1215,7 @@ static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
 
 static JdwpError TR_OwnedMonitors(const uint8_t* buf, ExpandBuf* reply, bool with_stack_depths)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   std::vector<ObjectId> monitors;
   std::vector<uint32_t> stack_depths;
@@ -1183,7 +1249,7 @@ static JdwpError TR_OwnedMonitorsStackDepthInfo(JdwpState*, const uint8_t* buf, 
 
 static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
 
   ObjectId contended_monitor;
   JdwpError rc = Dbg::GetContendedMonitor(thread_id, contended_monitor);
@@ -1195,7 +1261,7 @@ static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int,
 
 static JdwpError TR_Interrupt(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   return Dbg::Interrupt(thread_id);
 }
 
@@ -1207,7 +1273,7 @@ static JdwpError TR_Interrupt(JdwpState*, const uint8_t* buf, int, ExpandBuf* re
  */
 static JdwpError TR_DebugSuspendCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   return Dbg::GetThreadDebugSuspendCount(thread_id, pReply);
 }
 
@@ -1218,8 +1284,7 @@ static JdwpError TR_DebugSuspendCount(JdwpState*, const uint8_t* buf, int, Expan
  */
 static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for name of thread_group_id=%#llx", thread_group_id);
+  ObjectId thread_group_id = ReadThreadGroupId(&buf);
 
   expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(thread_group_id));
 
@@ -1232,7 +1297,7 @@ static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
  */
 static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadObjectId(&buf);
+  ObjectId thread_group_id = ReadThreadGroupId(&buf);
 
   ObjectId parentGroup = Dbg::GetThreadGroupParent(thread_group_id);
   expandBufAddObjectId(pReply, parentGroup);
@@ -1246,8 +1311,7 @@ static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRep
  */
 static JdwpError TGR_Children(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for threads in thread_group_id=%#llx", thread_group_id);
+  ObjectId thread_group_id = ReadThreadGroupId(&buf);
 
   std::vector<ObjectId> thread_ids;
   Dbg::GetThreads(thread_group_id, thread_ids);
@@ -1271,11 +1335,10 @@ static JdwpError TGR_Children(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
  */
 static JdwpError AR_Length(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId arrayId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for length of array %#llx", arrayId);
+  ObjectId array_id = ReadArrayId(&buf);
 
   int length;
-  JdwpError status = Dbg::GetArrayLength(arrayId, length);
+  JdwpError status = Dbg::GetArrayLength(array_id, length);
   if (status != ERR_NONE) {
     return status;
   }
@@ -1291,12 +1354,10 @@ static JdwpError AR_Length(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
  */
 static JdwpError AR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId arrayId = ReadObjectId(&buf);
-  uint32_t firstIndex = Read4BE(&buf);
-  uint32_t length = Read4BE(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for array values %#llx first=%d len=%d", arrayId, firstIndex, length);
-
-  return Dbg::OutputArray(arrayId, firstIndex, length, pReply);
+  ObjectId array_id = ReadArrayId(&buf);
+  uint32_t offset = ReadUnsigned32("offset", &buf);
+  uint32_t length = ReadUnsigned32("length", &buf);
+  return Dbg::OutputArray(array_id, offset, length, pReply);
 }
 
 /*
@@ -1304,14 +1365,10 @@ static JdwpError AR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
  */
 static JdwpError AR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId arrayId = ReadObjectId(&buf);
-  uint32_t firstIndex = Read4BE(&buf);
-  uint32_t values = Read4BE(&buf);
-
-  VLOG(jdwp) << StringPrintf("  Req to set array values %#llx first=%d count=%d", arrayId,
-                             firstIndex, values);
-
-  return Dbg::SetArrayElements(arrayId, firstIndex, values, buf);
+  ObjectId array_id = ReadArrayId(&buf);
+  uint32_t offset = ReadUnsigned32("offset", &buf);
+  uint32_t length = ReadUnsigned32("length", &buf);
+  return Dbg::SetArrayElements(array_id, offset, length, buf);
 }
 
 static JdwpError CLR_VisibleClasses(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
@@ -1334,92 +1391,89 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
 
   uint8_t eventKind = Read1(&buf);
   uint8_t suspend_policy = Read1(&buf);
-  uint32_t modifierCount = Read4BE(&buf);
+  int32_t modifier_count = ReadSigned32("modifier count", &buf);
 
   VLOG(jdwp) << "  Set(kind=" << JdwpEventKind(eventKind)
                << " suspend=" << JdwpSuspendPolicy(suspend_policy)
-               << " mods=" << modifierCount << ")";
+               << " mods=" << modifier_count << ")";
 
-  CHECK_LT(modifierCount, 256U);    /* reasonableness check */
+  CHECK_LT(modifier_count, 256);    /* reasonableness check */
 
-  JdwpEvent* pEvent = EventAlloc(modifierCount);
+  JdwpEvent* pEvent = EventAlloc(modifier_count);
   pEvent->eventKind = static_cast<JdwpEventKind>(eventKind);
   pEvent->suspend_policy = static_cast<JdwpSuspendPolicy>(suspend_policy);
-  pEvent->modCount = modifierCount;
+  pEvent->modCount = modifier_count;
 
   /*
    * Read modifiers.  Ordering may be significant (see explanation of Count
    * mods in JDWP doc).
    */
-  for (uint32_t i = 0; i < modifierCount; ++i) {
+  for (int32_t i = 0; i < modifier_count; ++i) {
     JdwpEventMod& mod = pEvent->mods[i];
-    mod.modKind = static_cast<JdwpModKind>(Read1(&buf));
+    mod.modKind = ReadModKind(&buf);
     switch (mod.modKind) {
-    case MK_COUNT:          /* report once, when "--count" reaches 0 */
+    case MK_COUNT:
       {
-        uint32_t count = Read4BE(&buf);
-        VLOG(jdwp) << "    Count: " << count;
+        // Report once, when "--count" reaches 0.
+        uint32_t count = ReadUnsigned32("count", &buf);
         if (count == 0) {
           return ERR_INVALID_COUNT;
         }
         mod.count.count = count;
       }
       break;
-    case MK_CONDITIONAL:    /* conditional on expression) */
+    case MK_CONDITIONAL:
       {
-        uint32_t exprId = Read4BE(&buf);
-        VLOG(jdwp) << "    Conditional: " << exprId;
+        // Conditional on expression.
+        uint32_t exprId = ReadUnsigned32("expr id", &buf);
         mod.conditional.exprId = exprId;
       }
       break;
-    case MK_THREAD_ONLY:    /* only report events in specified thread */
+    case MK_THREAD_ONLY:
       {
-        ObjectId thread_id = ReadObjectId(&buf);
-        VLOG(jdwp) << StringPrintf("    ThreadOnly: %#llx", thread_id);
+        // Only report events in specified thread.
+        ObjectId thread_id = ReadThreadId(&buf);
         mod.threadOnly.threadId = thread_id;
       }
       break;
-    case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
+    case MK_CLASS_ONLY:
       {
+        // For ClassPrepare, MethodEntry.
         RefTypeId class_id = ReadRefTypeId(&buf);
-        VLOG(jdwp) << StringPrintf("    ClassOnly: %#llx (%s)", class_id, Dbg::GetClassName(class_id).c_str());
         mod.classOnly.refTypeId = class_id;
       }
       break;
-    case MK_CLASS_MATCH:    /* restrict events to matching classes */
+    case MK_CLASS_MATCH:
       {
+        // Restrict events to matching classes.
         // pattern is "java.foo.*", we want "java/foo/*".
-        std::string pattern(ReadNewUtf8String(&buf));
+        std::string pattern(ReadUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
-        VLOG(jdwp) << "    ClassMatch: '" << pattern << "'";
         mod.classMatch.classPattern = strdup(pattern.c_str());
       }
       break;
-    case MK_CLASS_EXCLUDE:  /* restrict events to non-matching classes */
+    case MK_CLASS_EXCLUDE:
       {
+        // Restrict events to non-matching classes.
         // pattern is "java.foo.*", we want "java/foo/*".
-        std::string pattern(ReadNewUtf8String(&buf));
+        std::string pattern(ReadUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
-        VLOG(jdwp) << "    ClassExclude: '" << pattern << "'";
         mod.classExclude.classPattern = strdup(pattern.c_str());
       }
       break;
-    case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
+    case MK_LOCATION_ONLY:
       {
-        JdwpLocation loc;
-        ReadLocation(&buf, &loc);
-        VLOG(jdwp) << "    LocationOnly: " << loc;
-        mod.locationOnly.loc = loc;
+        // Restrict certain events based on location.
+        JdwpLocation location = ReadLocation(&buf);
+        mod.locationOnly.loc = location;
       }
       break;
-    case MK_EXCEPTION_ONLY: /* modifies EK_EXCEPTION events */
+    case MK_EXCEPTION_ONLY:
       {
-        RefTypeId exceptionOrNull;      /* null == all exceptions */
-        uint8_t caught, uncaught;
-
-        exceptionOrNull = ReadRefTypeId(&buf);
-        caught = Read1(&buf);
-        uncaught = Read1(&buf);
+        // Modifies EK_EXCEPTION events,
+        RefTypeId exceptionOrNull = ReadRefTypeId(&buf); // null => all exceptions.
+        uint8_t caught = Read1(&buf);
+        uint8_t uncaught = Read1(&buf);
         VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%#llx(%s) caught=%d uncaught=%d",
             exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassName(exceptionOrNull).c_str(), caught, uncaught);
 
@@ -1428,23 +1482,21 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
         mod.exceptionOnly.uncaught = uncaught;
       }
       break;
-    case MK_FIELD_ONLY:     /* for field access/mod events */
+    case MK_FIELD_ONLY:
       {
+        // For field access/modification events.
         RefTypeId declaring = ReadRefTypeId(&buf);
         FieldId fieldId = ReadFieldId(&buf);
-        VLOG(jdwp) << StringPrintf("    FieldOnly: %#llx %x", declaring, fieldId);
         mod.fieldOnly.refTypeId = declaring;
         mod.fieldOnly.fieldId = fieldId;
       }
       break;
-    case MK_STEP:           /* for use with EK_SINGLE_STEP */
+    case MK_STEP:
       {
-        ObjectId thread_id;
-        uint32_t size, depth;
-
-        thread_id = ReadObjectId(&buf);
-        size = Read4BE(&buf);
-        depth = Read4BE(&buf);
+        // For use with EK_SINGLE_STEP.
+        ObjectId thread_id = ReadThreadId(&buf);
+        uint32_t size = Read4BE(&buf);
+        uint32_t depth = Read4BE(&buf);
         VLOG(jdwp) << StringPrintf("    Step: thread=%#llx", thread_id)
                      << " size=" << JdwpStepSize(size) << " depth=" << JdwpStepDepth(depth);
 
@@ -1453,10 +1505,10 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
         mod.step.depth = depth;
       }
       break;
-    case MK_INSTANCE_ONLY:  /* report events related to a specific obj */
+    case MK_INSTANCE_ONLY:
       {
+        // Report events related to a specific object.
         ObjectId instance = ReadObjectId(&buf);
-        VLOG(jdwp) << StringPrintf("    InstanceOnly: %#llx", instance);
         mod.instanceOnly.objectId = instance;
       }
       break;
@@ -1500,8 +1552,7 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
  */
 static JdwpError ER_Clear(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint8_t eventKind;
-  eventKind = Read1(&buf);
+  uint8_t eventKind = Read1(&buf);
   uint32_t requestId = Read4BE(&buf);
 
   VLOG(jdwp) << StringPrintf("  Req to clear eventKind=%d requestId=%#x", eventKind, requestId);
@@ -1516,15 +1567,13 @@ static JdwpError ER_Clear(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
  */
 static JdwpError SF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   FrameId frame_id = ReadFrameId(&buf);
-  uint32_t slots = Read4BE(&buf);
+  int32_t slot_count = ReadSigned32("slot count", &buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for %d slots in thread_id=%#llx frame_id=%lld", slots, thread_id, frame_id);
-
-  expandBufAdd4BE(pReply, slots);     /* "int values" */
-  for (uint32_t i = 0; i < slots; i++) {
-    uint32_t slot = Read4BE(&buf);
+  expandBufAdd4BE(pReply, slot_count);     /* "int values" */
+  for (int32_t i = 0; i < slot_count; ++i) {
+    uint32_t slot = ReadUnsigned32("slot", &buf);
     JDWP::JdwpTag reqSigByte = ReadTag(&buf);
 
     VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
@@ -1542,14 +1591,12 @@ static JdwpError SF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
  */
 static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   FrameId frame_id = ReadFrameId(&buf);
-  uint32_t slots = Read4BE(&buf);
+  int32_t slot_count = ReadSigned32("slot count", &buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d slots in thread_id=%#llx frame_id=%lld", slots, thread_id, frame_id);
-
-  for (uint32_t i = 0; i < slots; i++) {
-    uint32_t slot = Read4BE(&buf);
+  for (int32_t i = 0; i < slot_count; ++i) {
+    uint32_t slot = ReadUnsigned32("slot", &buf);
     JDWP::JdwpTag sigByte = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(sigByte);
     uint64_t value = ReadValue(&buf, width);
@@ -1563,7 +1610,7 @@ static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
 
 static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadObjectId(&buf);
+  ObjectId thread_id = ReadThreadId(&buf);
   FrameId frame_id = ReadFrameId(&buf);
 
   ObjectId object_id;
@@ -1571,9 +1618,6 @@ static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* r
   if (rc != ERR_NONE) {
     return rc;
   }
-
-  VLOG(jdwp) << StringPrintf("  Req for 'this' in thread_id=%#llx frame=%lld --> %#llx",
-                             thread_id, frame_id, object_id);
 
   return WriteTaggedObject(reply, object_id);
 }
@@ -1587,10 +1631,8 @@ static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* r
  */
 static JdwpError COR_ReflectedType(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId classObjectId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for refTypeId for class=%#llx (%s)", classObjectId,
-                             Dbg::GetClassName(classObjectId).c_str());
-  return Dbg::GetReflectedType(classObjectId, pReply);
+  RefTypeId class_object_id = ReadRefTypeId(&buf);
+  return Dbg::GetReflectedType(class_object_id, pReply);
 }
 
 /*
@@ -1831,7 +1873,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
   expandBufAddSpace(pReply, kJDWPHeaderLen);
 
   size_t i;
-  for (i = 0; i < arraysize(gHandlerMap); i++) {
+  for (i = 0; i < arraysize(gHandlerMap); ++i) {
     if (gHandlerMap[i].cmdSet == pHeader->cmdSet && gHandlerMap[i].cmd == pHeader->cmd && gHandlerMap[i].func != NULL) {
       VLOG(jdwp) << DescribeCommand(pHeader, dataLen);
       result = (*gHandlerMap[i].func)(this, buf, dataLen, pReply);

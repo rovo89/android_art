@@ -1140,10 +1140,16 @@ static void SetLocation(JDWP::JdwpLocation& location, AbstractMethod* m, uint32_
   }
 }
 
-std::string Dbg::GetMethodName(JDWP::RefTypeId, JDWP::MethodId method_id)
+std::string Dbg::GetMethodName(JDWP::MethodId method_id)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   AbstractMethod* m = FromMethodId(method_id);
   return MethodHelper(m).GetName();
+}
+
+std::string Dbg::GetFieldName(JDWP::FieldId field_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Field* f = FromFieldId(field_id);
+  return FieldHelper(f).GetName();
 }
 
 /*

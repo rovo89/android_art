@@ -779,7 +779,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     }
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
-                 << basket.className << "." << Dbg::GetMethodName(pLoc->class_id, pLoc->method_id)
+                 << basket.className << "." << Dbg::GetMethodName(pLoc->method_id)
                  << StringPrintf(" thread=%#llx dex_pc=%#llx)", basket.threadId, pLoc->dex_pc);
 
       suspend_policy = scanSuspendPolicy(match_list, match_count);

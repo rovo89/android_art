@@ -66,18 +66,6 @@ static inline uint64_t Read8BE(unsigned char const** ppSrc) {
   return ((uint64_t) high << 32) | (uint64_t) low;
 }
 
-/*
- * Reads a UTF-8 string into a std::string.
- */
-static inline std::string ReadNewUtf8String(unsigned char const** ppSrc) {
-  uint32_t length = Read4BE(ppSrc);
-  std::string s;
-  s.resize(length);
-  memcpy(&s[0], *ppSrc, length);
-  (*ppSrc) += length;
-  return s;
-}
-
 static inline void Append1BE(std::vector<uint8_t>& bytes, uint8_t value) {
   bytes.push_back(value);
 }

@@ -464,7 +464,7 @@ int64_t JdwpState::LastDebuggerActivity() {
 
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
-     << Dbg::GetClassName(rhs.class_id) << "." << Dbg::GetMethodName(rhs.class_id, rhs.method_id)
+     << Dbg::GetClassName(rhs.class_id) << "." << Dbg::GetMethodName(rhs.method_id)
      << "@" << StringPrintf("%#llx", rhs.dex_pc) << " " << rhs.type_tag << "]";
   return os;
 }
