@@ -155,6 +155,9 @@ uintptr_t GetDeoptimizationEntryPoint();
 // Return address of instrumentation stub.
 void* GetInstrumentationEntryPoint();
 
+// Return address of interpreter stub.
+void* GetInterpreterEntryPoint();
+
 }  // namespace art
 
 #endif  // ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_

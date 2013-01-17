@@ -771,6 +771,22 @@ art_proxy_invoke_handler:
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
 
+    .global art_interpreter_entry
+    .extern artInterpreterEntry
+    ALIGN_FUNCTION_ENTRY
+art_interpreter_entry:
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str     r0, [sp, #0]           @ place proxy method at bottom of frame
+    mov     r1, r9                 @ pass Thread::Current
+    mov     r2, sp                 @ pass SP
+    blx     artInterpreterEntry    @ (Method* method, Thread*, SP)
+    ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    ldr     lr,  [sp, #44]         @ restore lr
+    add     sp,  #48               @ pop frame
+    cmp     r12, #0                @ success if no exception is pending
+    bxeq    lr                     @ return on success
+    DELIVER_PENDING_EXCEPTION
+
     .global art_instrumentation_entry_from_code
     .global art_instrumentation_exit_from_code
     .extern artInstrumentationMethodEntryFromCode

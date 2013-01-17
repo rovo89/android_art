@@ -1811,7 +1811,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   // Set up shadow frame with matching number of reference slots to vregs.
   ShadowFrame* last_shadow_frame = self->GetManagedStack()->GetTopShadowFrame();
   UniquePtr<ShadowFrame> shadow_frame(ShadowFrame::Create(num_regs,
-                                                          (last_shadow_frame == NULL) ? NULL : last_shadow_frame->GetLink(),
+                                                          last_shadow_frame,
                                                           method, 0));
   self->PushShadowFrame(shadow_frame.get());
   size_t cur_reg = num_regs - num_ins;
@@ -1868,6 +1868,12 @@ JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame, J
   MethodHelper mh(shadow_frame.GetMethod());
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   return Execute(self, mh, code_item, shadow_frame, ret_val);
+}
+
+JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                                ShadowFrame& shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 
 }  // namespace interpreter

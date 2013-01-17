@@ -17,12 +17,14 @@
 #ifndef ART_SRC_INTERPRETER_INTERPRETER_H_
 #define ART_SRC_INTERPRETER_INTERPRETER_H_
 
+#include "dex_file.h"
 #include "locks.h"
 
 namespace art {
 
 class AbstractMethod;
 union JValue;
+class MethodHelper;
 class Object;
 class ShadowFrame;
 class Thread;
@@ -35,6 +37,11 @@ extern void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Obj
 
 extern JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame,
                                              JValue ret_val)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+extern JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh,
+                                       const DexFile::CodeItem* code_item,
+                                       ShadowFrame& shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace interpreter

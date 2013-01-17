@@ -852,8 +852,27 @@ art_proxy_invoke_handler:
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     sw      $a0, 0($sp)            # place proxy method at bottom of frame
     move    $a2, rSELF             # pass Thread::Current
-    jal     artProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, args...)
+    jal     artProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
+    lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
+    lw      $ra, 44($sp)           # restore $ra
+    bnez    $t0, 1f
+    addiu   $sp, $sp, 48           # pop frame
+    jr      $ra
+    nop
+1:
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_interpreter_entry
+    .extern artInterpreterEntry
+    ALIGN_FUNCTION_ENTRY
+art_interpreter_entry:
+    GENERATE_GLOBAL_POINTER
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    sw      $a0, 0($sp)            # place proxy method at bottom of frame
+    move    $a1, rSELF             # pass Thread::Current
+    jal     artInterpreterEntry    # (Method* method, Thread*, SP)
+    move    $a2, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     lw      $ra, 44($sp)           # restore $ra
     bnez    $t0, 1f

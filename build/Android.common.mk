@@ -260,6 +260,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_field.cc \
 	src/oat/runtime/support_fillarray.cc \
 	src/oat/runtime/support_instrumentation.cc \
+        src/oat/runtime/support_interpreter.cc \
 	src/oat/runtime/support_invoke.cc \
 	src/oat/runtime/support_jni.cc \
 	src/oat/runtime/support_locks.cc \

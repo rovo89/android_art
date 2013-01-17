@@ -737,12 +737,25 @@ DEFINE_FUNCTION art_get_obj_static_from_code
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_proxy_invoke_handler
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
     pushl %esp                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass receiver
     pushl %eax                    // pass proxy method
     call SYMBOL(artProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    movd %eax, %xmm0              // place return value also into floating point return value
+    movd %edx, %xmm1
+    punpckldq %xmm1, %xmm0
+    addl LITERAL(44), %esp        // pop arguments
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+
+DEFINE_FUNCTION art_interpreter_entry
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
+    pushl %eax                    // alignment padding
+    pushl %esp                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %eax                    // pass  method
+    call SYMBOL(artInterpreterEntry)  // (method, Thread*, SP)
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0

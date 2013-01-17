@@ -126,6 +126,7 @@ extern "C" void art_throw_stack_overflow_from_code(void*);
 // Instrumentation entrypoints.
 extern "C" void art_instrumentation_entry_from_code(void*);
 extern "C" void art_instrumentation_exit_from_code();
+extern "C" void art_interpreter_entry(void*);
 extern "C" void art_deoptimize();
 
 void InitEntryPoints(EntryPoints* points) {
@@ -249,6 +250,10 @@ uintptr_t GetDeoptimizationEntryPoint() {
 
 void* GetInstrumentationEntryPoint() {
   return reinterpret_cast<void*>(art_instrumentation_entry_from_code);
+}
+
+void* GetInterpreterEntryPoint() {
+  return reinterpret_cast<void*>(art_interpreter_entry);
 }
 
 }  // namespace art

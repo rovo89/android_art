@@ -52,11 +52,11 @@ class BuildArgumentVisitor : public ArgumentVisitor {
           val.j = *reinterpret_cast<jlong*>(GetParamAddress());
         }
         break;
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
+      case Primitive::kPrimBoolean:  // Fall-through.
+      case Primitive::kPrimByte:     // Fall-through.
+      case Primitive::kPrimChar:     // Fall-through.
+      case Primitive::kPrimShort:    // Fall-through.
+      case Primitive::kPrimInt:      // Fall-through.
       case Primitive::kPrimFloat:
         val.i =  *reinterpret_cast<jint*>(GetParamAddress());
         break;
@@ -71,6 +71,8 @@ class BuildArgumentVisitor : public ArgumentVisitor {
  private:
   ScopedObjectAccessUnchecked& soa_;
   std::vector<jvalue>& args_;
+
+  DISALLOW_COPY_AND_ASSIGN(BuildArgumentVisitor);
 };
 
 // Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
