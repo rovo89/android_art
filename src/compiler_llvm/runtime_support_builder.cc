@@ -147,12 +147,11 @@ llvm::Value* RuntimeSupportBuilder::EmitGetAndClearException() {
 }
 
 llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
-  Value* state_and_flags = EmitLoadFromThreadOffset(Thread::ThreadFlagsOffset().Int32Value(),
-                                                    irb_.getInt16Ty(),
-                                                    kTBAARuntimeInfo);
-  // Mask exception pending status and return true if non-zero.
-  Value* exception_pending = irb_.CreateAnd(state_and_flags, irb_.getInt16(kExceptionPending));
-  return irb_.CreateICmpNE(exception_pending, irb_.getInt16(0));
+  Value* exception = EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
+                                              irb_.getJObjectTy(),
+                                              kTBAARuntimeInfo);
+  // If exception not null
+  return irb_.CreateIsNotNull(exception);
 }
 
 
