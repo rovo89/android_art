@@ -3182,6 +3182,11 @@ class HeapChunkContext {
   }
 
   void Flush() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (pieceLenField_ == NULL) {
+      // Flush immediately post Reset (maybe back-to-back Flush). Ignore.
+      CHECK(needHeader_);
+      return;
+    }
     // Patch the "length of piece" field.
     CHECK_LE(&buf_[0], pieceLenField_);
     CHECK_LE(pieceLenField_, p_);
