@@ -917,6 +917,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
   os << "\n";
 
   thread_list_->DumpForSigQuit(os);
+  BaseMutex::DumpAll(os);
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {

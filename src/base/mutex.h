@@ -41,8 +41,16 @@
 #define HAVE_TIMED_RWLOCK 0
 #endif
 
+// Record Log contention information, dumpable via SIGQUIT.
+#define CONTENTION_LOGGING (0 && ART_USE_FUTEXES)
+const size_t kContentionLogSize = 64;
+#if CONTENTION_LOGGING
+#include "atomic_integer.h"
+#endif
+
 namespace art {
 
+class ScopedContentionRecorder;
 class Thread;
 
 const bool kDebugLocking = kIsDebugBuild;
@@ -57,17 +65,43 @@ class BaseMutex {
   virtual bool IsMutex() const { return false; }
   virtual bool IsReaderWriterMutex() const { return false; }
 
+  virtual void Dump(std::ostream& os) const = 0;
+
+  static void DumpAll(std::ostream& os);
+
  protected:
   friend class ConditionVariable;
 
   BaseMutex(const char* name, LockLevel level);
-  virtual ~BaseMutex() {}
+  virtual ~BaseMutex();
   void RegisterAsLocked(Thread* self);
   void RegisterAsUnlocked(Thread* self);
   void CheckSafeToWait(Thread* self);
 
+  friend class ScopedContentionRecorder;
+
+  void RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint64_t milli_time_blocked);
+  void DumpContention(std::ostream& os) const;
+
   const LockLevel level_;  // Support for lock hierarchy.
   const std::string name_;
+#if CONTENTION_LOGGING
+  // A log entry that records contention but makes no guarantee that either tid will be held live.
+  struct ContentionLogEntry {
+    ContentionLogEntry() : blocked_tid(0), owner_tid(0) {}
+    uint64_t blocked_tid;
+    uint64_t owner_tid;
+    AtomicInteger count;
+  };
+  ContentionLogEntry contention_log_[kContentionLogSize];
+  // The next entry in the contention log to be updated. Value ranges from 0 to
+  // kContentionLogSize - 1.
+  AtomicInteger cur_content_log_entry_;
+  // Number of times the Mutex has been contended.
+  AtomicInteger contention_count_;
+  // Sum of time waited by all contenders in ms.
+  AtomicInteger wait_time_;
+#endif
 };
 
 // A Mutex is used to achieve mutual exclusion between threads. A Mutex can be used to gain
@@ -129,7 +163,7 @@ class LOCKABLE Mutex : public BaseMutex {
     return recursion_count_;
   }
 
-  std::string Dump() const;
+  virtual void Dump(std::ostream& os) const;
 
  private:
 #if ART_USE_FUTEXES
@@ -240,7 +274,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Id associated with exclusive owner.
   uint64_t GetExclusiveOwnerTid() const;
 
-  std::string Dump() const;
+  virtual void Dump(std::ostream& os) const;
 
  private:
 #if ART_USE_FUTEXES

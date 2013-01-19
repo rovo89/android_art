@@ -585,7 +585,6 @@ void Monitor::Inflate(Thread* self, Object* obj) {
 
 void Monitor::MonitorEnter(Thread* self, Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
-  timespec tm;
   uint32_t sleepDelayNs;
   uint32_t minSleepDelayNs = 1000000;  /* 1 millisecond */
   uint32_t maxSleepDelayNs = 1000000000;  /* 1 second */
@@ -651,9 +650,7 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
               sched_yield();
               sleepDelayNs = minSleepDelayNs;
             } else {
-              tm.tv_sec = 0;
-              tm.tv_nsec = sleepDelayNs;
-              nanosleep(&tm, NULL);
+              NanoSleep(sleepDelayNs);
               // Prepare the next delay value. Wrap to avoid once a second polls for eternity.
               if (sleepDelayNs < maxSleepDelayNs / 2) {
                 sleepDelayNs *= 2;

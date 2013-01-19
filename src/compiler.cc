@@ -481,12 +481,12 @@ void Compiler::CompileAll(jobject class_loader,
                           const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
 
-  ThreadPool thread_pool(thread_count_);
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
   TimingLogger timings("compiler");
 
-  PreCompile(class_loader, dex_files, thread_pool, timings);
+  PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
 
-  Compile(class_loader, dex_files, thread_pool, timings);
+  Compile(class_loader, dex_files, *thread_pool.get(), timings);
 
   if (dump_timings_ && timings.GetTotalNs() > MsToNs(1000)) {
     timings.Dump();
@@ -519,9 +519,9 @@ void Compiler::CompileOne(const AbstractMethod* method) {
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(dex_file);
 
-  ThreadPool thread_pool(1U);
+  UniquePtr<ThreadPool> thread_pool(new ThreadPool(1U));
   TimingLogger timings("CompileOne");
-  PreCompile(class_loader, dex_files, thread_pool, timings);
+  PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());

@@ -24,8 +24,7 @@ namespace art {
 
 class AtomicInteger {
  public:
-  // Default to uninitialized
-  AtomicInteger() { }
+  AtomicInteger() : value_(0) { }
 
   AtomicInteger(int32_t value) : value_(value) { }
 
@@ -59,14 +58,6 @@ class AtomicInteger {
     return android_atomic_and(-value, &value_);
   }
 
-  int32_t operator ++ (int32_t) {
-    return android_atomic_inc(&value_);
-  }
-
-  int32_t operator -- (int32_t) {
-    return android_atomic_dec(&value_);
-  }
-
   int32_t operator ++ () {
     return android_atomic_inc(&value_) + 1;
   }
@@ -75,8 +66,9 @@ class AtomicInteger {
     return android_atomic_dec(&value_) - 1;
   }
 
-  int CompareAndSwap(int expected_value, int new_value) {
-    return android_atomic_cas(expected_value, new_value, &value_);
+  bool CompareAndSwap(int expected_value, int new_value) {
+    bool success = android_atomic_cas(expected_value, new_value, &value_) == 0;
+    return success;
   }
  private:
   int32_t value_;

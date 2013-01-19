@@ -180,6 +180,13 @@ uint64_t ThreadCpuNanoTime() {
 #endif
 }
 
+void NanoSleep(uint64_t ns) {
+  timespec tm;
+  tm.tv_sec = 0;
+  tm.tv_nsec = ns;
+  nanosleep(&tm, NULL);
+}
+
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts) {
   int64_t endSec;
 
