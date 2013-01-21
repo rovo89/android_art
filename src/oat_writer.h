@@ -26,11 +26,12 @@
 #include "mem_map.h"
 #include "oat.h"
 #include "object.h"
-#include "os.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
 
 namespace art {
+
+class OutputStream;
 
 // OatHeader         variable length with count of D OatDexFiles
 //
@@ -63,7 +64,7 @@ namespace art {
 class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
-  static bool Create(File* file,
+  static bool Create(OutputStream& out,
                      const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
@@ -100,27 +101,27 @@ class OatWriter {
                            uint32_t method_idx, const DexFile*)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Write(File* file);
-  bool WriteTables(File* file);
-  size_t WriteCode(File* file);
-  size_t WriteCodeDexFiles(File* file, size_t offset);
-  size_t WriteCodeDexFile(File* file, size_t offset, size_t& oat_class_index,
+  bool Write(OutputStream& out);
+  bool WriteTables(OutputStream& out);
+  size_t WriteCode(OutputStream& out);
+  size_t WriteCodeDexFiles(OutputStream& out, size_t offset);
+  size_t WriteCodeDexFile(OutputStream& out, size_t offset, size_t& oat_class_index,
                           const DexFile& dex_file);
-  size_t WriteCodeClassDef(File* file, size_t offset, size_t oat_class_index,
+  size_t WriteCodeClassDef(OutputStream& out, size_t offset, size_t oat_class_index,
                            const DexFile& dex_file, const DexFile::ClassDef& class_def);
-  size_t WriteCodeMethod(File* file, size_t offset, size_t oat_class_index,
+  size_t WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_class_index,
                          size_t class_def_method_index, bool is_static, uint32_t method_idx,
                          const DexFile& dex_file);
 
   void ReportWriteFailure(const char* what, uint32_t method_idx, const DexFile& dex_file,
-                          File* f) const;
+                          OutputStream& out) const;
 
   class OatDexFile {
    public:
     explicit OatDexFile(const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(File* file) const;
+    bool Write(OutputStream& out) const;
 
     // data to write
     uint32_t dex_file_location_size_;
@@ -138,7 +139,7 @@ class OatWriter {
     explicit OatClass(Class::Status status, uint32_t methods_count);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(File* file) const;
+    bool Write(OutputStream& out) const;
 
     // data to write
     Class::Status status_;

@@ -20,6 +20,7 @@
 #include "common_test.h"
 #include "image.h"
 #include "image_writer.h"
+#include "file_output_stream.h"
 #include "oat_writer.h"
 #include "signal_catcher.h"
 #include "gc/space.h"
@@ -48,7 +49,8 @@ TEST_F(ImageTest, WriteRead) {
     ScopedObjectAccess soa(Thread::Current());
     std::vector<const DexFile*> dex_files;
     dex_files.push_back(java_lang_dex_file_);
-    bool success_oat = OatWriter::Create(tmp_oat.GetFile(), dex_files, 0, 0, "", *compiler_.get());
+    FileOutputStream file_output_stream(tmp_oat.GetFile());
+    bool success_oat = OatWriter::Create(file_output_stream, dex_files, 0, 0, "", *compiler_.get());
     ASSERT_TRUE(success_oat);
 
     // Force all system classes into memory

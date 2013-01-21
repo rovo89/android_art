@@ -16,6 +16,7 @@
 
 #include "oat_file.h"
 #include "oat_writer.h"
+#include "file_output_stream.h"
 
 #include "common_test.h"
 
@@ -79,7 +80,8 @@ TEST_F(OatTest, WriteRead) {
 
   ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
-  bool success = OatWriter::Create(tmp.GetFile(),
+  FileOutputStream file_output_stream(tmp.GetFile());
+  bool success = OatWriter::Create(file_output_stream,
                                    class_linker->GetBootClassPath(),
                                    42U,
                                    4096U,

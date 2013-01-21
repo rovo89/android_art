@@ -29,6 +29,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
+#include "file_output_stream.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "oat_writer.h"
@@ -268,7 +269,8 @@ class Dex2Oat {
       }
     }
 
-    if (!OatWriter::Create(oat_file,
+    FileOutputStream file_output_stream(oat_file);
+    if (!OatWriter::Create(file_output_stream,
                            dex_files,
                            image_file_location_oat_checksum,
                            image_file_location_oat_begin,

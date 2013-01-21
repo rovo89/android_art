@@ -155,6 +155,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
 	src/dlmalloc.cc \
+	src/file_output_stream.cc \
 	src/gc/card_table.cc \
 	src/gc/garbage_collector.cc \
 	src/gc/heap_bitmap.cc \
@@ -235,6 +236,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
+	src/vector_output_stream.cc \
 	src/well_known_classes.cc \
 	src/zip_archive.cc \
 	src/verifier/dex_gc_map.cc \
@@ -387,6 +389,7 @@ TEST_COMMON_SRC_FILES := \
 	src/oat/utils/x86/managed_register_x86_test.cc \
 	src/oat_test.cc \
 	src/object_test.cc \
+	src/output_stream_test.cc \
 	src/reference_table_test.cc \
 	src/runtime_support_test.cc \
 	src/runtime_test.cc \
