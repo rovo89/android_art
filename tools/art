@@ -35,6 +35,7 @@ done
 
 unset ANDROID_PRODUCT_OUT # avoid defaulting dex2oat --host-prefix to target output
 mkdir -p /tmp/android-data/art-cache
+cd $ANDROID_BUILD_TOP
 ANDROID_DATA=/tmp/android-data\
  ANDROID_ROOT=$ANDROID_HOST_OUT\
  LD_LIBRARY_PATH=$ANDROID_HOST_OUT/lib\
