@@ -57,12 +57,14 @@ class AtomicStack {
 
   // Returns false if we overflowed the stack.
   bool AtomicPushBack(const T& value) {
-    const int32_t index = back_index_++;
-    if (UNLIKELY(static_cast<size_t>(index) >= capacity_)) {
-      // Stack overflow.
-      back_index_--;
-      return false;
-    }
+    int32_t index;
+    do {
+      index = back_index_;
+      if (UNLIKELY(static_cast<size_t>(index) >= capacity_)) {
+        // Stack overflow.
+        return false;
+      }
+    } while(!back_index_.CompareAndSwap(index, index + 1));
     begin_[index] = value;
     return true;
   }
@@ -79,13 +81,6 @@ class AtomicStack {
     // Decrement the back index non atomically.
     back_index_ = back_index_ - 1;
     return begin_[back_index_];
-  }
-
-  T AtomicPopBack() {
-    // Decrement the back index non atomically.
-    int back_index = back_index_--;
-    DCHECK_GT(back_index, front_index_);
-    return begin_[back_index - 1];
   }
 
   // Take an item from the front of the stack.

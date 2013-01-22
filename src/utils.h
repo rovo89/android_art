@@ -291,6 +291,9 @@ static inline uint64_t MsToNs(uint64_t ns) {
 #define CLOCK_REALTIME 0xebadf00d
 #endif
 
+// Sleep for the given number of nanoseconds, a bad way to handle contention.
+void NanoSleep(uint64_t ns);
+
 // Initialize a timespec to either an absolute or relative time.
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
 

@@ -110,7 +110,60 @@ static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, co
 }
 #endif
 
-BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {}
+#if CONTENTION_LOGGING
+// A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
+static AtomicInteger all_mutexes_guard_;
+// All created mutexes guarded by all_mutexes_guard_.
+std::set<BaseMutex*>* all_mutexes_;
+
+class ScopedAllMutexesLock {
+ public:
+  ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
+    while (!all_mutexes_guard_.CompareAndSwap(0, reinterpret_cast<int32_t>(mutex))) {
+      NanoSleep(100);
+    }
+  }
+  ~ScopedAllMutexesLock() {
+    while (!all_mutexes_guard_.CompareAndSwap(reinterpret_cast<int32_t>(mutex_), 0)) {
+      NanoSleep(100);
+    }
+  }
+ private:
+  const BaseMutex* const mutex_;
+};
+#endif
+
+BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
+#if CONTENTION_LOGGING
+  ScopedAllMutexesLock mu(this);
+  if (all_mutexes_ == NULL) {
+    // We leak the global set of all mutexes to avoid ordering issues in global variable
+    // construction/destruction.
+    all_mutexes_ = new std::set<BaseMutex*>();
+  }
+  all_mutexes_->insert(this);
+#endif
+}
+
+BaseMutex::~BaseMutex() {
+#if CONTENTION_LOGGING
+  ScopedAllMutexesLock mu(this);
+  all_mutexes_->erase(this);
+#endif
+}
+
+void BaseMutex::DumpAll(std::ostream& os) {
+#if CONTENTION_LOGGING
+  os << "Mutex logging:\n";
+  ScopedAllMutexesLock mu(reinterpret_cast<const BaseMutex*>(-1));
+  typedef std::set<BaseMutex*>::const_iterator It;
+  for (It it = all_mutexes_->begin(); it != all_mutexes_->end(); ++it) {
+    BaseMutex* mutex = *it;
+    mutex->Dump(os);
+    os << "\n";
+  }
+#endif
+}
 
 static void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALYSIS {
   // The check below enumerates the cases where we expect not to be able to sanity check locks
@@ -188,6 +241,104 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   }
 }
 
+void BaseMutex::RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint64_t milli_time_blocked) {
+#if CONTENTION_LOGGING
+  ++contention_count_;
+  wait_time_ += static_cast<uint32_t>(milli_time_blocked);  // May overflow.
+  // This code is intentionally racy as it is only used for diagnostics.
+  uint32_t slot = cur_content_log_entry_;
+  if (contention_log_[slot].blocked_tid == blocked_tid &&
+      contention_log_[slot].owner_tid == blocked_tid) {
+    ++contention_log_[slot].count;
+  } else {
+    uint32_t new_slot;
+    do {
+      slot = cur_content_log_entry_;
+      new_slot = (slot + 1) % kContentionLogSize;
+    } while(!cur_content_log_entry_.CompareAndSwap(slot, new_slot));
+    contention_log_[new_slot].blocked_tid = blocked_tid;
+    contention_log_[new_slot].owner_tid = owner_tid;
+    contention_log_[new_slot].count = 1;
+  }
+#endif
+}
+
+class ScopedContentionRecorder {
+ public:
+  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid) :
+      mutex_(mutex), blocked_tid_(blocked_tid), owner_tid_(owner_tid),
+      start_milli_time_(MilliTime()) {
+  }
+
+  ~ScopedContentionRecorder() {
+    uint64_t end_milli_time = MilliTime();
+    mutex_->RecordContention(blocked_tid_, owner_tid_, end_milli_time - start_milli_time_);
+  }
+
+ private:
+  BaseMutex* const mutex_;
+  uint64_t blocked_tid_;
+  uint64_t owner_tid_;
+  const uint64_t start_milli_time_;
+};
+
+void BaseMutex::DumpContention(std::ostream& os) const {
+#if CONTENTION_LOGGING
+  uint32_t wait_time = wait_time_;
+  uint32_t contention_count = contention_count_;
+  if (contention_count == 0) {
+    os << "never contended";
+  } else {
+    os << "contended " << contention_count << " times, average wait of contender " << (wait_time / contention_count) << "ms";
+    SafeMap<uint64_t, size_t> most_common_blocker;
+    SafeMap<uint64_t, size_t> most_common_blocked;
+    typedef SafeMap<uint64_t, size_t>::const_iterator It;
+    for (size_t i = 0; i < kContentionLogSize; ++i) {
+      uint64_t blocked_tid = contention_log_[i].blocked_tid;
+      uint64_t owner_tid = contention_log_[i].owner_tid;
+      uint32_t count = contention_log_[i].count;
+      if (count > 0) {
+        It it = most_common_blocked.find(blocked_tid);
+        if (it != most_common_blocked.end()) {
+          most_common_blocked.Overwrite(blocked_tid, it->second + count);
+        } else {
+          most_common_blocked.Put(blocked_tid, count);
+        }
+        it = most_common_blocker.find(owner_tid);
+        if (it != most_common_blocker.end()) {
+          most_common_blocker.Overwrite(owner_tid, it->second + count);
+        } else {
+          most_common_blocker.Put(owner_tid, count);
+        }
+      }
+    }
+    uint64_t max_tid = 0;
+    size_t max_tid_count = 0;
+    for (It it = most_common_blocked.begin(); it != most_common_blocked.end(); ++it) {
+      if (it->second > max_tid_count) {
+        max_tid = it->first;
+        max_tid_count = it->second;
+      }
+    }
+    if (max_tid != 0) {
+      os << " sample shows most blocked tid=" << max_tid;
+    }
+    max_tid = 0;
+    max_tid_count = 0;
+    for (It it = most_common_blocker.begin(); it != most_common_blocker.end(); ++it) {
+      if (it->second > max_tid_count) {
+        max_tid = it->first;
+        max_tid_count = it->second;
+      }
+    }
+    if (max_tid != 0) {
+      os << " sample shows tid=" << max_tid << " owning during this time";
+    }
+  }
+#endif
+}
+
+
 Mutex::Mutex(const char* name, LockLevel level, bool recursive)
     : BaseMutex(name, level), recursive_(recursive), recursion_count_(0) {
 #if ART_USE_FUTEXES
@@ -248,6 +399,7 @@ void Mutex::ExclusiveLock(Thread* self) {
         done = android_atomic_cmpxchg(0, 1, &state_) == 0;
       } else {
         // Failed to acquire, hang up.
+        ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
         android_atomic_inc(&num_contenders_);
         if (futex(&state_, FUTEX_WAIT, 1, NULL, NULL, 0) != 0) {
           if (errno != EAGAIN) {
@@ -382,17 +534,18 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #endif
 }
 
-std::string Mutex::Dump() const {
-  return StringPrintf("%s %s level=%d count=%d owner=%llx",
-                      recursive_ ? "recursive" : "non-recursive",
-                      name_.c_str(),
-                      static_cast<int>(level_),
-                      recursion_count_,
-                      GetExclusiveOwnerTid());
+void Mutex::Dump(std::ostream& os) const {
+  os << (recursive_ ? "recursive " : "non-recursive ")
+      << name_
+      << " level=" << static_cast<int>(level_)
+      << " rec=" << recursion_count_
+      << " owner=" << GetExclusiveOwnerTid() << " ";
+  DumpContention(os);
 }
 
 std::ostream& operator<<(std::ostream& os, const Mutex& mu) {
-  return os << mu.Dump();
+  mu.Dump(os);
+  return os;
 }
 
 ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level) :
@@ -439,6 +592,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
       done = android_atomic_cmpxchg(0, -1, &state_) == 0;
     } else {
       // Failed to acquire, hang up.
+      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
       android_atomic_inc(&num_pending_writers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
         if (errno != EAGAIN) {
@@ -505,6 +659,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
       if (ComputeRelativeTimeSpec(&rel_ts, end_abs_ts, now_abs_ts)) {
         return false;  // Timed out.
       }
+      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
       android_atomic_inc(&num_pending_writers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, &rel_ts, NULL, 0) != 0) {
         if (errno == ETIMEDOUT) {
@@ -547,6 +702,7 @@ void ReaderWriterMutex::SharedLock(Thread* self) {
       done = android_atomic_cmpxchg(cur_state, cur_state + 1, &state_) == 0;
     } else {
       // Owner holds it exclusively, hang up.
+      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
       android_atomic_inc(&num_pending_readers_);
       if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
         if (errno != EAGAIN) {
@@ -643,7 +799,14 @@ bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
 
 uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #if ART_USE_FUTEXES
-  return exclusive_owner_;
+  int32_t state = state_;
+  if (state == 0) {
+    return 0;  // No owner.
+  } else if (state > 0) {
+    return -1;  // Shared.
+  } else {
+    return exclusive_owner_;
+  }
 #else
 #if defined(__BIONIC__)
   return rwlock_.writerThreadId;
@@ -665,15 +828,16 @@ uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #endif
 }
 
-std::string ReaderWriterMutex::Dump() const {
-  return StringPrintf("%s level=%d owner=%llx",
-                      name_.c_str(),
-                      static_cast<int>(level_),
-                      GetExclusiveOwnerTid());
+void ReaderWriterMutex::Dump(std::ostream& os) const {
+  os << name_
+      << " level=" << static_cast<int>(level_)
+      << " owner=" << GetExclusiveOwnerTid() << " ";
+  DumpContention(os);
 }
 
 std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu) {
-  return os << mu.Dump();
+  mu.Dump(os);
+  return os;
 }
 
 ConditionVariable::ConditionVariable(const std::string& name, Mutex& guard)
