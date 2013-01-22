@@ -406,7 +406,7 @@ size_t DlMallocSpace::AllocationSize(const Object* obj) {
   return InternalAllocationSize(obj);
 }
 
-void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* arg */) {
+void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* arg) {
   // Is this chunk in use?
   if (used_bytes != 0) {
     return;
@@ -417,15 +417,19 @@ void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* a
   if (end > start) {
     size_t length = reinterpret_cast<byte*>(end) - reinterpret_cast<byte*>(start);
     CHECK_MEMORY_CALL(madvise, (start, length, MADV_DONTNEED), "trim");
+    size_t* reclaimed = reinterpret_cast<size_t*>(arg);
+    *reclaimed += length;
   }
 }
 
-void DlMallocSpace::Trim() {
+size_t DlMallocSpace::Trim() {
   MutexLock mu(Thread::Current(), lock_);
   // Trim to release memory at the end of the space.
   mspace_trim(mspace_, 0);
   // Visit space looking for page-sized holes to advise the kernel we don't need.
-  mspace_inspect_all(mspace_, MspaceMadviseCallback, NULL);
+  size_t reclaimed = 0;
+  mspace_inspect_all(mspace_, MspaceMadviseCallback, &reclaimed);
+  return reclaimed;
 }
 
 void DlMallocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
