@@ -915,20 +915,6 @@ void Codegen::GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation
   StoreValue(cu, rl_dest, rl_result);
 }
 
-void Codegen::GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
-{
-  FlushAllRegs(cu);  /* Everything to home location */
-  int func_offset = ENTRYPOINT_OFFSET(pGetAndClearException);
-  if (cu->instruction_set == kX86) {
-    // Runtime helper will load argument for x86.
-    CallRuntimeHelperReg(cu, func_offset, TargetReg(kArg0), false);
-  } else {
-    CallRuntimeHelperReg(cu, func_offset, TargetReg(kSelf), false);
-  }
-  RegLocation rl_result = GetReturn(cu, false);
-  StoreValue(cu, rl_dest, rl_result);
-}
-
 void Codegen::GenThrow(CompilationUnit* cu, RegLocation rl_src)
 {
   FlushAllRegs(cu);

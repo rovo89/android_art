@@ -1589,7 +1589,6 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccessFromCode),
   ENTRY_POINT_INFO(pInitializeTypeFromCode),
   ENTRY_POINT_INFO(pResolveStringFromCode),
-  ENTRY_POINT_INFO(pGetAndClearException),
   ENTRY_POINT_INFO(pSet32Instance),
   ENTRY_POINT_INFO(pSet32Static),
   ENTRY_POINT_INFO(pSet64Instance),

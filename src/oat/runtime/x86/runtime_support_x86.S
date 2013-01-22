@@ -390,13 +390,6 @@ DEFINE_FUNCTION art_update_debugger
     mov %ebx, %eax                // restore original eax
     ret
 
-DEFINE_FUNCTION art_get_and_clear_exception
-    subl LITERAL(8), %esp         // alignment padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    call SYMBOL(GetAndClearException)  // (Thread*)
-    addl LITERAL(12), %esp        // pop arguments
-    ret
-
 ONE_ARG_DOWNCALL art_lock_object_from_code, artLockObjectFromCode, ret
 ONE_ARG_DOWNCALL art_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
 

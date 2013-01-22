@@ -102,8 +102,7 @@ enum ThreadFlag {
   kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0 and the Thread should enter the
                           // safepoint handler.
   kCheckpointRequest = 2, // Request that the thread do some checkpoint work and then continue.
-  kExceptionPending = 4,  // If set implies that exception_ != NULL.
-  kEnterInterpreter = 8,  // Instruct managed code it should enter the interpreter.
+  kEnterInterpreter = 4,  // Instruct managed code it should enter the interpreter.
 };
 
 class PACKED(4) Thread {
@@ -301,9 +300,7 @@ class PACKED(4) Thread {
   bool IsStillStarting() const;
 
   bool IsExceptionPending() const {
-    bool result = ReadFlag(kExceptionPending);
-    DCHECK_EQ(result, exception_ != NULL);
-    return result;
+    return exception_ != NULL;
   }
 
   Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -316,14 +313,10 @@ class PACKED(4) Thread {
     CHECK(new_exception != NULL);
     // TODO: DCHECK(!IsExceptionPending());
     exception_ = new_exception;
-    AtomicSetFlag(kExceptionPending);
-    DCHECK(IsExceptionPending());
   }
 
   void ClearException() {
     exception_ = NULL;
-    AtomicClearFlag(kExceptionPending);
-    DCHECK(!IsExceptionPending());
   }
 
   void DeliverException(Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

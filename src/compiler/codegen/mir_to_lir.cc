@@ -85,6 +85,7 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::MOVE_EXCEPTION:
       cg->GenMoveException(cu, rl_dest);
       break;
+
     case Instruction::RETURN_VOID:
       if (((cu->access_flags & kAccConstructor) != 0) &&
           cu->compiler->RequiresConstructorBarrier(Thread::Current(), cu->dex_file,

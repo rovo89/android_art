@@ -130,7 +130,6 @@ class Codegen {
     void GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest);
     void GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocation rl_dest);
     void GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest);
-    void GenMoveException(CompilationUnit* cu, RegLocation rl_dest);
     void GenThrow(CompilationUnit* cu, RegLocation rl_src);
     void GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest,
                        RegLocation rl_src);
@@ -332,6 +331,7 @@ class Codegen {
     virtual void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind) = 0;
     virtual void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src) = 0;
     virtual void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src) = 0;
+    virtual void GenMoveException(CompilationUnit* cu, RegLocation rl_dest) = 0;
     virtual void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
                                                RegLocation rl_result, int lit, int first_bit,
                                                int second_bit) = 0;
