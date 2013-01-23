@@ -167,9 +167,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pInitializeTypeFromCode = art_initialize_type_from_code;
   points->pResolveStringFromCode = art_resolve_string_from_code;
 
-  // Exceptions
-  points->pGetAndClearException = GetAndClearException;
-
   // Field
   points->pSet32Instance = art_set32_instance_from_code;
   points->pSet32Static = art_set32_static_from_code;

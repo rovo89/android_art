@@ -191,6 +191,15 @@ void X86Codegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation 
   branch2->target = NewLIR0(cu, kPseudoTargetLabel);
 }
 
+void X86Codegen::GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
+{
+  int ex_offset = Thread::ExceptionOffset().Int32Value();
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  NewLIR2(cu, kX86Mov32RT, rl_result.low_reg, ex_offset);
+  NewLIR2(cu, kX86Mov32TI, ex_offset, 0);
+  StoreValue(cu, rl_dest, rl_result);
+}
+
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */

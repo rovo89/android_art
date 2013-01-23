@@ -139,6 +139,7 @@ class X86Codegen : public Codegen {
     virtual void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind);
     virtual void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src);
     virtual void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src);
+    virtual void GenMoveException(CompilationUnit* cu, RegLocation rl_dest);
     virtual void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
                                                RegLocation rl_result, int lit, int first_bit,
                                                int second_bit);

@@ -294,6 +294,18 @@ void MipsCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation
   MarkSafepointPC(cu, call_inst);
 }
 
+void MipsCodegen::GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
+{
+  int ex_offset = Thread::ExceptionOffset().Int32Value();
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  int reset_reg = AllocTemp(cu);
+  LoadWordDisp(cu, rMIPS_SELF, ex_offset, rl_result.low_reg);
+  LoadConstant(cu, reset_reg, 0);
+  StoreWordDisp(cu, rMIPS_SELF, ex_offset, reset_reg);
+  FreeTemp(cu, reset_reg);
+  StoreValue(cu, rl_dest, rl_result);
+}
+
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
