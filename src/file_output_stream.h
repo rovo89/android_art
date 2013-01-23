@@ -24,15 +24,14 @@
 namespace art {
 
 class FileOutputStream : public OutputStream {
-
  public:
   FileOutputStream(File* file);
 
-  virtual ~FileOutputStream() {};
+  virtual ~FileOutputStream() {}
 
   virtual bool WriteFully(const void* buffer, int64_t byte_count);
 
-  virtual off_t lseek(off_t offset, int whence);
+  virtual off_t Seek(off_t offset, Whence whence);
 
  private:
   File* file_;

@@ -24,7 +24,7 @@ namespace art {
 class OutputStreamTest : public CommonTest {
  protected:
   void CheckOffset(off_t expected) {
-    off_t actual = output_stream_->lseek(0, SEEK_CUR);
+    off_t actual = output_stream_->Seek(0, kSeekCurrent);
     CHECK_EQ(expected, actual);
   }
 
@@ -33,14 +33,14 @@ class OutputStreamTest : public CommonTest {
   }
 
   void GenerateTestOutput() {
-    CHECK_EQ(3, output_stream_->lseek(3, SEEK_CUR));
+    CHECK_EQ(3, output_stream_->Seek(3, kSeekCurrent));
     CheckOffset(3);
-    CHECK_EQ(2, output_stream_->lseek(2, SEEK_SET));
+    CHECK_EQ(2, output_stream_->Seek(2, kSeekSet));
     CheckOffset(2);
     uint8_t buf[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     CHECK(output_stream_->WriteFully(buf, 2));
     CheckOffset(4);
-    CHECK_EQ(6, output_stream_->lseek(2, SEEK_END));
+    CHECK_EQ(6, output_stream_->Seek(2, kSeekEnd));
     CheckOffset(6);
     CHECK(output_stream_->WriteFully(buf, 4));
     CheckOffset(10);

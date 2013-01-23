@@ -23,14 +23,14 @@
 
 namespace art {
 
-FileOutputStream::FileOutputStream(File* file) : OutputStream(file->GetPath()), file_(file) {};
+FileOutputStream::FileOutputStream(File* file) : OutputStream(file->GetPath()), file_(file) {}
 
 bool FileOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
   return file_->WriteFully(buffer, byte_count);
 }
 
-off_t FileOutputStream::lseek(off_t offset, int whence) {
-  return ::lseek(file_->Fd(), offset, whence);
+off_t FileOutputStream::Seek(off_t offset, Whence whence) {
+  return lseek(file_->Fd(), offset, static_cast<int>(whence));
 }
 
 }  // namespace art

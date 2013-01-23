@@ -23,7 +23,7 @@
 namespace art {
 
 VectorOutputStream::VectorOutputStream(const std::string& location, std::vector<uint8_t>& vector)
-  : OutputStream(location), offset_(vector.size()), vector_(vector) {};
+  : OutputStream(location), offset_(vector.size()), vector_(vector) {}
 
 bool VectorOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
   off_t new_offset = offset_ + byte_count;
@@ -33,25 +33,21 @@ bool VectorOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
   return true;
 }
 
-off_t VectorOutputStream::lseek(off_t offset, int whence) {
-  CHECK(whence == SEEK_SET || whence == SEEK_CUR || whence == SEEK_END) << whence;
-  off_t new_offset;
+off_t VectorOutputStream::Seek(off_t offset, Whence whence) {
+  CHECK(whence == kSeekSet || whence == kSeekCurrent || whence == kSeekEnd) << whence;
+  off_t new_offset = 0;
   switch (whence) {
-    case SEEK_SET: {
+    case kSeekSet: {
       new_offset = offset;
       break;
     }
-    case SEEK_CUR: {
+    case kSeekCurrent: {
       new_offset = offset_ + offset;
       break;
     }
-    case SEEK_END: {
+    case kSeekEnd: {
       new_offset = vector_.size() + offset;
       break;
-    }
-    default: {
-      LOG(FATAL) << whence;
-      new_offset = -1;
     }
   }
   EnsureCapacity(new_offset);
