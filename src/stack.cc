@@ -52,6 +52,13 @@ bool ManagedStack::ShadowFramesContain(Object** shadow_frame_entry) const {
   return false;
 }
 
+StackVisitor::StackVisitor(Thread* thread, Context* context)
+    : thread_(thread), cur_shadow_frame_(NULL),
+      cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
+      context_(context) {
+  DCHECK(thread == Thread::Current() || thread->IsSuspended());
+}
+
 uint32_t StackVisitor::GetDexPc() const {
   if (cur_shadow_frame_ != NULL) {
     return cur_shadow_frame_->GetDexPC();
@@ -142,12 +149,10 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
-size_t StackVisitor::ComputeNumFrames(const ManagedStack* stack,
-                                      const std::deque<InstrumentationStackFrame>* instr_stack) {
+size_t StackVisitor::ComputeNumFrames(Thread* thread) {
   struct NumFramesVisitor : public StackVisitor {
-    explicit NumFramesVisitor(const ManagedStack* stack,
-                              const std::deque<InstrumentationStackFrame>* instrumentation_stack)
-        : StackVisitor(stack, instrumentation_stack, NULL), frames(0) {}
+    explicit NumFramesVisitor(Thread* thread)
+        : StackVisitor(thread, NULL), frames(0) {}
 
     virtual bool VisitFrame() {
       frames++;
@@ -156,25 +161,22 @@ size_t StackVisitor::ComputeNumFrames(const ManagedStack* stack,
 
     size_t frames;
   };
-  UNUSED(instr_stack);  // We don't use the instrumentation stack as we don't require dex pcs...
-  NumFramesVisitor visitor(stack, NULL);
+  NumFramesVisitor visitor(thread);
   visitor.WalkStack(true);
   return visitor.frames;
 }
 
-void StackVisitor::DescribeStack(const ManagedStack* stack,
-                                 const std::deque<InstrumentationStackFrame>* instr_stack) {
+void StackVisitor::DescribeStack(Thread* thread) {
   struct DescribeStackVisitor : public StackVisitor {
-    explicit DescribeStackVisitor(const ManagedStack* stack,
-                              const std::deque<InstrumentationStackFrame>* instrumentation_stack)
-        : StackVisitor(stack, instrumentation_stack, NULL) {}
+    explicit DescribeStackVisitor(Thread* thread)
+        : StackVisitor(thread, NULL) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();
       return true;
     }
   };
-  DescribeStackVisitor visitor(stack, instr_stack);
+  DescribeStackVisitor visitor(thread);
   visitor.WalkStack(true);
 }
 
@@ -190,6 +192,10 @@ std::string StackVisitor::DescribeLocation() const {
     result += StringPrintf(" (native PC %p)", reinterpret_cast<void*>(GetCurrentQuickFramePc()));
   }
   return result;
+}
+
+InstrumentationStackFrame StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
+  return thread_->GetInstrumentationStack()->at(depth);
 }
 
 void StackVisitor::SanityCheckFrame() const {
@@ -210,9 +216,12 @@ void StackVisitor::SanityCheckFrame() const {
 }
 
 void StackVisitor::WalkStack(bool include_transitions) {
-  bool method_tracing_active = instrumentation_stack_ != NULL;
+  DCHECK(thread_ == Thread::Current() || thread_->IsSuspended());
+  const std::deque<InstrumentationStackFrame>* instrumentation_stack =
+      thread_->GetInstrumentationStack();
+  bool method_tracing_active = instrumentation_stack != NULL;
   uint32_t instrumentation_stack_depth = 0;
-  for (const ManagedStack* current_fragment = stack_start_; current_fragment != NULL;
+  for (const ManagedStack* current_fragment = thread_->GetManagedStack(); current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
     cur_quick_frame_ = current_fragment->GetTopQuickFrame();

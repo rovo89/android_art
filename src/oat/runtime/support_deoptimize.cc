@@ -32,11 +32,8 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, AbstractMethod**
   CHECK(old_cause == NULL);
   class DeoptimizationVisitor : public StackVisitor {
    public:
-    DeoptimizationVisitor(const ManagedStack* stack,
-                          const std::deque<InstrumentationStackFrame>* instrumentation_stack,
-                          Context* context)
-        : StackVisitor(stack, instrumentation_stack, context), shadow_frame_(NULL),
-          runtime_frames_(0) { }
+    DeoptimizationVisitor(Thread* thread, Context* context)
+        : StackVisitor(thread, context), shadow_frame_(NULL), runtime_frames_(0) { }
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       AbstractMethod* m = GetMethod();
@@ -76,7 +73,7 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, AbstractMethod**
     }
     ShadowFrame* shadow_frame_;
     uint32_t runtime_frames_;
-  } visitor(self->GetManagedStack(), self->GetInstrumentationStack(), self->GetLongJumpContext());
+  } visitor(self, self->GetLongJumpContext());
   visitor.WalkStack(false);
   if (visitor.shadow_frame_ != NULL) {
     self->SetDeoptimizationShadowFrame(visitor.shadow_frame_, ret_val);

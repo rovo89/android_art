@@ -137,7 +137,7 @@ static void UnstartedRuntimeJni(Thread* self, AbstractMethod* method,
   if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
   } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
-    NthCallerVisitor visitor(self->GetManagedStack(), NULL, 3);
+    NthCallerVisitor visitor(self, 3);
     visitor.WalkStack();
     result->SetL(visitor.caller->GetDeclaringClass());
   } else if (name == "double java.lang.Math.log(double)") {

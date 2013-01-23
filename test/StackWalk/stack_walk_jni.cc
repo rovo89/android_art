@@ -40,10 +40,9 @@ namespace art {
 static int gJava_StackWalk_refmap_calls = 0;
 
 struct TestReferenceMapVisitor : public StackVisitor {
-  explicit TestReferenceMapVisitor(const ManagedStack* stack,
-                                   const std::deque<InstrumentationStackFrame>* instrumentation_stack)
+  explicit TestReferenceMapVisitor(Thread* thread)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(stack, instrumentation_stack, NULL) {
+      : StackVisitor(thread, NULL) {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -102,25 +101,23 @@ struct TestReferenceMapVisitor : public StackVisitor {
 };
 
 extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint count) {
-  ScopedObjectAccess ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
   CHECK_EQ(count, 0);
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
-                                 Thread::Current()->GetInstrumentationStack());
+  TestReferenceMapVisitor mapper(soa.Self());
   mapper.WalkStack();
 
   return count + 1;
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint count) {
-  ScopedObjectAccess ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
-                                 Thread::Current()->GetInstrumentationStack());
+  TestReferenceMapVisitor mapper(soa.Self());
   mapper.WalkStack();
 
   return count + 1;

@@ -29,8 +29,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(AbstractMethod* met
   self->VerifyStack();
   Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   // +1 as frame id's start at 1, +1 as we haven't yet built this method's frame.
-  size_t frame_id = StackVisitor::ComputeNumFrames(self->GetManagedStack(),
-                                                   self->GetInstrumentationStack()) + 2;
+  size_t frame_id = StackVisitor::ComputeNumFrames(self) + 2;
   InstrumentationStackFrame instrumentation_frame(method, lr, frame_id);
   self->PushInstrumentationStackFrame(instrumentation_frame);
 
@@ -47,13 +46,12 @@ extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, AbstractM
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();
   // +1 as frame id's start at 1, +1 as we want the called frame not the frame being returned into.
-  size_t frame_id = StackVisitor::ComputeNumFrames(self->GetManagedStack(),
-                                                   self->GetInstrumentationStack()) + 2;
+  size_t frame_id = StackVisitor::ComputeNumFrames(self) + 2;
   InstrumentationStackFrame instrumentation_frame;
   instrumentation_frame = self->PopInstrumentationStackFrame();
   if (frame_id != instrumentation_frame.frame_id_) {
     LOG(ERROR) << "Expected frame_id=" << frame_id << " but found " << instrumentation_frame.frame_id_;
-    StackVisitor::DescribeStack(self->GetManagedStack(), self->GetInstrumentationStack());
+    StackVisitor::DescribeStack(self);
   }
   Runtime* runtime = Runtime::Current();
   if (runtime->IsMethodTracingActive()) {

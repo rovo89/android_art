@@ -26,9 +26,7 @@
 #include <string>
 
 #include "base/macros.h"
-#include "closure.h"
 #include "globals.h"
-#include "instrumentation.h"
 #include "jvalue.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "locks.h"
@@ -46,6 +44,7 @@ class BaseMutex;
 class Class;
 class ClassLinker;
 class ClassLoader;
+class Closure;
 class Context;
 struct DebugInvokeReq;
 class DexFile;
@@ -57,7 +56,6 @@ class Runtime;
 class ScopedObjectAccess;
 class ScopedObjectAccessUnchecked;
 class ShadowFrame;
-class StackIndirectReferenceTable;
 class StackTraceElement;
 class StaticStorageBase;
 class Thread;

@@ -331,13 +331,7 @@ class PACKED(4) ManagedStack {
 
 class StackVisitor {
  protected:
-  StackVisitor(const ManagedStack* stack,
-               const std::deque<InstrumentationStackFrame>* instrumentation_stack,
-               Context* context)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : stack_start_(stack), instrumentation_stack_(instrumentation_stack), cur_shadow_frame_(NULL),
-        cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
-        context_(context) {}
+  StackVisitor(Thread* thread, Context* context) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  public:
   virtual ~StackVisitor() {}
@@ -389,7 +383,7 @@ class StackVisitor {
 
   size_t GetNumFrames() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (num_frames_ == 0) {
-      num_frames_ = ComputeNumFrames(stack_start_, instrumentation_stack_);
+      num_frames_ = ComputeNumFrames(thread_);
     }
     return num_frames_;
   }
@@ -493,24 +487,17 @@ class StackVisitor {
 
   std::string DescribeLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static size_t ComputeNumFrames(const ManagedStack* stack,
-                                 const std::deque<InstrumentationStackFrame>* instr_stack)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static size_t ComputeNumFrames(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void DescribeStack(const ManagedStack* stack,
-                            const std::deque<InstrumentationStackFrame>* instr_stack)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DescribeStack(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
 
-  InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const {
-    return instrumentation_stack_->at(depth);
-  }
+  InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const ManagedStack* const stack_start_;
-  const std::deque<InstrumentationStackFrame>* const instrumentation_stack_;
+  Thread* const thread_;
   ShadowFrame* cur_shadow_frame_;
   AbstractMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;

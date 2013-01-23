@@ -76,8 +76,8 @@ void InstrumentationInstallStack(Thread* self, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct InstallStackVisitor : public StackVisitor {
     InstallStackVisitor(Thread* self, uintptr_t instrumentation_exit_pc)
-        : StackVisitor(self->GetManagedStack(), self->GetInstrumentationStack(), NULL),
-          self_(self), instrumentation_exit_pc_(instrumentation_exit_pc) {}
+        : StackVisitor(self, NULL),  self_(self),
+          instrumentation_exit_pc_(instrumentation_exit_pc) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (GetCurrentQuickFrame() == NULL) {
@@ -118,8 +118,8 @@ static void InstrumentationRestoreStack(Thread* self, void*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct RestoreStackVisitor : public StackVisitor {
     RestoreStackVisitor(Thread* self, uintptr_t instrumentation_exit_pc)
-        : StackVisitor(self->GetManagedStack(), self->GetInstrumentationStack(), NULL),
-          self_(self), instrumentation_exit_pc_(instrumentation_exit_pc) {}
+        : StackVisitor(self, NULL), self_(self),
+          instrumentation_exit_pc_(instrumentation_exit_pc) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       if (self_->IsInstrumentationStackEmpty()) {
