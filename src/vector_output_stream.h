@@ -25,15 +25,14 @@
 namespace art {
 
 class VectorOutputStream : public OutputStream {
-
  public:
   VectorOutputStream(const std::string& location, std::vector<uint8_t>& vector);
 
-  virtual ~VectorOutputStream() {};
+  virtual ~VectorOutputStream() {}
 
   virtual bool WriteFully(const void* buffer, int64_t byte_count);
 
-  virtual off_t lseek(off_t offset, int whence);
+  virtual off_t Seek(off_t offset, Whence whence);
 
  private:
   void EnsureCapacity(off_t new_offset);

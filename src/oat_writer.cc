@@ -422,7 +422,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 }
 
 #define DCHECK_CODE_OFFSET() \
-  DCHECK_EQ(static_cast<off_t>(code_offset), out.lseek(0, SEEK_CUR))
+  DCHECK_EQ(static_cast<off_t>(code_offset), out.Seek(0, kSeekCurrent))
 
 bool OatWriter::Write(OutputStream& out) {
   if (!out.WriteFully(oat_header_, sizeof(*oat_header_))) {
@@ -464,7 +464,7 @@ bool OatWriter::WriteTables(OutputStream& out) {
   }
   for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
     uint32_t expected_offset = oat_dex_files_[i]->dex_file_offset_;
-    off_t actual_offset = out.lseek(expected_offset, SEEK_SET);
+    off_t actual_offset = out.Seek(expected_offset, kSeekSet);
     if (static_cast<uint32_t>(actual_offset) != expected_offset) {
       const DexFile* dex_file = (*dex_files_)[i];
       PLOG(ERROR) << "Failed to seek to dex file section. Actual: " << actual_offset
@@ -488,7 +488,7 @@ bool OatWriter::WriteTables(OutputStream& out) {
 
 size_t OatWriter::WriteCode(OutputStream& out) {
   uint32_t code_offset = oat_header_->GetExecutableOffset();
-  off_t new_offset = out.lseek(executable_offset_padding_length_, SEEK_CUR);
+  off_t new_offset = out.Seek(executable_offset_padding_length_, kSeekCurrent);
   if (static_cast<uint32_t>(new_offset) != code_offset) {
     PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
                 << " Expected: " << code_offset << " File: " << out.GetLocation();
@@ -585,7 +585,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
     uint32_t aligned_code_delta = aligned_code_offset - code_offset;
     if (aligned_code_delta != 0) {
-      off_t new_offset = out.lseek(aligned_code_delta, SEEK_CUR);
+      off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset << " File: " << out.GetLocation();
@@ -696,7 +696,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
                                                              compiler_->GetInstructionSet());
     uint32_t aligned_code_delta = aligned_code_offset - code_offset;
     if (aligned_code_delta != 0) {
-      off_t new_offset = out.lseek(aligned_code_delta, SEEK_CUR);
+      off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset;
@@ -742,7 +742,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
       uint32_t aligned_code_delta = aligned_code_offset - code_offset;
       CHECK(aligned_code_delta < 48u);
       if (aligned_code_delta != 0) {
-        off_t new_offset = out.lseek(aligned_code_delta, SEEK_CUR);
+        off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
         if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
           PLOG(ERROR) << "Failed to seek to align proxy stub code. Actual: " << new_offset
                       << " Expected: " << aligned_code_offset;
