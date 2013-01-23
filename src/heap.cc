@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "base/stl_util.h"
+#include "cutils/sched_policy.h"
 #include "debugger.h"
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
@@ -1789,18 +1790,20 @@ void Heap::ConcurrentGC(Thread* self) {
   }
 }
 
-void Heap::Trim() {
-  alloc_space_->Trim();
-}
-
 void Heap::RequestHeapTrim() {
+  // GC completed and now we must decide whether to request a heap trim (advising pages back to the
+  // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
+  // a space it will hold its lock and can become a cause of jank.
+  // Note, the large object space self trims and the Zygote space was trimmed and unchanging since
+  // forking.
+
   // We don't have a good measure of how worthwhile a trim might be. We can't use the live bitmap
   // because that only marks object heads, so a large array looks like lots of empty space. We
   // don't just call dlmalloc all the time, because the cost of an _attempted_ trim is proportional
   // to utilization (which is probably inversely proportional to how much benefit we can expect).
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
-  uint64_t ms_time = NsToMs(NanoTime());
+  uint64_t ms_time = MilliTime();
   float utilization =
       static_cast<float>(alloc_space_->GetNumBytesAllocated()) / alloc_space_->Size();
   if ((utilization > 0.75f) || ((ms_time - last_trim_time_) < 2 * 1000)) {
@@ -1820,6 +1823,14 @@ void Heap::RequestHeapTrim() {
       return;
     }
   }
+
+  SchedPolicy policy;
+  get_sched_policy(self->GetTid(), &policy);
+  if (policy == SP_FOREGROUND || policy == SP_AUDIO_APP) {
+    // Don't trim the heap if we are a foreground or audio app.
+    return;
+  }
+
   last_trim_time_ = ms_time;
   JNIEnv* env = self->GetJniEnv();
   DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
@@ -1827,6 +1838,11 @@ void Heap::RequestHeapTrim() {
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
                             WellKnownClasses::java_lang_Daemons_requestHeapTrim);
   CHECK(!env->ExceptionCheck());
+}
+
+size_t Heap::Trim() {
+  // Handle a requested heap trim on a thread outside of the main GC thread.
+  return alloc_space_->Trim();
 }
 
 }  // namespace art

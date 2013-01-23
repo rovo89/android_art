@@ -284,7 +284,7 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   }
 
   // Hands unused pages back to the system.
-  void Trim();
+  size_t Trim();
 
   // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
   // in use, indicated by num_bytes equaling zero.
