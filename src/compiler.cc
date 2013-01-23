@@ -1639,7 +1639,12 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-  if (duration_ns > MsToNs(100)) {
+#ifdef ART_USE_LLVM_COMPILER
+  const uint64_t kWarnMilliSeconds = 1000;
+#else
+  const uint64_t kWarnMilliSeconds = 100;
+#endif
+  if (duration_ns > MsToNs(kWarnMilliSeconds)) {
     LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
                  << " took " << PrettyDuration(duration_ns);
   }
