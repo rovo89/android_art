@@ -779,7 +779,7 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
         break;
       case Primitive::kPrimFloat:
         // TODO: should this be jdouble? Floats aren't passed to var arg routines.
-        val.f = va_arg(ap, jint);
+        val.i = va_arg(ap, jint);
         break;
       case Primitive::kPrimDouble:
         val.d = (va_arg(ap, jdouble));
@@ -795,10 +795,16 @@ void art_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, ...)
     args.push_back(val);
   }
   self->EndAssertNoThreadSuspension(old_cause);
-  JValue* result_unboxed = va_arg(ap, JValue*);
+  JValue* result_location = NULL;
+  const char* shorty = proxy_mh.GetShorty();
+  if (shorty[0] != 'V') {
+    result_location = va_arg(ap, JValue*);
+  }
   va_end(ap);
-  *result_unboxed = InvokeProxyInvocationHandler(soa, proxy_mh.GetShorty(),
-                                                 rcvr_jobj, interface_method_jobj, args);
+  JValue result = InvokeProxyInvocationHandler(soa, shorty, rcvr_jobj, interface_method_jobj, args);
+  if (result_location != NULL) {
+    *result_location = result;
+  }
 }
 
 void* art_find_runtime_support_func(void* context, const char* name) {
