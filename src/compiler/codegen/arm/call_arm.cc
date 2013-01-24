@@ -489,7 +489,7 @@ void ArmCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation
   GenNullCheck(cu, rl_src.s_reg_low, r0, opt_flags);
   LoadWordDisp(cu, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   NewLIR3(cu, kThumb2Ldrex, r1, r0,
-          Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
+          mirror::Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
   // Align owner
   OpRegImm(cu, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
@@ -498,7 +498,7 @@ void ArmCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation
   OpRegImm(cu, kOpCmp, r1, 0);
   OpIT(cu, kCondEq, "");
   NewLIR4(cu, kThumb2Strex, r1, r2, r0,
-          Object::MonitorOffset().Int32Value() >> 2);
+          mirror::Object::MonitorOffset().Int32Value() >> 2);
   OpRegImm(cu, kOpCmp, r1, 0);
   OpIT(cu, kCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
@@ -522,7 +522,7 @@ void ArmCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation 
   LoadValueDirectFixed(cu, rl_src, r0);  // Get obj
   LockCallTemps(cu);  // Prepare for explicit register usage
   GenNullCheck(cu, rl_src.s_reg_low, r0, opt_flags);
-  LoadWordDisp(cu, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
+  LoadWordDisp(cu, r0, mirror::Object::MonitorOffset().Int32Value(), r1); // Get lock
   LoadWordDisp(cu, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
   OpRegRegImm(cu, kOpAnd, r3, r1,
@@ -532,7 +532,7 @@ void ArmCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation 
   NewLIR3(cu, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
   OpRegReg(cu, kOpSub, r1, r2);
   OpIT(cu, kCondEq, "EE");
-  StoreWordDisp(cu, r0, Object::MonitorOffset().Int32Value(), r3);
+  StoreWordDisp(cu, r0, mirror::Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
   LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
   ClobberCalleeSave(cu);

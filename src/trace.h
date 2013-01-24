@@ -29,7 +29,9 @@
 
 namespace art {
 
+namespace mirror {
 class AbstractMethod;
+}  // namespace mirror
 class Thread;
 
 enum ProfilerClockSource {
@@ -59,7 +61,7 @@ class Trace {
   bool UseWallClock();
   bool UseThreadCpuClock();
 
-  void LogMethodTraceEvent(Thread* self, const AbstractMethod* method, TraceEvent event);
+  void LogMethodTraceEvent(Thread* self, const mirror::AbstractMethod* method, TraceEvent event);
 
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
@@ -73,7 +75,7 @@ class Trace {
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Set of methods visited by the profiler.
-  std::set<const AbstractMethod*> visited_methods_;
+  std::set<const mirror::AbstractMethod*> visited_methods_;
 
   // Maps a thread to its clock base.
   SafeMap<Thread*, uint64_t> thread_clock_base_map_;

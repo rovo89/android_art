@@ -19,8 +19,8 @@
 
 #include "compiler.h"
 #include "greenland/intrinsic_helper.h"
+#include "mirror/object.h"
 #include "oat_compilation_unit.h"
-#include "object.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"
 

@@ -15,7 +15,7 @@
  */
 
 #include "callee_save_frame.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "object_utils.h"
 #include "runtime_support.h"
 #include "thread.h"
@@ -26,21 +26,21 @@ namespace art {
 // Used to implement MOVE_EXCEPTION.
 extern "C" void* GetAndClearException(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(self->IsExceptionPending());
-  Throwable* exception = self->GetException();
+  mirror::Throwable* exception = self->GetException();
   self->ClearException();
   return exception;
 }
 
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way.
-extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, AbstractMethod** sp)
+extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->QuickDeliverException();
 }
 
 // Called by generated call to throw an exception.
-extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread,
-                                            AbstractMethod** sp)
+extern "C" void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* thread,
+                                            mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   /*
    * exception may be NULL, in which case this routine should
@@ -56,18 +56,18 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
 
 // Called by generated call to throw a NPE exception.
 extern "C" void artThrowNullPointerExceptionFromCode(Thread* self,
-                                                     AbstractMethod** sp)
+                                                     mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   uint32_t dex_pc;
-  AbstractMethod* throw_method = self->GetCurrentMethod(&dex_pc);
+  mirror::AbstractMethod* throw_method = self->GetCurrentMethod(&dex_pc);
   ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
   self->QuickDeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception.
 extern "C" void artThrowDivZeroFromCode(Thread* thread,
-                                        AbstractMethod** sp)
+                                        mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
@@ -76,7 +76,7 @@ extern "C" void artThrowDivZeroFromCode(Thread* thread,
 
 // Called by generated call to throw an array index out of bounds exception.
 extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread,
-                                            AbstractMethod** sp)
+                                            mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
@@ -84,7 +84,7 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
   thread->QuickDeliverException();
 }
 
-extern "C" void artThrowStackOverflowFromCode(Thread* self, AbstractMethod** sp)
+extern "C" void artThrowStackOverflowFromCode(Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   ThrowStackOverflowError(self);
@@ -92,10 +92,10 @@ extern "C" void artThrowStackOverflowFromCode(Thread* self, AbstractMethod** sp)
 }
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self,
-                                             AbstractMethod** sp)
+                                             mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  AbstractMethod* method = self->GetCurrentMethod();
+  mirror::AbstractMethod* method = self->GetCurrentMethod();
   ThrowNoSuchMethodError(method_idx, method);
   self->QuickDeliverException();
 }

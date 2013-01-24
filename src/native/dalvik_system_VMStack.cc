@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "class_loader.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class.h"
+#include "mirror/class_loader.h"
 #include "scoped_thread_state_change.h"
 #include "thread_list.h"
 
@@ -26,7 +27,7 @@ namespace art {
 static jobject GetThreadStack(JNIEnv* env, jobject peer) {
   {
     ScopedObjectAccess soa(env);
-    if (soa.Decode<Object*>(peer) == soa.Self()->GetPeer()) {
+    if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
       return soa.Self()->CreateInternalStackTrace(soa);
     }
   }
@@ -73,13 +74,13 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap,
                                                  jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
-    ClosestUserClassLoaderVisitor(Thread* thread, Object* bootstrap, Object* system)
+    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap, mirror::Object* system)
       : StackVisitor(thread, NULL), bootstrap(bootstrap), system(system), class_loader(NULL) {}
 
     bool VisitFrame() {
       DCHECK(class_loader == NULL);
-      Class* c = GetMethod()->GetDeclaringClass();
-      Object* cl = c->GetClassLoader();
+      mirror::Class* c = GetMethod()->GetDeclaringClass();
+      mirror::Object* cl = c->GetClassLoader();
       if (cl != NULL && cl != bootstrap && cl != system) {
         class_loader = cl;
         return false;
@@ -87,13 +88,13 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
       return true;
     }
 
-    Object* bootstrap;
-    Object* system;
-    Object* class_loader;
+    mirror::Object* bootstrap;
+    mirror::Object* system;
+    mirror::Object* class_loader;
   };
   ScopedObjectAccess soa(env);
-  Object* bootstrap = soa.Decode<Object*>(javaBootstrap);
-  Object* system = soa.Decode<Object*>(javaSystem);
+  mirror::Object* bootstrap = soa.Decode<mirror::Object*>(javaBootstrap);
+  mirror::Object* system = soa.Decode<mirror::Object*>(javaSystem);
   ClosestUserClassLoaderVisitor visitor(soa.Self(), bootstrap, system);
   visitor.WalkStack();
   return soa.AddLocalReference<jobject>(visitor.class_loader);

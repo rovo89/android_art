@@ -2684,7 +2684,7 @@ static void CvtArrayLength(CompilationUnit* cu, llvm::CallInst* call_inst)
   cg->GenNullCheck(cu, rl_src.s_reg_low, rl_src.low_reg, opt_flags->getZExtValue());
   RegLocation rl_dest = GetLoc(cu, call_inst);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
-  int len_offset = Array::LengthOffset().Int32Value();
+  int len_offset = mirror::Array::LengthOffset().Int32Value();
   cg->LoadWordDisp(cu, rl_src.low_reg, len_offset, rl_result.low_reg);
   cg->StoreValue(cu, rl_dest, rl_result);
 }

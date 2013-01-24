@@ -26,10 +26,17 @@
 #include <string>
 
 #include "jdwp/jdwp.h"
-#include "object.h"
+#include "jni.h"
+#include "jvalue.h"
+#include "root_visitor.h"
 
 namespace art {
-
+namespace mirror {
+class AbstractMethod;
+class Class;
+class Object;
+class Throwable;
+}  // namespace mirror
 struct AllocRecord;
 class Thread;
 
@@ -53,10 +60,10 @@ struct DebugInvokeReq {
   bool invoke_needed_;
 
   /* request */
-  Object* receiver_;      /* not used for ClassType.InvokeMethod */
-  Object* thread_;
-  Class* class_;
-  AbstractMethod* method_;
+  mirror::Object* receiver_;      /* not used for ClassType.InvokeMethod */
+  mirror::Object* thread_;
+  mirror::Class* class_;
+  mirror::AbstractMethod* method_;
   uint32_t arg_count_;
   uint64_t* arg_values_;   /* will be NULL if arg_count_ == 0 */
   uint32_t options_;
@@ -118,7 +125,7 @@ class Dbg {
 
   static void Exit(int status);
 
-  static void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+  static void VisitRoots(RootVisitor* visitor, void* arg);
 
   /*
    * Class, Object, Array
@@ -311,17 +318,19 @@ class Dbg {
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
   };
-  static void PostLocationEvent(const AbstractMethod* method, int pcOffset, Object* thisPtr, int eventFlags)
+  static void PostLocationEvent(const mirror::AbstractMethod* method, int pcOffset,
+                                mirror::Object* thisPtr, int eventFlags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id, AbstractMethod* throw_method,
-                            uint32_t throw_dex_pc, AbstractMethod* catch_method, uint32_t catch_dex_pc,
-                            Throwable* exception)
+  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id,
+                            mirror::AbstractMethod* throw_method,
+                            uint32_t throw_dex_pc, mirror::AbstractMethod* catch_method,
+                            uint32_t catch_dex_pc, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadDeath(Thread* t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostClassPrepare(Class* c)
+  static void PostClassPrepare(mirror::Class* c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(int32_t dex_pc, Thread* self)
@@ -373,12 +382,11 @@ class Dbg {
   /*
    * Recent allocation tracking support.
    */
-  static void RecordAllocation(Class* type, size_t byte_count)
+  static void RecordAllocation(mirror::Class* type, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetAllocTrackingEnabled(bool enabled);
   static inline bool IsAllocTrackingEnabled() { return recent_allocation_records_ != NULL; }
-  static jbyteArray GetRecentAllocations()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static jbyteArray GetRecentAllocations() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DumpRecentAllocations();
 
   enum HpifWhen {

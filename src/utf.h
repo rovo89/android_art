@@ -29,9 +29,10 @@
  * See http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8 for the details.
  */
 namespace art {
-
+namespace mirror {
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<uint16_t> CharArray;
+}  // namespace mirror
 
 /*
  * Returns the number of UTF-16 characters in the given modified UTF-8 string.
@@ -65,7 +66,7 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
 /*
  * The java.lang.String hashCode() algorithm.
  */
-int32_t ComputeUtf16Hash(const CharArray* chars, int32_t offset, size_t char_count)
+int32_t ComputeUtf16Hash(const mirror::CharArray* chars, int32_t offset, size_t char_count)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count);
 

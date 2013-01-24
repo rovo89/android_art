@@ -15,7 +15,7 @@
  */
 
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/string.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 
@@ -28,7 +28,7 @@ static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
     return -1;
   } else {
     ScopedObjectAccess soa(env);
-    return soa.Decode<String*>(javaThis)->CompareTo(soa.Decode<String*>(javaRhs));
+    return soa.Decode<mirror::String*>(javaThis)->CompareTo(soa.Decode<mirror::String*>(javaRhs));
   }
 }
 
@@ -37,14 +37,14 @@ static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint sta
   // This method does not handle supplementary characters. They're dealt with in managed code.
   DCHECK_LE(ch, 0xffff);
 
-  String* s = soa.Decode<String*>(java_this);
+  mirror::String* s = soa.Decode<mirror::String*>(java_this);
   return s->FastIndexOf(ch, start);
 }
 
 static jstring String_intern(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
-  String* s = soa.Decode<String*>(javaThis);
-  String* result = s->Intern();
+  mirror::String* s = soa.Decode<mirror::String*>(javaThis);
+  mirror::String* result = s->Intern();
   return soa.AddLocalReference<jstring>(result);
 }
 

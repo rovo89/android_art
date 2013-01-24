@@ -15,7 +15,9 @@
  */
 
 #include "argument_visitor.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime_support.h"
@@ -31,7 +33,7 @@ namespace art {
 // to jobjects.
 class BuildArgumentVisitor : public ArgumentVisitor {
  public:
-  BuildArgumentVisitor(MethodHelper& caller_mh, AbstractMethod** sp,
+  BuildArgumentVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp,
                        ScopedObjectAccessUnchecked& soa, std::vector<jvalue>& args) :
     ArgumentVisitor(caller_mh, sp), soa_(soa), args_(args) {}
 
@@ -40,7 +42,7 @@ class BuildArgumentVisitor : public ArgumentVisitor {
     Primitive::Type type = GetParamPrimitiveType();
     switch (type) {
       case Primitive::kPrimNot: {
-        Object* obj = *reinterpret_cast<Object**>(GetParamAddress());
+        mirror::Object* obj = *reinterpret_cast<mirror::Object**>(GetParamAddress());
         val.l = soa_.AddLocalReference<jobject>(obj);
         break;
       }
@@ -79,8 +81,9 @@ class BuildArgumentVisitor : public ArgumentVisitor {
 // which is responsible for recording callee save registers. We explicitly place into jobjects the
 // incoming reference arguments (so they survive GC). We invoke the invocation handler, which is a
 // field within the proxy object, which will box the primitive arguments and deal with error cases.
-extern "C" uint64_t artProxyInvokeHandler(AbstractMethod* proxy_method, Object* receiver,
-                                          Thread* self, AbstractMethod** sp)
+extern "C" uint64_t artProxyInvokeHandler(mirror::AbstractMethod* proxy_method,
+                                          mirror::Object* receiver,
+                                          Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
@@ -106,7 +109,7 @@ extern "C" uint64_t artProxyInvokeHandler(AbstractMethod* proxy_method, Object* 
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
-  AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
+  mirror::AbstractMethod* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);

@@ -21,9 +21,16 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
+#include "class_linker-inl.h"
+#include "gc/space.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/throwable.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "thread.h"
 #include "runtime.h"
 
@@ -36,7 +43,7 @@ namespace art {
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  AbstractMethod* current_method = self->GetCurrentMethod();
+  mirror::AbstractMethod* current_method = self->GetCurrentMethod();
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
@@ -123,7 +130,7 @@ static const char* gBuiltInPrefixes[] = {
   NULL
 };
 
-static bool ShouldTrace(JavaVMExt* vm, const AbstractMethod* method)
+static bool ShouldTrace(JavaVMExt* vm, const mirror::AbstractMethod* method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
@@ -196,14 +203,14 @@ class ScopedCheck {
    */
   void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Field* f = CheckFieldID(fid);
+    mirror::Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
-    Class* field_type = FieldHelper(f).GetType();
+    mirror::Class* field_type = FieldHelper(f).GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
-        Object* obj = soa_.Decode<Object*>(java_object);
+        mirror::Object* obj = soa_.Decode<mirror::Object*>(java_object);
         // If java_object is a weak global ref whose referent has been cleared,
         // obj will be NULL.  Otherwise, obj should always be non-NULL
         // and valid.
@@ -243,7 +250,7 @@ class ScopedCheck {
    */
   void CheckInstanceFieldID(jobject java_object, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Object* o = soa_.Decode<Object*>(java_object);
+    mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
     if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "field operation on invalid %s: %p",
@@ -251,11 +258,11 @@ class ScopedCheck {
       return;
     }
 
-    Field* f = CheckFieldID(fid);
+    mirror::Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
-    Class* c = o->GetClass();
+    mirror::Class* c = o->GetClass();
     FieldHelper fh(f);
     if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == NULL) {
       JniAbortF(function_name_, "jfieldID %s not valid for an object of class %s",
@@ -278,7 +285,7 @@ class ScopedCheck {
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* m = CheckMethodID(mid);
+    mirror::AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
@@ -304,8 +311,8 @@ class ScopedCheck {
    */
   void CheckStaticFieldID(jclass java_class, jfieldID fid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* c = soa_.Decode<Class*>(java_class);
-    const Field* f = CheckFieldID(fid);
+    mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
+    const mirror::Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
     }
@@ -326,11 +333,11 @@ class ScopedCheck {
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const AbstractMethod* m = CheckMethodID(mid);
+    const mirror::AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Class* c = soa_.Decode<Class*>(java_class);
+    mirror::Class* c = soa_.Decode<mirror::Class*>(java_class);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call static %s on class %s",
                 PrettyMethod(m).c_str(), PrettyClass(c).c_str());
@@ -346,11 +353,11 @@ class ScopedCheck {
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const AbstractMethod* m = CheckMethodID(mid);
+    const mirror::AbstractMethod* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Object* o = soa_.Decode<Object*>(java_object);
+    mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call %s on instance of %s",
                 PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
@@ -397,7 +404,7 @@ class ScopedCheck {
       SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
     va_list ap;
 
-    const AbstractMethod* traceMethod = NULL;
+    const mirror::AbstractMethod* traceMethod = NULL;
     if ((!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
@@ -455,7 +462,7 @@ class ScopedCheck {
           msg += (b ? "JNI_TRUE" : "JNI_FALSE");
         } else if (ch == 'c') { // jclass
           jclass jc = va_arg(ap, jclass);
-          Class* c = reinterpret_cast<Class*>(Thread::Current()->DecodeJObject(jc));
+          mirror::Class* c = reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(jc));
           if (c == NULL) {
             msg += "NULL";
           } else if (c == kInvalidIndirectRefObject || !Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
@@ -470,7 +477,7 @@ class ScopedCheck {
           }
         } else if (ch == 'f') { // jfieldID
           jfieldID fid = va_arg(ap, jfieldID);
-          Field* f = reinterpret_cast<Field*>(fid);
+          mirror::Field* f = reinterpret_cast<mirror::Field*>(fid);
           msg += PrettyField(f);
           if (!entry) {
             StringAppendF(&msg, " (%p)", fid);
@@ -483,7 +490,7 @@ class ScopedCheck {
           StringAppendF(&msg, "%d", i);
         } else if (ch == 'm') { // jmethodID
           jmethodID mid = va_arg(ap, jmethodID);
-          AbstractMethod* m = reinterpret_cast<AbstractMethod*>(mid);
+          mirror::AbstractMethod* m = reinterpret_cast<mirror::AbstractMethod*>(mid);
           msg += PrettyMethod(m);
           if (!entry) {
             StringAppendF(&msg, " (%p)", mid);
@@ -623,7 +630,7 @@ class ScopedCheck {
       return false;
     }
 
-    Object* obj = soa_.Decode<Object*>(java_object);
+    mirror::Object* obj = soa_.Decode<mirror::Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "%s is an invalid %s: %p (%p)",
@@ -677,7 +684,7 @@ class ScopedCheck {
       return;
     }
 
-    Array* a = soa_.Decode<Array*>(java_array);
+    mirror::Array* a = soa_.Decode<mirror::Array*>(java_array);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "jarray is an invalid %s: %p (%p)",
@@ -693,12 +700,12 @@ class ScopedCheck {
     }
   }
 
-  Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (fid == NULL) {
       JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
     }
-    Field* f = soa_.DecodeField(fid);
+    mirror::Field* f = soa_.DecodeField(fid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsField()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
@@ -707,12 +714,12 @@ class ScopedCheck {
     return f;
   }
 
-  AbstractMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::AbstractMethod* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mid == NULL) {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
-    AbstractMethod* m = soa_.DecodeMethod(mid);
+    mirror::AbstractMethod* m = soa_.DecodeMethod(mid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsMethod()) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
@@ -733,7 +740,7 @@ class ScopedCheck {
       return;
     }
 
-    Object* o = soa_.Decode<Object*>(java_object);
+    mirror::Object* o = soa_.Decode<mirror::Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces();
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
@@ -1084,7 +1091,7 @@ struct GuardedCopy {
 static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy) {
   ScopedObjectAccess soa(env);
 
-  Array* a = soa.Decode<Array*>(java_array);
+  mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
   size_t component_size = a->GetClass()->GetComponentSize();
   size_t byte_count = a->GetLength() * component_size;
   void* result = GuardedCopy::Create(a->GetRawData(component_size), byte_count, true);
@@ -1104,7 +1111,7 @@ static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, 
   }
 
   ScopedObjectAccess soa(env);
-  Array* a = soa.Decode<Array*>(java_array);
+  mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
 
   GuardedCopy::Check(__FUNCTION__, dataBuf, true);
 
@@ -1467,7 +1474,7 @@ FIELD_ACCESSORS(jdouble, Double, "D");
 #define NON_VOID_RETURN(_retsig, _ctype) return CHECK_JNI_EXIT(_retsig, (_ctype) result)
 #define VOID_RETURN CHECK_JNI_EXIT_VOID()
 
-CALL(jobject, Object, Object* result, result = reinterpret_cast<Object*>, NON_VOID_RETURN("L", jobject), "L");
+CALL(jobject, Object, mirror::Object* result, result = reinterpret_cast<mirror::Object*>, NON_VOID_RETURN("L", jobject), "L");
 CALL(jboolean, Boolean, jboolean result, result =, NON_VOID_RETURN("Z", jboolean), "Z");
 CALL(jbyte, Byte, jbyte result, result =, NON_VOID_RETURN("B", jbyte), "B");
 CALL(jchar, Char, jchar result, result =, NON_VOID_RETURN("C", jchar), "C");
@@ -1492,7 +1499,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringChars(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
-      String* s = sc.soa().Decode<String*>(java_string);
+      mirror::String* s = sc.soa().Decode<mirror::String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {
@@ -1719,7 +1726,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     CHECK_JNI_ENTRY(kFlag_CritGet, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringCritical(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
-      String* s = sc.soa().Decode<String*>(java_string);
+      mirror::String* s = sc.soa().Decode<mirror::String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {

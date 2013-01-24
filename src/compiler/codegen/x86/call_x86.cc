@@ -163,7 +163,7 @@ void X86Codegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation
   NewLIR2(cu, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
   NewLIR2(cu, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
   NewLIR2(cu, kX86Xor32RR, rAX, rAX);
-  NewLIR3(cu, kX86LockCmpxchgMR, rCX, Object::MonitorOffset().Int32Value(), rDX);
+  NewLIR3(cu, kX86LockCmpxchgMR, rCX, mirror::Object::MonitorOffset().Int32Value(), rDX);
   LIR* branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondEq);
   // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
   CallRuntimeHelperReg(cu, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
@@ -180,10 +180,10 @@ void X86Codegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation 
   // TODO: clear hash state?
   NewLIR2(cu, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
   NewLIR2(cu, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
-  NewLIR3(cu, kX86Mov32RM, rCX, rAX, Object::MonitorOffset().Int32Value());
+  NewLIR3(cu, kX86Mov32RM, rCX, rAX, mirror::Object::MonitorOffset().Int32Value());
   OpRegReg(cu, kOpSub, rCX, rDX);
   LIR* branch = NewLIR2(cu, kX86Jcc8, 0, kX86CondNe);
-  NewLIR3(cu, kX86Mov32MR, rAX, Object::MonitorOffset().Int32Value(), rCX);
+  NewLIR3(cu, kX86Mov32MR, rAX, mirror::Object::MonitorOffset().Int32Value(), rCX);
   LIR* branch2 = NewLIR1(cu, kX86Jmp8, 0);
   branch->target = NewLIR0(cu, kPseudoTargetLabel);
   // Otherwise, go the expensive route - UnlockObjectFromCode(obj);

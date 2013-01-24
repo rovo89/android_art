@@ -28,7 +28,7 @@ void CheckSuspendFromCode(Thread* thread)
   CheckSuspend(thread);
 }
 
-extern "C" void artTestSuspendFromCode(Thread* thread, AbstractMethod** sp)
+extern "C" void artTestSuspendFromCode(Thread* thread, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when suspend count check value is 0 and thread->suspend_count_ != 0
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);

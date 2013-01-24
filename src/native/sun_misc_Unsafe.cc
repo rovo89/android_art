@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
+#include "atomic.h"
+#include "gc/card_table-inl.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
 
 static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   // Note: android_atomic_release_cas() returns 0 on success, not failure.
@@ -32,7 +35,7 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
 
 static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
@@ -42,9 +45,9 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
 
 static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* expectedValue = soa.Decode<Object*>(javaExpectedValue);
-  Object* newValue = soa.Decode<Object*>(javaNewValue);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* expectedValue = soa.Decode<mirror::Object*>(javaExpectedValue);
+  mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
@@ -58,98 +61,98 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
 
 static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   return obj->GetField32(MemberOffset(offset), false);
 }
 
 static jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   return obj->GetField32(MemberOffset(offset), true);
 }
 
 static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField32(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
 static jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   return obj->GetField64(MemberOffset(offset), false);
 }
 
 static jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   return obj->GetField64(MemberOffset(offset), true);
 }
 
 static void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   obj->SetField64(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
 static jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), true);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* value = obj->GetFieldObject<mirror::Object*>(MemberOffset(offset), true);
   return soa.AddLocalReference<jobject>(value);
 }
 
 static jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), false);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* value = obj->GetFieldObject<mirror::Object*>(MemberOffset(offset), false);
   return soa.AddLocalReference<jobject>(value);
 }
 
 static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* newValue = soa.Decode<Object*>(javaNewValue);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* newValue = soa.Decode<Object*>(javaNewValue);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   ScopedObjectAccess soa(env);
-  Object* obj = soa.Decode<Object*>(javaObj);
-  Object* newValue = soa.Decode<Object*>(javaNewValue);
+  mirror::Object* obj = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Object* newValue = soa.Decode<mirror::Object*>(javaNewValue);
   ANDROID_MEMBAR_STORE();
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }

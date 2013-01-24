@@ -27,10 +27,14 @@
 #include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "class_loader.h"
 #include "compiler.h"
 #include "image_writer.h"
 #include "leb128.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "oat_writer.h"
 #include "object_utils.h"
 #include "os.h"
@@ -161,7 +165,7 @@ class Dex2Oat {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
-      SirtRef<Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
+      SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
       if (klass.get() == NULL) {
         LOG(WARNING) << "Failed to find class " << descriptor;
         Thread::Current()->ClearException();
@@ -173,7 +177,7 @@ class Dex2Oat {
     // exceptions are resolved by the verifier when there is a catch block in an interested method.
     // Do this here so that exception classes appear to have been specified image classes.
     std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
-    SirtRef<Class> java_lang_Throwable(self,
+    SirtRef<mirror::Class> java_lang_Throwable(self,
                                        class_linker->FindSystemClass("Ljava/lang/Throwable;"));
     do {
       unresolved_exception_types.clear();
@@ -185,10 +189,10 @@ class Dex2Oat {
            it != end; ++it) {
         uint16_t exception_type_idx = it->first;
         const DexFile* dex_file = it->second;
-        DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
-        ClassLoader* class_loader = NULL;
-        SirtRef<Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
-                                                             dex_cache, class_loader));
+        mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
+        mirror:: ClassLoader* class_loader = NULL;
+        SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
+                                                                     dex_cache, class_loader));
         if (klass.get() == NULL) {
           const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
           const char* descriptor = dex_file->GetTypeDescriptor(type_id);
@@ -404,25 +408,25 @@ class Dex2Oat {
     }
   }
 
-  static bool ResolveCatchBlockExceptionsClassVisitor(Class* c, void* arg)
+  static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
         reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
     MethodHelper mh;
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-      AbstractMethod* m = c->GetVirtualMethod(i);
+      mirror::AbstractMethod* m = c->GetVirtualMethod(i);
       mh.ChangeMethod(m);
       ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
     }
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-      AbstractMethod* m = c->GetDirectMethod(i);
+      mirror::AbstractMethod* m = c->GetDirectMethod(i);
       mh.ChangeMethod(m);
       ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
     }
     return true;
   }
 
-  static bool RecordImageClassesVisitor(Class* klass, void* arg)
+  static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
     if (klass->IsArrayClass() || klass->IsPrimitive()) {

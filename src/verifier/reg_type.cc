@@ -16,8 +16,13 @@
 
 #include "reg_type.h"
 
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "reg_type_cache.h"
+
+#include <limits>
 
 namespace art {
 namespace verifier {
@@ -165,7 +170,7 @@ std::set<uint16_t> RegType::GetMergedTypes(const RegTypeCache* cache) const {
 
 const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   if (!IsUnresolvedTypes()) {
-    Class* super_klass = GetClass()->GetSuperClass();
+    mirror::Class* super_klass = GetClass()->GetSuperClass();
     if (super_klass != NULL) {
       return cache->FromClass(super_klass, IsPreciseReference());
     } else {
@@ -198,7 +203,7 @@ bool RegType::CanAccess(const RegType& other) const {
   }
 }
 
-bool RegType::CanAccessMember(Class* klass, uint32_t access_flags) const {
+bool RegType::CanAccessMember(mirror::Class* klass, uint32_t access_flags) const {
   if (access_flags & kAccPublic) {
     return true;
   }
@@ -207,6 +212,62 @@ bool RegType::CanAccessMember(Class* klass, uint32_t access_flags) const {
   } else {
     return false;  // More complicated test not possible on unresolved types, be conservative.
   }
+}
+
+bool RegType::IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
+    // Primitive arrays will always resolve
+    DCHECK(descriptor_[1] == 'L' || descriptor_[1] == '[');
+    return descriptor_[0] == '[';
+  } else if (HasClass()) {
+    mirror::Class* type = GetClass();
+    return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
+  } else {
+    return false;
+  }
+}
+
+bool RegType::IsConstantByte() const {
+  return IsConstant() &&
+      ConstantValue() >= std::numeric_limits<jbyte>::min() &&
+      ConstantValue() <= std::numeric_limits<jbyte>::max();
+}
+
+bool RegType::IsConstantShort() const {
+  return IsConstant() &&
+      ConstantValue() >= std::numeric_limits<jshort>::min() &&
+      ConstantValue() <= std::numeric_limits<jshort>::max();
+}
+
+bool RegType::IsConstantChar() const {
+  return IsConstant() && ConstantValue() >= 0 &&
+      ConstantValue() <= std::numeric_limits<jchar>::max();
+}
+
+bool RegType::IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return IsReference() && GetClass()->IsObjectClass();
+}
+
+bool RegType::IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
+    return descriptor_[0] == '[';
+  } else if (HasClass()) {
+    return GetClass()->IsArrayClass();
+  } else {
+    return false;
+  }
+}
+
+bool RegType::IsJavaLangObjectArray() const {
+  if (HasClass()) {
+    mirror::Class* type = GetClass();
+    return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
+  }
+  return false;
+}
+
+bool RegType::IsInstantiableTypes() const {
+  return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
 }
 
 bool RegType::IsAssignableFrom(const RegType& src) const {
@@ -363,11 +424,11 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       // with itself, 0 or Object are handled above.
       return reg_types->Conflict();
     } else {  // Two reference types, compute Join
-      Class* c1 = GetClass();
-      Class* c2 = incoming_type.GetClass();
+      mirror::Class* c1 = GetClass();
+      mirror::Class* c2 = incoming_type.GetClass();
       DCHECK(c1 != NULL && !c1->IsPrimitive());
       DCHECK(c2 != NULL && !c2->IsPrimitive());
-      Class* join_class = ClassJoin(c1, c2);
+      mirror::Class* join_class = ClassJoin(c1, c2);
       if (c1 == join_class && !IsPreciseReference()) {
         return *this;
       } else if (c2 == join_class && !incoming_type.IsPreciseReference()) {
@@ -382,7 +443,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
 }
 
 // See comment in reg_type.h
-Class* RegType::ClassJoin(Class* s, Class* t) {
+mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
   DCHECK(!s->IsPrimitive()) << PrettyClass(s);
   DCHECK(!t->IsPrimitive()) << PrettyClass(t);
   if (s == t) {
@@ -392,21 +453,21 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
   } else if (t->IsAssignableFrom(s)) {
     return t;
   } else if (s->IsArrayClass() && t->IsArrayClass()) {
-    Class* s_ct = s->GetComponentType();
-    Class* t_ct = t->GetComponentType();
+    mirror::Class* s_ct = s->GetComponentType();
+    mirror::Class* t_ct = t->GetComponentType();
     if (s_ct->IsPrimitive() || t_ct->IsPrimitive()) {
       // Given the types aren't the same, if either array is of primitive types then the only
       // common parent is java.lang.Object
-      Class* result = s->GetSuperClass();  // short-cut to java.lang.Object
+      mirror::Class* result = s->GetSuperClass();  // short-cut to java.lang.Object
       DCHECK(result->IsObjectClass());
       return result;
     }
-    Class* common_elem = ClassJoin(s_ct, t_ct);
+    mirror::Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    ClassLoader* class_loader = s->GetClassLoader();
+    mirror::ClassLoader* class_loader = s->GetClassLoader();
     std::string descriptor("[");
     descriptor += ClassHelper(common_elem).GetDescriptor();
-    Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+    mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
     DCHECK(array_class != NULL);
     return array_class;
   } else {
@@ -433,8 +494,44 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const RegType& rhs)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void RegType::CheckInvariants() const {
+  bool checked = false;
+  if (IsConstant() || IsConstantLo() || IsConstantHi()) {
+    // Constants: allocation_pc_or_constant_or_merged_types_ will hold the constant value, nothing
+    // else should be defined.
+    CHECK(descriptor_.empty()) << *this;
+    CHECK(klass_ == NULL) << *this;
+    checked = true;
+  }
+  if (IsUnresolvedTypes()) {
+    if (IsUnresolvedMergedReference()) {
+      // Unresolved merged types: allocation pc/merged types should be defined.
+      CHECK(descriptor_.empty()) << *this;
+      CHECK(klass_ == NULL) << *this;
+      CHECK_NE(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
+    } else {
+      // Unresolved types: have a descriptor and no allocation pc/merged types.
+      CHECK(!descriptor_.empty()) << *this;
+      CHECK(klass_ == NULL) << *this;
+      if (!IsUnresolvedAndUninitializedReference()) {
+        CHECK_EQ(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
+      }
+    }
+    checked = true;
+  }
+  if (IsReferenceTypes() && !checked) {
+    // A resolved reference type.
+    CHECK(descriptor_.empty()) << *this;
+    CHECK(klass_ != NULL) << *this;
+    CHECK(klass_->IsClass()) << *this;
+    if (!IsUninitializedReference()) {
+      CHECK_EQ(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
+    }
+  }
+  CHECK(checked = true);
+}
+
+std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
   os << rhs.Dump();
   return os;
 }

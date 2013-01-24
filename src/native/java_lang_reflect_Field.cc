@@ -15,15 +15,17 @@
  */
 
 #include "class_linker.h"
+#include "class_linker-inl.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/field.h"
+#include "mirror/field-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
 
-static bool GetFieldValue(const ScopedObjectAccess& soa, Object* o, Field* f,
+static bool GetFieldValue(const ScopedObjectAccess& soa, mirror::Object* o, mirror::Field* f,
                           JValue& value, bool allow_references)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(value.GetJ(), 0LL);
@@ -72,16 +74,16 @@ static bool GetFieldValue(const ScopedObjectAccess& soa, Object* o, Field* f,
   return false;
 }
 
-static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, Field* f,
-                          Object*& o)
+static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, mirror::Field* f,
+                          mirror::Object*& o)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (f->IsStatic()) {
     o = f->GetDeclaringClass();
     return true;
   }
 
-  o = soa.Decode<Object*>(javaObj);
-  Class* declaringClass = f->GetDeclaringClass();
+  o = soa.Decode<mirror::Object*>(javaObj);
+  mirror::Class* declaringClass = f->GetDeclaringClass();
   if (!VerifyObjectInClass(o, declaringClass)) {
     return false;
   }
@@ -90,8 +92,8 @@ static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, Field*
 
 static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   ScopedObjectAccess soa(env);
-  Field* f = soa.DecodeField(env->FromReflectedField(javaField));
-  Object* o = NULL;
+  mirror::Field* f = soa.DecodeField(env->FromReflectedField(javaField));
+  mirror::Object* o = NULL;
   if (!CheckReceiver(soa, javaObj, f, o)) {
     return NULL;
   }
@@ -107,8 +109,8 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
 
 static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
   ScopedObjectAccess soa(env);
-  Field* f = soa.DecodeField(env->FromReflectedField(javaField));
-  Object* o = NULL;
+  mirror::Field* f = soa.DecodeField(env->FromReflectedField(javaField));
+  mirror::Object* o = NULL;
   if (!CheckReceiver(soa, javaObj, f, o)) {
     return JValue();
   }
@@ -121,7 +123,7 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
 
   // Widen it if necessary (and possible).
   JValue wide_value;
-  Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
+  mirror::Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
   if (!ConvertPrimitiveValue(FieldHelper(f).GetTypeAsPrimitiveType(), dst_type->GetPrimitiveType(),
                              field_value, wide_value)) {
     return JValue();
@@ -161,7 +163,8 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'S').GetS();
 }
 
-static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references)
+static void SetFieldValue(mirror::Object* o, mirror::Field* f, const JValue& new_value,
+                          bool allow_references)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(),
                                                                true, true)) {
@@ -214,17 +217,17 @@ static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool all
 
 static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
   ScopedObjectAccess soa(env);
-  Field* f = soa.DecodeField(env->FromReflectedField(javaField));
+  mirror::Field* f = soa.DecodeField(env->FromReflectedField(javaField));
 
   // Unbox the value, if necessary.
-  Object* boxed_value = soa.Decode<Object*>(javaValue);
+  mirror::Object* boxed_value = soa.Decode<mirror::Object*>(javaValue);
   JValue unboxed_value;
   if (!UnboxPrimitiveForField(boxed_value, FieldHelper(f).GetType(), unboxed_value, f)) {
     return;
   }
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
-  Object* o = NULL;
+  mirror::Object* o = NULL;
   if (!CheckReceiver(soa, javaObj, f, o)) {
     return;
   }
@@ -235,8 +238,8 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
 static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
                               const JValue& new_value) {
   ScopedObjectAccess soa(env);
-  Field* f = soa.DecodeField(env->FromReflectedField(javaField));
-  Object* o = NULL;
+  mirror::Field* f = soa.DecodeField(env->FromReflectedField(javaField));
+  mirror::Object* o = NULL;
   if (!CheckReceiver(soa, javaObj, f, o)) {
     return;
   }
@@ -249,7 +252,7 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
 
   // Widen the value if necessary (and possible).
   JValue wide_value;
-  Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
+  mirror::Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
   if (!ConvertPrimitiveValue(src_type->GetPrimitiveType(), fh.GetTypeAsPrimitiveType(),
                              new_value, wide_value)) {
     return;

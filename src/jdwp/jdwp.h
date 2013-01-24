@@ -30,8 +30,9 @@
 struct iovec;
 
 namespace art {
-
+namespace mirror {
 class AbstractMethod;
+}  // namespace mirror
 class Thread;
 
 namespace JDWP {

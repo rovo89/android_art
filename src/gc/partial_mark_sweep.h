@@ -14,26 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_PARTIAL_MARK_SWEEP_H_
-#define ART_SRC_PARTIAL_MARK_SWEEP_H_
+#ifndef ART_SRC_GC_PARTIAL_MARK_SWEEP_H_
+#define ART_SRC_GC_PARTIAL_MARK_SWEEP_H_
 
 #include "locks.h"
 #include "mark_sweep.h"
-#include "utils.h"
 
 namespace art {
-
-class Barrier;
-class CheckObjectVisitor;
-class Class;
-class Heap;
-class MarkIfReachesAllocspaceVisitor;
-class ModUnionClearCardVisitor;
-class ModUnionVisitor;
-class ModUnionTableBitmap;
-class Object;
-class TimingLogger;
-class MarkStackChunk;
 
 class PartialMarkSweep : public MarkSweep {
  public:
@@ -53,4 +40,4 @@ protected:
 
 }  // namespace art
 
-#endif  // ART_SRC_PARTIAL_MARK_SWEEP_H_
+#endif  // ART_SRC_GC_PARTIAL_MARK_SWEEP_H_

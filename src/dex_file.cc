@@ -30,7 +30,10 @@
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/field.h"
+#include "mirror/field-inl.h"
+#include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
 #include "thread.h"
@@ -94,6 +97,14 @@ const DexFile* DexFile::Open(const std::string& filename,
   return DexFile::OpenFile(filename, location, true);
 }
 
+int DexFile::GetPermissions() const {
+  if (mem_map_.get() == NULL) {
+    return 0;
+  } else {
+    return mem_map_->GetProtect();
+  }
+}
+
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& location,
                                  bool verify) {
@@ -146,7 +157,6 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
 
 const char* DexFile::kClassesDex = "classes.dex";
 
-// Open classes.dex from within a .zip, .jar, .apk, ...
 const DexFile* DexFile::OpenZip(const std::string& filename,
                                 const std::string& location) {
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
@@ -155,6 +165,16 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
     return NULL;
   }
   return DexFile::Open(*zip_archive.get(), location);
+}
+
+const DexFile* DexFile::OpenMemory(const std::string& location,
+                                   uint32_t location_checksum,
+                                   MemMap* mem_map) {
+  return OpenMemory(mem_map->Begin(),
+                    mem_map->Size(),
+                    location,
+                    location_checksum,
+                    mem_map);
 }
 
 const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location) {
@@ -584,7 +604,7 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
   return descriptor;
 }
 
-int32_t DexFile::GetLineNumFromPC(const AbstractMethod* method, uint32_t rel_pc) const {
+int32_t DexFile::GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
   if (method->GetCodeItemOffset() == 0) {
@@ -599,6 +619,12 @@ int32_t DexFile::GetLineNumFromPC(const AbstractMethod* method, uint32_t rel_pc)
   DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
                   NULL, &context);
   return context.line_num_;
+}
+
+const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {
+  const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
+  return reinterpret_cast<const TryItem*>
+      (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
 }
 
 int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,
@@ -900,8 +926,8 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right
 }
 
 EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(const DexFile& dex_file,
-                                                                 DexCache* dex_cache,
-                                                                 ClassLoader* class_loader,
+                                                                 mirror::DexCache* dex_cache,
+                                                                 mirror::ClassLoader* class_loader,
                                                                  ClassLinker* linker,
                                                                  const DexFile::ClassDef& class_def)
     : dex_file_(dex_file), dex_cache_(dex_cache), class_loader_(class_loader), linker_(linker),
@@ -976,7 +1002,7 @@ void EncodedStaticFieldValueIterator::Next() {
   ptr_ += width;
 }
 
-void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
+void EncodedStaticFieldValueIterator::ReadValueToField(mirror::Field* field) const {
   switch (type_) {
     case kBoolean: field->SetBoolean(field->GetDeclaringClass(), jval_.z); break;
     case kByte:    field->SetByte(field->GetDeclaringClass(), jval_.b); break;
@@ -988,12 +1014,12 @@ void EncodedStaticFieldValueIterator::ReadValueToField(Field* field) const {
     case kDouble:  field->SetDouble(field->GetDeclaringClass(), jval_.d); break;
     case kNull:    field->SetObject(field->GetDeclaringClass(), NULL); break;
     case kString: {
-      String* resolved = linker_->ResolveString(dex_file_, jval_.i, dex_cache_);
+      mirror::String* resolved = linker_->ResolveString(dex_file_, jval_.i, dex_cache_);
       field->SetObject(field->GetDeclaringClass(), resolved);
       break;
     }
     case kType: {
-      Class* resolved = linker_->ResolveType(dex_file_, jval_.i, dex_cache_, class_loader_);
+      mirror::Class* resolved = linker_->ResolveType(dex_file_, jval_.i, dex_cache_, class_loader_);
       field->SetObject(field->GetDeclaringClass(), resolved);
       break;
     }

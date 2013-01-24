@@ -14,47 +14,51 @@
  * limitations under the License.
  */
 
+#include "heap.h"
 #include "large_object_space.h"
 #include "space.h"
 #include "sticky_mark_sweep.h"
+#include "thread.h"
 
 namespace art {
-  StickyMarkSweep::StickyMarkSweep(Heap* heap, bool is_concurrent)
-      : PartialMarkSweep(heap, is_concurrent) {
-    cumulative_timings_.SetName(GetName());
-  }
 
-  StickyMarkSweep::~StickyMarkSweep() {
+StickyMarkSweep::StickyMarkSweep(Heap* heap, bool is_concurrent)
+    : PartialMarkSweep(heap, is_concurrent) {
+  cumulative_timings_.SetName(GetName());
+}
 
-  }
+StickyMarkSweep::~StickyMarkSweep() {
 
-  void StickyMarkSweep::BindBitmaps() {
-    PartialMarkSweep::BindBitmaps();
+}
 
-    Spaces& spaces = GetHeap()->GetSpaces();
-    WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
-    // For sticky GC, we want to bind the bitmaps of both the zygote space and the alloc space.
-    // This lets us start with the mark bitmap of the previous garbage collection as the current
-    // mark bitmap of the alloc space. After the sticky GC finishes, we then unbind the bitmaps,
-    // making it so that the live bitmap of the alloc space is contains the newly marked objects
-    // from the sticky GC.
-    for (Spaces::iterator it = spaces.begin(); it != spaces.end(); ++it) {
-      if ((*it)->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect) {
-        BindLiveToMarkBitmap(*it);
-      }
+void StickyMarkSweep::BindBitmaps() {
+  PartialMarkSweep::BindBitmaps();
+
+  Spaces& spaces = GetHeap()->GetSpaces();
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+  // For sticky GC, we want to bind the bitmaps of both the zygote space and the alloc space.
+  // This lets us start with the mark bitmap of the previous garbage collection as the current
+  // mark bitmap of the alloc space. After the sticky GC finishes, we then unbind the bitmaps,
+  // making it so that the live bitmap of the alloc space is contains the newly marked objects
+  // from the sticky GC.
+  for (Spaces::iterator it = spaces.begin(); it != spaces.end(); ++it) {
+    if ((*it)->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect) {
+      BindLiveToMarkBitmap(*it);
     }
-
-    GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
   }
 
-  void StickyMarkSweep::MarkReachableObjects() {
-    DisableFinger();
-    RecursiveMarkDirtyObjects(CardTable::kCardDirty - 1);
-  }
+  GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
+}
 
-  void StickyMarkSweep::Sweep(TimingLogger& timings, bool swap_bitmaps) {
-    ObjectStack* live_stack = GetHeap()->GetLiveStack();
-    SweepArray(timings_, live_stack, false);
-    timings_.AddSplit("SweepArray");
-  }
+void StickyMarkSweep::MarkReachableObjects() {
+  DisableFinger();
+  RecursiveMarkDirtyObjects(CardTable::kCardDirty - 1);
+}
+
+void StickyMarkSweep::Sweep(TimingLogger& timings, bool swap_bitmaps) {
+  ObjectStack* live_stack = GetHeap()->GetLiveStack();
+  SweepArray(timings_, live_stack, false);
+  timings_.AddSplit("SweepArray");
+}
+
 }  // namespace art

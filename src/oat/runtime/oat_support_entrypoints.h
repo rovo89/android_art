@@ -24,10 +24,12 @@
         static_cast<uintptr_t>(OFFSETOF_MEMBER(EntryPoints, x)))
 
 namespace art {
-
-class Class;
-class DvmDex;
+namespace mirror {
 class AbstractMethod;
+class Class;
+class Object;
+}  // namespace mirror
+class DvmDex;
 class Thread;
 
 struct PACKED(4) EntryPoints {
@@ -40,12 +42,12 @@ struct PACKED(4) EntryPoints {
   void* (*pCheckAndAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
 
   // Cast
-  uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
+  uint32_t (*pInstanceofNonTrivialFromCode)(const mirror::Class*, const mirror::Class*);
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void (*pCheckCastFromCode)(void*, void*);
 
   // Debug
-  void (*pDebugMe)(AbstractMethod*, uint32_t);
+  void (*pDebugMe)(mirror::AbstractMethod*, uint32_t);
   void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
 
   // DexCache
@@ -77,8 +79,8 @@ struct PACKED(4) EntryPoints {
   uint32_t (*pJniMethodStartSynchronized)(jobject to_lock, Thread* self);
   void (*pJniMethodEnd)(uint32_t cookie, Thread* self);
   void (*pJniMethodEndSynchronized)(uint32_t cookie, jobject locked, Thread* self);
-  Object* (*pJniMethodEndWithReference)(jobject result, uint32_t cookie, Thread* self);
-  Object* (*pJniMethodEndWithReferenceSynchronized)(jobject result, uint32_t cookie,
+  mirror::Object* (*pJniMethodEndWithReference)(jobject result, uint32_t cookie, Thread* self);
+  mirror::Object* (*pJniMethodEndWithReferenceSynchronized)(jobject result, uint32_t cookie,
                                                     jobject locked, Thread* self);
 
   // Locks
@@ -114,7 +116,8 @@ struct PACKED(4) EntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(AbstractMethod*, AbstractMethod**, Thread*,
+  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(mirror::AbstractMethod*,
+                                                           mirror::AbstractMethod**, Thread*,
                                                            Runtime::TrampolineType);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
@@ -129,7 +132,8 @@ struct PACKED(4) EntryPoints {
 
   // Throws
   void (*pDeliverException)(void*);
-  void (*pThrowAbstractMethodErrorFromCode)(AbstractMethod* m, Thread* thread, AbstractMethod** sp);
+  void (*pThrowAbstractMethodErrorFromCode)(mirror::AbstractMethod* m, Thread* thread,
+                                            mirror::AbstractMethod** sp);
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
   void (*pThrowDivZeroFromCode)();
   void (*pThrowNoSuchMethodFromCode)(int32_t);

@@ -24,6 +24,7 @@
 #include "atomic_integer.h"
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
+#include "gc/gc_type.h"
 #include "gc/heap_bitmap.h"
 #include "globals.h"
 #include "gtest/gtest.h"
@@ -39,9 +40,11 @@
 #define VERIFY_OBJECT_FAST 1
 
 namespace art {
-
-class AllocSpace;
+namespace mirror {
 class Class;
+class Object;
+}  // namespace mirror
+class AllocSpace;
 class ConditionVariable;
 class DlMallocSpace;
 class GarbageCollector;
@@ -51,14 +54,12 @@ class LargeObjectSpace;
 class MarkSweep;
 class ModUnionTable;
 class Mutex;
-class Object;
 class Space;
 class SpaceTest;
 class StackVisitor;
 class Thread;
 class TimingLogger;
 
-typedef AtomicStack<Object*> ObjectStack;
 typedef std::vector<ContinuousSpace*> Spaces;
 
 class AgeCardVisitor {
@@ -71,21 +72,6 @@ class AgeCardVisitor {
     }
   }
 };
-
-// The ordering of the enum matters, it is used to determine which GCs are run first.
-enum GcType {
-  // No Gc
-  kGcTypeNone,
-  // Sticky mark bits "generational" GC.
-  kGcTypeSticky,
-  // Partial GC, over only the alloc space.
-  kGcTypePartial,
-  // Full GC
-  kGcTypeFull,
-  // Number of different Gc types.
-  kGcTypeMax,
-};
-std::ostream& operator<<(std::ostream& os, const GcType& policy);
 
 enum GcCause {
   kGcCauseForAlloc,
@@ -107,11 +93,6 @@ class Heap {
   // Used so that we don't overflow the allocation time atomic integer.
   static const size_t kTimeAdjust = 1024;
 
-  typedef void (RootVisitor)(const Object* root, void* arg);
-  typedef void (VerifyRootVisitor)(const Object* root, void* arg, size_t vreg,
-      const StackVisitor* visitor);
-  typedef bool (IsMarkedTester)(const Object* object, void* arg);
-
   // Create a heap with the requested sizes. The possible empty
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
@@ -122,19 +103,19 @@ class Heap {
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  Object* AllocObject(Thread* self, Class* klass, size_t num_bytes)
+  mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Check sanity of given reference. Requires the heap lock.
 #if VERIFY_OBJECT_ENABLED
-  void VerifyObject(const Object* o);
+  void VerifyObject(const mirror::Object* o);
 #else
-  void VerifyObject(const Object*) {}
+  void VerifyObject(const mirror::Object*) {}
 #endif
 
   // Check sanity of all live references. Requires the heap lock.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  static void RootMatchesObjectVisitor(const Object* root, void* arg);
+  static void RootMatchesObjectVisitor(const mirror::Object* root, void* arg);
   bool VerifyHeapReferences()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -145,11 +126,11 @@ class Heap {
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  bool IsHeapAddress(const Object* obj);
+  bool IsHeapAddress(const mirror::Object* obj);
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
-  bool IsLiveObjectLocked(const Object* obj)
+  bool IsLiveObjectLocked(const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Initiates an explicit garbage collection.
@@ -169,16 +150,16 @@ class Heap {
 
   // Implements VMDebug.countInstancesOfClass and JDWP VM_InstanceCount.
   // The boolean decides whether to use IsAssignableFrom or == when comparing classes.
-  void CountInstances(const std::vector<Class*>& classes, bool use_is_assignable_from,
+  void CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
                       uint64_t* counts)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Implements JDWP RT_Instances.
-  void GetInstances(Class* c, int32_t max_count, std::vector<Object*>& instances)
+  void GetInstances(mirror::Class* c, int32_t max_count, std::vector<mirror::Object*>& instances)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Implements JDWP OR_ReferringObjects.
-  void GetReferringObjects(Object* o, int32_t max_count, std::vector<Object*>& referring_objects)
+  void GetReferringObjects(mirror::Object* o, int32_t max_count, std::vector<mirror::Object*>& referring_objects)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -218,15 +199,15 @@ class Heap {
                            MemberOffset reference_pendingNext_offset,
                            MemberOffset finalizer_reference_zombie_offset);
 
-  Object* GetReferenceReferent(Object* reference);
-  void ClearReferenceReferent(Object* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* GetReferenceReferent(mirror::Object* reference);
+  void ClearReferenceReferent(mirror::Object* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the reference object has not yet been enqueued.
-  bool IsEnqueuable(const Object* ref);
-  void EnqueueReference(Object* ref, Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void EnqueuePendingReference(Object* ref, Object** list)
+  bool IsEnqueuable(const mirror::Object* ref);
+  void EnqueueReference(mirror::Object* ref, mirror::Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnqueuePendingReference(mirror::Object* ref, mirror::Object** list)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  Object* DequeuePendingReference(Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* DequeuePendingReference(mirror::Object** list) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   MemberOffset GetReferencePendingNextOffset() {
     DCHECK_NE(reference_pendingNext_offset_.Uint32Value(), 0U);
@@ -257,12 +238,12 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
-  void WriteBarrierField(const Object* dst, MemberOffset /*offset*/, const Object* /*new_value*/) {
+  void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/, const mirror::Object* /*new_value*/) {
     card_table_->MarkCard(dst);
   }
 
   // Write barrier for array operations that update many field positions
-  void WriteBarrierArray(const Object* dst, int /*start_offset*/,
+  void WriteBarrierArray(const mirror::Object* dst, int /*start_offset*/,
                          size_t /*length TODO: element_count or byte_count?*/) {
     card_table_->MarkCard(dst);
   }
@@ -271,7 +252,7 @@ class Heap {
     return card_table_.get();
   }
 
-  void AddFinalizerReference(Thread* self, Object* object);
+  void AddFinalizerReference(Thread* self, mirror::Object* object);
 
   size_t GetBytesAllocated() const;
   size_t GetObjectsAllocated() const;
@@ -293,7 +274,7 @@ class Heap {
 
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .
-  ContinuousSpace* FindSpaceFromObject(const Object*) const;
+  ContinuousSpace* FindSpaceFromObject(const mirror::Object*) const;
 
   void DumpForSigQuit(std::ostream& os);
 
@@ -354,22 +335,22 @@ class Heap {
  private:
   // Allocates uninitialized storage. Passing in a null space tries to place the object in the
   // large object space.
-  Object* Allocate(Thread* self, AllocSpace* space, size_t num_bytes)
+  mirror::Object* Allocate(Thread* self, AllocSpace* space, size_t num_bytes)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Try to allocate a number of bytes, this function never does any GCs.
-  Object* TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow)
+  mirror::Object* TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pushes a list of cleared references out to the managed heap.
-  void EnqueueClearedReferences(Object** cleared_references);
+  void EnqueueClearedReferences(mirror::Object** cleared_references);
 
   void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
 
-  void RecordAllocation(size_t size, Object* object)
+  void RecordAllocation(size_t size, mirror::Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -395,9 +376,9 @@ class Heap {
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
-  void VerifyObjectBody(const Object *obj) NO_THREAD_SAFETY_ANALYSIS;
+  void VerifyObjectBody(const mirror::Object *obj) NO_THREAD_SAFETY_ANALYSIS;
 
-  static void VerificationCallback(Object* obj, void* arg)
+  static void VerificationCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.

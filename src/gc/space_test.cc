@@ -83,23 +83,23 @@ TEST_F(SpaceTest, ZygoteSpace) {
     Thread* self = Thread::Current();
 
     // Succeeds, fits without adjusting the footprint limit.
-    Object* ptr1 = space->Alloc(self, 1 * MB);
+    mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
     EXPECT_TRUE(ptr1 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr2 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
     EXPECT_TRUE(ptr2 == NULL);
 
     // Succeeds, adjusts the footprint.
-    Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+    mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr3 != NULL);
 
     // Fails, requires a higher footprint limit.
-    Object* ptr4 = space->Alloc(self, 8 * MB);
+    mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
     EXPECT_TRUE(ptr4 == NULL);
 
     // Also fails, requires a higher allowed footprint.
-    Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+    mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
     EXPECT_TRUE(ptr5 == NULL);
 
     // Release some memory.
@@ -151,23 +151,23 @@ TEST_F(SpaceTest, AllocAndFree) {
   Runtime::Current()->GetHeap()->AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
-  Object* ptr1 = space->Alloc(self, 1 * MB);
+  mirror::Object* ptr1 = space->Alloc(self, 1 * MB);
   EXPECT_TRUE(ptr1 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr2 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr2 = space->Alloc(self, 8 * MB);
   EXPECT_TRUE(ptr2 == NULL);
 
   // Succeeds, adjusts the footprint.
-  Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
+  mirror::Object* ptr3 = space->AllocWithGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr3 != NULL);
 
   // Fails, requires a higher footprint limit.
-  Object* ptr4 = space->Alloc(self, 8 * MB);
+  mirror::Object* ptr4 = space->Alloc(self, 8 * MB);
   EXPECT_TRUE(ptr4 == NULL);
 
   // Also fails, requires a higher allowed footprint.
-  Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
+  mirror::Object* ptr5 = space->AllocWithGrowth(self, 8 * MB);
   EXPECT_TRUE(ptr5 == NULL);
 
   // Release some memory.
@@ -194,7 +194,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   Thread* self = Thread::Current();
 
   // Succeeds, fits without adjusting the max allowed footprint.
-  Object* lots_of_objects[1024];
+  mirror::Object* lots_of_objects[1024];
   for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     lots_of_objects[i] = space->Alloc(self, 16);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
@@ -252,7 +252,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
 
   // Fill the space with lots of small objects up to the growth limit
   size_t max_objects = (growth_limit / (object_size > 0 ? object_size : 8)) + 1;
-  UniquePtr<Object*[]> lots_of_objects(new Object*[max_objects]);
+  UniquePtr<mirror::Object*[]> lots_of_objects(new mirror::Object*[max_objects]);
   size_t last_object = 0;  // last object for which allocation succeeded
   size_t amount_allocated = 0;  // amount of space allocated
   Thread* self = Thread::Current();
@@ -269,7 +269,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
           alloc_size = 8;
         }
       }
-      Object* object;
+      mirror::Object* object;
       if (round <= 1) {
         object = space->Alloc(self, alloc_size);
       } else {
@@ -326,7 +326,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
 
     // Free some objects
     for (size_t i = 0; i < last_object; i += free_increment) {
-      Object* object = lots_of_objects.get()[i];
+      mirror::Object* object = lots_of_objects.get()[i];
       if (object == NULL) {
         continue;
       }
@@ -347,7 +347,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(DlMallocSpace* space, intptr
   }
 
   // All memory was released, try a large allocation to check freed memory is being coalesced
-  Object* large_object;
+  mirror::Object* large_object;
   size_t three_quarters_space = (growth_limit / 2) + (growth_limit / 4);
   if (round <= 1) {
     large_object = space->Alloc(self, three_quarters_space);

@@ -17,29 +17,27 @@
 #ifndef ART_SRC_INSTRUMENTATION_H_
 #define ART_SRC_INSTRUMENTATION_H_
 
-#include <ostream>
-#include <set>
-#include <string>
-
 #include "base/macros.h"
-#include "globals.h"
 #include "safe_map.h"
-#include "trace.h"
-#include "UniquePtr.h"
+
+#include <stdint.h>
 
 namespace art {
 
+namespace mirror {
 class AbstractMethod;
+}
 class Thread;
+class Trace;
 
 uint32_t InstrumentationMethodUnwindFromCode(Thread* self);
 
 struct InstrumentationStackFrame {
   InstrumentationStackFrame() : method_(NULL), return_pc_(0), frame_id_(0) {}
-  InstrumentationStackFrame(AbstractMethod* method, uintptr_t return_pc, size_t frame_id)
+  InstrumentationStackFrame(mirror::AbstractMethod* method, uintptr_t return_pc, size_t frame_id)
       : method_(method), return_pc_(return_pc), frame_id_(frame_id) {
   }
-  AbstractMethod* method_;
+  mirror::AbstractMethod* method_;
   uintptr_t return_pc_;
   size_t frame_id_;
 };
@@ -55,20 +53,20 @@ class Instrumentation {
   // Restores original code for each method and fixes the return values of each thread's stack.
   void UninstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
-  const void* GetSavedCodeFromMap(const AbstractMethod* method);
-  void SaveAndUpdateCode(AbstractMethod* method);
-  void ResetSavedCode(AbstractMethod* method);
+  const void* GetSavedCodeFromMap(const mirror::AbstractMethod* method);
+  void SaveAndUpdateCode(mirror::AbstractMethod* method);
+  void ResetSavedCode(mirror::AbstractMethod* method);
 
   Trace* GetTrace() const;
   void SetTrace(Trace* trace);
   void RemoveTrace();
 
  private:
-  void AddSavedCodeToMap(const AbstractMethod* method, const void* code);
-  void RemoveSavedCodeFromMap(const AbstractMethod* method);
+  void AddSavedCodeToMap(const mirror::AbstractMethod* method, const void* code);
+  void RemoveSavedCodeFromMap(const mirror::AbstractMethod* method);
 
   // Maps a method to its original code pointer.
-  SafeMap<const AbstractMethod*, const void*> saved_code_map_;
+  SafeMap<const mirror::AbstractMethod*, const void*> saved_code_map_;
 
   Trace* trace_;
 

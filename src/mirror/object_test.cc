@@ -19,16 +19,26 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "array-inl.h"
 #include "asm_support.h"
+#include "class-inl.h"
 #include "class_linker.h"
+#include "class_linker-inl.h"
 #include "common_test.h"
 #include "dex_file.h"
+#include "field-inl.h"
+#include "gc/card_table-inl.h"
 #include "heap.h"
+#include "iftable-inl.h"
+#include "abstract_method-inl.h"
+#include "object-inl.h"
+#include "object_array-inl.h"
 #include "runtime_support.h"
 #include "sirt_ref.h"
 #include "UniquePtr.h"
 
 namespace art {
+namespace mirror {
 
 class ObjectTest : public CommonTest {
  protected:
@@ -626,4 +636,5 @@ TEST_F(ObjectTest, FindStaticField) {
   // TODO: test that interfaces trump superclasses.
 }
 
+}  // namespace mirror
 }  // namespace art

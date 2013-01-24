@@ -18,6 +18,8 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/stack_trace_element.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
@@ -32,8 +34,8 @@ class ExceptionTest : public CommonTest {
     CommonTest::SetUp();
 
     ScopedObjectAccess soa(Thread::Current());
-    SirtRef<ClassLoader> class_loader(soa.Self(),
-                                      soa.Decode<ClassLoader*>(LoadDex("ExceptionHandle")));
+    SirtRef<mirror::ClassLoader> class_loader(soa.Self(),
+                                      soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle")));
     my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
     class_linker_->EnsureInitialized(my_klass_, false, true);
@@ -90,11 +92,11 @@ class ExceptionTest : public CommonTest {
   std::vector<uint16_t> fake_vmap_table_data_;
   std::vector<uint8_t> fake_gc_map_;
 
-  AbstractMethod* method_f_;
-  AbstractMethod* method_g_;
+  mirror::AbstractMethod* method_f_;
+  mirror::AbstractMethod* method_g_;
 
  private:
-  Class* my_klass_;
+  mirror::Class* my_klass_;
 };
 
 TEST_F(ExceptionTest, FindCatchHandler) {
@@ -193,8 +195,8 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_TRUE(internal != NULL);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
   ASSERT_TRUE(ste_array != NULL);
-  ObjectArray<StackTraceElement>* trace_array =
-      soa.Decode<ObjectArray<StackTraceElement>*>(ste_array);
+  mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
+      soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
 
   ASSERT_TRUE(trace_array != NULL);
   ASSERT_TRUE(trace_array->Get(0) != NULL);

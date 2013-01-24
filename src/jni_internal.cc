@@ -27,18 +27,27 @@
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "class_linker.h"
-#include "class_loader.h"
+#include "gc/card_table-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jni.h"
-#include "object.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/field-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/throwable.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
+#include "utf.h"
 #include "UniquePtr.h"
 #include "well_known_classes.h"
+
+using namespace art::mirror;
 
 namespace art {
 
@@ -2533,6 +2542,11 @@ void JNIEnvExt::PopFrame() {
   stacked_local_ref_cookies.pop_back();
 }
 
+Offset JNIEnvExt::SegmentStateOffset() {
+  return Offset(OFFSETOF_MEMBER(JNIEnvExt, locals) +
+                IndirectReferenceTable::SegmentStateOffset().Int32Value());
+}
+
 // JNI Invocation interface.
 
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
@@ -2860,7 +2874,7 @@ void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
   return native_method;
 }
 
-void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void JavaVMExt::VisitRoots(RootVisitor* visitor, void* arg) {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, globals_lock);

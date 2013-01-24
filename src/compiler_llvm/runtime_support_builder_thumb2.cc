@@ -17,8 +17,8 @@
 #include "runtime_support_builder_thumb2.h"
 
 #include "ir_builder.h"
+#include "mirror/object.h"
 #include "monitor.h"
-#include "object.h"
 #include "thread.h"
 #include "utils_llvm.h"
 

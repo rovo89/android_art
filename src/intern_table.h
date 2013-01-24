@@ -17,14 +17,15 @@
 #ifndef ART_SRC_INTERN_TABLE_H_
 #define ART_SRC_INTERN_TABLE_H_
 
-#include <iosfwd>
-
 #include "base/mutex.h"
-#include "heap.h"
-#include "object.h"
-#include "safe_map.h"
+#include "root_visitor.h"
+
+#include <map>
 
 namespace art {
+namespace mirror {
+class String;
+}  // namespace mirror
 
 /**
  * Used to intern strings.
@@ -41,31 +42,31 @@ class InternTable {
   InternTable();
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(int32_t utf16_length, const char* utf8_data)
+  mirror::String* InternStrong(int32_t utf16_length, const char* utf8_data)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(const char* utf8_data)
+  mirror::String* InternStrong(const char* utf8_data)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::String* InternStrong(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Interns a potentially new string in the 'weak' table. (See above.)
-  String* InternWeak(String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::String* InternWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Register a String trusting that it is safe to intern.
   // Used when reinitializing InternTable from an image.
-  void RegisterStrong(String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RegisterStrong(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg)
+  void SweepInternTableWeaks(IsMarkedTester is_marked, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  bool ContainsWeak(String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t Size() const;
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitRoots(RootVisitor* visitor, void* arg);
 
   void DumpForSigQuit(std::ostream& os) const;
 
@@ -75,15 +76,15 @@ class InternTable {
   }
 
  private:
-  typedef std::multimap<int32_t, String*> Table;
+  typedef std::multimap<int32_t, mirror::String*> Table;
 
-  String* Insert(String* s, bool is_strong)
+  mirror::String* Insert(mirror::String* s, bool is_strong)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  String* Lookup(Table& table, String* s, uint32_t hash_code)
+  mirror::String* Lookup(Table& table, mirror::String* s, uint32_t hash_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  String* Insert(Table& table, String* s, uint32_t hash_code);
-  void Remove(Table& table, const String* s, uint32_t hash_code);
+  mirror::String* Insert(Table& table, mirror::String* s, uint32_t hash_code);
+  void Remove(Table& table, const mirror::String* s, uint32_t hash_code);
 
   mutable Mutex intern_table_lock_;
   bool is_dirty_;

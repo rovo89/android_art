@@ -210,7 +210,7 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
 
     case Instruction::ARRAY_LENGTH:
       int len_offset;
-      len_offset = Array::LengthOffset().Int32Value();
+      len_offset = mirror::Array::LengthOffset().Int32Value();
       rl_src[0] = cg->LoadValue(cu, rl_src[0], kCoreReg);
       cg->GenNullCheck(cu, rl_src[0].s_reg_low, rl_src[0].low_reg, opt_flags);
       rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);

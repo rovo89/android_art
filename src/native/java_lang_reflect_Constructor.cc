@@ -16,7 +16,10 @@
 
 #include "class_linker.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/class-inl.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
@@ -32,8 +35,8 @@ namespace art {
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedObjectAccess soa(env);
-  AbstractMethod* m = soa.Decode<Object*>(javaMethod)->AsMethod();
-  Class* c = m->GetDeclaringClass();
+  mirror::AbstractMethod* m = soa.Decode<mirror::Object*>(javaMethod)->AsMethod();
+  mirror::Class* c = m->GetDeclaringClass();
   if (c->IsAbstract()) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Can't instantiate abstract class %s", PrettyDescriptor(c).c_str());
@@ -45,7 +48,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return NULL;
   }
 
-  Object* receiver = c->AllocObject(soa.Self());
+  mirror::Object* receiver = c->AllocObject(soa.Self());
   if (receiver == NULL) {
     return NULL;
   }

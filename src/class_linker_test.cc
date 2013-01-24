@@ -19,12 +19,23 @@
 #include <string>
 
 #include "UniquePtr.h"
+#include "class_linker-inl.h"
 #include "common_test.h"
-#include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/field-inl.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/proxy.h"
+#include "mirror/stack_trace_element.h"
 #include "runtime_support.h"
 #include "sirt_ref.h"
+
+using namespace art::mirror;
 
 namespace art {
 
@@ -600,10 +611,10 @@ struct FieldClassOffsets : public CheckOffsets<FieldClass> {
   };
 };
 
-struct MethodClassOffsets : public CheckOffsets<MethodClass> {
-  MethodClassOffsets() : CheckOffsets<MethodClass>(true, "Ljava/lang/reflect/Method;") {
+struct MethodClassOffsets : public CheckOffsets<AbstractMethodClass> {
+  MethodClassOffsets() : CheckOffsets<AbstractMethodClass>(true, "Ljava/lang/reflect/Method;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(MethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethodClass, ORDER_BY_SIGNATURE_), "ORDER_BY_SIGNATURE"));
   };
 };
 

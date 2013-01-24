@@ -18,7 +18,13 @@
 
 #include "class_linker.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "well_known_classes.h"
@@ -28,17 +34,17 @@ namespace art {
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject javaReceiver,
                      jobject javaArgs) {
   jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
-  AbstractMethod* m = soa.DecodeMethod(mid);
+  mirror::AbstractMethod* m = soa.DecodeMethod(mid);
 
-  Class* declaring_class = m->GetDeclaringClass();
+  mirror::Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
     return NULL;
   }
 
-  Object* receiver = NULL;
+  mirror::Object* receiver = NULL;
   if (!m->IsStatic()) {
     // Check that the receiver is non-null and an instance of the field's declaring class.
-    receiver = soa.Decode<Object*>(javaReceiver);
+    receiver = soa.Decode<mirror::Object*>(javaReceiver);
     if (!VerifyObjectInClass(receiver, declaring_class)) {
       return NULL;
     }
@@ -49,7 +55,8 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
-  ObjectArray<Object>* objects = soa.Decode<ObjectArray<Object>*>(javaArgs);
+  mirror::ObjectArray<mirror::Object>* objects =
+      soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
   MethodHelper mh(m);
   const DexFile::TypeList* classes = mh.GetParameterTypeList();
   uint32_t classes_size = classes == NULL ? 0 : classes->Size();
@@ -65,8 +72,8 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   UniquePtr<jvalue[]> args(new jvalue[arg_count]);
   JValue* decoded_args = reinterpret_cast<JValue*>(args.get());
   for (uint32_t i = 0; i < arg_count; ++i) {
-    Object* arg = objects->Get(i);
-    Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
+    mirror::Object* arg = objects->Get(i);
+    mirror::Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
     if (!UnboxPrimitiveForArgument(arg, dst_class, decoded_args[i], m, i)) {
       return NULL;
     }
@@ -93,7 +100,7 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   return soa.AddLocalReference<jobject>(BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value));
 }
 
-bool VerifyObjectInClass(Object* o, Class* c) {
+bool VerifyObjectInClass(mirror::Object* o, mirror::Class* c) {
   const char* exception = NULL;
   if (o == NULL) {
     exception = "Ljava/lang/NullPointerException;";
@@ -194,7 +201,7 @@ bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
   return false;
 }
 
-Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
+mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   if (src_class == Primitive::kPrimNot) {
     return value.GetL();
   }
@@ -242,7 +249,7 @@ Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   return result.GetL();
 }
 
-static std::string UnboxingFailureKind(AbstractMethod* m, int index, Field* f)
+static std::string UnboxingFailureKind(mirror::AbstractMethod* m, int index, mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m != NULL && index != -1) {
     ++index; // Humans count from 1.
@@ -254,8 +261,8 @@ static std::string UnboxingFailureKind(AbstractMethod* m, int index, Field* f)
   return "result";
 }
 
-static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, AbstractMethod* m,
-                           int index, Field* f)
+static bool UnboxPrimitive(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+                           mirror::AbstractMethod* m, int index, mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
@@ -285,9 +292,9 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, A
 
   JValue boxed_value;
   std::string src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
-  Class* src_class = NULL;
+  mirror::Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
+  mirror::Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
   if (src_descriptor == "Ljava/lang/Boolean;") {
     src_class = class_linker->FindPrimitiveClass('Z');
     boxed_value.SetZ(primitive_field->GetBoolean(o));
@@ -325,17 +332,19 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, A
                                boxed_value, unboxed_value);
 }
 
-bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, AbstractMethod* m, size_t index) {
+bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+                               mirror::AbstractMethod* m, size_t index) {
   CHECK(m != NULL);
   return UnboxPrimitive(o, dst_class, unboxed_value, m, index, NULL);
 }
 
-bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f) {
+bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+                            mirror::Field* f) {
   CHECK(f != NULL);
   return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, f);
 }
 
-bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value) {
+bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value) {
   return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, NULL);
 }
 

@@ -16,7 +16,9 @@
 
 #include "context_arm.h"
 
-#include "object.h"
+#include "mirror/abstract_method.h"
+#include "stack.h"
+#include "thread.h"
 
 namespace art {
 namespace arm {
@@ -38,7 +40,7 @@ void ArmContext::Reset() {
 }
 
 void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
-  AbstractMethod* method = fr.GetMethod();
+  mirror::AbstractMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   uint32_t fp_core_spills = method->GetFpSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);

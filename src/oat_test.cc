@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/object_array-inl.h"
 #include "oat_file.h"
 #include "oat_writer.h"
 #include "vector_output_stream.h"
@@ -24,7 +27,7 @@ namespace art {
 
 class OatTest : public CommonTest {
  protected:
-  void CheckMethod(AbstractMethod* method,
+  void CheckMethod(mirror::AbstractMethod* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -119,7 +122,7 @@ TEST_F(OatTest, WriteRead) {
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
 
-    Class* klass = class_linker->FindClass(descriptor, NULL);
+    mirror::Class* klass = class_linker->FindClass(descriptor, NULL);
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {

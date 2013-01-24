@@ -23,6 +23,7 @@
 #include "dex_instruction.h"
 #include "reg_type.h"
 #include "safe_map.h"
+#include "UniquePtr.h"
 
 namespace art {
 namespace verifier {
@@ -135,7 +136,8 @@ class RegisterLine {
    * reference type. This is called when an appropriate constructor is invoked -- all copies of
    * the reference must be marked as initialized.
    */
-  void MarkRefsAsInitialized(const RegType& uninit_type);
+  void MarkRefsAsInitialized(const RegType& uninit_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Check constraints on constructor return. Specifically, make sure that the "this" argument got
@@ -245,10 +247,10 @@ class RegisterLine {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Verify/push monitor onto the monitor stack, locking the value in reg_idx at location insn_idx.
-  void PushMonitor(uint32_t reg_idx, int32_t insn_idx);
+  void PushMonitor(uint32_t reg_idx, int32_t insn_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Verify/pop monitor from monitor stack ensuring that we believe the monitor is locked
-  void PopMonitor(uint32_t reg_idx);
+  void PopMonitor(uint32_t reg_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Stack of currently held monitors and where they were locked
   size_t MonitorStackDepth() const {

@@ -21,7 +21,10 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
-#include "dex_cache.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
 #if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
 #endif
@@ -34,18 +37,18 @@
 
 namespace art {
 
-static bool InstallStubsClassVisitor(Class* klass, void*)
+static bool InstallStubsClassVisitor(mirror::Class* klass, void*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    AbstractMethod* method = klass->GetDirectMethod(i);
+    mirror::AbstractMethod* method = klass->GetDirectMethod(i);
     if (instrumentation->GetSavedCodeFromMap(method) == NULL) {
       instrumentation->SaveAndUpdateCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    AbstractMethod* method = klass->GetVirtualMethod(i);
+    mirror::AbstractMethod* method = klass->GetVirtualMethod(i);
     if (instrumentation->GetSavedCodeFromMap(method) == NULL) {
       instrumentation->SaveAndUpdateCode(method);
     }
@@ -53,18 +56,18 @@ static bool InstallStubsClassVisitor(Class* klass, void*)
   return true;
 }
 
-static bool UninstallStubsClassVisitor(Class* klass, void*)
+static bool UninstallStubsClassVisitor(mirror::Class* klass, void*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
-    AbstractMethod* method = klass->GetDirectMethod(i);
+    mirror::AbstractMethod* method = klass->GetDirectMethod(i);
     if (instrumentation->GetSavedCodeFromMap(method) != NULL) {
       instrumentation->ResetSavedCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
-    AbstractMethod* method = klass->GetVirtualMethod(i);
+    mirror::AbstractMethod* method = klass->GetVirtualMethod(i);
     if (instrumentation->GetSavedCodeFromMap(method) != NULL) {
       instrumentation->ResetSavedCode(method);
     }
@@ -83,7 +86,7 @@ void InstrumentationInstallStack(Thread* self, void* arg)
       if (GetCurrentQuickFrame() == NULL) {
         return true;  // Ignore shadow frames.
       }
-      AbstractMethod* m = GetMethod();
+      mirror::AbstractMethod* m = GetMethod();
       if (m == NULL) {
         return true; // Ignore upcalls.
       }
@@ -125,7 +128,7 @@ static void InstrumentationRestoreStack(Thread* self, void*)
       if (self_->IsInstrumentationStackEmpty()) {
         return false;  // Stop.
       }
-      AbstractMethod* m = GetMethod();
+      mirror::AbstractMethod* m = GetMethod();
       if (m == NULL) {
         return true;  // Ignore upcalls.
       }
@@ -171,16 +174,16 @@ void Instrumentation::UninstallStubs() {
   Runtime::Current()->GetThreadList()->ForEach(InstrumentationRestoreStack, NULL);
 }
 
-void Instrumentation::AddSavedCodeToMap(const AbstractMethod* method, const void* code) {
+void Instrumentation::AddSavedCodeToMap(const mirror::AbstractMethod* method, const void* code) {
   saved_code_map_.Put(method, code);
 }
 
-void Instrumentation::RemoveSavedCodeFromMap(const AbstractMethod* method) {
+void Instrumentation::RemoveSavedCodeFromMap(const mirror::AbstractMethod* method) {
   saved_code_map_.erase(method);
 }
 
-const void* Instrumentation::GetSavedCodeFromMap(const AbstractMethod* method) {
-  typedef SafeMap<const AbstractMethod*, const void*>::const_iterator It; // TODO: C++0x auto
+const void* Instrumentation::GetSavedCodeFromMap(const mirror::AbstractMethod* method) {
+  typedef SafeMap<const mirror::AbstractMethod*, const void*>::const_iterator It; // TODO: C++0x auto
   It it = saved_code_map_.find(method);
   if (it == saved_code_map_.end()) {
     return NULL;
@@ -189,7 +192,7 @@ const void* Instrumentation::GetSavedCodeFromMap(const AbstractMethod* method) {
   }
 }
 
-void Instrumentation::SaveAndUpdateCode(AbstractMethod* method) {
+void Instrumentation::SaveAndUpdateCode(mirror::AbstractMethod* method) {
 #if defined(ART_USE_LLVM_COMPILER)
   UNUSED(method);
   UNIMPLEMENTED(FATAL);
@@ -201,7 +204,7 @@ void Instrumentation::SaveAndUpdateCode(AbstractMethod* method) {
 #endif
 }
 
-void Instrumentation::ResetSavedCode(AbstractMethod* method) {
+void Instrumentation::ResetSavedCode(mirror::AbstractMethod* method) {
   CHECK(GetSavedCodeFromMap(method) != NULL);
   method->SetCode(GetSavedCodeFromMap(method));
   RemoveSavedCodeFromMap(method);
@@ -223,7 +226,7 @@ void Instrumentation::RemoveTrace() {
 uint32_t InstrumentationMethodUnwindFromCode(Thread* self) {
   Trace* trace = Runtime::Current()->GetInstrumentation()->GetTrace();
   InstrumentationStackFrame instrumentation_frame = self->PopInstrumentationStackFrame();
-  AbstractMethod* method = instrumentation_frame.method_;
+  mirror::AbstractMethod* method = instrumentation_frame.method_;
   uint32_t lr = instrumentation_frame.return_pc_;
 
   trace->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);

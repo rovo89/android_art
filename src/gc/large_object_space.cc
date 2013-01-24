@@ -22,6 +22,7 @@
 #include "image.h"
 #include "os.h"
 #include "space_bitmap.h"
+#include "thread.h"
 #include "utils.h"
 
 namespace art {
@@ -58,13 +59,13 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
   return new LargeObjectMapSpace(name);
 }
 
-Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
+mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
   MemMap* mem_map = MemMap::MapAnonymous("allocation", NULL, num_bytes, PROT_READ | PROT_WRITE);
   if (mem_map == NULL) {
     return NULL;
   }
   MutexLock mu(self, lock_);
-  Object* obj = reinterpret_cast<Object*>(mem_map->Begin());
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
   size_t allocation_size = mem_map->Size();
@@ -75,7 +76,7 @@ Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
   return obj;
 }
 
-size_t LargeObjectMapSpace::Free(Thread* self, Object* ptr) {
+size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   MemMaps::iterator found = mem_maps_.find(ptr);
   CHECK(found != mem_maps_.end()) << "Attempted to free large object which was not live";
@@ -88,14 +89,14 @@ size_t LargeObjectMapSpace::Free(Thread* self, Object* ptr) {
   return allocation_size;
 }
 
-size_t LargeObjectMapSpace::AllocationSize(const Object* obj) {
+size_t LargeObjectMapSpace::AllocationSize(const mirror::Object* obj) {
   MutexLock mu(Thread::Current(), lock_);
-  MemMaps::iterator found = mem_maps_.find(const_cast<Object*>(obj));
+  MemMaps::iterator found = mem_maps_.find(const_cast<mirror::Object*>(obj));
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
   return found->second->Size();
 }
 
-size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
+size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
   size_t total = 0;
   for (size_t i = 0; i < num_ptrs; ++i) {
     if (kDebugSpaces) {
@@ -115,9 +116,9 @@ void LargeObjectMapSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) 
   }
 }
 
-bool LargeObjectMapSpace::Contains(const Object* obj) const {
+bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
   MutexLock mu(Thread::Current(), lock_);
-  return mem_maps_.find(const_cast<Object*>(obj)) != mem_maps_.end();
+  return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
 }
 
 FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
@@ -191,7 +192,7 @@ void FreeListSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {
   }
 }
 
-size_t FreeListSpace::Free(Thread* self, Object* obj) {
+size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
   MutexLock mu(self, lock_);
   CHECK(Contains(obj));
   // Check adjacent chunks to see if we need to combine.
@@ -220,7 +221,7 @@ size_t FreeListSpace::Free(Thread* self, Object* obj) {
   return allocation_size;
 }
 
-bool FreeListSpace::Contains(const Object* obj) const {
+bool FreeListSpace::Contains(const mirror::Object* obj) const {
   return mem_map_->HasAddress(obj);
 }
 
@@ -228,13 +229,13 @@ FreeListSpace::Chunk* FreeListSpace::GetNextChunk(Chunk* chunk) {
   return chunk + chunk->GetSize() / kAlignment;
 }
 
-size_t FreeListSpace::AllocationSize(const Object* obj) {
-  Chunk* chunk = ChunkFromAddr(const_cast<Object*>(obj));
+size_t FreeListSpace::AllocationSize(const mirror::Object* obj) {
+  Chunk* chunk = ChunkFromAddr(const_cast<mirror::Object*>(obj));
   CHECK(!chunk->IsFree());
   return chunk->GetSize();
 }
 
-Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
+mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
   MutexLock mu(self, lock_);
   num_bytes = RoundUp(num_bytes, kAlignment);
   Chunk temp;
@@ -261,7 +262,7 @@ Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes) {
   total_objects_allocated_++;
   num_bytes_allocated_ += num_bytes;
   total_bytes_allocated_ += num_bytes;
-  return reinterpret_cast<Object*>(addr);
+  return reinterpret_cast<mirror::Object*>(addr);
 }
 
 void FreeListSpace::Dump(std::ostream& os) const{

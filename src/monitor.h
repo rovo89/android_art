@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "base/mutex.h"
-#include "heap.h"
-#include "thread.h"
+#include "root_visitor.h"
+#include "thread_state.h"
 
 namespace art {
 
@@ -55,8 +55,10 @@ namespace art {
 #define LW_LOCK_OWNER_SHIFT 3
 #define LW_LOCK_OWNER(x) (((x) >> LW_LOCK_OWNER_SHIFT) & LW_LOCK_OWNER_MASK)
 
+namespace mirror {
 class AbstractMethod;
 class Object;
+}  // namespace mirror
 class Thread;
 class StackVisitor;
 
@@ -70,18 +72,19 @@ class Monitor {
   static uint32_t GetThinLockId(uint32_t raw_lock_word)
       NO_THREAD_SAFETY_ANALYSIS;  // Reading lock owner without holding lock is racy.
 
-  static void MonitorEnter(Thread* thread, Object* obj)
+  static void MonitorEnter(Thread* thread, mirror::Object* obj)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static bool MonitorExit(Thread* thread, Object* obj)
+  static bool MonitorExit(Thread* thread, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       UNLOCK_FUNCTION(monitor_lock_);
 
-  static void Notify(Thread* self, Object* obj)
+  static void Notify(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void NotifyAll(Thread* self, Object* obj)
+  static void NotifyAll(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow, ThreadState why)
+  static void Wait(Thread* self, mirror::Object* obj, int64_t ms, int32_t ns,
+                   bool interruptShouldThrow, ThreadState why)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void DescribeWait(std::ostream& os, const Thread* thread)
@@ -89,30 +92,31 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Used to implement JDWP's ThreadReference.CurrentContendedMonitor.
-  static Object* GetContendedMonitor(Thread* thread);
+  static mirror::Object* GetContendedMonitor(Thread* thread);
 
   // Calls 'callback' once for each lock held in the single stack frame represented by
   // the current state of 'stack_visitor'.
-  static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context)
+  static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
+                         void* callback_context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* GetObject();
+  mirror::Object* GetObject();
 
  private:
-  explicit Monitor(Thread* owner, Object* obj)
+  explicit Monitor(Thread* owner, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
   void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
-  static void Inflate(Thread* self, Object* obj)
+  static void Inflate(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
                           const char* owner_filename, uint32_t owner_line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon)
+  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -137,7 +141,7 @@ class Monitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
-  void TranslateLocation(const AbstractMethod* method, uint32_t pc,
+  void TranslateLocation(const mirror::AbstractMethod* method, uint32_t pc,
                          const char*& source_file, uint32_t& line_number) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -153,7 +157,7 @@ class Monitor {
   int lock_count_ GUARDED_BY(monitor_lock_);
 
   // What object are we part of (for debugging).
-  Object* const obj_;
+  mirror::Object* const obj_;
 
   // Threads currently waiting on this monitor.
   Thread* wait_set_ GUARDED_BY(monitor_lock_);
@@ -161,12 +165,12 @@ class Monitor {
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
-  const AbstractMethod* locking_method_ GUARDED_BY(monitor_lock_);
+  const mirror::AbstractMethod* locking_method_ GUARDED_BY(monitor_lock_);
   uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
 
   friend class MonitorInfo;
   friend class MonitorList;
-  friend class Object;
+  friend class mirror::Object;
   DISALLOW_COPY_AND_ASSIGN(Monitor);
 };
 
@@ -177,7 +181,7 @@ class MonitorList {
 
   void Add(Monitor* m);
 
-  void SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg)
+  void SweepMonitorList(IsMarkedTester is_marked, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
  private:
@@ -192,7 +196,7 @@ class MonitorList {
 // For use only by the JDWP implementation.
 class MonitorInfo {
  public:
-  MonitorInfo(Object* o) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MonitorInfo(mirror::Object* o) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Thread* owner;
   size_t entry_count;

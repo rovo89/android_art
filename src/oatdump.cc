@@ -25,6 +25,7 @@
 #include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "class_linker-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "gc_map.h"
@@ -32,6 +33,12 @@
 #include "gc/space.h"
 #include "image.h"
 #include "indenter.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "oat.h"
 #include "object_utils.h"
 #include "os.h"
@@ -162,7 +169,7 @@ class OatDumper {
     return oat_file_.GetOatHeader().GetInstructionSet();
   }
 
-  const void* GetOatCode(AbstractMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const void* GetOatCode(mirror::AbstractMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -580,8 +587,8 @@ class OatDumper {
                         uint32_t method_access_flags, uint32_t dex_pc) {
     bool first = true;
     ScopedObjectAccess soa(Thread::Current());
-    DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
-    ClassLoader* class_loader = NULL;
+    mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
+    mirror::ClassLoader* class_loader = NULL;
     std::vector<int32_t> kinds =
         verifier::MethodVerifier::DescribeVRegs(dex_method_idx, dex_file, dex_cache,
                                                 class_loader, class_def_idx, code_item, NULL,
@@ -633,8 +640,8 @@ class OatDumper {
                     uint32_t method_access_flags) {
     if ((method_access_flags & kAccNative) == 0) {
       ScopedObjectAccess soa(Thread::Current());
-      DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
-      ClassLoader* class_loader = NULL;
+      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
+      mirror::ClassLoader* class_loader = NULL;
       verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
                                                     class_loader, class_def_idx, code_item, NULL,
                                                     method_access_flags);
@@ -713,17 +720,17 @@ class ImageDumper {
       for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
         ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
         const char* image_root_description = image_roots_descriptions_[i];
-        Object* image_root_object = image_header_.GetImageRoot(image_root);
+        mirror::Object* image_root_object = image_header_.GetImageRoot(image_root);
         indent1_os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
         if (image_root_object->IsObjectArray()) {
           Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
           std::ostream indent2_os(&indent2_filter);
           // TODO: replace down_cast with AsObjectArray (g++ currently has a problem with this)
-          ObjectArray<Object>* image_root_object_array
-              = down_cast<ObjectArray<Object>*>(image_root_object);
+          mirror::ObjectArray<mirror::Object>* image_root_object_array
+              = down_cast<mirror::ObjectArray<mirror::Object>*>(image_root_object);
           //  = image_root_object->AsObjectArray<Object>();
           for (int i = 0; i < image_root_object_array->GetLength(); i++) {
-            Object* value = image_root_object_array->Get(i);
+            mirror::Object* value = image_root_object_array->Get(i);
             if (value != NULL) {
               indent2_os << i << ": ";
               PrettyObjectValue(indent2_os, value->GetClass(), value);
@@ -737,7 +744,7 @@ class ImageDumper {
     os << "\n";
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Object* oat_location_object = image_header_.GetImageRoot(ImageHeader::kOatLocation);
+    mirror::Object* oat_location_object = image_header_.GetImageRoot(ImageHeader::kOatLocation);
     std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
     os << "OAT LOCATION: " << oat_location;
     if (!host_prefix_.empty()) {
@@ -811,36 +818,36 @@ class ImageDumper {
   }
 
  private:
-  static void PrettyObjectValue(std::ostream& os, Class* type, Object* value)
+  static void PrettyObjectValue(std::ostream& os, mirror::Class* type, mirror::Object* value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(type != NULL);
     if (value == NULL) {
       os << StringPrintf("null   %s\n", PrettyDescriptor(type).c_str());
     } else if (type->IsStringClass()) {
-      String* string = value->AsString();
+      mirror::String* string = value->AsString();
       os << StringPrintf("%p   String: %s\n", string,
                          PrintableString(string->ToModifiedUtf8()).c_str());
     } else if (type->IsClassClass()) {
-      Class* klass = value->AsClass();
+      mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
     } else if (type->IsFieldClass()) {
-      Field* field = value->AsField();
+      mirror::Field* field = value->AsField();
       os << StringPrintf("%p   Field: %s\n", field, PrettyField(field).c_str());
     } else if (type->IsMethodClass()) {
-      AbstractMethod* method = value->AsMethod();
+      mirror::AbstractMethod* method = value->AsMethod();
       os << StringPrintf("%p   Method: %s\n", method, PrettyMethod(method).c_str());
     } else {
       os << StringPrintf("%p   %s\n", value, PrettyDescriptor(type).c_str());
     }
   }
 
-  static void PrintField(std::ostream& os, Field* field, Object* obj)
+  static void PrintField(std::ostream& os, mirror::Field* field, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     FieldHelper fh(field);
     const char* descriptor = fh.GetTypeDescriptor();
     os << StringPrintf("%s: ", fh.GetName());
     if (descriptor[0] != 'L' && descriptor[0] != '[') {
-      Class* type = fh.GetType();
+      mirror::Class* type = fh.GetType();
       if (type->IsPrimitiveLong()) {
         os << StringPrintf("%lld (0x%llx)\n", field->Get64(obj), field->Get64(obj));
       } else if (type->IsPrimitiveDouble()) {
@@ -854,7 +861,7 @@ class ImageDumper {
     } else {
       // Get the value, don't compute the type unless it is non-null as we don't want
       // to cause class loading.
-      Object* value = field->GetObj(obj);
+      mirror::Object* value = field->GetObj(obj);
       if (value == NULL) {
         os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
       } else {
@@ -863,26 +870,26 @@ class ImageDumper {
     }
   }
 
-  static void DumpFields(std::ostream& os, Object* obj, Class* klass)
+  static void DumpFields(std::ostream& os, mirror::Object* obj, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* super = klass->GetSuperClass();
+    mirror::Class* super = klass->GetSuperClass();
     if (super != NULL) {
       DumpFields(os, obj, super);
     }
-    ObjectArray<Field>* fields = klass->GetIFields();
+    mirror::ObjectArray<mirror::Field>* fields = klass->GetIFields();
     if (fields != NULL) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
-        Field* field = fields->Get(i);
+        mirror::Field* field = fields->Get(i);
         PrintField(os, field, obj);
       }
     }
   }
 
-  bool InDumpSpace(const Object* object) {
+  bool InDumpSpace(const mirror::Object* object) {
     return image_space_.Contains(object);
   }
 
-  const void* GetOatCodeBegin(AbstractMethod* m)
+  const void* GetOatCodeBegin(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
@@ -895,7 +902,7 @@ class ImageDumper {
     return code;
   }
 
-  uint32_t GetOatCodeSize(AbstractMethod* m)
+  uint32_t GetOatCodeSize(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -904,7 +911,7 @@ class ImageDumper {
     return oat_code_begin[-1];
   }
 
-  const void* GetOatCodeEnd(AbstractMethod* m)
+  const void* GetOatCodeEnd(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
@@ -913,7 +920,7 @@ class ImageDumper {
     return oat_code_begin + GetOatCodeSize(m);
   }
 
-  static void Callback(Object* obj, void* arg)
+  static void Callback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     DCHECK(arg != NULL);
@@ -928,12 +935,12 @@ class ImageDumper {
     state->stats_.alignment_bytes += alignment_bytes;
 
     std::ostream& os = *state->os_;
-    Class* obj_class = obj->GetClass();
+    mirror::Class* obj_class = obj->GetClass();
     if (obj_class->IsArrayClass()) {
       os << StringPrintf("%p: %s length:%d\n", obj, PrettyDescriptor(obj_class).c_str(),
                          obj->AsArray()->GetLength());
     } else if (obj->IsClass()) {
-      Class* klass = obj->AsClass();
+      mirror::Class* klass = obj->AsClass();
       os << StringPrintf("%p: java.lang.Class \"%s\" (", obj, PrettyDescriptor(klass).c_str())
          << klass->GetStatus() << ")\n";
     } else if (obj->IsField()) {
@@ -952,10 +959,10 @@ class ImageDumper {
     std::ostream indent_os(&indent_filter);
     DumpFields(indent_os, obj, obj_class);
     if (obj->IsObjectArray()) {
-      ObjectArray<Object>* obj_array = obj->AsObjectArray<Object>();
+      mirror::ObjectArray<mirror::Object>* obj_array = obj->AsObjectArray<mirror::Object>();
       int32_t length = obj_array->GetLength();
       for (int32_t i = 0; i < length; i++) {
-        Object* value = obj_array->Get(i);
+        mirror::Object* value = obj_array->Get(i);
         size_t run = 0;
         for (int32_t j = i + 1; j < length; j++) {
           if (value == obj_array->Get(j)) {
@@ -970,22 +977,22 @@ class ImageDumper {
           indent_os << StringPrintf("%d to %zd: ", i, i + run);
           i = i + run;
         }
-        Class* value_class = value == NULL ? obj_class->GetComponentType() : value->GetClass();
+        mirror::Class* value_class = value == NULL ? obj_class->GetComponentType() : value->GetClass();
         PrettyObjectValue(indent_os, value_class, value);
       }
     } else if (obj->IsClass()) {
-      ObjectArray<Field>* sfields = obj->AsClass()->GetSFields();
+      mirror::ObjectArray<mirror::Field>* sfields = obj->AsClass()->GetSFields();
       if (sfields != NULL) {
         indent_os << "STATICS:\n";
         Indenter indent2_filter(indent_os.rdbuf(), kIndentChar, kIndentBy1Count);
         std::ostream indent2_os(&indent2_filter);
         for (int32_t i = 0; i < sfields->GetLength(); i++) {
-          Field* field = sfields->Get(i);
+          mirror::Field* field = sfields->Get(i);
           PrintField(indent2_os, field, field->GetDeclaringClass());
         }
       }
     } else if (obj->IsMethod()) {
-      AbstractMethod* method = obj->AsMethod();
+      mirror::AbstractMethod* method = obj->AsMethod();
       if (method->IsNative()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
@@ -1110,7 +1117,7 @@ class ImageDumper {
 
     size_t dex_instruction_bytes;
 
-    std::vector<AbstractMethod*> method_outlier;
+    std::vector<mirror::AbstractMethod*> method_outlier;
     std::vector<size_t> method_outlier_size;
     std::vector<double> method_outlier_expansion;
     std::vector<std::pair<std::string, size_t> > oat_dex_file_sizes;
@@ -1163,7 +1170,7 @@ class ImageDumper {
       return (static_cast<double>(size) / static_cast<double>(object_bytes)) * 100;
     }
 
-    void ComputeOutliers(size_t total_size, double expansion, AbstractMethod* method) {
+    void ComputeOutliers(size_t total_size, double expansion, mirror::AbstractMethod* method) {
       method_outlier_size.push_back(total_size);
       method_outlier_expansion.push_back(expansion);
       method_outlier.push_back(method);

@@ -18,11 +18,18 @@
 #define ART_SRC_VERIFIER_REG_TYPE_H_
 
 #include "base/macros.h"
-#include "object.h"
+#include "primitive.h"
+
+#include "jni.h"
 
 #include <stdint.h>
+#include <set>
+#include <string>
 
 namespace art {
+namespace mirror {
+class Class;
+}  // namespace mirror
 namespace verifier {
 
 class RegTypeCache;
@@ -189,20 +196,9 @@ class RegType {
   bool IsConstantBoolean() const {
     return IsConstant() && ConstantValue() >= 0 && ConstantValue() <= 1;
   }
-  bool IsConstantByte() const {
-    return IsConstant() &&
-        ConstantValue() >= std::numeric_limits<jbyte>::min() &&
-        ConstantValue() <= std::numeric_limits<jbyte>::max();
-  }
-  bool IsConstantShort() const {
-    return IsConstant() &&
-        ConstantValue() >= std::numeric_limits<jshort>::min() &&
-        ConstantValue() <= std::numeric_limits<jshort>::max();
-  }
-  bool IsConstantChar() const {
-    return IsConstant() && ConstantValue() >= 0 &&
-        ConstantValue() <= std::numeric_limits<jchar>::max();
-  }
+  bool IsConstantByte() const;
+  bool IsConstantShort() const;
+  bool IsConstantChar() const;
 
   bool IsReferenceTypes() const {
     return IsNonZeroReferenceTypes() || IsZero();
@@ -261,38 +257,17 @@ class RegType {
     return IsReference() || IsPreciseReference();
   }
 
-  Class* GetClass() const {
+  mirror::Class* GetClass() const {
     DCHECK(!IsUnresolvedReference());
     DCHECK(klass_ != NULL);
     return klass_;
   }
 
-  bool IsJavaLangObject() const {
-    return IsReference() && GetClass()->IsObjectClass();
-  }
+  bool IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-      return descriptor_[0] == '[';
-    } else if (HasClass()) {
-      return GetClass()->IsArrayClass();
-    } else {
-      return false;
-    }
-  }
+  bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-      // Primitive arrays will always resolve
-      DCHECK(descriptor_[1] == 'L' || descriptor_[1] == '[');
-      return descriptor_[0] == '[';
-    } else if (HasClass()) {
-      Class* type = GetClass();
-      return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
-    } else {
-      return false;
-    }
-  }
+  bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Primitive::Type GetPrimitiveType() const {
     if (IsNonZeroReferenceTypes()) {
@@ -317,17 +292,9 @@ class RegType {
     }
   }
 
-  bool IsJavaLangObjectArray() const {
-    if (HasClass()) {
-      Class* type = GetClass();
-      return type->IsArrayClass() && type->GetComponentType()->IsObjectClass();
-    }
-    return false;
-  }
+  bool IsJavaLangObjectArray() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsInstantiableTypes() const {
-    return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
-  }
+  bool IsInstantiableTypes() const;
 
   std::string GetDescriptor() const {
     DCHECK(IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass());
@@ -364,7 +331,7 @@ class RegType {
   bool CanAccess(const RegType& other) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Can this type access a member with the given properties?
-  bool CanAccessMember(Class* klass, uint32_t access_flags) const
+  bool CanAccessMember(mirror::Class* klass, uint32_t access_flags) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can this type be assigned by src?
@@ -393,47 +360,48 @@ class RegType {
    *
    * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
    */
-  static Class* ClassJoin(Class* s, Class* t)
+  static mirror::Class* ClassJoin(mirror::Class* s, mirror::Class* t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   friend class RegTypeCache;
 
-  RegType(Type type, Class* klass,
+  RegType(Type type, mirror::Class* klass,
           uint32_t allocation_pc_or_constant_or_merged_types, uint16_t cache_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : type_(type), klass_(klass),
         allocation_pc_or_constant_or_merged_types_(allocation_pc_or_constant_or_merged_types),
         cache_id_(cache_id) {
-    DCHECK(IsConstant() || IsConstantLo() || IsConstantHi() ||
-           IsUninitializedTypes() || IsUnresolvedMergedReference() || IsUnresolvedSuperClass() ||
-           allocation_pc_or_constant_or_merged_types == 0);
-    if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
-        !IsConflict() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
-      DCHECK(klass_ != NULL);
-      DCHECK(klass_->IsClass());
-      DCHECK(!IsUnresolvedTypes());
-    }
+#ifndef NDEBUG
+    CheckInvariants();
+#endif
   }
 
   RegType(Type type, const std::string& descriptor, uint32_t allocation_pc, uint16_t cache_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : type_(type),
         klass_(NULL),
         descriptor_(descriptor),
         allocation_pc_or_constant_or_merged_types_(allocation_pc),
         cache_id_(cache_id) {
+#ifndef NDEBUG
+    CheckInvariants();
+#endif
   }
+
+  void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const Type type_;  // The current type of the register
 
-  // If known the type of the register...
-  Class* klass_;
+  // For reference types, if known the type of the register...
+  mirror::Class* klass_;
   // ...else a String for the descriptor.
   std::string descriptor_;
 
   // Overloaded field that:
   //   - if IsConstant() holds a 32bit constant value
-  //   - is IsReference() holds the allocation_pc or kInitArgAddr for an initialized reference or
-  //     kUninitThisArgAddr for an uninitialized this ptr
+  //   - is IsUninitializedReference()/IsUnresolvedAndUninitializedReference() holds the pc the
+  //     instance in the register was being allocated.
   const uint32_t allocation_pc_or_constant_or_merged_types_;
 
   // A RegType cache densely encodes types, this is the location in the cache for this type
@@ -441,7 +409,8 @@ class RegType {
 
   DISALLOW_COPY_AND_ASSIGN(RegType);
 };
-std::ostream& operator<<(std::ostream& os, const RegType& rhs);
+std::ostream& operator<<(std::ostream& os, const RegType& rhs)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace verifier
 }  // namespace art

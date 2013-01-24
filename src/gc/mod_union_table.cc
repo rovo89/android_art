@@ -17,11 +17,21 @@
 #include "mod_union_table.h"
 
 #include "base/stl_util.h"
+#include "card_table-inl.h"
 #include "heap.h"
 #include "heap_bitmap.h"
 #include "mark_sweep.h"
+#include "mark_sweep-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/object_array-inl.h"
 #include "space.h"
+#include "space_bitmap-inl.h"
+#include "thread.h"
 #include "UniquePtr.h"
+
+using namespace art::mirror;
 
 namespace art {
 
@@ -260,7 +270,7 @@ class CheckReferenceVisitor {
   // TODO: Fixme when anotatalysis works with visitors.
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
                      bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     Heap* heap = mod_union_table_->GetHeap();
     if (ref != NULL && mod_union_table_->AddReference(obj, ref) &&
         references_.find(ref) == references_.end()) {

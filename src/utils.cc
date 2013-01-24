@@ -25,10 +25,17 @@
 
 #include "UniquePtr.h"
 #include "base/unix_file/fd_file.h"
-#include "class_loader.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class.h"
+#include "mirror/class_loader.h"
+#include "mirror/field.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/string.h"
 #include "object_utils.h"
 #include "os.h"
+#include "utf.h"
 
 #if !defined(HAVE_POSIX_CLOCKS)
 #include <sys/time.h>
@@ -220,14 +227,14 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
   }
 }
 
-std::string PrettyDescriptor(const String* java_descriptor) {
+std::string PrettyDescriptor(const mirror::String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
   }
   return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
 }
 
-std::string PrettyDescriptor(const Class* klass) {
+std::string PrettyDescriptor(const mirror::Class* klass) {
   if (klass == NULL) {
     return "null";
   }
@@ -288,7 +295,7 @@ std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(descriptor_string);
 }
 
-std::string PrettyField(const Field* f, bool with_type) {
+std::string PrettyField(const mirror::Field* f, bool with_type) {
   if (f == NULL) {
     return "null";
   }
@@ -357,7 +364,7 @@ std::string PrettyReturnType(const char* signature) {
   return PrettyDescriptor(return_type);
 }
 
-std::string PrettyMethod(const AbstractMethod* m, bool with_signature) {
+std::string PrettyMethod(const mirror::AbstractMethod* m, bool with_signature) {
   if (m == NULL) {
     return "null";
   }
@@ -390,7 +397,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   return result;
 }
 
-std::string PrettyTypeOf(const Object* obj) {
+std::string PrettyTypeOf(const mirror::Object* obj) {
   if (obj == NULL) {
     return "null";
   }
@@ -406,7 +413,7 @@ std::string PrettyTypeOf(const Object* obj) {
   return result;
 }
 
-std::string PrettyClass(const Class* c) {
+std::string PrettyClass(const mirror::Class* c) {
   if (c == NULL) {
     return "null";
   }
@@ -417,7 +424,7 @@ std::string PrettyClass(const Class* c) {
   return result;
 }
 
-std::string PrettyClassAndClassLoader(const Class* c) {
+std::string PrettyClassAndClassLoader(const mirror::Class* c) {
   if (c == NULL) {
     return "null";
   }
@@ -613,7 +620,7 @@ std::string DescriptorToName(const char* descriptor) {
   return descriptor;
 }
 
-std::string JniShortName(const AbstractMethod* m) {
+std::string JniShortName(const mirror::AbstractMethod* m) {
   MethodHelper mh(m);
   std::string class_name(mh.GetDeclaringClassDescriptor());
   // Remove the leading 'L' and trailing ';'...
@@ -632,7 +639,7 @@ std::string JniShortName(const AbstractMethod* m) {
   return short_name;
 }
 
-std::string JniLongName(const AbstractMethod* m) {
+std::string JniLongName(const mirror::AbstractMethod* m) {
   std::string long_name;
   long_name += JniShortName(m);
   long_name += "__";

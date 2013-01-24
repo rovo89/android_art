@@ -22,8 +22,10 @@
 
 namespace art {
 
-extern "C" const void* artInstrumentationMethodEntryFromCode(AbstractMethod* method, Thread* self,
-                                                             AbstractMethod** sp, uintptr_t lr)
+extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::AbstractMethod* method,
+                                                             Thread* self,
+                                                             mirror::AbstractMethod** sp,
+                                                             uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   self->SetTopOfStack(sp, lr);
   self->VerifyStack();
@@ -41,7 +43,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(AbstractMethod* met
   return instrumentation->GetSavedCodeFromMap(method);
 }
 
-extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, AbstractMethod** sp)
+extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();

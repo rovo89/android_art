@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
-#include "object.h"
 #include "common_test.h"
+#include "mirror/array.h"
+#include "mirror/array-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/string.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "utils.h"
@@ -89,15 +93,15 @@ TEST_F(UtilsTest, PrettyTypeOf) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
-  SirtRef<String> s(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));
+  SirtRef<mirror::String> s(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(), ""));
   EXPECT_EQ("java.lang.String", PrettyTypeOf(s.get()));
 
-  SirtRef<ShortArray> a(soa.Self(), ShortArray::Alloc(soa.Self(), 2));
+  SirtRef<mirror::ShortArray> a(soa.Self(), mirror::ShortArray::Alloc(soa.Self(), 2));
   EXPECT_EQ("short[]", PrettyTypeOf(a.get()));
 
-  Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
+  mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.String[]", PrettyTypeOf(o));
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyTypeOf(o->GetClass()));
 }
@@ -105,18 +109,18 @@ TEST_F(UtilsTest, PrettyTypeOf) {
 TEST_F(UtilsTest, PrettyClass) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClass(NULL));
-  Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
+  mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
 }
 
 TEST_F(UtilsTest, PrettyClassAndClassLoader) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClassAndClassLoader(NULL));
-  Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  Object* o = ObjectArray<String>::Alloc(soa.Self(), c, 0);
+  mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
   EXPECT_EQ("java.lang.Class<java.lang.String[],null>", PrettyClassAndClassLoader(o->GetClass()));
 }
 
@@ -124,9 +128,9 @@ TEST_F(UtilsTest, PrettyField) {
   ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyField(NULL));
 
-  Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
+  mirror::Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
 
-  Field* f;
+  mirror::Field* f;
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
   EXPECT_EQ("int java.lang.String.count", PrettyField(f));
   EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
@@ -193,9 +197,9 @@ TEST_F(UtilsTest, MangleForJni) {
 
 TEST_F(UtilsTest, JniShortName_JniLongName) {
   ScopedObjectAccess soa(Thread::Current());
-  Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
+  mirror::Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
-  AbstractMethod* m;
+  mirror::AbstractMethod* m;
 
   m = c->FindVirtualMethod("charAt", "(I)C");
   ASSERT_TRUE(m != NULL);

@@ -19,6 +19,7 @@
 #include "common_test.h"
 #include "dlmalloc.h"
 #include "globals.h"
+#include "space_bitmap-inl.h"
 #include "UniquePtr.h"
 
 #include <stdint.h>
@@ -39,20 +40,20 @@ TEST_F(SpaceBitmapTest, Init) {
 
 class BitmapVerify {
  public:
-  BitmapVerify(SpaceBitmap* bitmap, const Object* begin, const Object* end)
+  BitmapVerify(SpaceBitmap* bitmap, const mirror::Object* begin, const mirror::Object* end)
     : bitmap_(bitmap),
       begin_(begin),
       end_(end) {}
 
-  void operator ()(const Object* obj) {
+  void operator ()(const mirror::Object* obj) {
     EXPECT_TRUE(obj >= begin_);
     EXPECT_TRUE(obj <= end_);
     EXPECT_TRUE(bitmap_->Test(obj) == ((reinterpret_cast<uintptr_t>(obj) & 0xF) != 0));
   }
 
   SpaceBitmap* bitmap_;
-  const Object* begin_;
-  const Object* end_;
+  const mirror::Object* begin_;
+  const mirror::Object* end_;
 };
 
 TEST_F(SpaceBitmapTest, ScanRange) {
@@ -65,7 +66,8 @@ TEST_F(SpaceBitmapTest, ScanRange) {
 
   // Set all the odd bits in the first BitsPerWord * 3 to one.
   for (size_t j = 0;j < kBitsPerWord * 3; ++j) {
-    const Object* obj = reinterpret_cast<Object*>(heap_begin + j * SpaceBitmap::kAlignment);
+    const mirror::Object* obj =
+        reinterpret_cast<mirror::Object*>(heap_begin + j * SpaceBitmap::kAlignment);
     if (reinterpret_cast<uintptr_t>(obj) & 0xF) {
       space_bitmap->Set(obj);
     }
@@ -75,9 +77,11 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   // This handles all the cases, having runs which start and end on the same word, and different
   // words.
   for (size_t i = 0; i < static_cast<size_t>(kBitsPerWord); ++i) {
-    Object* start = reinterpret_cast<Object*>(heap_begin + i * SpaceBitmap::kAlignment);
+    mirror::Object* start =
+        reinterpret_cast<mirror::Object*>(heap_begin + i * SpaceBitmap::kAlignment);
     for (size_t j = 0; j < static_cast<size_t>(kBitsPerWord * 2); ++j) {
-      Object* end = reinterpret_cast<Object*>(heap_begin + (i + j) * SpaceBitmap::kAlignment);
+      mirror::Object* end =
+          reinterpret_cast<mirror::Object*>(heap_begin + (i + j) * SpaceBitmap::kAlignment);
       BitmapVerify(space_bitmap.get(), start, end);
     }
   }

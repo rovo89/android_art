@@ -28,6 +28,7 @@
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_handler.h"
 #include "jdwp/jdwp_priv.h"
+#include "thread.h"
 
 /*
 General notes:

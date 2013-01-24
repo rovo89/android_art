@@ -22,10 +22,9 @@
 #include <cstddef>
 
 #include "compiler.h"
-#include "dex_cache.h"
 #include "mem_map.h"
 #include "oat.h"
-#include "object.h"
+#include "mirror/class.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
 
@@ -136,13 +135,13 @@ class OatWriter {
 
   class OatClass {
    public:
-    explicit OatClass(Class::Status status, uint32_t methods_count);
+    explicit OatClass(mirror::Class::Status status, uint32_t methods_count);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(OutputStream& out) const;
 
     // data to write
-    Class::Status status_;
+    mirror::Class::Status status_;
     std::vector<OatMethodOffsets> method_offsets_;
 
    private:

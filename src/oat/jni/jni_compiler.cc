@@ -118,7 +118,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
     // Check sirt offset is within frame
     CHECK_LT(sirt_offset.Uint32Value(), frame_size);
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
-               mr_conv->MethodRegister(), AbstractMethod::DeclaringClassOffset());
+               mr_conv->MethodRegister(), mirror::AbstractMethod::DeclaringClassOffset());
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);
     __ StoreRef(sirt_offset, main_jni_conv->InterproceduralScratchRegister());
     main_jni_conv->Next();  // in SIRT so move to next argument
@@ -269,7 +269,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   }
 
   // 9. Plant call to native code associated with method.
-  __ Call(main_jni_conv->MethodStackOffset(), AbstractMethod::NativeMethodOffset(),
+  __ Call(main_jni_conv->MethodStackOffset(), mirror::AbstractMethod::NativeMethodOffset(),
           mr_conv->InterproceduralScratchRegister());
 
   // 10. Fix differences in result widths.

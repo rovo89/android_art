@@ -22,11 +22,13 @@
 #include <string>
 #include <vector>
 
-#include "heap.h"
+#include "locks.h"
+#include "root_visitor.h"
 
 namespace art {
-
+namespace mirror {
 class Object;
+}  // namespace mirror
 
 // Maintain a table of references.  Used for JNI monitor references and
 // JNI pinned array references.
@@ -37,18 +39,18 @@ class ReferenceTable {
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);
   ~ReferenceTable();
 
-  void Add(const Object* obj);
+  void Add(const mirror::Object* obj);
 
-  void Remove(const Object* obj);
+  void Remove(const mirror::Object* obj);
 
   size_t Size() const;
 
   void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitRoots(RootVisitor* visitor, void* arg);
 
  private:
-  typedef std::vector<const Object*> Table;
+  typedef std::vector<const mirror::Object*> Table;
   static void Dump(std::ostream& os, const Table& entries)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   friend class IndirectReferenceTable; // For Dump.

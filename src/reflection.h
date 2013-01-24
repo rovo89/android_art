@@ -21,22 +21,24 @@
 #include "primitive.h"
 
 namespace art {
-
+namespace mirror {
+class AbstractMethod;
 class Class;
 class Field;
-union JValue;
-class AbstractMethod;
 class Object;
+}  // namespace mirror
+union JValue;
 class ScopedObjectAccess;
 
-Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
+mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value,
-                               AbstractMethod* m, size_t index)
+bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+                               mirror::AbstractMethod* m, size_t index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f)
+bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+                            mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value)
+bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src,
@@ -46,7 +48,7 @@ bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class,
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject receiver, jobject args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool VerifyObjectInClass(Object* o, Class* c)
+bool VerifyObjectInClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

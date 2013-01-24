@@ -15,10 +15,10 @@
  */
 
 #include "jni_internal.h"
+#include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "oat/runtime/stub.h"
 #include "oat/utils/mips/assembler_mips.h"
-#include "object.h"
 #include "stack_indirect_reference_table.h"
 #include "sirt_ref.h"
 
@@ -27,7 +27,7 @@
 namespace art {
 namespace mips {
 
-ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
+mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 #if !defined(ART_USE_LLVM_COMPILER)
   // | Out args   |
@@ -113,7 +113,7 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
 
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> resolution_trampoline(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> resolution_trampoline(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(resolution_trampoline.get() != NULL);
   MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
   assembler->FinalizeInstructions(code);
@@ -121,9 +121,9 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   return resolution_trampoline.get();
 }
 
-typedef void (*ThrowAme)(AbstractMethod*, Thread*);
+typedef void (*ThrowAme)(mirror::AbstractMethod*, Thread*);
 
-ByteArray* CreateAbstractMethodErrorStub() {
+mirror::ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 #if !defined(ART_USE_LLVM_COMPILER)
   // Save callee saves and ready frame for exception delivery
@@ -161,7 +161,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> abstract_stub(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> abstract_stub(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(abstract_stub.get() != NULL);
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
@@ -169,7 +169,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   return abstract_stub.get();
 }
 
-ByteArray* CreateJniDlsymLookupStub() {
+mirror::ByteArray* CreateJniDlsymLookupStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
 
   // Build frame and save argument registers and RA.
@@ -203,7 +203,7 @@ ByteArray* CreateJniDlsymLookupStub() {
 
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> jni_stub(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> jni_stub(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(jni_stub.get() != NULL);
   MemoryRegion code(jni_stub->GetData(), jni_stub->GetLength());
   assembler->FinalizeInstructions(code);

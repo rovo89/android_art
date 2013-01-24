@@ -17,6 +17,11 @@
 #include "heap_bitmap.h"
 
 #include "base/logging.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "space_bitmap-inl.h"
 #include "UniquePtr.h"
 #include "utils.h"
 
@@ -32,7 +37,7 @@ void SpaceBitmap::SetName(const std::string& name) {
 
 void SpaceSetMap::Walk(SpaceBitmap::Callback* callback, void* arg) {
   for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
-    callback(const_cast<Object*>(*it), arg);
+    callback(const_cast<mirror::Object*>(*it), arg);
   }
 }
 
@@ -98,7 +103,7 @@ void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       do {
         const size_t shift = CLZ(w);
-        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         (*callback)(obj, arg);
         w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
       } while (w != 0);
@@ -127,10 +132,10 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
     return;
   }
 
-  // TODO: rewrite the callbacks to accept a std::vector<Object*> rather than a Object**?
+  // TODO: rewrite the callbacks to accept a std::vector<mirror::Object*> rather than a mirror::Object**?
   const size_t buffer_size = kWordSize * kBitsPerWord;
-  Object* pointer_buf[buffer_size];
-  Object** pb = &pointer_buf[0];
+  mirror::Object* pointer_buf[buffer_size];
+  mirror::Object** pb = &pointer_buf[0];
   size_t start = OffsetToIndex(sweep_begin - live_bitmap.heap_begin_);
   size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_ - 1);
   CHECK_LT(end, live_bitmap.Size() / kWordSize);
@@ -143,7 +148,7 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
       do {
         const size_t shift = CLZ(garbage);
         garbage ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-        *pb++ = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        *pb++ = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
       } while (garbage != 0);
       // Make sure that there are always enough slots available for an
       // entire word of one bits.
@@ -161,32 +166,32 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
 }  // namespace art
 
 // Support needed for in order traversal
-#include "object.h"
+#include "mirror/object.h"
 #include "object_utils.h"
 
 namespace art {
 
-static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, Object* obj,
+static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
                               void* arg);
 
 // Walk instance fields of the given Class. Separate function to allow recursion on the super
 // class.
-static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* callback, Object* obj,
-                               Class* klass, void* arg)
+static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
+                               mirror::Class* klass, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Visit fields of parent classes first.
-  Class* super = klass->GetSuperClass();
+  mirror::Class* super = klass->GetSuperClass();
   if (super != NULL) {
     WalkInstanceFields(visited, callback, obj, super, arg);
   }
   // Walk instance fields
-  ObjectArray<Field>* fields = klass->GetIFields();
+  mirror::ObjectArray<mirror::Field>* fields = klass->GetIFields();
   if (fields != NULL) {
     for (int32_t i = 0; i < fields->GetLength(); i++) {
-      Field* field = fields->Get(i);
+      mirror::Field* field = fields->Get(i);
       FieldHelper fh(field);
       if (!fh.IsPrimitiveType()) {
-        Object* value = field->GetObj(obj);
+        mirror::Object* value = field->GetObj(obj);
         if (value != NULL) {
           WalkFieldsInOrder(visited, callback, value,  arg);
         }
@@ -196,7 +201,7 @@ static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* call
 }
 
 // For an unvisited object, visit it then all its children found via fields.
-static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, Object* obj,
+static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, mirror::Object* obj,
                               void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (visited->Test(obj)) {
@@ -206,17 +211,17 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
   (*callback)(obj, arg);
   visited->Set(obj);
   // Walk instance fields of all objects
-  Class* klass = obj->GetClass();
+  mirror::Class* klass = obj->GetClass();
   WalkInstanceFields(visited, callback, obj, klass, arg);
   // Walk static fields of a Class
   if (obj->IsClass()) {
-    ObjectArray<Field>* fields = klass->GetSFields();
+    mirror::ObjectArray<mirror::Field>* fields = klass->GetSFields();
     if (fields != NULL) {
       for (int32_t i = 0; i < fields->GetLength(); i++) {
-        Field* field = fields->Get(i);
+        mirror::Field* field = fields->Get(i);
         FieldHelper fh(field);
         if (!fh.IsPrimitiveType()) {
-          Object* value = field->GetObj(NULL);
+          mirror::Object* value = field->GetObj(NULL);
           if (value != NULL) {
             WalkFieldsInOrder(visited, callback, value, arg);
           }
@@ -225,10 +230,10 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
     }
   } else if (obj->IsObjectArray()) {
     // Walk elements of an object array
-    ObjectArray<Object>* obj_array = obj->AsObjectArray<Object>();
+    mirror::ObjectArray<mirror::Object>* obj_array = obj->AsObjectArray<mirror::Object>();
     int32_t length = obj_array->GetLength();
     for (int32_t i = 0; i < length; i++) {
-      Object* value = obj_array->Get(i);
+      mirror::Object* value = obj_array->Get(i);
       if (value != NULL) {
         WalkFieldsInOrder(visited, callback, value, arg);
       }
@@ -251,7 +256,7 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       while (w != 0) {
         const size_t shift = CLZ(w);
-        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         WalkFieldsInOrder(visited.get(), callback, obj, arg);
         w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
       }

@@ -21,7 +21,13 @@
 #include "base/stl_util.h"
 #include "reg_type.h"
 
+#include <vector>
+
 namespace art {
+namespace mirror {
+class Class;
+class ClassLoader;
+}  // namespace mirror
 namespace verifier {
 
 class RegTypeCache {
@@ -41,20 +47,25 @@ class RegTypeCache {
     return *result;
   }
 
-  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor, bool precise)
+  const RegType& From(RegType::Type type, mirror::ClassLoader* loader, const char* descriptor,
+                      bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromClass(Class* klass, bool precise)
+  const RegType& FromClass(mirror::Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromCat1Const(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromCat2ConstLo(int32_t value, bool precise);
-  const RegType& FromCat2ConstHi(int32_t value, bool precise);
-  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor, bool precise)
+  const RegType& FromCat2ConstLo(int32_t value, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& FromCat2ConstHi(int32_t value, bool precise)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& FromDescriptor(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromType(RegType::Type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right);
-  const RegType& FromUnresolvedSuperClass(const RegType& child);
+  const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& FromUnresolvedSuperClass(const RegType& child)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromType(RegType::kRegTypeBoolean);
@@ -117,25 +128,22 @@ class RegTypeCache {
     return FromCat1Const(0, true);
   }
 
-  const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc);
+  const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Create an uninitialized 'this' argument for the given type.
-  const RegType& UninitializedThisArgument(const RegType& type);
-  const RegType& FromUninitialized(const RegType& uninit_type);
+  const RegType& UninitializedThisArgument(const RegType& type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& FromUninitialized(const RegType& uninit_type)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Representatives of various constant types. When merging constants we can't infer a type,
   // (an int may later be used as a float) so we select these representative values meaning future
   // merges won't know the exact constant value but have some notion of its size.
-  const RegType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return FromCat1Const(std::numeric_limits<jbyte>::min(), false);
-  }
-  const RegType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return FromCat1Const(std::numeric_limits<jshort>::min(), false);
-  }
-  const RegType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return FromCat1Const(std::numeric_limits<jint>::max(), false);
-  }
+  const RegType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const RegType& GetComponentType(const RegType& array, ClassLoader* loader)
+  const RegType& GetComponentType(const RegType& array, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

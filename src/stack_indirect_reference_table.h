@@ -21,8 +21,9 @@
 #include "base/macros.h"
 
 namespace art {
-
+namespace mirror {
 class Object;
+}
 class Thread;
 
 // Stack allocated indirect reference table. It can allocated within
@@ -30,7 +31,8 @@ class Thread;
 // storage or manually allocated by SirtRef to hold one reference.
 class StackIndirectReferenceTable {
  public:
-  explicit StackIndirectReferenceTable(Object* object) : number_of_references_(1), link_(NULL) {
+  explicit StackIndirectReferenceTable(mirror::Object* object) :
+      number_of_references_(1), link_(NULL) {
     references_[0] = object;
   }
 
@@ -51,17 +53,17 @@ class StackIndirectReferenceTable {
     link_ = sirt;
   }
 
-  Object* GetReference(size_t i) const {
+  mirror::Object* GetReference(size_t i) const {
     DCHECK_LT(i, number_of_references_);
     return references_[i];
   }
 
-  void SetReference(size_t i, Object* object) {
+  void SetReference(size_t i, mirror::Object* object) {
     DCHECK_LT(i, number_of_references_);
     references_[i] = object;
   }
 
-  bool Contains(Object** sirt_entry) const {
+  bool Contains(mirror::Object** sirt_entry) const {
     // A SIRT should always contain something. One created by the
     // jni_compiler should have a jobject/jclass as a native method is
     // passed in a this pointer or a class
@@ -87,7 +89,7 @@ class StackIndirectReferenceTable {
   StackIndirectReferenceTable* link_;
 
   // number_of_references_ are available if this is allocated and filled in by jni_compiler.
-  Object* references_[1];
+  mirror::Object* references_[1];
 
   DISALLOW_COPY_AND_ASSIGN(StackIndirectReferenceTable);
 };

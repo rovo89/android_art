@@ -28,7 +28,7 @@
 #include "compiler.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "reg_type.h"
 #include "reg_type_cache.h"
 #include "register_line.h"
@@ -156,25 +156,25 @@ class MethodVerifier {
   };
 
   /* Verify a class. Returns "kNoFailure" on success. */
-  static FailureKind VerifyClass(const Class* klass, std::string& error)
+  static FailureKind VerifyClass(const mirror::Class* klass, std::string& error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FailureKind VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
-                                 ClassLoader* class_loader, uint32_t class_def_idx,
+  static FailureKind VerifyClass(const DexFile* dex_file, mirror::DexCache* dex_cache,
+                                 mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                  std::string& error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
-                                  DexCache* dex_cache, ClassLoader* class_loader,
+                                  mirror::DexCache* dex_cache, mirror::ClassLoader* class_loader,
                                   uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-                                  AbstractMethod* method, uint32_t method_access_flags)
+                                  mirror::AbstractMethod* method, uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static std::vector<int32_t> DescribeVRegs(uint32_t dex_method_idx,
-                                            const DexFile* dex_file, DexCache* dex_cache,
-                                            ClassLoader* class_loader,
+                                            const DexFile* dex_file, mirror::DexCache* dex_cache,
+                                            mirror::ClassLoader* class_loader,
                                             uint32_t class_def_idx,
                                             const DexFile::CodeItem* code_item,
-                                            AbstractMethod* method,
+                                            mirror::AbstractMethod* method,
                                             uint32_t method_access_flags, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -209,7 +209,7 @@ class MethodVerifier {
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in 'm'.
-  static void FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
+  static void FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
                                std::vector<uint32_t>& monitor_enter_dex_pcs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -229,9 +229,11 @@ class MethodVerifier {
   }
 
  private:
-  explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-      ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-      uint32_t method_idx, AbstractMethod* method, uint32_t access_flags, bool can_load_classes)
+  explicit MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
+                          mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                          const DexFile::CodeItem* code_item,
+                          uint32_t method_idx, mirror::AbstractMethod* method, uint32_t access_flags,
+                          bool can_load_classes)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
@@ -251,9 +253,11 @@ class MethodVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    */
-  static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
-      ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-      AbstractMethod* method, uint32_t method_access_flags)
+  static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
+                                  mirror::DexCache* dex_cache,
+                                  mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                                  const DexFile::CodeItem* code_item,
+                                  mirror::AbstractMethod* method, uint32_t method_access_flags)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run verification on the method. Returns true if verification completes and false if the input
@@ -477,11 +481,11 @@ class MethodVerifier {
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup instance field and fail for resolution violations
-  Field* GetInstanceField(const RegType& obj_type, int field_idx)
+  mirror::Field* GetInstanceField(const RegType& obj_type, int field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup static field and fail for resolution violations
-  Field* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Field* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget or sget instruction.
   void VerifyISGet(const DecodedInstruction& insn, const RegType& insn_type,
@@ -511,7 +515,7 @@ class MethodVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  AbstractMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
+  mirror::AbstractMethod* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -536,7 +540,7 @@ class MethodVerifier {
    * Returns the resolved method on success, NULL on failure (with *failure
    * set appropriately).
    */
-  AbstractMethod* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
+  mirror::AbstractMethod* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                MethodType method_type, bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -594,7 +598,7 @@ class MethodVerifier {
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
 
   // Describe VRegs at the given dex pc.
-  std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
+  std::vector<int32_t> DescribeVRegs(uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InsnFlags* CurrentInsnFlags();
 
@@ -639,13 +643,13 @@ class MethodVerifier {
 
   uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
-  AbstractMethod* foo_method_ GUARDED_BY(Locks::mutator_lock_);
+  mirror::AbstractMethod* foo_method_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t method_access_flags_;  // Method's access flags.
   const DexFile* dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
-  DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
+  mirror::DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
-  ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
+  mirror::ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.

@@ -17,19 +17,19 @@
 #ifndef ART_SRC_COMPILED_CLASS_H_
 #define ART_SRC_COMPILED_CLASS_H_
 
-#include "object.h"
+#include "mirror/class.h"
 
 namespace art {
 
 class CompiledClass {
  public:
-  explicit CompiledClass(Class::Status status) : status_(status) {}
+  explicit CompiledClass(mirror::Class::Status status) : status_(status) {}
   ~CompiledClass() {}
-  Class::Status GetStatus() const {
+  mirror::Class::Status GetStatus() const {
     return status_;
   }
  private:
-  const Class::Status status_;
+  const mirror::Class::Status status_;
 };
 
 }  // namespace art

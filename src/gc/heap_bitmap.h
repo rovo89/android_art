@@ -14,96 +14,91 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_HEAP_BITMAP_H_
-#define ART_SRC_HEAP_BITMAP_H_
+#ifndef ART_SRC_GC_HEAP_BITMAP_H_
+#define ART_SRC_GC_HEAP_BITMAP_H_
 
+#include "locks.h"
 #include "space_bitmap.h"
 
 namespace art {
-  class Heap;
-  class SpaceBitmap;
+class Heap;
 
-  class HeapBitmap {
-   public:
-    bool Test(const Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-      SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      if (LIKELY(bitmap != NULL)) {
-        return bitmap->Test(obj);
-      } else {
-        return large_objects_->Test(obj);
+class HeapBitmap {
+ public:
+  bool Test(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    SpaceBitmap* bitmap = GetSpaceBitmap(obj);
+    if (LIKELY(bitmap != NULL)) {
+      return bitmap->Test(obj);
+    } else {
+      return large_objects_->Test(obj);
+    }
+  }
+
+  void Clear(const mirror::Object* obj)
+  EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    SpaceBitmap* bitmap = GetSpaceBitmap(obj);
+    if (LIKELY(bitmap != NULL)) {
+      bitmap->Clear(obj);
+    } else {
+      large_objects_->Clear(obj);
+    }
+  }
+
+  void Set(const mirror::Object* obj)
+  EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    SpaceBitmap* bitmap = GetSpaceBitmap(obj);
+    if (LIKELY(bitmap != NULL)) {
+      bitmap->Set(obj);
+    } else {
+      large_objects_->Set(obj);
+    }
+  }
+
+  SpaceBitmap* GetSpaceBitmap(const mirror::Object* obj) {
+    // TODO: C++0x auto
+    for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+      if ((*it)->HasAddress(obj)) {
+        return *it;
       }
     }
+    return NULL;
+  }
 
-    void Clear(const Object* obj)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-      SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      if (LIKELY(bitmap != NULL)) {
-        bitmap->Clear(obj);
-      } else {
-        large_objects_->Clear(obj);
-      }
-    }
+  void Walk(SpaceBitmap::Callback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-    void Set(const Object* obj)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-      SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      if (LIKELY(bitmap != NULL)) {
-        bitmap->Set(obj);
-      } else {
-        large_objects_->Set(obj);
-      }
-    }
+  template <typename Visitor>
+  void Visit(const Visitor& visitor)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-    SpaceBitmap* GetSpaceBitmap(const Object* obj) {
-      // TODO: C++0x auto
-      for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
-        if ((*it)->HasAddress(obj)) {
-          return *it;
-        }
-      }
-      return NULL;
-    }
+  // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
+  void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-    void Walk(SpaceBitmap::Callback* callback, void* arg)
-        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  HeapBitmap(Heap* heap);
 
-    template <typename Visitor>
-    void Visit(const Visitor& visitor)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-      // TODO: C++0x auto
-      for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
-        SpaceBitmap* bitmap = *it;
-        bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor, VoidFunctor());
-      }
-      large_objects_->Visit(visitor);
-    }
+  inline SpaceSetMap* GetLargeObjects() const {
+    return large_objects_;
+  }
 
-    // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
-    void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  void SetLargeObjects(SpaceSetMap* large_objects);
 
-    HeapBitmap(Heap* heap);
+ private:
 
-    inline SpaceSetMap* GetLargeObjects() const {
-      return large_objects_;
-    }
+  const Heap* const heap_;
 
-    void SetLargeObjects(SpaceSetMap* large_objects);
+  void AddSpaceBitmap(SpaceBitmap* bitmap);
 
-   private:
+  typedef std::vector<SpaceBitmap*> Bitmaps;
+  Bitmaps bitmaps_;
 
-    const Heap* const heap_;
+  // Large object sets.
+  SpaceSetMap* large_objects_;
 
-    void AddSpaceBitmap(SpaceBitmap* bitmap);
+  friend class Heap;
+};
 
-    typedef std::vector<SpaceBitmap*> Bitmaps;
-    Bitmaps bitmaps_;
-
-    // Large object sets.
-    SpaceSetMap* large_objects_;
-
-    friend class Heap;
-  };
 }  // namespace art
 
-#endif  // ART_SRC_HEAP_BITMAP_H_
+#endif  // ART_SRC_GC_HEAP_BITMAP_H_

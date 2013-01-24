@@ -21,6 +21,11 @@
 #include "indirect_reference_table.h"
 #include "jni_internal.h"
 #include "mem_map.h"
+#include "mirror/class.h"
+#include "mirror/class_loader.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/stack_trace_element.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
@@ -43,8 +48,9 @@ class JniCompilerTest : public CommonTest {
                       const char* method_name, const char* method_sig) {
     ScopedObjectAccess soa(Thread::Current());
     // Compile the native method before starting the runtime
-    Class* c = class_linker_->FindClass("LMyClassNatives;", soa.Decode<ClassLoader*>(class_loader));
-    AbstractMethod* method;
+    mirror::Class* c = class_linker_->FindClass("LMyClassNatives;",
+                                                soa.Decode<mirror::ClassLoader*>(class_loader));
+    mirror::AbstractMethod* method;
     if (direct) {
       method = c->FindDirectMethod(method_name, method_sig);
     } else {
@@ -141,7 +147,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
   ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<ClassLoader*>(class_loader_),
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
                                                          reason)) << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
@@ -155,7 +161,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
   ScopedObjectAccess soa(Thread::Current());
   std::string reason;
   ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<ClassLoader*>(class_loader_),
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<mirror::ClassLoader*>(class_loader_),
                                                          reason)) << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
@@ -548,15 +554,15 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     // Build stack trace
     jobject internal = Thread::Current()->CreateInternalStackTrace(soa);
     jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
-    ObjectArray<StackTraceElement>* trace_array =
-        soa.Decode<ObjectArray<StackTraceElement>*>(ste_array);
+    mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
+        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
     EXPECT_TRUE(trace_array != NULL);
     EXPECT_EQ(11, trace_array->GetLength());
 
     // Check stack trace entries have expected values
     for (int32_t i = 0; i < trace_array->GetLength(); ++i) {
       EXPECT_EQ(-2, trace_array->Get(i)->GetLineNumber());
-      StackTraceElement* ste = trace_array->Get(i);
+      mirror::StackTraceElement* ste = trace_array->Get(i);
       EXPECT_STREQ("MyClassNatives.java", ste->GetFileName()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("MyClassNatives", ste->GetDeclaringClass()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("fooI", ste->GetMethodName()->ToModifiedUtf8().c_str());
@@ -601,7 +607,7 @@ jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
   // Add 10 local references
   ScopedObjectAccess soa(env);
   for (int i = 0; i < 10; i++) {
-    soa.AddLocalReference<jobject>(soa.Decode<Object*>(thisObj));
+    soa.AddLocalReference<jobject>(soa.Decode<mirror::Object*>(thisObj));
   }
   return x+1;
 }

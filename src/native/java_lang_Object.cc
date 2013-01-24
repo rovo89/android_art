@@ -15,7 +15,7 @@
  */
 
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "scoped_thread_state_change.h"
 
 // TODO: better support for overloading.
@@ -27,31 +27,31 @@ namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(java_this);
+  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   return soa.AddLocalReference<jobject>(o->Clone(soa.Self()));
 }
 
 static void Object_notify(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(java_this);
+  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Notify();
 }
 
 static void Object_notifyAll(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(java_this);
+  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->NotifyAll();
 }
 
 static void Object_wait(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(java_this);
+  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Wait();
 }
 
 static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(java_this);
+  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
   o->Wait(ms, ns);
 }
 

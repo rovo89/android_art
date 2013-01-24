@@ -16,7 +16,9 @@
 
 #include "jobject_comparator.h"
 
-#include "object.h"
+#include "mirror/array-inl.h"
+#include "mirror/class.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -29,8 +31,8 @@ bool JobjectComparator::operator()(jobject jobj1, jobject jobj2) const {
     return false;
   }
   ScopedObjectAccess soa(Thread::Current());
-  Object* obj1 = soa.Decode<Object*>(jobj1);
-  Object* obj2 = soa.Decode<Object*>(jobj2);
+  mirror::Object* obj1 = soa.Decode<mirror::Object*>(jobj1);
+  mirror::Object* obj2 = soa.Decode<mirror::Object*>(jobj2);
   if (obj1 == NULL) {
     return true;
   } else if (obj2 == NULL) {

@@ -14,22 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_DEX_CACHE_H_
-#define ART_SRC_DEX_CACHE_H_
+#ifndef ART_SRC_MIRROR_DEX_CACHE_H_
+#define ART_SRC_MIRROR_DEX_CACHE_H_
 
-#include "base/macros.h"
-#include "dex_file.h"
-#include "globals.h"
+#include "abstract_method.h"
+#include "class.h"
 #include "object.h"
+#include "object_array.h"
+#include "string.h"
 
 namespace art {
 
+struct DexCacheOffsets;
+class DexFile;
+class ImageWriter;
+union JValue;
+
+namespace mirror {
+
 class Class;
 class Field;
-class ImageWriter;
-class AbstractMethod;
-class String;
-union JValue;
 
 class MANAGED DexCacheClass : public Class {
  private:
@@ -107,16 +111,7 @@ class MANAGED DexCache : public Object {
   }
 
   AbstractMethod* GetResolvedMethod(uint32_t method_idx) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method = GetResolvedMethods()->Get(method_idx);
-    // Hide resolution trampoline methods from the caller
-    if (method != NULL && method->GetDexMethodIndex() == DexFile::kDexNoIndex16) {
-      DCHECK(method == Runtime::Current()->GetResolutionMethod());
-      return NULL;
-    } else {
-      return method;
-    }
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetResolvedMethod(uint32_t method_idx, AbstractMethod* resolved)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -177,10 +172,11 @@ class MANAGED DexCache : public Object {
   ObjectArray<String>* strings_;
   uint32_t dex_file_;
 
-  friend struct DexCacheOffsets; // for verifying offset information
+  friend struct art::DexCacheOffsets; // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 
+}  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_DEX_CACHE_H_
+#endif  // ART_SRC_MIRROR_DEX_CACHE_H_

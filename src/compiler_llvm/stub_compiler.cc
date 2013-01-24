@@ -22,7 +22,7 @@
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "runtime_support_func.h"
 #include "utils_llvm.h"
 

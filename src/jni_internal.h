@@ -21,9 +21,9 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "heap.h"
 #include "indirect_reference_table.h"
 #include "reference_table.h"
+#include "root_visitor.h"
 #include "runtime.h"
 
 #include <iosfwd>
@@ -37,12 +37,13 @@
   RegisterNativeMethods(env, jni_class_name, gMethods, arraysize(gMethods))
 
 namespace art {
-
+namespace mirror {
+class AbstractMethod;
 class ClassLoader;
 class Field;
+}
 union JValue;
 class Libraries;
-class AbstractMethod;
 class ScopedObjectAccess;
 class Thread;
 
@@ -54,7 +55,8 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, AbstractMethod* m, JValue* args)
+JValue InvokeWithJValues(const ScopedObjectAccess&, mirror::Object* receiver,
+                         mirror::AbstractMethod* m, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
@@ -69,14 +71,15 @@ struct JavaVMExt : public JavaVM {
    * Returns 'true' on success. On failure, sets 'detail' to a
    * human-readable description of the error.
    */
-  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail)
+  bool LoadNativeLibrary(const std::string& path, mirror::ClassLoader* class_loader,
+                         std::string& detail)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /**
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(AbstractMethod* m)
+  void* FindCodeForNativeMethod(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os);
@@ -86,7 +89,7 @@ struct JavaVMExt : public JavaVM {
 
   void SetCheckJniEnabled(bool enabled);
 
-  void VisitRoots(Heap::RootVisitor*, void*);
+  void VisitRoots(RootVisitor*, void*);
 
   Runtime* runtime;
 
@@ -135,10 +138,7 @@ struct JNIEnvExt : public JNIEnv {
   void PushFrame(int capacity);
   void PopFrame();
 
-  static Offset SegmentStateOffset() {
-    return Offset(OFFSETOF_MEMBER(JNIEnvExt, locals) +
-                  IndirectReferenceTable::SegmentStateOffset().Int32Value());
-  }
+  static Offset SegmentStateOffset();
 
   static Offset LocalRefCookieOffset() {
     return Offset(OFFSETOF_MEMBER(JNIEnvExt, local_ref_cookie));

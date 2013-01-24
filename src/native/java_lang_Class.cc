@@ -15,10 +15,12 @@
  */
 
 #include "class_linker.h"
-#include "class_loader.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "object.h"
+#include "mirror/class.h"
+#include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
+#include "mirror/proxy.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -27,9 +29,9 @@
 
 namespace art {
 
-static Class* DecodeClass(const ScopedObjectAccess& soa, jobject java_class)
+static mirror::Class* DecodeClass(const ScopedObjectAccess& soa, jobject java_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Class* c = soa.Decode<Class*>(java_class);
+  mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
   DCHECK(c != NULL);
   DCHECK(c->IsClass());
   // TODO: we could EnsureInitialized here, rather than on every reflective get/set or invoke .
@@ -56,9 +58,9 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
-  ClassLoader* class_loader = soa.Decode<ClassLoader*>(javaLoader);
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
+  mirror::Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
@@ -76,7 +78,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
 
 static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
   ScopedObjectAccess soa(env);
-  Class* c = DecodeClass(soa, javaClass);
+  mirror::Class* c = DecodeClass(soa, javaClass);
   if (c->IsPrimitive() || c->IsArrayClass() || c->IsProxyClass()) {
     return 0;  // primitive, array and proxy classes don't have class definitions
   }
@@ -90,9 +92,9 @@ static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
 
 static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   ScopedObjectAccess soa(env);
-  Class* c = DecodeClass(soa, javaClass);
+  mirror::Class* c = DecodeClass(soa, javaClass);
 
-  DexCache* dex_cache = c->GetDexCache();
+  mirror::DexCache* dex_cache = c->GetDexCache();
   if (dex_cache == NULL) {
     return NULL;
   }
@@ -105,13 +107,14 @@ static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
-  Class* c = DecodeClass(soa, javaThis);
+  mirror::Class* c = DecodeClass(soa, javaThis);
   return soa.AddLocalReference<jstring>(c->ComputeName());
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
   ScopedObjectAccess soa(env);
-  SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
+  mirror::SynthesizedProxyClass* c =
+      down_cast<mirror::SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
   return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
 }
 

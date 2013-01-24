@@ -21,7 +21,6 @@
 
 #include "base/logging.h"
 #include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"

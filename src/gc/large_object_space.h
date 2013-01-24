@@ -18,8 +18,13 @@
 #define ART_SRC_GC_LARGE_OBJECT_SPACE_H_
 
 #include "space.h"
+#include "safe_map.h"
+
+#include <set>
+#include <vector>
 
 namespace art {
+class SpaceSetMap;
 
 class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
  public:
@@ -64,7 +69,7 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return total_objects_allocated_;
   }
 
-  size_t FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
+  size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
 
  protected:
 
@@ -90,19 +95,19 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   static LargeObjectMapSpace* Create(const std::string& name);
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const Object* obj);
-  virtual Object* Alloc(Thread* self, size_t num_bytes);
-  size_t Free(Thread* self, Object* ptr);
+  virtual size_t AllocationSize(const mirror::Object* obj);
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes);
+  size_t Free(Thread* self, mirror::Object* ptr);
   virtual void Walk(DlMallocSpace::WalkCallback, void* arg);
-  virtual bool Contains(const Object* obj) const;
+  virtual bool Contains(const mirror::Object* obj) const;
 private:
   LargeObjectMapSpace(const std::string& name);
   virtual ~LargeObjectMapSpace() {}
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
   mutable Mutex lock_;
-  std::vector<Object*> large_objects_;
-  typedef SafeMap<Object*, MemMap*> MemMaps;
+  std::vector<mirror::Object*> large_objects_;
+  typedef SafeMap<mirror::Object*, MemMap*> MemMaps;
   MemMaps mem_maps_;
 };
 
@@ -111,10 +116,10 @@ class FreeListSpace : public LargeObjectSpace {
   virtual ~FreeListSpace();
   static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
-  size_t AllocationSize(const Object* obj);
-  Object* Alloc(Thread* self, size_t num_bytes);
-  size_t Free(Thread* self, Object* obj);
-  bool Contains(const Object* obj) const;
+  size_t AllocationSize(const mirror::Object* obj);
+  mirror::Object* Alloc(Thread* self, size_t num_bytes);
+  size_t Free(Thread* self, mirror::Object* obj);
+  bool Contains(const mirror::Object* obj) const;
   void Walk(DlMallocSpace::WalkCallback callback, void* arg);
 
   // Address at which the space begins

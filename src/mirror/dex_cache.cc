@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
+#include "dex_cache.h"
+
+#include "abstract_method-inl.h"
 #include "base/logging.h"
 #include "class_linker.h"
-#include "dex_cache.h"
 #include "heap.h"
+#include "gc/card_table-inl.h"
 #include "globals.h"
 #include "object.h"
+#include "object-inl.h"
+#include "object_array-inl.h"
+#include "runtime.h"
+#include "string.h"
 
 namespace art {
+namespace mirror {
 
 void DexCache::Init(const DexFile* dex_file,
                     String* location,
@@ -70,4 +78,17 @@ void DexCache::Fixup(AbstractMethod* trampoline) {
   }
 }
 
+AbstractMethod* DexCache::GetResolvedMethod(uint32_t method_idx) const
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  AbstractMethod* method = GetResolvedMethods()->Get(method_idx);
+  // Hide resolution trampoline methods from the caller
+  if (method != NULL && method->IsRuntimeMethod()) {
+    DCHECK(method == Runtime::Current()->GetResolutionMethod());
+    return NULL;
+  } else {
+    return method;
+  }
+}
+
+}  // namespace mirror
 }  // namespace art

@@ -14,23 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MOD_UNION_TABLE_H_
-#define ART_SRC_MOD_UNION_TABLE_H_
+#ifndef ART_SRC_GC_MOD_UNION_TABLE_H_
+#define ART_SRC_GC_MOD_UNION_TABLE_H_
 
-#include "heap.h"
+#include "globals.h"
 #include "safe_map.h"
-#include "space.h"
+
+#include <set>
+#include <vector>
 
 namespace art {
-
+namespace mirror {
+class Object;
+}
+class ContinuousSpace;
 class Heap;
 class HeapBitmap;
+class MarkSweep;
 class Space;
+class SpaceBitmap;
 
 // Base class
 class ModUnionTable {
  public:
-  typedef std::vector<const Object*> ReferenceArray;
+  typedef std::vector<const mirror::Object*> ReferenceArray;
   typedef std::set<byte*> ClearedCards;
 
   ModUnionTable(Heap* heap) : heap_(heap) {
@@ -118,7 +125,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
-  virtual bool AddReference(const Object* obj, const Object* ref) = 0;
+  virtual bool AddReference(const mirror::Object* obj, const mirror::Object* ref) = 0;
 
  protected:
   // Cleared card array, used to update the mod-union table.
@@ -155,44 +162,6 @@ class ModUnionTableCardCache : public ModUnionTable {
   ClearedCards cleared_cards_;
 };
 
-template <typename Implementation>
-class ModUnionTableToZygoteAllocspace : public Implementation {
-public:
-  ModUnionTableToZygoteAllocspace(Heap* heap) : Implementation(heap) {
-  }
-
-  bool AddReference(const Object* /* obj */, const Object* ref) {
-    const Spaces& spaces = Implementation::GetHeap()->GetSpaces();
-    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-      if ((*it)->Contains(ref)) {
-        return (*it)->IsAllocSpace();
-      }
-    }
-    // Assume it points to a large object.
-    // TODO: Check.
-    return true;
-  }
-};
-
-template <typename Implementation>
-class ModUnionTableToAllocspace : public Implementation {
-public:
-  ModUnionTableToAllocspace(Heap* heap) : Implementation(heap) {
-  }
-
-  bool AddReference(const Object* /* obj */, const Object* ref) {
-    const Spaces& spaces = Implementation::GetHeap()->GetSpaces();
-    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-      if ((*it)->Contains(ref)) {
-        return (*it)->GetGcRetentionPolicy() == kGcRetentionPolicyAlwaysCollect;
-      }
-    }
-    // Assume it points to a large object.
-    // TODO: Check.
-    return true;
-  }
-};
-
 }  // namespace art
 
-#endif  // ART_SRC_MOD_UNION_TABLE_H_
+#endif  // ART_SRC_GC_MOD_UNION_TABLE_H_

@@ -22,11 +22,12 @@
 #include <stdint.h>
 
 namespace art {
-
+namespace mirror {
 class ClassLoader;
+class DexCache;
+}  // namespace mirror
 class ClassLinker;
 class DexFile;
-class DexCache;
 
 class OatCompilationUnit {
  public:

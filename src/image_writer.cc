@@ -23,25 +23,33 @@
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "class_loader.h"
 #include "compiled_method.h"
 #include "compiler.h"
-#include "dex_cache.h"
+#include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
 #include "globals.h"
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
+#include "mirror/array-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
+#include "mirror/field-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "oat.h"
 #include "oat_file.h"
-#include "object.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "UniquePtr.h"
 #include "utils.h"
+
+using namespace art::mirror;
 
 namespace art {
 
@@ -442,7 +450,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
-  copy->monitor_ = 0; // We may have inflated the lock during compilation.
+  copy->SetField32(Object::MonitorOffset(), 0, false); // We may have inflated the lock during compilation.
   image_writer->FixupObject(obj, copy);
 }
 
@@ -476,13 +484,13 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   // Every type of method can have an invoke stub
   uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();
   const byte* invoke_stub = GetOatAddress(invoke_stub_offset);
-  copy->invoke_stub_ = reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(invoke_stub));
+  copy->SetInvokeStub(reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(invoke_stub)));
 
   if (orig->IsAbstract()) {
     // Abstract methods are pointed to a stub that will throw AbstractMethodError if they are called
     ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
     ByteArray* copy_ame_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_ame_stub_array_));
-    copy->code_ = copy_ame_stub_array_->GetData();
+    copy->SetCode(copy_ame_stub_array_->GetData());
     return;
   }
 
@@ -492,7 +500,7 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
         Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod);
     CHECK(orig->GetCode() == orig_res_stub_array_->GetData());
     ByteArray* copy_res_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array_));
-    copy->code_ = copy_res_stub_array_->GetData();
+    copy->SetCode(copy_res_stub_array_->GetData());
     return;
   }
 
@@ -511,27 +519,27 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   if (code == NULL) {
     code = GetOatAddress(code_offset);
   }
-  copy->code_ = code;
+  copy->SetCode(code);
 
   if (orig->IsNative()) {
     // The native method's pointer is directed to a stub to lookup via dlsym.
     // Note this is not the code_ pointer, that is handled above.
     ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniDlsymLookupStub();
     ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
-    copy->native_method_ = copy_jni_stub_array_->GetData();
+    copy->SetNativeMethod(copy_jni_stub_array_->GetData());
   } else {
     // normal (non-abstract non-native) methods have mapping tables to relocate
     uint32_t mapping_table_off = orig->GetOatMappingTableOffset();
     const byte* mapping_table = GetOatAddress(mapping_table_off);
-    copy->mapping_table_ = reinterpret_cast<const uint32_t*>(mapping_table);
+    copy->SetMappingTable(reinterpret_cast<const uint32_t*>(mapping_table));
 
     uint32_t vmap_table_offset = orig->GetOatVmapTableOffset();
     const byte* vmap_table = GetOatAddress(vmap_table_offset);
-    copy->vmap_table_ = reinterpret_cast<const uint16_t*>(vmap_table);
+    copy->SetVmapTable(reinterpret_cast<const uint16_t*>(vmap_table));
 
     uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
     const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
-    copy->native_gc_map_ = reinterpret_cast<const uint8_t*>(native_gc_map);
+    copy->SetNativeGcMap(reinterpret_cast<const uint8_t*>(native_gc_map));
   }
 }
 

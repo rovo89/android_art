@@ -21,7 +21,9 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "class_loader.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/array.h"
+#include "mirror/class_loader.h"
 #include "os.h"
 #include "output_stream.h"
 #include "safe_map.h"
@@ -134,13 +136,13 @@ size_t OatWriter::InitOatClasses(size_t offset) {
 
       Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
       CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
-      Class::Status status;
+      mirror::Class::Status status;
       if (compiled_class != NULL) {
         status = compiled_class->GetStatus();
       } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
-        status = Class::kStatusError;
+        status = mirror::Class::kStatusError;
       } else {
-        status = Class::kStatusNotReady;
+        status = mirror::Class::kStatusNotReady;
       }
 
       OatClass* oat_class = new OatClass(status, num_methods);
@@ -307,16 +309,18 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     // We expect GC maps except when the class hasn't been verified or the method is native
     Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
     CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
-    Class::Status status;
+    mirror::Class::Status status;
     if (compiled_class != NULL) {
       status = compiled_class->GetStatus();
     } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
-      status = Class::kStatusError;
+      status = mirror::Class::kStatusError;
     } else {
-      status = Class::kStatusNotReady;
+      status = mirror::Class::kStatusNotReady;
     }
-    CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
-        << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " " << (status < Class::kStatusVerified) << " " << status << " " << PrettyMethod(method_idx, *dex_file);
+    CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
+        << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
+        << (status < mirror::Class::kStatusVerified) << " " << status << " "
+        << PrettyMethod(method_idx, *dex_file);
 #endif
 
     // Deduplicate GC maps
@@ -396,11 +400,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
   if (compiler_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
-    DexCache* dex_cache = linker->FindDexCache(*dex_file);
+    mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
-                                                   NULL, NULL, type);
+    mirror::AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
+                                                           NULL, NULL, type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);
@@ -836,7 +840,7 @@ bool OatWriter::OatDexFile::Write(OutputStream& out) const {
   return true;
 }
 
-OatWriter::OatClass::OatClass(Class::Status status, uint32_t methods_count) {
+OatWriter::OatClass::OatClass(mirror::Class::Status status, uint32_t methods_count) {
   status_ = status;
   method_offsets_.resize(methods_count);
 }

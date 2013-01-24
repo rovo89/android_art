@@ -22,6 +22,7 @@
 
 #include "base/mutex.h"
 #include "debugger.h"
+#include "thread.h"
 #include "timing_logger.h"
 #include "utils.h"
 
@@ -579,14 +580,14 @@ void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
   }
 }
 
-void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+void ThreadList::VisitRoots(RootVisitor* visitor, void* arg) const {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VisitRoots(visitor, arg);
   }
 }
 
-void ThreadList::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) const {
+void ThreadList::VerifyRoots(VerifyRootVisitor* visitor, void* arg) const {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->VerifyRoots(visitor, arg);

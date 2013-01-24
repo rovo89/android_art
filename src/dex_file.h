@@ -29,10 +29,16 @@
 #include "modifiers.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
-#include "utils.h"
 
 namespace art {
 
+namespace mirror {
+class AbstractMethod;
+class ClassLoader;
+class DexCache;
+class Field;
+}  // namespace mirror
+class ClassLinker;
 class ZipArchive;
 
 // TODO: move all of the macro functionality into the DexCache class.
@@ -675,11 +681,7 @@ class DexFile {
     }
   }
 
-  static const TryItem* GetTryItems(const CodeItem& code_item, uint32_t offset) {
-    const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
-    return reinterpret_cast<const TryItem*>
-        (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
-  }
+  static const TryItem* GetTryItems(const CodeItem& code_item, uint32_t offset);
 
   // Get the base of the encoded data for the given DexCode.
   static const byte* GetCatchHandlerData(const CodeItem& code_item, uint32_t offset) {
@@ -775,7 +777,7 @@ class DexFile {
   // Returns -2 for native methods (as expected in exception traces).
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(const AbstractMethod* method, uint32_t rel_pc) const
+  int32_t GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t rel_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -790,13 +792,7 @@ class DexFile {
     }
   }
 
-  int GetPermissions() const {
-    if (mem_map_.get() == NULL) {
-      return 0;
-    } else {
-      return mem_map_->GetProtect();
-    }
-  }
+  int GetPermissions() const;
 
  private:
   // Opens a .dex file
@@ -811,13 +807,7 @@ class DexFile {
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,
                                    uint32_t location_checksum,
-                                   MemMap* mem_map) {
-    return OpenMemory(mem_map->Begin(),
-                      mem_map->Size(),
-                      location,
-                      location_checksum,
-                      mem_map);
-  }
+                                   MemMap* mem_map);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
   static const DexFile* OpenMemory(const byte* dex_file,
@@ -1116,19 +1106,14 @@ class ClassDataItemIterator {
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassDataItemIterator);
 };
 
-class ClassLinker;
-class ClassLoader;
-class DexCache;
-class Field;
-
 class EncodedStaticFieldValueIterator {
  public:
-  EncodedStaticFieldValueIterator(const DexFile& dex_file, DexCache* dex_cache, ClassLoader* class_loader,
+  EncodedStaticFieldValueIterator(const DexFile& dex_file, mirror::DexCache* dex_cache,
+                                  mirror::ClassLoader* class_loader,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ReadValueToField(Field* field) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ReadValueToField(mirror::Field* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 
@@ -1158,14 +1143,14 @@ class EncodedStaticFieldValueIterator {
   static const byte kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
-  DexCache* dex_cache_;  // dex cache to resolve literal objects
-  ClassLoader* class_loader_;  // ClassLoader to resolve types
-  ClassLinker* linker_;  // linker to resolve literal objects
-  size_t array_size_;  // size of array
-  size_t pos_;  // current position
-  const byte* ptr_;  // pointer into encoded data array
-  ValueType type_;  // type of current encoded value
-  jvalue jval_;  // value of current encoded value
+  mirror::DexCache* dex_cache_;  // Dex cache to resolve literal objects.
+  mirror::ClassLoader* class_loader_;  // ClassLoader to resolve types.
+  ClassLinker* linker_;  // Linker to resolve literal objects.
+  size_t array_size_;  // Size of array.
+  size_t pos_;  // Current position.
+  const byte* ptr_;  // Pointer into encoded data array.
+  ValueType type_;  // Type of current encoded value.
+  jvalue jval_;  // Value of current encoded value.
   DISALLOW_IMPLICIT_CONSTRUCTORS(EncodedStaticFieldValueIterator);
 };
 std::ostream& operator<<(std::ostream& os, const EncodedStaticFieldValueIterator::ValueType& code);

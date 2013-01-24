@@ -16,7 +16,8 @@
 
 #include "callee_save_frame.h"
 #include "interpreter/interpreter.h"
-#include "object.h"  // for JValue
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "stack.h"
 #include "thread.h"
@@ -24,7 +25,7 @@
 
 namespace art {
 
-extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, AbstractMethod** sp)
+extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   // Return value may hold Object* so avoid suspension.
@@ -36,7 +37,7 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, AbstractMethod**
         : StackVisitor(thread, context), shadow_frame_(NULL), runtime_frames_(0) { }
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      AbstractMethod* m = GetMethod();
+      mirror::AbstractMethod* m = GetMethod();
       if (m->IsRuntimeMethod()) {
         if (runtime_frames_ == 0) {
           runtime_frames_++;
@@ -84,7 +85,7 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, AbstractMethod**
 }
 
 
-extern "C" JValue artEnterInterpreterFromDeoptimize(Thread* self, AbstractMethod** sp)
+extern "C" JValue artEnterInterpreterFromDeoptimize(Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   JValue return_value;

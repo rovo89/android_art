@@ -40,9 +40,9 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   CHECK_LE(initialCount, maxCount);
   CHECK_NE(desiredKind, kSirtOrInvalid);
 
-  table_ = reinterpret_cast<const Object**>(malloc(initialCount * sizeof(const Object*)));
+  table_ = reinterpret_cast<const mirror::Object**>(malloc(initialCount * sizeof(const mirror::Object*)));
   CHECK(table_ != NULL);
-  memset(table_, 0xd1, initialCount * sizeof(const Object*));
+  memset(table_, 0xd1, initialCount * sizeof(const mirror::Object*));
 
   slot_data_ = reinterpret_cast<IndirectRefSlot*>(calloc(initialCount, sizeof(IndirectRefSlot)));
   CHECK(slot_data_ != NULL);
@@ -63,7 +63,7 @@ IndirectReferenceTable::~IndirectReferenceTable() {
 
 // Make sure that the entry at "idx" is correctly paired with "iref".
 bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
-  const Object* obj = table_[idx];
+  const mirror::Object* obj = table_[idx];
   IndirectRef checkRef = ToIndirectRef(obj, idx);
   if (checkRef != iref) {
     LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
@@ -75,7 +75,7 @@ bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int 
   return true;
 }
 
-IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
+IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const mirror::Object* obj) {
   IRTSegmentState prevState;
   prevState.all = cookie;
   size_t topIndex = segment_state_.parts.topIndex;
@@ -101,7 +101,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     }
     DCHECK_GT(newSize, alloc_entries_);
 
-    table_ = reinterpret_cast<const Object**>(realloc(table_, newSize * sizeof(const Object*)));
+    table_ = reinterpret_cast<const mirror::Object**>(realloc(table_, newSize * sizeof(const mirror::Object*)));
     slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_,
                                                             newSize * sizeof(IndirectRefSlot)));
     if (table_ == NULL || slot_data_ == NULL) {
@@ -126,7 +126,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
     // Find the first hole; likely to be near the end of the list.
-    const Object** pScan = &table_[topIndex - 1];
+    const mirror::Object** pScan = &table_[topIndex - 1];
     DCHECK(*pScan != NULL);
     while (*--pScan != NULL) {
       DCHECK_GE(pScan, table_ + prevState.parts.topIndex);
@@ -194,7 +194,7 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   return true;
 }
 
-static int Find(Object* direct_pointer, int bottomIndex, int topIndex, const Object** table) {
+static int Find(mirror::Object* direct_pointer, int bottomIndex, int topIndex, const mirror::Object** table) {
   for (int i = bottomIndex; i < topIndex; ++i) {
     if (table[i] == direct_pointer) {
       return i;
@@ -203,7 +203,7 @@ static int Find(Object* direct_pointer, int bottomIndex, int topIndex, const Obj
   return -1;
 }
 
-bool IndirectReferenceTable::ContainsDirectPointer(Object* direct_pointer) const {
+bool IndirectReferenceTable::ContainsDirectPointer(mirror::Object* direct_pointer) const {
   return Find(direct_pointer, 0, segment_state_.parts.topIndex, table_) != -1;
 }
 
@@ -234,7 +234,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     return true;
   }
   if (GetIndirectRefKind(iref) == kSirtOrInvalid && vm->work_around_app_jni_bugs) {
-    Object* direct_pointer = reinterpret_cast<Object*>(iref);
+    mirror::Object* direct_pointer = reinterpret_cast<mirror::Object*>(iref);
     idx = Find(direct_pointer, bottomIndex, topIndex, table_);
     if (idx == -1) {
       LOG(WARNING) << "trying to work around app JNI bugs, but didn't find " << iref << " in table!";
@@ -308,7 +308,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   return true;
 }
 
-void IndirectReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
   typedef IndirectReferenceTable::iterator It; // TODO: C++0x auto
   for (It it = begin(), end = this->end(); it != end; ++it) {
     visitor(**it, arg);
@@ -317,7 +317,7 @@ void IndirectReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 
 void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
-  std::vector<const Object*> entries(table_, table_ + Capacity());
+  std::vector<const mirror::Object*> entries(table_, table_ + Capacity());
   // Remove NULLs.
   for (int i = entries.size() - 1; i >= 0; --i) {
     if (entries[i] == NULL) {

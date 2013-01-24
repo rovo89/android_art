@@ -18,8 +18,14 @@
 
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
-
-#include "object.h"
+#include "mirror/array.h"
+#include "mirror/array-inl.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/string.h"
+#include "thread.h"
+#include "utils.h"
 
 namespace art {
 
@@ -32,7 +38,7 @@ ReferenceTable::ReferenceTable(const char* name, size_t initial_size, size_t max
 ReferenceTable::~ReferenceTable() {
 }
 
-void ReferenceTable::Add(const Object* obj) {
+void ReferenceTable::Add(const mirror::Object* obj) {
   DCHECK(obj != NULL);
   if (entries_.size() == max_size_) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
@@ -41,7 +47,7 @@ void ReferenceTable::Add(const Object* obj) {
   entries_.push_back(obj);
 }
 
-void ReferenceTable::Remove(const Object* obj) {
+void ReferenceTable::Remove(const mirror::Object* obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
     if (entries_[i] == obj) {
@@ -53,7 +59,7 @@ void ReferenceTable::Remove(const Object* obj) {
 
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
-static size_t GetElementCount(const Object* obj) {
+static size_t GetElementCount(const mirror::Object* obj) {
   if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArrayInstance()) {
     return 0;
   }
@@ -61,7 +67,7 @@ static size_t GetElementCount(const Object* obj) {
 }
 
 struct ObjectComparator {
-  bool operator()(const Object* obj1, const Object* obj2)
+  bool operator()(const mirror::Object* obj1, const mirror::Object* obj2)
     // TODO: enable analysis when analysis can work with the STL.
       NO_THREAD_SAFETY_ANALYSIS {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -99,7 +105,7 @@ struct ObjectComparator {
 // Pass in the number of elements in the array (or 0 if this is not an
 // array object), and the number of additional objects that are identical
 // or equivalent to the original.
-static void DumpSummaryLine(std::ostream& os, const Object* obj, size_t element_count,
+static void DumpSummaryLine(std::ostream& os, const mirror::Object* obj, size_t element_count,
                             int identical, int equiv)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (obj == NULL) {
@@ -153,7 +159,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   }
   os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   for (int idx = count - 1; idx >= first; --idx) {
-    const Object* ref = entries[idx];
+    const mirror::Object* ref = entries[idx];
     if (ref == NULL) {
       continue;
     }
@@ -175,7 +181,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
     if (element_count != 0) {
       StringAppendF(&extras, " (%zd elements)", element_count);
     } else if (ref->GetClass()->IsStringClass()) {
-      String* s = const_cast<Object*>(ref)->AsString();
+      mirror::String* s = const_cast<mirror::Object*>(ref)->AsString();
       std::string utf8(s->ToModifiedUtf8());
       if (s->GetLength() <= 16) {
         StringAppendF(&extras, " \"%s\"", utf8.c_str());
@@ -206,8 +212,8 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   size_t equiv = 0;
   size_t identical = 0;
   for (size_t idx = 1; idx < count; idx++) {
-    const Object* prev = sorted_entries[idx-1];
-    const Object* current = sorted_entries[idx];
+    const mirror::Object* prev = sorted_entries[idx-1];
+    const mirror::Object* current = sorted_entries[idx];
     size_t element_count = GetElementCount(prev);
     if (current == prev) {
       // Same reference, added more than once.
@@ -225,7 +231,7 @@ void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   DumpSummaryLine(os, sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
 }
 
-void ReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void ReferenceTable::VisitRoots(RootVisitor* visitor, void* arg) {
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = entries_.begin(), end = entries_.end(); it != end; ++it) {
     visitor(*it, arg);

@@ -17,7 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
 #define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
 
-#include "object.h"
+#include "mirror/object.h"
 
 namespace art {
 

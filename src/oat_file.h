@@ -20,8 +20,11 @@
 #include <string>
 #include <vector>
 
-#include "globals.h"
-#include "object.h"
+#include "dex_file.h"
+#include "invoke_type.h"
+#include "mem_map.h"
+#include "mirror/abstract_method.h"
+#include "oat.h"
 #include "os.h"
 
 namespace art {
@@ -65,10 +68,10 @@ class OatFile {
   class OatMethod {
    public:
     // Link Method for execution using the contents of this OatMethod
-    void LinkMethodPointers(AbstractMethod* method) const;
+    void LinkMethodPointers(mirror::AbstractMethod* method) const;
 
     // Link Method for image writing using the contents of this OatMethod
-    void LinkMethodOffsets(AbstractMethod* method) const;
+    void LinkMethodOffsets(mirror::AbstractMethod* method) const;
 
     uint32_t GetCodeOffset() const {
       return code_offset_;
@@ -108,7 +111,7 @@ class OatFile {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
     }
 
-    AbstractMethod::InvokeStub* GetInvokeStub() const;
+    mirror::AbstractMethod::InvokeStub* GetInvokeStub() const;
     uint32_t GetInvokeStubSize() const;
 
 #if defined(ART_USE_LLVM_COMPILER)
@@ -161,7 +164,7 @@ class OatFile {
 
   class OatClass {
    public:
-    Class::Status GetStatus() const;
+    mirror::Class::Status GetStatus() const;
 
     // get the OatMethod entry based on its index into the class
     // defintion. direct methods come first, followed by virtual
@@ -172,11 +175,11 @@ class OatFile {
 
    private:
     OatClass(const OatFile* oat_file,
-             Class::Status status,
+             mirror::Class::Status status,
              const OatMethodOffsets* methods_pointer);
 
     const OatFile* oat_file_;
-    const Class::Status status_;
+    const mirror::Class::Status status_;
     const OatMethodOffsets* methods_pointer_;
 
     friend class OatDexFile;

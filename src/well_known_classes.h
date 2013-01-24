@@ -21,8 +21,9 @@
 #include "jni.h"
 
 namespace art {
-
+namespace mirror {
 class Class;
+}  // namespace mirror
 
 // Various classes used in JNI. We cache them so we don't have to keep looking
 // them up. Similar to libcore's JniConstants (except there's no overlap, so
@@ -33,7 +34,7 @@ struct WellKnownClasses {
   static void Init(JNIEnv* env);  // Run before native methods are registered.
   static void LateInit(JNIEnv* env);  // Run after native methods are registered.
 
-  static Class* ToClass(jclass global_jclass)
+  static mirror::Class* ToClass(jclass global_jclass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static jclass com_android_dex_Dex;

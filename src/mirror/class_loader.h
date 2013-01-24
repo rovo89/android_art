@@ -20,9 +20,13 @@
 #include <vector>
 
 #include "dex_file.h"
-#include "object.h"
+#include "mirror/object.h"
 
 namespace art {
+
+struct ClassLoaderOffsets;
+
+namespace mirror {
 
 // C++ mirror of java.lang.ClassLoader
 class MANAGED ClassLoader : public Object {
@@ -32,10 +36,11 @@ class MANAGED ClassLoader : public Object {
   ClassLoader* parent_;
   Object* proxyCache_;
 
-  friend struct ClassLoaderOffsets;  // for verifying offset information
+  friend struct art::ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
+}  // namespace mirror
 }  // namespace art
 
 #endif  // ART_SRC_CLASS_LOADER_H_

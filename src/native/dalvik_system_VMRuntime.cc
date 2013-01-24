@@ -19,7 +19,8 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "gc/space.h"
@@ -52,7 +53,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   UNIMPLEMENTED(FATAL);
 #endif
 
-  Class* element_class = soa.Decode<Class*>(javaElementClass);
+  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (element_class == NULL) {
     soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
     return NULL;
@@ -66,8 +67,8 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   std::string descriptor;
   descriptor += "[";
   descriptor += ClassHelper(element_class).GetDescriptor();
-  Class* array_class = class_linker->FindClass(descriptor.c_str(), NULL);
-  Array* result = Array::Alloc(soa.Self(), array_class, length);
+  mirror::Class* array_class = class_linker->FindClass(descriptor.c_str(), NULL);
+  mirror::Array* result = mirror::Array::Alloc(soa.Self(), array_class, length);
   if (result == NULL) {
     return NULL;
   }
@@ -79,7 +80,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     return 0;
   }
   ScopedObjectAccess soa(env);
-  Array* array = soa.Decode<Array*>(javaArray);
+  mirror::Array* array = soa.Decode<mirror::Array*>(javaArray);
   if (!array->IsArrayInstance()) {
     soa.Self()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
     return 0;

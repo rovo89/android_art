@@ -17,11 +17,9 @@
 #ifndef ART_SRC_STACK_H_
 #define ART_SRC_STACK_H_
 
-#include "base/macros.h"
 #include "dex_file.h"
-#include "heap.h"
 #include "instrumentation.h"
-#include "jni.h"
+#include "base/macros.h"
 #include "oat/runtime/context.h"
 
 #include <stdint.h>
@@ -29,9 +27,12 @@
 
 namespace art {
 
+namespace mirror {
 class AbstractMethod;
-class Context;
 class Object;
+}  // namespace mirror
+
+class Context;
 class ShadowFrame;
 class StackIndirectReferenceTable;
 class ScopedObjectAccess;
@@ -59,10 +60,10 @@ class ShadowFrame {
  public:
   // Create ShadowFrame for interpreter.
   static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
-                             AbstractMethod* method, uint32_t dex_pc) {
+                             mirror::AbstractMethod* method, uint32_t dex_pc) {
     size_t sz = sizeof(ShadowFrame) +
                 (sizeof(uint32_t) * num_vregs) +
-                (sizeof(Object*) * num_vregs);
+                (sizeof(mirror::Object*) * num_vregs);
     uint8_t* memory = new uint8_t[sz];
     ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
     return sf;
@@ -121,13 +122,13 @@ class ShadowFrame {
     return *reinterpret_cast<const double*>(vreg);
   }
 
-  Object* GetVRegReference(size_t i) const {
+  mirror::Object* GetVRegReference(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     if (HasReferenceArray()) {
       return References()[i];
     } else {
       const uint32_t* vreg = &vregs_[i];
-      return *reinterpret_cast<Object* const*>(vreg);
+      return *reinterpret_cast<mirror::Object* const*>(vreg);
     }
   }
 
@@ -153,26 +154,26 @@ class ShadowFrame {
     *reinterpret_cast<double*>(vreg) = val;
   }
 
-  void SetVRegReference(size_t i, Object* val) {
+  void SetVRegReference(size_t i, mirror::Object* val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
-    *reinterpret_cast<Object**>(vreg) = val;
+    *reinterpret_cast<mirror::Object**>(vreg) = val;
     if (HasReferenceArray()) {
       References()[i] = val;
     }
   }
 
-  AbstractMethod* GetMethod() const {
+  mirror::AbstractMethod* GetMethod() const {
     DCHECK_NE(method_, static_cast<void*>(NULL));
     return method_;
   }
 
-  void SetMethod(AbstractMethod* method) {
+  void SetMethod(mirror::AbstractMethod* method) {
     DCHECK_NE(method, static_cast<void*>(NULL));
     method_ = method;
   }
 
-  bool Contains(Object** shadow_frame_entry_obj) const {
+  bool Contains(mirror::Object** shadow_frame_entry_obj) const {
     if (HasReferenceArray()) {
       return ((&References()[0] <= shadow_frame_entry_obj) &&
               (shadow_frame_entry_obj <= (&References()[NumberOfVRegs() - 1])));
@@ -204,8 +205,8 @@ class ShadowFrame {
   }
 
  private:
-  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, AbstractMethod* method, uint32_t dex_pc,
-              bool has_reference_array)
+  ShadowFrame(uint32_t num_vregs, ShadowFrame* link, mirror::AbstractMethod* method,
+              uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
     CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
     if (has_reference_array) {
@@ -220,14 +221,14 @@ class ShadowFrame {
     }
   }
 
-  Object* const* References() const {
+  mirror::Object* const* References() const {
     DCHECK(HasReferenceArray());
     const uint32_t* vreg_end = &vregs_[NumberOfVRegs()];
-    return reinterpret_cast<Object* const*>(vreg_end);
+    return reinterpret_cast<mirror::Object* const*>(vreg_end);
   }
 
-  Object** References() {
-    return const_cast<Object**>(const_cast<const ShadowFrame*>(this)->References());
+  mirror::Object** References() {
+    return const_cast<mirror::Object**>(const_cast<const ShadowFrame*>(this)->References());
   }
 
   enum ShadowFrameFlag {
@@ -237,7 +238,7 @@ class ShadowFrame {
   uint32_t number_of_vregs_;
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
-  AbstractMethod* method_;
+  mirror::AbstractMethod* method_;
   uint32_t dex_pc_;
   uint32_t vregs_[0];
 
@@ -272,11 +273,11 @@ class PACKED(4) ManagedStack {
     return link_;
   }
 
-  AbstractMethod** GetTopQuickFrame() const {
+  mirror::AbstractMethod** GetTopQuickFrame() const {
     return top_quick_frame_;
   }
 
-  void SetTopQuickFrame(AbstractMethod** top) {
+  void SetTopQuickFrame(mirror::AbstractMethod** top) {
     top_quick_frame_ = top;
   }
 
@@ -320,12 +321,12 @@ class PACKED(4) ManagedStack {
 
   size_t NumJniShadowFrameReferences() const;
 
-  bool ShadowFramesContain(Object** shadow_frame_entry) const;
+  bool ShadowFramesContain(mirror::Object** shadow_frame_entry) const;
 
  private:
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  AbstractMethod** top_quick_frame_;
+  mirror::AbstractMethod** top_quick_frame_;
   uintptr_t top_quick_frame_pc_;
 };
 
@@ -342,7 +343,7 @@ class StackVisitor {
   void WalkStack(bool include_transitions = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* GetMethod() const {
+  mirror::AbstractMethod* GetMethod() const {
     if (cur_shadow_frame_ != NULL) {
       return cur_shadow_frame_->GetMethod();
     } else if (cur_quick_frame_ != NULL) {
@@ -388,16 +389,16 @@ class StackVisitor {
     return num_frames_;
   }
 
-  uint32_t GetVReg(AbstractMethod* m, uint16_t vreg, VRegKind kind) const
+  uint32_t GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKind kind) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVReg(AbstractMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+  void SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t GetGPR(uint32_t reg) const;
   void SetGPR(uint32_t reg, uintptr_t value);
 
-  uint32_t GetVReg(AbstractMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
+  uint32_t GetVReg(mirror::AbstractMethod** cur_quick_frame, const DexFile::CodeItem* code_item,
                    uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
                    uint16_t vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
@@ -471,7 +472,7 @@ class StackVisitor {
     return cur_quick_frame_pc_;
   }
 
-  AbstractMethod** GetCurrentQuickFrame() const {
+  mirror::AbstractMethod** GetCurrentQuickFrame() const {
     return cur_quick_frame_;
   }
 
@@ -480,7 +481,7 @@ class StackVisitor {
   }
 
   StackIndirectReferenceTable* GetCurrentSirt() const {
-    AbstractMethod** sp = GetCurrentQuickFrame();
+    mirror::AbstractMethod** sp = GetCurrentQuickFrame();
     ++sp; // Skip Method*; SIRT comes next;
     return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
@@ -499,7 +500,7 @@ class StackVisitor {
 
   Thread* const thread_;
   ShadowFrame* cur_shadow_frame_;
-  AbstractMethod** cur_quick_frame_;
+  mirror::AbstractMethod** cur_quick_frame_;
   uintptr_t cur_quick_frame_pc_;
   // Lazily computed, number of frames in the stack.
   size_t num_frames_;

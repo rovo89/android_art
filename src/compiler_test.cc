@@ -22,10 +22,13 @@
 #include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
-#include "dex_cache.h"
 #include "dex_file.h"
 #include "heap.h"
-#include "object.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
 
 namespace art {
 
@@ -69,7 +72,7 @@ class CompilerTest : public CommonTest {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
       const char* descriptor = dex_file.GetClassDescriptor(class_def);
       ScopedObjectAccess soa(Thread::Current());
-      Class* c = class_linker->FindClass(descriptor, soa.Decode<ClassLoader*>(class_loader));
+      mirror::Class* c = class_linker->FindClass(descriptor, soa.Decode<mirror::ClassLoader*>(class_loader));
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
         MakeExecutable(c->GetDirectMethod(i));
@@ -92,21 +95,21 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   // All libcore references should resolve
   ScopedObjectAccess soa(Thread::Current());
   const DexFile* dex = java_lang_dex_file_;
-  DexCache* dex_cache = class_linker_->FindDexCache(*dex);
+  mirror::DexCache* dex_cache = class_linker_->FindDexCache(*dex);
   EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
   for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
-    const String* string = dex_cache->GetResolvedString(i);
+    const mirror::String* string = dex_cache->GetResolvedString(i);
     EXPECT_TRUE(string != NULL) << "string_idx=" << i;
   }
   EXPECT_EQ(dex->NumTypeIds(), dex_cache->NumResolvedTypes());
   for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-    Class* type = dex_cache->GetResolvedType(i);
+    mirror::Class* type = dex_cache->GetResolvedType(i);
     EXPECT_TRUE(type != NULL) << "type_idx=" << i
                               << " " << dex->GetTypeDescriptor(dex->GetTypeId(i));
   }
   EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumResolvedMethods());
   for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-    AbstractMethod* method = dex_cache->GetResolvedMethod(i);
+    mirror::AbstractMethod* method = dex_cache->GetResolvedMethod(i);
     EXPECT_TRUE(method != NULL) << "method_idx=" << i
                                 << " " << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                 << " " << dex->GetMethodName(dex->GetMethodId(i));
@@ -117,7 +120,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-    Field* field = dex_cache->GetResolvedField(i);
+    mirror::Field* field = dex_cache->GetResolvedField(i);
     EXPECT_TRUE(field != NULL) << "field_idx=" << i
                                << " " << dex->GetFieldDeclaringClassDescriptor(dex->GetFieldId(i))
                                << " " << dex->GetFieldName(dex->GetFieldId(i));

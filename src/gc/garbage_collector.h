@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_GARBAGE_COLLECTR_H_
-#define ART_SRC_GC_GARBAGE_COLLECTR_H_
+#ifndef ART_SRC_GC_GARBAGE_COLLECTOR_H_
+#define ART_SRC_GC_GARBAGE_COLLECTOR_H_
 
 #include "locks.h"
-#include "utils.h"
+
+#include <stdint.h>
+#include <vector>
 
 namespace art {
 
@@ -56,7 +58,7 @@ class GarbageCollector {
   void RegisterPause(uint64_t nano_length);
 
  protected:
-  // The initial phase. Done with mutators upaused.
+  // The initial phase. Done without mutators paused.
   virtual void InitializePhase() = 0;
 
   // Mark all reachable objects, done concurrently.
@@ -68,7 +70,7 @@ class GarbageCollector {
   // Called with mutators running.
   virtual void ReclaimPhase() = 0;
 
-  // Called after the GC is finished. Done with mutators upaused.
+  // Called after the GC is finished. Done without mutators paused.
   virtual void FinishPhase() = 0;
 
   Heap* heap_;
@@ -78,4 +80,4 @@ class GarbageCollector {
 
 }  // namespace art
 
-#endif  // ART_SRC_GC_GARBAGE_COLLECTR_H_
+#endif  // ART_SRC_GC_GARBAGE_COLLECTOR_H_

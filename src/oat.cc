@@ -15,6 +15,7 @@
  */
 
 #include "oat.h"
+#include "utils.h"
 
 #include <zlib.h>
 

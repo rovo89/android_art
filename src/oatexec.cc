@@ -23,7 +23,7 @@
 
 #include "base/logging.h"
 #include "jni.h"
-#include "object.h"
+#include "modifiers.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"
 #include "UniquePtr.h"

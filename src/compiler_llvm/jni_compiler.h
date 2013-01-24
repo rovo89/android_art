@@ -21,14 +21,16 @@
 
 namespace art {
   class ClassLinker;
-  class ClassLoader;
   class CompiledMethod;
   class Compiler;
-  class DexCache;
   class DexFile;
-  class AbstractMethod;
   class OatCompilationUnit;
-}
+  namespace mirror {
+    class AbstractMethod;
+    class ClassLoader;
+    class DexCache;
+  }  // namespace mirror
+}  // namespace art
 
 namespace llvm {
   class AllocaInst;
@@ -39,7 +41,7 @@ namespace llvm {
   class Module;
   class Type;
   class Value;
-}
+}  // namespace llvm
 
 namespace art {
 namespace compiler_llvm {

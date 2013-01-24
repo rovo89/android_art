@@ -23,10 +23,11 @@
 #include "indirect_reference_table.h"
 #include "invoke_type.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/abstract_method.h"
+#include "mirror/array.h"
+#include "mirror/throwable.h"
 #include "object_utils.h"
 #include "thread.h"
-#include "verifier/method_verifier.h"
 
 extern "C" void art_interpreter_invoke_handler();
 extern "C" void art_proxy_invoke_handler();
@@ -40,21 +41,21 @@ extern "C" int64_t art_f2l(float f);
 extern "C" int32_t art_f2i(float f);
 
 namespace art {
-
-class Array;
+namespace mirror {
 class Class;
 class Field;
-class AbstractMethod;
 class Object;
+}
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* method, Thread* self,
-                                          bool access_check)
+static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+                                                  Thread* self,
+                                                  bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(klass == NULL)) {
     klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
@@ -69,7 +70,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* met
                               PrettyDescriptor(klass).c_str());
       return NULL;  // Failure
     }
-    Class* referrer = method->GetDeclaringClass();
+    mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
       return NULL;  // Failure
@@ -87,14 +88,15 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, AbstractMethod* met
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static inline Array* AllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
-                                        Thread* self, bool access_check)
+static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+                                                int32_t component_count,
+                                                Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
   }
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
@@ -104,17 +106,18 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, AbstractMethod* metho
     CHECK(klass->IsArrayClass()) << PrettyClass(klass);
   }
   if (access_check) {
-    Class* referrer = method->GetDeclaringClass();
+    mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
       return NULL;  // Failure
     }
   }
-  return Array::Alloc(self, klass, component_count);
+  return mirror::Array::Alloc(self, klass, component_count);
 }
 
-extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
-                                         Thread* self, bool access_check)
+extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+                                                 int32_t component_count,
+                                                 Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Type of find field operation for fast and slow case.
@@ -130,19 +133,21 @@ enum FindFieldType {
 };
 
 // Slow field find that can initialize classes and may throw exceptions.
-extern Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thread* self,
-                                FindFieldType type, size_t expected_size)
+extern mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
+                                        Thread* self, FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
-static inline Field* FindFieldFast(uint32_t field_idx, const AbstractMethod* referrer,
-                                   FindFieldType type, size_t expected_size)
+static inline mirror::Field* FindFieldFast(uint32_t field_idx,
+                                           const mirror::AbstractMethod* referrer,
+                                           FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
+  mirror::Field* resolved_field =
+      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
   }
-  Class* fields_class = resolved_field->GetDeclaringClass();
+  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   // Check class is initiliazed or initializing.
   if (UNLIKELY(!fields_class->IsInitializing())) {
     return NULL;
@@ -167,7 +172,7 @@ static inline Field* FindFieldFast(uint32_t field_idx, const AbstractMethod* ref
     // Incompatible class change.
     return NULL;
   }
-  Class* referring_class = referrer->GetDeclaringClass();
+  mirror::Class* referring_class = referrer->GetDeclaringClass();
   if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
                !referring_class->CanAccessMember(fields_class,
                                                  resolved_field->GetAccessFlags()) ||
@@ -184,14 +189,16 @@ static inline Field* FindFieldFast(uint32_t field_idx, const AbstractMethod* ref
 }
 
 // Fast path method resolution that can't throw exceptions.
-static inline AbstractMethod* FindMethodFast(uint32_t method_idx, Object* this_object,
-                                     const AbstractMethod* referrer, bool access_check, InvokeType type)
+static inline mirror::AbstractMethod* FindMethodFast(uint32_t method_idx,
+                                                     mirror::Object* this_object,
+                                                     const mirror::AbstractMethod* referrer,
+                                                     bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
   }
-  AbstractMethod* resolved_method =
+  mirror::AbstractMethod* resolved_method =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx);
   if (UNLIKELY(resolved_method == NULL)) {
     return NULL;
@@ -202,8 +209,8 @@ static inline AbstractMethod* FindMethodFast(uint32_t method_idx, Object* this_o
     if (UNLIKELY(icce)) {
       return NULL;
     }
-    Class* methods_class = resolved_method->GetDeclaringClass();
-    Class* referring_class = referrer->GetDeclaringClass();
+    mirror::Class* methods_class = resolved_method->GetDeclaringClass();
+    mirror::Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
                  !referring_class->CanAccessMember(methods_class,
                                                    resolved_method->GetAccessFlags()))) {
@@ -224,17 +231,20 @@ static inline AbstractMethod* FindMethodFast(uint32_t method_idx, Object* this_o
   }
 }
 
-extern AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, AbstractMethod* referrer,
-                                  Thread* self, bool access_check, InvokeType type)
+extern mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
+                                                  mirror::AbstractMethod* referrer,
+                                                  Thread* self, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* referrer, Thread* self,
-                                     bool can_run_clinit, bool verify_access)
+extern mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
+                                             const mirror::AbstractMethod* referrer, Thread* self,
+                                             bool can_run_clinit, bool verify_access)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline String* ResolveStringFromCode(const AbstractMethod* referrer, uint32_t string_idx)
+static inline mirror::String* ResolveStringFromCode(const mirror::AbstractMethod* referrer,
+                                                    uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
@@ -244,7 +254,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     UNLOCK_FUNCTION(monitor_lock_) {
   // Save any pending exception over monitor exit call.
-  Throwable* saved_exception = NULL;
+  mirror::Throwable* saved_exception = NULL;
   if (UNLIKELY(self->IsExceptionPending())) {
     saved_exception = self->GetException();
     self->ClearException();
@@ -263,7 +273,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
   }
 }
 
-static inline void CheckReferenceResult(Object* o, Thread* self)
+static inline void CheckReferenceResult(mirror::Object* o, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (o == NULL) {
     return;
@@ -273,9 +283,9 @@ static inline void CheckReferenceResult(Object* o, Thread* self)
               PrettyMethod(self->GetCurrentMethod()).c_str());
   }
   // Make sure that the result is an instance of the type this method was expected to return.
-  AbstractMethod* m = self->GetCurrentMethod();
+  mirror::AbstractMethod* m = self->GetCurrentMethod();
   MethodHelper mh(m);
-  Class* return_type = mh.GetReturnType();
+  mirror::Class* return_type = mh.GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
     JniAbortF(NULL, "attempt to return an instance of %s from %s",

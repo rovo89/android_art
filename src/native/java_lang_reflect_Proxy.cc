@@ -15,22 +15,28 @@
  */
 
 #include "class_linker.h"
-#include "class_loader.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/class_loader.h"
+#include "mirror/object_array.h"
+#include "mirror/string.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
 
-static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobjectArray javaInterfaces, jobject javaLoader, jobjectArray javaMethods, jobjectArray javaThrows) {
+static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName,
+                                  jobjectArray javaInterfaces, jobject javaLoader,
+                                  jobjectArray javaMethods, jobjectArray javaThrows) {
   ScopedObjectAccess soa(env);
-  String* name = soa.Decode<String*>(javaName);
-  ObjectArray<Class>* interfaces = soa.Decode<ObjectArray<Class>*>(javaInterfaces);
-  ClassLoader* loader = soa.Decode<ClassLoader*>(javaLoader);
-  ObjectArray<AbstractMethod>* methods = soa.Decode<ObjectArray<AbstractMethod>*>(javaMethods);
-  ObjectArray<ObjectArray<Class> >* throws = soa.Decode<ObjectArray<ObjectArray<Class> >*>(javaThrows);
+  mirror::String* name = soa.Decode<mirror::String*>(javaName);
+  mirror::ObjectArray<mirror::Class>* interfaces =
+      soa.Decode<mirror::ObjectArray<mirror::Class>*>(javaInterfaces);
+  mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+  mirror::ObjectArray<mirror::AbstractMethod>* methods =
+      soa.Decode<mirror::ObjectArray<mirror::AbstractMethod>*>(javaMethods);
+  mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >* throws =
+      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);
+  mirror::Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);
   return soa.AddLocalReference<jclass>(result);
 }
 

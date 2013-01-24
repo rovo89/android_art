@@ -565,16 +565,16 @@ void ArmCodegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, Re
                           RegLocation rl_index, RegLocation rl_dest, int scale)
 {
   RegisterClass reg_class = oat_reg_class_by_size(size);
-  int len_offset = Array::LengthOffset().Int32Value();
+  int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
   RegLocation rl_result;
   rl_array = LoadValue(cu, rl_array, kCoreReg);
   rl_index = LoadValue(cu, rl_index, kCoreReg);
 
   if (rl_dest.wide) {
-    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+    data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
-    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+    data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
   /* null object? */
@@ -637,13 +637,13 @@ void ArmCodegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, Re
                           RegLocation rl_index, RegLocation rl_src, int scale)
 {
   RegisterClass reg_class = oat_reg_class_by_size(size);
-  int len_offset = Array::LengthOffset().Int32Value();
+  int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
 
   if (size == kLong || size == kDouble) {
-    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+    data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
-    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+    data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
   rl_array = LoadValue(cu, rl_array, kCoreReg);
@@ -706,8 +706,8 @@ void ArmCodegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, Re
 void ArmCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale)
 {
-  int len_offset = Array::LengthOffset().Int32Value();
-  int data_offset = Array::DataOffset(sizeof(Object*)).Int32Value();
+  int len_offset = mirror::Array::LengthOffset().Int32Value();
+  int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
 
   FlushAllRegs(cu);  // Use explicit registers
   LockCallTemps(cu);
@@ -727,7 +727,7 @@ void ArmCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   LIR* null_value_check = OpCmpImmBranch(cu, kCondEq, r_value, 0, NULL);
 
   // Get the array's class.
-  LoadWordDisp(cu, r_array, Object::ClassOffset().Int32Value(), r_array_class);
+  LoadWordDisp(cu, r_array, mirror::Object::ClassOffset().Int32Value(), r_array_class);
   CallRuntimeHelperRegReg(cu, ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode), r_value,
                           r_array_class, true);
   // Redo LoadValues in case they didn't survive the call.

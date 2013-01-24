@@ -23,11 +23,13 @@
 #include <string>
 
 #include "base/logging.h"
-#include "heap.h"
+#include "offsets.h"
+#include "root_visitor.h"
 
 namespace art {
-
+namespace mirror {
 class Object;
+}  // namespace mirror
 
 /*
  * Maintain a table of indirect references.  Used for local/global JNI
@@ -98,8 +100,8 @@ class Object;
 typedef void* IndirectRef;
 
 // Magic failure values; must not pass Heap::ValidateObject() or Heap::IsHeapAddress().
-static Object* const kInvalidIndirectRefObject = reinterpret_cast<Object*>(0xdead4321);
-static Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead1234);
+static mirror::Object* const kInvalidIndirectRefObject = reinterpret_cast<mirror::Object*>(0xdead4321);
+static mirror::Object* const kClearedJniWeakGlobal = reinterpret_cast<mirror::Object*>(0xdead1234);
 
 /*
  * Indirect reference kind, used as the two low bits of IndirectRef.
@@ -128,7 +130,7 @@ static inline IndirectRefKind GetIndirectRefKind(IndirectRef iref) {
 static const size_t kIRTPrevCount = 4;
 struct IndirectRefSlot {
   uint32_t serial;
-  const Object* previous[kIRTPrevCount];
+  const mirror::Object* previous[kIRTPrevCount];
 };
 
 /* use as initial value for "cookie", and when table has only one segment */
@@ -204,7 +206,7 @@ union IRTSegmentState {
 
 class IrtIterator {
  public:
-  explicit IrtIterator(const Object** table, size_t i, size_t capacity)
+  explicit IrtIterator(const mirror::Object** table, size_t i, size_t capacity)
       : table_(table), i_(i), capacity_(capacity) {
     SkipNullsAndTombstones();
   }
@@ -215,7 +217,7 @@ class IrtIterator {
     return *this;
   }
 
-  const Object** operator*() {
+  const mirror::Object** operator*() {
     return &table_[i_];
   }
 
@@ -231,7 +233,7 @@ class IrtIterator {
     }
   }
 
-  const Object** table_;
+  const mirror::Object** table_;
   size_t i_;
   size_t capacity_;
 };
@@ -258,7 +260,7 @@ class IndirectReferenceTable {
    * Returns NULL if the table is full (max entries reached, or alloc
    * failed during expansion).
    */
-  IndirectRef Add(uint32_t cookie, const Object* obj)
+  IndirectRef Add(uint32_t cookie, const mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -266,7 +268,7 @@ class IndirectReferenceTable {
    *
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
-  const Object* Get(IndirectRef iref) const {
+  const mirror::Object* Get(IndirectRef iref) const {
     if (!GetChecked(iref)) {
       return kInvalidIndirectRefObject;
     }
@@ -274,7 +276,7 @@ class IndirectReferenceTable {
   }
 
   // TODO: remove when we remove work_around_app_jni_bugs support.
-  bool ContainsDirectPointer(Object* direct_pointer) const;
+  bool ContainsDirectPointer(mirror::Object* direct_pointer) const;
 
   /*
    * Remove an existing entry.
@@ -307,7 +309,7 @@ class IndirectReferenceTable {
     return iterator(table_, Capacity(), Capacity());
   }
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitRoots(RootVisitor* visitor, void* arg);
 
   uint32_t GetSegmentState() const {
     return segment_state_.all;
@@ -334,7 +336,7 @@ class IndirectReferenceTable {
    * The object pointer itself is subject to relocation in some GC
    * implementations, so we shouldn't really be using it here.
    */
-  IndirectRef ToIndirectRef(const Object* /*o*/, uint32_t tableIndex) const {
+  IndirectRef ToIndirectRef(const mirror::Object* /*o*/, uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
     uint32_t serialChunk = slot_data_[tableIndex].serial;
     uint32_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
@@ -347,7 +349,7 @@ class IndirectReferenceTable {
    * We advance the serial number, invalidating any outstanding references to
    * this slot.
    */
-  void UpdateSlotAdd(const Object* obj, int slot) {
+  void UpdateSlotAdd(const mirror::Object* obj, int slot) {
     if (slot_data_ != NULL) {
       IndirectRefSlot* pSlot = &slot_data_[slot];
       pSlot->serial++;
@@ -363,7 +365,7 @@ class IndirectReferenceTable {
   IRTSegmentState segment_state_;
 
   /* bottom of the stack */
-  const Object** table_;
+  const mirror::Object** table_;
   /* bit mask, ORed into all irefs */
   IndirectRefKind kind_;
   /* extended debugging info */

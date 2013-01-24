@@ -24,12 +24,10 @@
 #include "base/mutex.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
-#include "dex_cache.h"
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "oat_file.h"
-#include "object.h"
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
@@ -79,7 +77,7 @@ class Compiler {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
-  void CompileOne(const AbstractMethod* method)
+  void CompileOne(const mirror::AbstractMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsDebuggingSupported() {
@@ -101,16 +99,16 @@ class Compiler {
   CompilerTls* GetTls();
 
   // Stub to throw AbstractMethodError
-  static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
+  static mirror::ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   // Generate the trampoline that's invoked by unresolved direct methods
-  static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
-                                         Runtime::TrampolineType type)
+  static mirror::ByteArray* CreateResolutionStub(InstructionSet instruction_set,
+                                                 Runtime::TrampolineType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set)
+  static mirror::ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
@@ -273,7 +271,8 @@ class Compiler {
 
  private:
   // Compute constant code and method pointers when possible
-  void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, AbstractMethod* method,
+  void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+                                     mirror::AbstractMethod* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -397,11 +396,11 @@ class Compiler {
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
 
   typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const Compiler& compiler, const CompiledMethod* cm, const AbstractMethod* method);
+      (const Compiler& compiler, const CompiledMethod* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
-  typedef const AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
-      (const Compiler& compiler, const CompiledInvokeStub* cm, const AbstractMethod* method);
+  typedef const mirror::AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
+      (const Compiler& compiler, const CompiledInvokeStub* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
 
 

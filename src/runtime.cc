@@ -24,17 +24,24 @@
 #include <limits>
 #include <vector>
 
+#include "atomic.h"
 #include "class_linker.h"
-#include "class_loader.h"
 #include "constants_arm.h"
 #include "constants_mips.h"
 #include "constants_x86.h"
 #include "debugger.h"
+#include "gc/card_table-inl.h"
 #include "heap.h"
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
 #include "jni_internal.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/array.h"
+#include "mirror/class_loader.h"
+#include "mirror/field.h"
+#include "mirror/object-inl.h"
+#include "mirror/throwable.h"
 #include "monitor.h"
 #include "oat_file.h"
 #include "ScopedLocalRef.h"
@@ -627,23 +634,25 @@ static void CreateSystemClassLoader() {
 
   ScopedObjectAccess soa(Thread::Current());
 
-  Class* class_loader_class = soa.Decode<Class*>(WellKnownClasses::java_lang_ClassLoader);
+  mirror::Class* class_loader_class =
+      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
 
-  AbstractMethod* getSystemClassLoader = class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
+  mirror::AbstractMethod* getSystemClassLoader =
+      class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
-  ClassLoader* class_loader =
-    down_cast<ClassLoader*>(InvokeWithJValues(soa, NULL, getSystemClassLoader, NULL).GetL());
+  mirror::ClassLoader* class_loader =
+    down_cast<mirror::ClassLoader*>(InvokeWithJValues(soa, NULL, getSystemClassLoader, NULL).GetL());
   CHECK(class_loader != NULL);
 
   soa.Self()->SetClassLoaderOverride(class_loader);
 
-  Class* thread_class = soa.Decode<Class*>(WellKnownClasses::java_lang_Thread);
+  mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(thread_class, true, true));
 
-  Field* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
-                                                                      "Ljava/lang/ClassLoader;");
+  mirror::Field* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
+                                                                              "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
   contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
@@ -1015,7 +1024,7 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-void Runtime::VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
+void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg) {
   if (intern_table_->IsDirty()) {
     intern_table_->VisitRoots(visitor, arg);
   }
@@ -1024,7 +1033,7 @@ void Runtime::VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-void Runtime::VisitNonThreadRoots(Heap::RootVisitor* visitor, void* arg) {
+void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   Dbg::VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   if (pre_allocated_OutOfMemoryError_ != NULL) {
@@ -1041,7 +1050,7 @@ void Runtime::VisitNonThreadRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-void Runtime::VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg) {
+void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
   thread_list_->VisitRoots(visitor, arg);
   VisitNonThreadRoots(visitor, arg);
 }
@@ -1053,48 +1062,50 @@ void Runtime::DirtyRoots() {
   class_linker_->Dirty();
 }
 
-void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void Runtime::VisitRoots(RootVisitor* visitor, void* arg) {
   VisitConcurrentRoots(visitor, arg);
   VisitNonConcurrentRoots(visitor, arg);
 }
 
-void Runtime::SetJniDlsymLookupStub(ByteArray* jni_stub_array) {
+void Runtime::SetJniDlsymLookupStub(mirror::ByteArray* jni_stub_array) {
   CHECK(jni_stub_array != NULL)  << " jni_stub_array=" << jni_stub_array;
   CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array)
       << "jni_stub_array_=" << jni_stub_array_ << " jni_stub_array=" << jni_stub_array;
   jni_stub_array_ = jni_stub_array;
 }
 
-void Runtime::SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array) {
+void Runtime::SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method_error_stub_array) {
   CHECK(abstract_method_error_stub_array != NULL);
   CHECK(abstract_method_error_stub_array_ == NULL || abstract_method_error_stub_array_ == abstract_method_error_stub_array);
   abstract_method_error_stub_array_ = abstract_method_error_stub_array;
 }
 
-void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type) {
+void Runtime::SetResolutionStubArray(mirror::ByteArray* resolution_stub_array, TrampolineType type) {
   CHECK(resolution_stub_array != NULL);
   CHECK(!HasResolutionStubArray(type) || resolution_stub_array_[type] == resolution_stub_array);
   resolution_stub_array_[type] = resolution_stub_array;
 }
 
-AbstractMethod* Runtime::CreateResolutionMethod() {
-  Class* method_class = AbstractMethod::GetMethodClass();
+mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
+  mirror::Class* method_class = mirror::AbstractMethod::GetMethodClass();
   Thread* self = Thread::Current();
-  SirtRef<AbstractMethod> method(self, down_cast<AbstractMethod*>(method_class->AllocObject(self)));
+  SirtRef<mirror::AbstractMethod>
+      method(self, down_cast<mirror::AbstractMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
-  ByteArray* unknown_resolution_stub = GetResolutionStubArray(kUnknownMethod);
+  mirror::ByteArray* unknown_resolution_stub = GetResolutionStubArray(kUnknownMethod);
   CHECK(unknown_resolution_stub != NULL);
   method->SetCode(unknown_resolution_stub->GetData());
   return method.get();
 }
 
-AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
-                                                CalleeSaveType type) {
-  Class* method_class = AbstractMethod::GetMethodClass();
+mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
+                                                        CalleeSaveType type) {
+  mirror::Class* method_class = mirror::AbstractMethod::GetMethodClass();
   Thread* self = Thread::Current();
-  SirtRef<AbstractMethod> method(self, down_cast<AbstractMethod*>(method_class->AllocObject(self)));
+  SirtRef<mirror::AbstractMethod>
+      method(self, down_cast<mirror::AbstractMethod*>(method_class->AllocObject(self)));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
@@ -1154,7 +1165,7 @@ AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set,
   return method.get();
 }
 
-void Runtime::SetCalleeSaveMethod(AbstractMethod* method, CalleeSaveType type) {
+void Runtime::SetCalleeSaveMethod(mirror::AbstractMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = method;
 }

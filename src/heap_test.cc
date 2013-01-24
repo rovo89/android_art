@@ -15,6 +15,11 @@
  */
 
 #include "common_test.h"
+#include "gc/card_table-inl.h"
+#include "gc/space_bitmap-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "sirt_ref.h"
 
 namespace art {
@@ -37,12 +42,12 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
     ScopedObjectAccess soa(Thread::Current());
     // garbage is created during ClassLinker::Init
 
-    Class* c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
+    mirror::Class* c = class_linker_->FindSystemClass("[Ljava/lang/Object;");
     for (size_t i = 0; i < 1024; ++i) {
-      SirtRef<ObjectArray<Object> > array(soa.Self(),
-                                          ObjectArray<Object>::Alloc(soa.Self(), c, 2048));
+      SirtRef<mirror::ObjectArray<mirror::Object> > array(soa.Self(),
+          mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), c, 2048));
       for (size_t j = 0; j < 2048; ++j) {
-        array->Set(j, String::AllocFromModifiedUtf8(soa.Self(), "hello, world!"));
+        array->Set(j, mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!"));
       }
     }
   }
@@ -53,7 +58,7 @@ TEST_F(HeapTest, HeapBitmapCapacityTest) {
   byte* heap_begin = reinterpret_cast<byte*>(0x1000);
   const size_t heap_capacity = SpaceBitmap::kAlignment * (sizeof(intptr_t) * 8 + 1);
   UniquePtr<SpaceBitmap> bitmap(SpaceBitmap::Create("test-bitmap", heap_begin, heap_capacity));
-  bitmap->Set(reinterpret_cast<const Object*>(&heap_begin[heap_capacity - SpaceBitmap::kAlignment]));
+  bitmap->Set(reinterpret_cast<const mirror::Object*>(&heap_begin[heap_capacity - SpaceBitmap::kAlignment]));
 }
 
 }  // namespace art

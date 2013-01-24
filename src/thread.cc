@@ -30,16 +30,22 @@
 
 #include "base/mutex.h"
 #include "class_linker.h"
-#include "class_loader.h"
+#include "class_linker-inl.h"
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
 #include "debugger.h"
 #include "gc_map.h"
+#include "gc/card_table-inl.h"
 #include "heap.h"
 #include "jni_internal.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/stack_trace_element.h"
 #include "monitor.h"
 #include "oat/runtime/context.h"
-#include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -139,20 +145,20 @@ void* Thread::CreateCallback(void* arg) {
 
     // Copy peer into self, deleting global reference when done.
     CHECK(self->jpeer_ != NULL);
-    self->opeer_ = soa.Decode<Object*>(self->jpeer_);
+    self->opeer_ = soa.Decode<mirror::Object*>(self->jpeer_);
     self->GetJniEnv()->DeleteGlobalRef(self->jpeer_);
     self->jpeer_ = NULL;
 
     {
-      SirtRef<String> thread_name(self, self->GetThreadName(soa));
+      SirtRef<mirror::String> thread_name(self, self->GetThreadName(soa));
       self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
     }
     Dbg::PostThreadStart(self);
 
     // Invoke the 'run' method of our java.lang.Thread.
-    Object* receiver = self->opeer_;
+    mirror::Object* receiver = self->opeer_;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    AbstractMethod* m =
+    mirror::AbstractMethod* m =
         receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     m->Invoke(self, receiver, NULL, NULL);
   }
@@ -162,8 +168,9 @@ void* Thread::CreateCallback(void* arg) {
   return NULL;
 }
 
-Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, Object* thread_peer) {
-  Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa,
+                                  mirror::Object* thread_peer) {
+  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
@@ -177,7 +184,7 @@ Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, Object
 }
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, jobject java_thread) {
-  return FromManagedThread(soa, soa.Decode<Object*>(java_thread));
+  return FromManagedThread(soa, soa.Decode<mirror::Object*>(java_thread));
 }
 
 static size_t FixStackSize(size_t stack_size) {
@@ -391,7 +398,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
   {
     ScopedObjectAccess soa(this);
-    opeer_ = soa.Decode<Object*>(peer.get());
+    opeer_ = soa.Decode<mirror::Object*>(peer.get());
   }
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
@@ -405,7 +412,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
                         reinterpret_cast<jint>(self));
 
   ScopedObjectAccess soa(self);
-  SirtRef<String> peer_thread_name(soa.Self(), GetThreadName(soa));
+  SirtRef<mirror::String> peer_thread_name(soa.Self(), GetThreadName(soa));
   if (peer_thread_name.get() == NULL) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
@@ -414,9 +421,9 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
         SetBoolean(opeer_, thread_is_daemon);
     soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
-        SetObject(opeer_, soa.Decode<Object*>(thread_group));
+        SetObject(opeer_, soa.Decode<mirror::Object*>(thread_group));
     soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
-        SetObject(opeer_, soa.Decode<Object*>(thread_name.get()));
+        SetObject(opeer_, soa.Decode<mirror::Object*>(thread_name.get()));
     soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
         SetInt(opeer_, thread_priority);
     peer_thread_name.reset(GetThreadName(soa));
@@ -506,9 +513,9 @@ void Thread::Dump(std::ostream& os) const {
   DumpStack(os);
 }
 
-String* Thread::GetThreadName(const ScopedObjectAccessUnchecked& soa) const {
-  Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  return (opeer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(opeer_)) : NULL;
+mirror::String* Thread::GetThreadName(const ScopedObjectAccessUnchecked& soa) const {
+  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
+  return (opeer_ != NULL) ? reinterpret_cast<mirror::String*>(f->GetObject(opeer_)) : NULL;
 }
 
 void Thread::GetThreadName(std::string& name) const {
@@ -748,12 +755,14 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->opeer_);
     is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->opeer_);
 
-    Object* thread_group =
+    mirror::Object* thread_group =
         soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(thread->opeer_);
 
     if (thread_group != NULL) {
-      Field* group_name_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
-      String* group_name_string = reinterpret_cast<String*>(group_name_field->GetObject(thread_group));
+      mirror::Field* group_name_field =
+          soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+      mirror::String* group_name_string =
+          reinterpret_cast<mirror::String*>(group_name_field->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
   } else {
@@ -848,13 +857,13 @@ struct StackDumpVisitor : public StackVisitor {
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* m = GetMethod();
+    mirror::AbstractMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
     }
     const int kMaxRepetition = 3;
-    Class* c = m->GetDeclaringClass();
-    const DexCache* dex_cache = c->GetDexCache();
+    mirror::Class* c = m->GetDeclaringClass();
+    const mirror::DexCache* dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != NULL) {  // be tolerant of bad input
       const DexFile& dex_file = *dex_cache->GetDexFile();
@@ -893,7 +902,7 @@ struct StackDumpVisitor : public StackVisitor {
     return true;
   }
 
-  static void DumpLockedObject(Object* o, void* context)
+  static void DumpLockedObject(mirror::Object* o, void* context)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::ostream& os = *reinterpret_cast<std::ostream*>(context);
     os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
@@ -903,7 +912,7 @@ struct StackDumpVisitor : public StackVisitor {
   const Thread* thread;
   bool can_allocate;
   MethodHelper mh;
-  AbstractMethod* last_method;
+  mirror::AbstractMethod* last_method;
   int last_line_number;
   int repetition_count;
   int frame_count;
@@ -1016,14 +1025,14 @@ bool Thread::IsStillStarting() const {
 void Thread::AssertNoPendingException() const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    Throwable* exception = GetException();
+    mirror::Throwable* exception = GetException();
     LOG(FATAL) << "No pending exception expected: " << exception->Dump();
   }
 }
 
-static void MonitorExitVisitor(const Object* object, void* arg) NO_THREAD_SAFETY_ANALYSIS {
+static void MonitorExitVisitor(const mirror::Object* object, void* arg) NO_THREAD_SAFETY_ANALYSIS {
   Thread* self = reinterpret_cast<Thread*>(arg);
-  Object* entered_monitor = const_cast<Object*>(object);
+  mirror::Object* entered_monitor = const_cast<mirror::Object*>(object);
   if (self->HoldsLock(entered_monitor)) {
     LOG(WARNING) << "Calling MonitorExit on object "
                  << object << " (" << PrettyTypeOf(object) << ")"
@@ -1049,7 +1058,8 @@ void Thread::Destroy() {
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
     // who is waiting.
-    Object* lock = soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(opeer_);
+    mirror::Object* lock =
+        soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(opeer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
       lock->MonitorEnter(self);
@@ -1125,7 +1135,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
 void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  Object* ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(opeer_);
+  mirror::Object* ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(opeer_);
   if (ogroup != NULL) {
     ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));
     ScopedLocalRef<jobject> peer(soa.Env(), soa.AddLocalReference<jobject>(opeer_));
@@ -1144,7 +1154,7 @@ size_t Thread::NumSirtReferences() {
 }
 
 bool Thread::SirtContains(jobject obj) const {
-  Object** sirt_entry = reinterpret_cast<Object**>(obj);
+  mirror::Object** sirt_entry = reinterpret_cast<mirror::Object**>(obj);
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     if (cur->Contains(sirt_entry)) {
       return true;
@@ -1154,11 +1164,11 @@ bool Thread::SirtContains(jobject obj) const {
   return managed_stack_.ShadowFramesContain(sirt_entry);
 }
 
-void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void Thread::SirtVisitRoots(RootVisitor* visitor, void* arg) {
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
-      Object* object = cur->GetReference(j);
+      mirror::Object* object = cur->GetReference(j);
       if (object != NULL) {
         visitor(object, arg);
       }
@@ -1166,19 +1176,19 @@ void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-Object* Thread::DecodeJObject(jobject obj) const {
+mirror::Object* Thread::DecodeJObject(jobject obj) const {
   Locks::mutator_lock_->AssertSharedHeld(this);
   if (obj == NULL) {
     return NULL;
   }
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
-  Object* result;
+  mirror::Object* result;
   switch (kind) {
   case kLocal:
     {
       IndirectReferenceTable& locals = jni_env_->locals;
-      result = const_cast<Object*>(locals.Get(ref));
+      result = const_cast<mirror::Object*>(locals.Get(ref));
       break;
     }
   case kGlobal:
@@ -1186,7 +1196,7 @@ Object* Thread::DecodeJObject(jobject obj) const {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& globals = vm->globals;
       MutexLock mu(const_cast<Thread*>(this), vm->globals_lock);
-      result = const_cast<Object*>(globals.Get(ref));
+      result = const_cast<mirror::Object*>(globals.Get(ref));
       break;
     }
   case kWeakGlobal:
@@ -1194,7 +1204,7 @@ Object* Thread::DecodeJObject(jobject obj) const {
       JavaVMExt* vm = Runtime::Current()->GetJavaVM();
       IndirectReferenceTable& weak_globals = vm->weak_globals;
       MutexLock mu(const_cast<Thread*>(this), vm->weak_globals_lock);
-      result = const_cast<Object*>(weak_globals.Get(ref));
+      result = const_cast<mirror::Object*>(weak_globals.Get(ref));
       if (result == kClearedJniWeakGlobal) {
         // This is a special case where it's okay to return NULL.
         return NULL;
@@ -1206,10 +1216,10 @@ Object* Thread::DecodeJObject(jobject obj) const {
     // TODO: make stack indirect reference table lookup more efficient
     // Check if this is a local reference in the SIRT
     if (SirtContains(obj)) {
-      result = *reinterpret_cast<Object**>(obj);  // Read from SIRT
+      result = *reinterpret_cast<mirror::Object**>(obj);  // Read from SIRT
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
-      result = reinterpret_cast<Object*>(obj);
+      result = reinterpret_cast<mirror::Object*>(obj);
     } else {
       result = kInvalidIndirectRefObject;
     }
@@ -1272,9 +1282,9 @@ class CountStackDepthVisitor : public StackVisitor {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
-    AbstractMethod* m = GetMethod();
+    mirror::AbstractMethod* m = GetMethod();
     if (skipping_ && !m->IsRuntimeMethod() &&
-        !Throwable::GetJavaLangThrowable()->IsAssignableFrom(m->GetDeclaringClass())) {
+        !mirror::Throwable::GetJavaLangThrowable()->IsAssignableFrom(m->GetDeclaringClass())) {
       skipping_ = false;
     }
     if (!skipping_) {
@@ -1310,14 +1320,14 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   bool Init(int depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Allocate method trace with an extra slot that will hold the PC trace
-    SirtRef<ObjectArray<Object> >
+    SirtRef<mirror::ObjectArray<mirror::Object> >
         method_trace(self_,
-                     Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(self_,
-                                                                                    depth + 1));
+                     Runtime::Current()->GetClassLinker()->AllocObjectArray<mirror::Object>(self_,
+                                                                                            depth + 1));
     if (method_trace.get() == NULL) {
       return false;
     }
-    IntArray* dex_pc_trace = IntArray::Alloc(self_, depth);
+    mirror::IntArray* dex_pc_trace = mirror::IntArray::Alloc(self_, depth);
     if (dex_pc_trace == NULL) {
       return false;
     }
@@ -1347,7 +1357,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       skip_depth_--;
       return true;
     }
-    AbstractMethod* m = GetMethod();
+    mirror::AbstractMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;  // Ignore runtime frames (in particular callee save).
     }
@@ -1357,7 +1367,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     return true;
   }
 
-  ObjectArray<Object>* GetInternalStackTrace() const {
+  mirror::ObjectArray<mirror::Object>* GetInternalStackTrace() const {
     return method_trace_;
   }
 
@@ -1368,9 +1378,9 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   // Current position down stack trace.
   uint32_t count_;
   // Array of dex PC values.
-  IntArray* dex_pc_trace_;
+  mirror::IntArray* dex_pc_trace_;
   // An array of the methods on the stack, the last entry is a reference to the PC trace.
-  ObjectArray<Object>* method_trace_;
+  mirror::ObjectArray<mirror::Object>* method_trace_;
 };
 
 jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa) const {
@@ -1387,7 +1397,7 @@ jobject Thread::CreateInternalStackTrace(const ScopedObjectAccessUnchecked& soa)
     return NULL;  // Allocation failed.
   }
   build_trace_visitor.WalkStack();
-  ObjectArray<Object>* trace = build_trace_visitor.GetInternalStackTrace();
+  mirror::ObjectArray<mirror::Object>* trace = build_trace_visitor.GetInternalStackTrace();
   if (kIsDebugBuild) {
     for (int32_t i = 0; i < trace->GetLength(); ++i) {
       CHECK(trace->Get(i) != NULL);
@@ -1401,18 +1411,19 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   // Transition into runnable state to work on Object*/Array*
   ScopedObjectAccess soa(env);
   // Decode the internal stack trace into the depth, method trace and PC trace
-  ObjectArray<Object>* method_trace = soa.Decode<ObjectArray<Object>*>(internal);
+  mirror::ObjectArray<mirror::Object>* method_trace =
+      soa.Decode<mirror::ObjectArray<mirror::Object>*>(internal);
   int32_t depth = method_trace->GetLength() - 1;
-  IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
+  mirror::IntArray* pc_trace = down_cast<mirror::IntArray*>(method_trace->Get(depth));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   jobjectArray result;
-  ObjectArray<StackTraceElement>* java_traces;
+  mirror::ObjectArray<mirror::StackTraceElement>* java_traces;
   if (output_array != NULL) {
     // Reuse the array we were given.
     result = output_array;
-    java_traces = soa.Decode<ObjectArray<StackTraceElement>*>(output_array);
+    java_traces = soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(output_array);
     // ...adjusting the number of frames we'll write to not exceed the array length.
     depth = std::min(depth, java_traces->GetLength());
   } else {
@@ -1431,7 +1442,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   MethodHelper mh;
   for (int32_t i = 0; i < depth; ++i) {
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
-    AbstractMethod* method = down_cast<AbstractMethod*>(method_trace->Get(i));
+    mirror::AbstractMethod* method = down_cast<mirror::AbstractMethod*>(method_trace->Get(i));
     mh.ChangeMethod(method);
     uint32_t dex_pc = pc_trace->Get(i);
     int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
@@ -1440,27 +1451,28 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     const char* descriptor = mh.GetDeclaringClassDescriptor();
     CHECK(descriptor != NULL);
     std::string class_name(PrettyDescriptor(descriptor));
-    SirtRef<String> class_name_object(soa.Self(),
-                                      String::AllocFromModifiedUtf8(soa.Self(),
-                                                                    class_name.c_str()));
+    SirtRef<mirror::String> class_name_object(soa.Self(),
+                                              mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                    class_name.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
     const char* method_name = mh.GetName();
     CHECK(method_name != NULL);
-    SirtRef<String> method_name_object(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(),
-                                                                                 method_name));
+    SirtRef<mirror::String> method_name_object(soa.Self(),
+                                               mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                     method_name));
     if (method_name_object.get() == NULL) {
       return NULL;
     }
     const char* source_file = mh.GetDeclaringClassSourceFile();
-    SirtRef<String> source_name_object(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(),
-                                                                                 source_file));
-    StackTraceElement* obj = StackTraceElement::Alloc(soa.Self(),
-                                                      class_name_object.get(),
-                                                      method_name_object.get(),
-                                                      source_name_object.get(),
-                                                      line_number);
+    SirtRef<mirror::String> source_name_object(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(),
+                                                                                                 source_file));
+    mirror::StackTraceElement* obj = mirror::StackTraceElement::Alloc(soa.Self(),
+                                                                      class_name_object.get(),
+                                                                      method_name_object.get(),
+                                                                      source_name_object.get(),
+                                                                      line_number);
     if (obj == NULL) {
       return NULL;
     }
@@ -1520,10 +1532,11 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, co
         env, reinterpret_cast<jthrowable>(env->AllocObject(exception_class.get())));
     if (exception.get() != NULL) {
       ScopedObjectAccessUnchecked soa(env);
-      Throwable* t = reinterpret_cast<Throwable*>(soa.Self()->DecodeJObject(exception.get()));
-      t->SetDetailMessage(String::AllocFromModifiedUtf8(soa.Self(), msg));
+      mirror::Throwable* t =
+          reinterpret_cast<mirror::Throwable*>(soa.Self()->DecodeJObject(exception.get()));
+      t->SetDetailMessage(mirror::String::AllocFromModifiedUtf8(soa.Self(), msg));
       if (cause != NULL) {
-        t->SetCause(soa.Decode<Throwable*>(cause));
+        t->SetCause(soa.Decode<mirror::Throwable*>(cause));
       }
       soa.Self()->SetException(t);
     } else {
@@ -1691,7 +1704,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
 static const bool kDebugExceptionDelivery = false;
 class CatchBlockStackVisitor : public StackVisitor {
  public:
-  CatchBlockStackVisitor(Thread* self, Throwable* exception)
+  CatchBlockStackVisitor(Thread* self, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, self->GetLongJumpContext()),
         self_(self), exception_(exception), to_find_(exception->GetClass()), throw_method_(NULL),
@@ -1708,7 +1721,7 @@ class CatchBlockStackVisitor : public StackVisitor {
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method = GetMethod();
+    mirror::AbstractMethod* method = GetMethod();
     if (method == NULL) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       handler_quick_frame_pc_ = GetCurrentQuickFramePc();
@@ -1751,7 +1764,7 @@ class CatchBlockStackVisitor : public StackVisitor {
   }
 
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* catch_method = *handler_quick_frame_;
+    mirror::AbstractMethod* catch_method = *handler_quick_frame_;
     if (kDebugExceptionDelivery) {
       if (catch_method == NULL) {
         LOG(INFO) << "Handler is upcall";
@@ -1777,14 +1790,14 @@ class CatchBlockStackVisitor : public StackVisitor {
 
  private:
   Thread* self_;
-  Throwable* exception_;
+  mirror::Throwable* exception_;
   // The type of the exception catch block to find.
-  Class* to_find_;
-  AbstractMethod* throw_method_;
+  mirror::Class* to_find_;
+  mirror::AbstractMethod* throw_method_;
   JDWP::FrameId throw_frame_id_;
   uint32_t throw_dex_pc_;
   // Quick frame with found handler or last frame if no handler found.
-  AbstractMethod** handler_quick_frame_;
+  mirror::AbstractMethod** handler_quick_frame_;
   // PC to branch to for the handler.
   uintptr_t handler_quick_frame_pc_;
   // Associated dex PC.
@@ -1798,13 +1811,13 @@ class CatchBlockStackVisitor : public StackVisitor {
 };
 
 void Thread::QuickDeliverException() {
-  Throwable* exception = GetException();  // Get exception from thread
+  mirror::Throwable* exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
   ClearException();
   if (kDebugExceptionDelivery) {
-    String* msg = exception->GetDetailMessage();
+    mirror::String* msg = exception->GetDetailMessage();
     std::string str_msg(msg != NULL ? msg->ToModifiedUtf8() : "");
     DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
                         << ": " << str_msg << "\n");
@@ -1826,14 +1839,14 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
-AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
+mirror::AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(Thread* thread)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(thread, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      AbstractMethod* m = GetMethod();
+      mirror::AbstractMethod* m = GetMethod();
       if (m->IsRuntimeMethod()) {
         // Continue if this is a runtime method.
         return true;
@@ -1843,7 +1856,7 @@ AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) con
       frame_id_ = GetFrameId();
       return false;
     }
-    AbstractMethod* method_;
+    mirror::AbstractMethod* method_;
     uint32_t dex_pc_;
     size_t frame_id_;
   };
@@ -1859,7 +1872,7 @@ AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) con
   return visitor.method_;
 }
 
-bool Thread::HoldsLock(Object* object) {
+bool Thread::HoldsLock(mirror::Object* object) {
   if (object == NULL) {
     return false;
   }
@@ -1881,12 +1894,12 @@ class ReferenceMapVisitor : public StackVisitor {
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
     if (shadow_frame != NULL) {
-      AbstractMethod* m = shadow_frame->GetMethod();
+      mirror::AbstractMethod* m = shadow_frame->GetMethod();
       size_t num_regs = shadow_frame->NumberOfVRegs();
       if (m->IsNative() || shadow_frame->HasReferenceArray()) {
         // SIRT for JNI or References for interpreter.
         for (size_t reg = 0; reg < num_regs; ++reg) {
-          Object* ref = shadow_frame->GetVRegReference(reg);
+          mirror::Object* ref = shadow_frame->GetVRegReference(reg);
           if (ref != NULL) {
             visitor_(ref, reg, this);
           }
@@ -1907,7 +1920,7 @@ class ReferenceMapVisitor : public StackVisitor {
         num_regs = std::min(dex_gc_map.RegWidth() * 8, num_regs);
         for (size_t reg = 0; reg < num_regs; ++reg) {
           if (TestBitmap(reg, reg_bitmap)) {
-            Object* ref = shadow_frame->GetVRegReference(reg);
+            mirror::Object* ref = shadow_frame->GetVRegReference(reg);
             if (ref != NULL) {
               visitor_(ref, reg, this);
             }
@@ -1915,7 +1928,7 @@ class ReferenceMapVisitor : public StackVisitor {
         }
       }
     } else {
-      AbstractMethod* m = GetMethod();
+      mirror::AbstractMethod* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
       if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
         const uint8_t* native_gc_map = m->GetNativeGcMap();
@@ -1934,20 +1947,21 @@ class ReferenceMapVisitor : public StackVisitor {
           uint32_t fp_spills = m->GetFpSpillMask();
           size_t frame_size = m->GetFrameSizeInBytes();
           // For all dex registers in the bitmap
-          AbstractMethod** cur_quick_frame = GetCurrentQuickFrame();
+          mirror::AbstractMethod** cur_quick_frame = GetCurrentQuickFrame();
           DCHECK(cur_quick_frame != NULL);
           for (size_t reg = 0; reg < num_regs; ++reg) {
             // Does this register hold a reference?
             if (TestBitmap(reg, reg_bitmap)) {
               uint32_t vmap_offset;
-              Object* ref;
+              mirror::Object* ref;
               if (vmap_table.IsInContext(reg, vmap_offset, kReferenceVReg)) {
                 uintptr_t val = GetGPR(vmap_table.ComputeRegister(core_spills, vmap_offset,
                                                                   kReferenceVReg));
-                ref = reinterpret_cast<Object*>(val);
+                ref = reinterpret_cast<mirror::Object*>(val);
               } else {
-                ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
-                                                        fp_spills, frame_size, reg));
+                ref = reinterpret_cast<mirror::Object*>(GetVReg(cur_quick_frame, code_item,
+                                                                core_spills, fp_spills, frame_size,
+                                                                reg));
               }
 
               if (ref != NULL) {
@@ -1975,46 +1989,46 @@ class ReferenceMapVisitor : public StackVisitor {
 
 class RootCallbackVisitor {
  public:
-  RootCallbackVisitor(Heap::RootVisitor* visitor, void* arg) : visitor_(visitor), arg_(arg) {
+  RootCallbackVisitor(RootVisitor* visitor, void* arg) : visitor_(visitor), arg_(arg) {
 
   }
 
-  void operator()(const Object* obj, size_t, const StackVisitor*) const {
+  void operator()(const mirror::Object* obj, size_t, const StackVisitor*) const {
     visitor_(obj, arg_);
   }
 
  private:
-  Heap::RootVisitor* visitor_;
+  RootVisitor* visitor_;
   void* arg_;
 };
 
 class VerifyCallbackVisitor {
  public:
-  VerifyCallbackVisitor(Heap::VerifyRootVisitor* visitor, void* arg)
+  VerifyCallbackVisitor(VerifyRootVisitor* visitor, void* arg)
       : visitor_(visitor),
         arg_(arg) {
   }
 
-  void operator()(const Object* obj, size_t vreg, const StackVisitor* visitor) const {
+  void operator()(const mirror::Object* obj, size_t vreg, const StackVisitor* visitor) const {
     visitor_(obj, arg_, vreg, visitor);
   }
 
  private:
-  Heap::VerifyRootVisitor* const visitor_;
+  VerifyRootVisitor* const visitor_;
   void* const arg_;
 };
 
 struct VerifyRootWrapperArg {
-  Heap::VerifyRootVisitor* visitor;
+  VerifyRootVisitor* visitor;
   void* arg;
 };
 
-static void VerifyRootWrapperCallback(const Object* root, void* arg) {
+static void VerifyRootWrapperCallback(const mirror::Object* root, void* arg) {
   VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
   wrapperArg->visitor(root, wrapperArg->arg, 0, NULL);
 }
 
-void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
+void Thread::VerifyRoots(VerifyRootVisitor* visitor, void* arg) {
   // We need to map from a RootVisitor to VerifyRootVisitor, so pass in nulls for arguments we
   // don't have.
   VerifyRootWrapperArg wrapperArg;
@@ -2043,7 +2057,7 @@ void Thread::VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) {
   ReleaseLongJumpContext(context);
 }
 
-void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
+void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   if (opeer_ != NULL) {
     visitor(opeer_, arg);
   }

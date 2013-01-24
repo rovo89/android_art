@@ -16,7 +16,8 @@
 
 #include "context_x86.h"
 
-#include "object.h"
+#include "mirror/abstract_method.h"
+#include "stack.h"
 
 namespace art {
 namespace x86 {
@@ -34,7 +35,7 @@ void X86Context::Reset() {
 }
 
 void X86Context::FillCalleeSaves(const StackVisitor& fr) {
-  AbstractMethod* method = fr.GetMethod();
+  mirror::AbstractMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);
   DCHECK_EQ(method->GetFpSpillMask(), 0u);

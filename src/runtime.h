@@ -32,6 +32,7 @@
 #include "instruction_set.h"
 #include "jobject_comparator.h"
 #include "locks.h"
+#include "root_visitor.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
 
@@ -41,21 +42,23 @@
 
 namespace art {
 
+namespace mirror {
+class AbstractMethod;
+class ClassLoader;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int8_t> ByteArray;
+class String;
+class Throwable;
+}  // namespace mirror
 class ClassLinker;
-class ClassLoader;
 class DexFile;
 class Heap;
 class Instrumentation;
 class InternTable;
 struct JavaVMExt;
-class AbstractMethod;
 class MonitorList;
 class SignalCatcher;
-class String;
 class ThreadList;
-class Throwable;
 class Trace;
 
 class Runtime {
@@ -215,7 +218,7 @@ class Runtime {
     return monitor_list_;
   }
 
-  Throwable* GetPreAllocatedOutOfMemoryError() {
+  mirror::Throwable* GetPreAllocatedOutOfMemoryError() {
     return pre_allocated_OutOfMemoryError_;
   }
 
@@ -235,40 +238,40 @@ class Runtime {
   void DirtyRoots();
 
   // Visit all the roots.
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg)
+  void VisitRoots(RootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
-  void VisitConcurrentRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitConcurrentRoots(RootVisitor* visitor, void* arg);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
-  void VisitNonThreadRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitNonThreadRoots(RootVisitor* visitor, void* arg);
 
   // Visit all other roots which must be done with mutators suspended.
-  void VisitNonConcurrentRoots(Heap::RootVisitor* visitor, void* arg)
+  void VisitNonConcurrentRoots(RootVisitor* visitor, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasJniDlsymLookupStub() const {
     return jni_stub_array_ != NULL;
   }
 
-  ByteArray* GetJniDlsymLookupStub() const {
+  mirror::ByteArray* GetJniDlsymLookupStub() const {
     CHECK(HasJniDlsymLookupStub());
     return jni_stub_array_;
   }
 
-  void SetJniDlsymLookupStub(ByteArray* jni_stub_array);
+  void SetJniDlsymLookupStub(mirror::ByteArray* jni_stub_array);
 
   bool HasAbstractMethodErrorStubArray() const {
     return abstract_method_error_stub_array_ != NULL;
   }
 
-  ByteArray* GetAbstractMethodErrorStubArray() const {
+  mirror::ByteArray* GetAbstractMethodErrorStubArray() const {
     CHECK(abstract_method_error_stub_array_ != NULL);
     return abstract_method_error_stub_array_;
   }
 
-  void SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array);
+  void SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method_error_stub_array);
 
   enum TrampolineType {
     kStaticMethod,
@@ -280,16 +283,16 @@ class Runtime {
     return resolution_stub_array_[type] != NULL;
   }
 
-  ByteArray* GetResolutionStubArray(TrampolineType type) const {
+  mirror::ByteArray* GetResolutionStubArray(TrampolineType type) const {
     CHECK(HasResolutionStubArray(type));
     DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastTrampolineMethodType));
     return resolution_stub_array_[type];
   }
 
-  void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
+  void SetResolutionStubArray(mirror::ByteArray* resolution_stub_array, TrampolineType type);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
-  AbstractMethod* GetResolutionMethod() const {
+  mirror::AbstractMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
     return resolution_method_;
   }
@@ -298,11 +301,11 @@ class Runtime {
     return resolution_method_ != NULL;
   }
 
-  void SetResolutionMethod(AbstractMethod* method) {
+  void SetResolutionMethod(mirror::AbstractMethod* method) {
     resolution_method_ = method;
   }
 
-  AbstractMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::AbstractMethod* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -316,20 +319,21 @@ class Runtime {
     return callee_save_methods_[type] != NULL;
   }
 
-  AbstractMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
+  mirror::AbstractMethod* GetCalleeSaveMethod(CalleeSaveType type) const {
     DCHECK(HasCalleeSaveMethod(type));
     return callee_save_methods_[type];
   }
 
-  void SetCalleeSaveMethod(AbstractMethod* method, CalleeSaveType type);
+  void SetCalleeSaveMethod(mirror::AbstractMethod* method, CalleeSaveType type);
 
-  AbstractMethod* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type)
+  mirror::AbstractMethod* CreateCalleeSaveMethod(InstructionSet instruction_set,
+                                                 CalleeSaveType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
+  mirror::AbstractMethod* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  AbstractMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
+  mirror::AbstractMethod* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
@@ -419,20 +423,20 @@ class Runtime {
 
   JavaVMExt* java_vm_;
 
-  Throwable* pre_allocated_OutOfMemoryError_;
+  mirror::Throwable* pre_allocated_OutOfMemoryError_;
 
-  ByteArray* jni_stub_array_;
+  mirror::ByteArray* jni_stub_array_;
 
-  ByteArray* abstract_method_error_stub_array_;
+  mirror::ByteArray* abstract_method_error_stub_array_;
 
-  ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
+  mirror::ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
-  AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
+  mirror::AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
 
-  AbstractMethod* resolution_method_;
+  mirror::AbstractMethod* resolution_method_;
 
   // As returned by ClassLoader.getSystemClassLoader()
-  ClassLoader* system_class_loader_;
+  mirror::ClassLoader* system_class_loader_;
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
   // the shutdown lock so that threads aren't born while we're shutting down.

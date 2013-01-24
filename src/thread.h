@@ -31,19 +31,30 @@
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "locks.h"
 #include "offsets.h"
+#include "root_visitor.h"
 #include "runtime_stats.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
+#include "thread_state.h"
 #include "UniquePtr.h"
 
 namespace art {
 
+namespace mirror {
 class AbstractMethod;
 class Array;
-class BaseMutex;
 class Class;
-class ClassLinker;
 class ClassLoader;
+class Object;
+template<class T> class ObjectArray;
+template<class T> class PrimitiveArray;
+typedef PrimitiveArray<int32_t> IntArray;
+class StackTraceElement;
+class StaticStorageBase;
+class Throwable;
+}  // namespace mirror
+class BaseMutex;
+class ClassLinker;
 class Closure;
 class Context;
 struct DebugInvokeReq;
@@ -51,20 +62,12 @@ class DexFile;
 struct JavaVMExt;
 struct JNIEnvExt;
 class Monitor;
-class Object;
 class Runtime;
 class ScopedObjectAccess;
 class ScopedObjectAccessUnchecked;
 class ShadowFrame;
-class StackTraceElement;
-class StaticStorageBase;
 class Thread;
 class ThreadList;
-class Throwable;
-
-template<class T> class ObjectArray;
-template<class T> class PrimitiveArray;
-typedef PrimitiveArray<int32_t> IntArray;
 
 // Thread priorities. These must match the Thread.MIN_PRIORITY,
 // Thread.NORM_PRIORITY, and Thread.MAX_PRIORITY constants.
@@ -72,28 +75,6 @@ enum ThreadPriority {
   kMinThreadPriority = 1,
   kNormThreadPriority = 5,
   kMaxThreadPriority = 10,
-};
-
-enum ThreadState {
-  //                                  Thread.State   JDWP state
-  kTerminated,                     // TERMINATED     TS_ZOMBIE    Thread.run has returned, but Thread* still around
-  kRunnable,                       // RUNNABLE       TS_RUNNING   runnable
-  kTimedWaiting,                   // TIMED_WAITING  TS_WAIT      in Object.wait() with a timeout
-  kSleeping,                       // TIMED_WAITING  TS_SLEEPING  in Thread.sleep()
-  kBlocked,                        // BLOCKED        TS_MONITOR   blocked on a monitor
-  kWaiting,                        // WAITING        TS_WAIT      in Object.wait()
-  kWaitingForGcToComplete,         // WAITING        TS_WAIT      blocked waiting for GC
-  kWaitingPerformingGc,            // WAITING        TS_WAIT      performing GC
-  kWaitingForDebuggerSend,         // WAITING        TS_WAIT      blocked waiting for events to be sent
-  kWaitingForDebuggerToAttach,     // WAITING        TS_WAIT      blocked waiting for debugger to attach
-  kWaitingInMainDebuggerLoop,      // WAITING        TS_WAIT      blocking/reading/processing debugger events
-  kWaitingForDebuggerSuspension,   // WAITING        TS_WAIT      waiting for debugger suspend all
-  kWaitingForJniOnLoad,            // WAITING        TS_WAIT      waiting for execution of dlopen and JNI on load code
-  kWaitingForSignalCatcherOutput,  // WAITING        TS_WAIT      waiting for signal catcher IO to complete
-  kWaitingInMainSignalCatcherLoop, // WAITING        TS_WAIT      blocking/reading/processing signals
-  kStarting,                       // NEW            TS_WAIT      native thread started, not yet ready to run managed code
-  kNative,                         // RUNNABLE       TS_RUNNING   running in a JNI native method
-  kSuspended,                      // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
 
 enum ThreadFlag {
@@ -127,7 +108,8 @@ class PACKED(4) Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
-  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, Object* thread_peer)
+  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts,
+                                   mirror::Object* thread_peer)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -245,7 +227,7 @@ class PACKED(4) Thread {
     return daemon_;
   }
 
-  bool HoldsLock(Object*);
+  bool HoldsLock(mirror::Object*);
 
   /*
    * Changes the priority of this thread to match that of the java.lang.Thread object.
@@ -272,7 +254,7 @@ class PACKED(4) Thread {
   }
 
   // Returns the java.lang.Thread's name, or NULL if this Thread* doesn't have a peer.
-  String* GetThreadName(const ScopedObjectAccessUnchecked& ts) const
+  mirror::String* GetThreadName(const ScopedObjectAccessUnchecked& ts) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
@@ -282,7 +264,7 @@ class PACKED(4) Thread {
   // Sets the thread's name.
   void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* GetPeer() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(jpeer_ == NULL);
     return opeer_;
   }
@@ -301,13 +283,13 @@ class PACKED(4) Thread {
     return exception_ != NULL;
   }
 
-  Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return exception_;
   }
 
   void AssertNoPendingException() const;
 
-  void SetException(Throwable* new_exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetException(mirror::Throwable* new_exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_exception != NULL);
     // TODO: DCHECK(!IsExceptionPending());
     exception_ = new_exception;
@@ -317,7 +299,7 @@ class PACKED(4) Thread {
     exception_ = NULL;
   }
 
-  void DeliverException(Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void DeliverException(mirror::Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (exception == NULL) {
       ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
     } else {
@@ -334,11 +316,11 @@ class PACKED(4) Thread {
     long_jump_context_ = context;
   }
 
-  AbstractMethod* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
+  mirror::AbstractMethod* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetTopOfStack(void* stack, uintptr_t pc) {
-    AbstractMethod** top_method = reinterpret_cast<AbstractMethod**>(stack);
+    mirror::AbstractMethod** top_method = reinterpret_cast<mirror::AbstractMethod**>(stack);
     managed_stack_.SetTopQuickFrame(top_method);
     managed_stack_.SetTopQuickFramePc(pc);
   }
@@ -369,7 +351,7 @@ class PACKED(4) Thread {
 
   //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
 
-  void* FindExceptionHandlerInMethod(const AbstractMethod* method,
+  void* FindExceptionHandlerInMethod(const mirror::AbstractMethod* method,
                                      void* throw_pc,
                                      const DexFile& dex_file,
                                      ClassLinker* class_linker);
@@ -384,7 +366,7 @@ class PACKED(4) Thread {
   }
 
   // Convert a jobject into a Object*
-  Object* DecodeJObject(jobject obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Object* DecodeJObject(jobject obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implements java.lang.Thread.interrupted.
   bool Interrupted();
@@ -393,11 +375,11 @@ class PACKED(4) Thread {
   void Interrupt();
   void Notify();
 
-  ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(ClassLoader* class_loader_override) {
+  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override) {
     class_loader_override_ = class_loader_override;
   }
 
@@ -413,10 +395,10 @@ class PACKED(4) Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
       jobjectArray output_array = NULL, int* stack_depth = NULL);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg)
+  void VisitRoots(RootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg)
+  void VerifyRoots(VerifyRootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 #if VERIFY_OBJECT_ENABLED
@@ -535,7 +517,7 @@ class PACKED(4) Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj) const;
 
-  void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
+  void SirtVisitRoots(RootVisitor* visitor, void* arg);
 
   void PushSirt(StackIndirectReferenceTable* sirt) {
     sirt->SetLink(top_sirt_);
@@ -692,7 +674,7 @@ class PACKED(4) Thread {
   byte* card_table_;
 
   // The pending exception or NULL.
-  Throwable* exception_;
+  mirror::Throwable* exception_;
 
   // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
   // We leave extra space so there's room for the code that throws StackOverflowError.
@@ -711,7 +693,7 @@ class PACKED(4) Thread {
 
   // Our managed peer (an instance of java.lang.Thread). The jobject version is used during thread
   // start up, until the thread is registered and the local opeer_ is used.
-  Object* opeer_;
+  mirror::Object* opeer_;
   jobject jpeer_;
 
   // The "lowest addressable byte" of the stack
@@ -740,7 +722,7 @@ class PACKED(4) Thread {
   // The next thread in the wait set this thread is part of.
   Thread* wait_next_;
   // If we're blocked in MonitorEnter, this is the object we're trying to lock.
-  Object* monitor_enter_object_;
+  mirror::Object* monitor_enter_object_;
 
   friend class Monitor;
   friend class MonitorInfo;
@@ -754,7 +736,7 @@ class PACKED(4) Thread {
 
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.
-  ClassLoader* class_loader_override_;
+  mirror::ClassLoader* class_loader_override_;
 
   // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
   Context* long_jump_context_;

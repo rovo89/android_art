@@ -15,8 +15,8 @@
  */
 
 #include "class_linker.h"
-#include "class_loader.h"
 #include "jni_internal.h"
+#include "mirror/class_loader.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"
@@ -25,14 +25,14 @@ namespace art {
 
 static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
   ScopedObjectAccess soa(env);
-  ClassLoader* loader = soa.Decode<ClassLoader*>(javaLoader);
+  mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
-  Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
+  mirror::Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
   if (c != NULL && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   } else {

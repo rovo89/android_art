@@ -34,17 +34,20 @@
 
 namespace art {
   class ClassLinker;
-  class ClassLoader;
   class CompiledMethod;
   class Compiler;
-  class DexCache;
-  class Field;
   class OatCompilationUnit;
+
+  namespace mirror {
+    class ClassLoader;
+    class DexCache;
+    class Field;
+  }  // namespace mirror
 
   namespace greenland {
     class InferredRegCategoryMap;
-  }
-}
+  }  // namespace greenland
+}  // namespace art
 
 
 namespace llvm {
@@ -55,7 +58,7 @@ namespace llvm {
   class LLVMContext;
   class Module;
   class Type;
-}
+}  // namespace llvm
 
 
 namespace art {

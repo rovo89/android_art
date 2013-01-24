@@ -101,11 +101,11 @@ class AtomicStack {
   }
 
   T* Begin() {
-    return const_cast<Object**>(begin_ + front_index_);
+    return const_cast<mirror::Object**>(begin_ + front_index_);
   }
 
   T* End() {
-    return const_cast<Object**>(begin_ + back_index_);
+    return const_cast<mirror::Object**>(begin_ + back_index_);
   }
 
   size_t Capacity() const {
@@ -158,6 +158,8 @@ class AtomicStack {
 
   DISALLOW_COPY_AND_ASSIGN(AtomicStack);
 };
+
+typedef AtomicStack<mirror::Object*> ObjectStack;
 
 }  // namespace art
 

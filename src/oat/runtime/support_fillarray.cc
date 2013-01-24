@@ -16,7 +16,8 @@
 
 #include "callee_save_frame.h"
 #include "dex_instruction.h"
-#include "object.h"
+#include "mirror/array.h"
+#include "mirror/object-inl.h"
 
 namespace art {
 
@@ -35,9 +36,9 @@ namespace art {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-extern "C" int artHandleFillArrayDataFromCode(Array* array,
+extern "C" int artHandleFillArrayDataFromCode(mirror::Array* array,
                                               const Instruction::ArrayDataPayload* payload,
-                                              Thread* self, AbstractMethod** sp)
+                                              Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));

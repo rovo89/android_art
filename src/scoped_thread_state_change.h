@@ -165,7 +165,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
    * passed in), or NULL on failure.
    */
   template<typename T>
-  T AddLocalReference(Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  T AddLocalReference(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     if (obj == NULL) {
       return NULL;
@@ -208,7 +208,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
 
-  Field* DecodeField(jfieldID fid) const
+  mirror::Field* DecodeField(jfieldID fid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -218,10 +218,10 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     // TODO: we should make these unique weak globals if Field instances can ever move.
     UNIMPLEMENTED(WARNING);
 #endif
-    return reinterpret_cast<Field*>(fid);
+    return reinterpret_cast<mirror::Field*>(fid);
   }
 
-  jfieldID EncodeField(Field* field) const
+  jfieldID EncodeField(mirror::Field* field) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -233,7 +233,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     return reinterpret_cast<jfieldID>(field);
   }
 
-  AbstractMethod* DecodeMethod(jmethodID mid) const
+  mirror::AbstractMethod* DecodeMethod(jmethodID mid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -243,10 +243,10 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
     // TODO: we should make these unique weak globals if Method instances can ever move.
     UNIMPLEMENTED(WARNING);
 #endif
-    return reinterpret_cast<AbstractMethod*>(mid);
+    return reinterpret_cast<mirror::AbstractMethod*>(mid);
   }
 
-  jmethodID EncodeMethod(AbstractMethod* method) const
+  jmethodID EncodeMethod(mirror::AbstractMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.

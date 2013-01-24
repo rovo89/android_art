@@ -54,7 +54,7 @@ TEST_F(ImageTest, WriteRead) {
       for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
         const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
-        Class* klass = class_linker_->FindSystemClass(descriptor);
+        mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
         EXPECT_TRUE(klass != NULL) << descriptor;
       }
     }
@@ -139,7 +139,7 @@ TEST_F(ImageTest, WriteRead) {
   for (size_t i = 0; i < dex->NumClassDefs(); ++i) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
+    mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
     EXPECT_TRUE(klass != NULL) << descriptor;
     EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
     EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;

@@ -31,10 +31,12 @@ namespace art {
 
 static const bool kDebugSpaces = kIsDebugBuild;
 
+namespace mirror {
+class Object;
+}  // namespace mirror
 class DlMallocSpace;
 class ImageSpace;
 class LargeObjectSpace;
-class Object;
 class SpaceBitmap;
 
 enum GcRetentionPolicy {
@@ -57,7 +59,7 @@ class Space {
  public:
   virtual bool CanAllocateInto() const = 0;
   virtual bool IsCompactible() const = 0;
-  virtual bool Contains(const Object* obj) const = 0;
+  virtual bool Contains(const mirror::Object* obj) const = 0;
   virtual SpaceType GetType() const = 0;
   virtual GcRetentionPolicy GetGcRetentionPolicy() const = 0;
   virtual std::string GetName() const = 0;
@@ -108,16 +110,16 @@ class AllocSpace {
   virtual uint64_t GetTotalObjectsAllocated() const = 0;
 
   // Allocate num_bytes without allowing growth.
-  virtual Object* Alloc(Thread* self, size_t num_bytes) = 0;
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes) = 0;
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const Object* obj) = 0;
+  virtual size_t AllocationSize(const mirror::Object* obj) = 0;
 
   // Returns how many bytes were freed.
-  virtual size_t Free(Thread* self, Object* ptr) = 0;
+  virtual size_t Free(Thread* self, mirror::Object* ptr) = 0;
 
   // Returns how many bytes were freed.
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, Object** ptrs) = 0;
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) = 0;
 
  protected:
   AllocSpace() {}
@@ -149,12 +151,12 @@ class ContinuousSpace : public Space {
   virtual SpaceBitmap* GetMarkBitmap() const = 0;
 
   // Is object within this space?
-  bool HasAddress(const Object* obj) const {
+  bool HasAddress(const mirror::Object* obj) const {
     const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
     return Begin() <= byte_ptr && byte_ptr < End();
   }
 
-  virtual bool Contains(const Object* obj) const {
+  virtual bool Contains(const mirror::Object* obj) const {
     return HasAddress(obj);
   }
 
@@ -188,7 +190,7 @@ class ContinuousSpace : public Space {
 class DiscontinuousSpace : public virtual Space {
  public:
   // Is object within this space?
-  virtual bool Contains(const Object* obj) const = 0;
+  virtual bool Contains(const mirror::Object* obj) const = 0;
 
   virtual std::string GetName() const {
     return name_;
@@ -267,15 +269,15 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
                             size_t capacity, byte* requested_begin);
 
   // Allocate num_bytes without allowing the underlying mspace to grow.
-  virtual Object* AllocWithGrowth(Thread* self, size_t num_bytes);
+  virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes);
 
   // Allocate num_bytes allowing the underlying mspace to grow.
-  virtual Object* Alloc(Thread* self, size_t num_bytes);
+  virtual mirror::Object* Alloc(Thread* self, size_t num_bytes);
 
   // Return the storage space required by obj.
-  virtual size_t AllocationSize(const Object* obj);
-  virtual size_t Free(Thread* self, Object* ptr);
-  virtual size_t FreeList(Thread* self, size_t num_ptrs, Object** ptrs);
+  virtual size_t AllocationSize(const mirror::Object* obj);
+  virtual size_t Free(Thread* self, mirror::Object* ptr);
+  virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs);
 
   void* MoreCore(intptr_t increment);
 
@@ -353,8 +355,8 @@ class DlMallocSpace : public MemMapSpace, public AllocSpace {
   }
 
  private:
-  size_t InternalAllocationSize(const Object* obj);
-  Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  size_t InternalAllocationSize(const mirror::Object* obj);
+  mirror::Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   UniquePtr<SpaceBitmap> live_bitmap_;
   UniquePtr<SpaceBitmap> mark_bitmap_;

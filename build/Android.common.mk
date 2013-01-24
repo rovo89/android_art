@@ -154,7 +154,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiled_method.cc \
 	src/compiler.cc \
 	src/debugger.cc \
-	src/dex_cache.cc \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \
 	src/dex_instruction.cc \
@@ -193,6 +192,15 @@ LIBART_COMMON_SRC_FILES := \
 	src/locks.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
+        src/mirror/abstract_method.cc \
+	src/mirror/array.cc \
+	src/mirror/class.cc \
+	src/mirror/dex_cache.cc \
+	src/mirror/field.cc \
+	src/mirror/object.cc \
+	src/mirror/stack_trace_element.cc \
+	src/mirror/string.cc \
+	src/mirror/throwable.cc \
 	src/monitor.cc \
 	src/native/dalvik_system_DexFile.cc \
 	src/native/dalvik_system_VMDebug.cc \
@@ -229,7 +237,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/oat/utils/x86/managed_register_x86.cc \
 	src/oat_file.cc \
 	src/oat_writer.cc \
-	src/object.cc \
 	src/offsets.cc \
 	src/os_linux.cc \
 	src/primitive.cc \
@@ -242,6 +249,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/thread_pool.cc \
+        src/timing_logger.cc \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
@@ -354,6 +362,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/compiler/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
+        src/gc/gc_type.h \
 	src/gc/space.h \
 	src/heap.h \
 	src/indirect_reference_table.h \
@@ -362,8 +371,9 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
 	src/locks.h \
-	src/object.h \
+	src/mirror/class.h \
 	src/thread.h \
+        src/thread_state.h \
 	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
@@ -380,7 +390,6 @@ TEST_COMMON_SRC_FILES := \
 	src/base/unix_file/string_file_test.cc \
 	src/class_linker_test.cc \
 	src/compiler_test.cc \
-	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/elf_writer_test.cc \
@@ -395,10 +404,11 @@ TEST_COMMON_SRC_FILES := \
 	src/intern_table_test.cc \
 	src/jni_compiler_test.cc \
 	src/jni_internal_test.cc \
+	src/mirror/dex_cache_test.cc \
+        src/mirror/object_test.cc \
 	src/oat/utils/arm/managed_register_arm_test.cc \
 	src/oat/utils/x86/managed_register_x86_test.cc \
 	src/oat_test.cc \
-	src/object_test.cc \
 	src/output_stream_test.cc \
 	src/reference_table_test.cc \
 	src/runtime_support_test.cc \

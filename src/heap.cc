@@ -27,15 +27,24 @@
 #include "debugger.h"
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
+#include "gc/card_table-inl.h"
 #include "gc/heap_bitmap.h"
+#include "gc/heap_bitmap-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/mark_sweep.h"
+#include "gc/mark_sweep-inl.h"
 #include "gc/partial_mark_sweep.h"
+#include "gc/space_bitmap-inl.h"
 #include "gc/sticky_mark_sweep.h"
 #include "gc/mod_union_table.h"
+#include "gc/mod_union_table-inl.h"
 #include "gc/space.h"
 #include "image.h"
-#include "object.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/object.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "os.h"
 #include "ScopedLocalRef.h"
@@ -431,7 +440,7 @@ Heap::~Heap() {
   delete gc_complete_lock_;
 }
 
-ContinuousSpace* Heap::FindSpaceFromObject(const Object* obj) const {
+ContinuousSpace* Heap::FindSpaceFromObject(const mirror::Object* obj) const {
   // TODO: C++0x auto
   for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     if ((*it)->Contains(obj)) {
@@ -465,13 +474,13 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
   }
 }
 
-Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
-  DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(Class)) ||
+mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_count) {
+  DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
          strlen(ClassHelper(c).GetDescriptor()) == 0);
-  DCHECK_GE(byte_count, sizeof(Object));
+  DCHECK_GE(byte_count, sizeof(mirror::Object));
 
-  Object* obj = NULL;
+  mirror::Object* obj = NULL;
   size_t size = 0;
   uint64_t allocation_start = 0;
   if (measure_allocation_time_) {
@@ -513,7 +522,7 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
       // concurrent_start_bytes_.
       concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
-      SirtRef<Object> ref(self, obj);
+      SirtRef<mirror::Object> ref(self, obj);
       RequestConcurrentGC(self);
     }
     VerifyObject(obj);
@@ -547,7 +556,7 @@ Object* Heap::AllocObject(Thread* self, Class* c, size_t byte_count) {
   return NULL;
 }
 
-bool Heap::IsHeapAddress(const Object* obj) {
+bool Heap::IsHeapAddress(const mirror::Object* obj) {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would
   // require taking the lock.
   if (obj == NULL) {
@@ -566,7 +575,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
   return large_object_space_->Contains(obj);
 }
 
-bool Heap::IsLiveObjectLocked(const Object* obj) {
+bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
   Locks::heap_bitmap_lock_->AssertReaderHeld(Thread::Current());
   return IsHeapAddress(obj) && GetLiveBitmap()->Test(obj);
 }
@@ -596,7 +605,7 @@ void Heap::DumpSpaces() {
   }
 }
 
-void Heap::VerifyObjectBody(const Object* obj) {
+void Heap::VerifyObjectBody(const mirror::Object* obj) {
   if (!IsAligned<kObjectAlignment>(obj)) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   }
@@ -618,8 +627,8 @@ void Heap::VerifyObjectBody(const Object* obj) {
   // Ignore early dawn of the universe verifications
   if (!VERIFY_OBJECT_FAST && GetObjectsAllocated() > 10) {
     const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
-        Object::ClassOffset().Int32Value();
-    const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
+        mirror::Object::ClassOffset().Int32Value();
+    const mirror::Class* c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
     if (c == NULL) {
       LOG(FATAL) << "Null class in object: " << obj;
     } else if (!IsAligned<kObjectAlignment>(c)) {
@@ -630,15 +639,15 @@ void Heap::VerifyObjectBody(const Object* obj) {
     // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
     // Note: we don't use the accessors here as they have internal sanity checks
     // that we don't want to run
-    raw_addr = reinterpret_cast<const byte*>(c) + Object::ClassOffset().Int32Value();
-    const Class* c_c = *reinterpret_cast<Class* const *>(raw_addr);
-    raw_addr = reinterpret_cast<const byte*>(c_c) + Object::ClassOffset().Int32Value();
-    const Class* c_c_c = *reinterpret_cast<Class* const *>(raw_addr);
+    raw_addr = reinterpret_cast<const byte*>(c) + mirror::Object::ClassOffset().Int32Value();
+    const mirror::Class* c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+    raw_addr = reinterpret_cast<const byte*>(c_c) + mirror::Object::ClassOffset().Int32Value();
+    const mirror::Class* c_c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
     CHECK_EQ(c_c, c_c_c);
   }
 }
 
-void Heap::VerificationCallback(Object* obj, void* arg) {
+void Heap::VerificationCallback(mirror::Object* obj, void* arg) {
   DCHECK(obj != NULL);
   reinterpret_cast<Heap*>(arg)->VerifyObjectBody(obj);
 }
@@ -648,7 +657,7 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-void Heap::RecordAllocation(size_t size, Object* obj) {
+void Heap::RecordAllocation(size_t size, mirror::Object* obj) {
   DCHECK(obj != NULL);
   DCHECK_GT(size, 0u);
   num_bytes_allocated_ += size;
@@ -687,7 +696,7 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
-Object* Heap::TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow) {
+mirror::Object* Heap::TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, bool grow) {
   // Should we try to use a CAS here and fix up num_bytes_allocated_ later with AllocationSize?
   if (num_bytes_allocated_ + alloc_size > max_allowed_footprint_) {
     // max_allowed_footprint_ <= growth_limit_ so it is safe to check in here.
@@ -711,13 +720,13 @@ Object* Heap::TryToAllocate(Thread* self, AllocSpace* space, size_t alloc_size, 
   return space->Alloc(self, alloc_size);
 }
 
-Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
+mirror::Object* Heap::Allocate(Thread* self, AllocSpace* space, size_t alloc_size) {
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
   DCHECK_EQ(self->GetState(), kRunnable);
   self->AssertThreadSuspensionIsAllowable();
 
-  Object* ptr = TryToAllocate(self, space, alloc_size, false);
+  mirror::Object* ptr = TryToAllocate(self, space, alloc_size, false);
   if (ptr != NULL) {
     return ptr;
   }
@@ -838,14 +847,14 @@ size_t Heap::GetTotalBytesAllocated() const {
 
 class InstanceCounter {
  public:
-  InstanceCounter(const std::vector<Class*>& classes, bool use_is_assignable_from, uint64_t* counts)
+  InstanceCounter(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from, uint64_t* counts)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : classes_(classes), use_is_assignable_from_(use_is_assignable_from), counts_(counts) {
   }
 
-  void operator()(const Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void operator()(const mirror::Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     for (size_t i = 0; i < classes_.size(); ++i) {
-      const Class* instance_class = o->GetClass();
+      const mirror::Class* instance_class = o->GetClass();
       if (use_is_assignable_from_) {
         if (instance_class != NULL && classes_[i]->IsAssignableFrom(instance_class)) {
           ++counts_[i];
@@ -859,14 +868,14 @@ class InstanceCounter {
   }
 
  private:
-  const std::vector<Class*>& classes_;
+  const std::vector<mirror::Class*>& classes_;
   bool use_is_assignable_from_;
   uint64_t* const counts_;
 
   DISALLOW_COPY_AND_ASSIGN(InstanceCounter);
 };
 
-void Heap::CountInstances(const std::vector<Class*>& classes, bool use_is_assignable_from,
+void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
                           uint64_t* counts) {
   // We only want reachable instances, so do a GC. This also ensures that the alloc stack
   // is empty, so the live bitmap is the only place we need to look.
@@ -882,29 +891,30 @@ void Heap::CountInstances(const std::vector<Class*>& classes, bool use_is_assign
 
 class InstanceCollector {
  public:
-  InstanceCollector(Class* c, int32_t max_count, std::vector<Object*>& instances)
+  InstanceCollector(mirror::Class* c, int32_t max_count, std::vector<mirror::Object*>& instances)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_(c), max_count_(max_count), instances_(instances) {
   }
 
-  void operator()(const Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const Class* instance_class = o->GetClass();
+  void operator()(const mirror::Object* o) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const mirror::Class* instance_class = o->GetClass();
     if (instance_class == class_) {
       if (max_count_ == 0 || instances_.size() < max_count_) {
-        instances_.push_back(const_cast<Object*>(o));
+        instances_.push_back(const_cast<mirror::Object*>(o));
       }
     }
   }
 
  private:
-  Class* class_;
+  mirror::Class* class_;
   uint32_t max_count_;
-  std::vector<Object*>& instances_;
+  std::vector<mirror::Object*>& instances_;
 
   DISALLOW_COPY_AND_ASSIGN(InstanceCollector);
 };
 
-void Heap::GetInstances(Class* c, int32_t max_count, std::vector<Object*>& instances) {
+void Heap::GetInstances(mirror::Class* c, int32_t max_count,
+                        std::vector<mirror::Object*>& instances) {
   // We only want reachable instances, so do a GC. This also ensures that the alloc stack
   // is empty, so the live bitmap is the only place we need to look.
   Thread* self = Thread::Current();
@@ -919,7 +929,8 @@ void Heap::GetInstances(Class* c, int32_t max_count, std::vector<Object*>& insta
 
 class ReferringObjectsFinder {
  public:
-  ReferringObjectsFinder(Object* object, int32_t max_count, std::vector<Object*>& referring_objects)
+  ReferringObjectsFinder(mirror::Object* object, int32_t max_count,
+                         std::vector<mirror::Object*>& referring_objects)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : object_(object), max_count_(max_count), referring_objects_(referring_objects) {
   }
@@ -927,27 +938,28 @@ class ReferringObjectsFinder {
   // For bitmap Visit.
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
-  void operator()(const Object* o) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const mirror::Object* o) const NO_THREAD_SAFETY_ANALYSIS {
     MarkSweep::VisitObjectReferences(o, *this);
   }
 
   // For MarkSweep::VisitObjectReferences.
-  void operator ()(const Object* referrer, const Object* object, const MemberOffset&, bool) const {
+  void operator ()(const mirror::Object* referrer, const mirror::Object* object,
+                   const MemberOffset&, bool) const {
     if (object == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
-      referring_objects_.push_back(const_cast<Object*>(referrer));
+      referring_objects_.push_back(const_cast<mirror::Object*>(referrer));
     }
   }
 
  private:
-  Object* object_;
+  mirror::Object* object_;
   uint32_t max_count_;
-  std::vector<Object*>& referring_objects_;
+  std::vector<mirror::Object*>& referring_objects_;
 
   DISALLOW_COPY_AND_ASSIGN(ReferringObjectsFinder);
 };
 
-void Heap::GetReferringObjects(Object* o, int32_t max_count,
-                               std::vector<Object*>& referring_objects) {
+void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
+                               std::vector<mirror::Object*>& referring_objects) {
   // We only want reachable instances, so do a GC. This also ensures that the alloc stack
   // is empty, so the live bitmap is the only place we need to look.
   Thread* self = Thread::Current();
@@ -1026,9 +1038,9 @@ size_t Heap::GetUsedMemorySize() const {
 }
 
 void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack) {
-  Object** limit = stack->End();
-  for (Object** it = stack->Begin(); it != limit; ++it) {
-    const Object* obj = *it;
+  mirror::Object** limit = stack->End();
+  for (mirror::Object** it = stack->Begin(); it != limit; ++it) {
+    const mirror::Object* obj = *it;
     DCHECK(obj != NULL);
     if (LIKELY(bitmap->HasAddress(obj))) {
       bitmap->Set(obj);
@@ -1039,9 +1051,9 @@ void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, Objec
 }
 
 void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, ObjectStack* stack) {
-  Object** limit = stack->End();
-  for (Object** it = stack->Begin(); it != limit; ++it) {
-    const Object* obj = *it;
+  mirror::Object** limit = stack->End();
+  for (mirror::Object** it = stack->Begin(); it != limit; ++it) {
+    const mirror::Object* obj = *it;
     DCHECK(obj != NULL);
     if (LIKELY(bitmap->HasAddress(obj))) {
       bitmap->Clear(obj);
@@ -1187,8 +1199,8 @@ void Heap::UpdateAndMarkModUnion(MarkSweep* mark_sweep, TimingLogger& timings, G
   timings.AddSplit("MarkImageToAllocSpaceReferences");
 }
 
-void Heap::RootMatchesObjectVisitor(const Object* root, void* arg) {
-  Object* obj = reinterpret_cast<Object*>(arg);
+void Heap::RootMatchesObjectVisitor(const mirror::Object* root, void* arg) {
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
   if (root == obj) {
     LOG(INFO) << "Object " << obj << " is a root";
   }
@@ -1196,7 +1208,7 @@ void Heap::RootMatchesObjectVisitor(const Object* root, void* arg) {
 
 class ScanVisitor {
  public:
-  void operator ()(const Object* obj) const {
+  void operator ()(const mirror::Object* obj) const {
     LOG(INFO) << "Would have rescanned object " << obj;
   }
 };
@@ -1212,8 +1224,9 @@ class VerifyReferenceVisitor {
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for smarter
   // analysis.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
-                     bool /* is_static */) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator ()(const mirror::Object* obj, const mirror::Object* ref,
+                   const MemberOffset& /* offset */, bool /* is_static */) const
+      NO_THREAD_SAFETY_ANALYSIS {
     // Verify that the reference is live.
     if (ref != NULL && !IsLive(ref)) {
       CardTable* card_table = heap_->GetCardTable();
@@ -1260,7 +1273,7 @@ class VerifyReferenceVisitor {
     }
   }
 
-  bool IsLive(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  bool IsLive(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (heap_->GetLiveBitmap()->Test(obj)) {
       return true;
     }
@@ -1284,7 +1297,7 @@ class VerifyObjectVisitor {
 
   }
 
-  void operator ()(const Object* obj) const
+  void operator ()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceVisitor visitor(heap_, const_cast<bool*>(&failed_));
     MarkSweep::VisitObjectReferences(obj, visitor);
@@ -1328,8 +1341,8 @@ class VerifyReferenceCardVisitor {
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& offset,
-                     bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator ()(const mirror::Object* obj, const mirror::Object* ref, const MemberOffset& offset,
+                   bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
     // Filter out class references since changing an object's class does not mark the card as dirty.
     // Also handles large objects, since the only reference they hold is a class reference.
     if (ref != NULL && !ref->IsClass()) {
@@ -1355,12 +1368,13 @@ class VerifyReferenceCardVisitor {
 
           // Print which field of the object is dead.
           if (!obj->IsObjectArray()) {
-            const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
+            const mirror::Class* klass = is_static ? obj->AsClass() : obj->GetClass();
             CHECK(klass != NULL);
-            const ObjectArray<Field>* fields = is_static ? klass->GetSFields() : klass->GetIFields();
+            const mirror::ObjectArray<mirror::Field>* fields = is_static ? klass->GetSFields()
+                                                                         : klass->GetIFields();
             CHECK(fields != NULL);
             for (int32_t i = 0; i < fields->GetLength(); ++i) {
-              const Field* cur = fields->Get(i);
+              const mirror::Field* cur = fields->Get(i);
               if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
                           << PrettyField(cur);
@@ -1368,7 +1382,8 @@ class VerifyReferenceCardVisitor {
               }
             }
           } else {
-            const ObjectArray<Object>* object_array = obj->AsObjectArray<Object>();
+            const mirror::ObjectArray<mirror::Object>* object_array =
+                obj->AsObjectArray<mirror::Object>();
             for (int32_t i = 0; i < object_array->GetLength(); ++i) {
               if (object_array->Get(i) == ref) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "obj[" << i << "] = ref";
@@ -1395,7 +1410,7 @@ class VerifyLiveStackReferences {
 
   }
 
-  void operator ()(const Object* obj) const
+  void operator ()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
     MarkSweep::VisitObjectReferences(obj, visitor);
@@ -1419,7 +1434,7 @@ bool Heap::VerifyMissingCardMarks() {
   GetLiveBitmap()->Visit(visitor);
 
   // We can verify objects in the live stack since none of these should reference dead objects.
-  for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
+  for (mirror::Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
     visitor(*it);
   }
 
@@ -1636,34 +1651,36 @@ void Heap::SetReferenceOffsets(MemberOffset reference_referent_offset,
   CHECK_NE(finalizer_reference_zombie_offset_.Uint32Value(), 0U);
 }
 
-Object* Heap::GetReferenceReferent(Object* reference) {
+mirror::Object* Heap::GetReferenceReferent(mirror::Object* reference) {
   DCHECK(reference != NULL);
   DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
-  return reference->GetFieldObject<Object*>(reference_referent_offset_, true);
+  return reference->GetFieldObject<mirror::Object*>(reference_referent_offset_, true);
 }
 
-void Heap::ClearReferenceReferent(Object* reference) {
+void Heap::ClearReferenceReferent(mirror::Object* reference) {
   DCHECK(reference != NULL);
   DCHECK_NE(reference_referent_offset_.Uint32Value(), 0U);
   reference->SetFieldObject(reference_referent_offset_, NULL, true);
 }
 
 // Returns true if the reference object has not yet been enqueued.
-bool Heap::IsEnqueuable(const Object* ref) {
+bool Heap::IsEnqueuable(const mirror::Object* ref) {
   DCHECK(ref != NULL);
-  const Object* queue = ref->GetFieldObject<Object*>(reference_queue_offset_, false);
-  const Object* queue_next = ref->GetFieldObject<Object*>(reference_queueNext_offset_, false);
+  const mirror::Object* queue =
+      ref->GetFieldObject<mirror::Object*>(reference_queue_offset_, false);
+  const mirror::Object* queue_next =
+      ref->GetFieldObject<mirror::Object*>(reference_queueNext_offset_, false);
   return (queue != NULL) && (queue_next == NULL);
 }
 
-void Heap::EnqueueReference(Object* ref, Object** cleared_reference_list) {
+void Heap::EnqueueReference(mirror::Object* ref, mirror::Object** cleared_reference_list) {
   DCHECK(ref != NULL);
-  CHECK(ref->GetFieldObject<Object*>(reference_queue_offset_, false) != NULL);
-  CHECK(ref->GetFieldObject<Object*>(reference_queueNext_offset_, false) == NULL);
+  CHECK(ref->GetFieldObject<mirror::Object*>(reference_queue_offset_, false) != NULL);
+  CHECK(ref->GetFieldObject<mirror::Object*>(reference_queueNext_offset_, false) == NULL);
   EnqueuePendingReference(ref, cleared_reference_list);
 }
 
-void Heap::EnqueuePendingReference(Object* ref, Object** list) {
+void Heap::EnqueuePendingReference(mirror::Object* ref, mirror::Object** list) {
   DCHECK(ref != NULL);
   DCHECK(list != NULL);
 
@@ -1673,17 +1690,19 @@ void Heap::EnqueuePendingReference(Object* ref, Object** list) {
     ref->SetFieldObject(reference_pendingNext_offset_, ref, false);
     *list = ref;
   } else {
-    Object* head = (*list)->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
+    mirror::Object* head =
+        (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_, false);
     ref->SetFieldObject(reference_pendingNext_offset_, head, false);
     (*list)->SetFieldObject(reference_pendingNext_offset_, ref, false);
   }
 }
 
-Object* Heap::DequeuePendingReference(Object** list) {
+mirror::Object* Heap::DequeuePendingReference(mirror::Object** list) {
   DCHECK(list != NULL);
   DCHECK(*list != NULL);
-  Object* head = (*list)->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
-  Object* ref;
+  mirror::Object* head = (*list)->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_,
+                                                                  false);
+  mirror::Object* ref;
 
   // Note: the following code is thread-safe because it is only called from ProcessReferences which
   // is single threaded.
@@ -1691,7 +1710,8 @@ Object* Heap::DequeuePendingReference(Object** list) {
     ref = *list;
     *list = NULL;
   } else {
-    Object* next = head->GetFieldObject<Object*>(reference_pendingNext_offset_, false);
+    mirror::Object* next = head->GetFieldObject<mirror::Object*>(reference_pendingNext_offset_,
+                                                                 false);
     (*list)->SetFieldObject(reference_pendingNext_offset_, next, false);
     ref = head;
   }
@@ -1699,7 +1719,7 @@ Object* Heap::DequeuePendingReference(Object** list) {
   return ref;
 }
 
-void Heap::AddFinalizerReference(Thread* self, Object* object) {
+void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
   ScopedObjectAccess soa(self);
   JValue args[1];
   args[0].SetL(object);
@@ -1731,7 +1751,7 @@ size_t Heap::GetConcurrentMinFree() const {
   return concurrent_min_free_;
 }
 
-void Heap::EnqueueClearedReferences(Object** cleared) {
+void Heap::EnqueueClearedReferences(mirror::Object** cleared) {
   DCHECK(cleared != NULL);
   if (*cleared != NULL) {
     // When a runtime isn't started there are no reference queues to care about so ignore.

@@ -365,7 +365,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 1:  // Get method->dex_cache_resolved_methods_
       cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
-        AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
+        mirror::AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(), cg->TargetReg(kArg0));
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<unsigned int>(-1)) {
@@ -384,13 +384,14 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 2:  // Grab target method*
       cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
-                       Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4,
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() + dex_idx * 4,
                        cg-> TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
       if (cu->instruction_set != kX86) {
         if (direct_code == 0) {
-          cg->LoadWordDisp(cu, cg->TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+          cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+                           mirror::AbstractMethod::GetCodeOffset().Int32Value(),
                            cg->TargetReg(kInvokeTgt));
         }
         break;
@@ -428,20 +429,22 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
     case 1: // Is "this" null? [use kArg1]
       cg->GenNullCheck(cu, info->args[0].s_reg_low, cg->TargetReg(kArg1), info->opt_flags);
       // get this->klass_ [use kArg1, set kInvokeTgt]
-      cg->LoadWordDisp(cu, cg->TargetReg(kArg1), Object::ClassOffset().Int32Value(),
+      cg->LoadWordDisp(cu, cg->TargetReg(kArg1), mirror::Object::ClassOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
       break;
     case 2: // Get this->klass_->vtable [usr kInvokeTgt, set kInvokeTgt]
-      cg->LoadWordDisp(cu, cg->TargetReg(kInvokeTgt), Class::VTableOffset().Int32Value(),
+      cg->LoadWordDisp(cu, cg->TargetReg(kInvokeTgt), mirror::Class::VTableOffset().Int32Value(),
                        cg->TargetReg(kInvokeTgt));
       break;
     case 3: // Get target method [use kInvokeTgt, set kArg0]
       cg->LoadWordDisp(cu, cg->TargetReg(kInvokeTgt), (method_idx * 4) +
-                       Array::DataOffset(sizeof(Object*)).Int32Value(), cg->TargetReg(kArg0));
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value(),
+                       cg->TargetReg(kArg0));
       break;
     case 4: // Get the compiled code address [uses kArg0, sets kInvokeTgt]
       if (cu->instruction_set != kX86) {
-        cg->LoadWordDisp(cu, cg->TargetReg(kArg0), AbstractMethod::GetCodeOffset().Int32Value(),
+        cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
+                         mirror::AbstractMethod::GetCodeOffset().Int32Value(),
                          cg->TargetReg(kInvokeTgt));
         break;
       }
@@ -503,12 +506,12 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         break;
     case 1:  // Get method->dex_cache_resolved_methods_ [set/use kArg0]
       cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
-                       AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                       mirror::AbstractMethod::DexCacheResolvedMethodsOffset().Int32Value(),
                        cg->TargetReg(kArg0));
       break;
     case 2:  // Grab target method* [set/use kArg0]
       cg->LoadWordDisp(cu, cg->TargetReg(kArg0),
-                       Array::DataOffset(sizeof(Object*)).Int32Value() + dex_idx * 4,
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() + dex_idx * 4,
                        cg->TargetReg(kArg0));
       break;
     default:
@@ -837,13 +840,13 @@ bool Codegen::GenInlinedCharAt(CompilationUnit* cu, CallInfo* info)
     return false;
   }
   // Location of reference to data array
-  int value_offset = String::ValueOffset().Int32Value();
+  int value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count
-  int count_offset = String::CountOffset().Int32Value();
+  int count_offset = mirror::String::CountOffset().Int32Value();
   // Starting offset within data array
-  int offset_offset = String::OffsetOffset().Int32Value();
+  int offset_offset = mirror::String::OffsetOffset().Int32Value();
   // Start of char data with array_
-  int data_offset = Array::DataOffset(sizeof(uint16_t)).Int32Value();
+  int data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
   RegLocation rl_obj = info->args[0];
   RegLocation rl_idx = info->args[1];
@@ -921,7 +924,7 @@ bool Codegen::GenInlinedStringIsEmptyOrLength(CompilationUnit* cu, CallInfo* inf
   RegLocation rl_dest = InlineTarget(cu, info);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   GenNullCheck(cu, rl_obj.s_reg_low, rl_obj.low_reg, info->opt_flags);
-  LoadWordDisp(cu, rl_obj.low_reg, String::CountOffset().Int32Value(),
+  LoadWordDisp(cu, rl_obj.low_reg, mirror::String::CountOffset().Int32Value(),
                rl_result.low_reg);
   if (is_empty) {
     // dst = (dst == 0);
@@ -1284,7 +1287,7 @@ void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
   } else {
     if (fast_path && info->type != kInterface) {
       call_inst = OpMem(cu, kOpBlx, TargetReg(kArg0),
-                       AbstractMethod::GetCodeOffset().Int32Value());
+                        mirror::AbstractMethod::GetCodeOffset().Int32Value());
     } else {
       int trampoline = 0;
       switch (info->type) {

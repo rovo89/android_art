@@ -16,7 +16,7 @@
 
 #include "context_mips.h"
 
-#include "object.h"
+#include "mirror/object.h"
 
 namespace art {
 namespace mips {

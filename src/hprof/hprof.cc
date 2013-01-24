@@ -44,7 +44,11 @@
 #include "debugger.h"
 #include "globals.h"
 #include "heap.h"
-#include "object.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/field.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "os.h"
 #include "safe_map.h"
@@ -165,8 +169,8 @@ typedef uint32_t HprofId;
 typedef HprofId HprofStringId;
 typedef HprofId HprofObjectId;
 typedef HprofId HprofClassObjectId;
-typedef std::set<Class*> ClassSet;
-typedef std::set<Class*>::iterator ClassSetIterator;
+typedef std::set<mirror::Class*> ClassSet;
+typedef std::set<mirror::Class*>::iterator ClassSetIterator;
 typedef SafeMap<std::string, size_t> StringMap;
 typedef SafeMap<std::string, size_t>::iterator StringMapIterator;
 
@@ -480,14 +484,14 @@ class Hprof {
   }
 
  private:
-  static void RootVisitor(const Object* obj, void* arg)
+  static void RootVisitor(const mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(arg != NULL);
     Hprof* hprof = reinterpret_cast<Hprof*>(arg);
     hprof->VisitRoot(obj);
   }
 
-  static void HeapBitmapCallback(Object* obj, void* arg)
+  static void HeapBitmapCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(obj != NULL);
     CHECK(arg != NULL);
@@ -495,9 +499,9 @@ class Hprof {
     hprof->DumpHeapObject(obj);
   }
 
-  void VisitRoot(const Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoot(const mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int DumpHeapObject(Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  int DumpHeapObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Finish() {
   }
@@ -507,7 +511,7 @@ class Hprof {
     uint32_t nextSerialNumber = 1;
 
     for (ClassSetIterator it = classes_.begin(); it != classes_.end(); ++it) {
-      const Class* c = *it;
+      const mirror::Class* c = *it;
       CHECK(c != NULL);
 
       int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_LOAD_CLASS, HPROF_TIME);
@@ -567,9 +571,9 @@ class Hprof {
     current_heap_ = HPROF_HEAP_DEFAULT;
   }
 
-  int MarkRootObject(const Object* obj, jobject jniObj);
+  int MarkRootObject(const mirror::Object* obj, jobject jniObj);
 
-  HprofClassObjectId LookupClassId(Class* c)
+  HprofClassObjectId LookupClassId(mirror::Class* c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (c == NULL) {
       // c is the superclass of java.lang.Object or a primitive
@@ -577,7 +581,7 @@ class Hprof {
     }
 
     std::pair<ClassSetIterator, bool> result = classes_.insert(c);
-    const Class* present = *result.first;
+    const mirror::Class* present = *result.first;
 
     // Make sure that we've assigned a string ID for this class' name
     LookupClassNameId(c);
@@ -586,7 +590,7 @@ class Hprof {
     return (HprofStringId) present;
   }
 
-  HprofStringId LookupStringId(String* string) {
+  HprofStringId LookupStringId(mirror::String* string) {
     return LookupStringId(string->ToModifiedUtf8());
   }
 
@@ -604,7 +608,7 @@ class Hprof {
     return id;
   }
 
-  HprofStringId LookupClassNameId(const Class* c)
+  HprofStringId LookupClassNameId(const mirror::Class* c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return LookupStringId(PrettyDescriptor(c));
   }
@@ -740,7 +744,7 @@ static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* 
 // something when ctx->gc_scan_state_ is non-zero, which is usually
 // only true when marking the root set or unreachable
 // objects.  Used to add rootset references to obj.
-int Hprof::MarkRootObject(const Object* obj, jobject jniObj) {
+int Hprof::MarkRootObject(const mirror::Object* obj, jobject jniObj) {
   HprofRecord* rec = &current_record_;
   HprofHeapTag heapTag = (HprofHeapTag)gc_scan_state_;
 
@@ -823,11 +827,11 @@ int Hprof::MarkRootObject(const Object* obj, jobject jniObj) {
   return 0;
 }
 
-static int StackTraceSerialNumber(const Object* /*obj*/) {
+static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
   return HPROF_NULL_STACK_TRACE;
 }
 
-int Hprof::DumpHeapObject(Object* obj) {
+int Hprof::DumpHeapObject(mirror::Object* obj) {
   HprofRecord* rec = &current_record_;
   HprofHeapId desiredHeap = false ? HPROF_HEAP_ZYGOTE : HPROF_HEAP_APP; // TODO: zygote objects?
 
@@ -859,7 +863,7 @@ int Hprof::DumpHeapObject(Object* obj) {
     current_heap_ = desiredHeap;
   }
 
-  Class* c = obj->GetClass();
+  mirror::Class* c = obj->GetClass();
   if (c == NULL) {
     // This object will bother HprofReader, because it has a NULL
     // class, so just don't dump it. It could be
@@ -867,7 +871,7 @@ int Hprof::DumpHeapObject(Object* obj) {
     // allocated which hasn't been initialized yet.
   } else {
     if (obj->IsClass()) {
-      Class* thisClass = obj->AsClass();
+      mirror::Class* thisClass = obj->AsClass();
       // obj is a ClassObject.
       size_t sFieldCount = thisClass->NumStaticFields();
       if (sFieldCount != 0) {
@@ -896,7 +900,7 @@ int Hprof::DumpHeapObject(Object* obj) {
       if (thisClass->IsClassClass()) {
         // ClassObjects have their static fields appended, so aren't all the same size.
         // But they're at least this size.
-        rec->AddU4(sizeof(Class)); // instance size
+        rec->AddU4(sizeof(mirror::Class)); // instance size
       } else if (thisClass->IsArrayClass() || thisClass->IsPrimitive()) {
         rec->AddU4(0);
       } else {
@@ -917,7 +921,7 @@ int Hprof::DumpHeapObject(Object* obj) {
         rec->AddId(CLASS_STATICS_ID(obj));
 
         for (size_t i = 0; i < sFieldCount; ++i) {
-          Field* f = thisClass->GetStaticField(i);
+          mirror::Field* f = thisClass->GetStaticField(i);
           fh.ChangeField(f);
 
           size_t size;
@@ -942,14 +946,14 @@ int Hprof::DumpHeapObject(Object* obj) {
       int iFieldCount = thisClass->IsObjectClass() ? 0 : thisClass->NumInstanceFields();
       rec->AddU2((uint16_t)iFieldCount);
       for (int i = 0; i < iFieldCount; ++i) {
-        Field* f = thisClass->GetInstanceField(i);
+        mirror::Field* f = thisClass->GetInstanceField(i);
         fh.ChangeField(f);
         HprofBasicType t = SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), NULL);
         rec->AddId(LookupStringId(fh.GetName()));
         rec->AddU1(t);
       }
     } else if (c->IsArrayClass()) {
-      const Array* aobj = obj->AsArray();
+      const mirror::Array* aobj = obj->AsArray();
       uint32_t length = aobj->GetLength();
 
       if (obj->IsObjectArray()) {
@@ -962,7 +966,7 @@ int Hprof::DumpHeapObject(Object* obj) {
         rec->AddId(LookupClassId(c));
 
         // Dump the elements, which are always objects or NULL.
-        rec->AddIdList((const HprofObjectId*)aobj->GetRawData(sizeof(Object*)), length);
+        rec->AddIdList((const HprofObjectId*)aobj->GetRawData(sizeof(mirror::Object*)), length);
       } else {
         size_t size;
         HprofBasicType t = PrimitiveToBasicTypeAndSize(c->GetComponentType()->GetPrimitiveType(), &size);
@@ -1000,12 +1004,12 @@ int Hprof::DumpHeapObject(Object* obj) {
 
       // Write the instance data;  fields for this class, followed by super class fields,
       // and so on. Don't write the klass or monitor fields of Object.class.
-      const Class* sclass = c;
+      const mirror::Class* sclass = c;
       FieldHelper fh;
       while (!sclass->IsObjectClass()) {
         int ifieldCount = sclass->NumInstanceFields();
         for (int i = 0; i < ifieldCount; ++i) {
-          Field* f = sclass->GetInstanceField(i);
+          mirror::Field* f = sclass->GetInstanceField(i);
           fh.ChangeField(f);
           size_t size;
           SignatureToBasicTypeAndSize(fh.GetTypeDescriptor(), &size);
@@ -1034,7 +1038,7 @@ int Hprof::DumpHeapObject(Object* obj) {
   return 0;
 }
 
-void Hprof::VisitRoot(const Object* obj) {
+void Hprof::VisitRoot(const mirror::Object* obj) {
   uint32_t threadId = 0;  // TODO
   /*RootType*/ size_t type = 0; // TODO
 

@@ -25,21 +25,31 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "card_table.h"
-#include "class_loader.h"
-#include "dex_cache.h"
+#include "card_table-inl.h"
 #include "heap.h"
 #include "indirect_reference_table.h"
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "large_object_space.h"
 #include "monitor.h"
-#include "object.h"
+#include "mark_sweep-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
+#include "mirror/field.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array.h"
+#include "mirror/object_array-inl.h"
 #include "runtime.h"
 #include "space.h"
+#include "space_bitmap-inl.h"
 #include "timing_logger.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
+
+using namespace art::mirror;
 
 namespace art {
 
@@ -186,7 +196,7 @@ bool MarkSweep::HandleDirtyObjectsPhase() {
     timings_.AddSplit("ReMarkRoots");
 
     // Scan dirty objects, this is only required if we are not doing concurrent GC.
-    RecursiveMarkDirtyObjects();
+    RecursiveMarkDirtyObjects(CardTable::kCardDirty);
   }
 
   ProcessReferences(self);
@@ -700,7 +710,7 @@ void MarkSweep::ReMarkRoots() {
   Runtime::Current()->VisitRoots(ReMarkObjectVisitor, this);
 }
 
-void MarkSweep::SweepJniWeakGlobals(Heap::IsMarkedTester is_marked, void* arg) {
+void MarkSweep::SweepJniWeakGlobals(IsMarkedTester is_marked, void* arg) {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   MutexLock mu(Thread::Current(), vm->weak_globals_lock);
   IndirectReferenceTable* table = &vm->weak_globals;

@@ -15,11 +15,12 @@
  */
 
 #include "callee_save_frame.h"
-#include "object.h"
+#include "mirror/object.h"
 
 namespace art {
 
-extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, AbstractMethod** sp)
+extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self,
+                                       mirror::AbstractMethod** sp)
     UNLOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
@@ -27,7 +28,8 @@ extern "C" int artUnlockObjectFromCode(Object* obj, Thread* self, AbstractMethod
   return obj->MonitorExit(self) ? 0 /* Success */ : -1 /* Failure */;
 }
 
-extern "C" void artLockObjectFromCode(Object* obj, Thread* thread, AbstractMethod** sp)
+extern "C" void artLockObjectFromCode(mirror::Object* obj, Thread* thread,
+                                      mirror::AbstractMethod** sp)
     EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
   DCHECK(obj != NULL);        // Assumed to have been checked before entry

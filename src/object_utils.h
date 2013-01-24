@@ -18,14 +18,17 @@
 #define ART_SRC_OBJECT_UTILS_H_
 
 #include "class_linker.h"
-#include "dex_cache.h"
 #include "dex_file.h"
-#include "intern_table.h"
 #include "monitor.h"
-#include "object.h"
+#include "mirror/abstract_method.h"
+#include "mirror/class.h"
+#include "mirror/dex_cache.h"
+#include "mirror/field.h"
+#include "mirror/iftable.h"
+#include "mirror/string.h"
+
 #include "runtime.h"
 #include "sirt_ref.h"
-#include "UniquePtr.h"
 
 #include <string>
 
@@ -33,7 +36,7 @@ namespace art {
 
 class ObjectLock {
  public:
-  explicit ObjectLock(Thread* self, Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  explicit ObjectLock(Thread* self, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : self_(self), obj_(object) {
     CHECK(object != NULL);
     obj_->MonitorEnter(self_);
@@ -57,13 +60,13 @@ class ObjectLock {
 
  private:
   Thread* const self_;
-  Object* obj_;
+  mirror::Object* obj_;
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
 
 class ClassHelper {
  public:
-  ClassHelper(const Class* c = NULL, ClassLinker* l = NULL)
+  ClassHelper(const mirror::Class* c = NULL, ClassLinker* l = NULL)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_def_(NULL),
         class_linker_(l),
@@ -76,12 +79,12 @@ class ClassHelper {
     }
   }
 
-  void ChangeClass(const Class* new_c)
+  void ChangeClass(const mirror::Class* new_c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_c != NULL) << "klass_=" << klass_;  // Log what we were changing from if any
     CHECK(new_c->IsClass()) << "new_c=" << new_c;
     if (dex_cache_ != NULL) {
-      DexCache* new_c_dex_cache = new_c->GetDexCache();
+      mirror::DexCache* new_c_dex_cache = new_c->GetDexCache();
       if (new_c_dex_cache != dex_cache_) {
         dex_cache_ = new_c_dex_cache;
         dex_file_ = NULL;
@@ -112,7 +115,7 @@ class ClassHelper {
 
   const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string result("[");
-    const Class* saved_klass = klass_;
+    const mirror::Class* saved_klass = klass_;
     CHECK(saved_klass != NULL);
     ChangeClass(klass_->GetComponentType());
     result += GetDescriptor();
@@ -157,7 +160,7 @@ class ClassHelper {
     return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
   }
 
-  Class* GetDirectInterface(uint32_t idx)
+  mirror::Class* GetDirectInterface(uint32_t idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
@@ -172,7 +175,7 @@ class ClassHelper {
       return klass_->GetIfTable()->GetInterface(idx);
     } else {
       uint16_t type_idx = GetDirectInterfaceTypeIdx(idx);
-      Class* interface = GetDexCache()->GetResolvedType(type_idx);
+      mirror::Class* interface = GetDexCache()->GetResolvedType(type_idx);
       if (interface == NULL) {
         interface = GetClassLinker()->ResolveType(GetDexFile(), type_idx, klass_);
         CHECK(interface != NULL || Thread::Current()->IsExceptionPending());
@@ -190,7 +193,7 @@ class ClassHelper {
   }
 
   std::string GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DexCache* dex_cache = GetDexCache();
+    mirror::DexCache* dex_cache = GetDexCache();
     if (dex_cache != NULL && !klass_->IsProxyClass()) {
       return dex_cache->GetLocation()->ToModifiedUtf8();
     } else {
@@ -206,8 +209,8 @@ class ClassHelper {
     return *dex_file_;
   }
 
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DexCache* result = dex_cache_;
+  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::DexCache* result = dex_cache_;
     if (result == NULL) {
       DCHECK(klass_ != NULL);
       result = klass_->GetDexCache();
@@ -241,10 +244,10 @@ class ClassHelper {
 
   const DexFile::ClassDef* class_def_;
   ClassLinker* class_linker_;
-  DexCache* dex_cache_;
+  mirror::DexCache* dex_cache_;
   const DexFile* dex_file_;
   const DexFile::TypeList* interface_type_list_;
-  const Class* klass_;
+  const mirror::Class* klass_;
   std::string descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(ClassHelper);
@@ -253,14 +256,14 @@ class ClassHelper {
 class FieldHelper {
  public:
   FieldHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(NULL) {}
-  explicit FieldHelper(const Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
-  FieldHelper(const Field* f, ClassLinker* l)
+  explicit FieldHelper(const mirror::Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
+  FieldHelper(const mirror::Field* f, ClassLinker* l)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
 
-  void ChangeField(const Field* new_f) {
+  void ChangeField(const mirror::Field* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_f != NULL);
     if (dex_cache_ != NULL) {
-      DexCache* new_f_dex_cache = new_f->GetDeclaringClass()->GetDexCache();
+      mirror::DexCache* new_f_dex_cache = new_f->GetDeclaringClass()->GetDexCache();
       if (new_f_dex_cache != dex_cache_) {
         dex_cache_ = new_f_dex_cache;
         dex_file_ = NULL;
@@ -279,22 +282,12 @@ class FieldHelper {
       return field_index == 0 ? "interfaces" : "throws";
     }
   }
-  String* GetNameAsString() {
+  mirror::Class* GetType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-      return GetClassLinker()->ResolveString(dex_file, field_id.name_idx_, GetDexCache());
-    } else {
-      return Runtime::Current()->GetInternTable()->InternStrong(GetName());
-    }
-  }
-  Class* GetType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t field_index = field_->GetDexFieldIndex();
-    if (!field_->GetDeclaringClass()->IsProxyClass()) {
-      const DexFile& dex_file = GetDexFile();
-      const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
-      Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
+      mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
       if (type == NULL) {
         type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
         CHECK(type != NULL || Thread::Current()->IsExceptionPending());
@@ -347,8 +340,8 @@ class FieldHelper {
   }
 
  private:
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DexCache* result = dex_cache_;
+  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::DexCache* result = dex_cache_;
     if (result == NULL) {
       result = field_->GetDeclaringClass()->GetDexCache();
       dex_cache_ = result;
@@ -371,9 +364,9 @@ class FieldHelper {
   }
 
   ClassLinker* class_linker_;
-  DexCache* dex_cache_;
+  mirror::DexCache* dex_cache_;
   const DexFile* dex_file_;
-  const Field* field_;
+  const mirror::Field* field_;
   std::string declaring_class_descriptor_;
 
   DISALLOW_COPY_AND_ASSIGN(FieldHelper);
@@ -385,29 +378,29 @@ class MethodHelper {
      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
        shorty_len_(0) {}
 
-  explicit MethodHelper(const AbstractMethod* m)
+  explicit MethodHelper(const mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  MethodHelper(const AbstractMethod* m, ClassLinker* l)
+  MethodHelper(const mirror::AbstractMethod* m, ClassLinker* l)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  void ChangeMethod(AbstractMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ChangeMethod(mirror::AbstractMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_m != NULL);
     if (dex_cache_ != NULL) {
-      Class* klass = new_m->GetDeclaringClass();
+      mirror::Class* klass = new_m->GetDeclaringClass();
       if (klass->IsProxyClass()) {
         dex_cache_ = NULL;
         dex_file_ = NULL;
       } else {
-        DexCache* new_m_dex_cache = klass->GetDexCache();
+        mirror::DexCache* new_m_dex_cache = klass->GetDexCache();
         if (new_m_dex_cache != dex_cache_) {
           dex_cache_ = new_m_dex_cache;
           dex_file_ = NULL;
@@ -439,7 +432,7 @@ class MethodHelper {
     }
   }
 
-  String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
@@ -487,17 +480,18 @@ class MethodHelper {
     return GetDexFile().GetProtoParameters(proto);
   }
 
-  ObjectArray<Class>* GetParameterTypes(Thread* self)
+  mirror::ObjectArray<mirror::Class>* GetParameterTypes(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* params = GetParameterTypeList();
     uint32_t num_params = params == NULL ? 0 : params->Size();
-    SirtRef<ObjectArray<Class> > result(self, GetClassLinker()->AllocClassArray(self, num_params));
+    SirtRef<mirror::ObjectArray<mirror::Class> >
+        result(self, GetClassLinker()->AllocClassArray(self, num_params));
     if (UNLIKELY(result.get() == NULL)) {
       CHECK(self->IsExceptionPending());
       return NULL;
     }
     for (uint32_t i = 0; i < num_params; i++) {
-      Class* param_type = GetClassFromTypeIdx(params->GetTypeItem(i).type_idx_);
+      mirror::Class* param_type = GetClassFromTypeIdx(params->GetTypeItem(i).type_idx_);
       if (param_type == NULL) {
         DCHECK(Thread::Current()->IsExceptionPending());
         return NULL;
@@ -507,7 +501,7 @@ class MethodHelper {
     return result.get();
   }
 
-  Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
     const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
@@ -536,7 +530,7 @@ class MethodHelper {
 
   const char* GetDeclaringClassDescriptor()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* klass = method_->GetDeclaringClass();
+    mirror::Class* klass = method_->GetDeclaringClass();
     DCHECK(!klass->IsProxyClass());
     uint16_t type_idx = klass->GetDexTypeIndex();
     const DexFile& dex_file = GetDexFile();
@@ -561,7 +555,7 @@ class MethodHelper {
     return index;
   }
 
-  ClassLoader* GetClassLoader()
+  mirror::ClassLoader* GetClassLoader()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->GetDeclaringClass()->GetClassLoader();
   }
@@ -626,9 +620,9 @@ class MethodHelper {
     return method_->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
   }
 
-  Class* GetClassFromTypeIdx(uint16_t type_idx)
+  mirror::Class* GetClassFromTypeIdx(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
+    mirror::Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
     if (type == NULL) {
       type = GetClassLinker()->ResolveType(type_idx, method_);
       CHECK(type != NULL || Thread::Current()->IsExceptionPending());
@@ -642,7 +636,7 @@ class MethodHelper {
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
   }
 
-  Class* GetDexCacheResolvedType(uint16_t type_idx)
+  mirror::Class* GetDexCacheResolvedType(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->GetDexCacheResolvedTypes()->Get(type_idx);
   }
@@ -650,24 +644,24 @@ class MethodHelper {
   const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* result = dex_file_;
     if (result == NULL) {
-      const DexCache* dex_cache = GetDexCache();
+      const mirror::DexCache* dex_cache = GetDexCache();
       result = dex_file_ = dex_cache->GetDexFile();
     }
     return *result;
   }
 
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DexCache* result = dex_cache_;
+  mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::DexCache* result = dex_cache_;
     if (result == NULL) {
-      Class* klass = method_->GetDeclaringClass();
+      mirror::Class* klass = method_->GetDeclaringClass();
       result = klass->GetDexCache();
       dex_cache_ = result;
     }
     return result;
   }
 
-  String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    String* s = method_->GetDexCacheStrings()->Get(string_idx);
+  mirror::String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::String* s = method_->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(s == NULL)) {
       s = GetClassLinker()->ResolveString(GetDexFile(), string_idx, GetDexCache());
     }
@@ -677,11 +671,11 @@ class MethodHelper {
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
-  void SetMethod(const AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetMethod(const mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
-      Class* klass = method->GetDeclaringClass();
+      mirror::Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {
-        AbstractMethod* interface_method =
+        mirror::AbstractMethod* interface_method =
             method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
         CHECK(interface_method != NULL);
         CHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
@@ -701,9 +695,9 @@ class MethodHelper {
   }
 
   ClassLinker* class_linker_;
-  DexCache* dex_cache_;
+  mirror::DexCache* dex_cache_;
   const DexFile* dex_file_;
-  const AbstractMethod* method_;
+  const mirror::AbstractMethod* method_;
   const char* shorty_;
   uint32_t shorty_len_;
 

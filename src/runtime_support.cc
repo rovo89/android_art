@@ -16,6 +16,14 @@
 
 #include "runtime_support.h"
 
+#include "class_linker-inl.h"
+#include "gc/card_table-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
+#include "mirror/proxy.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -92,13 +100,14 @@ int32_t art_f2i(float f) {
 namespace art {
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int32_t component_count,
-                                  Thread* self, bool access_check) {
+mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+                                          int32_t component_count, Thread* self,
+                                          bool access_check) {
   if (UNLIKELY(component_count < 0)) {
     self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
     return NULL;  // Failure
   }
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
     if (klass == NULL) {  // Error
@@ -119,19 +128,19 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, AbstractMethod* method, int
     return NULL;  // Failure
   } else {
     if (access_check) {
-      Class* referrer = method->GetDeclaringClass();
+      mirror::Class* referrer = method->GetDeclaringClass();
       if (UNLIKELY(!referrer->CanAccess(klass))) {
         ThrowIllegalAccessErrorClass(referrer, klass);
         return NULL;  // Failure
       }
     }
     DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
-    return Array::Alloc(self, klass, component_count);
+    return mirror::Array::Alloc(self, klass, component_count);
   }
 }
 
-Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thread* self,
-                         FindFieldType type, size_t expected_size) {
+mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
+                                 Thread* self, FindFieldType type, size_t expected_size) {
   bool is_primitive;
   bool is_set;
   bool is_static;
@@ -147,7 +156,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thr
     default:                     is_primitive = true;  is_set = true;  is_static = true;  break;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
+  mirror::Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (UNLIKELY(resolved_field == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
@@ -156,8 +165,8 @@ Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thr
       ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
       return NULL;
     }
-    Class* fields_class = resolved_field->GetDeclaringClass();
-    Class* referring_class = referrer->GetDeclaringClass();
+    mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+    mirror::Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
                  !referring_class->CanAccessMember(fields_class,
                                                    resolved_field->GetAccessFlags()))) {
@@ -210,11 +219,12 @@ Field* FindFieldFromCode(uint32_t field_idx, const AbstractMethod* referrer, Thr
 }
 
 // Slow path method resolution
-AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, AbstractMethod* referrer,
-                           Thread* self, bool access_check, InvokeType type) {
+mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* this_object,
+                                           mirror::AbstractMethod* referrer,
+                                           Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_direct = type == kStatic || type == kDirect;
-  AbstractMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
+  mirror::AbstractMethod* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
@@ -228,7 +238,7 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        AbstractMethod* interface_method =
+        mirror::AbstractMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -238,7 +248,7 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
           return interface_method;
         }
       } else {
-        ObjectArray<AbstractMethod>* vtable;
+        mirror::ObjectArray<mirror::AbstractMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
           vtable = referrer->GetDeclaringClass()->GetSuperClass()->GetVTable();
@@ -255,8 +265,8 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
                                           referrer);
         return NULL;  // Failure.
       }
-      Class* methods_class = resolved_method->GetDeclaringClass();
-      Class* referring_class = referrer->GetDeclaringClass();
+      mirror::Class* methods_class = resolved_method->GetDeclaringClass();
+      mirror::Class* referring_class = referrer->GetDeclaringClass();
       if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
                    !referring_class->CanAccessMember(methods_class,
                                                      resolved_method->GetAccessFlags()))) {
@@ -280,7 +290,7 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
       if (is_direct) {
         return resolved_method;
       } else if (type == kInterface) {
-        AbstractMethod* interface_method =
+        mirror::AbstractMethod* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
@@ -290,10 +300,10 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
           return interface_method;
         }
       } else {
-        ObjectArray<AbstractMethod>* vtable;
+        mirror::ObjectArray<mirror::AbstractMethod>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (type == kSuper) {
-          Class* super_class = referring_class->GetSuperClass();
+          mirror::Class* super_class = referring_class->GetSuperClass();
           if (LIKELY(super_class != NULL)) {
             vtable = referring_class->GetSuperClass()->GetVTable();
           } else {
@@ -317,16 +327,16 @@ AbstractMethod* FindMethodFromCode(uint32_t method_idx, Object* this_object, Abs
   }
 }
 
-Class* ResolveVerifyAndClinit(uint32_t type_idx, const AbstractMethod* referrer, Thread* self,
-                               bool can_run_clinit, bool verify_access) {
+mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx, const mirror::AbstractMethod* referrer,
+                                      Thread* self, bool can_run_clinit, bool verify_access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Class* klass = class_linker->ResolveType(type_idx, referrer);
+  mirror::Class* klass = class_linker->ResolveType(type_idx, referrer);
   if (UNLIKELY(klass == NULL)) {
     CHECK(self->IsExceptionPending());
     return NULL;  // Failure - Indicate to caller to deliver exception
   }
   // Perform access check if necessary.
-  Class* referring_class = referrer->GetDeclaringClass();
+  mirror::Class* referring_class = referrer->GetDeclaringClass();
   if (verify_access && UNLIKELY(!referring_class->CanAccess(klass))) {
     ThrowIllegalAccessErrorClass(referring_class, klass);
     return NULL;  // Failure - Indicate to caller to deliver exception
@@ -396,12 +406,12 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
       } else {
         JValue jv;
         jv.SetJ(args.at(i).j);
-        Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
+        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
         if (val == NULL) {
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
         }
-        soa.Decode<ObjectArray<Object>* >(args_jobj)->Set(i, val);
+        soa.Decode<mirror::ObjectArray<mirror::Object>* >(args_jobj)->Set(i, val);
       }
     }
   }
@@ -425,9 +435,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
       return zero;
     } else {
       JValue result_unboxed;
-      MethodHelper mh(soa.Decode<AbstractMethod*>(interface_method_jobj));
-      Class* result_type = mh.GetReturnType();
-      Object* result_ref = soa.Decode<Object*>(result);
+      MethodHelper mh(soa.Decode<mirror::AbstractMethod*>(interface_method_jobj));
+      mirror::Class* result_type = mh.GetReturnType();
+      mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       bool unboxed_okay = UnboxPrimitiveForResult(result_ref, result_type, result_unboxed);
       if (!unboxed_okay) {
         soa.Self()->ThrowNewWrappedException("Ljava/lang/ClassCastException;",
@@ -441,12 +451,14 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
   } else {
     // In the case of checked exceptions that aren't declared, the exception must be wrapped by
     // a UndeclaredThrowableException.
-    Throwable* exception = soa.Self()->GetException();
+    mirror::Throwable* exception = soa.Self()->GetException();
     if (exception->IsCheckedException()) {
-      Object* rcvr = soa.Decode<Object*>(rcvr_jobj);
-      SynthesizedProxyClass* proxy_class = down_cast<SynthesizedProxyClass*>(rcvr->GetClass());
-      AbstractMethod* interface_method = soa.Decode<AbstractMethod*>(interface_method_jobj);
-      AbstractMethod* proxy_method =
+      mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
+      mirror::SynthesizedProxyClass* proxy_class =
+          down_cast<mirror::SynthesizedProxyClass*>(rcvr->GetClass());
+      mirror::AbstractMethod* interface_method =
+          soa.Decode<mirror::AbstractMethod*>(interface_method_jobj);
+      mirror::AbstractMethod* proxy_method =
           rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
       int throws_index = -1;
       size_t num_virt_methods = proxy_class->NumVirtualMethods();
@@ -457,11 +469,11 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
         }
       }
       CHECK_NE(throws_index, -1);
-      ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
-      Class* exception_class = exception->GetClass();
+      mirror::ObjectArray<mirror::Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+      mirror::Class* exception_class = exception->GetClass();
       bool declares_exception = false;
       for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
-        Class* declared_exception = declared_exceptions->Get(i);
+        mirror::Class* declared_exception = declared_exceptions->Get(i);
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
       if (!declares_exception) {

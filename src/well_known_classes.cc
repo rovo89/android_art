@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include "base/logging.h"
+#include "mirror/class.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
 
@@ -198,8 +199,8 @@ void WellKnownClasses::LateInit(JNIEnv* env) {
   java_lang_Runtime_nativeLoad = CacheMethod(env, java_lang_Runtime.get(), true, "nativeLoad", "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/String;)Ljava/lang/String;");
 }
 
-Class* WellKnownClasses::ToClass(jclass global_jclass) {
-  return reinterpret_cast<Class*>(Thread::Current()->DecodeJObject(global_jclass));
+mirror::Class* WellKnownClasses::ToClass(jclass global_jclass) {
+  return reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(global_jclass));
 }
 
 }  // namespace art

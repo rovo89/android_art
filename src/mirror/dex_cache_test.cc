@@ -18,12 +18,13 @@
 #include "common_test.h"
 #include "dex_cache.h"
 #include "heap.h"
-#include "object.h"
+#include "mirror/object_array-inl.h"
 #include "sirt_ref.h"
 
 #include <stdio.h>
 
 namespace art {
+namespace mirror {
 
 class DexCacheTest : public CommonTest {};
 
@@ -57,4 +58,5 @@ TEST_F(DexCacheTest, Open) {
             static_cast<uint32_t>(dex_cache->GetInitializedStaticStorage()->GetLength()));
 }
 
+}  // namespace mirror
 }  // namespace art

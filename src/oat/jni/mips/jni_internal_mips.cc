@@ -23,9 +23,9 @@
 #include "compiler.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
+#include "mirror/abstract_method.h"
 #include "oat/utils/mips/assembler_mips.h"
 #include "oat/utils/assembler.h"
-#include "object.h"
 
 namespace art {
 namespace mips {
@@ -128,7 +128,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   }
 
   // Load the code pointer we are about to call.
-  __ LoadFromOffset(kLoadWord, T9, A0, AbstractMethod::GetCodeOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, T9, A0, mirror::AbstractMethod::GetCodeOffset().Int32Value());
 
   // Do the call.
   __ Jalr(T9);

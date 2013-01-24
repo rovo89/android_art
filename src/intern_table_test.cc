@@ -17,7 +17,7 @@
 #include "intern_table.h"
 
 #include "common_test.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "sirt_ref.h"
 
 namespace art {
@@ -27,10 +27,10 @@ class InternTableTest : public CommonTest {};
 TEST_F(InternTableTest, Intern) {
   ScopedObjectAccess soa(Thread::Current());
   InternTable intern_table;
-  SirtRef<String> foo_1(soa.Self(), intern_table.InternStrong(3, "foo"));
-  SirtRef<String> foo_2(soa.Self(), intern_table.InternStrong(3, "foo"));
-  SirtRef<String> foo_3(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
-  SirtRef<String> bar(soa.Self(), intern_table.InternStrong(3, "bar"));
+  SirtRef<mirror::String> foo_1(soa.Self(), intern_table.InternStrong(3, "foo"));
+  SirtRef<mirror::String> foo_2(soa.Self(), intern_table.InternStrong(3, "foo"));
+  SirtRef<mirror::String> foo_3(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+  SirtRef<mirror::String> bar(soa.Self(), intern_table.InternStrong(3, "bar"));
   EXPECT_TRUE(foo_1->Equals("foo"));
   EXPECT_TRUE(foo_2->Equals("foo"));
   EXPECT_TRUE(foo_3->Equals("foo"));
@@ -47,7 +47,7 @@ TEST_F(InternTableTest, Size) {
   InternTable t;
   EXPECT_EQ(0U, t.Size());
   t.InternStrong(3, "foo");
-  SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+  SirtRef<mirror::String> foo(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
   t.InternWeak(foo.get());
   EXPECT_EQ(1U, t.Size());
   t.InternStrong(3, "bar");
@@ -56,9 +56,9 @@ TEST_F(InternTableTest, Size) {
 
 class TestPredicate {
  public:
-  bool IsMarked(const Object* s) const {
+  bool IsMarked(const mirror::Object* s) const {
     bool erased = false;
-    typedef std::vector<const String*>::iterator It; // TODO: C++0x auto
+    typedef std::vector<const mirror::String*>::iterator It; // TODO: C++0x auto
     for (It it = expected_.begin(), end = expected_.end(); it != end; ++it) {
       if (*it == s) {
         expected_.erase(it);
@@ -70,7 +70,7 @@ class TestPredicate {
     return false;
   }
 
-  void Expect(const String* s) {
+  void Expect(const mirror::String* s) {
     expected_.push_back(s);
   }
 
@@ -79,10 +79,10 @@ class TestPredicate {
   }
 
  private:
-  mutable std::vector<const String*> expected_;
+  mutable std::vector<const mirror::String*> expected_;
 };
 
-bool IsMarked(const Object* object, void* arg) {
+bool IsMarked(const mirror::Object* object, void* arg) {
   return reinterpret_cast<TestPredicate*>(arg)->IsMarked(object);
 }
 
@@ -91,10 +91,12 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   InternTable t;
   t.InternStrong(3, "foo");
   t.InternStrong(3, "bar");
-  SirtRef<String> hello(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "hello"));
-  SirtRef<String> world(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "world"));
-  SirtRef<String> s0(soa.Self(), t.InternWeak(hello.get()));
-  SirtRef<String> s1(soa.Self(), t.InternWeak(world.get()));
+  SirtRef<mirror::String> hello(soa.Self(),
+                                mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello"));
+  SirtRef<mirror::String> world(soa.Self(),
+                                mirror::String::AllocFromModifiedUtf8(soa.Self(), "world"));
+  SirtRef<mirror::String> s0(soa.Self(), t.InternWeak(hello.get()));
+  SirtRef<mirror::String> s1(soa.Self(), t.InternWeak(world.get()));
 
   EXPECT_EQ(4U, t.Size());
 
@@ -110,7 +112,8 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   EXPECT_EQ(2U, t.Size());
 
   // Just check that we didn't corrupt the map.
-  SirtRef<String> still_here(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "still here"));
+  SirtRef<mirror::String> still_here(soa.Self(),
+                                     mirror::String::AllocFromModifiedUtf8(soa.Self(), "still here"));
   t.InternWeak(still_here.get());
   EXPECT_EQ(3U, t.Size());
 }
@@ -120,9 +123,9 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Strongs are never weak.
     InternTable t;
-    SirtRef<String> interned_foo_1(soa.Self(), t.InternStrong(3, "foo"));
+    SirtRef<mirror::String> interned_foo_1(soa.Self(), t.InternStrong(3, "foo"));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_1.get()));
-    SirtRef<String> interned_foo_2(soa.Self(), t.InternStrong(3, "foo"));
+    SirtRef<mirror::String> interned_foo_2(soa.Self(), t.InternStrong(3, "foo"));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_2.get()));
     EXPECT_EQ(interned_foo_1.get(), interned_foo_2.get());
   }
@@ -130,11 +133,13 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Weaks are always weak.
     InternTable t;
-    SirtRef<String> foo_1(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
-    SirtRef<String> foo_2(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+    SirtRef<mirror::String> foo_1(soa.Self(),
+                                  mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+    SirtRef<mirror::String> foo_2(soa.Self(),
+                                  mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
     EXPECT_NE(foo_1.get(), foo_2.get());
-    SirtRef<String> interned_foo_1(soa.Self(), t.InternWeak(foo_1.get()));
-    SirtRef<String> interned_foo_2(soa.Self(), t.InternWeak(foo_2.get()));
+    SirtRef<mirror::String> interned_foo_1(soa.Self(), t.InternWeak(foo_1.get()));
+    SirtRef<mirror::String> interned_foo_2(soa.Self(), t.InternWeak(foo_2.get()));
     EXPECT_TRUE(t.ContainsWeak(interned_foo_2.get()));
     EXPECT_EQ(interned_foo_1.get(), interned_foo_2.get());
   }
@@ -142,10 +147,10 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // A weak can be promoted to a strong.
     InternTable t;
-    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
-    SirtRef<String> interned_foo_1(soa.Self(), t.InternWeak(foo.get()));
+    SirtRef<mirror::String> foo(soa.Self(), mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+    SirtRef<mirror::String> interned_foo_1(soa.Self(), t.InternWeak(foo.get()));
     EXPECT_TRUE(t.ContainsWeak(interned_foo_1.get()));
-    SirtRef<String> interned_foo_2(soa.Self(), t.InternStrong(3, "foo"));
+    SirtRef<mirror::String> interned_foo_2(soa.Self(), t.InternStrong(3, "foo"));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_2.get()));
     EXPECT_EQ(interned_foo_1.get(), interned_foo_2.get());
   }
@@ -153,10 +158,11 @@ TEST_F(InternTableTest, ContainsWeak) {
   {
     // Interning a weak after a strong gets you the strong.
     InternTable t;
-    SirtRef<String> interned_foo_1(soa.Self(), t.InternStrong(3, "foo"));
+    SirtRef<mirror::String> interned_foo_1(soa.Self(), t.InternStrong(3, "foo"));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_1.get()));
-    SirtRef<String> foo(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), "foo"));
-    SirtRef<String> interned_foo_2(soa.Self(), t.InternWeak(foo.get()));
+    SirtRef<mirror::String> foo(soa.Self(),
+                                mirror::String::AllocFromModifiedUtf8(soa.Self(), "foo"));
+    SirtRef<mirror::String> interned_foo_2(soa.Self(), t.InternWeak(foo.get()));
     EXPECT_FALSE(t.ContainsWeak(interned_foo_2.get()));
     EXPECT_EQ(interned_foo_1.get(), interned_foo_2.get());
   }

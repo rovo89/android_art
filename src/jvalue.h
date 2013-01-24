@@ -20,8 +20,9 @@
 #include "base/macros.h"
 
 namespace art {
-
+namespace mirror {
 class Object;
+}  // namespace mirror
 
 union PACKED(4) JValue {
   // We default initialize JValue instances to all-zeros.
@@ -47,8 +48,8 @@ union PACKED(4) JValue {
   int64_t GetJ() const { return j; }
   void SetJ(int64_t new_j) { j = new_j; }
 
-  Object* GetL() const { return l; }
-  void SetL(Object* new_l) { l = new_l; }
+  mirror::Object* GetL() const { return l; }
+  void SetL(mirror::Object* new_l) { l = new_l; }
 
   int16_t GetS() const { return s; }
   void SetS(int16_t new_s) {
@@ -67,7 +68,7 @@ union PACKED(4) JValue {
   int64_t j;
   float f;
   double d;
-  Object* l;
+  mirror::Object* l;
 };
 
 }  // namespace art

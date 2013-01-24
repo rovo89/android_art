@@ -22,13 +22,20 @@
 #include "base/stringpiece.h"
 #include "class_linker.h"
 #include "compiler.h"
-#include "dex_cache.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
+#include "gc/card_table-inl.h"
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/field-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "verifier/dex_gc_map.h"
@@ -167,11 +174,12 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
   }
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
+MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* klass,
+                                                        std::string& error) {
   if (klass->IsVerified()) {
     return kNoFailure;
   }
-  Class* super = klass->GetSuperClass();
+  mirror::Class* super = klass->GetSuperClass();
   if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
     error = "Verifier rejected class ";
     error += PrettyDescriptor(klass);
@@ -199,7 +207,10 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const Class* klass, std:
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
-    DexCache* dex_cache, ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
+                                                        mirror::DexCache* dex_cache,
+                                                        mirror::ClassLoader* class_loader,
+                                                        uint32_t class_def_idx,
+                                                        std::string& error) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
   if (class_data == NULL) {
@@ -224,7 +235,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     }
     previous_direct_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
-    AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
+    mirror::AbstractMethod* method =
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -258,7 +270,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
     }
     previous_virtual_method_idx = method_idx;
     InvokeType type = it.GetMethodInvokeType(class_def);
-    AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
+    mirror::AbstractMethod* method =
+        linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -288,9 +301,14 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   }
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
-    DexCache* dex_cache, ClassLoader* class_loader, uint32_t class_def_idx,
-    const DexFile::CodeItem* code_item, AbstractMethod* method, uint32_t method_access_flags) {
+MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
+                                                         const DexFile* dex_file,
+                                                         mirror::DexCache* dex_cache,
+                                                         mirror::ClassLoader* class_loader,
+                                                         uint32_t class_def_idx,
+                                                         const DexFile::CodeItem* code_item,
+                                                         mirror::AbstractMethod* method,
+                                                         uint32_t method_access_flags) {
   MethodVerifier::FailureKind result = kNoFailure;
   uint64_t start_ns = NanoTime();
 
@@ -326,9 +344,10 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, co
 }
 
 void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_idx,
-                                         const DexFile* dex_file, DexCache* dex_cache,
-                                         ClassLoader* class_loader, uint32_t class_def_idx,
-                                         const DexFile::CodeItem* code_item, AbstractMethod* method,
+                                         const DexFile* dex_file, mirror::DexCache* dex_cache,
+                                         mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                                         const DexFile::CodeItem* code_item,
+                                         mirror::AbstractMethod* method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
                           dex_method_idx, method, method_access_flags, true);
@@ -339,11 +358,12 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
 }
 
 std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_method_idx,
-                                                   const DexFile* dex_file, DexCache* dex_cache,
-                                                   ClassLoader* class_loader,
+                                                   const DexFile* dex_file,
+                                                   mirror::DexCache* dex_cache,
+                                                   mirror::ClassLoader* class_loader,
                                                    uint32_t class_def_idx,
                                                    const DexFile::CodeItem* code_item,
-                                                   AbstractMethod* method,
+                                                   mirror::AbstractMethod* method,
                                                    uint32_t method_access_flags, uint32_t dex_pc) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
                           dex_method_idx, method, method_access_flags, true);
@@ -351,9 +371,11 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_method_idx,
   return verifier.DescribeVRegs(dex_pc);
 }
 
-MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-    ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    uint32_t dex_method_idx, AbstractMethod* method, uint32_t method_access_flags,
+MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
+                               mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                               const DexFile::CodeItem* code_item,
+                               uint32_t dex_method_idx, mirror::AbstractMethod* method,
+                               uint32_t method_access_flags,
     bool can_load_classes)
     : reg_types_(can_load_classes),
       work_insn_idx_(-1),
@@ -374,7 +396,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       can_load_classes_(can_load_classes) {
 }
 
-void MethodVerifier::FindLocksAtDexPc(AbstractMethod* m, uint32_t dex_pc,
+void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
                                       std::vector<uint32_t>& monitor_enter_dex_pcs) {
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
@@ -569,8 +591,9 @@ bool MethodVerifier::ScanTryCatchBlocks() {
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
       if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
-        Class* exception_type = linker->ResolveType(*dex_file_, iterator.GetHandlerTypeIndex(),
-                                                    dex_cache_, class_loader_);
+        mirror::Class* exception_type = linker->ResolveType(*dex_file_,
+                                                            iterator.GetHandlerTypeIndex(),
+                                                            dex_cache_, class_loader_);
         if (exception_type == NULL) {
           DCHECK(Thread::Current()->IsExceptionPending());
           Thread::Current()->ClearException();
@@ -1960,7 +1983,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                        dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
       bool is_super =  (dec_insn.opcode == Instruction::INVOKE_SUPER ||
                         dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
-      AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL, is_range, is_super);
+      mirror::AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL,
+                                                                   is_range, is_super);
       const char* descriptor;
       if (called_method == NULL) {
         uint32_t method_idx = dec_insn.vB;
@@ -1982,7 +2006,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (dec_insn.opcode == Instruction::INVOKE_DIRECT_RANGE);
-      AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT, is_range, false);
+      mirror::AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT,
+                                                                   is_range, false);
       const char* return_type_descriptor;
       bool is_constructor;
       if (called_method == NULL) {
@@ -2048,7 +2073,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE: {
         bool is_range = (dec_insn.opcode == Instruction::INVOKE_STATIC_RANGE);
-        AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
+        mirror::AbstractMethod* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
         const char* descriptor;
         if (called_method == NULL) {
           uint32_t method_idx = dec_insn.vB;
@@ -2070,9 +2095,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE: {
       bool is_range =  (dec_insn.opcode == Instruction::INVOKE_INTERFACE_RANGE);
-      AbstractMethod* abs_method = VerifyInvocationArgs(dec_insn, METHOD_INTERFACE, is_range, false);
+      mirror::AbstractMethod* abs_method = VerifyInvocationArgs(dec_insn, METHOD_INTERFACE, is_range, false);
       if (abs_method != NULL) {
-        Class* called_interface = abs_method->GetDeclaringClass();
+        mirror::Class* called_interface = abs_method->GetDeclaringClass();
         if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
           Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
               << PrettyMethod(abs_method) << "'";
@@ -2558,7 +2583,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
   const RegType& referrer = GetDeclaringClass();
-  Class* klass = dex_cache_->GetResolvedType(class_idx);
+  mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType& result =
       klass != NULL ? reg_types_.FromClass(klass, klass->IsFinal())
                     : reg_types_.FromDescriptor(class_loader_, descriptor, false);
@@ -2621,7 +2646,8 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, MethodType method_type) {
+mirror::AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx,
+                                                                    MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (klass_type.IsConflict()) {
@@ -2633,9 +2659,9 @@ AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
-  Class* klass = klass_type.GetClass();
+  mirror::Class* klass = klass_type.GetClass();
   const RegType& referrer = GetDeclaringClass();
-  AbstractMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
+  mirror::AbstractMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
   if (res_method == NULL) {
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
@@ -2712,11 +2738,12 @@ AbstractMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_
   return res_method;
 }
 
-AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
-                                             MethodType method_type, bool is_range, bool is_super) {
+mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
+                                                             MethodType method_type, bool is_range,
+                                                             bool is_super) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
-  AbstractMethod* res_method = ResolveMethodAndCheckAccess(dec_insn.vB, method_type);
+  mirror::AbstractMethod* res_method = ResolveMethodAndCheckAccess(dec_insn.vB, method_type);
   if (res_method == NULL) {  // error or class is unresolved
     return NULL;
   }
@@ -2732,7 +2759,7 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
                                    << " to super " << PrettyMethod(res_method);
       return NULL;
     }
-    Class* super_klass = super.GetClass();
+    mirror::Class* super_klass = super.GetClass();
     if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
       MethodHelper mh(res_method);
       Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
@@ -2771,7 +2798,7 @@ AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& d
       return NULL;
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
-      Class* klass = res_method->GetDeclaringClass();
+      mirror::Class* klass = res_method->GetDeclaringClass();
       const RegType& res_method_class = reg_types_.FromClass(klass, klass->IsFinal());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
@@ -2935,7 +2962,7 @@ void MethodVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
   }
 }
 
-Field* MethodVerifier::GetStaticField(int field_idx) {
+mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -2948,7 +2975,7 @@ Field* MethodVerifier::GetStaticField(int field_idx) {
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here, will do checking at runtime.
   }
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
+  mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
                                                                        dex_cache_, class_loader_);
   if (field == NULL) {
     LOG(INFO) << "unable to resolve static field " << field_idx << " ("
@@ -2970,7 +2997,7 @@ Field* MethodVerifier::GetStaticField(int field_idx) {
   }
 }
 
-Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
+mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -2983,7 +3010,7 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
+  mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
                                                                        dex_cache_, class_loader_);
   if (field == NULL) {
     LOG(INFO) << "unable to resolve instance field " << field_idx << " ("
@@ -3005,7 +3032,7 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
   } else {
-    Class* klass = field->GetDeclaringClass();
+    mirror::Class* klass = field->GetDeclaringClass();
     const RegType& field_klass = reg_types_.FromClass(klass, klass->IsFinal());
     if (obj_type.IsUninitializedTypes() &&
         (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
@@ -3032,7 +3059,7 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
 void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
-  Field* field;
+  mirror::Field* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
@@ -3040,7 +3067,7 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
     field = GetInstanceField(object_type, field_idx);
   }
   const char* descriptor;
-  ClassLoader* loader;
+  mirror::ClassLoader* loader;
   if (field != NULL) {
     descriptor = FieldHelper(field).GetTypeDescriptor();
     loader = field->GetDeclaringClass()->GetClassLoader();
@@ -3085,7 +3112,7 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
 void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
-  Field* field;
+  mirror::Field* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
@@ -3093,7 +3120,7 @@ void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
     field = GetInstanceField(object_type, field_idx);
   }
   const char* descriptor;
-  ClassLoader* loader;
+  mirror::ClassLoader* loader;
   if (field != NULL) {
     descriptor = FieldHelper(field).GetTypeDescriptor();
     loader = field->GetDeclaringClass()->GetClassLoader();
@@ -3215,7 +3242,7 @@ const RegType& MethodVerifier::GetMethodReturnType() {
 
 const RegType& MethodVerifier::GetDeclaringClass() {
   if (foo_method_ != NULL) {
-    Class* klass = foo_method_->GetDeclaringClass();
+    mirror::Class* klass = foo_method_->GetDeclaringClass();
     return reg_types_.FromClass(klass, klass->IsFinal());
   } else {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);

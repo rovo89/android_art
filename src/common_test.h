@@ -26,12 +26,12 @@
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "class_loader.h"
 #include "compiler.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
 #include "instruction_set.h"
+#include "mirror/class_loader.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "os.h"
@@ -171,7 +171,7 @@ class ScratchFile {
 
 class CommonTest : public testing::Test {
  public:
-  static void MakeExecutable(const ByteArray* code_array) {
+  static void MakeExecutable(const mirror::ByteArray* code_array) {
     CHECK(code_array != NULL);
     MakeExecutable(code_array->GetData(), code_array->GetLength());
   }
@@ -189,7 +189,7 @@ class CommonTest : public testing::Test {
                                      const uint32_t* mapping_table,
                                      const uint16_t* vmap_table,
                                      const uint8_t* gc_map,
-                                     const AbstractMethod::InvokeStub* invoke_stub) {
+                                     const mirror::AbstractMethod::InvokeStub* invoke_stub) {
       return OatFile::OatMethod(NULL,
                                 reinterpret_cast<uint32_t>(code),
                                 frame_size_in_bytes,
@@ -205,7 +205,7 @@ class CommonTest : public testing::Test {
                                 );
   }
 
-  void MakeExecutable(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void MakeExecutable(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
 
     MethodHelper mh(method);
@@ -215,8 +215,8 @@ class CommonTest : public testing::Test {
 
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     MakeExecutable(invoke_stub);
-    const AbstractMethod::InvokeStub* method_invoke_stub =
-        reinterpret_cast<const AbstractMethod::InvokeStub*>(
+    const mirror::AbstractMethod::InvokeStub* method_invoke_stub =
+        reinterpret_cast<const mirror::AbstractMethod::InvokeStub*>(
           CompiledCode::CodePointer(&invoke_stub[0],
                                     compiled_invoke_stub->GetInstructionSet()));
 
@@ -224,7 +224,7 @@ class CommonTest : public testing::Test {
               << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
 
     if (!method->IsAbstract()) {
-      const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+      const mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
       const DexFile& dex_file = *dex_cache->GetDexFile();
       const CompiledMethod* compiled_method =
           compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
@@ -473,14 +473,14 @@ class CommonTest : public testing::Test {
     ScopedLocalRef<jobject> class_loader_local(soa.Env(),
         soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
     jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
-    soa.Self()->SetClassLoaderOverride(soa.Decode<ClassLoader*>(class_loader_local.get()));
+    soa.Self()->SetClassLoaderOverride(soa.Decode<mirror::ClassLoader*>(class_loader_local.get()));
     Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
     return class_loader;
   }
 
-  void CompileClass(ClassLoader* class_loader, const char* class_name) {
+  void CompileClass(mirror::ClassLoader* class_loader, const char* class_name) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       CompileMethod(klass->GetDirectMethod(i));
@@ -490,7 +490,7 @@ class CommonTest : public testing::Test {
     }
   }
 
-  void CompileMethod(AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
     MakeExecutable(method);
@@ -498,29 +498,29 @@ class CommonTest : public testing::Test {
     MakeExecutable(runtime_->GetJniDlsymLookupStub());
   }
 
-  void CompileDirectMethod(ClassLoader* class_loader,
+  void CompileDirectMethod(mirror::ClassLoader* class_loader,
                            const char* class_name,
                            const char* method_name,
                            const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    AbstractMethod* method = klass->FindDirectMethod(method_name, signature);
+    mirror::AbstractMethod* method = klass->FindDirectMethod(method_name, signature);
     CHECK(method != NULL) << "Direct method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);
   }
 
-  void CompileVirtualMethod(ClassLoader* class_loader,
+  void CompileVirtualMethod(mirror::ClassLoader* class_loader,
                             const char* class_name,
                             const char* method_name,
                             const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
-    Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
+    mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
-    AbstractMethod* method = klass->FindVirtualMethod(method_name, signature);
+    mirror::AbstractMethod* method = klass->FindVirtualMethod(method_name, signature);
     CHECK(method != NULL) << "Virtual method not found: "
                           << class_name << "." << method_name << signature;
     CompileMethod(method);

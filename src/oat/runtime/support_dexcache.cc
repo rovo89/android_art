@@ -15,12 +15,17 @@
  */
 
 #include "callee_save_frame.h"
+#include "class_linker-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
 #include "runtime_support.h"
 
 namespace art {
 
-extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const AbstractMethod* referrer,
-                                                     Thread* self, AbstractMethod** sp)
+extern "C" mirror::Class* artInitializeStaticStorageFromCode(uint32_t type_idx,
+                                                             const mirror::AbstractMethod* referrer,
+                                                             Thread* self,
+                                                             mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called to ensure static storage base is initialized for direct static field reads and writes.
   // A class may be accessing another class' fields when it doesn't have access, as access has been
@@ -29,18 +34,19 @@ extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Ab
   return ResolveVerifyAndClinit(type_idx, referrer, self, true, false);
 }
 
-extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const AbstractMethod* referrer,
-                                            Thread* self, AbstractMethod** sp)
+extern "C" mirror::Class* artInitializeTypeFromCode(uint32_t type_idx,
+                                                    const mirror::AbstractMethod* referrer,
+                                                    Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when method->dex_cache_resolved_types_[] misses.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, false);
 }
 
-extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
-                                                           const AbstractMethod* referrer,
-                                                           Thread* self,
-                                                           AbstractMethod** sp)
+extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
+                                                                   const mirror::AbstractMethod* referrer,
+                                                                   Thread* self,
+                                                                   mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated.
@@ -48,8 +54,9 @@ extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, true);
 }
 
-extern "C" String* artResolveStringFromCode(AbstractMethod* referrer, int32_t string_idx,
-                                            Thread* self, AbstractMethod** sp)
+extern "C" mirror::String* artResolveStringFromCode(mirror::AbstractMethod* referrer,
+                                                    int32_t string_idx,
+                                                    Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveStringFromCode(referrer, string_idx);

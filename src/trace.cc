@@ -21,8 +21,10 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
-#include "dex_cache.h"
 #include "instrumentation.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/dex_cache.h"
+#include "mirror/object_array-inl.h"
 #if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
 #endif
@@ -322,7 +324,8 @@ void Trace::FinishTracing() {
   }
 }
 
-void Trace::LogMethodTraceEvent(Thread* self, const AbstractMethod* method, Trace::TraceEvent event) {
+void Trace::LogMethodTraceEvent(Thread* self, const mirror::AbstractMethod* method,
+                                Trace::TraceEvent event) {
   if (thread_clock_base_map_.find(self) == thread_clock_base_map_.end()) {
     uint64_t time = ThreadCpuMicroTime();
     thread_clock_base_map_.Put(self, time);
@@ -367,16 +370,17 @@ void Trace::GetVisitedMethods(size_t end_offset) {
 
   while (ptr < end) {
     uint32_t method_value = ptr[2] | (ptr[3] << 8) | (ptr[4] << 16) | (ptr[5] << 24);
-    AbstractMethod* method = reinterpret_cast<AbstractMethod*>(TraceMethodId(method_value));
+    mirror::AbstractMethod* method =
+        reinterpret_cast<mirror::AbstractMethod*>(TraceMethodId(method_value));
     visited_methods_.insert(method);
     ptr += record_size_;
   }
 }
 
 void Trace::DumpMethodList(std::ostream& os) {
-  typedef std::set<const AbstractMethod*>::const_iterator It; // TODO: C++0x auto
+  typedef std::set<const mirror::AbstractMethod*>::const_iterator It; // TODO: C++0x auto
   for (It it = visited_methods_.begin(); it != visited_methods_.end(); ++it) {
-    const AbstractMethod* method = *it;
+    const mirror::AbstractMethod* method = *it;
     MethodHelper mh(method);
     os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),

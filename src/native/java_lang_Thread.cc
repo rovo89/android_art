@@ -17,7 +17,7 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "monitor.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
@@ -88,7 +88,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
 
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject java_object) {
   ScopedObjectAccess soa(env);
-  Object* object = soa.Decode<Object*>(java_object);
+  mirror::Object* object = soa.Decode<mirror::Object*>(java_object);
   if (object == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
@@ -111,7 +111,7 @@ static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   ScopedUtfChars name(env, java_name);
   {
     ScopedObjectAccess soa(env);
-    if (soa.Decode<Object*>(peer) == soa.Self()->GetPeer()) {
+    if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
       soa.Self()->SetThreadName(name.c_str());
       return;
     }
@@ -149,7 +149,7 @@ static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_
 
 static void Thread_sleep(JNIEnv* env, jclass, jobject java_lock, jlong ms, jint ns) {
   ScopedObjectAccess soa(env);
-  Object* lock = soa.Decode<Object*>(java_lock);
+  mirror::Object* lock = soa.Decode<mirror::Object*>(java_lock);
   Monitor::Wait(Thread::Current(), lock, ms, ns, true, kSleeping);
 }
 

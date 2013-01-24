@@ -19,10 +19,16 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
+#include "card_table.h"
 #include "dlmalloc.h"
 #include "image.h"
+#include "mirror/array.h"
+#include "mirror/abstract_method.h"
 #include "os.h"
+#include "runtime.h"
 #include "space_bitmap.h"
+#include "space_bitmap-inl.h"
+#include "thread.h"
 #include "UniquePtr.h"
 #include "utils.h"
 
@@ -204,12 +210,12 @@ void DlMallocSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
+mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
   if (kDebugSpaces) {
     num_bytes += sizeof(word);
   }
 
-  Object* result = reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
+  mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_calloc(mspace_, 1, num_bytes));
   if (kDebugSpaces && result != NULL) {
     CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
         << ") not in bounds of allocation space " << *this;
@@ -225,18 +231,18 @@ Object* DlMallocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
   return result;
 }
 
-Object* DlMallocSpace::Alloc(Thread* self, size_t num_bytes) {
+mirror::Object* DlMallocSpace::Alloc(Thread* self, size_t num_bytes) {
   MutexLock mu(self, lock_);
   return AllocWithoutGrowthLocked(num_bytes);
 }
 
-Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes) {
+mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes) {
   MutexLock mu(self, lock_);
   // Grow as much as possible within the mspace.
   size_t max_allowed = Capacity();
   mspace_set_footprint_limit(mspace_, max_allowed);
   // Try the allocation.
-  Object* result = AllocWithoutGrowthLocked(num_bytes);
+  mirror::Object* result = AllocWithoutGrowthLocked(num_bytes);
   // Shrink back down as small as possible.
   size_t footprint = mspace_footprint(mspace_);
   mspace_set_footprint_limit(mspace_, footprint);
@@ -301,7 +307,7 @@ DlMallocSpace* DlMallocSpace::CreateZygoteSpace() {
   return alloc_space;
 }
 
-size_t DlMallocSpace::Free(Thread* self, Object* ptr) {
+size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
   MutexLock mu(self, lock_);
   if (kDebugSpaces) {
     CHECK(ptr != NULL);
@@ -317,13 +323,13 @@ size_t DlMallocSpace::Free(Thread* self, Object* ptr) {
   return bytes_freed;
 }
 
-size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, Object** ptrs) {
+size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
   DCHECK(ptrs != NULL);
 
   // Don't need the lock to calculate the size of the freed pointers.
   size_t bytes_freed = 0;
   for (size_t i = 0; i < num_ptrs; i++) {
-    Object* ptr = ptrs[i];
+    mirror::Object* ptr = ptrs[i];
     const size_t look_ahead = 8;
     if (kPrefetchDuringDlMallocFreeList && i + look_ahead < num_ptrs) {
       // The head of chunk for the allocation is sizeof(size_t) behind the allocation.
@@ -397,12 +403,12 @@ void* DlMallocSpace::MoreCore(intptr_t increment) {
 }
 
 // Virtual functions can't get inlined.
-inline size_t DlMallocSpace::InternalAllocationSize(const Object* obj) {
+inline size_t DlMallocSpace::InternalAllocationSize(const mirror::Object* obj) {
   return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) +
       kChunkOverhead;
 }
 
-size_t DlMallocSpace::AllocationSize(const Object* obj) {
+size_t DlMallocSpace::AllocationSize(const mirror::Object* obj) {
   return InternalAllocationSize(obj);
 }
 
@@ -504,29 +510,29 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
   Runtime* runtime = Runtime::Current();
-  Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
-  runtime->SetJniDlsymLookupStub(down_cast<ByteArray*>(jni_stub_array));
+  mirror::Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
+  runtime->SetJniDlsymLookupStub(down_cast<mirror::ByteArray*>(jni_stub_array));
 
-  Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
-  runtime->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
+  mirror::Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
+  runtime->SetAbstractMethodErrorStubArray(down_cast<mirror::ByteArray*>(ame_stub_array));
 
-  Object* resolution_stub_array =
+  mirror::Object* resolution_stub_array =
       image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
   runtime->SetResolutionStubArray(
-      down_cast<ByteArray*>(resolution_stub_array), Runtime::kStaticMethod);
+      down_cast<mirror::ByteArray*>(resolution_stub_array), Runtime::kStaticMethod);
   resolution_stub_array = image_header.GetImageRoot(ImageHeader::kUnknownMethodResolutionStubArray);
   runtime->SetResolutionStubArray(
-      down_cast<ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
+      down_cast<mirror::ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
 
-  Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
-  runtime->SetResolutionMethod(down_cast<AbstractMethod*>(resolution_method));
+  mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
+  runtime->SetResolutionMethod(down_cast<mirror::AbstractMethod*>(resolution_method));
 
-  Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kSaveAll);
+  mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::AbstractMethod*>(callee_save_method), Runtime::kSaveAll);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kRefsOnly);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::AbstractMethod*>(callee_save_method), Runtime::kRefsOnly);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<AbstractMethod*>(callee_save_method), Runtime::kRefsAndArgs);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::AbstractMethod*>(callee_save_method), Runtime::kRefsAndArgs);
 
   ImageSpace* space = new ImageSpace(image_file_name, map.release());
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -548,7 +554,7 @@ void ImageSpace::RecordImageAllocations(SpaceBitmap* live_bitmap) const {
   byte* end = End();
   while (current < end) {
     DCHECK_ALIGNED(current, kObjectAlignment);
-    const Object* obj = reinterpret_cast<const Object*>(current);
+    const mirror::Object* obj = reinterpret_cast<const mirror::Object*>(current);
     live_bitmap->Set(obj);
     current += RoundUp(obj->SizeOf(), kObjectAlignment);
   }

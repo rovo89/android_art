@@ -20,31 +20,35 @@
 #include "runtime.h"
 
 namespace art {
+namespace mirror {
+template<class T> class PrimitiveArray;
+typedef PrimitiveArray<int8_t> ByteArray;
+}  // namespace mirror
 
 namespace arm {
-  ByteArray* CreateAbstractMethodErrorStub()
+  mirror::ByteArray* CreateAbstractMethodErrorStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type)
+  mirror::ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* CreateJniDlsymLookupStub()
+  mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 namespace mips {
-  ByteArray* CreateAbstractMethodErrorStub()
+  mirror::ByteArray* CreateAbstractMethodErrorStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type)
+  mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* CreateJniDlsymLookupStub()
+  mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 namespace x86 {
-  ByteArray* CreateAbstractMethodErrorStub()
+  mirror::ByteArray* CreateAbstractMethodErrorStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type)
+  mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ByteArray* CreateJniDlsymLookupStub()
+  mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 

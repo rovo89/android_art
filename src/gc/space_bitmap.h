@@ -14,35 +14,33 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SPACE_BITMAP_H_
-#define ART_SRC_SPACE_BITMAP_H_
+#ifndef ART_SRC_GC_SPACE_BITMAP_H_
+#define ART_SRC_GC_SPACE_BITMAP_H_
+
+#include "locks.h"
+#include "globals.h"
+#include "mem_map.h"
+#include "UniquePtr.h"
 
 #include <limits.h>
 #include <set>
 #include <stdint.h>
 #include <vector>
 
-#include "base/logging.h"
-#include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
-#include "UniquePtr.h"
-#include "globals.h"
-#include "mem_map.h"
-#include "utils.h"
-
 namespace art {
-
+namespace mirror {
 class Object;
+}  // namespace mirror
 
 class SpaceBitmap {
  public:
   static const size_t kAlignment = 8;
 
-  typedef void Callback(Object* obj, void* arg);
+  typedef void Callback(mirror::Object* obj, void* arg);
 
-  typedef void ScanCallback(Object* obj, void* finger, void* arg);
+  typedef void ScanCallback(mirror::Object* obj, void* finger, void* arg);
 
-  typedef void SweepCallback(size_t ptr_count, Object** ptrs, void* arg);
+  typedef void SweepCallback(size_t ptr_count, mirror::Object** ptrs, void* arg);
 
   // Initialize a HeapBitmap so that it points to a bitmap large enough to cover a heap at
   // heap_begin of heap_capacity bytes, where objects are guaranteed to be kAlignment-aligned.
@@ -66,44 +64,20 @@ class SpaceBitmap {
     return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset_ / kAlignment) % kBitsPerWord);
   }
 
-  inline bool Set(const Object* obj) {
+  inline bool Set(const mirror::Object* obj) {
     return Modify(obj, true);
   }
 
-  inline bool Clear(const Object* obj) {
+  inline bool Clear(const mirror::Object* obj) {
     return Modify(obj, false);
   }
 
   // Returns true if the object was previously marked.
-  inline bool AtomicTestAndSet(const Object* obj) {
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    DCHECK_GE(addr, heap_begin_);
-    const uintptr_t offset = addr - heap_begin_;
-    const size_t index = OffsetToIndex(offset);
-    const word mask = OffsetToMask(offset);
-    word* const address = &bitmap_begin_[index];
-    DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-    word old_word;
-    do {
-      old_word = *address;
-      // Fast path: The bit is already set.
-      if ((old_word & mask) != 0) {
-        return true;
-      }
-    } while (UNLIKELY(android_atomic_cas(old_word, old_word | mask, address) != 0));
-    return false;
-  }
+  bool AtomicTestAndSet(const mirror::Object* obj);
 
   void Clear();
 
-  inline bool Test(const Object* obj) const {
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    DCHECK(HasAddress(obj)) << obj;
-    DCHECK(bitmap_begin_ != NULL);
-    DCHECK_GE(addr, heap_begin_);
-    const uintptr_t offset = addr - heap_begin_;
-    return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
-  }
+  bool Test(const mirror::Object* obj) const;
 
   // Return true iff <obj> is within the range of pointers that this bitmap could potentially cover,
   // even if a bit has not been set for it.
@@ -123,7 +97,7 @@ class SpaceBitmap {
         : bitmap_(bitmap) {
     }
 
-    void operator ()(Object* obj) const {
+    void operator ()(mirror::Object* obj) const {
       bitmap_->Clear(obj);
     }
    private:
@@ -133,86 +107,21 @@ class SpaceBitmap {
   template <typename Visitor>
   void VisitRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
     for (; visit_begin < visit_end; visit_begin += kAlignment ) {
-      visitor(reinterpret_cast<Object*>(visit_begin));
+      visitor(reinterpret_cast<mirror::Object*>(visit_begin));
     }
   }
 
   template <typename Visitor, typename FingerVisitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                         const Visitor& visitor, const FingerVisitor& finger_visitor) const
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-    DCHECK_LT(visit_begin, visit_end);
-
-    const size_t word_span = kAlignment * kBitsPerWord; // Equals IndexToOffset(1).
-    const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
-    const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
-
-    size_t word_start = bit_index_start / kBitsPerWord;
-    size_t word_end = bit_index_end / kBitsPerWord;
-    DCHECK_LT(word_end * kWordSize, Size());
-
-    // Trim off left_bits of left bits.
-    size_t edge_word = bitmap_begin_[word_start];
-
-    // Handle bits on the left first as a special case
-    size_t left_bits = bit_index_start & (kBitsPerWord - 1);
-    if (left_bits != 0) {
-      edge_word &= (1 << (kBitsPerWord - left_bits)) - 1;
-    }
-
-    // If word_start == word_end then handle this case at the same place we handle the right edge.
-    if (edge_word != 0 && word_start < word_end) {
-      uintptr_t ptr_base = IndexToOffset(word_start) + heap_begin_;
-      finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
-      do {
-        const size_t shift = CLZ(edge_word);
-        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-        visitor(obj);
-        edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-      } while (edge_word != 0);
-    }
-    word_start++;
-
-    for (size_t i = word_start; i < word_end; i++) {
-      size_t w = bitmap_begin_[i];
-      if (w != 0) {
-        uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-        finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
-        do {
-          const size_t shift = CLZ(w);
-          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-          visitor(obj);
-          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-        } while (w != 0);
-      }
-    }
-
-    // Handle the right edge, and also the left edge if both edges are on the same word.
-    size_t right_bits = bit_index_end & (kBitsPerWord - 1);
-
-    // If word_start == word_end then we need to use the word which we removed the left bits.
-    if (word_start <= word_end) {
-      edge_word = bitmap_begin_[word_end];
-    }
-
-    // Bits that we trim off the right.
-    edge_word &= ~((static_cast<size_t>(kWordHighBitMask) >> right_bits) - 1);
-    uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
-    finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
-    while (edge_word != 0) {
-      const size_t shift = CLZ(edge_word);
-      Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-      visitor(obj);
-      edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-    }
-  }
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Walk(Callback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void InOrderWalk(Callback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static void SweepWalk(const SpaceBitmap& live,
                         const SpaceBitmap& mark,
@@ -251,7 +160,7 @@ class SpaceBitmap {
   std::string GetName() const;
   void SetName(const std::string& name);
 
-  const void* GetObjectWordAddress(const Object* obj) const {
+  const void* GetObjectWordAddress(const mirror::Object* obj) const {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
     const uintptr_t offset = addr - heap_begin_;
     const size_t index = OffsetToIndex(offset);
@@ -265,22 +174,7 @@ class SpaceBitmap {
         heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
         name_(name) {}
 
-  inline bool Modify(const Object* obj, bool do_set) {
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    DCHECK_GE(addr, heap_begin_);
-    const uintptr_t offset = addr - heap_begin_;
-    const size_t index = OffsetToIndex(offset);
-    const word mask = OffsetToMask(offset);
-    DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-    word* address = &bitmap_begin_[index];
-    word old_word = *address;
-    if (do_set) {
-      *address = old_word | mask;
-    } else {
-      *address = old_word & ~mask;
-    }
-    return (old_word & mask) != 0;
-  }
+  bool Modify(const mirror::Object* obj, bool do_set);
 
   // Backing storage for bitmap.
   UniquePtr<MemMap> mem_map_;
@@ -302,17 +196,17 @@ class SpaceBitmap {
 // Like a bitmap except it keeps track of objects using sets.
 class SpaceSetMap {
  public:
-  typedef std::set<const Object*> Objects;
+  typedef std::set<const mirror::Object*> Objects;
 
   bool IsEmpty() const {
     return contained_.empty();
   }
 
-  inline void Set(const Object* obj) {
+  inline void Set(const mirror::Object* obj) {
     contained_.insert(obj);
   }
 
-  inline void Clear(const Object* obj) {
+  inline void Clear(const mirror::Object* obj) {
     Objects::iterator found = contained_.find(obj);
     if (found != contained_.end()) {
       contained_.erase(found);
@@ -323,7 +217,7 @@ class SpaceSetMap {
     contained_.clear();
   }
 
-  inline bool Test(const Object* obj) const {
+  inline bool Test(const mirror::Object* obj) const {
     return contained_.find(obj) != contained_.end();
   }
 
@@ -357,4 +251,4 @@ std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap);
 
 }  // namespace art
 
-#endif  // ART_SRC_SPACE_BITMAP_H_
+#endif  // ART_SRC_GC_SPACE_BITMAP_H_

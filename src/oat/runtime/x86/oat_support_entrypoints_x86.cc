@@ -28,12 +28,13 @@ extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
 extern "C" void* art_check_and_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
 
 // Cast entrypoints.
-extern "C" uint32_t art_is_assignable_from_code(const Class* klass, const Class* ref_class);
+extern "C" uint32_t art_is_assignable_from_code(const mirror::Class* klass,
+                                                const mirror::Class* ref_class);
 extern "C" void art_can_put_array_element_from_code(void*, void*);
 extern "C" void art_check_cast_from_code(void*, void*);
 
 // Debug entrypoints.
-extern void DebugMe(AbstractMethod* method, uint32_t info);
+extern void DebugMe(mirror::AbstractMethod* method, uint32_t info);
 extern "C" void art_update_debugger(void*, void*, int32_t, void*);
 
 // DexCache entrypoints.
@@ -66,11 +67,11 @@ extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self);
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self);
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self);
-extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                         Thread* self);
-extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                     uint32_t saved_local_ref_cookie,
-                                                     jobject locked, Thread* self);
+extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                                 Thread* self);
+extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                             uint32_t saved_local_ref_cookie,
+                                                             jobject locked, Thread* self);
 
 // Lock entrypoints.
 extern "C" void art_lock_object_from_code(void*);
@@ -98,7 +99,8 @@ extern "C" int32_t art_string_compareto(void*, void*);
 extern "C" void* art_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
-const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod*, AbstractMethod**, Thread*,
+const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod*,
+                                                     mirror::AbstractMethod**, Thread*,
                                                      Runtime::TrampolineType);
 extern "C" void art_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_invoke_interface_trampoline(uint32_t, void*);
@@ -112,7 +114,8 @@ extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_test_suspend();
 
 // Throw entrypoints.
-extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod** sp);
+extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
+                                             mirror::AbstractMethod** sp);
 extern "C" void art_deliver_exception_from_code(void*);
 extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
 extern "C" void art_throw_div_zero_from_code();

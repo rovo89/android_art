@@ -21,7 +21,7 @@
 #include "compiler.h"
 #include "dex_file.h"
 #include "instruction_set.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "procedure_linkage_table.h"
 
 #include <UniquePtr.h>
@@ -31,13 +31,15 @@
 #include <vector>
 
 namespace art {
-  class ClassLoader;
   class CompiledInvokeStub;
   class CompiledMethod;
   class Compiler;
   class OatCompilationUnit;
-  class AbstractMethod;
-}
+  namespace mirror {
+    class AbstractMethod;
+    class ClassLoader;
+  }  // namespace mirror
+}  // namespace art
 
 
 namespace llvm {
@@ -47,7 +49,7 @@ namespace llvm {
   class PointerType;
   class StructType;
   class Type;
-}
+}  // namespace llvm
 
 
 namespace art {

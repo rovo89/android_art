@@ -23,9 +23,9 @@
 #include "compiler.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
+#include "mirror/abstract_method.h"
 #include "oat/utils/arm/assembler_arm.h"
 #include "oat/utils/assembler.h"
-#include "object.h"
 
 namespace art {
 namespace arm {
@@ -131,7 +131,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   }
 
   // Load the code pointer we are about to call.
-  __ LoadFromOffset(kLoadWord, IP, R0, AbstractMethod::GetCodeOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, IP, R0, mirror::AbstractMethod::GetCodeOffset().Int32Value());
 
   // Do the call.
   __ blx(IP);

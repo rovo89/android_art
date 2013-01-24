@@ -17,10 +17,11 @@
 #ifndef ART_SRC_NTH_CALLER_VISITOR_H_
 #define ART_SRC_NTH_CALLER_VISITOR_H_
 
-#include "object.h"
-#include "thread.h"
+#include "mirror/abstract_method.h"
+#include "stack.h"
 
 namespace art {
+class Thread;
 
 // Walks up the stack 'n' callers, when used with Thread::WalkStack.
 struct NthCallerVisitor : public StackVisitor {
@@ -38,7 +39,7 @@ struct NthCallerVisitor : public StackVisitor {
 
   size_t n;
   size_t count;
-  AbstractMethod* caller;
+  mirror::AbstractMethod* caller;
 };
 
 }  // namespace art

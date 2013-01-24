@@ -330,7 +330,7 @@ void Codegen::GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
                 SRegOffset(cu, rl_first.s_reg_low));
     // Set up the target pointer
     OpRegRegImm(cu, kOpAdd, r_dst, TargetReg(kRet0),
-                Array::DataOffset(component_size).Int32Value());
+                mirror::Array::DataOffset(component_size).Int32Value());
     // Set up the loop counter (known to be > 0)
     LoadConstant(cu, r_idx, elems - 1);
     // Generate the copy loop.  Going backwards for convenience
@@ -342,14 +342,15 @@ void Codegen::GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
     OpDecAndBranch(cu, kCondGe, r_idx, target);
     if (cu->instruction_set == kX86) {
       // Restore the target pointer
-      OpRegRegImm(cu, kOpAdd, TargetReg(kRet0), r_dst, -Array::DataOffset(component_size).Int32Value());
+      OpRegRegImm(cu, kOpAdd, TargetReg(kRet0), r_dst,
+                  -mirror::Array::DataOffset(component_size).Int32Value());
     }
   } else if (!info->is_range) {
     // TUNING: interleave
     for (int i = 0; i < elems; i++) {
       RegLocation rl_arg = LoadValue(cu, info->args[i], kCoreReg);
       StoreBaseDisp(cu, TargetReg(kRet0),
-                    Array::DataOffset(component_size).Int32Value() +
+                    mirror::Array::DataOffset(component_size).Int32Value() +
                     i * 4, rl_arg.low_reg, kWord);
       // If the LoadValue caused a temp to be allocated, free it
       if (IsTemp(cu, rl_arg.low_reg)) {
@@ -386,7 +387,7 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
       RegLocation rl_method  = LoadCurrMethod(cu);
       rBase = AllocTemp(cu);
       LoadWordDisp(cu, rl_method.low_reg,
-                   AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
       if (IsTemp(cu, rl_method.low_reg)) {
         FreeTemp(cu, rl_method.low_reg);
       }
@@ -404,10 +405,10 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
       rBase = TargetReg(kArg0);
       LockTemp(cu, rBase);
       LoadWordDisp(cu, r_method,
-                   AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       LoadWordDisp(cu, rBase,
-                   Array::DataOffset(sizeof(Object*)).Int32Value() +
+                   mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
                    sizeof(int32_t*) * ssb_index, rBase);
       // rBase now points at appropriate static storage base (Class*)
       // or NULL if not initialized. Check for NULL and call helper if NULL.
@@ -480,7 +481,7 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
       RegLocation rl_method  = LoadCurrMethod(cu);
       rBase = AllocTemp(cu);
       LoadWordDisp(cu, rl_method.low_reg,
-                   AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
+                   mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -495,10 +496,10 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
       rBase = TargetReg(kArg0);
       LockTemp(cu, rBase);
       LoadWordDisp(cu, r_method,
-                   AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                   mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset().Int32Value(),
                    rBase);
       LoadWordDisp(cu, rBase,
-                   Array::DataOffset(sizeof(Object*)).Int32Value() +
+                   mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
                    sizeof(int32_t*) * ssb_index, rBase);
       // rBase now points at appropriate static storage base (Class*)
       // or NULL if not initialized. Check for NULL and call helper if NULL.
@@ -619,7 +620,7 @@ void Codegen::HandleThrowLaunchPads(CompilationUnit *cu)
           OpRegCopy(cu, TargetReg(kArg0), v1);
           if (target_x86) {
             // x86 leaves the array pointer in v2, so load the array length that the handler expects
-            OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, Array::LengthOffset().Int32Value());
+            OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, mirror::Array::LengthOffset().Int32Value());
           } else {
             OpRegCopy(cu, TargetReg(kArg1), v2);
           }
@@ -629,7 +630,7 @@ void Codegen::HandleThrowLaunchPads(CompilationUnit *cu)
             OpRegCopy(cu, TargetReg(kArg2), v1);
             if (target_x86) {
               // x86 leaves the array pointer in v2; load the array length that the handler expects
-              OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, Array::LengthOffset().Int32Value());
+              OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, mirror::Array::LengthOffset().Int32Value());
             } else {
               OpRegCopy(cu, TargetReg(kArg1), v2);
             }
@@ -637,7 +638,7 @@ void Codegen::HandleThrowLaunchPads(CompilationUnit *cu)
           } else {
             if (target_x86) {
               // x86 leaves the array pointer in v2; load the array length that the handler expects
-              OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, Array::LengthOffset().Int32Value());
+              OpRegMem(cu, kOpMov, TargetReg(kArg1), v2, mirror::Array::LengthOffset().Int32Value());
             } else {
               OpRegCopy(cu, TargetReg(kArg1), v2);
             }
@@ -799,10 +800,10 @@ void Codegen::GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation 
   } else {
     // We're don't need access checks, load type from dex cache
     int32_t dex_cache_offset =
-        AbstractMethod::DexCacheResolvedTypesOffset().Int32Value();
+        mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value();
     LoadWordDisp(cu, rl_method.low_reg, dex_cache_offset, res_reg);
     int32_t offset_of_type =
-        Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
+        mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
                           * type_idx);
     LoadWordDisp(cu, res_reg, offset_of_type, rl_result.low_reg);
     if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(*cu->dex_file,
@@ -844,8 +845,8 @@ void Codegen::GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation 
 void Codegen::GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocation rl_dest)
 {
   /* NOTE: Most strings should be available at compile time */
-  int32_t offset_of_string = Array::DataOffset(sizeof(String*)).Int32Value() +
-                 (sizeof(String*) * string_idx);
+  int32_t offset_of_string = mirror::Array::DataOffset(sizeof(mirror::String*)).Int32Value() +
+                 (sizeof(mirror::String*) * string_idx);
   if (!cu->compiler->CanAssumeStringIsPresentInDexCache(
       *cu->dex_file, string_idx) || SLOW_STRING_PATH) {
     // slow path, resolve string if not in dex cache
@@ -853,7 +854,7 @@ void Codegen::GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocati
     LockCallTemps(cu); // Using explicit registers
     LoadCurrMethodDirect(cu, TargetReg(kArg2));
     LoadWordDisp(cu, TargetReg(kArg2),
-                 AbstractMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
+                 mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), TargetReg(kArg0));
     // Might call out to helper, which will return resolved string in kRet0
     int r_tgt = CallHelperSetup(cu, ENTRYPOINT_OFFSET(pResolveStringFromCode));
     LoadWordDisp(cu, TargetReg(kArg0), offset_of_string, TargetReg(kRet0));
@@ -888,7 +889,7 @@ void Codegen::GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocati
     int res_reg = AllocTemp(cu);
     RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
     LoadWordDisp(cu, rl_method.low_reg,
-                 AbstractMethod::DexCacheStringsOffset().Int32Value(), res_reg);
+                 mirror::AbstractMethod::DexCacheStringsOffset().Int32Value(), res_reg);
     LoadWordDisp(cu, res_reg, offset_of_string, rl_result.low_reg);
     StoreValue(cu, rl_dest, rl_result);
   }
@@ -942,9 +943,9 @@ void Codegen::GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation 
     // Load dex cache entry into class_reg (kArg2)
     LoadValueDirectFixed(cu, rl_src, TargetReg(kArg0));  // kArg0 <= ref
     LoadWordDisp(cu, TargetReg(kArg1),
-                 AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
+                 mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
     int32_t offset_of_type =
-        Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
+        mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
         * type_idx);
     LoadWordDisp(cu, class_reg, offset_of_type, class_reg);
     if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(
@@ -968,8 +969,8 @@ void Codegen::GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation 
   }
   LIR* branch1 = OpCmpImmBranch(cu, kCondEq, TargetReg(kArg0), 0, NULL);
   /* load object->klass_ */
-  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
-  LoadWordDisp(cu, TargetReg(kArg0),  Object::ClassOffset().Int32Value(), TargetReg(kArg1));
+  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
+  LoadWordDisp(cu, TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class */
   LIR* call_inst;
   LIR* branchover = NULL;
@@ -1026,10 +1027,10 @@ void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation r
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadWordDisp(cu, TargetReg(kArg1),
-                 AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
+                 mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(), class_reg);
     int32_t offset_of_type =
-        Array::DataOffset(sizeof(Class*)).Int32Value() +
-        (sizeof(Class*) * type_idx);
+        mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
+        (sizeof(mirror::Class*) * type_idx);
     LoadWordDisp(cu, class_reg, offset_of_type, class_reg);
     if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(
         *cu->dex_file, type_idx)) {
@@ -1051,8 +1052,8 @@ void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation r
   /* Null is OK - continue */
   LIR* branch1 = OpCmpImmBranch(cu, kCondEq, TargetReg(kArg0), 0, NULL);
   /* load object->klass_ */
-  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
-  LoadWordDisp(cu, TargetReg(kArg0),  Object::ClassOffset().Int32Value(), TargetReg(kArg1));
+  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
+  LoadWordDisp(cu, TargetReg(kArg0), mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg1 now contains object->klass_ */
   LIR* branch2;
   if (cu->instruction_set == kThumb2) {

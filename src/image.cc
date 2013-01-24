@@ -16,9 +16,47 @@
 
 #include "image.h"
 
+#include "mirror/object_array.h"
+#include "mirror/object_array-inl.h"
+#include "utils.h"
+
 namespace art {
 
 const byte ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
 const byte ImageHeader::kImageVersion[] = { '0', '0', '2', '\0' };
+
+ImageHeader::ImageHeader(uint32_t image_begin,
+                         uint32_t image_roots,
+                         uint32_t oat_checksum,
+                         uint32_t oat_file_begin,
+                         uint32_t oat_data_begin,
+                         uint32_t oat_data_end,
+                         uint32_t oat_file_end)
+  : image_begin_(image_begin),
+    oat_checksum_(oat_checksum),
+    oat_file_begin_(oat_file_begin),
+    oat_data_begin_(oat_data_begin),
+    oat_data_end_(oat_data_end),
+    oat_file_end_(oat_file_end),
+    image_roots_(image_roots) {
+  CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
+  CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
+  CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
+  CHECK_LT(image_begin, image_roots);
+  CHECK_LT(image_roots, oat_file_begin);
+  CHECK_LE(oat_file_begin, oat_data_begin);
+  CHECK_LT(oat_data_begin, oat_data_end);
+  CHECK_LE(oat_data_end, oat_file_end);
+  memcpy(magic_, kImageMagic, sizeof(kImageMagic));
+  memcpy(version_, kImageVersion, sizeof(kImageVersion));
+}
+
+mirror::Object* ImageHeader::GetImageRoot(ImageRoot image_root) const {
+  return GetImageRoots()->Get(image_root);
+}
+
+mirror::ObjectArray<mirror::Object>* ImageHeader::GetImageRoots() const {
+  return reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(image_roots_);
+}
 
 }  // namespace art

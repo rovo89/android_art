@@ -17,6 +17,7 @@
 #include "dex_instruction.h"
 
 #include "dex_file.h"
+#include "utils.h"
 #include <iomanip>
 
 namespace art {

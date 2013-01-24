@@ -20,7 +20,7 @@
 #include <string.h>
 
 #include "globals.h"
-#include "object.h"
+#include "mirror/object.h"
 
 namespace art {
 
@@ -35,25 +35,7 @@ class PACKED(4) ImageHeader {
               uint32_t oat_file_begin,
               uint32_t oat_data_begin,
               uint32_t oat_data_end,
-              uint32_t oat_file_end)
-      : image_begin_(image_begin),
-        oat_checksum_(oat_checksum),
-        oat_file_begin_(oat_file_begin),
-        oat_data_begin_(oat_data_begin),
-        oat_data_end_(oat_data_end),
-        oat_file_end_(oat_file_end),
-        image_roots_(image_roots) {
-    CHECK_EQ(image_begin, RoundUp(image_begin, kPageSize));
-    CHECK_EQ(oat_file_begin, RoundUp(oat_file_begin, kPageSize));
-    CHECK_EQ(oat_data_begin, RoundUp(oat_data_begin, kPageSize));
-    CHECK_LT(image_begin, image_roots);
-    CHECK_LT(image_roots, oat_file_begin);
-    CHECK_LE(oat_file_begin, oat_data_begin);
-    CHECK_LT(oat_data_begin, oat_data_end);
-    CHECK_LE(oat_data_end, oat_file_end);
-    memcpy(magic_, kImageMagic, sizeof(kImageMagic));
-    memcpy(version_, kImageVersion, sizeof(kImageVersion));
-  }
+              uint32_t oat_file_end);
 
   bool IsValid() const {
     if (memcmp(magic_, kImageMagic, sizeof(kImageMagic) != 0)) {
@@ -113,15 +95,11 @@ class PACKED(4) ImageHeader {
     kImageRootsMax,
   };
 
-  Object* GetImageRoot(ImageRoot image_root) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetImageRoots()->Get(image_root);
-  }
+  mirror::Object* GetImageRoot(ImageRoot image_root) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  ObjectArray<Object>* GetImageRoots() const {
-    return reinterpret_cast<ObjectArray<Object>*>(image_roots_);
-  }
+  mirror::ObjectArray<mirror::Object>* GetImageRoots() const;
 
   static const byte kImageMagic[4];
   static const byte kImageVersion[4];

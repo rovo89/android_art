@@ -19,7 +19,7 @@
 #include "dataflow.h"
 #include "ssa_transformation.h"
 #include "leb128.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "runtime.h"
 #include "codegen/codegen_util.h"
 #include "codegen/mir_to_gbc.h"

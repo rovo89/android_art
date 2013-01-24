@@ -15,10 +15,10 @@
  */
 
 #include "jni_internal.h"
+#include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "oat/runtime/stub.h"
 #include "oat/utils/x86/assembler_x86.h"
-#include "object.h"
 #include "stack_indirect_reference_table.h"
 #include "sirt_ref.h"
 
@@ -27,7 +27,7 @@
 namespace art {
 namespace x86 {
 
-ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
+mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
 #if !defined(ART_USE_LLVM_COMPILER)
@@ -93,7 +93,7 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> resolution_trampoline(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> resolution_trampoline(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(resolution_trampoline.get() != NULL);
   MemoryRegion code(resolution_trampoline->GetData(), resolution_trampoline->GetLength());
   assembler->FinalizeInstructions(code);
@@ -101,9 +101,9 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   return resolution_trampoline.get();
 }
 
-typedef void (*ThrowAme)(AbstractMethod*, Thread*);
+typedef void (*ThrowAme)(mirror::AbstractMethod*, Thread*);
 
-ByteArray* CreateAbstractMethodErrorStub() {
+mirror::ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
 #if !defined(ART_USE_LLVM_COMPILER)
@@ -148,7 +148,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> abstract_stub(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> abstract_stub(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(abstract_stub.get() != NULL);
   MemoryRegion code(abstract_stub->GetData(), abstract_stub->GetLength());
   assembler->FinalizeInstructions(code);
@@ -156,7 +156,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   return abstract_stub.get();
 }
 
-ByteArray* CreateJniDlsymLookupStub() {
+mirror::ByteArray* CreateJniDlsymLookupStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
   // Pad stack to ensure 16-byte alignment
@@ -182,7 +182,7 @@ ByteArray* CreateJniDlsymLookupStub() {
 
   size_t cs = assembler->CodeSize();
   Thread* self = Thread::Current();
-  SirtRef<ByteArray> jni_stub(self, ByteArray::Alloc(self, cs));
+  SirtRef<mirror::ByteArray> jni_stub(self, mirror::ByteArray::Alloc(self, cs));
   CHECK(jni_stub.get() != NULL);
   MemoryRegion code(jni_stub->GetData(), jni_stub->GetLength());
   assembler->FinalizeInstructions(code);

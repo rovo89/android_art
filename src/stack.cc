@@ -18,7 +18,10 @@
 
 #include "compiler.h"
 #include "oat/runtime/context.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "thread_list.h"
 
@@ -39,7 +42,7 @@ size_t ManagedStack::NumJniShadowFrameReferences() const {
   return count;
 }
 
-bool ManagedStack::ShadowFramesContain(Object** shadow_frame_entry) const {
+bool ManagedStack::ShadowFramesContain(mirror::Object** shadow_frame_entry) const {
   for (const ManagedStack* current_fragment = this; current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
     for (ShadowFrame* current_frame = current_fragment->top_shadow_frame_; current_frame != NULL;
@@ -74,7 +77,7 @@ size_t StackVisitor::GetNativePcOffset() const {
   return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
 }
 
-uint32_t StackVisitor::GetVReg(AbstractMethod* m, uint16_t vreg, VRegKind kind) const {
+uint32_t StackVisitor::GetVReg(mirror::AbstractMethod* m, uint16_t vreg, VRegKind kind) const {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
@@ -98,7 +101,8 @@ uint32_t StackVisitor::GetVReg(AbstractMethod* m, uint16_t vreg, VRegKind kind) 
   }
 }
 
-void StackVisitor::SetVReg(AbstractMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind) {
+void StackVisitor::SetVReg(mirror::AbstractMethod* m, uint16_t vreg, uint32_t new_value,
+                           VRegKind kind) {
   if (cur_quick_frame_ != NULL) {
     DCHECK(context_ != NULL); // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
@@ -136,14 +140,14 @@ void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
-  AbstractMethod** sp = GetCurrentQuickFrame();
+  mirror::AbstractMethod** sp = GetCurrentQuickFrame();
   DCHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
-  AbstractMethod** sp = GetCurrentQuickFrame();
+  mirror::AbstractMethod** sp = GetCurrentQuickFrame();
   CHECK(sp != NULL);
   byte* pc_addr = reinterpret_cast<byte*>(sp) + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
@@ -182,7 +186,7 @@ void StackVisitor::DescribeStack(Thread* thread) {
 
 std::string StackVisitor::DescribeLocation() const {
   std::string result("Visiting method '");
-  AbstractMethod* m = GetMethod();
+  mirror::AbstractMethod* m = GetMethod();
   if (m == NULL) {
     return "upcall";
   }
@@ -200,9 +204,9 @@ InstrumentationStackFrame StackVisitor::GetInstrumentationStackFrame(uint32_t de
 
 void StackVisitor::SanityCheckFrame() const {
 #ifndef NDEBUG
-  AbstractMethod* method = GetMethod();
-  CHECK(method->GetClass() == AbstractMethod::GetMethodClass() ||
-        method->GetClass() == AbstractMethod::GetConstructorClass());
+  mirror::AbstractMethod* method = GetMethod();
+  CHECK(method->GetClass() == mirror::AbstractMethod::GetMethodClass() ||
+        method->GetClass() == mirror::AbstractMethod::GetConstructorClass());
   if (cur_quick_frame_ != NULL) {
     method->AssertPcIsWithinCode(cur_quick_frame_pc_);
     // Frame sanity.
@@ -229,7 +233,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
-      AbstractMethod* method = *cur_quick_frame_;
+      mirror::AbstractMethod* method = *cur_quick_frame_;
       while (method != NULL) {
         SanityCheckFrame();
         bool should_continue = VisitFrame();
@@ -259,7 +263,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         cur_quick_frame_pc_ = return_pc;
         byte* next_frame = reinterpret_cast<byte*>(cur_quick_frame_) + frame_size;
-        cur_quick_frame_ = reinterpret_cast<AbstractMethod**>(next_frame);
+        cur_quick_frame_ = reinterpret_cast<mirror::AbstractMethod**>(next_frame);
         cur_depth_++;
         method = *cur_quick_frame_;
       }

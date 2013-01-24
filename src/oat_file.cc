@@ -22,7 +22,11 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "oat.h"
+#include "mirror/class.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
 #include "os.h"
+#include "utils.h"
 
 namespace art {
 
@@ -296,7 +300,7 @@ const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_ind
 
   const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
   CHECK_LT(oat_class_pointer, oat_file_->End());
-  Class::Status status = *reinterpret_cast<const Class::Status*>(oat_class_pointer);
+  mirror::Class::Status status = *reinterpret_cast<const mirror::Class::Status*>(oat_class_pointer);
 
   const byte* methods_pointer = oat_class_pointer + sizeof(status);
   CHECK_LT(methods_pointer, oat_file_->End());
@@ -307,13 +311,13 @@ const OatFile::OatClass* OatFile::OatDexFile::GetOatClass(uint32_t class_def_ind
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file,
-                            Class::Status status,
+                            mirror::Class::Status status,
                             const OatMethodOffsets* methods_pointer)
     : oat_file_(oat_file), status_(status), methods_pointer_(methods_pointer) {}
 
 OatFile::OatClass::~OatClass() {}
 
-Class::Status OatFile::OatClass::GetStatus() const {
+mirror::Class::Status OatFile::OatClass::GetStatus() const {
   return status_;
 }
 
@@ -392,9 +396,9 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
-AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
+mirror::AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
   const byte* stub = GetOatPointer<const byte*>(invoke_stub_offset_);
-  return reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(stub));
+  return reinterpret_cast<mirror::AbstractMethod::InvokeStub*>(const_cast<byte*>(stub));
 }
 
 uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
@@ -413,7 +417,7 @@ const void* OatFile::OatMethod::GetProxyStub() const {
 }
 #endif
 
-void OatFile::OatMethod::LinkMethodPointers(AbstractMethod* method) const {
+void OatFile::OatMethod::LinkMethodPointers(mirror::AbstractMethod* method) const {
   CHECK(method != NULL);
   method->SetCode(GetCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
@@ -425,7 +429,7 @@ void OatFile::OatMethod::LinkMethodPointers(AbstractMethod* method) const {
   method->SetInvokeStub(GetInvokeStub());
 }
 
-void OatFile::OatMethod::LinkMethodOffsets(AbstractMethod* method) const {
+void OatFile::OatMethod::LinkMethodOffsets(mirror::AbstractMethod* method) const {
   CHECK(method != NULL);
   method->SetOatCodeOffset(GetCodeOffset());
   method->SetFrameSizeInBytes(GetFrameSizeInBytes());

@@ -19,6 +19,7 @@
 #include <dynamic_annotations.h>
 
 #include "base/logging.h"
+#include "gc/card_table-inl.h"
 #include "heap.h"
 #include "heap_bitmap.h"
 #include "runtime.h"

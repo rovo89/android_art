@@ -15,12 +15,15 @@
  */
 
 #include "callee_save_frame.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "runtime_support.h"
 
 namespace art {
 
 // Assignable test for code, won't throw.  Null and equality tests already performed
-extern "C" uint32_t artIsAssignableFromCode(const Class* klass, const Class* ref_class)
+extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
+                                            const mirror::Class* ref_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(klass != NULL);
   DCHECK(ref_class != NULL);
@@ -28,8 +31,8 @@ extern "C" uint32_t artIsAssignableFromCode(const Class* klass, const Class* ref
 }
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
-extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self,
-                                    AbstractMethod** sp)
+extern "C" int artCheckCastFromCode(const mirror::Class* a, const mirror::Class* b, Thread* self,
+                                    mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(a->IsClass()) << PrettyClass(a);
   DCHECK(b->IsClass()) << PrettyClass(b);
@@ -47,13 +50,14 @@ extern "C" int artCheckCastFromCode(const Class* a, const Class* b, Thread* self
 
 // Tests whether 'element' can be assigned into an array of type 'array_class'.
 // Returns 0 on success and -1 if an exception is pending.
-extern "C" int artCanPutArrayElementFromCode(const Object* element, const Class* array_class,
-                                             Thread* self, AbstractMethod** sp)
+extern "C" int artCanPutArrayElementFromCode(const mirror::Object* element,
+                                             const mirror::Class* array_class,
+                                             Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(array_class != NULL);
   // element can't be NULL as we catch this is screened in runtime_support
-  Class* element_class = element->GetClass();
-  Class* component_type = array_class->GetComponentType();
+  mirror::Class* element_class = element->GetClass();
+  mirror::Class* component_type = array_class->GetComponentType();
   if (LIKELY(component_type->IsAssignableFrom(element_class))) {
     return 0;  // Success
   } else {

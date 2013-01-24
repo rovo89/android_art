@@ -21,6 +21,7 @@
 #include "debugger.h"
 #include "hprof/hprof.h"
 #include "jni_internal.h"
+#include "mirror/class.h"
 #include "ScopedUtfChars.h"
 #include "scoped_thread_state_change.h"
 #include "toStringArray.h"
@@ -220,11 +221,11 @@ static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
 static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass,
                                            jboolean countAssignable) {
   ScopedObjectAccess soa(env);
-  Class* c = soa.Decode<Class*>(javaClass);
+  mirror::Class* c = soa.Decode<mirror::Class*>(javaClass);
   if (c == NULL) {
     return 0;
   }
-  std::vector<Class*> classes;
+  std::vector<mirror::Class*> classes;
   classes.push_back(c);
   uint64_t count = 0;
   Runtime::Current()->GetHeap()->CountInstances(classes, countAssignable, &count);

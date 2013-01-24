@@ -17,8 +17,12 @@
 #if !defined(ART_USE_LLVM_COMPILER)
 #include "callee_save_frame.h"
 #endif
+#include "class_linker-inl.h"
 #include "dex_instruction.h"
-#include "object.h"
+#include "mirror/class-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #if defined(ART_USE_LLVM_COMPILER)
 #include "nth_caller_visitor.h"
@@ -32,7 +36,8 @@ namespace art {
 
 #if !defined(ART_USE_LLVM_COMPILER)
 // Lazily resolve a method. Called by stub code.
-const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, AbstractMethod** sp, Thread* thread,
+const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
+                                                     mirror::AbstractMethod** sp, Thread* thread,
                                                      Runtime::TrampolineType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__arm__)
@@ -52,7 +57,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   // | R0         |
   // | Method*    |  <- sp
   DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
+  mirror::AbstractMethod** caller_sp = reinterpret_cast<mirror::AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
   uint32_t pc_offset = 10;
   uintptr_t caller_pc = regs[pc_offset];
@@ -72,7 +77,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   // | ECX         |    arg1
   // | EAX/Method* |  <- sp
   DCHECK_EQ(32U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 32);
+  mirror::AbstractMethod** caller_sp = reinterpret_cast<mirror::AbstractMethod**>(reinterpret_cast<byte*>(sp) + 32);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
   uintptr_t caller_pc = regs[7];
 #elif defined(__mips__)
@@ -91,13 +96,13 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   // | A1         |    arg1
   // | A0/Method* |  <- sp
   DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  AbstractMethod** caller_sp = reinterpret_cast<AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
+  mirror::AbstractMethod** caller_sp = reinterpret_cast<mirror::AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
   uint32_t pc_offset = 11;
   uintptr_t caller_pc = regs[pc_offset];
 #else
   UNIMPLEMENTED(FATAL);
-  AbstractMethod** caller_sp = NULL;
+  mirror::AbstractMethod** caller_sp = NULL;
   uintptr_t* regs = NULL;
   uintptr_t caller_pc = 0;
 #endif
@@ -109,7 +114,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
 
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  AbstractMethod* caller = *caller_sp;
+  mirror::AbstractMethod* caller = *caller_sp;
   InvokeType invoke_type;
   uint32_t dex_method_idx;
 #if !defined(__i386__)
@@ -173,7 +178,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
   // Place into local references incoming arguments from the caller's register arguments
   size_t cur_arg = 1;   // skip method_idx in R0, first arg is in R1
   if (invoke_type != kStatic) {
-    Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+    mirror::Object* obj = reinterpret_cast<mirror::Object*>(regs[cur_arg]);
     cur_arg++;
     if (args_in_regs < 3) {
       // If we thought we had fewer than 3 arguments in registers, account for the receiver
@@ -188,7 +193,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
     char c = shorty[shorty_index];
     shorty_index++;
     if (c == 'L') {
-      Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+      mirror::Object* obj = reinterpret_cast<mirror::Object*>(regs[cur_arg]);
       soa.AddLocalReference<jobject>(obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
@@ -199,7 +204,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
     char c = shorty[shorty_index];
     shorty_index++;
     if (c == 'L') {
-      Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
+      mirror::Object* obj = reinterpret_cast<mirror::Object*>(regs[cur_arg]);
       soa.AddLocalReference<jobject>(obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
@@ -214,7 +219,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
     // Ensure that the called method's class is initialized.
-    Class* called_class = called->GetDeclaringClass();
+    mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetCode();
@@ -252,7 +257,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
                                                      Thread* thread, Runtime::TrampolineType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;
-  AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
+  mirror::AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
@@ -299,7 +304,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
     // Ensure that the called method's class is initialized.
-    Class* called_class = called->GetDeclaringClass();
+    mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetCode();
@@ -342,7 +347,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, Abs
 
 #if !defined(ART_USE_LLVM_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
-extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod** sp)
+extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
+                                             mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
@@ -350,7 +356,8 @@ extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thr
   thread->QuickDeliverException();
 }
 #else // ART_USE_LLVM_COMPILER
-extern void ThrowAbstractMethodErrorFromCode(AbstractMethod* method, Thread* thread, AbstractMethod**)
+extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
+                                             mirror::AbstractMethod**)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());

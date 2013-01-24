@@ -18,10 +18,14 @@
 #define ART_SRC_THREAD_LIST_H_
 
 #include "base/mutex.h"
-#include "thread.h"
+#include "root_visitor.h"
+
+#include <bitset>
+#include <list>
 
 namespace art {
-
+class Closure;
+class Thread;
 class TimingLogger;
 
 class ThreadList {
@@ -84,10 +88,10 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
   void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
+  void VisitRoots(RootVisitor* visitor, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyRoots(Heap::VerifyRootVisitor* visitor, void* arg) const
+  void VerifyRoots(VerifyRootVisitor* visitor, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.

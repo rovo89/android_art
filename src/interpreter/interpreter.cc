@@ -19,17 +19,27 @@
 #include <math.h>
 
 #include "base/logging.h"
+#include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_instruction.h"
+#include "gc/card_table-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "nth_caller_visitor.h"
-#include "object.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/field-inl.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "runtime_support.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+
+using namespace art::mirror;
 
 namespace art {
 namespace interpreter {

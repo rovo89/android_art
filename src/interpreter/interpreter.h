@@ -21,18 +21,20 @@
 #include "locks.h"
 
 namespace art {
-
+namespace mirror {
 class AbstractMethod;
+class Object;
+}  // namespace mirror
+
 union JValue;
 class MethodHelper;
-class Object;
 class ShadowFrame;
 class Thread;
 
 namespace interpreter {
 
-extern void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
-                                       JValue* args, JValue* result)
+extern void EnterInterpreterFromInvoke(Thread* self, mirror::AbstractMethod* method,
+                                       mirror::Object* receiver, JValue* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame,

@@ -18,9 +18,10 @@
 
 #include "base/stringprintf.h"
 #include "leb128.h"
-#include "object.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
+#include "utf.h"
+#include "utils.h"
 #include "zip_archive.h"
 
 namespace art {

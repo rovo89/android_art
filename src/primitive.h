@@ -23,8 +23,9 @@
 #include "base/macros.h"
 
 namespace art {
-
+namespace mirror {
 class Object;
+}  // namespace mirror
 
 class Primitive {
  public:
@@ -77,7 +78,7 @@ class Primitive {
       case kPrimFloat:   return 4;
       case kPrimLong:
       case kPrimDouble:  return 8;
-      case kPrimNot:     return sizeof(Object*);
+      case kPrimNot:     return sizeof(mirror::Object*);
       default:
         LOG(FATAL) << "Invalid type " << static_cast<int>(type);
         return 0;

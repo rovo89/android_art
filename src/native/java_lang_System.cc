@@ -14,8 +14,12 @@
  * limitations under the License.
  */
 
+#include "gc/card_table-inl.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/array.h"
+#include "mirror/class.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 
 /*
@@ -101,7 +105,7 @@ static void move32(void* dst, const void* src, size_t n) {
 
 namespace art {
 
-static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array)
+static void ThrowArrayStoreException_NotAnArray(const char* identifier, mirror::Object* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
@@ -122,8 +126,8 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   }
 
   // Make sure source and destination are both arrays.
-  Object* srcObject = soa.Decode<Object*>(javaSrc);
-  Object* dstObject = soa.Decode<Object*>(javaDst);
+  mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
+  mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
   if (!srcObject->IsArrayInstance()) {
     ThrowArrayStoreException_NotAnArray("source", srcObject);
     return;
@@ -132,10 +136,10 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     ThrowArrayStoreException_NotAnArray("destination", dstObject);
     return;
   }
-  Array* srcArray = srcObject->AsArray();
-  Array* dstArray = dstObject->AsArray();
-  Class* srcComponentType = srcArray->GetClass()->GetComponentType();
-  Class* dstComponentType = dstArray->GetClass()->GetComponentType();
+  mirror::Array* srcArray = srcObject->AsArray();
+  mirror::Array* dstArray = dstObject->AsArray();
+  mirror::Class* srcComponentType = srcArray->GetClass()->GetComponentType();
+  mirror::Class* dstComponentType = dstArray->GetClass()->GetComponentType();
 
   // Bounds checking.
   if (srcPos < 0 || dstPos < 0 || length < 0 || srcPos > srcArray->GetLength() - length || dstPos > dstArray->GetLength() - length) {
@@ -182,7 +186,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   }
 
   // Neither class is primitive. Are the types trivially compatible?
-  const size_t width = sizeof(Object*);
+  const size_t width = sizeof(mirror::Object*);
   uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dstArray->GetRawData(width));
   const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(srcArray->GetRawData(width));
   if (dstArray == srcArray || dstComponentType->IsAssignableFrom(srcComponentType)) {
@@ -202,20 +206,21 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   // We already dealt with overlapping copies, so we don't need to cope with that case below.
   CHECK_NE(dstArray, srcArray);
 
-  Object* const * srcObjects = reinterpret_cast<Object* const *>(srcBytes + srcPos * width);
-  Object** dstObjects = reinterpret_cast<Object**>(dstBytes + dstPos * width);
-  Class* dstClass = dstArray->GetClass()->GetComponentType();
+  mirror::Object* const * srcObjects =
+      reinterpret_cast<mirror::Object* const *>(srcBytes + srcPos * width);
+  mirror::Object** dstObjects = reinterpret_cast<mirror::Object**>(dstBytes + dstPos * width);
+  mirror::Class* dstClass = dstArray->GetClass()->GetComponentType();
 
   // We want to avoid redundant IsAssignableFrom checks where possible, so we cache a class that
   // we know is assignable to the destination array's component type.
-  Class* lastAssignableElementClass = dstClass;
+  mirror::Class* lastAssignableElementClass = dstClass;
 
-  Object* o = NULL;
+  mirror::Object* o = NULL;
   int i = 0;
   for (; i < length; ++i) {
     o = srcObjects[i];
     if (o != NULL) {
-      Class* oClass = o->GetClass();
+      mirror::Class* oClass = o->GetClass();
       if (lastAssignableElementClass == oClass) {
         dstObjects[i] = o;
       } else if (dstClass->IsAssignableFrom(oClass)) {
@@ -243,7 +248,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
 
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
   ScopedObjectAccess soa(env);
-  Object* o = soa.Decode<Object*>(javaObject);
+  mirror::Object* o = soa.Decode<mirror::Object*>(javaObject);
   return static_cast<jint>(o->IdentityHashCode());
 }
 

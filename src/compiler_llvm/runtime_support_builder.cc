@@ -19,7 +19,7 @@
 #include "gc/card_table.h"
 #include "ir_builder.h"
 #include "monitor.h"
-#include "object.h"
+#include "mirror/object.h"
 #include "thread.h"
 
 #include <llvm/DerivedTypes.h>
@@ -179,7 +179,7 @@ void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
                                kTBAARuntimeInfo);
   Value* monitor =
       irb_.LoadFromObjectOffset(object,
-                                Object::MonitorOffset().Int32Value(),
+                                mirror::Object::MonitorOffset().Int32Value(),
                                 irb_.getJIntTy(),
                                 kTBAARuntimeInfo);
 
@@ -199,7 +199,7 @@ void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
   irb_.SetInsertPoint(bb_fast);
   // Set all bits to zero (except hash state)
   irb_.StoreToObjectOffset(object,
-                           Object::MonitorOffset().Int32Value(),
+                           mirror::Object::MonitorOffset().Int32Value(),
                            hash_state,
                            kTBAARuntimeInfo);
   irb_.CreateBr(bb_cont);

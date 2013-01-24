@@ -30,12 +30,15 @@
 
 namespace art {
 
-class Class;
 class DexFile;
+
+namespace mirror {
+class Class;
 class Field;
 class AbstractMethod;
 class Object;
 class String;
+}  // namespace mirror
 
 enum TimeUnit {
   kTimeUnitNanosecond,
@@ -172,21 +175,21 @@ bool EndsWith(const std::string& s, const char* suffix);
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
-std::string PrettyDescriptor(const String* descriptor);
+std::string PrettyDescriptor(const mirror::String* descriptor);
 std::string PrettyDescriptor(const std::string& descriptor);
 std::string PrettyDescriptor(Primitive::Type type);
-std::string PrettyDescriptor(const Class* klass)
+std::string PrettyDescriptor(const mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
-std::string PrettyField(const Field* f, bool with_type = true)
+std::string PrettyField(const mirror::Field* f, bool with_type = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
-std::string PrettyMethod(const AbstractMethod* m, bool with_signature = true)
+std::string PrettyMethod(const mirror::AbstractMethod* m, bool with_signature = true)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
@@ -194,7 +197,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 // So given an instance of java.lang.String, the output would
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyTypeOf(const Object* obj)
+std::string PrettyTypeOf(const mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the type at an index in the specified dex file.
@@ -203,11 +206,11 @@ std::string PrettyType(uint32_t type_idx, const DexFile& dex_file);
 
 // Returns a human-readable form of the name of the given class.
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyClass(const Class* c)
+std::string PrettyClass(const mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the name of the given class with its class loader.
-std::string PrettyClassAndClassLoader(const Class* c)
+std::string PrettyClassAndClassLoader(const mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable size string such as "1MB".
@@ -250,10 +253,10 @@ bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 bool IsValidMemberName(const char* s);
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
-std::string JniShortName(const AbstractMethod* m)
+std::string JniShortName(const mirror::AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 // Returns the JNI native function name for the overloaded method 'm'.
-std::string JniLongName(const AbstractMethod* m)
+std::string JniLongName(const mirror::AbstractMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);

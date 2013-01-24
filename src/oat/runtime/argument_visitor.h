@@ -46,7 +46,7 @@ class ArgumentVisitor {
 #define STACK_ARG_SKIP 0
 #endif
 
-  ArgumentVisitor(MethodHelper& caller_mh, AbstractMethod** sp)
+  ArgumentVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
     caller_mh_(caller_mh),
     args_in_regs_(ComputeArgsInRegs(caller_mh)),

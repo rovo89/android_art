@@ -18,11 +18,12 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
-#include "class_loader.h"
 #include "dex_file.h"
 #include "gc/space.h"
 #include "image.h"
 #include "jni_internal.h"
+#include "mirror/class_loader.h"
+#include "mirror/string.h"
 #include "oat.h"
 #include "os.h"
 #include "runtime.h"
@@ -150,9 +151,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
-  Object* class_loader_object = soa.Decode<Object*>(javaLoader);
-  ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
-  Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+  mirror::Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
   return soa.AddLocalReference<jclass>(result);
 }
 

@@ -17,8 +17,12 @@
 #include "common_throws.h"
 
 #include "base/logging.h"
+#include "class_linker-inl.h"
 #include "dex_instruction.h"
 #include "invoke_type.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "thread.h"
 
@@ -26,7 +30,7 @@
 
 namespace art {
 
-static void AddReferrerLocation(std::ostream& os, const AbstractMethod* referrer)
+static void AddReferrerLocation(std::ostream& os, const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
     ClassHelper kh(referrer->GetDeclaringClass());
@@ -37,7 +41,7 @@ static void AddReferrerLocation(std::ostream& os, const AbstractMethod* referrer
   }
 }
 
-static void AddReferrerLocationFromClass(std::ostream& os, Class* referrer)
+static void AddReferrerLocationFromClass(std::ostream& os, mirror::Class* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
     ClassHelper kh(referrer);
@@ -51,16 +55,16 @@ static void AddReferrerLocationFromClass(std::ostream& os, Class* referrer)
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(Field* field, bool is_read) {
+void ThrowNullPointerExceptionForFieldAccess(mirror::Field* field, bool is_read) {
   std::ostringstream msg;
   msg << "Attempt to " << (is_read ? "read from" : "write to")
       << " field '" << PrettyField(field, true) << "' on a null object reference";
   Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t method_idx,
+void ThrowNullPointerExceptionForMethodAccess(mirror::AbstractMethod* caller, uint32_t method_idx,
                                               InvokeType type) {
-  DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
+  mirror::DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
@@ -68,7 +72,7 @@ void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t m
   Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t dex_pc) {
+void ThrowNullPointerExceptionFromDexPC(mirror::AbstractMethod* throw_method, uint32_t dex_pc) {
   const DexFile::CodeItem* code = MethodHelper(throw_method).GetCodeItem();
   CHECK_LT(dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
@@ -93,7 +97,7 @@ void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t d
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
-      Field* field =
+      mirror::Field* field =
           Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
       ThrowNullPointerExceptionForFieldAccess(field, true /* read */);
       break;
@@ -105,7 +109,7 @@ void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t d
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
-      Field* field =
+      mirror::Field* field =
           Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
       ThrowNullPointerExceptionForFieldAccess(field, false /* write */);
       break;
@@ -149,7 +153,7 @@ void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t d
 
 // IllegalAccessError
 
-void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed) {
+void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* accessed) {
   std::ostringstream msg;
   msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' attempting to access '"
       << PrettyDescriptor(accessed) << "'";
@@ -157,9 +161,9 @@ void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed) {
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* accessed,
-                                                   const AbstractMethod* caller,
-                                                   const AbstractMethod* called,
+void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
+                                                   const mirror::AbstractMethod* caller,
+                                                   const mirror::AbstractMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
   msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
@@ -169,7 +173,7 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* acces
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorMethod(Class* referrer, AbstractMethod* accessed) {
+void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::AbstractMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
@@ -177,7 +181,7 @@ void ThrowIllegalAccessErrorMethod(Class* referrer, AbstractMethod* accessed) {
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorField(Class* referrer, Field* accessed) {
+void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::Field* accessed) {
   std::ostringstream msg;
   msg << "Field '" << PrettyField(accessed, false) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
@@ -185,7 +189,8 @@ void ThrowIllegalAccessErrorField(Class* referrer, Field* accessed) {
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorFinalField(const AbstractMethod* referrer, Field* accessed) {
+void ThrowIllegalAccessErrorFinalField(const mirror::AbstractMethod* referrer,
+                                       mirror::Field* accessed) {
   std::ostringstream msg;
   msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
       << PrettyMethod(referrer) << "'";
@@ -196,7 +201,8 @@ void ThrowIllegalAccessErrorFinalField(const AbstractMethod* referrer, Field* ac
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       AbstractMethod* method, const AbstractMethod* referrer) {
+                                       mirror::AbstractMethod* method,
+                                       const mirror::AbstractMethod* referrer) {
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
@@ -205,9 +211,9 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
                                        msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const AbstractMethod* interface_method,
-                                                                Object* this_object,
-                                                                const AbstractMethod* referrer) {
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::AbstractMethod* interface_method,
+                                                                mirror::Object* this_object,
+                                                                const mirror::AbstractMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
   CHECK(this_object != NULL);
@@ -221,8 +227,8 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const AbstractMe
                                        msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is_static,
-                                            const AbstractMethod* referrer) {
+void ThrowIncompatibleClassChangeErrorField(const mirror::Field* resolved_field, bool is_static,
+                                            const mirror::AbstractMethod* referrer) {
   std::ostringstream msg;
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
@@ -234,8 +240,8 @@ void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is
 
 // NoSuchMethodError
 
-void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const AbstractMethod* referrer) {
+void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
+                            const StringPiece& signature, const mirror::AbstractMethod* referrer) {
   std::ostringstream msg;
   ClassHelper kh(c);
   msg << "No " << type << " method " << name << signature
@@ -244,8 +250,8 @@ void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
-void ThrowNoSuchMethodError(uint32_t method_idx, const AbstractMethod* referrer) {
-  DexCache* dex_cache = referrer->GetDeclaringClass()->GetDexCache();
+void ThrowNoSuchMethodError(uint32_t method_idx, const mirror::AbstractMethod* referrer) {
+  mirror::DexCache* dex_cache = referrer->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
   msg << "No method '" << PrettyMethod(method_idx, dex_file, true) << "'";

@@ -18,10 +18,9 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "class_loader.h"
 #include "heap.h"
 #include "jni_internal.h"
-#include "object.h"
+#include "mirror/class_loader.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
@@ -59,7 +58,7 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
     }
   }
 
-  ClassLoader* classLoader = soa.Decode<ClassLoader*>(javaLoader);
+  mirror::ClassLoader* classLoader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   std::string detail;
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, detail);

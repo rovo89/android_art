@@ -24,10 +24,9 @@
 #include <string>
 
 #include "compiler.h"
-#include "dex_cache.h"
 #include "mem_map.h"
 #include "oat_file.h"
-#include "object.h"
+#include "mirror/dex_cache.h"
 #include "os.h"
 #include "safe_map.h"
 #include "gc/space.h"
@@ -59,7 +58,7 @@ class ImageWriter {
   bool AllocMemory();
 
   // we use the lock word to store the offset of the object in the image
-  void AssignImageOffset(Object* object)
+  void AssignImageOffset(mirror::Object* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(object != NULL);
     SetImageOffset(object, image_end_);
@@ -67,35 +66,35 @@ class ImageWriter {
     DCHECK_LT(image_end_, image_->Size());
   }
 
-  void SetImageOffset(Object* object, size_t offset) {
+  void SetImageOffset(mirror::Object* object, size_t offset) {
     DCHECK(object != NULL);
     DCHECK_NE(offset, 0U);
     DCHECK(!IsImageOffsetAssigned(object));
     offsets_.Put(object, offset);
   }
 
-  size_t IsImageOffsetAssigned(const Object* object) const {
+  size_t IsImageOffsetAssigned(const mirror::Object* object) const {
     DCHECK(object != NULL);
     return offsets_.find(object) != offsets_.end();
   }
 
-  size_t GetImageOffset(const Object* object) const {
+  size_t GetImageOffset(const mirror::Object* object) const {
     DCHECK(object != NULL);
     DCHECK(IsImageOffsetAssigned(object));
     return offsets_.find(object)->second;
   }
 
-  Object* GetImageAddress(const Object* object) const {
+  mirror::Object* GetImageAddress(const mirror::Object* object) const {
     if (object == NULL) {
       return NULL;
     }
-    return reinterpret_cast<Object*>(image_begin_ + GetImageOffset(object));
+    return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
 
-  Object* GetLocalAddress(const Object* object) const {
+  mirror::Object* GetLocalAddress(const mirror::Object* object) const {
     size_t offset = GetImageOffset(object);
     byte* dst = image_->Begin() + offset;
-    return reinterpret_cast<Object*>(dst);
+    return reinterpret_cast<mirror::Object*>(dst);
   }
 
   const byte* GetOatAddress(uint32_t offset) const {
@@ -106,50 +105,52 @@ class ImageWriter {
     return oat_data_begin_ + offset;
   }
 
-  bool IsImageClass(const Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsImageClass(const mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpImageClasses();
 
   void ComputeLazyFieldsForImageClasses()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static bool ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg)
+  static bool ComputeLazyFieldsForClassesVisitor(mirror::Class* klass, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Wire dex cache resolved strings to strings in the image to avoid runtime resolution
   void ComputeEagerResolvedStrings();
-  static void ComputeEagerResolvedStringsCallback(Object* obj, void* arg)
+  static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static bool NonImageClassesVisitor(Class* c, void* arg)
+  static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckNonImageClassesRemoved();
-  static void CheckNonImageClassesRemovedCallback(Object* obj, void* arg)
+  static void CheckNonImageClassesRemovedCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ObjectArray<Object>* CreateImageRoots() const
+  mirror::ObjectArray<mirror::Object>* CreateImageRoots() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg)
+  static void CalculateNewObjectOffsetsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CopyAndFixupObjects();
-  static void CopyAndFixupObjectsCallback(Object* obj, void* arg)
+  static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupClass(const Class* orig, Class* copy)
+  void FixupClass(const mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupMethod(const AbstractMethod* orig, AbstractMethod* copy)
+  void FixupMethod(const mirror::AbstractMethod* orig, mirror::AbstractMethod* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupObject(const Object* orig, Object* copy)
+  void FixupObject(const mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy)
+  void FixupObjectArray(const mirror::ObjectArray<mirror::Object>* orig,
+                        mirror::ObjectArray<mirror::Object>* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupInstanceFields(const Object* orig, Object* copy)
+  void FixupInstanceFields(const mirror::Object* orig, mirror::Object* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupStaticFields(const Class* orig, Class* copy)
+  void FixupStaticFields(const mirror::Class* orig, mirror::Class* copy)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static)
+  void FixupFields(const mirror::Object* orig, mirror::Object* copy, uint32_t ref_offsets,
+                   bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PatchOatCodeAndMethods(const Compiler& compiler)
@@ -157,7 +158,7 @@ class ImageWriter {
   void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  SafeMap<const Object*, size_t> offsets_;
+  SafeMap<const mirror::Object*, size_t> offsets_;
 
   // oat file with code for this image
   OatFile* oat_file_;
@@ -178,7 +179,7 @@ class ImageWriter {
   const byte* oat_data_begin_;
 
   // DexCaches seen while scanning for fixing up CodeAndDirectMethods
-  typedef std::set<DexCache*> Set;
+  typedef std::set<mirror::DexCache*> Set;
   Set dex_caches_;
 };
 

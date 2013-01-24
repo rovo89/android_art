@@ -17,7 +17,9 @@
 #include "argument_visitor.h"
 #include "callee_save_frame.h"
 #include "interpreter/interpreter.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 
 namespace art {
@@ -25,7 +27,7 @@ namespace art {
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildShadowFrameVisitor : public ArgumentVisitor {
  public:
-  BuildShadowFrameVisitor(MethodHelper& caller_mh, AbstractMethod** sp,
+  BuildShadowFrameVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp,
                           ShadowFrame& sf, size_t first_arg_reg) :
     ArgumentVisitor(caller_mh, sp), sf_(sf), cur_reg_(first_arg_reg) {}
 
@@ -41,7 +43,7 @@ class BuildShadowFrameVisitor : public ArgumentVisitor {
         }
         break;
       case Primitive::kPrimNot:
-        sf_.SetVRegReference(cur_reg_, *reinterpret_cast<Object**>(GetParamAddress()));
+        sf_.SetVRegReference(cur_reg_, *reinterpret_cast<mirror::Object**>(GetParamAddress()));
         break;
       case Primitive::kPrimBoolean:  // Fall-through.
       case Primitive::kPrimByte:     // Fall-through.
@@ -65,7 +67,8 @@ class BuildShadowFrameVisitor : public ArgumentVisitor {
   DISALLOW_COPY_AND_ASSIGN(BuildShadowFrameVisitor);
 };
 
-extern "C" uint64_t artInterpreterEntry(AbstractMethod* method, Thread* self, AbstractMethod** sp)
+extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* self,
+                                        mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
   // frame.

@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-#include "object.h"
+#include "mirror/class-inl.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "runtime_support.h"
 #include "scoped_thread_state_change.h"
@@ -28,7 +32,7 @@ extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_)
   DCHECK(Thread::Current() == self);
   ScopedObjectAccess soa(self);
 
-  AbstractMethod* method = self->GetCurrentMethod();
+  mirror::AbstractMethod* method = self->GetCurrentMethod();
   DCHECK(method != NULL);
 
   // Lookup symbol address for method, on failure we'll return NULL with an
@@ -81,11 +85,11 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject lo
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                         Thread* self)
+extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                                 Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
-  Object* o = self->DecodeJObject(result);  // Must decode before pop.
+  mirror::Object* o = self->DecodeJObject(result);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->check_jni)) {
@@ -97,13 +101,13 @@ extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_re
   return o;
 }
 
-extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                     uint32_t saved_local_ref_cookie,
-                                                     jobject locked, Thread* self)
+extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                             uint32_t saved_local_ref_cookie,
+                                                             jobject locked, Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
-  Object* o = self->DecodeJObject(result);
+  mirror::Object* o = self->DecodeJObject(result);
   PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->check_jni)) {
@@ -117,9 +121,10 @@ extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
 
 static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
   intptr_t value = *arg_ptr;
-  Object** value_as_jni_rep = reinterpret_cast<Object**>(value);
-  Object* value_as_work_around_rep = value_as_jni_rep != NULL ? *value_as_jni_rep : NULL;
-  CHECK(Runtime::Current()->GetHeap()->IsHeapAddress(value_as_work_around_rep)) << value_as_work_around_rep;
+  mirror::Object** value_as_jni_rep = reinterpret_cast<mirror::Object**>(value);
+  mirror::Object* value_as_work_around_rep = value_as_jni_rep != NULL ? *value_as_jni_rep : NULL;
+  CHECK(Runtime::Current()->GetHeap()->IsHeapAddress(value_as_work_around_rep))
+      << value_as_work_around_rep;
   *arg_ptr = reinterpret_cast<intptr_t>(value_as_work_around_rep);
 }
 
@@ -137,7 +142,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
   // | unused |
   // | unused |
   // | unused | <- sp
-  AbstractMethod* jni_method = self->GetCurrentMethod();
+  mirror::AbstractMethod* jni_method = self->GetCurrentMethod();
   DCHECK(jni_method->IsNative()) << PrettyMethod(jni_method);
   intptr_t* arg_ptr = sp + 4;  // pointer to r1 on stack
   // Fix up this/jclass argument

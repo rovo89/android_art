@@ -20,6 +20,8 @@
 #include <cmath>
 
 #include "common_test.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object_array-inl.h"
 #include "ScopedLocalRef.h"
 #include "sirt_ref.h"
 
@@ -70,15 +72,17 @@ class JniInternalTest : public CommonTest {
     CommonTest::TearDown();
   }
 
-  AbstractMethod::InvokeStub* DoCompile(AbstractMethod*& method, Object*& receiver, bool is_static,
-                                const char* method_name, const char* method_signature)
+  mirror::AbstractMethod::InvokeStub* DoCompile(mirror::AbstractMethod*& method,
+                                                mirror::Object*& receiver,
+                                                bool is_static, const char* method_name,
+                                                const char* method_signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     Thread* self = Thread::Current();
-    SirtRef<ClassLoader>
+    SirtRef<mirror::ClassLoader>
         class_loader(self,
-                     ScopedObjectAccessUnchecked(self).Decode<ClassLoader*>(jclass_loader));
+                     ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader));
     if (is_static) {
       CompileDirectMethod(class_loader.get(), class_name, method_name, method_signature);
     } else {
@@ -87,7 +91,7 @@ class JniInternalTest : public CommonTest {
       CompileVirtualMethod(class_loader.get(), class_name, method_name, method_signature);
     }
 
-    Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader.get());
+    mirror::Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader.get());
     CHECK(c != NULL);
 
     method = is_static ? c->FindDirectMethod(method_name, method_signature)
@@ -96,24 +100,25 @@ class JniInternalTest : public CommonTest {
 
     receiver = (is_static ? NULL : c->AllocObject(self));
 
-    AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
+    mirror::AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
     CHECK(stub != NULL);
 
     return stub;
   }
 
   void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
     (*stub)(method, receiver, Thread::Current(), NULL, NULL);
   }
 
   void InvokeIdentityByteMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "identity", "(B)B");
 
     JValue args[1];
     JValue result;
@@ -141,9 +146,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "identity", "(I)I");
 
     JValue args[1];
     JValue result;
@@ -171,9 +177,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeIdentityDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "identity", "(D)D");
 
     JValue args[1];
     JValue result;
@@ -201,9 +208,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(II)I");
 
     JValue result;
     result.SetI(-1);
@@ -240,9 +248,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(III)I");
 
     JValue result;
     result.SetI(-1);
@@ -284,9 +293,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(IIII)I");
 
     JValue result;
     result.SetI(-1);
@@ -333,9 +343,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
 
     JValue result;
     result.SetI(-1.0);
@@ -387,9 +398,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(DD)D");
 
     JValue args[2];
     JValue result;
@@ -427,9 +439,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(DDD)D");
 
     JValue args[3];
     JValue result;
@@ -458,9 +471,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
 
     JValue args[4];
     JValue result;
@@ -492,9 +506,10 @@ class JniInternalTest : public CommonTest {
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    AbstractMethod* method;
-    Object* receiver;
-    AbstractMethod::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
+    mirror::AbstractMethod* method;
+    mirror::Object* receiver;
+    mirror::AbstractMethod::InvokeStub* stub =
+        DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
 
     JValue args[5];
     JValue result;
@@ -1270,7 +1285,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
   jobject outer;
   jobject inner1, inner2;
   ScopedObjectAccess soa(env_);
-  Object* inner2_direct_pointer;
+  mirror::Object* inner2_direct_pointer;
   {
     env_->PushLocalFrame(4);
     outer = env_->NewLocalRef(original);
@@ -1279,7 +1294,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
       env_->PushLocalFrame(4);
       inner1 = env_->NewLocalRef(outer);
       inner2 = env_->NewStringUTF("survivor");
-      inner2_direct_pointer = soa.Decode<Object*>(inner2);
+      inner2_direct_pointer = soa.Decode<mirror::Object*>(inner2);
       env_->PopLocalFrame(inner2);
     }
 
@@ -1393,16 +1408,17 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 TEST_F(JniInternalTest, StaticMainMethod) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
-  SirtRef<ClassLoader> class_loader(soa.Self(), soa.Decode<ClassLoader*>(jclass_loader));
+  SirtRef<mirror::ClassLoader>
+      class_loader(soa.Self(), soa.Decode<mirror::ClassLoader*>(jclass_loader));
   CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
 
-  Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
+  mirror::Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
   ASSERT_TRUE(klass != NULL);
 
-  AbstractMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
+  mirror::AbstractMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V");
   ASSERT_TRUE(method != NULL);
 
-  AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
+  mirror::AbstractMethod::InvokeStub* stub = method->GetInvokeStub();
 
   JValue args[1];
   args[0].SetL(NULL);

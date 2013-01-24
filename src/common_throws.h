@@ -18,62 +18,73 @@
 #define ART_SRC_COMMON_THROWS_H_
 
 #include "base/mutex.h"
-#include "object.h"
+#include "invoke_type.h"
 
 namespace art {
+namespace mirror {
+class AbstractMethod;
+class Class;
+class Field;
+class Object;
+}  // namespace mirror
+class StringPiece;
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(Field* field, bool is_read)
+void ThrowNullPointerExceptionForFieldAccess(mirror::Field* field, bool is_read)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionForMethodAccess(AbstractMethod* caller, uint32_t method_idx, InvokeType type)
+void ThrowNullPointerExceptionForMethodAccess(mirror::AbstractMethod* caller, uint32_t method_idx,
+                                              InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionFromDexPC(AbstractMethod* throw_method, uint32_t dex_pc)
+void ThrowNullPointerExceptionFromDexPC(mirror::AbstractMethod* throw_method, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // IllegalAccessError
 
-void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed)
+void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* accessed,
-                                                   const AbstractMethod* caller, const AbstractMethod* called,
+void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
+                                                   const mirror::AbstractMethod* caller,
+                                                   const mirror::AbstractMethod* called,
                                                    InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorMethod(Class* referrer, AbstractMethod* accessed)
+void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::AbstractMethod* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorField(Class* referrer, Field* accessed)
+void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::Field* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIllegalAccessErrorFinalField(const AbstractMethod* referrer, Field* accessed)
+void ThrowIllegalAccessErrorFinalField(const mirror::AbstractMethod* referrer,
+                                       mirror::Field* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       AbstractMethod* method, const AbstractMethod* referrer)
+                                       mirror::AbstractMethod* method,
+                                       const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const AbstractMethod* interface_method,
-                                                                Object* this_object,
-                                                                const AbstractMethod* referrer)
+void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(const mirror::AbstractMethod* interface_method,
+                                                                mirror::Object* this_object,
+                                                                const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is_static,
-                                            const AbstractMethod* referrer)
+void ThrowIncompatibleClassChangeErrorField(const mirror::Field* resolved_field, bool is_static,
+                                            const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // NoSuchMethodError
 
-void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const AbstractMethod* referrer)
+void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
+                            const StringPiece& signature, const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNoSuchMethodError(uint32_t method_idx, const AbstractMethod* referrer)
+void ThrowNoSuchMethodError(uint32_t method_idx, const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

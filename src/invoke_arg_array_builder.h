@@ -17,7 +17,7 @@
 #ifndef ART_SRC_INVOKE_ARG_ARRAY_BUILDER_H_
 #define ART_SRC_INVOKE_ARG_ARRAY_BUILDER_H_
 
-#include "object.h"
+#include "mirror/object.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -31,7 +31,7 @@ static inline size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len) {
     } else if (ch == 'L') {
       // Argument is a reference or an array.  The shorty descriptor
       // does not distinguish between these types.
-      num_bytes += sizeof(Object*);
+      num_bytes += sizeof(mirror::Object*);
     } else {
       num_bytes += 4;
     }
@@ -78,7 +78,7 @@ class ArgArray {
           arg_array_[offset].SetF(va_arg(ap, jdouble));
           break;
         case 'L':
-          arg_array_[offset].SetL(soa.Decode<Object*>(va_arg(ap, jobject)));
+          arg_array_[offset].SetL(soa.Decode<mirror::Object*>(va_arg(ap, jobject)));
           break;
         case 'D':
           arg_array_[offset].SetD(va_arg(ap, jdouble));
@@ -113,7 +113,7 @@ class ArgArray {
           arg_array_[offset].SetF(args[offset].f);
           break;
         case 'L':
-          arg_array_[offset].SetL(soa.Decode<Object*>(args[offset].l));
+          arg_array_[offset].SetL(soa.Decode<mirror::Object*>(args[offset].l));
           break;
         case 'D':
           arg_array_[offset].SetD(args[offset].d);

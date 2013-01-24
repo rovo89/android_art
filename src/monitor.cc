@@ -22,7 +22,9 @@
 #include "base/stl_util.h"
 #include "class_linker.h"
 #include "dex_instruction.h"
-#include "object.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -111,7 +113,7 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
   is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
-Monitor::Monitor(Thread* owner, Object* obj)
+Monitor::Monitor(Thread* owner, mirror::Object* obj)
     : monitor_lock_("a monitor lock", kMonitorLock),
       owner_(owner),
       lock_count_(0),
@@ -186,7 +188,7 @@ void Monitor::RemoveFromWaitSet(Thread *thread) {
   }
 }
 
-Object* Monitor::GetObject() {
+mirror::Object* Monitor::GetObject() {
   return obj_;
 }
 
@@ -200,7 +202,7 @@ void Monitor::Lock(Thread* self) {
     uint64_t waitStart = 0;
     uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
-    const AbstractMethod* current_locking_method = NULL;
+    const mirror::AbstractMethod* current_locking_method = NULL;
     uint32_t current_locking_dex_pc = 0;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
@@ -270,7 +272,7 @@ static std::string ThreadToString(Thread* thread) {
   return oss.str();
 }
 
-void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owner,
+void Monitor::FailedUnlock(mirror::Object* o, Thread* expected_owner, Thread* found_owner,
                            Monitor* monitor) {
   Thread* current_owner = NULL;
   std::string current_owner_string;
@@ -426,7 +428,7 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
   int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const AbstractMethod* saved_method = locking_method_;
+  const mirror::AbstractMethod* saved_method = locking_method_;
   locking_method_ = NULL;
   uintptr_t saved_dex_pc = locking_dex_pc_;
   locking_dex_pc_ = 0;
@@ -570,7 +572,7 @@ void Monitor::NotifyAllWithLock() {
  * Changes the shape of a monitor from thin to fat, preserving the
  * internal lock state. The calling thread must own the lock.
  */
-void Monitor::Inflate(Thread* self, Object* obj) {
+void Monitor::Inflate(Thread* self, mirror::Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   DCHECK_EQ(LW_SHAPE(*obj->GetRawLockWordAddress()), LW_SHAPE_THIN);
@@ -583,7 +585,7 @@ void Monitor::Inflate(Thread* self, Object* obj) {
   Runtime::Current()->GetMonitorList()->Add(m);
 }
 
-void Monitor::MonitorEnter(Thread* self, Object* obj) {
+void Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
   uint32_t sleepDelayNs;
   uint32_t minSleepDelayNs = 1000000;  /* 1 millisecond */
@@ -686,7 +688,7 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
   }
 }
 
-bool Monitor::MonitorExit(Thread* self, Object* obj) {
+bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
   DCHECK(self != NULL);
@@ -748,7 +750,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
 /*
  * Object.wait().  Also called for class init.
  */
-void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns,
+void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
@@ -772,7 +774,7 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns,
   LW_MONITOR(*thinp)->Wait(self, ms, ns, interruptShouldThrow, why);
 }
 
-void Monitor::Notify(Thread* self, Object *obj) {
+void Monitor::Notify(Thread* self, mirror::Object *obj) {
   uint32_t thin = *obj->GetRawLockWordAddress();
 
   // If the lock is still thin, there aren't any waiters;
@@ -791,7 +793,7 @@ void Monitor::Notify(Thread* self, Object *obj) {
   }
 }
 
-void Monitor::NotifyAll(Thread* self, Object *obj) {
+void Monitor::NotifyAll(Thread* self, mirror::Object *obj) {
   uint32_t thin = *obj->GetRawLockWordAddress();
 
   // If the lock is still thin, there aren't any waiters;
@@ -822,7 +824,7 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   ThreadState state = thread->GetState();
 
-  Object* object = NULL;
+  mirror::Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
   if (state == kWaiting || state == kTimedWaiting || state == kSleeping) {
     if (state == kSleeping) {
@@ -860,10 +862,10 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   os << "\n";
 }
 
-Object* Monitor::GetContendedMonitor(Thread* thread) {
+mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {
   // This is used to implement JDWP's ThreadReference.CurrentContendedMonitor, and has a bizarre
   // definition of contended that includes a monitor a thread is trying to enter...
-  Object* result = thread->monitor_enter_object_;
+  mirror::Object* result = thread->monitor_enter_object_;
   if (result != NULL) {
     return result;
   }
@@ -878,15 +880,16 @@ Object* Monitor::GetContendedMonitor(Thread* thread) {
   return NULL;
 }
 
-void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, void*), void* callback_context) {
-  AbstractMethod* m = stack_visitor->GetMethod();
+void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
+                         void* callback_context) {
+  mirror::AbstractMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
   // Native methods are an easy special case.
   // TODO: use the JNI implementation's table of explicit MonitorEnter calls and dump those too.
   if (m->IsNative()) {
     if (m->IsSynchronized()) {
-      Object* jni_this = stack_visitor->GetCurrentSirt()->GetReference(0);
+      mirror::Object* jni_this = stack_visitor->GetCurrentSirt()->GetReference(0);
       callback(jni_this, callback_context);
     }
     return;
@@ -933,13 +936,13 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(Object*, 
     }
 
     uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
-    Object* o = reinterpret_cast<Object*>(stack_visitor->GetVReg(m, monitor_register,
-                                                                 kReferenceVReg));
+    mirror::Object* o = reinterpret_cast<mirror::Object*>(stack_visitor->GetVReg(m, monitor_register,
+                                                                                 kReferenceVReg));
     callback(o, callback_context);
   }
 }
 
-void Monitor::TranslateLocation(const AbstractMethod* method, uint32_t dex_pc,
+void Monitor::TranslateLocation(const mirror::AbstractMethod* method, uint32_t dex_pc,
                                 const char*& source_file, uint32_t& line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {
@@ -968,7 +971,7 @@ void MonitorList::Add(Monitor* m) {
   list_.push_front(m);
 }
 
-void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
+void MonitorList::SweepMonitorList(IsMarkedTester is_marked, void* arg) {
   MutexLock mu(Thread::Current(), monitor_list_lock_);
   typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
   It it = list_.begin();
@@ -984,7 +987,7 @@ void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
   }
 }
 
-MonitorInfo::MonitorInfo(Object* o) : owner(NULL), entry_count(0) {
+MonitorInfo::MonitorInfo(mirror::Object* o) : owner(NULL), entry_count(0) {
   uint32_t lock_word = *o->GetRawLockWordAddress();
   if (LW_SHAPE(lock_word) == LW_SHAPE_THIN) {
     uint32_t owner_thin_lock_id = LW_LOCK_OWNER(lock_word);
