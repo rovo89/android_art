@@ -20,8 +20,6 @@
 #include <stdint.h>
 
 #include "base/macros.h"
-#include "cutils/atomic.h"
-#include "cutils/atomic-inline.h"
 
 namespace art {
 
@@ -31,28 +29,24 @@ namespace art {
 // non-quasiatomic operations on the same address, nor about
 // quasiatomic operations that are performed on partially-overlapping
 // memory.
-//
-// Only the "Sync" functions provide a memory barrier.
 class QuasiAtomic {
  public:
   static void Startup();
 
   static void Shutdown();
 
-  // Swaps the 64-bit value at "addr" with "value".  Returns the previous
-  // value. No memory barriers.
-  static int64_t Swap64(int64_t value, volatile int64_t* addr);
-
-  // Swaps the 64-bit value at "addr" with "value".  Returns the previous
-  // value. Provides memory barriers.
-  static int64_t Swap64Sync(int64_t value, volatile int64_t* addr);
-
-  // Reads the 64-bit value at "addr".
+  // Reads the 64-bit value at "addr" without tearing.
   static int64_t Read64(volatile const int64_t* addr);
 
-  // If the value at "addr" is equal to "old_value", replace it with "new_value"
-  // and return 0. Otherwise, don't swap, and return nonzero.
-  static int Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr);
+  // Writes to the 64-bit value at "addr" without tearing.
+  static void Write64(volatile int64_t* addr, int64_t val);
+
+  // Atomically compare the value at "addr" to "old_value", if equal replace it with "new_value"
+  // and return true. Otherwise, don't swap, and return false.
+  static bool Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr);
+
+  // Does the architecture provide reasonable atomic long operations or do we fall back on mutexes?
+  static bool LongAtomicsUseMutexes();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(QuasiAtomic);

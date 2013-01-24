@@ -16,84 +16,94 @@
 
 #include "atomic.h"
 
-#include <pthread.h>
+#define NEED_SWAP_MUTEXES !defined(__arm__) && !defined(__i386__)
 
+#if NEED_SWAP_MUTEXES
 #include <vector>
-
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "thread.h"
-
-#if defined(__APPLE__)
-#include <libkern/OSAtomic.h>
-#endif
-#if defined(__arm__)
-#include <machine/cpu-features.h>
 #endif
 
 namespace art {
 
-#if defined(HAVE_MACOSX_IPC)
-#define NEED_MAC_QUASI_ATOMICS 1
+#if NEED_SWAP_MUTEXES
+// We stripe across a bunch of different mutexes to reduce contention.
+static const size_t kSwapMutexCount = 32;
+static std::vector<Mutex*>* gSwapMutexes;
 
-#elif defined(__i386__) || defined(__x86_64__)
-#define NEED_PTHREADS_QUASI_ATOMICS 1
-
-#elif defined(__mips__)
-#define NEED_PTHREADS_QUASI_ATOMICS 1
-
-#elif defined(__arm__)
-
-#if defined(__ARM_HAVE_LDREXD)
-#define NEED_ARM_LDREXD_QUASI_ATOMICS 1
-#else
-#define NEED_PTHREADS_QUASI_ATOMICS 1
+static Mutex& GetSwapMutex(const volatile int64_t* addr) {
+  return *(*gSwapMutexes)[((unsigned)(void*)(addr) >> 3U) % kSwapMutexCount];
+}
 #endif
 
-#else
-#error "QuasiAtomic unsupported on this platform"
+void QuasiAtomic::Startup() {
+#if NEED_SWAP_MUTEXES
+  gSwapMutexes = new std::vector<Mutex*>;
+  for (size_t i = 0; i < kSwapMutexCount; ++i) {
+    gSwapMutexes->push_back(new Mutex(StringPrintf("QuasiAtomic stripe %d", i).c_str()));
+  }
 #endif
-
-// *****************************************************************************
-
-#if NEED_ARM_LDREXD_QUASI_ATOMICS
-
-static inline int64_t QuasiAtomicSwap64Impl(int64_t new_value, volatile int64_t* addr) {
-  int64_t prev;
-  int status;
-  do {
-    __asm__ __volatile__("@ QuasiAtomic::Swap64\n"
-        "ldrexd     %0, %H0, [%3]\n"
-        "strexd     %1, %4, %H4, [%3]"
-        : "=&r" (prev), "=&r" (status), "+m"(*addr)
-        : "r" (addr), "r" (new_value)
-        : "cc");
-  } while (__builtin_expect(status != 0, 0));
-  return prev;
 }
 
-int64_t QuasiAtomic::Swap64(int64_t new_value, volatile int64_t* addr) {
-  return QuasiAtomicSwap64Impl(new_value, addr);
-}
-
-int64_t QuasiAtomic::Swap64Sync(int64_t new_value, volatile int64_t* addr) {
-  ANDROID_MEMBAR_STORE();
-  int64_t old_value = QuasiAtomicSwap64Impl(new_value, addr);
-  ANDROID_MEMBAR_FULL();
-  return old_value;
+void QuasiAtomic::Shutdown() {
+#if NEED_SWAP_MUTEXES
+  STLDeleteElements(gSwapMutexes);
+  delete gSwapMutexes;
+#endif
 }
 
 int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
   int64_t value;
+#if defined(__arm__)
+  // Exclusive loads are defined not to tear, clearing the exclusive state isn't necessary. If we
+  // have LPAE (such as Cortex-A15) then ldrd would suffice.
   __asm__ __volatile__("@ QuasiAtomic::Read64\n"
       "ldrexd     %0, %H0, [%1]"
       : "=&r" (value)
       : "r" (addr));
+#elif defined(__i386__)
+  __asm__ __volatile__(
+      "movq     %1, %0\n"
+      : "=x" (value)
+      : "m" (*addr));
+#else
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  return *addr;
+#endif
   return value;
 }
 
-int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
+void QuasiAtomic::Write64(volatile int64_t* addr, int64_t value) {
+#if defined(__arm__)
+  // The write is done as a swap so that the cache-line is in the exclusive state for the store. If
+  // we know that ARM architecture has LPAE (such as Cortex-A15) this isn't necessary and strd will
+  // suffice.
+  int64_t prev;
+  int status;
+  do {
+    __asm__ __volatile__("@ QuasiAtomic::Write64\n"
+        "ldrexd     %0, %H0, [%3]\n"
+        "strexd     %1, %4, %H4, [%3]"
+        : "=&r" (prev), "=&r" (status), "+m"(*addr)
+        : "r" (addr), "r" (value)
+        : "cc");
+  } while (__builtin_expect(status != 0, 0));
+#elif defined(__i386__)
+  __asm__ __volatile__(
+      "movq     %1, %0"
+      : "=m" (*addr)
+      : "x" (value));
+#else
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  *addr = value;
+#endif
+}
+
+
+bool QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
+#if defined(__arm__)
   int64_t prev;
   int status;
   do {
@@ -108,103 +118,37 @@ int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* a
         : "cc");
   } while (__builtin_expect(status != 0, 0));
   return prev != old_value;
-}
-
-#endif
-
-// *****************************************************************************
-
-#if NEED_MAC_QUASI_ATOMICS
-
-static inline int64_t QuasiAtomicSwap64Impl(int64_t value, volatile int64_t* addr) {
-  int64_t old_value;
-  do {
-    old_value = *addr;
-  } while (QuasiAtomic::Cas64(old_value, value, addr));
-  return old_value;
-}
-
-int64_t QuasiAtomic::Swap64(int64_t value, volatile int64_t* addr) {
-  return QuasiAtomicSwap64Impl(value, addr);
-}
-
-int64_t QuasiAtomic::Swap64Sync(int64_t value, volatile int64_t* addr) {
-  ANDROID_MEMBAR_STORE();
-  int64_t old_value = QuasiAtomicSwap64Impl(value, addr);
-  // TUNING: barriers can be avoided on some architectures.
-  ANDROID_MEMBAR_FULL();
-  return old_value;
-}
-
-int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
-  return OSAtomicAdd64Barrier(0, const_cast<volatile int64_t*>(addr));
-}
-
-int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-  return OSAtomicCompareAndSwap64Barrier(old_value, new_value, const_cast<int64_t*>(addr)) == 0;
-}
-
-#endif
-
-// *****************************************************************************
-
-#if NEED_PTHREADS_QUASI_ATOMICS
-
-// In the absence of a better implementation, we implement the 64-bit atomic
-// operations through mutex locking.
-
-// We stripe across a bunch of different mutexes to reduce contention.
-static const size_t kSwapLockCount = 32;
-static std::vector<Mutex*>* gSwapLocks;
-
-void QuasiAtomic::Startup() {
-  gSwapLocks = new std::vector<Mutex*>;
-  for (size_t i = 0; i < kSwapLockCount; ++i) {
-    gSwapLocks->push_back(new Mutex(StringPrintf("QuasiAtomic stripe %d", i).c_str()));
-  }
-}
-
-void QuasiAtomic::Shutdown() {
-  STLDeleteElements(gSwapLocks);
-  delete gSwapLocks;
-}
-
-static inline Mutex& GetSwapLock(const volatile int64_t* addr) {
-  return *(*gSwapLocks)[((unsigned)(void*)(addr) >> 3U) % kSwapLockCount];
-}
-
-int64_t QuasiAtomic::Swap64(int64_t value, volatile int64_t* addr) {
-  MutexLock mu(Thread::Current(), GetSwapLock(addr));
-  int64_t old_value = *addr;
-  *addr = value;
-  return old_value;
-}
-
-int64_t QuasiAtomic::Swap64Sync(int64_t value, volatile int64_t* addr) {
-  // Same as QuasiAtomicSwap64 - mutex handles barrier.
-  return QuasiAtomic::Swap64(value, addr);
-}
-
-int QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-  MutexLock mu(Thread::Current(), GetSwapLock(addr));
-  if (*addr == old_value) {
-    *addr  = new_value;
-    return 0;
-  }
-  return 1;
-}
-
-int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
-  MutexLock mu(Thread::Current(), GetSwapLock(addr));
-  return *addr;
-}
-
+#elif defined(__i386__)
+  // cmpxchg8b implicitly uses %ebx which is also the PIC register.
+  int8_t status;
+  __asm__ __volatile__ (
+      "pushl          %%ebx\n"
+      "movl           (%3), %%ebx\n"
+      "movl           4(%3), %%ecx\n"
+      "lock cmpxchg8b %1\n"
+      "sete           %0\n"
+      "popl           %%ebx"
+      : "=R" (status), "+m" (*addr)
+      : "A"(old_value), "D" (&new_value)
+      : "%ecx"
+      );
+  return status != 0;
 #else
-
-// The other implementations don't need any special setup.
-void QuasiAtomic::Startup() {}
-void QuasiAtomic::Shutdown() {}
-
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  if (*addr == old_value) {
+    *addr = new_value;
+    return true;
+  }
+  return false;
 #endif
+}
+
+bool QuasiAtomic::LongAtomicsUseMutexes() {
+#if NEED_SWAP_MUTEXES
+  return true;
+#else
+  return false;
+#endif
+}
 
 }  // namespace art

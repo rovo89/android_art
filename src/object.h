@@ -315,7 +315,7 @@ class MANAGED Object {
     int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
       ANDROID_MEMBAR_STORE();
-      QuasiAtomic::Swap64(new_value, addr);
+      QuasiAtomic::Write64(addr, new_value);
       // Post-store barrier not required due to use of atomic op or mutex.
     } else {
       *addr = new_value;

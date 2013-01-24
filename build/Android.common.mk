@@ -87,7 +87,11 @@ endif
 
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(IMG_HOST_BASE_ADDRESS)
 # The host GCC isn't necessarily new enough to support -Wthread-safety (GCC 4.4).
-ART_HOST_CFLAGS := $(filter-out -Wthread-safety,$(ART_HOST_CFLAGS))
+ART_HOST_CFLAGS := $(filter-out -Wthread-safety,$(ART_HOST_CFLAGS)) -msse2
+
+ifeq ($(TARGET_ARCH),x86)
+ART_TARGET_CFLAGS += -msse2
+endif
 
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(IMG_TARGET_BASE_ADDRESS)
 ifeq ($(TARGET_CPU_SMP),true)

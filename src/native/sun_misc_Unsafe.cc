@@ -27,7 +27,7 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   // Note: android_atomic_release_cas() returns 0 on success, not failure.
   int result = android_atomic_release_cas(expectedValue, newValue, address);
-  return (result == 0);
+  return (result == 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
@@ -36,8 +36,8 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
-  int result = QuasiAtomic::Cas64(expectedValue, newValue, address);
-  return (result == 0);
+  bool success = QuasiAtomic::Cas64(expectedValue, newValue, address);
+  return success ? JNI_TRUE : JNI_FALSE;
 }
 
 static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
@@ -53,7 +53,7 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
   if (result == 0) {
     Runtime::Current()->GetHeap()->WriteBarrierField(obj, MemberOffset(offset), newValue);
   }
-  return (result == 0);
+  return (result == 0) ? JNI_TRUE : JNI_FALSE;
 }
 
 static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include "atomic.h"
 #include "jni_internal.h"
-#include "object.h"
 
 namespace art {
 
 static jboolean AtomicLong_VMSupportsCS8(JNIEnv*, jclass) {
-  return JNI_TRUE;
+  return QuasiAtomic::LongAtomicsUseMutexes() ? JNI_FALSE : JNI_TRUE;
 }
 
 static JNINativeMethod gMethods[] = {
