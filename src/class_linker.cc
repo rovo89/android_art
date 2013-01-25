@@ -2570,7 +2570,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
 #if !defined(ART_USE_LLVM_COMPILER)
-  method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
+  method->SetCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
 #else
   OatFile::OatMethod oat_method = GetOatMethodFor(prototype.get());
   method->SetCode(oat_method.GetProxyStub());

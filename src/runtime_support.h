@@ -31,7 +31,7 @@
 #include "thread.h"
 
 extern "C" void art_interpreter_invoke_handler();
-extern "C" void art_proxy_invoke_handler();
+extern "C" void art_quick_proxy_invoke_handler();
 extern "C" void art_work_around_app_jni_bugs();
 
 extern "C" double art_l2d(int64_t l);

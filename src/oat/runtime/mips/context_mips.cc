@@ -82,7 +82,7 @@ void MipsContext::SmashCallerSaves() {
   gprs_[A3] = NULL;
 }
 
-extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
+extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);
 
 void MipsContext::DoLongJump() {
   uintptr_t gprs[kNumberOfCoreRegisters];
@@ -93,7 +93,7 @@ void MipsContext::DoLongJump() {
   for (size_t i = 0; i < kNumberOfFRegisters; ++i) {
     fprs[i] = fprs_[i] != NULL ? *fprs_[i] : MipsContext::kBadGprBase + i;
   }
-  art_do_long_jump(gprs, fprs);
+  art_quick_do_long_jump(gprs, fprs);
 }
 
 }  // namespace mips

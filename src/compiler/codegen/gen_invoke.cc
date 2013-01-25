@@ -456,7 +456,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
 }
 
 /*
- * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
+ * All invoke-interface calls bounce off of art_quick_invoke_interface_trampoline,
  * which will locate the target and continue on via a tail call.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,

@@ -83,7 +83,7 @@ void ArmContext::SmashCallerSaves() {
   gprs_[R3] = NULL;
 }
 
-extern "C" void art_do_long_jump(uint32_t*, uint32_t*);
+extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);
 
 void ArmContext::DoLongJump() {
   uintptr_t gprs[16];
@@ -95,7 +95,7 @@ void ArmContext::DoLongJump() {
     fprs[i] = fprs_[i] != NULL ? *fprs_[i] : ArmContext::kBadGprBase + i;
   }
   DCHECK_EQ(reinterpret_cast<uintptr_t>(Thread::Current()), gprs[TR]);
-  art_do_long_jump(gprs, fprs);
+  art_quick_do_long_jump(gprs, fprs);
 }
 
 }  // namespace arm

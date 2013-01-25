@@ -48,7 +48,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-namespace art {
+using namespace art;
+
+extern "C" {
 
 class ShadowFrameCopyVisitor : public StackVisitor {
  public:
@@ -105,20 +107,20 @@ class ShadowFrameCopyVisitor : public StackVisitor {
 // Thread
 //----------------------------------------------------------------------------
 
-Thread* art_get_current_thread_from_code() {
+Thread* art_portable_get_current_thread_from_code() {
 #if defined(__arm__) || defined(__i386__)
   LOG(FATAL) << "UNREACHABLE";
 #endif
   return Thread::Current();
 }
 
-void* art_set_current_thread_from_code(void* thread_object_addr) {
+void* art_portable_set_current_thread_from_code(void* thread_object_addr) {
   // Hijacked to set r9 on ARM.
   LOG(FATAL) << "UNREACHABLE";
   return NULL;
 }
 
-void art_lock_object_from_code(mirror::Object* obj, Thread* thread)
+void art_portable_lock_object_from_code(mirror::Object* obj, Thread* thread)
     EXCLUSIVE_LOCK_FUNCTION(monitor_lock_) {
   DCHECK(obj != NULL);        // Assumed to have been checked before entry
   obj->MonitorEnter(thread);  // May block
@@ -127,14 +129,14 @@ void art_lock_object_from_code(mirror::Object* obj, Thread* thread)
   DCHECK(!thread->IsExceptionPending());
 }
 
-void art_unlock_object_from_code(mirror::Object* obj, Thread* thread)
+void art_portable_unlock_object_from_code(mirror::Object* obj, Thread* thread)
     UNLOCK_FUNCTION(monitor_lock_) {
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
   // MonitorExit may throw exception
   obj->MonitorExit(thread);
 }
 
-void art_test_suspend_from_code(Thread* thread)
+void art_portable_test_suspend_from_code(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CheckSuspend(thread);
   if (thread->ReadFlag(kEnterInterpreter)) {
@@ -146,19 +148,21 @@ void art_test_suspend_from_code(Thread* thread)
   }
 }
 
-ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
-                                             mirror::AbstractMethod* method, uint32_t num_vregs) {
+ShadowFrame* art_portable_push_shadow_frame_from_code(Thread* thread,
+                                              ShadowFrame* new_shadow_frame,
+                                              mirror::AbstractMethod* method,
+                                              uint32_t num_vregs) {
   ShadowFrame* old_frame = thread->PushShadowFrame(new_shadow_frame);
   new_shadow_frame->SetMethod(method);
   new_shadow_frame->SetNumberOfVRegs(num_vregs);
   return old_frame;
 }
 
-void art_pop_shadow_frame_from_code(void*) {
+void art_portable_pop_shadow_frame_from_code(void*) {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
-void art_mark_gc_card_from_code(void *, void*) {
+void art_portable_mark_gc_card_from_code(void *, void*) {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
@@ -166,45 +170,45 @@ void art_mark_gc_card_from_code(void *, void*) {
 // Exception
 //----------------------------------------------------------------------------
 
-bool art_is_exception_pending_from_code() {
+bool art_portable_is_exception_pending_from_code() {
   LOG(FATAL) << "Implemented by IRBuilder.";
   return false;
 }
 
-void art_throw_div_zero_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void art_portable_throw_div_zero_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread::Current()->ThrowNewException("Ljava/lang/ArithmeticException;",
                                        "divide by zero");
 }
 
-void art_throw_array_bounds_from_code(int32_t index, int32_t length)
+void art_portable_throw_array_bounds_from_code(int32_t index, int32_t length)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                                         "length=%d; index=%d", length, index);
 }
 
-void art_throw_no_such_method_from_code(int32_t method_idx)
+void art_portable_throw_no_such_method_from_code(int32_t method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // We need the calling method as context for the method_idx.
   mirror::AbstractMethod* method = Thread::Current()->GetCurrentMethod();
   ThrowNoSuchMethodError(method_idx, method);
 }
 
-void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
+void art_portable_throw_null_pointer_exception_from_code(uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::AbstractMethod* throw_method =
       Thread::Current()->GetManagedStack()->GetTopShadowFrame()->GetMethod();
   ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
 }
 
-void art_throw_stack_overflow_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void art_portable_throw_stack_overflow_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ThrowStackOverflowError(Thread::Current());
 }
 
-void art_throw_exception_from_code(mirror::Object* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void art_portable_throw_exception_from_code(mirror::Object* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread::Current()->DeliverException(static_cast<mirror::Throwable*>(exception));
 }
 
-void* art_get_and_clear_exception(Thread* self)
+void* art_portable_get_and_clear_exception(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(self->IsExceptionPending());
   mirror::Throwable* exception = self->GetException();
@@ -212,7 +216,7 @@ void* art_get_and_clear_exception(Thread* self)
   return exception;
 }
 
-int32_t art_find_catch_block_from_code(mirror::AbstractMethod* current_method, uint32_t ti_offset)
+int32_t art_portable_find_catch_block_from_code(mirror::AbstractMethod* current_method, uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Throwable* exception = Thread::Current()->GetException();
   // Check for magic deoptimization exception.
@@ -253,48 +257,48 @@ int32_t art_find_catch_block_from_code(mirror::AbstractMethod* current_method, u
 // Object Space
 //----------------------------------------------------------------------------
 
-mirror::Object* art_alloc_object_from_code(uint32_t type_idx,
-                                   mirror::AbstractMethod* referrer,
-                                   Thread* thread)
+mirror::Object* art_portable_alloc_object_from_code(uint32_t type_idx,
+                                            mirror::AbstractMethod* referrer,
+                                            Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, false);
 }
 
-mirror::Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
-                                                     mirror::AbstractMethod* referrer,
-                                                     Thread* thread)
+mirror::Object* art_portable_alloc_object_from_code_with_access_check(uint32_t type_idx,
+                                                              mirror::AbstractMethod* referrer,
+                                                              Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, true);
 }
 
-mirror::Object* art_alloc_array_from_code(uint32_t type_idx,
-                                  mirror::AbstractMethod* referrer,
-                                  uint32_t length,
-                                  Thread* self)
+mirror::Object* art_portable_alloc_array_from_code(uint32_t type_idx,
+                                           mirror::AbstractMethod* referrer,
+                                           uint32_t length,
+                                           Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocArrayFromCode(type_idx, referrer, length, self, false);
 }
 
-mirror::Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                    mirror::AbstractMethod* referrer,
-                                                    uint32_t length,
-                                                    Thread* self)
+mirror::Object* art_portable_alloc_array_from_code_with_access_check(uint32_t type_idx,
+                                                             mirror::AbstractMethod* referrer,
+                                                             uint32_t length,
+                                                             Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocArrayFromCode(type_idx, referrer, length, self, true);
 }
 
-mirror::Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
-                                            mirror::AbstractMethod* referrer,
-                                            uint32_t length,
-                                            Thread* thread)
+mirror::Object* art_portable_check_and_alloc_array_from_code(uint32_t type_idx,
+                                                     mirror::AbstractMethod* referrer,
+                                                     uint32_t length,
+                                                     Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
-mirror::Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                              mirror::AbstractMethod* referrer,
-                                                              uint32_t length,
-                                                              Thread* thread)
+mirror::Object* art_portable_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
+                                                                       mirror::AbstractMethod* referrer,
+                                                                       uint32_t length,
+                                                                       Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, true);
 }
@@ -324,84 +328,84 @@ static mirror::AbstractMethod* FindMethodHelper(uint32_t method_idx, mirror::Obj
   return method;
 }
 
-mirror::Object* art_find_static_method_from_code_with_access_check(uint32_t method_idx,
-                                                           mirror::Object* this_object,
-                                                           mirror::AbstractMethod* referrer,
-                                                           Thread* thread)
+mirror::Object* art_portable_find_static_method_from_code_with_access_check(uint32_t method_idx,
+                                                                    mirror::Object* this_object,
+                                                                    mirror::AbstractMethod* referrer,
+                                                                    Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kStatic, thread);
 }
 
-mirror::Object* art_find_direct_method_from_code_with_access_check(uint32_t method_idx,
-                                                           mirror::Object* this_object,
-                                                           mirror::AbstractMethod* referrer,
-                                                           Thread* thread)
+mirror::Object* art_portable_find_direct_method_from_code_with_access_check(uint32_t method_idx,
+                                                                    mirror::Object* this_object,
+                                                                    mirror::AbstractMethod* referrer,
+                                                                    Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kDirect, thread);
 }
 
-mirror::Object* art_find_virtual_method_from_code_with_access_check(uint32_t method_idx,
-                                                            mirror::Object* this_object,
-                                                            mirror::AbstractMethod* referrer,
-                                                            Thread* thread)
+mirror::Object* art_portable_find_virtual_method_from_code_with_access_check(uint32_t method_idx,
+                                                                     mirror::Object* this_object,
+                                                                     mirror::AbstractMethod* referrer,
+                                                                     Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual, thread);
 }
 
-mirror::Object* art_find_super_method_from_code_with_access_check(uint32_t method_idx,
-                                                          mirror::Object* this_object,
-                                                          mirror::AbstractMethod* referrer,
-                                                          Thread* thread)
+mirror::Object* art_portable_find_super_method_from_code_with_access_check(uint32_t method_idx,
+                                                                   mirror::Object* this_object,
+                                                                   mirror::AbstractMethod* referrer,
+                                                                   Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kSuper, thread);
 }
 
 mirror::Object*
-art_find_interface_method_from_code_with_access_check(uint32_t method_idx,
-                                                      mirror::Object* this_object,
-                                                      mirror::AbstractMethod* referrer,
-                                                      Thread* thread)
+art_portable_find_interface_method_from_code_with_access_check(uint32_t method_idx,
+                                                       mirror::Object* this_object,
+                                                       mirror::AbstractMethod* referrer,
+                                                       Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kInterface, thread);
 }
 
-mirror::Object* art_find_interface_method_from_code(uint32_t method_idx,
-                                            mirror::Object* this_object,
-                                            mirror::AbstractMethod* referrer,
-                                            Thread* thread)
+mirror::Object* art_portable_find_interface_method_from_code(uint32_t method_idx,
+                                                     mirror::Object* this_object,
+                                                     mirror::AbstractMethod* referrer,
+                                                     Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, false, kInterface, thread);
 }
 
-mirror::Object* art_initialize_static_storage_from_code(uint32_t type_idx,
-                                                mirror::AbstractMethod* referrer,
-                                                Thread* thread)
+mirror::Object* art_portable_initialize_static_storage_from_code(uint32_t type_idx,
+                                                         mirror::AbstractMethod* referrer,
+                                                         Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveVerifyAndClinit(type_idx, referrer, thread, true, false);
 }
 
-mirror::Object* art_initialize_type_from_code(uint32_t type_idx,
-                                      mirror::AbstractMethod* referrer,
-                                      Thread* thread)
+mirror::Object* art_portable_initialize_type_from_code(uint32_t type_idx,
+                                               mirror::AbstractMethod* referrer,
+                                               Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveVerifyAndClinit(type_idx, referrer, thread, false, false);
 }
 
-mirror::Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx,
-                                                        mirror::AbstractMethod* referrer,
-                                                        Thread* thread)
+mirror::Object* art_portable_initialize_type_and_verify_access_from_code(uint32_t type_idx,
+                                                                 mirror::AbstractMethod* referrer,
+                                                                 Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated
   return ResolveVerifyAndClinit(type_idx, referrer, thread, false, true);
 }
 
-mirror::Object* art_resolve_string_from_code(mirror::AbstractMethod* referrer, uint32_t string_idx)
+mirror::Object* art_portable_resolve_string_from_code(mirror::AbstractMethod* referrer, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveStringFromCode(referrer, string_idx);
 }
 
-int32_t art_set32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, int32_t new_value)
+int32_t art_portable_set32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, int32_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
@@ -417,7 +421,7 @@ int32_t art_set32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* r
   return -1;
 }
 
-int32_t art_set64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, int64_t new_value)
+int32_t art_portable_set64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, int64_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
@@ -433,7 +437,7 @@ int32_t art_set64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* r
   return -1;
 }
 
-int32_t art_set_obj_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* new_value)
+int32_t art_portable_set_obj_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
@@ -449,7 +453,7 @@ int32_t art_set_obj_static_from_code(uint32_t field_idx, mirror::AbstractMethod*
   return -1;
 }
 
-int32_t art_get32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
+int32_t art_portable_get32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
@@ -463,7 +467,7 @@ int32_t art_get32_static_from_code(uint32_t field_idx, mirror::AbstractMethod* r
   return 0;
 }
 
-int64_t art_get64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
+int64_t art_portable_get64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
@@ -477,7 +481,7 @@ int64_t art_get64_static_from_code(uint32_t field_idx, mirror::AbstractMethod* r
   return 0;
 }
 
-mirror::Object* art_get_obj_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
+mirror::Object* art_portable_get_obj_static_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
@@ -491,7 +495,7 @@ mirror::Object* art_get_obj_static_from_code(uint32_t field_idx, mirror::Abstrac
   return 0;
 }
 
-int32_t art_set32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
+int32_t art_portable_set32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
                                      mirror::Object* obj, uint32_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
@@ -508,8 +512,8 @@ int32_t art_set32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod*
   return -1;
 }
 
-int32_t art_set64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
-                                     mirror::Object* obj, int64_t new_value)
+int32_t art_portable_set64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
+                                      mirror::Object* obj, int64_t new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
@@ -525,8 +529,8 @@ int32_t art_set64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod*
   return -1;
 }
 
-int32_t art_set_obj_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
-                                       mirror::Object* obj, mirror::Object* new_value)
+int32_t art_portable_set_obj_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer,
+                                        mirror::Object* obj, mirror::Object* new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite, sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
@@ -542,7 +546,7 @@ int32_t art_set_obj_instance_from_code(uint32_t field_idx, mirror::AbstractMetho
   return -1;
 }
 
-int32_t art_get32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
+int32_t art_portable_get32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
@@ -556,7 +560,7 @@ int32_t art_get32_instance_from_code(uint32_t field_idx, mirror::AbstractMethod*
   return 0;
 }
 
-int64_t art_get64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
+int64_t art_portable_get64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
@@ -570,7 +574,7 @@ int64_t art_get64_instance_from_code(uint32_t field_idx, mirror::AbstractMethod*
   return 0;
 }
 
-mirror::Object* art_get_obj_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
+mirror::Object* art_portable_get_obj_instance_from_code(uint32_t field_idx, mirror::AbstractMethod* referrer, mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead, sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
@@ -584,12 +588,12 @@ mirror::Object* art_get_obj_instance_from_code(uint32_t field_idx, mirror::Abstr
   return 0;
 }
 
-void art_fill_array_data_from_code(mirror::AbstractMethod* method, uint32_t dex_pc,
-                                   mirror::Array* array, uint32_t payload_offset)
+void art_portable_fill_array_data_from_code(mirror::AbstractMethod* method, uint32_t dex_pc,
+                                    mirror::Array* array, uint32_t payload_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Test: Is array equal to null? (Guard NullPointerException)
   if (UNLIKELY(array == NULL)) {
-    art_throw_null_pointer_exception_from_code(dex_pc);
+    art_portable_throw_null_pointer_exception_from_code(dex_pc);
     return;
   }
 
@@ -610,7 +614,7 @@ void art_fill_array_data_from_code(mirror::AbstractMethod* method, uint32_t dex_
   uint32_t array_len = static_cast<uint32_t>(array->GetLength());
   if (UNLIKELY(array_len < payload->element_count)) {
     int32_t last_index = payload->element_count - 1;
-    art_throw_array_bounds_from_code(array_len, last_index);
+    art_portable_throw_array_bounds_from_code(array_len, last_index);
     return;
   }
 
@@ -625,14 +629,14 @@ void art_fill_array_data_from_code(mirror::AbstractMethod* method, uint32_t dex_
 // Type checking, in the nature of casting
 //----------------------------------------------------------------------------
 
-int32_t art_is_assignable_from_code(const mirror::Class* dest_type, const mirror::Class* src_type)
+int32_t art_portable_is_assignable_from_code(const mirror::Class* dest_type, const mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type != NULL);
   DCHECK(src_type != NULL);
   return dest_type->IsAssignableFrom(src_type) ? 1 : 0;
 }
 
-void art_check_cast_from_code(const mirror::Class* dest_type, const mirror::Class* src_type)
+void art_portable_check_cast_from_code(const mirror::Class* dest_type, const mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
@@ -644,7 +648,7 @@ void art_check_cast_from_code(const mirror::Class* dest_type, const mirror::Clas
   }
 }
 
-void art_check_put_array_element_from_code(const mirror::Object* element, const mirror::Object* array)
+void art_portable_check_put_array_element_from_code(const mirror::Object* element, const mirror::Object* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (element == NULL) {
     return;
@@ -668,7 +672,7 @@ void art_check_put_array_element_from_code(const mirror::Object* element, const 
 //----------------------------------------------------------------------------
 
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
-uint32_t art_jni_method_start(Thread* self)
+uint32_t art_portable_jni_method_start(Thread* self)
     UNLOCK_FUNCTION(GlobalSynchronizatio::mutator_lock_) {
   JNIEnvExt* env = self->GetJniEnv();
   uint32_t saved_local_ref_cookie = env->local_ref_cookie;
@@ -677,10 +681,10 @@ uint32_t art_jni_method_start(Thread* self)
   return saved_local_ref_cookie;
 }
 
-uint32_t art_jni_method_start_synchronized(jobject to_lock, Thread* self)
+uint32_t art_portable_jni_method_start_synchronized(jobject to_lock, Thread* self)
     UNLOCK_FUNCTION(Locks::mutator_lock_) {
   self->DecodeJObject(to_lock)->MonitorEnter(self);
-  return art_jni_method_start(self);
+  return art_portable_jni_method_start(self);
 }
 
 static inline void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
@@ -689,23 +693,24 @@ static inline void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* s
   env->local_ref_cookie = saved_local_ref_cookie;
 }
 
-void art_jni_method_end(uint32_t saved_local_ref_cookie, Thread* self)
+void art_portable_jni_method_end(uint32_t saved_local_ref_cookie, Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
 
-void art_jni_method_end_synchronized(uint32_t saved_local_ref_cookie, jobject locked,
-                                     Thread* self)
+void art_portable_jni_method_end_synchronized(uint32_t saved_local_ref_cookie,
+                                      jobject locked,
+                                      Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-mirror::Object* art_jni_method_end_with_reference(jobject result, uint32_t saved_local_ref_cookie,
-                                          Thread* self)
+mirror::Object* art_portable_jni_method_end_with_reference(jobject result, uint32_t saved_local_ref_cookie,
+                                                   Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   mirror::Object* o = self->DecodeJObject(result);  // Must decode before pop.
@@ -720,9 +725,9 @@ mirror::Object* art_jni_method_end_with_reference(jobject result, uint32_t saved
   return o;
 }
 
-mirror::Object* art_jni_method_end_with_reference_synchronized(jobject result,
-                                                       uint32_t saved_local_ref_cookie,
-                                                       jobject locked, Thread* self)
+mirror::Object* art_portable_jni_method_end_with_reference_synchronized(jobject result,
+                                                                uint32_t saved_local_ref_cookie,
+                                                                jobject locked, Thread* self)
     SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
@@ -747,8 +752,8 @@ extern "C" RETURN_TYPE NAME(__VA_ARGS__);
 COMPILER_RUNTIME_FUNC_LIST_NATIVE(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
-static void* art_find_compiler_runtime_func(const char* name) {
-// TODO: If target support some math func, use the target's version. (e.g. art_d2i -> __aeabi_d2iz)
+static void* art_portable_find_compiler_runtime_func(const char* name) {
+// TODO: If target support some math func, use the target's version. (e.g. art_portable_d2i -> __aeabi_d2iz)
   static const char* const names[] = {
 #define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME ,
     COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
@@ -781,7 +786,7 @@ static void* art_find_compiler_runtime_func(const char* name) {
 // Handler for invocation on proxy methods. Create a boxed argument array and invoke the invocation
 // handler which is a field within the proxy object receiver. The var args encode the arguments
 // with the last argument being a pointer to a JValue to store the result in.
-void art_proxy_invoke_handler_from_code(mirror::AbstractMethod* proxy_method, ...)
+void art_portable_proxy_invoke_handler_from_code(mirror::AbstractMethod* proxy_method, ...)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   va_list ap;
   va_start(ap, proxy_method);
@@ -855,7 +860,7 @@ void art_proxy_invoke_handler_from_code(mirror::AbstractMethod* proxy_method, ..
   }
 }
 
-void* art_find_runtime_support_func(void* context, const char* name) {
+void* art_portable_find_runtime_support_func(void* context, const char* name) {
   struct func_entry_t {
     const char* name;
     size_t name_len;
@@ -872,7 +877,7 @@ void* art_find_runtime_support_func(void* context, const char* name) {
   static size_t const tab_size = sizeof(tab) / sizeof(struct func_entry_t);
 
   // Search the compiler runtime (such as __divdi3)
-  void* result = art_find_compiler_runtime_func(name);
+  void* result = art_portable_find_compiler_runtime_func(name);
   if (result != NULL) {
     return result;
   }
@@ -892,4 +897,4 @@ void* art_find_runtime_support_func(void* context, const char* name) {
   return 0;
 }
 
-}  // namespace art
+}  // extern "C"

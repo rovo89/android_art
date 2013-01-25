@@ -30,7 +30,7 @@
 #include "scoped_thread_state_change.h"
 
 // Architecture specific assembler helper to deliver exception.
-extern "C" void art_deliver_exception_from_code(void*);
+extern "C" void art_quick_deliver_exception_from_code(void*);
 
 namespace art {
 
@@ -239,7 +239,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   if (UNLIKELY(code == NULL)) {
     // Something went wrong in ResolveMethod or EnsureInitialized,
     // go into deliver exception with the pending exception in r0
-    code = reinterpret_cast<void*>(art_deliver_exception_from_code);
+    code = reinterpret_cast<void*>(art_quick_deliver_exception_from_code);
     regs[0] = reinterpret_cast<uintptr_t>(thread->GetException());
     thread->ClearException();
   } else {

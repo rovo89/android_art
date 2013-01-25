@@ -120,33 +120,33 @@
      * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack. Arg1 holds the exception.
      */
-ONE_ARG_RUNTIME_EXCEPTION art_deliver_exception_from_code, artDeliverExceptionFromCode
+ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception_from_code, artDeliverExceptionFromCode
 
     /*
      * Called by managed code to create and deliver a NullPointerException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_null_pointer_exception_from_code, artThrowNullPointerExceptionFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_code, artThrowNullPointerExceptionFromCode
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_div_zero_from_code, artThrowDivZeroFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero_from_code, artThrowDivZeroFromCode
 
     /*
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_throw_array_bounds_from_code, artThrowArrayBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds_from_code, artThrowArrayBoundsFromCode
 
     /*
      * Called by managed code to create and deliver a StackOverflowError.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_stack_overflow_from_code, artThrowStackOverflowFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow_from_code, artThrowStackOverflowFromCode
 
     /*
      * Called by managed code to create and deliver a NoSuchMethodError.
      */
-ONE_ARG_RUNTIME_EXCEPTION art_throw_no_such_method_from_code, artThrowNoSuchMethodFromCode
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method_from_code, artThrowNoSuchMethodFromCode
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
@@ -183,21 +183,21 @@ ONE_ARG_RUNTIME_EXCEPTION art_throw_no_such_method_from_code, artThrowNoSuchMeth
     DELIVER_PENDING_EXCEPTION
 .endm
 
-INVOKE_TRAMPOLINE art_invoke_interface_trampoline, artInvokeInterfaceTrampoline
-INVOKE_TRAMPOLINE art_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
-INVOKE_TRAMPOLINE art_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-    .global art_update_debugger
+    .global art_quick_update_debugger
     .extern artUpdateDebuggerFromCode
     /*
      * On entry, r0 and r1 must be preserved, r2 is dex PC
      */
      ALIGN_FUNCTION_ENTRY
-art_update_debugger:
+art_quick_update_debugger:
     mov    r3, r0         @ stash away r0 so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     mov    r0, r2         @ arg0 is dex PC
@@ -208,12 +208,12 @@ art_update_debugger:
     mov    r0, r3         @ restore original r0
     bx     lr
 
-    .global art_do_long_jump
+    .global art_quick_do_long_jump
     /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
      */
      ALIGN_FUNCTION_ENTRY
-art_do_long_jump:
+art_quick_do_long_jump:
     vldm r1, {s0-s31}     @ load all fprs from argument fprs_
     ldr  r2, [r0, #60]    @ r2 = r15 (PC from gprs_ 60=4*15)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
@@ -222,13 +222,13 @@ art_do_long_jump:
     mov  r1, #0
     bx   r2               @ do long jump
 
-    .global art_work_around_app_jni_bugs
+    .global art_quick_work_around_app_jni_bugs
     .extern artWorkAroundAppJniBugs
     /*
      * Entry point of native methods when JNI bug compatibility is enabled.
      */
     ALIGN_FUNCTION_ENTRY
-art_work_around_app_jni_bugs:
+art_quick_work_around_app_jni_bugs:
     @ save registers that may contain arguments and LR that will be crushed by a call
     push {r0-r3, lr}
     sub sp, #12      @ 3 words of space for alignment
@@ -240,14 +240,14 @@ art_work_around_app_jni_bugs:
     pop {r0-r3, lr}  @ restore possibly modified argument registers
     bx  r12          @ tail call into JNI routine
 
-    .global art_handle_fill_data_from_code
+    .global art_quick_handle_fill_data_from_code
     .extern artHandleFillArrayDataFromCode
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
      * failure.
      */
     ALIGN_FUNCTION_ENTRY
-art_handle_fill_data_from_code:
+art_quick_handle_fill_data_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                          @ pass Thread::Current
     mov    r3, sp                          @ pass SP
@@ -257,26 +257,26 @@ art_handle_fill_data_from_code:
     bxeq   lr                              @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_lock_object_from_code
+    .global art_quick_lock_object_from_code
     .extern artLockObjectFromCode
     /*
      * Entry from managed code that calls artLockObjectFromCode, may block for GC.
      */
     ALIGN_FUNCTION_ENTRY
-art_lock_object_from_code:
+art_quick_lock_object_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case we block
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP
     bl     artLockObjectFromCode      @ (Object* obj, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
-    .global art_unlock_object_from_code
+    .global art_quick_unlock_object_from_code
     .extern artUnlockObjectFromCode
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
     ALIGN_FUNCTION_ENTRY
-art_unlock_object_from_code:
+art_quick_unlock_object_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r1, r9                   @ pass Thread::Current
     mov    r2, sp                   @ pass SP
@@ -286,13 +286,13 @@ art_unlock_object_from_code:
     bxeq   lr                       @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_check_cast_from_code
+    .global art_quick_check_cast_from_code
     .extern artCheckCastFromCode
     /*
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
      */
     ALIGN_FUNCTION_ENTRY
-art_check_cast_from_code:
+art_quick_check_cast_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                       @ pass Thread::Current
     mov    r3, sp                       @ pass SP
@@ -302,14 +302,14 @@ art_check_cast_from_code:
     bxeq   lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_can_put_array_element_from_code
+    .global art_quick_can_put_array_element_from_code
     .extern artCanPutArrayElementFromCode
     /*
      * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
      * failure.
      */
     ALIGN_FUNCTION_ENTRY
-art_can_put_array_element_from_code:
+art_quick_can_put_array_element_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp                         @ pass SP
@@ -319,7 +319,7 @@ art_can_put_array_element_from_code:
     bxeq   lr                             @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_initialize_static_storage_from_code
+    .global art_quick_initialize_static_storage_from_code
     .extern artInitializeStaticStorageFromCode
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class
@@ -327,7 +327,7 @@ art_can_put_array_element_from_code:
      * returned.
      */
     ALIGN_FUNCTION_ENTRY
-art_initialize_static_storage_from_code:
+art_quick_initialize_static_storage_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -338,13 +338,13 @@ art_initialize_static_storage_from_code:
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_initialize_type_from_code
+    .global art_quick_initialize_type_from_code
     .extern artInitializeTypeFromCode
     /*
      * Entry from managed code when dex cache misses for a type_idx
      */
     ALIGN_FUNCTION_ENTRY
-art_initialize_type_from_code:
+art_quick_initialize_type_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -355,14 +355,14 @@ art_initialize_type_from_code:
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_initialize_type_and_verify_access_from_code
+    .global art_quick_initialize_type_and_verify_access_from_code
     .extern artInitializeTypeAndVerifyAccessFromCode
     /*
      * Entry from managed code when type_idx needs to be checked for access and dex cache may also
      * miss.
      */
     ALIGN_FUNCTION_ENTRY
-art_initialize_type_and_verify_access_from_code:
+art_quick_initialize_type_and_verify_access_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -373,13 +373,13 @@ art_initialize_type_and_verify_access_from_code:
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get32_static_from_code
+    .global art_quick_get32_static_from_code
     .extern artGet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 32-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_get32_static_from_code:
+art_quick_get32_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -391,13 +391,13 @@ art_get32_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get64_static_from_code
+    .global art_quick_get64_static_from_code
     .extern artGet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 64-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_get64_static_from_code:
+art_quick_get64_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -409,13 +409,13 @@ art_get64_static_from_code:
     bxeq    lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get_obj_static_from_code
+    .global art_quick_get_obj_static_from_code
     .extern artGetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and load an object reference.
      */
     ALIGN_FUNCTION_ENTRY
-art_get_obj_static_from_code:
+art_quick_get_obj_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -427,13 +427,13 @@ art_get_obj_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get32_instance_from_code
+    .global art_quick_get32_instance_from_code
     .extern artGet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 32-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_get32_instance_from_code:
+art_quick_get32_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -447,13 +447,13 @@ art_get32_instance_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get64_instance_from_code
+    .global art_quick_get64_instance_from_code
     .extern artGet64InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 64-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_get64_instance_from_code:
+art_quick_get64_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -467,13 +467,13 @@ art_get64_instance_from_code:
     bxeq    lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_get_obj_instance_from_code
+    .global art_quick_get_obj_instance_from_code
     .extern artGetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load an object reference.
      */
     ALIGN_FUNCTION_ENTRY
-art_get_obj_instance_from_code:
+art_quick_get_obj_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -487,13 +487,13 @@ art_get_obj_instance_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set32_static_from_code
+    .global art_quick_set32_static_from_code
     .extern artSet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 32-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_set32_static_from_code:
+art_quick_set32_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -506,14 +506,14 @@ art_set32_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set64_static_from_code
+    .global art_quick_set64_static_from_code
     .extern artSet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
      * On entry r0 holds field index, r1:r2 hold new_val
      */
     ALIGN_FUNCTION_ENTRY
-art_set64_static_from_code:
+art_quick_set64_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     mov    r3, r2                        @ pass one half of wide argument
     mov    r2, r1                        @ pass other half of wide argument
@@ -528,13 +528,13 @@ art_set64_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set_obj_static_from_code
+    .global art_quick_set_obj_static_from_code
     .extern artSetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and store an object reference.
      */
     ALIGN_FUNCTION_ENTRY
-art_set_obj_static_from_code:
+art_quick_set_obj_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -547,13 +547,13 @@ art_set_obj_static_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set32_instance_from_code
+    .global art_quick_set32_instance_from_code
     .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 32-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_set32_instance_from_code:
+art_quick_set32_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r3, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
@@ -566,13 +566,13 @@ art_set32_instance_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set64_instance_from_code
+    .global art_quick_set64_instance_from_code
     .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 64-bit primitive value.
      */
     ALIGN_FUNCTION_ENTRY
-art_set64_instance_from_code:
+art_quick_set64_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
@@ -584,13 +584,13 @@ art_set64_instance_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_set_obj_instance_from_code
+    .global art_quick_set_obj_instance_from_code
     .extern artSetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store an object reference.
      */
     ALIGN_FUNCTION_ENTRY
-art_set_obj_instance_from_code:
+art_quick_set_obj_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r3, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
@@ -603,7 +603,7 @@ art_set_obj_instance_from_code:
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_resolve_string_from_code
+    .global art_quick_resolve_string_from_code
     .extern artResolveStringFromCode
     /*
      * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
@@ -612,7 +612,7 @@ art_set_obj_instance_from_code:
      * performed.
      */
     ALIGN_FUNCTION_ENTRY
-art_resolve_string_from_code:
+art_quick_resolve_string_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -623,13 +623,13 @@ art_resolve_string_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_alloc_object_from_code
+    .global art_quick_alloc_object_from_code
     .extern artAllocObjectFromCode
     /*
      * Called by managed code to allocate an object
      */
     ALIGN_FUNCTION_ENTRY
-art_alloc_object_from_code:
+art_quick_alloc_object_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -639,14 +639,14 @@ art_alloc_object_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_alloc_object_from_code_with_access_check
+    .global art_quick_alloc_object_from_code_with_access_check
     .extern artAllocObjectFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an object when the caller doesn't know whether it has
      * access to the created type.
      */
     ALIGN_FUNCTION_ENTRY
-art_alloc_object_from_code_with_access_check:
+art_quick_alloc_object_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -656,13 +656,13 @@ art_alloc_object_from_code_with_access_check:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_alloc_array_from_code
+    .global art_quick_alloc_array_from_code
     .extern artAllocArrayFromCode
     /*
      * Called by managed code to allocate an array.
      */
     ALIGN_FUNCTION_ENTRY
-art_alloc_array_from_code:
+art_quick_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
@@ -675,14 +675,14 @@ art_alloc_array_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_alloc_array_from_code_with_access_check
+    .global art_quick_alloc_array_from_code_with_access_check
     .extern artAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array when the caller doesn't know whether it has
      * access to the created type.
      */
     ALIGN_FUNCTION_ENTRY
-art_alloc_array_from_code_with_access_check:
+art_quick_alloc_array_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
@@ -695,13 +695,13 @@ art_alloc_array_from_code_with_access_check:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_check_and_alloc_array_from_code
+    .global art_quick_check_and_alloc_array_from_code
     .extern artCheckAndAllocArrayFromCode
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
     ALIGN_FUNCTION_ENTRY
-art_check_and_alloc_array_from_code:
+art_quick_check_and_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
@@ -714,13 +714,13 @@ art_check_and_alloc_array_from_code:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_check_and_alloc_array_from_code_with_access_check
+    .global art_quick_check_and_alloc_array_from_code_with_access_check
     .extern artCheckAndAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
     ALIGN_FUNCTION_ENTRY
-art_check_and_alloc_array_from_code_with_access_check:
+art_quick_check_and_alloc_array_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
@@ -733,13 +733,13 @@ art_check_and_alloc_array_from_code_with_access_check:
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_test_suspend
+    .global art_quick_test_suspend
     .extern artTestSuspendFromCode
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
      */
     ALIGN_FUNCTION_ENTRY
-art_test_suspend:
+art_quick_test_suspend:
     ldrh    r0, [rSELF, #THREAD_FLAGS_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
@@ -750,7 +750,7 @@ art_test_suspend:
     bl     artTestSuspendFromCode             @ (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
-    .global art_proxy_invoke_handler
+    .global art_quick_proxy_invoke_handler
     .extern artProxyInvokeHandler
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
@@ -758,7 +758,7 @@ art_test_suspend:
      * frame size of the invoked proxy method agrees with a ref and args callee save frame.
      */
     ALIGN_FUNCTION_ENTRY
-art_proxy_invoke_handler:
+art_quick_proxy_invoke_handler:
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
     mov     r2, r9                 @ pass Thread::Current
@@ -771,10 +771,10 @@ art_proxy_invoke_handler:
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_interpreter_entry
+    .global art_quick_interpreter_entry
     .extern artInterpreterEntry
     ALIGN_FUNCTION_ENTRY
-art_interpreter_entry:
+art_quick_interpreter_entry:
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
     mov     r1, r9                 @ pass Thread::Current
@@ -787,15 +787,15 @@ art_interpreter_entry:
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_instrumentation_entry_from_code
-    .global art_instrumentation_exit_from_code
+    .global art_quick_instrumentation_entry_from_code
+    .global art_quick_instrumentation_exit_from_code
     .extern artInstrumentationMethodEntryFromCode
     .extern artInstrumentationMethodExitFromCode
     /*
      * Routine that intercepts method calls and returns.
      */
     ALIGN_FUNCTION_ENTRY
-art_instrumentation_entry_from_code:
+art_quick_instrumentation_entry_from_code:
     mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r3}        @ save arguments (4 words)
     mov   r1, r9         @ pass Thread::Current
@@ -805,7 +805,7 @@ art_instrumentation_entry_from_code:
     mov   r12, r0        @ r12 holds reference to code
     pop   {r0-r3}        @ restore arguments
     blx   r12            @ call method
-art_instrumentation_exit_from_code:
+art_quick_instrumentation_exit_from_code:
     mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r1}        @ save return value
     sub   sp, #8         @ align stack
@@ -818,7 +818,7 @@ art_instrumentation_exit_from_code:
     pop   {r0, r1}       @ restore return value
     bx    r2             @ return
 
-    .global art_deoptimize
+    .global art_quick_deoptimize
     .extern artDeoptimize
     .extern artEnterInterpreterFromDeoptimize
     /*
@@ -828,7 +828,7 @@ art_instrumentation_exit_from_code:
      * set operation may have completed while a get operation needs writing back into the vregs.
      */
     ALIGN_FUNCTION_ENTRY
-art_deoptimize:
+art_quick_deoptimize:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     mov    r2, r9         @ Set up args.
     mov    r3, sp
@@ -845,7 +845,7 @@ art_deoptimize:
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bx lr                 @ Return to caller.
 
-    .global art_mul_long
+    .global art_quick_mul_long
     /*
      * Signed 64-bit integer multiply.
      *
@@ -866,7 +866,7 @@ art_deoptimize:
      */
     /* mul-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
-art_mul_long:
+art_quick_mul_long:
     push    {r9 - r10}
     mul     ip, r2, r1                  @  ip<- ZxW
     umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
@@ -877,7 +877,7 @@ art_mul_long:
     pop     {r9 - r10}
     bx      lr
 
-    .global art_shl_long
+    .global art_quick_shl_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -890,7 +890,7 @@ art_mul_long:
      */
     /* shl-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
-art_shl_long:
+art_quick_shl_long:
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     mov     r1, r1, asl r2              @  r1<- r1 << r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -900,7 +900,7 @@ art_shl_long:
     mov     r0, r0, asl r2              @  r0<- r0 << r2
     bx      lr
 
-    .global art_shr_long
+    .global art_quick_shr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -913,7 +913,7 @@ art_shl_long:
      */
     /* shr-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
-art_shr_long:
+art_quick_shr_long:
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -923,7 +923,7 @@ art_shr_long:
     mov     r1, r1, asr r2              @  r1<- r1 >> r2
     bx      lr
 
-    .global art_ushr_long
+    .global art_quick_ushr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -936,7 +936,7 @@ art_shr_long:
      */
     /* ushr-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
-art_ushr_long:
+art_quick_ushr_long:
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -947,8 +947,8 @@ art_ushr_long:
     bx      lr
 
     .balign 4
-    .global art_indexof
-art_indexof:
+    .global art_quick_indexof
+art_quick_indexof:
     /*
      * String's indexOf.
      *
@@ -1061,9 +1061,9 @@ match_3:
      */
 
     .balign 4
-    .global art_string_compareto
+    .global art_quick_string_compareto
     .extern __memcmp16
-art_string_compareto:
+art_quick_string_compareto:
     mov    r2, r0         @ this to r2, opening up r0 for return value
     subs   r0, r2, r1     @ Same?
     bxeq   lr

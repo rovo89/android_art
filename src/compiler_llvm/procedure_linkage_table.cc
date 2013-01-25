@@ -113,7 +113,7 @@ bool ProcedureLinkageTable::AllocateTable() {
 
   for (size_t i = 0; i < art_runtime_func_count; ++i, stub_ptr += stub_size) {
     const char* name = art_runtime_func_name_list[i];
-    void* func = art_find_runtime_support_func(NULL, name);
+    void* func = art_portable_find_runtime_support_func(NULL, name);
     DCHECK(func != NULL);
     CreateStub(stub_ptr, func);
   }
@@ -144,7 +144,7 @@ bool ProcedureLinkageTable::AllocateTable() {
   }
 
   for (size_t i = 0; i < crt_count; ++i, stub_ptr += stub_size) {
-    void* func = art_find_runtime_support_func(NULL, crt_name_list[i]);
+    void* func = art_portable_find_runtime_support_func(NULL, crt_name_list[i]);
     DCHECK(func != NULL);
     CreateStub(stub_ptr, func);
   }

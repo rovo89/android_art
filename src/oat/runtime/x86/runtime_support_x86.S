@@ -175,34 +175,34 @@ END_MACRO
     /*
      * Called by managed code to create and deliver a NullPointerException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_null_pointer_exception_from_code, artThrowNullPointerExceptionFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_code, artThrowNullPointerExceptionFromCode
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_div_zero_from_code, artThrowDivZeroFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero_from_code, artThrowDivZeroFromCode
 
     /*
      * Called by managed code to create and deliver a StackOverflowError.
      */
-NO_ARG_RUNTIME_EXCEPTION art_throw_stack_overflow_from_code, artThrowStackOverflowFromCode
+NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow_from_code, artThrowStackOverflowFromCode
 
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
      * that will place a mock Method* at the bottom of the stack. Arg1 holds the exception.
      */
-ONE_ARG_RUNTIME_EXCEPTION art_deliver_exception_from_code, artDeliverExceptionFromCode
+ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception_from_code, artDeliverExceptionFromCode
 
     /*
      * Called by managed code to create and deliver a NoSuchMethodError.
      */
-ONE_ARG_RUNTIME_EXCEPTION art_throw_no_such_method_from_code, artThrowNoSuchMethodFromCode
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method_from_code, artThrowNoSuchMethodFromCode
 
     /*
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_throw_array_bounds_from_code, artThrowArrayBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds_from_code, artThrowArrayBoundsFromCode
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
@@ -260,13 +260,13 @@ VAR(c_name, 0):
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
-INVOKE_TRAMPOLINE art_invoke_interface_trampoline, artInvokeInterfaceTrampoline
-INVOKE_TRAMPOLINE art_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
 
-INVOKE_TRAMPOLINE art_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
-INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     .globl VAR(c_name, 0)
@@ -362,22 +362,22 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
-TWO_ARG_DOWNCALL art_alloc_object_from_code, artAllocObjectFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_alloc_object_from_code_with_access_check, artAllocObjectFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_alloc_array_from_code, artAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_alloc_array_from_code_with_access_check, artAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_check_and_alloc_array_from_code, artCheckAndAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
-THREE_ARG_DOWNCALL art_check_and_alloc_array_from_code_with_access_check, artCheckAndAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object_from_code, artAllocObjectFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object_from_code_with_access_check, artAllocObjectFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_quick_alloc_array_from_code, artAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_quick_alloc_array_from_code_with_access_check, artAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_from_code, artCheckAndAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_from_code_with_access_check, artCheckAndAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
 
-TWO_ARG_DOWNCALL art_resolve_string_from_code, artResolveStringFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_initialize_static_storage_from_code, artInitializeStaticStorageFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
-TWO_ARG_DOWNCALL art_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_resolve_string_from_code, artResolveStringFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_static_storage_from_code, artInitializeStaticStorageFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
     /*
      * On entry, eax and ecx must be preserved, edx is dex PC
      */
-DEFINE_FUNCTION art_update_debugger
+DEFINE_FUNCTION art_quick_update_debugger
     mov %eax, %ebx                // stash away eax so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     subl LITERAL(4), %esp         // alignment padding
@@ -390,12 +390,12 @@ DEFINE_FUNCTION art_update_debugger
     mov %ebx, %eax                // restore original eax
     ret
 
-ONE_ARG_DOWNCALL art_lock_object_from_code, artLockObjectFromCode, ret
-ONE_ARG_DOWNCALL art_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
+ONE_ARG_DOWNCALL art_quick_lock_object_from_code, artLockObjectFromCode, ret
+ONE_ARG_DOWNCALL art_quick_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
 
-TWO_ARG_DOWNCALL art_handle_fill_data_from_code, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_DOWNCALL art_quick_handle_fill_data_from_code, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
-DEFINE_FUNCTION art_is_assignable_from_code
+DEFINE_FUNCTION art_quick_is_assignable_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
@@ -403,7 +403,7 @@ DEFINE_FUNCTION art_is_assignable_from_code
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_memcpy
+DEFINE_FUNCTION art_quick_memcpy
     pushl %edx                    // pass arg3
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
@@ -411,12 +411,12 @@ DEFINE_FUNCTION art_memcpy
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-TWO_ARG_DOWNCALL art_check_cast_from_code, artCheckCastFromCode, RETURN_IF_EAX_ZERO
-TWO_ARG_DOWNCALL art_can_put_array_element_from_code, artCanPutArrayElementFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_DOWNCALL art_quick_check_cast_from_code, artCheckCastFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_DOWNCALL art_quick_can_put_array_element_from_code, artCanPutArrayElementFromCode, RETURN_IF_EAX_ZERO
 
-NO_ARG_DOWNCALL art_test_suspend, artTestSuspendFromCode, ret
+NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
-DEFINE_FUNCTION art_fmod_from_code
+DEFINE_FUNCTION art_quick_fmod_from_code
     subl LITERAL(12), %esp        // alignment padding
     pushl %ebx                    // pass arg4 b.hi
     pushl %edx                    // pass arg3 b.lo
@@ -428,7 +428,7 @@ DEFINE_FUNCTION art_fmod_from_code
     addl LITERAL(28), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_fmodf_from_code
+DEFINE_FUNCTION art_quick_fmodf_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2 b
     pushl %eax                    // pass arg1 a
@@ -438,7 +438,7 @@ DEFINE_FUNCTION art_fmodf_from_code
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_l2d_from_code
+DEFINE_FUNCTION art_quick_l2d_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2 a.hi
     pushl %eax                    // pass arg1 a.lo
@@ -448,7 +448,7 @@ DEFINE_FUNCTION art_l2d_from_code
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_l2f_from_code
+DEFINE_FUNCTION art_quick_l2f_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2 a.hi
     pushl %eax                    // pass arg1 a.lo
@@ -458,7 +458,7 @@ DEFINE_FUNCTION art_l2f_from_code
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_d2l_from_code
+DEFINE_FUNCTION art_quick_d2l_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2 a.hi
     pushl %eax                    // pass arg1 a.lo
@@ -466,14 +466,14 @@ DEFINE_FUNCTION art_d2l_from_code
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_f2l_from_code
+DEFINE_FUNCTION art_quick_f2l_from_code
     subl LITERAL(8), %esp         // alignment padding
     pushl %eax                    // pass arg1 a
     call SYMBOL(art_f2l)          // (jfloat a)
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_idivmod_from_code
+DEFINE_FUNCTION art_quick_idivmod_from_code
     cmpl LITERAL(0x80000000), %eax
     je check_arg2  // special case
 args_ok:
@@ -486,7 +486,7 @@ check_arg2:
     xorl %edx, %edx
     ret         // eax already holds min int
 
-DEFINE_FUNCTION art_ldiv_from_code
+DEFINE_FUNCTION art_quick_ldiv_from_code
     subl LITERAL(12), %esp        // alignment padding
     pushl %ebx                    // pass arg4 b.hi
     pushl %edx                    // pass arg3 b.lo
@@ -496,7 +496,7 @@ DEFINE_FUNCTION art_ldiv_from_code
     addl LITERAL(28), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_ldivmod_from_code
+DEFINE_FUNCTION art_quick_ldivmod_from_code
     subl LITERAL(12), %esp        // alignment padding
     pushl %ebx                    // pass arg4 b.hi
     pushl %edx                    // pass arg3 b.lo
@@ -506,7 +506,7 @@ DEFINE_FUNCTION art_ldivmod_from_code
     addl LITERAL(28), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_lmul_from_code
+DEFINE_FUNCTION art_quick_lmul_from_code
     subl LITERAL(12), %esp        // alignment padding
     pushl %ebx                    // pass arg4 b.hi
     pushl %edx                    // pass arg3 b.lo
@@ -516,7 +516,7 @@ DEFINE_FUNCTION art_lmul_from_code
     addl LITERAL(28), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_lshl_from_code
+DEFINE_FUNCTION art_quick_lshl_from_code
     // ecx:eax << edx
     xchg %edx, %ecx
     shld %cl,%eax,%edx
@@ -528,7 +528,7 @@ DEFINE_FUNCTION art_lshl_from_code
 1:
     ret
 
-DEFINE_FUNCTION art_lshr_from_code
+DEFINE_FUNCTION art_quick_lshr_from_code
     // ecx:eax >> edx
     xchg %edx, %ecx
     shrd %cl,%edx,%eax
@@ -540,7 +540,7 @@ DEFINE_FUNCTION art_lshr_from_code
 1:
     ret
 
-DEFINE_FUNCTION art_lushr_from_code
+DEFINE_FUNCTION art_quick_lushr_from_code
     // ecx:eax >>> edx
     xchg %edx, %ecx
     shrd %cl,%edx,%eax
@@ -552,7 +552,7 @@ DEFINE_FUNCTION art_lushr_from_code
 1:
     ret
 
-DEFINE_FUNCTION art_set32_instance_from_code
+DEFINE_FUNCTION art_quick_set32_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
@@ -568,7 +568,7 @@ DEFINE_FUNCTION art_set32_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_set64_instance_from_code
+DEFINE_FUNCTION art_quick_set64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     subl LITERAL(8), %esp         // alignment padding
     pushl %esp                    // pass SP-8
@@ -583,7 +583,7 @@ DEFINE_FUNCTION art_set64_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_set_obj_instance_from_code
+DEFINE_FUNCTION art_quick_set_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
@@ -599,7 +599,7 @@ DEFINE_FUNCTION art_set_obj_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_get32_instance_from_code
+DEFINE_FUNCTION art_quick_get32_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
@@ -614,7 +614,7 @@ DEFINE_FUNCTION art_get32_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_get64_instance_from_code
+DEFINE_FUNCTION art_quick_get64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
@@ -629,7 +629,7 @@ DEFINE_FUNCTION art_get64_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_get_obj_instance_from_code
+DEFINE_FUNCTION art_quick_get_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
@@ -644,7 +644,7 @@ DEFINE_FUNCTION art_get_obj_instance_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_set32_static_from_code
+DEFINE_FUNCTION art_quick_set32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
@@ -659,7 +659,7 @@ DEFINE_FUNCTION art_set32_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_set64_static_from_code
+DEFINE_FUNCTION art_quick_set64_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
@@ -675,7 +675,7 @@ DEFINE_FUNCTION art_set64_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_set_obj_static_from_code
+DEFINE_FUNCTION art_quick_set_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
@@ -690,7 +690,7 @@ DEFINE_FUNCTION art_set_obj_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
 
-DEFINE_FUNCTION art_get32_static_from_code
+DEFINE_FUNCTION art_quick_get32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
@@ -703,7 +703,7 @@ DEFINE_FUNCTION art_get32_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_get64_static_from_code
+DEFINE_FUNCTION art_quick_get64_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
@@ -716,7 +716,7 @@ DEFINE_FUNCTION art_get64_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_get_obj_static_from_code
+DEFINE_FUNCTION art_quick_get_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
@@ -729,7 +729,7 @@ DEFINE_FUNCTION art_get_obj_static_from_code
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_proxy_invoke_handler
+DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
     pushl %esp                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
@@ -742,7 +742,7 @@ DEFINE_FUNCTION art_proxy_invoke_handler
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
-DEFINE_FUNCTION art_interpreter_entry
+DEFINE_FUNCTION art_quick_interpreter_entry
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
     pushl %eax                    // alignment padding
     pushl %esp                    // pass SP
@@ -758,7 +758,7 @@ DEFINE_FUNCTION art_interpreter_entry
     /*
      * Routine that intercepts method calls and returns.
      */
-DEFINE_FUNCTION art_instrumentation_entry_from_code
+DEFINE_FUNCTION art_quick_instrumentation_entry_from_code
     xchgl %eax, (%esp)            // place LR in eax, save eax
     pushl %ecx                    // save ecx
     pushl %edx                    // save edx
@@ -775,10 +775,10 @@ DEFINE_FUNCTION art_instrumentation_entry_from_code
     movl  (%esp), %ecx            // restore ecx (without popping)
     movl  %eax, (%esp)            // place method's code pointer on stack
     movl  4(%esp), %eax           // restore eax (without popping)
-    movl  LITERAL(SYMBOL(art_instrumentation_exit_from_code)), 4(%esp)
+    movl  LITERAL(SYMBOL(art_quick_instrumentation_exit_from_code)), 4(%esp)
                                   // place instrumentation exit as return pc
     ret                           // call method (and pop)
-DEFINE_FUNCTION art_instrumentation_exit_from_code
+DEFINE_FUNCTION art_quick_instrumentation_exit_from_code
     mov   %esp, %ecx              // remember bottom of caller's frame
     pushl %edx                    // save return value
     pushl %eax                    // save other half of return value
@@ -798,7 +798,7 @@ DEFINE_FUNCTION art_instrumentation_exit_from_code
      * registers depending on how complete the operation is when we safepoint - for example, a
      * set operation may have completed while a get operation needs writing back into the vregs.
      */
-DEFINE_FUNCTION art_deoptimize
+DEFINE_FUNCTION art_quick_deoptimize
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     pushl %esp                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
@@ -826,7 +826,7 @@ DEFINE_FUNCTION art_deoptimize
      *    ecx:   char to match (known <= 0xFFFF)
      *    edx:   Starting offset in string data
      */
-DEFINE_FUNCTION art_indexof
+DEFINE_FUNCTION art_quick_indexof
     pushl %edi                    // push callee save reg
     mov STRING_COUNT_OFFSET(%eax), %ebx
     mov STRING_VALUE_OFFSET(%eax), %edi
@@ -874,7 +874,7 @@ clamp_min:
      *    eax:   this string object (known non-null)
      *    ecx:   comp string object (known non-null)
      */
-DEFINE_FUNCTION art_string_compareto
+DEFINE_FUNCTION art_quick_string_compareto
     pushl %esi                    // push callee save reg
     pushl %edi                    // push callee save reg
     mov STRING_COUNT_OFFSET(%eax), %edx
@@ -920,4 +920,4 @@ VAR(name, 0):
 END_MACRO
 
     // TODO: implement these!
-UNIMPLEMENTED art_memcmp16
+UNIMPLEMENTED art_quick_memcmp16
