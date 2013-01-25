@@ -147,6 +147,9 @@ OatMethodOffsets::OatMethodOffsets()
     vmap_table_offset_(0),
     gc_map_offset_(0),
     invoke_stub_offset_(0)
+#if defined(ART_USE_LLVM_COMPILER)
+  , proxy_stub_offset_(0)
+#endif
 {}
 
 OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
