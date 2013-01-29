@@ -624,6 +624,24 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             args << Rd << ", " << Rn << ", #" << imm12;
             break;
           }
+          case 0x16: {
+            // BFI Rd, Rn, #lsb, #width - 111 10 0 11 011 0 nnnn 0 iii dddd ii 0 iiiii
+            ArmRegister Rd(instr, 8);
+            ArmRegister Rn(instr, 16);
+            uint32_t msb = instr & 0x1F;
+            uint32_t imm2 = (instr >> 6) & 0x3;
+            uint32_t imm3 = (instr >> 12) & 0x7;
+            uint32_t lsb = (imm3 << 2) | imm2;
+            uint32_t width = msb - lsb + 1;
+            if (Rn.r != 0xF) {
+              opcode << "bfi";
+              args << Rd << ", " << Rn << ", #" << lsb << ", #" << width;
+            } else {
+              opcode << "bfc";
+              args << Rd << ", #" << lsb << ", #" << width;
+            }
+            break;
+          }
           default:
             break;
         }
@@ -795,6 +813,50 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             }
           }
 
+          break;
+        }
+        case 0x03: case 0x0B: case 0x13: case 0x1B: { // 00xx011
+          // Load halfword
+          // |111|11|10|0 0|00|0|0000|1111|110000|000000|
+          // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
+          // |---|--|--|---|--|-|----|----|------|------|
+          // |332|22|22|2 2|22|2|1111|1111|110000|000000|
+          // |1 9|87|65|4 3|21|0|9  6|5  2|10   6|5    0|
+          // |---|--|--|---|--|-|----|----|------|------|
+          // |111|11|00|op3|01|1| Rn | Rt | op4  |      |
+          // |111|11| op2       |    |    | imm12       |
+          uint32_t op3 = (instr >> 23) & 3;
+          ArmRegister Rn(instr, 16);
+          ArmRegister Rt(instr, 12);
+          if (Rt.r != 15) {
+            if (op3 == 1) {
+              // LDRH.W Rt, [Rn, #imm12]       - 111 11 00 01 011 nnnn tttt iiiiiiiiiiii
+              uint32_t imm12 = instr & 0xFFF;
+              opcode << "ldrh.w";
+              args << Rt << ", [" << Rn << ", #" << imm12 << "]";
+              if (Rn.r == 9) {
+                args << "  ; ";
+                Thread::DumpThreadOffset(args, imm12, 4);
+              } else if (Rn.r == 15) {
+                intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
+                lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
+                args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
+              }
+            } else if (op3 == 3) {
+              // LDRSH.W Rt, [Rn, #imm12]      - 111 11 00 11 011 nnnn tttt iiiiiiiiiiii
+              uint32_t imm12 = instr & 0xFFF;
+              opcode << "ldrsh.w";
+              args << Rt << ", [" << Rn << ", #" << imm12 << "]";
+              if (Rn.r == 9) {
+                args << "  ; ";
+                Thread::DumpThreadOffset(args, imm12, 4);
+              } else if (Rn.r == 15) {
+                intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
+                lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
+                args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
+              }
+            }
+          }
           break;
         }
         case 0x05: case 0x0D: case 0x15: case 0x1D: { // 00xx101
@@ -991,6 +1053,11 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         default:
           break;
       }
+    } else if (opcode1 == 0x12 || opcode1 == 0x13) {  // 01001x
+      ThumbRegister Rt(instr, 8);
+      uint16_t imm8 = instr & 0xFF;
+      opcode << "ldr";
+      args << Rt << ", [pc, #" << (imm8 << 2) << "]";
     } else if ((opcode1 >= 0x14 && opcode1 <= 0x17) ||  // 0101xx
                (opcode1 >= 0x18 && opcode1 <= 0x1f) ||  // 011xxx
                (opcode1 >= 0x20 && opcode1 <= 0x27)) {  // 100xxx
@@ -1039,6 +1106,12 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         }
         args << Rt << ", [" << Rn << ", #" << imm5 << "]";
       }
+    } else if (opcode1 >= 0x34 && opcode1 <= 0x37) {  // 1101xx
+      uint32_t imm8 = instr & 0xFF;
+      uint32_t cond = (instr >> 8) & 0xF;
+      opcode << "b";
+      DumpCond(opcode, cond);
+      DumpBranchTarget(args, instr_ptr + 4, (imm8 << 1));
     } else if ((instr & 0xF800) == 0xA800) {
       // Generate SP-relative address
       ThumbRegister rd(instr, 8);
