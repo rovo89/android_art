@@ -138,6 +138,7 @@ OATEXEC_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
+	src/barrier.cc \
 	src/base/logging.cc \
 	src/base/mutex.cc \
 	src/base/stringpiece.cc \
@@ -147,7 +148,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/base/unix_file/null_file.cc \
 	src/base/unix_file/random_access_file_utils.cc \
 	src/base/unix_file/string_file.cc \
-	src/barrier.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/common_throws.cc \
@@ -216,17 +216,17 @@ LIBART_COMMON_SRC_FILES := \
 	src/native/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
 	src/native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	src/native/sun_misc_Unsafe.cc \
+	src/oat.cc \
 	src/oat/runtime/arm/stub_arm.cc \
 	src/oat/runtime/mips/stub_mips.cc \
 	src/oat/runtime/x86/stub_x86.cc \
-	src/oat/utils/assembler.cc \
 	src/oat/utils/arm/assembler_arm.cc \
 	src/oat/utils/arm/managed_register_arm.cc \
+	src/oat/utils/assembler.cc \
 	src/oat/utils/mips/assembler_mips.cc \
 	src/oat/utils/mips/managed_register_mips.cc \
 	src/oat/utils/x86/assembler_x86.cc \
 	src/oat/utils/x86/managed_register_x86.cc \
-	src/oat.cc \
 	src/oat_file.cc \
 	src/oat_writer.cc \
 	src/object.cc \
@@ -246,19 +246,19 @@ LIBART_COMMON_SRC_FILES := \
 	src/utf.cc \
 	src/utils.cc \
 	src/vector_output_stream.cc \
-	src/well_known_classes.cc \
-	src/zip_archive.cc \
 	src/verifier/dex_gc_map.cc \
 	src/verifier/method_verifier.cc \
 	src/verifier/reg_type.cc \
 	src/verifier/reg_type_cache.cc \
-	src/verifier/register_line.cc
+	src/verifier/register_line.cc \
+	src/well_known_classes.cc \
+	src/zip_archive.cc
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
-	src/greenland/inferred_reg_category_map.cc \
 	src/compiler_llvm/procedure_linkage_table.cc \
-	src/compiler_llvm/runtime_support_llvm.cc
+	src/compiler_llvm/runtime_support_llvm.cc \
+	src/greenland/inferred_reg_category_map.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \
@@ -266,12 +266,11 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_alloc.cc \
 	src/oat/runtime/support_cast.cc \
 	src/oat/runtime/support_debug.cc \
-	src/oat/runtime/support_dexcache.cc \
 	src/oat/runtime/support_deoptimize.cc \
+	src/oat/runtime/support_dexcache.cc \
 	src/oat/runtime/support_field.cc \
 	src/oat/runtime/support_fillarray.cc \
 	src/oat/runtime/support_instrumentation.cc \
-        src/oat/runtime/support_interpreter.cc \
 	src/oat/runtime/support_invoke.cc \
 	src/oat/runtime/support_jni.cc \
 	src/oat/runtime/support_locks.cc \
@@ -279,7 +278,8 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_proxy.cc \
 	src/oat/runtime/support_stubs.cc \
 	src/oat/runtime/support_thread.cc \
-	src/oat/runtime/support_throw.cc
+	src/oat/runtime/support_throw.cc \
+        src/oat/runtime/support_interpreter.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -335,8 +335,8 @@ LIBART_HOST_SRC_FILES := \
 
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
-	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
 	src/oat/runtime/x86/context_x86.cc \
+	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
 	src/oat/runtime/x86/runtime_support_x86.S
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
@@ -351,6 +351,7 @@ endif # HOST_ARCH != x86
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/base/mutex.h \
+	src/compiler/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
 	src/gc/space.h \
@@ -363,12 +364,11 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/locks.h \
 	src/object.h \
 	src/thread.h \
-	src/verifier/method_verifier.h \
-	src/compiler/compiler_enums.h
+	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
-	test/StackWalk/stack_walk_jni.cc \
-	test/ReferenceMap/stack_walk_refmap_jni.cc
+	test/ReferenceMap/stack_walk_refmap_jni.cc \
+	test/StackWalk/stack_walk_jni.cc
 
 TEST_COMMON_SRC_FILES := \
 	src/barrier_test.cc \
@@ -393,8 +393,8 @@ TEST_COMMON_SRC_FILES := \
 	src/indenter_test.cc \
 	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \
-	src/jni_internal_test.cc \
 	src/jni_compiler_test.cc \
+	src/jni_internal_test.cc \
 	src/oat/utils/arm/managed_register_arm_test.cc \
 	src/oat/utils/x86/managed_register_x86_test.cc \
 	src/oat_test.cc \
@@ -405,9 +405,9 @@ TEST_COMMON_SRC_FILES := \
 	src/runtime_test.cc \
 	src/thread_pool_test.cc \
 	src/utils_test.cc \
-	src/zip_archive_test.cc \
 	src/verifier/method_verifier_test.cc \
-	src/verifier/reg_type_test.cc
+	src/verifier/reg_type_test.cc \
+	src/zip_archive_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)
