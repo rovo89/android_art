@@ -313,25 +313,32 @@ dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 dump-oat-core: dump-oat-core-host dump-oat-core-target
 
 .PHONY: dump-oat-core-host
+ifeq ($(ART_BUILD_HOST),true)
 dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=/tmp/core.host.oatdump.txt --host-prefix=""
 	@echo Output in /tmp/core.host.oatdump.txt
+endif
 
 .PHONY: dump-oat-core-target
+ifeq ($(ART_BUILD_TARGET),true)
 dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=/tmp/core.target.oatdump.txt
 	@echo Output in /tmp/core.target.oatdump.txt
+endif
 
 .PHONY: dump-oat-boot
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-boot: $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
+endif
 
 .PHONY: dump-oat-Calculator
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.apk.oat $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --oat-file=$< --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
-
+endif
 
 ########################################################################
 # cpplint target

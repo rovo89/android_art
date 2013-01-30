@@ -81,12 +81,18 @@ static void Usage(const char* fmt, ...) {
   UsageError("      to the file descriptor specified by --zip-fd.");
   UsageError("      Example: --zip-location=/system/app/Calculator.apk");
   UsageError("");
-  UsageError("  --oat-file=<file.oat>: specifies the required oat filename.");
+  UsageError("  --oat-file=<file.oat>: specifies the oat output destination via a filename.");
+  UsageError("      Example: --oat-file=/system/framework/boot.oat");
+  UsageError("");
+  UsageError("  --oat-fd=<number>: specifies the oat output destination via a file descriptor.");
   UsageError("      Example: --oat-file=/system/framework/boot.oat");
   UsageError("");
   UsageError("  --oat-location=<oat-name>: specifies a symbolic name for the file corresponding");
   UsageError("      to the file descriptor specified by --oat-fd.");
   UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
+  UsageError("");
+  UsageError("  --oat-symbols=<file.oat>: specifies the oat output destination with full symbols.");
+  UsageError("      Example: --oat-symbols=/symbols/system/framework/boot.oat");
   UsageError("");
   UsageError("  --bitcode=<file.bc>: specifies the optional bitcode filename.");
   UsageError("      Example: --bitcode=/system/framework/boot.bc");
@@ -104,7 +110,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --boot-image=/system/framework/boot.art");
   UsageError("      Default: <host-prefix>/system/framework/boot.art");
   UsageError("");
-  UsageError("  --host-prefix may be used to translate host paths to target paths during");
+  UsageError("  --host-prefix=<path>: used to translate host paths to target paths during");
   UsageError("      cross compilation.");
   UsageError("      Example: --host-prefix=out/target/product/crespo");
   UsageError("      Default: $ANDROID_PRODUCT_OUT");
@@ -118,6 +124,9 @@ static void Usage(const char* fmt, ...) {
   UsageError("      set.");
   UsageError("      Example: --instruction-set=Portable");
   UsageError("      Default: Quick");
+  UsageError("");
+  UsageError("  --host: used with Portable backend to link against host runtime libraries");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -215,6 +224,7 @@ class Dex2Oat {
 
   const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
                                 const std::string* host_prefix,
+                                bool is_host,
                                 const std::vector<const DexFile*>& dex_files,
                                 File* oat_file,
                                 const std::string& bitcode_filename,
@@ -285,7 +295,7 @@ class Dex2Oat {
       return NULL;
     }
 
-    if (!driver->WriteElf(oat_contents, oat_file)) {
+    if (!driver->WriteElf(host_prefix, is_host, dex_files, oat_contents, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
@@ -311,9 +321,7 @@ class Dex2Oat {
       oat_data_begin = image_writer.GetOatDataBegin();
     }
 
-    LG << "dex2oat CreateImageFile opening : " << oat_filename;
     UniquePtr<File> oat_file(OS::OpenFile(oat_filename.c_str(), true, false));
-    LG << "dex2oat CreateImageFile opened : " << oat_filename;
     if (oat_file.get() == NULL) {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
@@ -322,7 +330,6 @@ class Dex2Oat {
       LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
       return false;
     }
-    LOG(ERROR) << "ELF file fixed up successfully: " << oat_file->GetPath();
     return true;
   }
 
@@ -634,6 +641,7 @@ static int dex2oat(int argc, char** argv) {
   int zip_fd = -1;
   std::string zip_location;
   std::string oat_filename;
+  std::string oat_symbols;
   std::string oat_location;
   int oat_fd = -1;
   std::string bitcode_filename;
@@ -659,6 +667,7 @@ static int dex2oat(int argc, char** argv) {
 #else
 #error "Unsupported architecture"
 #endif
+  bool is_host = false;
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
@@ -682,6 +691,8 @@ static int dex2oat(int argc, char** argv) {
       zip_location = option.substr(strlen("--zip-location=")).data();
     } else if (option.starts_with("--oat-file=")) {
       oat_filename = option.substr(strlen("--oat-file=")).data();
+    } else if (option.starts_with("--oat-symbols=")) {
+      oat_symbols = option.substr(strlen("--oat-symbols=")).data();
     } else if (option.starts_with("--oat-fd=")) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
       if (!ParseInt(oat_fd_str, &oat_fd)) {
@@ -735,6 +746,8 @@ static int dex2oat(int argc, char** argv) {
       } else if (backend_str == "Portable") {
         compiler_backend = kPortable;
       }
+    } else if (option == "--host") {
+      is_host = true;
     } else if (option == "--runtime-arg") {
       if (++i >= argc) {
         Usage("Missing required argument for --runtime-arg");
@@ -756,8 +769,12 @@ static int dex2oat(int argc, char** argv) {
     Usage("--oat-file should not be used with --oat-fd");
   }
 
-  if (!oat_filename.empty() && oat_fd != -1) {
-    Usage("--oat-file should not be used with --oat-fd");
+  if (!oat_symbols.empty() && oat_fd != -1) {
+    Usage("--oat-symbols should not be used with --oat-fd");
+  }
+
+  if (!oat_symbols.empty() && is_host) {
+    Usage("--oat-symbols should not be used with --host");
   }
 
   if (oat_fd != -1 && !image_filename.empty()) {
@@ -825,14 +842,22 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
+  std::string oat_stripped(oat_filename);
+  std::string oat_unstripped;
+  if (!oat_symbols.empty()) {
+    oat_unstripped += oat_symbols;
+  } else {
+    oat_unstripped += oat_filename;
+  }
+
   // Done with usage checks, enable watchdog if requested
   WatchDog watch_dog(watch_dog_enabled);
 
   // Check early that the result of compilation can be written
   UniquePtr<File> oat_file;
-  bool create_file = !oat_filename.empty();  // as opposed to using open file descriptor
+  bool create_file = !oat_unstripped.empty();  // as opposed to using open file descriptor
   if (create_file) {
-    oat_file.reset(OS::OpenFile(oat_filename.c_str(), true));
+    oat_file.reset(OS::OpenFile(oat_unstripped.c_str(), true));
     if (oat_location.empty()) {
       oat_location = oat_filename;
     }
@@ -921,6 +946,7 @@ static int dex2oat(int argc, char** argv) {
 
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),
+                                                                  is_host,
                                                                   dex_files,
                                                                   oat_file.get(),
                                                                   bitcode_filename,
@@ -934,10 +960,7 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if (!image) {
-    LOG(INFO) << "Oat file written successfully: " << oat_location;
-    return EXIT_SUCCESS;
-  }
+  LOG(INFO) << "Oat file written successfully (unstripped): " << oat_location;
 
   // Notes on the interleaving of creating the image and oat file to
   // ensure the references between the two are correct.
@@ -989,21 +1012,52 @@ static int dex2oat(int argc, char** argv) {
   // load the .so at the desired location at runtime by offsetting the
   // Elf32_Phdr.p_vaddr values by the desired base address.
   //
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-  bool image_creation_success = dex2oat->CreateImageFile(image_filename,
-                                                         image_base,
-                                                         image_classes.get(),
-                                                         oat_filename,
-                                                         oat_location,
-                                                         *compiler.get());
-  Thread::Current()->TransitionFromSuspendedToRunnable();
-  if (!image_creation_success) {
-    return EXIT_FAILURE;
+  if (image) {
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+    bool image_creation_success = dex2oat->CreateImageFile(image_filename,
+                                                           image_base,
+                                                           image_classes.get(),
+                                                           oat_unstripped,
+                                                           oat_location,
+                                                           *compiler.get());
+    Thread::Current()->TransitionFromSuspendedToRunnable();
+    LOG(INFO) << "Image written successfully: " << image_filename;
+    if (!image_creation_success) {
+      return EXIT_FAILURE;
+    }
   }
 
+  if (is_host) {
+    return EXIT_SUCCESS;
+  }
+
+  // If we don't want to strip in place, copy from unstripped location to stripped location.
+  // We need to strip after image creation because FixupElf needs to use .strtab.
+  if (oat_unstripped != oat_stripped) {
+    oat_file.reset();
+    UniquePtr<File> in(OS::OpenFile(oat_unstripped.c_str(), false));
+    UniquePtr<File> out(OS::OpenFile(oat_stripped.c_str(), true));
+    size_t buffer_size = 8192;
+    UniquePtr<uint8_t> buffer(new uint8_t[buffer_size]);
+    while (true) {
+      int bytes_read = TEMP_FAILURE_RETRY(read(in->Fd(), buffer.get(), buffer_size));
+      if (bytes_read <= 0) {
+        break;
+      }
+      bool write_ok = out->WriteFully(buffer.get(), bytes_read);
+      CHECK(write_ok);
+    }
+    oat_file.reset(out.release());
+    LOG(INFO) << "Oat file copied successfully (stripped): " << oat_stripped;
+  }
+
+  // Strip unneeded sections for target
+  off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
+  CHECK_EQ(0, seek_actual);
+  compiler->StripElf(oat_file.get());
+
   // We wrote the oat file successfully, and want to keep it.
-  LOG(INFO) << "Oat file written successfully: " << oat_filename;
-  LOG(INFO) << "Image written successfully: " << image_filename;
+  LOG(INFO) << "Oat file written successfully (stripped): " << oat_stripped;
   return EXIT_SUCCESS;
 }
 

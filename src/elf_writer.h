@@ -17,22 +17,51 @@
 #ifndef ART_SRC_ELF_WRITER_H_
 #define ART_SRC_ELF_WRITER_H_
 
-#include "elf_file.h"
-#include "os.h"
+#include <stdint.h>
 
+#include <cstddef>
 #include <vector>
 
+#include <llvm/Support/ELF.h>
+
+#include "UniquePtr.h"
+#include "dex_file.h"
+#include "os.h"
+
+namespace mcld {
+class IRBuilder;
+class Input;
+class LDSection;
+class LDSymbol;
+class Linker;
+class LinkerConfig;
+class Module;
+} // namespace mcld
+
 namespace art {
+
+class CompiledCode;
 class CompilerDriver;
+class ElfFile;
 
 class ElfWriter {
  public:
   // Write an ELF file. Returns true on success, false on failure.
-  static bool Create(File* file, std::vector<uint8_t>& oat_contents, const CompilerDriver& compiler);
+  static bool Create(File* file,
+                     std::vector<uint8_t>& oat_contents,
+                     const std::vector<const DexFile*>& dex_files,
+                     const std::string* host_prefix,
+                     bool is_host,
+                     const CompilerDriver& driver)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Fixup an ELF file so that that oat header will be loaded at oat_begin.
   // Returns true on success, false on failure.
   static bool Fixup(File* file, uintptr_t oat_data_begin);
+
+  // Strip an ELF file of unneeded debugging information.
+  // Returns true on success, false on failure.
+  static bool Strip(File* file);
 
   // Looks up information about location of oat file in elf file container.
   // Used for ImageWriter to perform memory layout.
@@ -41,10 +70,28 @@ class ElfWriter {
                                    size_t& oat_data_offset);
 
  private:
-  ElfWriter(const CompilerDriver* driver);
+  ElfWriter(const CompilerDriver& driver, File* elf_file);
   ~ElfWriter();
 
-  bool Write(std::vector<uint8_t>& oat_contents, File* elf_file);
+  bool Write(std::vector<uint8_t>& oat_contents,
+             const std::vector<const DexFile*>& dex_files,
+             const std::string* host_prefix,
+             bool is_host)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void Init();
+  void AddOatInput(std::vector<uint8_t>& oat_contents);
+  void AddMethodInputs(const std::vector<const DexFile*>& dex_files);
+  void AddCompiledCodeInput(const CompiledCode& compiled_code);
+  void AddRuntimeInputs(const std::string* host_prefix, bool is_host);
+  bool Link();
+#if defined(ART_USE_PORTABLE_COMPILER)
+  void FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uint32_t FixupCompiledCodeOffset(ElfFile& elf_file,
+                                   llvm::ELF::Elf32_Addr oatdata_address,
+                                   const CompiledCode& compiled_code);
+#endif
 
   // Fixup .dynamic d_ptr values for the expected base_address.
   static bool FixupDynamic(ElfFile& elf_file, uintptr_t base_address);
@@ -58,7 +105,31 @@ class ElfWriter {
   // Fixup symbol table
   static bool FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dynamic);
 
-  const CompilerDriver* const compiler_driver_;
+  // Fixup dynamic relocations
+  static bool FixupRelocations(ElfFile& elf_file, uintptr_t base_address);
+
+  // Setup by constructor
+  const CompilerDriver* compiler_driver_;
+  File* elf_file_;
+
+  // Setup by Init()
+  UniquePtr<mcld::LinkerConfig> linker_config_;
+  UniquePtr<mcld::Module> module_;
+  UniquePtr<mcld::IRBuilder> ir_builder_;
+  UniquePtr<mcld::Linker> linker_;
+
+  // Setup by AddOatInput()
+  // TODO: ownership of oat_input_?
+  mcld::Input* oat_input_;
+
+  // Setup by AddCompiledCodeInput
+  // set of symbols for already added mcld::Inputs
+  SafeMap<const std::string*, const std::string*> added_symbols_;
+
+  // Setup by FixupCompiledCodeOffset
+  // map of symbol names to oatdata offset
+  SafeMap<const std::string*, uint32_t> symbol_to_compiled_code_offset_;
+
 };
 
 }  // namespace art

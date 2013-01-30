@@ -2491,10 +2491,7 @@ static bool InvokeUsesMethodStar(CompilationUnit* cu, MIR* mir)
       LOG(WARNING) << "Unexpected invoke op: " << opcode;
       return false;
   }
-  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-                            *cu->dex_file, cu->code_item,
-                            cu->class_def_idx, cu->method_idx,
-                            cu->access_flags);
+  DexCompilationUnit m_unit(cu);
   // TODO: add a flag so we don't counts the stats for this twice
   uint32_t dex_method_idx = mir->dalvikInsn.vB;
   int vtable_idx;

@@ -16,14 +16,15 @@
 
 #include "compiler_llvm.h"
 
-#include "base/stl_util.h"
 #include "backend_options.h"
+#include "base/stl_util.h"
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "compiler/driver/dex_compilation_unit.h"
 #include "compiler/invoke_stubs/portable/stub_compiler.h"
 #include "compiler/jni/portable/jni_compiler.h"
+#include "globals.h"
 #include "ir_builder.h"
 #include "llvm_compilation_unit.h"
 #include "oat_file.h"
@@ -43,7 +44,7 @@ void CompileOneMethod(CompilerDriver& driver,
                       uint32_t access_flags, InvokeType invoke_type,
                       uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
                       const DexFile& dex_file,
-                      LLVMInfo* llvm_info);
+                      llvm::LlvmCompilationUnit* llvm_info);
 }
 
 namespace llvm {
@@ -65,17 +66,17 @@ void InitializeLLVM() {
   art::llvm::InitialBackendOptions();
 
   // Initialize LLVM target, MC subsystem, asm printer, and asm parser.
-#if defined(ART_TARGET)
-  // Don't initialize all targets on device. Just initialize the device's native target
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  llvm::InitializeNativeTargetAsmParser();
-#else
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllTargetMCs();
-  llvm::InitializeAllAsmPrinters();
-  llvm::InitializeAllAsmParsers();
-#endif
+  if (art::kIsTargetBuild) {
+    // Don't initialize all targets on device. Just initialize the device's native target
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
+  } else {
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
+    llvm::InitializeAllAsmParsers();
+  }
 
   // Initialize LLVM optimization passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
@@ -110,8 +111,7 @@ namespace llvm {
 
 CompilerLLVM::CompilerLLVM(CompilerDriver* driver, InstructionSet insn_set)
     : compiler_driver_(driver), insn_set_(insn_set),
-      num_cunits_lock_("compilation unit counter lock"), num_cunits_(0),
-      plt_(insn_set) {
+      next_cunit_id_lock_("compilation unit id lock"), next_cunit_id_(1) {
 
   // Initialize LLVM libraries
   pthread_once(&llvm_initialized, InitializeLLVM);
@@ -123,10 +123,12 @@ CompilerLLVM::~CompilerLLVM() {
 
 
 LlvmCompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
-  MutexLock GUARD(Thread::Current(), num_cunits_lock_);
-  LlvmCompilationUnit* cunit = new LlvmCompilationUnit(this, ++num_cunits_);
+  MutexLock GUARD(Thread::Current(), next_cunit_id_lock_);
+  LlvmCompilationUnit* cunit = new LlvmCompilationUnit(this, next_cunit_id_++);
   if (!bitcode_filename_.empty()) {
-    cunit->SetBitcodeFileName(StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit->GetIndex()));
+    cunit->SetBitcodeFileName(StringPrintf("%s-%zu",
+                                           bitcode_filename_.c_str(),
+                                           cunit->GetCompilationUnitId()));
   }
   return cunit;
 }
@@ -136,8 +138,8 @@ CompiledMethod* CompilerLLVM::
 CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_type) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
-  std::string methodName(PrettyMethod(dex_compilation_unit->GetDexMethodIndex(),
-                                      *dex_compilation_unit->GetDexFile()));
+  cunit->SetDexCompilationUnit(dex_compilation_unit);
+  cunit->SetCompiler(compiler_driver_);
   // TODO: consolidate ArtCompileMethods
   CompileOneMethod(*compiler_driver_,
                    kPortable,
@@ -148,19 +150,16 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
                    dex_compilation_unit->GetDexMethodIndex(),
                    dex_compilation_unit->GetClassLoader(),
                    *dex_compilation_unit->GetDexFile(),
-                   cunit->GetQuickContext()
-  );
-
-  cunit->SetCompiler(compiler_driver_);
-  cunit->SetDexCompilationUnit(dex_compilation_unit);
+                   cunit.get());
 
   cunit->Materialize();
 
   CompilerDriver::MethodReference mref(dex_compilation_unit->GetDexFile(),
                                        dex_compilation_unit->GetDexMethodIndex());
   return new CompiledMethod(compiler_driver_->GetInstructionSet(),
-                            cunit->GetCompiledCode(),
-                            *verifier::MethodVerifier::GetDexGcMap(mref));
+                            cunit->GetElfObject(),
+                            *verifier::MethodVerifier::GetDexGcMap(mref),
+                            cunit->GetDexCompilationUnit()->GetSymbol());
 }
 
 
@@ -235,7 +234,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
   art::DexCompilationUnit dex_compilation_unit(
-    class_loader, class_linker, dex_file, code_item,
+    NULL, class_loader, class_linker, dex_file, code_item,
     class_def_idx, method_idx, access_flags);
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
@@ -248,7 +247,7 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
   art::DexCompilationUnit dex_compilation_unit(
-    NULL, class_linker, dex_file, NULL,
+    NULL, NULL, class_linker, dex_file, NULL,
     0, method_idx, access_flags);
 
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);

@@ -48,6 +48,7 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/ralloc.cc \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
+	src/compiler/driver/dex_compilation_unit.cc \
 	src/compiler/invoke_stubs/portable/stub_compiler.cc \
 	src/compiler/invoke_stubs/quick/jni_internal_arm.cc \
 	src/compiler/invoke_stubs/quick/jni_internal_mips.cc \
@@ -184,9 +185,22 @@ endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart-compiler,target,debug))
 endif
-ifeq ($(ART_BUILD_HOST_NDEBUG),true)
+# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
+ifeq ($(ART_BUILD_NDEBUG),true)
   $(eval $(call build-libart-compiler,host,ndebug))
 endif
-ifeq ($(ART_BUILD_HOST_DEBUG),true)
+ifeq ($(ART_BUILD_DEBUG),true)
   $(eval $(call build-libart-compiler,host,debug))
+endif
+
+# Rule to build /system/lib/libcompiler-rt.a
+# Usually static libraries are not installed on the device.
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+ifeq ($(ART_BUILD_TARGET),true)
+# TODO: Move to external/compiler-rt
+$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler-rt,,)/libcompiler-rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler-rt.a))
+
+$(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler-rt.a
+
+endif
 endif

@@ -17,12 +17,7 @@
 #ifndef ART_SRC_UTILS_LLVM_H_
 #define ART_SRC_UTILS_LLVM_H_
 
-#include "base/stringprintf.h"
-
 #include <llvm/Analysis/Verifier.h>
-
-#include <stdint.h>
-#include <string>
 
 namespace art {
 
@@ -31,17 +26,6 @@ namespace art {
 #else
 #define VERIFY_LLVM_FUNCTION(func)
 #endif
-
-inline static std::string ElfFuncName(uint32_t idx) {
-  return StringPrintf("Art%u", static_cast<unsigned int>(idx));
-}
-
-class CStringLessThanComparator {
- public:
-  bool operator()(const char* lhs, const char* rhs) const {
-    return (strcmp(lhs, rhs) < 0);
-  }
-};
 
 }  // namespace art
 

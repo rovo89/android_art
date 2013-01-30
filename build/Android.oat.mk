@@ -16,11 +16,19 @@
 
 # DEX2OAT defined in build/core/config.mk
 DEX2OATD := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
+
+LIBART_COMPILER := $(HOST_OUT_SHARED_LIBRARIES)/libart-compiler$(HOST_SHLIB_SUFFIX)
+LIBARTD_COMPILER := $(HOST_OUT_SHARED_LIBRARIES)/libartd-compiler$(HOST_SHLIB_SUFFIX)
+
 # TODO: for now, override with debug version for better error reporting
 DEX2OAT := $(DEX2OATD)
+LIBART_COMPILER := $(LIBARTD_COMPILER)
 
-DEX2OAT_DEPENDENCY := | $(DEX2OAT)  # by default, do not run rerun dex2oat if the tool changes
-# DEX2OAT_DEPENDENCY := $(DEX2OAT)  # uncomment to force dex2oat to rerun on after all changes
+# By default, do not run rerun dex2oat if the tool changes.
+# Comment out the | to force dex2oat to rerun on after all changes.
+DEX2OAT_DEPENDENCY := |
+DEX2OAT_DEPENDENCY += $(DEX2OAT)
+DEX2OAT_DEPENDENCY += $(LIBART_COMPILER)
 
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
@@ -52,7 +60,7 @@ TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
 $(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS) --instruction-set=$(HOST_ARCH)
+	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS) --instruction-set=$(HOST_ARCH) --host
 
 $(TARGET_CORE_IMG_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
@@ -80,18 +88,22 @@ TARGET_BOOT_DEX_FILES := $(foreach jar,$(TARGET_BOOT_JARS),$(call intermediates-
 TARGET_BOOT_IMG_OUT := $(DEFAULT_DEX_PREOPT_IMAGE)
 TARGET_BOOT_OAT_OUT := $(patsubst %.art,%.oat,$(TARGET_BOOT_IMG_OUT))
 TARGET_BOOT_OAT := $(subst $(PRODUCT_OUT),,$(TARGET_BOOT_OAT_OUT))
+TARGET_BOOT_OAT_UNSTRIPPED_OUT := $(TARGET_OUT_UNSTRIPPED)$(TARGET_BOOT_OAT)
 
 $(TARGET_BOOT_IMG_OUT): $(TARGET_BOOT_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_BOOT_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_BOOT_DEX_LOCATIONS)) --oat-file=$(TARGET_BOOT_OAT_OUT) --oat-location=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --instruction-set=$(TARGET_ARCH) --host-prefix=$(PRODUCT_OUT)
+	@mkdir -p $(dir $(TARGET_BOOT_OAT_UNSTRIPPED_OUT))
+	$(hide) $(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_BOOT_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_BOOT_DEX_LOCATIONS)) --oat-symbols=$(TARGET_BOOT_OAT_UNSTRIPPED_OUT) --oat-file=$(TARGET_BOOT_OAT_OUT) --oat-location=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --instruction-set=$(TARGET_ARCH) --host-prefix=$(PRODUCT_OUT)
 
-$(TARGET_BOOT_OAT_OUT): $(TARGET_BOOT_IMG_OUT)
+$(TARGET_BOOT_OAT_UNSTRIPPED_OUT): $(TARGET_BOOT_IMG_OUT)
 
-ifeq ($(ART_BUILD_TARGET),true)
+$(TARGET_BOOT_OAT_OUT): $(TARGET_BOOT_OAT_UNSTRIPPED_OUT)
+
+ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot.art
 LOCAL_MODULE_TAGS := optional
-LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG_OUT)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG_OUT) $(TARGET_BOOT_OAT_OUT)
 include $(BUILD_PHONY_PACKAGE)
 endif

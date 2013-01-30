@@ -104,6 +104,10 @@ static bool GenerateImage(const std::string& image_file_name) {
   std::string base_option_string(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
   arg_vector.push_back(strdup(base_option_string.c_str()));
 
+  if (!kIsTargetBuild) {
+    arg_vector.push_back(strdup("--host"));
+  }
+
   std::string command_line(Join(arg_vector, ' '));
   LOG(INFO) << command_line;
 

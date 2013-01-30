@@ -246,7 +246,7 @@ class CommonTest : public testing::Test {
                                                       &compiled_method->GetVmapTable()[0],
                                                       NULL,
                                                       method_invoke_stub);
-      oat_method.LinkMethodPointers(method);
+      oat_method.LinkMethod(method);
     } else {
       MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
       const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
@@ -259,7 +259,7 @@ class CommonTest : public testing::Test {
                                                       NULL,
                                                       NULL,
                                                       method_invoke_stub);
-      oat_method.LinkMethodPointers(method);
+      oat_method.LinkMethod(method);
     }
   }
 
@@ -434,12 +434,16 @@ class CommonTest : public testing::Test {
   }
 
   std::string GetLibCoreDexFileName() {
+    return GetDexFileName("core");
+  }
+
+  std::string GetDexFileName(const std::string& jar_prefix) {
     if (IsHost()) {
       const char* host_dir = getenv("ANDROID_HOST_OUT");
       CHECK(host_dir != NULL);
-      return StringPrintf("%s/framework/core-hostdex.jar", host_dir);
+      return StringPrintf("%s/framework/%s-hostdex.jar", host_dir, jar_prefix.c_str());
     }
-    return StringPrintf("%s/framework/core.jar", GetAndroidRoot());
+    return StringPrintf("%s/framework/%s.jar", GetAndroidRoot(), jar_prefix.c_str());
   }
 
   const DexFile* OpenTestDexFile(const char* name) {
@@ -584,6 +588,16 @@ class CheckJniAbortCatcher {
 
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
+
+// TODO: These tests were disabled for portable when we went to having
+// MCLinker link LLVM ELF output because we no longer just have code
+// blobs in memory. We'll need to dlopen to load and relocate
+// temporary output to resurrect these tests.
+#if defined(ART_USE_PORTABLE_COMPILER)
+#define TEST_DISABLED_FOR_PORTABLE() printf("WARNING: TEST DISABLED FOR PORTABLE\n"); return
+#else
+#define TEST_DISABLED_FOR_PORTABLE()
+#endif
 
 }  // namespace art
 

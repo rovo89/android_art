@@ -16,16 +16,11 @@
 
 #include "llvm_compilation_unit.h"
 
-#include "base/logging.h"
-#include "compiled_method.h"
-#include "compiler_llvm.h"
-#include "instruction_set.h"
-#include "ir_builder.h"
-#include "os.h"
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-#include "runtime_support_builder_arm.h"
-#include "runtime_support_builder_thumb2.h"
-#include "runtime_support_builder_x86.h"
+#include <string>
 
 #include <llvm/ADT/OwningPtr.h>
 #include <llvm/ADT/StringSet.h>
@@ -71,24 +66,30 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/Scalar.h>
 
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
-#include <string>
+#include "base/logging.h"
+#include "base/unix_file/fd_file.h"
+#include "compiled_method.h"
+#include "compiler_llvm.h"
+#include "instruction_set.h"
+#include "ir_builder.h"
+#include "os.h"
+#include "runtime_support_builder_arm.h"
+#include "runtime_support_builder_thumb2.h"
+#include "runtime_support_builder_x86.h"
+#include "utils_llvm.h"
 
 namespace art {
 namespace llvm {
 
 ::llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                      CompilerDriver* compiler, DexCompilationUnit* dex_compilation_unit);
+                      CompilerDriver* compiler, const DexCompilationUnit* dex_compilation_unit);
 
 ::llvm::Module* makeLLVMModuleContents(::llvm::Module* module);
 
 
-LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size_t cunit_idx)
-    : compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
+LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm, size_t cunit_id)
+    : compiler_llvm_(compiler_llvm), cunit_id_(cunit_id) {
   driver_ = NULL;
   dex_compilation_unit_ = NULL;
   llvm_info_.reset(new LLVMInfo());
@@ -136,27 +137,24 @@ InstructionSet LlvmCompilationUnit::GetInstructionSet() const {
 
 
 bool LlvmCompilationUnit::Materialize() {
-  std::string elf_image;
-
   // Compile and prelink ::llvm::Module
-  if (!MaterializeToString(elf_image)) {
-    LOG(ERROR) << "Failed to materialize compilation unit " << cunit_idx_;
+  if (!MaterializeToString(elf_object_)) {
+    LOG(ERROR) << "Failed to materialize compilation unit " << cunit_id_;
     return false;
   }
 
-#if 0
-  // Dump the ELF image for debugging
-  std::string filename(StringPrintf("%s/Art%zu.elf",
-                                    GetArtCacheOrDie(GetAndroidData()).c_str(),
-                                    cunit_idx_));
-  UniquePtr<File> output(OS::OpenFile(filename.c_str(), true));
-  output->WriteFully(elf_image.data(), elf_image.size());
-#endif
-
-  // Extract the .text section and prelink the code
-  if (!ExtractCodeAndPrelink(elf_image)) {
-    LOG(ERROR) << "Failed to extract code from compilation unit " << cunit_idx_;
-    return false;
+  if (false) {
+    // Dump the ELF image for debugging
+    std::string directory;
+    if (kIsTargetBuild) {
+      directory += GetArtCacheOrDie(GetAndroidData());
+    } else {
+      directory += "/tmp";
+    }
+    std::string filename(StringPrintf("%s/Art%u.o", directory.c_str(), cunit_id_));
+    UniquePtr<File> output(OS::OpenFile(filename.c_str(), true));
+    output->WriteFully(elf_object_.data(), elf_object_.size());
+    LOG(INFO) << ".o file written successfully: " << filename;
   }
 
   return true;
@@ -283,112 +281,6 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
 
   return true;
 }
-
-bool LlvmCompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
-  if (GetInstructionSet() == kX86) {
-    compiled_code_.push_back(0xccU);
-    compiled_code_.push_back(0xccU);
-    compiled_code_.push_back(0xccU);
-    compiled_code_.push_back(0xccU);
-    return true;
-  }
-
-  ::llvm::OwningPtr< ::llvm::MemoryBuffer> elf_image_buff(
-    ::llvm::MemoryBuffer::getMemBuffer(::llvm::StringRef(elf_image.data(),
-                                                     elf_image.size())));
-
-  ::llvm::OwningPtr< ::llvm::object::ObjectFile> elf_file(
-    ::llvm::object::ObjectFile::createELFObjectFile(elf_image_buff.take()));
-
-  ::llvm::error_code ec;
-
-  const ProcedureLinkageTable& plt = compiler_llvm_->GetProcedureLinkageTable();
-
-  for (::llvm::object::section_iterator
-       sec_iter = elf_file->begin_sections(),
-       sec_end = elf_file->end_sections();
-       sec_iter != sec_end; sec_iter.increment(ec)) {
-
-    CHECK(ec == 0) << "Failed to read section because " << ec.message();
-
-    // Read the section information
-    ::llvm::StringRef name;
-    uint64_t alignment = 0u;
-    uint64_t size = 0u;
-
-    CHECK(sec_iter->getName(name) == 0);
-    CHECK(sec_iter->getSize(size) == 0);
-    CHECK(sec_iter->getAlignment(alignment) == 0);
-
-    if (name == ".data" || name == ".bss" || name == ".rodata") {
-      if (size > 0) {
-        LOG(FATAL) << "Compilation unit " << cunit_idx_ << " has non-empty "
-                   << name.str() << " section";
-      }
-
-    } else if (name == "" || name == ".rel.text" ||
-               name == ".ARM.attributes" || name == ".symtab" ||
-               name == ".strtab" || name == ".shstrtab") {
-      // We can ignore these sections.  We don't have to copy them into
-      // the result Oat file.
-
-    } else if (name == ".text") {
-      // Ensure the alignment requirement is less than or equal to
-      // kArchAlignment
-      CheckCodeAlign(alignment);
-
-      // Copy the compiled code
-      ::llvm::StringRef contents;
-      CHECK(sec_iter->getContents(contents) == 0);
-
-      copy(contents.data(),
-           contents.data() + contents.size(),
-           back_inserter(compiled_code_));
-
-      // Prelink the compiled code
-      for (::llvm::object::relocation_iterator
-           rel_iter = sec_iter->begin_relocations(),
-           rel_end = sec_iter->end_relocations(); rel_iter != rel_end;
-           rel_iter.increment(ec)) {
-
-        CHECK(ec == 0) << "Failed to read relocation because " << ec.message();
-
-        // Read the relocation information
-        ::llvm::object::SymbolRef sym_ref;
-        uint64_t rel_offset = 0;
-        uint64_t rel_type = 0;
-        int64_t rel_addend = 0;
-
-        CHECK(rel_iter->getSymbol(sym_ref) == 0);
-        CHECK(rel_iter->getOffset(rel_offset) == 0);
-        CHECK(rel_iter->getType(rel_type) == 0);
-        CHECK(rel_iter->getAdditionalInfo(rel_addend) == 0);
-
-        // Read the symbol related to this relocation fixup
-        ::llvm::StringRef sym_name;
-        CHECK(sym_ref.getName(sym_name) == 0);
-
-        // Relocate the fixup.
-        // TODO: Support more relocation type.
-        CHECK(rel_type == ::llvm::ELF::R_ARM_ABS32);
-        CHECK_LE(rel_offset + 4, compiled_code_.size());
-
-        uintptr_t dest_addr = plt.GetEntryAddress(sym_name.str().c_str());
-        uintptr_t final_addr = dest_addr + rel_addend;
-        compiled_code_[rel_offset] = final_addr & 0xff;
-        compiled_code_[rel_offset + 1] = (final_addr >> 8) & 0xff;
-        compiled_code_[rel_offset + 2] = (final_addr >> 16) & 0xff;
-        compiled_code_[rel_offset + 3] = (final_addr >> 24) & 0xff;
-      }
-
-    } else {
-      LOG(WARNING) << "Unexpected section: " << name.str();
-    }
-  }
-
-  return true;
-}
-
 
 // Check whether the align is less than or equal to the code alignment of
 // that architecture.  Since the Oat writer only guarantee that the compiled

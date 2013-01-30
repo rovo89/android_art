@@ -17,6 +17,7 @@
 #ifndef ART_SRC_ELF_FILE_H_
 #define ART_SRC_ELF_FILE_H_
 
+#include <map>
 #include <vector>
 
 #include <llvm/Support/ELF.h>
@@ -65,20 +66,49 @@ class ElfFile {
   ::llvm::ELF::Elf32_Shdr& GetSectionHeader(::llvm::ELF::Elf32_Word);
   ::llvm::ELF::Elf32_Shdr* FindSectionByType(::llvm::ELF::Elf32_Word type);
 
+  ::llvm::ELF::Elf32_Shdr& GetSectionNameStringSection();
+
+  // Find .dynsym using .hash for more efficient lookup than FindSymbolAddress.
   byte* FindDynamicSymbolAddress(const std::string& symbol_name);
 
   static bool IsSymbolSectionType(::llvm::ELF::Elf32_Word section_type);
   ::llvm::ELF::Elf32_Word GetSymbolNum(::llvm::ELF::Elf32_Shdr&);
   ::llvm::ELF::Elf32_Sym& GetSymbol(::llvm::ELF::Elf32_Word section_type, ::llvm::ELF::Elf32_Word i);
-  ::llvm::ELF::Elf32_Sym* FindSymbolByName(::llvm::ELF::Elf32_Word section_type,
-                                         const std::string& symbol_name);
-  ::llvm::ELF::Elf32_Addr FindSymbolAddress(::llvm::ELF::Elf32_Word section_type,
-                                          const std::string& symbol_name);
 
-  char* GetString(::llvm::ELF::Elf32_Shdr&, ::llvm::ELF::Elf32_Word);
+  // Find symbol in specified table, returning NULL if it is not found.
+  //
+  // If build_map is true, builds a map to speed repeated access. The
+  // map does not included untyped symbol values (aka STT_NOTYPE)
+  // since they can contain duplicates. If build_map is false, the map
+  // will be used if it was already created. Typically build_map
+  // should be set unless only a small number of symbols will be
+  // looked up.
+  ::llvm::ELF::Elf32_Sym* FindSymbolByName(::llvm::ELF::Elf32_Word section_type,
+                                           const std::string& symbol_name,
+                                           bool build_map);
+
+  // Find address of symbol in specified table, returning 0 if it is
+  // not found. See FindSymbolByName for an explanation of build_map.
+  ::llvm::ELF::Elf32_Addr FindSymbolAddress(::llvm::ELF::Elf32_Word section_type,
+                                            const std::string& symbol_name,
+                                            bool build_map);
+
+  // Lookup a string given string section and offset. Returns NULL for
+  // special 0 offset.
+  const char* GetString(::llvm::ELF::Elf32_Shdr&, ::llvm::ELF::Elf32_Word);
+
+  // Lookup a string by section type. Returns NULL for special 0 offset.
+  const char* GetString(::llvm::ELF::Elf32_Word section_type, ::llvm::ELF::Elf32_Word);
 
   ::llvm::ELF::Elf32_Word GetDynamicNum();
   ::llvm::ELF::Elf32_Dyn& GetDynamic(::llvm::ELF::Elf32_Word);
+  ::llvm::ELF::Elf32_Word FindDynamicValueByType(::llvm::ELF::Elf32_Sword type);
+
+  ::llvm::ELF::Elf32_Word GetRelNum(::llvm::ELF::Elf32_Shdr&);
+  ::llvm::ELF::Elf32_Rel& GetRel(::llvm::ELF::Elf32_Shdr&, ::llvm::ELF::Elf32_Word);
+
+  ::llvm::ELF::Elf32_Word GetRelaNum(::llvm::ELF::Elf32_Shdr&);
+  ::llvm::ELF::Elf32_Rela& GetRela(::llvm::ELF::Elf32_Shdr&, ::llvm::ELF::Elf32_Word);
 
   // Returns the expected size when the file is loaded at runtime
   size_t GetLoadedSize();
@@ -98,19 +128,28 @@ class ElfFile {
   ::llvm::ELF::Elf32_Phdr& GetDynamicProgramHeader();
   ::llvm::ELF::Elf32_Dyn* GetDynamicSectionStart();
   ::llvm::ELF::Elf32_Sym* GetSymbolSectionStart(::llvm::ELF::Elf32_Word section_type);
-  char* GetSymbolStringSectionStart(::llvm::ELF::Elf32_Word section_type);
+  const char* GetStringSectionStart(::llvm::ELF::Elf32_Word section_type);
+  ::llvm::ELF::Elf32_Rel* GetRelSectionStart(::llvm::ELF::Elf32_Shdr&);
+  ::llvm::ELF::Elf32_Rela* GetRelaSectionStart(::llvm::ELF::Elf32_Shdr&);
   ::llvm::ELF::Elf32_Word* GetHashSectionStart();
   ::llvm::ELF::Elf32_Word GetHashBucketNum();
   ::llvm::ELF::Elf32_Word GetHashChainNum();
   ::llvm::ELF::Elf32_Word GetHashBucket(size_t i);
   ::llvm::ELF::Elf32_Word GetHashChain(size_t i);
 
+  typedef std::map<std::string, ::llvm::ELF::Elf32_Sym*> SymbolTable;
+  SymbolTable** GetSymbolTable(::llvm::ELF::Elf32_Word section_type);
+
   File* file_;
   bool writable_;
   bool program_header_only_;
+
+  // ELF header mapping. If program_header_only_ is false, will actually point to the entire elf file.
   UniquePtr<MemMap> map_;
   ::llvm::ELF::Elf32_Ehdr* header_;
   std::vector<MemMap*> segments_;
+
+  // Pointer to start of first PT_LOAD program segment after Load() when program_header_only_ is true.
   byte* base_address_;
 
   // The program header should always available but use GetProgramHeadersStart() to be sure.
@@ -122,10 +161,12 @@ class ElfFile {
   ::llvm::ELF::Elf32_Dyn* dynamic_section_start_;
   ::llvm::ELF::Elf32_Sym* symtab_section_start_;
   ::llvm::ELF::Elf32_Sym* dynsym_section_start_;
-  char* strtab_section_start_;
-  char* dynstr_section_start_;
+  const char* strtab_section_start_;
+  const char* dynstr_section_start_;
   ::llvm::ELF::Elf32_Word* hash_section_start_;
 
+  SymbolTable* symtab_symbol_table_;
+  SymbolTable* dynsym_symbol_table_;
 };
 
 }  // namespace art

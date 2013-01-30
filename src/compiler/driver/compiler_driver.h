@@ -123,11 +123,11 @@ class CompilerDriver {
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
-  const CompiledInvokeStub* FindInvokeStub(const std::string& key) const
+  CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
+  CompiledInvokeStub* FindInvokeStub(const std::string& key) const
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
 
-  const CompiledInvokeStub* FindProxyStub(const char* shorty) const;
+  CompiledInvokeStub* FindProxyStub(const char* shorty) const;
 
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
   bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
@@ -186,10 +186,15 @@ class CompilerDriver {
 
   void SetBitcodeFileName(std::string const& filename);
 
-  // TODO: remove when libart links against LLVM (when separate compiler library is gone)
-  bool WriteElf(std::vector<uint8_t>& oat_contents, File* file);
+  // TODO: remove these Elf wrappers when libart links against LLVM (when separate compiler library is gone)
+  bool WriteElf(const std::string* host_prefix,
+                bool is_host,
+                const std::vector<const DexFile*>& dex_files,
+                std::vector<uint8_t>& oat_contents,
+                File* file);
   bool FixupElf(File* file, uintptr_t oat_data_begin) const;
   void GetOatElfInformation(File* file, size_t& oat_loaded_size, size_t& oat_data_offset) const;
+  bool StripElf(File* file) const;
 
   // TODO: move to a common home for llvm helpers once quick/portable are merged
   static void InstructionSetToLLVMTarget(InstructionSet instruction_set,
@@ -316,10 +321,10 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub)
+  void InsertInvokeStub(const std::string& key, CompiledInvokeStub* compiled_invoke_stub)
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
 
-  void InsertProxyStub(const char* shorty, const CompiledInvokeStub* compiled_proxy_stub);
+  void InsertProxyStub(const char* shorty, CompiledInvokeStub* compiled_proxy_stub);
 
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
@@ -342,12 +347,12 @@ class CompilerDriver {
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
-  typedef SafeMap<std::string, const CompiledInvokeStub*> InvokeStubTable;
+  typedef SafeMap<std::string, CompiledInvokeStub*> InvokeStubTable;
   // Invocation stubs created to allow invocation of the compiled methods.
   mutable Mutex compiled_invoke_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   InvokeStubTable compiled_invoke_stubs_ GUARDED_BY(compiled_invoke_stubs_lock_);
 
-  typedef SafeMap<std::string, const CompiledInvokeStub*> ProxyStubTable;
+  typedef SafeMap<std::string, CompiledInvokeStub*> ProxyStubTable;
   // Proxy stubs created for proxy invocation delegation
   mutable Mutex compiled_proxy_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ProxyStubTable compiled_proxy_stubs_ GUARDED_BY(compiled_proxy_stubs_lock_);

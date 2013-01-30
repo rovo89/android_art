@@ -53,8 +53,8 @@ class LlvmCompilationUnit {
  public:
   ~LlvmCompilationUnit();
 
-  size_t GetIndex() const {
-    return cunit_idx_;
+  uint32_t GetCompilationUnitId() const {
+    return cunit_id_;
   }
 
   InstructionSet GetInstructionSet() const;
@@ -81,27 +81,30 @@ class LlvmCompilationUnit {
   void SetCompiler(CompilerDriver* driver) {
     driver_ = driver;
   }
-  void SetDexCompilationUnit(DexCompilationUnit* dex_compilation_unit) {
+  const DexCompilationUnit* GetDexCompilationUnit() {
+    return dex_compilation_unit_;
+  }
+  void SetDexCompilationUnit(const DexCompilationUnit* dex_compilation_unit) {
     dex_compilation_unit_ = dex_compilation_unit;
   }
 
   bool Materialize();
 
   bool IsMaterialized() const {
-    return !compiled_code_.empty();
+    return !elf_object_.empty();
   }
 
-  const std::vector<uint8_t>& GetCompiledCode() const {
+  const std::string& GetElfObject() const {
     DCHECK(IsMaterialized());
-    return compiled_code_;
+    return elf_object_;
   }
 
  private:
   LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
-                      size_t cunit_idx);
+                      uint32_t cunit_id);
 
   const CompilerLLVM* compiler_llvm_;
-  const size_t cunit_idx_;
+  const uint32_t cunit_id_;
 
   UniquePtr< ::llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
@@ -110,11 +113,11 @@ class LlvmCompilationUnit {
   UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
   CompilerDriver* driver_;
-  DexCompilationUnit* dex_compilation_unit_;
+  const DexCompilationUnit* dex_compilation_unit_;
 
   std::string bitcode_filename_;
 
-  std::vector<uint8_t> compiled_code_;
+  std::string elf_object_;
 
   SafeMap<const ::llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
@@ -122,8 +125,6 @@ class LlvmCompilationUnit {
 
   bool MaterializeToString(std::string& str_buffer);
   bool MaterializeToRawOStream(::llvm::raw_ostream& out_stream);
-
-  bool ExtractCodeAndPrelink(const std::string& elf_image);
 
   friend class CompilerLLVM;  // For LlvmCompilationUnit constructor
 };

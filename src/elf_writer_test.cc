@@ -30,9 +30,9 @@ class ElfWriterTest : public CommonTest {
   }
 };
 
-#define EXPECT_ELF_FILE_ADDRESS(ef, value, name) \
-  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_SYMTAB, name))); \
-  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM, name))); \
+#define EXPECT_ELF_FILE_ADDRESS(ef, value, name, build_map) \
+  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_SYMTAB, name, build_map))); \
+  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM, name, build_map))); \
   EXPECT_EQ(value, ef->FindDynamicSymbolAddress(name)); \
 
 /*
@@ -79,9 +79,16 @@ TEST_F(ElfWriterTest, DISABLED_dlsym) {
   {
     UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false));
     CHECK(ef.get() != NULL);
-    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata");
-    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec");
-    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword");
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", false);
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", false);
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword", false);
+  }
+  {
+    UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, false));
+    CHECK(ef.get() != NULL);
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatdata, "oatdata", true);
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatexec, "oatexec", true);
+    EXPECT_ELF_FILE_ADDRESS(ef, dl_oatlastword, "oatlastword", true);
   }
   {
     UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, true));

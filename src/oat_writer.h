@@ -117,10 +117,14 @@ class OatWriter {
 
   class OatDexFile {
    public:
-    explicit OatDexFile(const DexFile& dex_file);
+    explicit OatDexFile(size_t offset, const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(OutputStream& out) const;
+
+    // Offset of start of OatDexFile from beginning of OatHeader. It is
+    // used to validate file position when writing.
+    size_t offset_;
 
     // data to write
     uint32_t dex_file_location_size_;
@@ -135,10 +139,19 @@ class OatWriter {
 
   class OatClass {
    public:
-    explicit OatClass(mirror::Class::Status status, uint32_t methods_count);
+    explicit OatClass(size_t offset, mirror::Class::Status status, uint32_t methods_count);
+    size_t GetOatMethodOffsetsOffsetFromOatHeader(size_t class_def_method_index_) const;
+    size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
     bool Write(OutputStream& out) const;
+
+    // Offset of start of OatClass from beginning of OatHeader. It is
+    // used to validate file position when writing. For Portable, it
+    // is also used to calculate the position of the OatMethodOffsets
+    // so that code pointers within the OatMethodOffsets can be
+    // patched to point to code in the Portable .o ELF objects.
+    size_t offset_;
 
     // data to write
     mirror::Class::Status status_;

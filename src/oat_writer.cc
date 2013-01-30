@@ -93,7 +93,7 @@ size_t OatWriter::InitOatDexFiles(size_t offset) {
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     const DexFile* dex_file = (*dex_files_)[i];
     CHECK(dex_file != NULL);
-    OatDexFile* oat_dex_file = new OatDexFile(*dex_file);
+    OatDexFile* oat_dex_file = new OatDexFile(offset, *dex_file);
     oat_dex_files_.push_back(oat_dex_file);
     offset += oat_dex_file->SizeOf();
   }
@@ -145,7 +145,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         status = mirror::Class::kStatusNotReady;
       }
 
-      OatClass* oat_class = new OatClass(status, num_methods);
+      OatClass* oat_class = new OatClass(offset, status, num_methods);
       oat_classes_.push_back(oat_class);
       offset += oat_class->SizeOf();
     }
@@ -232,7 +232,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     size_t __attribute__((unused)) class_def_index,
                                     size_t class_def_method_index,
                                     bool __attribute__((unused)) is_native,
-                                    InvokeType type,
+                                    InvokeType invoke_type,
                                     uint32_t method_idx, const DexFile* dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
@@ -248,12 +248,22 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t proxy_stub_offset = 0;
 #endif
 
+  OatClass* oat_class = oat_classes_[oat_class_index];
+#if defined(ART_USE_PORTABLE_COMPILER)
+  size_t oat_method_offsets_offset =
+      oat_class->GetOatMethodOffsetsOffsetFromOatHeader(class_def_method_index);
+#endif
+
   CompiledMethod* compiled_method =
       compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    compiled_method->AddOatdataOffsetToCompliledCodeOffset(
+        oat_method_offsets_offset + OFFSETOF_MEMBER(OatMethodOffsets, code_offset_));
+#else
+    const std::vector<uint8_t>& code = compiled_method->GetCode();
     offset = compiled_method->AlignCode(offset);
     DCHECK_ALIGNED(offset, kArmAlignment);
-    const std::vector<uint8_t>& code = compiled_method->GetCode();
     uint32_t code_size = code.size() * sizeof(code[0]);
     CHECK_NE(code_size, 0U);
     uint32_t thumb_offset = compiled_method->CodeDelta();
@@ -269,6 +279,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       offset += code_size;
       oat_header_->UpdateChecksum(&code[0], code_size);
     }
+#endif
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
@@ -335,12 +346,16 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   }
 
   const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
-  const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(type == kStatic,
-                                                                             shorty);
+  CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(invoke_type == kStatic,
+                                                                              shorty);
   if (compiled_invoke_stub != NULL) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    compiled_invoke_stub->AddOatdataOffsetToCompliledCodeOffset(
+        oat_method_offsets_offset + OFFSETOF_MEMBER(OatMethodOffsets, invoke_stub_offset_));
+#else
+    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     offset = CompiledMethod::AlignCode(offset, compiler_driver_->GetInstructionSet());
     DCHECK_ALIGNED(offset, kArmAlignment);
-    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
     CHECK_NE(invoke_stub_size, 0U);
     uint32_t thumb_offset = compiled_invoke_stub->CodeDelta();
@@ -356,35 +371,20 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       offset += invoke_stub_size;
       oat_header_->UpdateChecksum(&invoke_stub[0], invoke_stub_size);
     }
+#endif
   }
 
 #if defined(ART_USE_PORTABLE_COMPILER)
-  if (type != kStatic) {
-    const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
+  if (invoke_type != kStatic) {
+    CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
-      offset = CompiledMethod::AlignCode(offset, compiler_driver_->GetInstructionSet());
-      DCHECK_ALIGNED(offset, kArmAlignment);
-      const std::vector<uint8_t>& proxy_stub = compiled_proxy_stub->GetCode();
-      uint32_t proxy_stub_size = proxy_stub.size() * sizeof(proxy_stub[0]);
-      CHECK_NE(proxy_stub_size, 0U);
-      uint32_t thumb_offset = compiled_proxy_stub->CodeDelta();
-      proxy_stub_offset = offset + sizeof(proxy_stub_size) + thumb_offset;
-
-      // Deduplicate proxy stubs
-      SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&proxy_stub);
-      if (stub_iter != code_offsets_.end()) {
-        proxy_stub_offset = stub_iter->second;
-      } else {
-        code_offsets_.Put(&proxy_stub, proxy_stub_offset);
-        offset += sizeof(proxy_stub_size);  // proxy stub size is prepended before code
-        offset += proxy_stub_size;
-        oat_header_->UpdateChecksum(&proxy_stub[0], proxy_stub_size);
-      }
+      compiled_proxy_stub->AddOatdataOffsetToCompliledCodeOffset(
+          oat_method_offsets_offset + OFFSETOF_MEMBER(OatMethodOffsets, proxy_stub_offset_));
     }
   }
 #endif
 
-  oat_classes_[oat_class_index]->method_offsets_[class_def_method_index]
+  oat_class->method_offsets_[class_def_method_index]
       = OatMethodOffsets(code_offset,
                          frame_size_in_bytes,
                          core_spill_mask,
@@ -404,7 +404,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     mirror::AbstractMethod* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
-                                                           NULL, NULL, type);
+                                                           NULL, NULL, invoke_type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);
@@ -425,8 +425,11 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   return offset;
 }
 
-#define DCHECK_CODE_OFFSET() \
-  DCHECK_EQ(static_cast<off_t>(code_offset), out.Seek(0, kSeekCurrent))
+#define DCHECK_OFFSET() \
+  DCHECK_EQ(static_cast<off_t>(offset), out.Seek(0, kSeekCurrent))
+
+#define DCHECK_OFFSET_() \
+  DCHECK_EQ(static_cast<off_t>(offset_), out.Seek(0, kSeekCurrent))
 
 bool OatWriter::Write(OutputStream& out) {
   if (!out.WriteFully(oat_header_, sizeof(*oat_header_))) {
@@ -491,15 +494,15 @@ bool OatWriter::WriteTables(OutputStream& out) {
 }
 
 size_t OatWriter::WriteCode(OutputStream& out) {
-  uint32_t code_offset = oat_header_->GetExecutableOffset();
+  uint32_t offset = oat_header_->GetExecutableOffset();
   off_t new_offset = out.Seek(executable_offset_padding_length_, kSeekCurrent);
-  if (static_cast<uint32_t>(new_offset) != code_offset) {
+  if (static_cast<uint32_t>(new_offset) != offset) {
     PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
-                << " Expected: " << code_offset << " File: " << out.GetLocation();
+                << " Expected: " << offset << " File: " << out.GetLocation();
     return 0;
   }
-  DCHECK_CODE_OFFSET();
-  return code_offset;
+  DCHECK_OFFSET();
+  return offset;
 }
 
 size_t OatWriter::WriteCodeDexFiles(OutputStream& out, size_t code_offset) {
@@ -575,7 +578,7 @@ size_t OatWriter::WriteCodeClassDef(OutputStream& out,
   return code_offset;
 }
 
-size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t oat_class_index,
+size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_class_index,
                                   size_t class_def_method_index, bool is_static,
                                   uint32_t method_idx, const DexFile& dex_file) {
   const CompiledMethod* compiled_method =
@@ -586,43 +589,46 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
 
 
   if (compiled_method != NULL) {  // ie. not an abstract method
-    uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
-    uint32_t aligned_code_delta = aligned_code_offset - code_offset;
+#if !defined(ART_USE_PORTABLE_COMPILER)
+    uint32_t aligned_offset = compiled_method->AlignCode(offset);
+    uint32_t aligned_code_delta = aligned_offset - offset;
     if (aligned_code_delta != 0) {
       off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
-      if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
+      if (static_cast<uint32_t>(new_offset) != aligned_offset) {
         PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
-                    << " Expected: " << aligned_code_offset << " File: " << out.GetLocation();
+                    << " Expected: " << aligned_offset << " File: " << out.GetLocation();
         return 0;
       }
-      code_offset += aligned_code_delta;
-      DCHECK_CODE_OFFSET();
+      offset += aligned_code_delta;
+      DCHECK_OFFSET();
     }
-    DCHECK_ALIGNED(code_offset, kArmAlignment);
+    DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
     uint32_t code_size = code.size() * sizeof(code[0]);
     CHECK_NE(code_size, 0U);
 
     // Deduplicate code arrays
-    size_t offset = code_offset + sizeof(code_size) + compiled_method->CodeDelta();
+    size_t code_offset = offset + sizeof(code_size) + compiled_method->CodeDelta();
     SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
-    if (code_iter != code_offsets_.end() && offset != method_offsets.code_offset_) {
-      DCHECK(code_iter->second == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+    if (code_iter != code_offsets_.end() && code_offset != method_offsets.code_offset_) {
+      DCHECK(code_iter->second == method_offsets.code_offset_)
+          << PrettyMethod(method_idx, dex_file);
     } else {
-      DCHECK(offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+      DCHECK(code_offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
       if (!out.WriteFully(&code_size, sizeof(code_size))) {
         ReportWriteFailure("method code size", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += sizeof(code_size);
-      DCHECK_CODE_OFFSET();
+      offset += sizeof(code_size);
+      DCHECK_OFFSET();
       if (!out.WriteFully(&code[0], code_size)) {
         ReportWriteFailure("method code", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += code_size;
+      offset += code_size;
     }
-    DCHECK_CODE_OFFSET();
+    DCHECK_OFFSET();
+#endif
 
     const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
@@ -631,21 +637,21 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     SafeMap<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter =
         mapping_table_offsets_.find(&mapping_table);
     if (mapping_iter != mapping_table_offsets_.end() &&
-        code_offset != method_offsets.mapping_table_offset_) {
+        offset != method_offsets.mapping_table_offset_) {
       DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
           || mapping_iter->second == method_offsets.mapping_table_offset_)
           << PrettyMethod(method_idx, dex_file);
     } else {
       DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
-          || code_offset == method_offsets.mapping_table_offset_)
+          || offset == method_offsets.mapping_table_offset_)
           << PrettyMethod(method_idx, dex_file);
       if (!out.WriteFully(&mapping_table[0], mapping_table_size)) {
         ReportWriteFailure("mapping table", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += mapping_table_size;
+      offset += mapping_table_size;
     }
-    DCHECK_CODE_OFFSET();
+    DCHECK_OFFSET();
 
     const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
     size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
@@ -654,21 +660,21 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     SafeMap<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter =
         vmap_table_offsets_.find(&vmap_table);
     if (vmap_iter != vmap_table_offsets_.end() &&
-        code_offset != method_offsets.vmap_table_offset_) {
+        offset != method_offsets.vmap_table_offset_) {
       DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
           || vmap_iter->second == method_offsets.vmap_table_offset_)
           << PrettyMethod(method_idx, dex_file);
     } else {
       DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
-          || code_offset == method_offsets.vmap_table_offset_)
+          || offset == method_offsets.vmap_table_offset_)
           << PrettyMethod(method_idx, dex_file);
       if (!out.WriteFully(&vmap_table[0], vmap_table_size)) {
         ReportWriteFailure("vmap table", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += vmap_table_size;
+      offset += vmap_table_size;
     }
-    DCHECK_CODE_OFFSET();
+    DCHECK_OFFSET();
 
     const std::vector<uint8_t>& gc_map = compiled_method->GetNativeGcMap();
     size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
@@ -677,119 +683,76 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter =
         gc_map_offsets_.find(&gc_map);
     if (gc_map_iter != gc_map_offsets_.end() &&
-        code_offset != method_offsets.gc_map_offset_) {
+        offset != method_offsets.gc_map_offset_) {
       DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
           || gc_map_iter->second == method_offsets.gc_map_offset_)
           << PrettyMethod(method_idx, dex_file);
     } else {
       DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
-          || code_offset == method_offsets.gc_map_offset_)
+          || offset == method_offsets.gc_map_offset_)
           << PrettyMethod(method_idx, dex_file);
       if (!out.WriteFully(&gc_map[0], gc_map_size)) {
         ReportWriteFailure("GC map", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += gc_map_size;
+      offset += gc_map_size;
     }
-    DCHECK_CODE_OFFSET();
+    DCHECK_OFFSET();
   }
+
+#if !defined(ART_USE_PORTABLE_COMPILER)
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
-    uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
-                                                             compiler_driver_->GetInstructionSet());
-    uint32_t aligned_code_delta = aligned_code_offset - code_offset;
+    uint32_t aligned_offset = CompiledMethod::AlignCode(offset,
+                                                        compiler_driver_->GetInstructionSet());
+    uint32_t aligned_code_delta = aligned_offset - offset;
     if (aligned_code_delta != 0) {
       off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
-      if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
+      if (static_cast<uint32_t>(new_offset) != aligned_offset) {
         PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
-                    << " Expected: " << aligned_code_offset;
+                    << " Expected: " << aligned_offset;
         return 0;
       }
-      code_offset += aligned_code_delta;
-      DCHECK_CODE_OFFSET();
+      offset += aligned_code_delta;
+      DCHECK_OFFSET();
     }
-    DCHECK_ALIGNED(code_offset, kArmAlignment);
+    DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
     CHECK_NE(invoke_stub_size, 0U);
 
     // Deduplicate invoke stubs
-    size_t offset = code_offset + sizeof(invoke_stub_size) + compiled_invoke_stub->CodeDelta();
+    size_t invoke_stub_offset = offset + sizeof(invoke_stub_size) + compiled_invoke_stub->CodeDelta();
     SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
         code_offsets_.find(&invoke_stub);
-    if (stub_iter != code_offsets_.end() && offset != method_offsets.invoke_stub_offset_) {
-      DCHECK(stub_iter->second == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
+    if (stub_iter != code_offsets_.end()
+        && invoke_stub_offset != method_offsets.invoke_stub_offset_) {
+      DCHECK(stub_iter->second == method_offsets.invoke_stub_offset_)
+          << PrettyMethod(method_idx, dex_file);
     } else {
-      DCHECK(offset == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
+      DCHECK(invoke_stub_offset == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
       if (!out.WriteFully(&invoke_stub_size, sizeof(invoke_stub_size))) {
         ReportWriteFailure("invoke stub code size", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += sizeof(invoke_stub_size);
-      DCHECK_CODE_OFFSET();
+      offset += sizeof(invoke_stub_size);
+      DCHECK_OFFSET();
       if (!out.WriteFully(&invoke_stub[0], invoke_stub_size)) {
         ReportWriteFailure("invoke stub code", method_idx, dex_file, out);
         return 0;
       }
-      code_offset += invoke_stub_size;
-      DCHECK_CODE_OFFSET();
-    }
-  }
-
-#if defined(ART_USE_PORTABLE_COMPILER)
-  if (!is_static) {
-    const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
-    if (compiled_proxy_stub != NULL) {
-      uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
-                                                               compiler_driver_->GetInstructionSet());
-      uint32_t aligned_code_delta = aligned_code_offset - code_offset;
-      CHECK(aligned_code_delta < 48u);
-      if (aligned_code_delta != 0) {
-        off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
-        if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
-          PLOG(ERROR) << "Failed to seek to align proxy stub code. Actual: " << new_offset
-                      << " Expected: " << aligned_code_offset;
-          return 0;
-        }
-        code_offset += aligned_code_delta;
-        DCHECK_CODE_OFFSET();
-      }
-      DCHECK_ALIGNED(code_offset, kArmAlignment);
-      const std::vector<uint8_t>& proxy_stub = compiled_proxy_stub->GetCode();
-      uint32_t proxy_stub_size = proxy_stub.size() * sizeof(proxy_stub[0]);
-      CHECK_NE(proxy_stub_size, 0U);
-
-      // Deduplicate proxy stubs
-      size_t offset = code_offset + sizeof(proxy_stub_size) + compiled_proxy_stub->CodeDelta();
-      SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
-          code_offsets_.find(&proxy_stub);
-      if (stub_iter != code_offsets_.end() && offset != method_offsets.proxy_stub_offset_) {
-        DCHECK(stub_iter->second == method_offsets.proxy_stub_offset_) << PrettyMethod(method_idx, dex_file);
-      } else {
-        DCHECK(offset == method_offsets.proxy_stub_offset_) << PrettyMethod(method_idx, dex_file);
-        if (!out.WriteFully(&proxy_stub_size, sizeof(proxy_stub_size))) {
-          ReportWriteFailure("proxy stub code size", method_idx, dex_file, out);
-          return 0;
-        }
-        code_offset += sizeof(proxy_stub_size);
-        DCHECK_CODE_OFFSET();
-        if (!out.WriteFully(&proxy_stub[0], proxy_stub_size)) {
-          ReportWriteFailure("proxy stub code", method_idx, dex_file, out);
-          return 0;
-        }
-        code_offset += proxy_stub_size;
-        DCHECK_CODE_OFFSET();
-      }
-      DCHECK_CODE_OFFSET();
+      offset += invoke_stub_size;
+      DCHECK_OFFSET();
     }
   }
 #endif
 
-  return code_offset;
+  return offset;
 }
 
-OatWriter::OatDexFile::OatDexFile(const DexFile& dex_file) {
+OatWriter::OatDexFile::OatDexFile(size_t offset, const DexFile& dex_file) {
+  offset_ = offset;
   const std::string& location(dex_file.GetLocation());
   dex_file_location_size_ = location.size();
   dex_file_location_data_ = reinterpret_cast<const uint8_t*>(location.data());
@@ -816,6 +779,7 @@ void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
 }
 
 bool OatWriter::OatDexFile::Write(OutputStream& out) const {
+  DCHECK_OFFSET_();
   if (!out.WriteFully(&dex_file_location_size_, sizeof(dex_file_location_size_))) {
     PLOG(ERROR) << "Failed to write dex file location length to " << out.GetLocation();
     return false;
@@ -840,14 +804,25 @@ bool OatWriter::OatDexFile::Write(OutputStream& out) const {
   return true;
 }
 
-OatWriter::OatClass::OatClass(mirror::Class::Status status, uint32_t methods_count) {
+OatWriter::OatClass::OatClass(size_t offset, mirror::Class::Status status, uint32_t methods_count) {
+  offset_ = offset;
   status_ = status;
   method_offsets_.resize(methods_count);
 }
 
-size_t OatWriter::OatClass::SizeOf() const {
+size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatHeader(
+    size_t class_def_method_index_) const {
+  return offset_ + GetOatMethodOffsetsOffsetFromOatClass(class_def_method_index_);
+}
+
+size_t OatWriter::OatClass::GetOatMethodOffsetsOffsetFromOatClass(
+    size_t class_def_method_index_) const {
   return sizeof(status_)
-          + (sizeof(method_offsets_[0]) * method_offsets_.size());
+          + (sizeof(method_offsets_[0]) * class_def_method_index_);
+}
+
+size_t OatWriter::OatClass::SizeOf() const {
+  return GetOatMethodOffsetsOffsetFromOatClass(method_offsets_.size());
 }
 
 void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
@@ -857,15 +832,20 @@ void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
 }
 
 bool OatWriter::OatClass::Write(OutputStream& out) const {
+  DCHECK_OFFSET_();
   if (!out.WriteFully(&status_, sizeof(status_))) {
     PLOG(ERROR) << "Failed to write class status to " << out.GetLocation();
     return false;
   }
+  DCHECK_EQ(static_cast<off_t>(GetOatMethodOffsetsOffsetFromOatHeader(0)),
+            out.Seek(0, kSeekCurrent));
   if (!out.WriteFully(&method_offsets_[0],
                       sizeof(method_offsets_[0]) * method_offsets_.size())) {
     PLOG(ERROR) << "Failed to write method offsets to " << out.GetLocation();
     return false;
   }
+  DCHECK_EQ(static_cast<off_t>(GetOatMethodOffsetsOffsetFromOatHeader(method_offsets_.size())),
+            out.Seek(0, kSeekCurrent));
   return true;
 }
 

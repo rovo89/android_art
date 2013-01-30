@@ -20,7 +20,6 @@
 #include "asm_support.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
-#include "compiler_runtime_func_list.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "mirror/abstract_method-inl.h"
@@ -743,46 +742,6 @@ mirror::Object* art_portable_jni_method_end_with_reference_synchronized(jobject 
   return o;
 }
 
-//----------------------------------------------------------------------------
-// Runtime Support Function Lookup Callback
-//----------------------------------------------------------------------------
-
-#define EXTERNAL_LINKAGE(NAME, RETURN_TYPE, ...) \
-extern "C" RETURN_TYPE NAME(__VA_ARGS__);
-COMPILER_RUNTIME_FUNC_LIST_NATIVE(EXTERNAL_LINKAGE)
-#undef EXTERNAL_LINKAGE
-
-static void* art_portable_find_compiler_runtime_func(const char* name) {
-// TODO: If target support some math func, use the target's version. (e.g. art_portable_d2i -> __aeabi_d2iz)
-  static const char* const names[] = {
-#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME ,
-    COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
-#undef DEFINE_ENTRY
-  };
-
-  static void* const funcs[] = {
-#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) \
-    reinterpret_cast<void*>(static_cast<RETURN_TYPE (*)(__VA_ARGS__)>(NAME)) ,
-    COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
-#undef DEFINE_ENTRY
-  };
-
-  static const size_t num_entries = sizeof(names) / sizeof(const char* const);
-
-  const char* const* const names_begin = names;
-  const char* const* const names_end = names + num_entries;
-
-  const char* const* name_lbound_ptr =
-      std::lower_bound(names_begin, names_end, name,
-                       CStringLessThanComparator());
-
-  if (name_lbound_ptr < names_end && strcmp(*name_lbound_ptr, name) == 0) {
-    return funcs[name_lbound_ptr - names_begin];
-  } else {
-    return NULL;
-  }
-}
-
 // Handler for invocation on proxy methods. Create a boxed argument array and invoke the invocation
 // handler which is a field within the proxy object receiver. The var args encode the arguments
 // with the last argument being a pointer to a JValue to store the result in.
@@ -858,43 +817,6 @@ void art_portable_proxy_invoke_handler_from_code(mirror::AbstractMethod* proxy_m
   if (result_location != NULL) {
     *result_location = result;
   }
-}
-
-void* art_portable_find_runtime_support_func(void* context, const char* name) {
-  struct func_entry_t {
-    const char* name;
-    size_t name_len;
-    void* addr;
-  };
-
-  static struct func_entry_t const tab[] = {
-#define DEFINE_ENTRY(ID, NAME) \
-    { #NAME, sizeof(#NAME) - 1, reinterpret_cast<void*>(NAME) },
-    RUNTIME_SUPPORT_FUNC_LIST(DEFINE_ENTRY)
-#undef DEFINE_ENTRY
-  };
-
-  static size_t const tab_size = sizeof(tab) / sizeof(struct func_entry_t);
-
-  // Search the compiler runtime (such as __divdi3)
-  void* result = art_portable_find_compiler_runtime_func(name);
-  if (result != NULL) {
-    return result;
-  }
-
-  // Note: Since our table is small, we are using trivial O(n) searching
-  // function.  For bigger table, it will be better to use a binary
-  // search or hash function.
-  size_t i;
-  size_t name_len = strlen(name);
-  for (i = 0; i < tab_size; ++i) {
-    if (name_len == tab[i].name_len && strcmp(name, tab[i].name) == 0) {
-      return tab[i].addr;
-    }
-  }
-
-  LOG(FATAL) << "Error: Can't find symbol " << name;
-  return 0;
 }
 
 //----------------------------------------------------------------------------

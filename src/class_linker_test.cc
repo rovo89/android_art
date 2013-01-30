@@ -368,7 +368,7 @@ struct CheckOffsets {
     if (!klass->IsClassClass() && !is_static) {
       size_t expected_size = is_static ? klass->GetClassSize(): klass->GetObjectSize();
       if (sizeof(T) != expected_size) {
-        LG << "Class size mismatch:"
+        LOG(ERROR) << "Class size mismatch:"
            << " class=" << class_descriptor
            << " Java=" << expected_size
            << " C++=" << sizeof(T);
@@ -378,7 +378,7 @@ struct CheckOffsets {
 
     size_t num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
     if (offsets.size() != num_fields) {
-      LG << "Field count mismatch:"
+      LOG(ERROR) << "Field count mismatch:"
          << " class=" << class_descriptor
          << " Java=" << num_fields
          << " C++=" << offsets.size();
@@ -401,9 +401,9 @@ struct CheckOffsets {
         fh.ChangeField(field);
         StringPiece field_name(fh.GetName());
         if (field_name != offsets[i].java_name) {
-          LG << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
+          LOG(ERROR) << "JAVA FIELD ORDER MISMATCH NEXT LINE:";
         }
-        LG << "Java field order:"
+        LOG(ERROR) << "Java field order:"
            << " i=" << i << " class=" << class_descriptor
            << " Java=" << field_name
            << " CheckOffsets=" << offset.java_name;
@@ -422,9 +422,9 @@ struct CheckOffsets {
         CheckOffset& offset = offsets[i];
         Field* field = is_static ? klass->GetStaticField(i) : klass->GetInstanceField(i);
         if (field->GetOffset().Uint32Value() != offset.cpp_offset) {
-          LG << "OFFSET MISMATCH NEXT LINE:";
+          LOG(ERROR) << "OFFSET MISMATCH NEXT LINE:";
         }
-        LG << "Offset: class=" << class_descriptor << " field=" << offset.java_name
+        LOG(ERROR) << "Offset: class=" << class_descriptor << " field=" << offset.java_name
            << " Java=" << field->GetOffset().Uint32Value() << " C++=" << offset.cpp_offset;
       }
     }

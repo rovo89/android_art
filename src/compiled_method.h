@@ -17,6 +17,7 @@
 #ifndef ART_SRC_COMPILED_METHOD_H_
 #define ART_SRC_COMPILED_METHOD_H_
 
+#include <string>
 #include <vector>
 
 #include "instruction_set.h"
@@ -31,14 +32,13 @@ namespace art {
 
 class CompiledCode {
  public:
-  CompiledCode(InstructionSet instruction_set)
-      : instruction_set_(instruction_set) {
-  }
+  // For Quick to supply an code blob
+  CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code);
 
-  CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code)
-      : instruction_set_(instruction_set), code_(code) {
-    CHECK_NE(code.size(), 0U);
-  }
+  // For Portable to supply an ELF object
+  CompiledCode(InstructionSet instruction_set,
+               const std::string& elf_object,
+               const std::string &symbol);
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
@@ -73,9 +73,26 @@ class CompiledCode {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
+#if defined(ART_USE_PORTABLE_COMPILER)
+  const std::string& GetSymbol() const;
+  const std::vector<uint32_t>& GetOatdataOffsetsToCompliledCodeOffset() const;
+  void AddOatdataOffsetToCompliledCodeOffset(uint32_t offset);
+#endif
+
  private:
   const InstructionSet instruction_set_;
+  
+  // Used to store the PIC code for Quick and an ELF image for portable.
   std::vector<uint8_t> code_;
+
+  // Used for the Portable ELF symbol name.
+  std::string symbol_;
+
+  // There are offsets from the oatdata symbol to where the offset to
+  // the compiled method will be found. These are computed by the
+  // OatWriter and then used by the ElfWriter to add relocations so
+  // that MCLinker can update the values to the location in the linked .so.
+  std::vector<uint32_t> oatdata_offsets_to_compiled_code_offset_;
 };
 
 class CompiledMethod : public CompiledCode {
@@ -97,19 +114,21 @@ class CompiledMethod : public CompiledCode {
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
 
-  // Constructs a CompiledMethod for the LLVM compiler.
+  // Constructs a CompiledMethod for the Portable compiler.
   CompiledMethod(InstructionSet instruction_set,
-                 const std::vector<uint8_t>& code,
-                 const std::vector<uint8_t>& gc_map)
-      : CompiledCode(instruction_set, code),
+                 const std::string& code,
+                 const std::vector<uint8_t>& gc_map,
+                 const std::string& symbol)
+      : CompiledCode(instruction_set, code, symbol),
         frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
         fp_spill_mask_(0), native_gc_map_(gc_map) {
   }
 
-  // Constructs a CompiledMethod for the LLVM JniCompiler.
+  // Constructs a CompiledMethod for the Portable JniCompiler.
   CompiledMethod(InstructionSet instruction_set,
-                 const std::vector<uint8_t>& code)
-      : CompiledCode(instruction_set, code),
+                 const std::string& code,
+                 const std::string& symbol)
+      : CompiledCode(instruction_set, code, symbol),
         frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
         fp_spill_mask_(0) {
   }
@@ -151,10 +170,14 @@ class CompiledMethod : public CompiledCode {
 
 class CompiledInvokeStub : public CompiledCode {
  public:
-  explicit CompiledInvokeStub(InstructionSet instruction_set);
-
+  // Used by Quick to provide a blob of code.
   explicit CompiledInvokeStub(InstructionSet instruction_set,
                               const std::vector<uint8_t>& code);
+
+  // Used by Portable to provide ELF object.
+  explicit CompiledInvokeStub(InstructionSet instruction_set,
+                              const std::string& elf_object,
+                              const std::string& symbol);
 
   ~CompiledInvokeStub() {}
 };
