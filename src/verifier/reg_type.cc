@@ -504,8 +504,8 @@ void RegType::CheckInvariants() const {
     checked = true;
   }
   if (IsUnresolvedTypes()) {
-    if (IsUnresolvedMergedReference()) {
-      // Unresolved merged types: allocation pc/merged types should be defined.
+    if (IsUnresolvedMergedReference() || IsUnresolvedSuperClass()) {
+      // Unresolved super/merged types: allocation pc/merged types should be defined.
       CHECK(descriptor_.empty()) << *this;
       CHECK(klass_ == NULL) << *this;
       CHECK_NE(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
