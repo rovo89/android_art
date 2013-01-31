@@ -27,6 +27,7 @@
 #include "oat_compilation_unit.h"
 #include "runtime.h"
 #include "runtime_support_func.h"
+#include "stack.h"
 #include "utils_llvm.h"
 
 #include <llvm/BasicBlock.h>
