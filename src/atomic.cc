@@ -117,7 +117,7 @@ bool QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* 
         : "r" (addr), "Ir" (old_value), "r" (new_value)
         : "cc");
   } while (__builtin_expect(status != 0, 0));
-  return prev != old_value;
+  return prev == old_value;
 #elif defined(__i386__)
   // cmpxchg8b implicitly uses %ebx which is also the PIC register.
   int8_t status;
