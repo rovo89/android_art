@@ -157,7 +157,7 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
 
     ir_builder->AddSymbol(*input,
                           "oatexec",
-                          mcld::ResolveInfo::Object,
+                          mcld::ResolveInfo::Function,
                           mcld::ResolveInfo::Define,
                           mcld::ResolveInfo::Global,
                           oat_code_length,  // size
