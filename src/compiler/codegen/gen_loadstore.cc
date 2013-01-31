@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include "../compiler_ir.h"
-#include "ralloc_util.h"
 #include "codegen_util.h"
+#include "compiler/compiler_ir.h"
+#include "ralloc_util.h"
 
 namespace art {
 

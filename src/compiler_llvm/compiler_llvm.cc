@@ -19,11 +19,11 @@
 #include "base/stl_util.h"
 #include "backend_options.h"
 #include "class_linker.h"
-#include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
+#include "llvm_compilation_unit.h"
 #include "method_compiler.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
@@ -125,11 +125,11 @@ CompilerLLVM::~CompilerLLVM() {
 }
 
 
-CompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
+LlvmCompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
   MutexLock GUARD(Thread::Current(), num_cunits_lock_);
-  CompilationUnit* cunit = new CompilationUnit(this, num_cunits_++);
+  LlvmCompilationUnit* cunit = new LlvmCompilationUnit(this, num_cunits_++);
   if (!bitcode_filename_.empty()) {
-    cunit->SetBitcodeFileName(StringPrintf("%s-%zu", bitcode_filename_.c_str(), num_cunits_-1));
+    cunit->SetBitcodeFileName(StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit->GetIndex()));
   }
   return cunit;
 }
@@ -137,7 +137,7 @@ CompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
 
 CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_type) {
-  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
+  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
@@ -185,7 +185,7 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
 CompiledMethod* CompilerLLVM::
 CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
-  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
+  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
       new JniCompiler(cunit.get(), *compiler_, oat_compilation_unit));
@@ -196,7 +196,7 @@ CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
 
 CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
                                                    char const *shorty) {
-  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
+  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
     new StubCompiler(cunit.get(), *compiler_));
@@ -206,7 +206,7 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
 
 
 CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
-  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
+  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
     new StubCompiler(cunit.get(), *compiler_));

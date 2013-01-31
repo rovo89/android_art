@@ -17,7 +17,7 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_CODEGEN_H_
 #define ART_SRC_COMPILER_CODEGEN_CODEGEN_H_
 
-#include "../compiler_ir.h"
+#include "compiler/compiler_ir.h"
 
 namespace art {
 

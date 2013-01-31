@@ -16,7 +16,7 @@
 
 #include "object_utils.h"
 
-#include "../compiler_internals.h"
+#include "compiler/compiler_internals.h"
 #include "local_optimizations.h"
 #include "codegen_util.h"
 #include "ralloc_util.h"

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include "../../compiler_internals.h"
+#include <string>
+
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "../ralloc_util.h"
-#include "../codegen_util.h"
-
-#include <string>
+#include "compiler/codegen/codegen_util.h"
+#include "compiler/compiler_internals.h"
+#include "compiler/codegen/ralloc_util.h"
 
 namespace art {
 

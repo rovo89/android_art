@@ -16,11 +16,11 @@
 
 /* This file contains codegen for the Mips ISA */
 
-#include "oat/runtime/oat_support_entrypoints.h"
-#include "mips_lir.h"
 #include "codegen_mips.h"
-#include "../codegen_util.h"
-#include "../ralloc_util.h"
+#include "compiler/codegen/codegen_util.h"
+#include "compiler/codegen/ralloc_util.h"
+#include "mips_lir.h"
+#include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 

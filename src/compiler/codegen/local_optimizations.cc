@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../compiler_internals.h"
+#include "compiler/compiler_internals.h"
 
 namespace art {
 

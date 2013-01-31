@@ -21,9 +21,9 @@
  * This file contains target independent register alloction support.
  */
 
-#include "../compiler_ir.h"
-#include "../dataflow.h"
-#include "../compiler_utility.h"
+#include "compiler/compiler_ir.h"
+#include "compiler/compiler_utility.h"
+#include "compiler/dataflow.h"
 
 namespace art {
 

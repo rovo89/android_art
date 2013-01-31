@@ -18,11 +18,11 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
-#include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
+#include "llvm_compilation_unit.h"
 #include "mirror/abstract_method.h"
 #include "oat_compilation_unit.h"
 #include "runtime.h"
@@ -42,7 +42,7 @@ namespace compiler_llvm {
 
 using namespace runtime_support;
 
-JniCompiler::JniCompiler(CompilationUnit* cunit,
+JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
                          Compiler const& compiler,
                          OatCompilationUnit* oat_compilation_unit)
 : cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),

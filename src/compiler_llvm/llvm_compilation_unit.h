@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
-#define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
+#ifndef ART_SRC_COMPILER_LLVM_LLVM_COMPILATION_UNIT_H_
+#define ART_SRC_COMPILER_LLVM_LLVM_COMPILATION_UNIT_H_
 
 #include "base/logging.h"
 #include "base/mutex.h"
@@ -52,12 +52,9 @@ namespace compiler_llvm {
 class CompilerLLVM;
 class IRBuilder;
 
-class CompilationUnit {
+class LlvmCompilationUnit {
  public:
-  CompilationUnit(const CompilerLLVM* compiler_llvm,
-                  size_t cunit_idx);
-
-  ~CompilationUnit();
+  ~LlvmCompilationUnit();
 
   size_t GetIndex() const {
     return cunit_idx_;
@@ -105,6 +102,9 @@ class CompilationUnit {
   }
 
  private:
+  LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
+                      size_t cunit_idx);
+
   const CompilerLLVM* compiler_llvm_;
   const size_t cunit_idx_;
 
@@ -130,9 +130,11 @@ class CompilationUnit {
   bool MaterializeToRawOStream(llvm::raw_ostream& out_stream);
 
   bool ExtractCodeAndPrelink(const std::string& elf_image);
+
+  friend class CompilerLLVM;  // For LlvmCompilationUnit constructor
 };
 
 } // namespace compiler_llvm
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
+#endif // ART_SRC_COMPILER_LLVM_LLVM_COMPILATION_UNIT_H_

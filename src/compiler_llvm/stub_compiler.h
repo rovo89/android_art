@@ -33,19 +33,19 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
-class CompilationUnit;
+class LlvmCompilationUnit;
 class CompilerLLVM;
 class IRBuilder;
 
 class StubCompiler {
  public:
-  StubCompiler(CompilationUnit* cunit, Compiler& compiler);
+  StubCompiler(LlvmCompilationUnit* cunit, Compiler& compiler);
 
   CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty);
   CompiledInvokeStub* CreateProxyStub(const char* shorty);
 
  private:
-  CompilationUnit* cunit_;
+  LlvmCompilationUnit* cunit_;
   const Compiler* compiler_;
   llvm::Module* module_;
   llvm::LLVMContext* context_;

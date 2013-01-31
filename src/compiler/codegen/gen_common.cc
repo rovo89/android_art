@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "oat/runtime/oat_support_entrypoints.h"
-#include "../compiler_ir.h"
-#include "ralloc_util.h"
 #include "codegen_util.h"
+#include "compiler/compiler_ir.h"
+#include "oat/runtime/oat_support_entrypoints.h"
+#include "ralloc_util.h"
 
 namespace art {
 

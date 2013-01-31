@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "../compiler_internals.h"
+#include "compiler/compiler_internals.h"
 #include "gc_map.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
