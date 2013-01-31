@@ -19,7 +19,8 @@
 
 #include "compiler.h"
 #include "greenland/intrinsic_helper.h"
-#include "mirror/object.h"
+#include "mirror/abstract_method.h"
+#include "mirror/array.h"
 #include "oat_compilation_unit.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"
@@ -650,7 +651,7 @@ llvm::Value* GBCExpanderPass::EmitLoadDexCacheAddr(art::MemberOffset offset) {
 llvm::Value*
 GBCExpanderPass::EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* static_storage_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::AbstractMethod::DexCacheInitializedStaticStorageOffset());
+    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -660,7 +661,7 @@ GBCExpanderPass::EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
 llvm::Value*
 GBCExpanderPass::EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* resolved_type_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::AbstractMethod::DexCacheResolvedTypesOffset());
+    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheResolvedTypesOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -670,7 +671,7 @@ GBCExpanderPass::EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
 llvm::Value* GBCExpanderPass::
 EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
   llvm::Value* resolved_method_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::AbstractMethod::DexCacheResolvedMethodsOffset());
+    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheResolvedMethodsOffset());
 
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
@@ -680,7 +681,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
 llvm::Value* GBCExpanderPass::
 EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
   llvm::Value* string_dex_cache_addr =
-    EmitLoadDexCacheAddr(art::AbstractMethod::DexCacheStringsOffset());
+    EmitLoadDexCacheAddr(art::mirror::AbstractMethod::DexCacheStringsOffset());
 
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 
@@ -695,7 +696,7 @@ llvm::Value* GBCExpanderPass::EmitLoadMethodObjectAddr() {
 llvm::Value* GBCExpanderPass::EmitLoadArrayLength(llvm::Value* array) {
   // Load array length
   return irb_.LoadFromObjectOffset(array,
-                                   art::Array::LengthOffset().Int32Value(),
+                                   art::mirror::Array::LengthOffset().Int32Value(),
                                    irb_.getJIntTy(),
                                    kTBAAConstJObject);
 
@@ -714,14 +715,14 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx, llvm::Value* this_addr) {
   // Load class object of *this* pointer
   llvm::Value* class_object_addr =
     irb_.LoadFromObjectOffset(this_addr,
-                              art::Object::ClassOffset().Int32Value(),
+                              art::mirror::Object::ClassOffset().Int32Value(),
                               irb_.getJObjectTy(),
                               kTBAAConstJObject);
 
   // Load vtable address
   llvm::Value* vtable_addr =
     irb_.LoadFromObjectOffset(class_object_addr,
-                              art::Class::VTableOffset().Int32Value(),
+                              art::mirror::Class::VTableOffset().Int32Value(),
                               irb_.getJObjectTy(),
                               kTBAAConstJObject);
 
@@ -742,10 +743,10 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
 
   int data_offset;
   if (elem_jty == kLong || elem_jty == kDouble ||
-      (elem_jty == kObject && sizeof(uint64_t) == sizeof(art::Object*))) {
-    data_offset = art::Array::DataOffset(sizeof(int64_t)).Int32Value();
+      (elem_jty == kObject && sizeof(uint64_t) == sizeof(art::mirror::Object*))) {
+    data_offset = art::mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
-    data_offset = art::Array::DataOffset(sizeof(int32_t)).Int32Value();
+    data_offset = art::mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
   llvm::Constant* data_offset_value =
@@ -872,7 +873,7 @@ void GBCExpanderPass::Expand_FilledNewArray(llvm::CallInst& call_inst) {
   }
 
   llvm::Value* data_field_offset =
-    irb_.getPtrEquivInt(art::Array::DataOffset(alignment).Int32Value());
+    irb_.getPtrEquivInt(art::mirror::Array::DataOffset(alignment).Int32Value());
 
   llvm::Value* data_field_addr =
     irb_.CreatePtrDisp(array, data_field_offset, field_type);
@@ -983,7 +984,7 @@ void GBCExpanderPass::Expand_SPutFast(llvm::Value* static_storage_addr,
 llvm::Value*
 GBCExpanderPass::Expand_LoadDeclaringClassSSB(llvm::Value* method_object_addr) {
   return irb_.LoadFromObjectOffset(method_object_addr,
-                                   art::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                   art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                    irb_.getJObjectTy(),
                                    kTBAAConstJObject);
 }
@@ -1035,7 +1036,7 @@ llvm::Value* GBCExpanderPass::Expand_Invoke(llvm::CallInst& call_inst) {
 
   llvm::Value* code_addr =
     irb_.LoadFromObjectOffset(callee_method_object_addr,
-                              art::AbstractMethod::GetCodeOffset().Int32Value(),
+                              art::mirror::AbstractMethod::GetCodeOffset().Int32Value(),
                               callee_method_type->getPointerTo(),
                               kTBAARuntimeInfo);
 
@@ -1691,7 +1692,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  art::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -1772,7 +1773,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  art::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  art::mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -1928,7 +1929,7 @@ void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
   llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, type_idx);
-  DCHECK_EQ(art::Object::ClassOffset().Int32Value(), 0);
+  DCHECK_EQ(art::mirror::Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
 
@@ -1997,7 +1998,7 @@ llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
   llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, type_idx);
-  DCHECK_EQ(art::Object::ClassOffset().Int32Value(), 0);
+  DCHECK_EQ(art::mirror::Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
 
@@ -2151,7 +2152,7 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
   } else {
     code_addr =
       irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                art::AbstractMethod::GetCodeOffset().Int32Value(),
+                                art::mirror::AbstractMethod::GetCodeOffset().Int32Value(),
                                 GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
                                 kTBAARuntimeInfo);
   }
@@ -2222,7 +2223,7 @@ llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst)
     }
 
     llvm::Value* data_field_offset =
-      irb_.getPtrEquivInt(art::Array::DataOffset(alignment).Int32Value());
+      irb_.getPtrEquivInt(art::mirror::Array::DataOffset(alignment).Int32Value());
 
     llvm::Value* data_field_addr =
       irb_.CreatePtrDisp(object_addr, data_field_offset, field_type);

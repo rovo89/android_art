@@ -253,7 +253,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   return code;
 }
 #else // ART_USE_LLVM_COMPILER
-const void* UnresolvedDirectMethodTrampolineFromCode(AbstractMethod* called, AbstractMethod** called_addr,
+const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
+                                                     mirror::AbstractMethod** called_addr,
                                                      Thread* thread, Runtime::TrampolineType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;

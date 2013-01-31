@@ -17,16 +17,23 @@
 #ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
 #define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
 
-#include "mirror/object.h"
+#include <stdint.h>
 
 namespace art {
+namespace mirror {
+class AbstractMethod;
+class Object;
+}  // namespace mirror
+
+class ShadowFrame;
+class Thread;
 
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
-                                             AbstractMethod* method, uint32_t num_vregs);
+                                             mirror::AbstractMethod* method, uint32_t num_vregs);
 
 void art_pop_shadow_frame_from_code(void*);
 
@@ -47,9 +54,9 @@ void art_throw_null_pointer_exception_from_code(uint32_t dex_pc);
 
 void art_throw_stack_overflow_from_code();
 
-void art_throw_exception_from_code(Object* exception);
+void art_throw_exception_from_code(mirror::Object* exception);
 
-int32_t art_find_catch_block_from_code(AbstractMethod* current_method,
+int32_t art_find_catch_block_from_code(mirror::AbstractMethod* current_method,
                                        uint32_t ti_offset);
 
 

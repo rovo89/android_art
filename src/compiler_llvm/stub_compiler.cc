@@ -22,7 +22,7 @@
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
-#include "mirror/object.h"
+#include "mirror/abstract_method.h"
 #include "runtime_support_func.h"
 #include "utils_llvm.h"
 
@@ -142,7 +142,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
 
   // Invoke managed method now!
   llvm::Value* code_field_offset_value =
-    irb_.getPtrEquivInt(AbstractMethod::GetCodeOffset().Int32Value());
+    irb_.getPtrEquivInt(mirror::AbstractMethod::GetCodeOffset().Int32Value());
 
   llvm::Value* code_field_addr =
     irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,

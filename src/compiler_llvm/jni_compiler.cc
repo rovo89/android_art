@@ -23,7 +23,7 @@
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
-#include "mirror/object.h"
+#include "mirror/abstract_method.h"
 #include "oat_compilation_unit.h"
 #include "runtime.h"
 #include "runtime_support_func.h"
@@ -80,7 +80,7 @@ CompiledMethod* JniCompiler::Compile() {
     // Load class object
     this_object_or_class_object =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
   }
@@ -124,7 +124,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Get callee code_addr
   llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
-                                AbstractMethod::NativeMethodOffset().Int32Value(),
+                                mirror::AbstractMethod::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
                                 kTBAARuntimeInfo);
 

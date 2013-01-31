@@ -1548,7 +1548,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
   llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB);
-  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
 
@@ -1617,7 +1617,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
   llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vC);
-  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+  DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
 
@@ -1652,7 +1652,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
 llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
   // Load array length
   return irb_.LoadFromObjectOffset(array,
-                                   Array::LengthOffset().Int32Value(),
+                                   mirror::Array::LengthOffset().Int32Value(),
                                    irb_.getJIntTy(),
                                    kTBAAConstJObject);
 }
@@ -1799,7 +1799,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     }
 
     llvm::Value* data_field_offset =
-      irb_.getPtrEquivInt(Array::DataOffset(alignment).Int32Value());
+      irb_.getPtrEquivInt(mirror::Array::DataOffset(alignment).Int32Value());
 
     llvm::Value* data_field_addr =
       irb_.CreatePtrDisp(object_addr, data_field_offset, field_type);
@@ -2208,10 +2208,10 @@ llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
 
   int data_offset;
   if (elem_jty == kLong || elem_jty == kDouble ||
-      (elem_jty == kObject && sizeof(uint64_t) == sizeof(Object*))) {
-    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+      (elem_jty == kObject && sizeof(uint64_t) == sizeof(mirror::Object*))) {
+    data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
-    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+    data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
   llvm::Constant* data_offset_value =
@@ -2521,7 +2521,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -2600,7 +2600,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
-                                  AbstractMethod::DeclaringClassOffset().Int32Value(),
+                                  mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
                                   kTBAAConstJObject);
     } else {
@@ -2789,7 +2789,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   } else {
     code_addr =
       irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                AbstractMethod::GetCodeOffset().Int32Value(),
+                                mirror::AbstractMethod::GetCodeOffset().Int32Value(),
                                 GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
                                 kTBAARuntimeInfo);
   }
@@ -2827,14 +2827,14 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
   // Load class object of *this* pointer
   llvm::Value* class_object_addr =
     irb_.LoadFromObjectOffset(this_addr,
-                              Object::ClassOffset().Int32Value(),
+                              mirror::Object::ClassOffset().Int32Value(),
                               irb_.getJObjectTy(),
                               kTBAAConstJObject);
 
   // Load vtable address
   llvm::Value* vtable_addr =
     irb_.LoadFromObjectOffset(class_object_addr,
-                              Class::VTableOffset().Int32Value(),
+                              mirror::Class::VTableOffset().Int32Value(),
                               irb_.getJObjectTy(),
                               kTBAAConstJObject);
 
@@ -3453,7 +3453,7 @@ llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* static_storage_dex_cache_addr =
-    EmitLoadDexCacheAddr(AbstractMethod::DexCacheInitializedStaticStorageOffset());
+    EmitLoadDexCacheAddr(mirror::AbstractMethod::DexCacheInitializedStaticStorageOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -3464,7 +3464,7 @@ EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* resolved_type_dex_cache_addr =
-    EmitLoadDexCacheAddr(AbstractMethod::DexCacheResolvedTypesOffset());
+    EmitLoadDexCacheAddr(mirror::AbstractMethod::DexCacheResolvedTypesOffset());
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
@@ -3475,7 +3475,7 @@ EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
   llvm::Value* resolved_method_dex_cache_addr =
-    EmitLoadDexCacheAddr(AbstractMethod::DexCacheResolvedMethodsOffset());
+    EmitLoadDexCacheAddr(mirror::AbstractMethod::DexCacheResolvedMethodsOffset());
 
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
@@ -3486,7 +3486,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
   llvm::Value* string_dex_cache_addr =
-    EmitLoadDexCacheAddr(AbstractMethod::DexCacheStringsOffset());
+    EmitLoadDexCacheAddr(mirror::AbstractMethod::DexCacheStringsOffset());
 
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 
@@ -3942,7 +3942,7 @@ bool MethodCompiler::EmitInlinedStringCharAt(const std::vector<llvm::Value*>& ar
   llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "CharAtCont", func_);
 
   llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
-                                                        String::CountOffset().Int32Value(),
+                                                        mirror::String::CountOffset().Int32Value(),
                                                         irb_.getJIntTy(),
                                                         kTBAAConstJObject);
   // Two's complement, so we can use only one "less than" to check "in bounds"
@@ -3951,11 +3951,11 @@ bool MethodCompiler::EmitInlinedStringCharAt(const std::vector<llvm::Value*>& ar
 
   irb_.SetInsertPoint(block_cont);
   llvm::Value* string_offset = irb_.LoadFromObjectOffset(this_object,
-                                                         String::OffsetOffset().Int32Value(),
+                                                         mirror::String::OffsetOffset().Int32Value(),
                                                          irb_.getJIntTy(),
                                                          kTBAAConstJObject);
   llvm::Value* string_value = irb_.LoadFromObjectOffset(this_object,
-                                                        String::ValueOffset().Int32Value(),
+                                                        mirror::String::ValueOffset().Int32Value(),
                                                         irb_.getJObjectTy(),
                                                         kTBAAConstJObject);
 
@@ -3979,7 +3979,7 @@ bool MethodCompiler::EmitInlinedStringLength(const std::vector<llvm::Value*>& ar
       "int java.lang.String.length() has 2 args: method, this";
   llvm::Value* this_object = args[1];
   llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
-                                                        String::CountOffset().Int32Value(),
+                                                        mirror::String::CountOffset().Int32Value(),
                                                         irb_.getJIntTy(),
                                                         kTBAAConstJObject);
   EmitStoreDalvikRetValReg(kInt, kAccurate, string_count);
