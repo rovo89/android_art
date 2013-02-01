@@ -780,7 +780,19 @@ void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
     EmitUpdateDexPC(dex_pc);
   }
   irb_.Runtime().EmitTestSuspend();
-  irb_.CreateBr(basic_block_cont);
+
+  llvm::BasicBlock* basic_block_exception = CreateBasicBlockWithDexPC(dex_pc, "exception");
+  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
+  irb_.CreateCondBr(exception_pending, basic_block_exception, basic_block_cont, kUnlikely);
+
+  irb_.SetInsertPoint(basic_block_exception);
+  llvm::Type* ret_type = call_inst.getParent()->getParent()->getReturnType();
+  if (ret_type->isVoidTy()) {
+    irb_.CreateRetVoid();
+  } else {
+    // The return value is ignored when there's an exception.
+    irb_.CreateRet(llvm::UndefValue::get(ret_type));
+  }
 
   irb_.SetInsertPoint(basic_block_cont);
   return;

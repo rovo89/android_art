@@ -304,6 +304,16 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
                                   PrettyMethod(this).c_str(), GetCode(), stub);
       }
       (*stub)(this, receiver, self, args, result);
+      if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException()) == -1)) {
+        // Unusual case where we were running LLVM generated code and an
+        // exception was thrown to force the activations to be removed from the
+        // stack. Continue execution in the interpreter.
+        JValue value;
+        self->ClearException();
+        ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(&value);
+        self->SetTopOfShadowStack(shadow_frame);
+        interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
+      }
       if (kLogInvocationStartAndReturn) {
         LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
                                   PrettyMethod(this).c_str(), GetCode(), stub);

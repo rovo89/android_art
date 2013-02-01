@@ -41,6 +41,9 @@ extern JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_f
                                              JValue ret_val)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void EnterInterpreterFromLLVM(Thread* self, ShadowFrame* shadow_frame, JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 extern JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh,
                                        const DexFile::CodeItem* code_item,
                                        ShadowFrame& shadow_frame)
