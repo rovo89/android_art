@@ -1880,6 +1880,21 @@ JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame, J
   return Execute(self, mh, code_item, shadow_frame, ret_val);
 }
 
+void EnterInterpreterFromLLVM(Thread* self, ShadowFrame* shadow_frame, JValue* ret_val)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  JValue value;
+  MethodHelper mh(shadow_frame->GetMethod());
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  while (shadow_frame != NULL) {
+    value = Execute(self, mh, code_item, *shadow_frame, value);
+    ShadowFrame* old_frame = shadow_frame;
+    shadow_frame = shadow_frame->GetLink();
+    mh.ChangeMethod(shadow_frame->GetMethod());
+    delete old_frame;
+  }
+  ret_val->SetJ(value.GetJ());
+}
+
 JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

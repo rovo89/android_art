@@ -315,6 +315,10 @@ class PACKED(4) ManagedStack {
     return top_shadow_frame_;
   }
 
+  void SetTopShadowFrame(ShadowFrame* top) {
+    top_shadow_frame_ = top;
+  }
+
   static size_t TopShadowFrameOffset() {
     return OFFSETOF_MEMBER(ManagedStack, top_shadow_frame_);
   }

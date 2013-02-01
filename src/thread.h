@@ -325,6 +325,10 @@ class PACKED(4) Thread {
     managed_stack_.SetTopQuickFramePc(pc);
   }
 
+  void SetTopOfShadowStack(ShadowFrame* top) {
+    managed_stack_.SetTopShadowFrame(top);
+  }
+
   bool HasManagedStack() const {
     return managed_stack_.GetTopQuickFrame() != NULL || managed_stack_.GetTopShadowFrame() != NULL;
   }

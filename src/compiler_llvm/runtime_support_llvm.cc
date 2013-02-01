@@ -38,6 +38,7 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "utils_llvm.h"
+#include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
@@ -48,6 +49,57 @@
 #include <stdlib.h>
 
 namespace art {
+
+class ShadowFrameCopyVisitor : public StackVisitor {
+ public:
+  explicit ShadowFrameCopyVisitor(Thread* self) : StackVisitor(self, NULL), prev_frame_(NULL),
+      top_frame_(NULL) {}
+
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (IsShadowFrame()) {
+      ShadowFrame* cur_frame = GetCurrentShadowFrame();
+      size_t num_regs = cur_frame->NumberOfVRegs();
+      mirror::AbstractMethod* method = cur_frame->GetMethod();
+      uint32_t dex_pc = cur_frame->GetDexPC();
+      ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, method, dex_pc);
+
+      const uint8_t* gc_map = method->GetNativeGcMap();
+      uint32_t gc_map_length = static_cast<uint32_t>((gc_map[0] << 24) |
+                                                     (gc_map[1] << 16) |
+                                                     (gc_map[2] << 8) |
+                                                     (gc_map[3] << 0));
+      verifier::DexPcToReferenceMap dex_gc_map(gc_map + 4, gc_map_length);
+      const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
+      for (size_t reg = 0; reg < num_regs; ++reg) {
+        if (TestBitmap(reg, reg_bitmap)) {
+          new_frame->SetVRegReference(reg, cur_frame->GetVRegReference(reg));
+        } else {
+          new_frame->SetVReg(reg, cur_frame->GetVReg(reg));
+        }
+      }
+
+      if (prev_frame_ != NULL) {
+        prev_frame_->SetLink(new_frame);
+      } else {
+        top_frame_ = new_frame;
+      }
+      prev_frame_ = new_frame;
+    }
+    return true;
+  }
+
+  ShadowFrame* GetShadowFrameCopy() {
+    return top_frame_;
+  }
+
+ private:
+  static bool TestBitmap(int reg, const uint8_t* reg_vector) {
+    return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
+  }
+
+  ShadowFrame* prev_frame_;
+  ShadowFrame* top_frame_;
+};
 
 //----------------------------------------------------------------------------
 // Thread
@@ -85,6 +137,13 @@ void art_unlock_object_from_code(mirror::Object* obj, Thread* thread)
 void art_test_suspend_from_code(Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CheckSuspend(thread);
+  if (thread->ReadFlag(kEnterInterpreter)) {
+    // Save out the shadow frame to the heap
+    ShadowFrameCopyVisitor visitor(thread);
+    visitor.WalkStack(true);
+    thread->SetDeoptimizationShadowFrame(visitor.GetShadowFrameCopy(), JValue());
+    thread->SetException(reinterpret_cast<mirror::Throwable*>(-1));
+  }
 }
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
@@ -155,7 +214,12 @@ void* art_get_and_clear_exception(Thread* self)
 
 int32_t art_find_catch_block_from_code(mirror::AbstractMethod* current_method, uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* exception_type = Thread::Current()->GetException()->GetClass();
+  mirror::Throwable* exception = Thread::Current()->GetException();
+  // Check for magic deoptimization exception.
+  if (reinterpret_cast<int32_t>(exception) == -1) {
+    return -1;
+  }
+  mirror::Class* exception_type = exception->GetClass();
   MethodHelper mh(current_method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   DCHECK_LT(ti_offset, code_item->tries_size_);
