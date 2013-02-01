@@ -63,11 +63,13 @@ $(HOST_CORE_OAT_OUT): $(HOST_CORE_IMG_OUT)
 
 $(TARGET_CORE_OAT_OUT): $(TARGET_CORE_IMG_OUT)
 
+ifeq ($(ART_BUILD_HOST),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := core.art-host
 LOCAL_MODULE_TAGS := optional
 LOCAL_ADDITIONAL_DEPENDENCIES := $(HOST_CORE_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
+endif
 
 ########################################################################
 # The full system boot classpath
@@ -86,8 +88,10 @@ $(TARGET_BOOT_IMG_OUT): $(TARGET_BOOT_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 
 $(TARGET_BOOT_OAT_OUT): $(TARGET_BOOT_IMG_OUT)
 
+ifeq ($(ART_BUILD_TARGET),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot.art
 LOCAL_MODULE_TAGS := optional
 LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)
+endif
