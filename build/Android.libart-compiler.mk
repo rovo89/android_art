@@ -14,51 +14,83 @@
 # limitations under the License.
 #
 
-LIBART_COMPILER_SRC_FILES += \
-	src/elf_writer.cc \
-	src/compiler/write_elf.cc \
-	src/compiler/dataflow.cc \
-	src/compiler/frontend.cc \
-	src/compiler/ralloc.cc \
+LIBART_COMPILER_SRC_FILES := \
 	src/compiler/bb_opt.cc \
-	src/compiler/ssa_transformation.cc \
-	src/compiler/compiler_utility.cc \
-	src/compiler/codegen/ralloc_util.cc \
-	src/compiler/codegen/codegen_util.cc \
-	src/compiler/codegen/gen_loadstore.cc \
-	src/compiler/codegen/gen_common.cc \
-	src/compiler/codegen/gen_invoke.cc \
-	src/compiler/codegen/mir_to_gbc.cc \
-	src/compiler/codegen/mir_to_lir.cc \
-	src/compiler/codegen/local_optimizations.cc \
-	src/oat/jni/calling_convention.cc \
-	src/oat/jni/jni_compiler.cc \
-	src/oat/jni/arm/calling_convention_arm.cc \
-	src/oat/jni/mips/calling_convention_mips.cc \
-	src/oat/jni/x86/calling_convention_x86.cc \
-	src/greenland/ir_builder.cc \
-	src/greenland/intrinsic_helper.cc \
-	src/compiler/codegen/arm/target_arm.cc \
 	src/compiler/codegen/arm/assemble_arm.cc \
-	src/compiler/codegen/arm/utility_arm.cc \
 	src/compiler/codegen/arm/call_arm.cc \
 	src/compiler/codegen/arm/fp_arm.cc \
 	src/compiler/codegen/arm/int_arm.cc \
-	src/compiler/codegen/mips/target_mips.cc \
+	src/compiler/codegen/arm/target_arm.cc \
+	src/compiler/codegen/arm/utility_arm.cc \
+	src/compiler/codegen/codegen_util.cc \
+	src/compiler/codegen/gen_common.cc \
+	src/compiler/codegen/gen_invoke.cc \
+	src/compiler/codegen/gen_loadstore.cc \
+	src/compiler/codegen/local_optimizations.cc \
 	src/compiler/codegen/mips/assemble_mips.cc \
-	src/compiler/codegen/mips/utility_mips.cc \
 	src/compiler/codegen/mips/call_mips.cc \
 	src/compiler/codegen/mips/fp_mips.cc \
 	src/compiler/codegen/mips/int_mips.cc \
-	src/compiler/codegen/x86/target_x86.cc \
+	src/compiler/codegen/mips/target_mips.cc \
+	src/compiler/codegen/mips/utility_mips.cc \
+	src/compiler/codegen/mir_to_gbc.cc \
+	src/compiler/codegen/mir_to_lir.cc \
+	src/compiler/codegen/ralloc_util.cc \
 	src/compiler/codegen/x86/assemble_x86.cc \
-	src/compiler/codegen/x86/utility_x86.cc \
 	src/compiler/codegen/x86/call_x86.cc \
 	src/compiler/codegen/x86/fp_x86.cc \
 	src/compiler/codegen/x86/int_x86.cc \
+	src/compiler/codegen/x86/target_x86.cc \
+	src/compiler/codegen/x86/utility_x86.cc \
+	src/compiler/compiler_utility.cc \
+	src/compiler/dataflow.cc \
+	src/compiler/frontend.cc \
+	src/compiler/ralloc.cc \
+	src/compiler/ssa_transformation.cc \
+	src/compiler/write_elf.cc \
+	src/elf_writer.cc \
+	src/greenland/intrinsic_helper.cc \
+	src/greenland/ir_builder.cc \
+	src/oat/jni/arm/calling_convention_arm.cc \
 	src/oat/jni/arm/jni_internal_arm.cc \
+	src/oat/jni/calling_convention.cc \
+	src/oat/jni/jni_compiler.cc \
+	src/oat/jni/mips/calling_convention_mips.cc \
 	src/oat/jni/mips/jni_internal_mips.cc \
+	src/oat/jni/x86/calling_convention_x86.cc \
 	src/oat/jni/x86/jni_internal_x86.cc
+
+LIBART_COMPILER_CFLAGS :=
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  LIBART_COMPILER_CFLAGS += -DART_USE_LLVM_COMPILER=1
+endif
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
+endif
+
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  LIBART_COMPILER_SRC_FILES += \
+	src/compiler_llvm/compiler_llvm.cc \
+	src/compiler_llvm/dalvik_reg.cc \
+	src/compiler_llvm/generated/art_module.cc \
+	src/compiler_llvm/ir_builder.cc \
+	src/compiler_llvm/jni_compiler.cc \
+	src/compiler_llvm/llvm_compilation_unit.cc \
+	src/compiler_llvm/md_builder.cc \
+	src/compiler_llvm/method_compiler.cc \
+	src/compiler_llvm/runtime_support_builder.cc \
+	src/compiler_llvm/runtime_support_builder_arm.cc \
+	src/compiler_llvm/runtime_support_builder_thumb2.cc \
+	src/compiler_llvm/runtime_support_builder_x86.cc \
+	src/compiler_llvm/runtime_support_llvm.cc \
+	src/compiler_llvm/stub_compiler.cc \
+	src/greenland/inferred_reg_category_map.cc
+endif
+
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  LIBART_COMPILER_SRC_FILES += \
+	src/compiler_llvm/gbc_expander.cc
+endif
 
 # $(1): target or host
 # $(2): ndebug or debug
@@ -93,10 +125,11 @@ define build-libart-compiler
 
   LOCAL_SRC_FILES := $$(LIBART_COMPILER_SRC_FILES)
 
+  LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
-    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
   endif
 
   # TODO: clean up the compilers and remove this.

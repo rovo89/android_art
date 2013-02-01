@@ -104,9 +104,6 @@ ifneq ($(art_dont_bother),true)
 # product targets
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.libart-compiler.mk
-ifeq ($(ART_USE_LLVM_COMPILER),true)
-include $(build_path)/Android.libart-compiler-llvm.mk
-endif
 include $(build_path)/Android.executable.mk
 include $(build_path)/Android.oat.mk
 

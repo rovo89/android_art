@@ -481,8 +481,8 @@ static void SetNativeParameter(Assembler* jni_asm,
 
 }  // namespace art
 
-extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
-                                                    uint32_t access_flags, uint32_t method_idx,
-                                                    const art::DexFile& dex_file) {
+extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::Compiler& compiler,
+                                                         uint32_t access_flags, uint32_t method_idx,
+                                                         const art::DexFile& dex_file) {
   return ArtJniCompileMethodInternal(compiler, access_flags, method_idx, dex_file);
 }

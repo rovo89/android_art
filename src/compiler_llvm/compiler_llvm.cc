@@ -262,9 +262,9 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
   return result;
 }
 
-extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
-                                                    uint32_t access_flags, uint32_t method_idx,
-                                                    const art::DexFile& dex_file) {
+extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::Compiler& compiler,
+                                                        uint32_t access_flags, uint32_t method_idx,
+                                                        const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
   art::OatCompilationUnit oat_compilation_unit(

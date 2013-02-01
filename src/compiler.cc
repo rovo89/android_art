@@ -246,12 +246,7 @@ static std::string MakeCompilerSoName(CompilerBackend compiler_backend) {
   const char* suffix = (kIsDebugBuild ? "d" : "");
 
   // Work out the filename for the compiler library.
-  std::string library_name;
-  if ((compiler_backend == kPortable) || (compiler_backend == kIceland)) {
-    library_name = StringPrintf("art%s-compiler-llvm", suffix);
-  } else {
-    library_name = StringPrintf("art%s-compiler", suffix);
-  }
+  std::string library_name(StringPrintf("art%s-compiler", suffix));
   std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
 
 #if defined(__APPLE__)
@@ -336,7 +331,12 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
 
   init_compiler_context(*this);
 
-  jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
+  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+    jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtLLVMJniCompileMethod");
+  } else {
+    jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtQuickJniCompileMethod");
+  }
+
   if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
     create_invoke_stub_ =
         FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateLLVMInvokeStub");
