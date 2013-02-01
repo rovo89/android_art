@@ -17,7 +17,7 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_ARM_CODEGENARM_H_
 #define ART_SRC_COMPILER_CODEGEN_ARM_CODEGENARM_H_
 
-#include "../../compiler_internals.h"
+#include "compiler/compiler_internals.h"
 
 namespace art {
 

@@ -17,7 +17,14 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_CODEGENUTIL_H_
 #define ART_SRC_COMPILER_CODEGEN_CODEGENUTIL_H_
 
+#include <stdint.h>
+
+#include "compiler/compiler_enums.h"
+
 namespace art {
+
+class CompilationUnit;
+struct LIR;
 
 void MarkSafepointPC(CompilationUnit* cu, LIR* inst);
 bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,

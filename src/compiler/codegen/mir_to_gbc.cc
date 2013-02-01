@@ -27,9 +27,9 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
 
-#include "../compiler_internals.h"
-#include "local_optimizations.h"
 #include "codegen_util.h"
+#include "compiler/compiler_internals.h"
+#include "local_optimizations.h"
 #include "ralloc_util.h"
 
 static const char* kLabelFormat = "%c0x%x_%d";

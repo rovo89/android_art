@@ -16,7 +16,7 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "../codegen_util.h"
+#include "compiler/codegen/codegen_util.h"
 
 namespace art {
 

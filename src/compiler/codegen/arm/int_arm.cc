@@ -16,12 +16,12 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
-#include "oat_compilation_unit.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "../codegen_util.h"
-#include "../ralloc_util.h"
+#include "compiler/codegen/codegen_util.h"
+#include "compiler/codegen/ralloc_util.h"
+#include "oat/runtime/oat_support_entrypoints.h"
+#include "oat_compilation_unit.h"
 
 namespace art {
 

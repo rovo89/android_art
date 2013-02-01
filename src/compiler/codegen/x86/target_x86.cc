@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "../../compiler_internals.h"
-#include "x86_lir.h"
 #include "codegen_x86.h"
-#include "../ralloc_util.h"
-#include "../codegen_util.h"
+#include "compiler/codegen/codegen_util.h"
+#include "compiler/compiler_internals.h"
+#include "compiler/codegen/ralloc_util.h"
+#include "x86_lir.h"
 
 #include <string>
 

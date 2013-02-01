@@ -55,7 +55,7 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
-class CompilationUnit;
+class LlvmCompilationUnit;
 class IRBuilder;
 
 class CompilerLLVM {
@@ -94,7 +94,7 @@ class CompilerLLVM {
   }
 
  private:
-  CompilationUnit* AllocateCompilationUnit();
+  LlvmCompilationUnit* AllocateCompilationUnit();
 
   Compiler* compiler_;
 

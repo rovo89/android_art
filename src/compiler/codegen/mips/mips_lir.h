@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_COMPILER_CODEGEN_MIPS_MIPSLIR_H_
 #define ART_COMPILER_COMPILER_CODEGEN_MIPS_MIPSLIR_H_
 
-#include "../../compiler_internals.h"
+#include "compiler/compiler_internals.h"
 
 namespace art {
 

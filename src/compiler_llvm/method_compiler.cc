@@ -20,11 +20,11 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
-#include "compilation_unit.h"
 #include "compiler.h"
 #include "dalvik_reg.h"
 #include "greenland/inferred_reg_category_map.h"
 #include "ir_builder.h"
+#include "llvm_compilation_unit.h"
 #include "mirror/object.h"
 #include "oat_compilation_unit.h"
 #include "object_utils.h"
@@ -46,7 +46,7 @@ namespace compiler_llvm {
 using namespace runtime_support;
 
 
-MethodCompiler::MethodCompiler(CompilationUnit* cunit,
+MethodCompiler::MethodCompiler(LlvmCompilationUnit* cunit,
                                Compiler* compiler,
                                OatCompilationUnit* oat_compilation_unit)
   : cunit_(cunit), compiler_(compiler),

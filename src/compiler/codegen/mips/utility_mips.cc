@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "mips_lir.h"
 #include "codegen_mips.h"
-#include "../codegen_util.h"
-#include "../ralloc_util.h"
+#include "compiler/codegen/codegen_util.h"
+#include "compiler/codegen/ralloc_util.h"
+#include "mips_lir.h"
 
 namespace art {
 

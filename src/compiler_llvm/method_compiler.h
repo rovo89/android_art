@@ -64,14 +64,14 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
-class CompilationUnit;
+class LlvmCompilationUnit;
 class CompilerLLVM;
 class DalvikReg;
 class IRBuilder;
 
 class MethodCompiler {
  public:
-  MethodCompiler(CompilationUnit* cunit,
+  MethodCompiler(LlvmCompilationUnit* cunit,
                  Compiler* compiler,
                  OatCompilationUnit* oat_compilation_unit);
 
@@ -447,7 +447,7 @@ class MethodCompiler {
   void ComputeMethodInfo();
 
  private:
-  CompilationUnit* cunit_;
+  LlvmCompilationUnit* cunit_;
   Compiler* compiler_;
 
   const DexFile* dex_file_;

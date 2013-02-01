@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compilation_unit.h"
+#include "llvm_compilation_unit.h"
 
 #include "base/logging.h"
 #include "compiled_method.h"
@@ -89,7 +89,7 @@ CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuil
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
-CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
+LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
                                  size_t cunit_idx)
 : compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -129,7 +129,7 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 }
 
 
-CompilationUnit::~CompilationUnit() {
+LlvmCompilationUnit::~LlvmCompilationUnit() {
 #if defined(ART_USE_PORTABLE_COMPILER)
   llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
   CHECK(llvm_context != NULL);
@@ -137,12 +137,12 @@ CompilationUnit::~CompilationUnit() {
 }
 
 
-InstructionSet CompilationUnit::GetInstructionSet() const {
+InstructionSet LlvmCompilationUnit::GetInstructionSet() const {
   return compiler_llvm_->GetInstructionSet();
 }
 
 
-bool CompilationUnit::Materialize() {
+bool LlvmCompilationUnit::Materialize() {
   std::string elf_image;
 
   // Compile and prelink llvm::Module
@@ -170,13 +170,13 @@ bool CompilationUnit::Materialize() {
 }
 
 
-bool CompilationUnit::MaterializeToString(std::string& str_buffer) {
+bool LlvmCompilationUnit::MaterializeToString(std::string& str_buffer) {
   llvm::raw_string_ostream str_os(str_buffer);
   return MaterializeToRawOStream(str_os);
 }
 
 
-bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
+bool LlvmCompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
   std::string target_triple;
   std::string target_cpu;
@@ -295,7 +295,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   return true;
 }
 
-bool CompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
+bool LlvmCompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
   if (GetInstructionSet() == kX86) {
     compiled_code_.push_back(0xccU);
     compiled_code_.push_back(0xccU);
@@ -405,7 +405,7 @@ bool CompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
 // that architecture.  Since the Oat writer only guarantee that the compiled
 // method being aligned to kArchAlignment, we have no way to align the ELf
 // section if the section alignment is greater than kArchAlignment.
-void CompilationUnit::CheckCodeAlign(uint32_t align) const {
+void LlvmCompilationUnit::CheckCodeAlign(uint32_t align) const {
   InstructionSet insn_set = GetInstructionSet();
   switch (insn_set) {
   case kThumb2:

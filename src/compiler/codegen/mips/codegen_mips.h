@@ -17,7 +17,8 @@
 #ifndef ART_SRC_COMPILER_CODEGEN_MIPS_CODEGENMIPS_H_
 #define ART_SRC_COMPILER_CODEGEN_MIPS_CODEGENMIPS_H_
 
-#include "../../compiler_internals.h"
+#include "compiler/compiler_internals.h"
+#include "mips_lir.h"
 
 namespace art {
 

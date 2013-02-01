@@ -17,11 +17,11 @@
 #include "stub_compiler.h"
 
 #include "base/logging.h"
-#include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
+#include "llvm_compilation_unit.h"
 #include "mirror/abstract_method.h"
 #include "runtime_support_func.h"
 #include "utils_llvm.h"
@@ -40,7 +40,7 @@ namespace compiler_llvm {
 using namespace runtime_support;
 
 
-StubCompiler::StubCompiler(CompilationUnit* cunit, Compiler& compiler)
+StubCompiler::StubCompiler(LlvmCompilationUnit* cunit, Compiler& compiler)
 : cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),
   context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()) {
 }
