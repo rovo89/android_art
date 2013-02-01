@@ -24,6 +24,7 @@
 #include "barrier.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/mutex-inl.h"
 #include "card_table.h"
 #include "card_table-inl.h"
 #include "heap.h"

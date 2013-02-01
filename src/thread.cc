@@ -56,6 +56,7 @@
 #include "gc/space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
+#include "thread-inl.h"
 #include "thread_list.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
@@ -606,72 +607,6 @@ void Thread::FullSuspendCheck() {
   // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
   TransitionFromSuspendedToRunnable();
   VLOG(threads) << this << " self-reviving";
-}
-
-void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
-  AssertThreadSuspensionIsAllowable();
-  DCHECK_NE(new_state, kRunnable);
-  DCHECK_EQ(this, Thread::Current());
-  // Change to non-runnable state, thereby appearing suspended to the system.
-  DCHECK_EQ(GetState(), kRunnable);
-  union StateAndFlags old_state_and_flags;
-  union StateAndFlags new_state_and_flags;
-  do {
-    old_state_and_flags = state_and_flags_;
-    // Copy over flags and try to clear the checkpoint bit if it is set.
-    new_state_and_flags.as_struct.flags = old_state_and_flags.as_struct.flags & ~kCheckpointRequest;
-    new_state_and_flags.as_struct.state = new_state;
-  } while (android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                  &state_and_flags_.as_int) != 0);
-  // If we toggled the checkpoint flag we must have cleared it.
-  uint16_t flag_change = new_state_and_flags.as_struct.flags ^ old_state_and_flags.as_struct.flags;
-  if ((flag_change & kCheckpointRequest) != 0) {
-    RunCheckpointFunction();
-  }
-  // Release share on mutator_lock_.
-  Locks::mutator_lock_->SharedUnlock(this);
-}
-
-ThreadState Thread::TransitionFromSuspendedToRunnable() {
-  bool done = false;
-  union StateAndFlags old_state_and_flags = state_and_flags_;
-  int16_t old_state = old_state_and_flags.as_struct.state;
-  DCHECK_NE(static_cast<ThreadState>(old_state), kRunnable);
-  do {
-    Locks::mutator_lock_->AssertNotHeld(this);  // Otherwise we starve GC..
-    old_state_and_flags = state_and_flags_;
-    DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
-    if ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
-      // Wait while our suspend count is non-zero.
-      MutexLock mu(this, *Locks::thread_suspend_count_lock_);
-      old_state_and_flags = state_and_flags_;
-      DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
-      while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
-        // Re-check when Thread::resume_cond_ is notified.
-        Thread::resume_cond_->Wait(this);
-        old_state_and_flags = state_and_flags_;
-        DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
-      }
-      DCHECK_EQ(GetSuspendCount(), 0);
-    }
-    // Re-acquire shared mutator_lock_ access.
-    Locks::mutator_lock_->SharedLock(this);
-    // Atomically change from suspended to runnable if no suspend request pending.
-    old_state_and_flags = state_and_flags_;
-    DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
-    if ((old_state_and_flags.as_struct.flags & kSuspendRequest) == 0) {
-      union StateAndFlags new_state_and_flags = old_state_and_flags;
-      new_state_and_flags.as_struct.state = kRunnable;
-      done = android_atomic_cmpxchg(old_state_and_flags.as_int, new_state_and_flags.as_int,
-                                    &state_and_flags_.as_int)
-                                        == 0;
-    }
-    if (!done) {
-      // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
-      Locks::mutator_lock_->SharedUnlock(this);
-    }
-  } while (!done);
-  return static_cast<ThreadState>(old_state);
 }
 
 Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timed_out) {
@@ -2111,26 +2046,5 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   thread.ShortDump(os);
   return os;
 }
-
-#ifndef NDEBUG
-void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
-  CHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
-  if (check_locks) {
-    bool bad_mutexes_held = false;
-    for (int i = kMaxMutexLevel; i >= 0; --i) {
-      // We expect no locks except the mutator_lock_.
-      if (i != kMutatorLock) {
-        BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
-        if (held_mutex != NULL) {
-          LOG(ERROR) << "holding \"" << held_mutex->GetName()
-                  << "\" at point where thread suspension is expected";
-          bad_mutexes_held = true;
-        }
-      }
-    }
-    CHECK(!bad_mutexes_held);
-  }
-}
-#endif
 
 }  // namespace art

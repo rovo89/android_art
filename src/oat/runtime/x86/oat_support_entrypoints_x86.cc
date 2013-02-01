@@ -60,19 +60,6 @@ extern "C" void* art_get_obj_static_from_code(uint32_t);
 // FillArray entrypoint.
 extern "C" void art_handle_fill_data_from_code(void*, void*);
 
-// JNI entrypoints.
-extern void* FindNativeMethod(Thread* thread);
-extern uint32_t JniMethodStart(Thread* self);
-extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self);
-extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self);
-extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
-                                     Thread* self);
-extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                                 Thread* self);
-extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
-                                                             uint32_t saved_local_ref_cookie,
-                                                             jobject locked, Thread* self);
-
 // Lock entrypoints.
 extern "C" void art_lock_object_from_code(void*);
 extern "C" void art_unlock_object_from_code(void*);

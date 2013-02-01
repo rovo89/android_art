@@ -25,6 +25,7 @@
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
+#include "mirror/class-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
 #include "thread.h"

@@ -141,6 +141,26 @@ struct PACKED(4) EntryPoints {
   void (*pThrowStackOverflowFromCode)(void*);
 };
 
+// JNI entrypoints.
+extern void* FindNativeMethod(Thread* thread) LOCKS_EXCLUDED(Locks::mutator_lock_);
+extern uint32_t JniMethodStart(Thread* self)
+    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
+    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
+                                     Thread* self)
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                                 Thread* self)
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+
+extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                             uint32_t saved_local_ref_cookie,
+                                                             jobject locked, Thread* self)
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+
 // Initialize an entry point data structure.
 void InitEntryPoints(EntryPoints* points);
 

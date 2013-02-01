@@ -18,7 +18,7 @@
 #define ART_SRC_GC_SPACE_BITMAP_INL_H_
 
 #include "base/logging.h"
-#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
 
 namespace art {
 

@@ -238,74 +238,6 @@ void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
              new_reference_offsets, false);
 }
 
-bool Class::Implements(const Class* klass) const {
-  DCHECK(klass != NULL);
-  DCHECK(klass->IsInterface()) << PrettyClass(this);
-  // All interfaces implemented directly and by our superclass, and
-  // recursively all super-interfaces of those interfaces, are listed
-  // in iftable_, so we can just do a linear scan through that.
-  int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
-  for (int32_t i = 0; i < iftable_count; i++) {
-    if (iftable->GetInterface(i) == klass) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Determine whether "this" is assignable from "src", where both of these
-// are array classes.
-//
-// Consider an array class, e.g. Y[][], where Y is a subclass of X.
-//   Y[][]            = Y[][] --> true (identity)
-//   X[][]            = Y[][] --> true (element superclass)
-//   Y                = Y[][] --> false
-//   Y[]              = Y[][] --> false
-//   Object           = Y[][] --> true (everything is an object)
-//   Object[]         = Y[][] --> true
-//   Object[][]       = Y[][] --> true
-//   Object[][][]     = Y[][] --> false (too many []s)
-//   Serializable     = Y[][] --> true (all arrays are Serializable)
-//   Serializable[]   = Y[][] --> true
-//   Serializable[][] = Y[][] --> false (unless Y is Serializable)
-//
-// Don't forget about primitive types.
-//   Object[]         = int[] --> false
-//
-bool Class::IsArrayAssignableFromArray(const Class* src) const {
-  DCHECK(IsArrayClass())  << PrettyClass(this);
-  DCHECK(src->IsArrayClass()) << PrettyClass(src);
-  return GetComponentType()->IsAssignableFrom(src->GetComponentType());
-}
-
-bool Class::IsAssignableFromArray(const Class* src) const {
-  DCHECK(!IsInterface()) << PrettyClass(this);  // handled first in IsAssignableFrom
-  DCHECK(src->IsArrayClass()) << PrettyClass(src);
-  if (!IsArrayClass()) {
-    // If "this" is not also an array, it must be Object.
-    // src's super should be java_lang_Object, since it is an array.
-    Class* java_lang_Object = src->GetSuperClass();
-    DCHECK(java_lang_Object != NULL) << PrettyClass(src);
-    DCHECK(java_lang_Object->GetSuperClass() == NULL) << PrettyClass(src);
-    return this == java_lang_Object;
-  }
-  return IsArrayAssignableFromArray(src);
-}
-
-bool Class::IsSubClass(const Class* klass) const {
-  DCHECK(!IsInterface()) << PrettyClass(this);
-  DCHECK(!IsArrayClass()) << PrettyClass(this);
-  const Class* current = this;
-  do {
-    if (current == klass) {
-      return true;
-    }
-    current = current->GetSuperClass();
-  } while (current != NULL);
-  return false;
-}
-
 bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
@@ -376,21 +308,6 @@ ClassLoader* Class::GetClassLoader() const {
 
 void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
-}
-
-AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* method) const {
-  Class* declaring_class = method->GetDeclaringClass();
-  DCHECK(declaring_class != NULL) << PrettyClass(this);
-  DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
-  // TODO cache to improve lookup speed
-  int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
-  for (int32_t i = 0; i < iftable_count; i++) {
-    if (iftable->GetInterface(i) == declaring_class) {
-      return iftable->GetMethodArray(i)->Get(method->GetMethodIndex());
-    }
-  }
-  return NULL;
 }
 
 AbstractMethod* Class::FindInterfaceMethod(const StringPiece& name, const StringPiece& signature) const {

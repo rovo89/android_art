@@ -43,7 +43,7 @@
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_priv.h"
 #include "runtime.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "UniquePtr.h"
 
 namespace art {

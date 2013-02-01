@@ -17,6 +17,7 @@
 #include "callee_save_frame.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "runtime_support.h"
 
 namespace art {

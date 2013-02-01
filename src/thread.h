@@ -169,13 +169,15 @@ class PACKED(4) Thread {
   // Transition from non-runnable to runnable state acquiring share on mutator_lock_.
   ThreadState TransitionFromSuspendedToRunnable()
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
+      __attribute__ ((always_inline));
 
   // Transition from runnable into a state where mutator privileges are denied. Releases share of
   // mutator lock.
   void TransitionFromRunnableToSuspended(ThreadState new_state)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      UNLOCK_FUNCTION(Locks::mutator_lock_);
+      UNLOCK_FUNCTION(Locks::mutator_lock_)
+      __attribute__ ((always_inline));
 
   // Wait for a debugger suspension on the thread associated with the given peer. Returns the
   // thread on success, else NULL. If the thread should be suspended then request_suspension should
@@ -215,13 +217,7 @@ class PACKED(4) Thread {
 #endif
 
 
-#ifndef NDEBUG
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
-#else
-  void AssertThreadSuspensionIsAllowable(bool check_locks = true) const {
-    UNUSED(check_locks);  // Keep GCC happy about unused parameters.
-  }
-#endif
 
   bool IsDaemon() const {
     return daemon_;
