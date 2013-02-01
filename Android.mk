@@ -18,10 +18,30 @@ LOCAL_PATH := $(call my-dir)
 
 # These can be overridden via the environment or by editing to
 # enable/disable certain build configuration.
+#
+# For example, to disable everything but the host debug build you use:
+#
+# (export ART_BUILD_TARGET_NDEBUG=false && export ART_BUILD_TARGET_DEBUG=false && export ART_BUILD_HOST_NDEBUG=false && ...)
+#
+# Beware that tests may use the non-debug build for performance, notable 055-enum-performance
+#
 ART_BUILD_TARGET_NDEBUG ?= true
 ART_BUILD_TARGET_DEBUG ?= true
 ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
+
+ifeq ($(ART_BUILD_TARGET_NDEBUG),false)
+$(info Disabling ART_BUILD_TARGET_NDEBUG)
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),false)
+$(info Disabling ART_BUILD_TARGET_DEBUG)
+endif
+ifeq ($(ART_BUILD_HOST_NDEBUG),false)
+$(info Disabling ART_BUILD_HOST_NDEBUG)
+endif
+ifeq ($(ART_BUILD_HOST_DEBUG),false)
+$(info Disabling ART_BUILD_HOST_DEBUG)
+endif
 
 ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
 ART_HOST_SHLIB_EXTENSION ?= .so
