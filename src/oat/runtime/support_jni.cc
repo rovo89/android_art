@@ -27,7 +27,7 @@
 namespace art {
 
 // Used by the JNI dlsym stub to find the native method to invoke if none is registered.
-extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_) {
+extern void* FindNativeMethod(Thread* self) {
   Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
   DCHECK(Thread::Current() == self);
   ScopedObjectAccess soa(self);
@@ -49,7 +49,7 @@ extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_)
 }
 
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
-extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(GlobalSynchronizatio::mutator_lock_) {
+extern uint32_t JniMethodStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   DCHECK(env != NULL);
   uint32_t saved_local_ref_cookie = env->local_ref_cookie;
@@ -58,8 +58,7 @@ extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(GlobalSynchronizati
   return saved_local_ref_cookie;
 }
 
-extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) {
+extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self) {
   self->DecodeJObject(to_lock)->MonitorEnter(self);
   return JniMethodStart(self);
 }
@@ -71,23 +70,21 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
   self->PopSirt();
 }
 
-extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
+extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
   self->TransitionFromSuspendedToRunnable();
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
 
-extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
+                                     Thread* self) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
 extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
-                                                 Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
+                                                 Thread* self) {
   self->TransitionFromSuspendedToRunnable();
   mirror::Object* o = self->DecodeJObject(result);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
@@ -103,8 +100,7 @@ extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
-                                                             jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
+                                                             jobject locked, Thread* self) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   mirror::Object* o = self->DecodeJObject(result);

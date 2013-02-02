@@ -19,7 +19,7 @@
 
 #include "base/casts.h"
 #include "jni_internal.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 namespace art {
 

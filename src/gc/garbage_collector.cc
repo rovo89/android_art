@@ -15,6 +15,8 @@
  */
 
 #include "garbage_collector.h"
+
+#include "base/mutex-inl.h"
 #include "thread.h"
 #include "thread_list.h"
 

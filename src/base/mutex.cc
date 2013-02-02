@@ -21,27 +21,12 @@
 
 #include "base/logging.h"
 #include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
+#include "mutex-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "utils.h"
-
-#define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
-
-extern int pthread_mutex_lock(pthread_mutex_t* mutex) EXCLUSIVE_LOCK_FUNCTION(mutex);
-extern int pthread_mutex_unlock(pthread_mutex_t* mutex) UNLOCK_FUNCTION(1);
-extern int pthread_mutex_trylock(pthread_mutex_t* mutex) EXCLUSIVE_TRYLOCK_FUNCTION(0, mutex);
-
-#if ART_USE_FUTEXES
-#include "linux/futex.h"
-#include "sys/syscall.h"
-#ifndef SYS_futex
-#define SYS_futex __NR_futex
-#endif
-int futex(volatile int *uaddr, int op, int val, const struct timespec *timeout, volatile int *uaddr2, int val3) {
-  return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
-}
-#endif  // ART_USE_FUTEXES
 
 namespace art {
 
@@ -84,14 +69,6 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
   int writer;
   // ...other stuff we don't care about.
 };
-
-static uint64_t SafeGetTid(const Thread* self) {
-  if (self != NULL) {
-    return static_cast<uint64_t>(self->GetTid());
-  } else {
-    return static_cast<uint64_t>(GetTid());
-  }
-}
 
 #if ART_USE_FUTEXES
 static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, const timespec& rhs) {
@@ -164,18 +141,6 @@ void BaseMutex::DumpAll(std::ostream& os) {
 #endif
 }
 
-static void CheckUnattachedThread(LockLevel level) NO_THREAD_SAFETY_ANALYSIS {
-  // The check below enumerates the cases where we expect not to be able to sanity check locks
-  // on a thread. Lock checking is disabled to avoid deadlock when checking shutdown lock.
-  // TODO: tighten this check.
-  if (kDebugLocking) {
-    Runtime* runtime = Runtime::Current();
-    CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
-          level == kDefaultMutexLevel  || level == kRuntimeShutdownLock ||
-          level == kThreadListLock || level == kLoggingLock || level == kAbortLock);
-  }
-}
-
 void BaseMutex::RegisterAsLocked(Thread* self) {
   if (UNLIKELY(self == NULL)) {
     CheckUnattachedThread(level_);
@@ -201,19 +166,6 @@ void BaseMutex::RegisterAsLocked(Thread* self) {
   // the monitor list.
   if (level_ != kMonitorLock) {
     self->SetHeldMutex(level_, this);
-  }
-}
-
-void BaseMutex::RegisterAsUnlocked(Thread* self) {
-  if (UNLIKELY(self == NULL)) {
-    CheckUnattachedThread(level_);
-    return;
-  }
-  if (level_ != kMonitorLock) {
-    if (kDebugLocking && !gAborting) {
-      CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
-    }
-    self->SetHeldMutex(level_, NULL);
   }
 }
 
@@ -261,25 +213,6 @@ void BaseMutex::RecordContention(uint64_t blocked_tid, uint64_t owner_tid, uint6
   }
 #endif
 }
-
-class ScopedContentionRecorder {
- public:
-  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid) :
-      mutex_(mutex), blocked_tid_(blocked_tid), owner_tid_(owner_tid),
-      start_milli_time_(MilliTime()) {
-  }
-
-  ~ScopedContentionRecorder() {
-    uint64_t end_milli_time = MilliTime();
-    mutex_->RecordContention(blocked_tid_, owner_tid_, end_milli_time - start_milli_time_);
-  }
-
- private:
-  BaseMutex* const mutex_;
-  uint64_t blocked_tid_;
-  uint64_t owner_tid_;
-  const uint64_t start_milli_time_;
-};
 
 void BaseMutex::DumpContention(std::ostream& os) const {
 #if CONTENTION_LOGGING
@@ -395,7 +328,7 @@ void Mutex::ExclusiveLock(Thread* self) {
       int32_t cur_state = state_;
       if (cur_state == 0) {
         // Change state from 0 to 1.
-        done = android_atomic_cmpxchg(0, 1, &state_) == 0;
+        done = android_atomic_acquire_cas(0, 1, &state_) == 0;
       } else {
         // Failed to acquire, hang up.
         ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
@@ -435,7 +368,7 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
       int32_t cur_state = state_;
       if (cur_state == 0) {
         // Change state from 0 to 1.
-        done = android_atomic_cmpxchg(0, 1, &state_) == 0;
+        done = android_atomic_acquire_cas(0, 1, &state_) == 0;
       } else {
         return false;
       }
@@ -481,7 +414,7 @@ void Mutex::ExclusiveUnlock(Thread* self) {
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state to 0.
-      done = android_atomic_cmpxchg(cur_state, 0, &state_) == 0;
+      done = android_atomic_release_cas(cur_state, 0, &state_) == 0;
       if (done) { // Spurious fail?
         // Wake a contender
         if (num_contenders_ > 0) {
@@ -588,7 +521,7 @@ void ReaderWriterMutex::ExclusiveLock(Thread* self) {
     int32_t cur_state = state_;
     if (cur_state == 0) {
       // Change state from 0 to -1.
-      done = android_atomic_cmpxchg(0, -1, &state_) == 0;
+      done = android_atomic_acquire_cas(0, -1, &state_) == 0;
     } else {
       // Failed to acquire, hang up.
       ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
@@ -622,7 +555,7 @@ void ReaderWriterMutex::ExclusiveUnlock(Thread* self) {
       // We're no longer the owner.
       exclusive_owner_ = 0;
       // Change state from -1 to 0.
-      done = android_atomic_cmpxchg(-1, 0, &state_) == 0;
+      done = android_atomic_release_cas(-1, 0, &state_) == 0;
       if (done) { // cmpxchg may fail due to noise?
         // Wake any waiters.
         if (num_pending_readers_ > 0 || num_pending_writers_ > 0) {
@@ -649,7 +582,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
     int32_t cur_state = state_;
     if (cur_state == 0) {
       // Change state from 0 to -1.
-      done = android_atomic_cmpxchg(0, -1, &state_) == 0;
+      done = android_atomic_acquire_cas(0, -1, &state_) == 0;
     } else {
       // Failed to acquire, hang up.
       timespec now_abs_ts;
@@ -690,34 +623,6 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
 }
 #endif
 
-void ReaderWriterMutex::SharedLock(Thread* self) {
-  DCHECK(self == NULL || self == Thread::Current());
-#if ART_USE_FUTEXES
-  bool done = false;
-  do {
-    int32_t cur_state = state_;
-    if (cur_state >= 0) {
-      // Add as an extra reader.
-      done = android_atomic_cmpxchg(cur_state, cur_state + 1, &state_) == 0;
-    } else {
-      // Owner holds it exclusively, hang up.
-      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
-      android_atomic_inc(&num_pending_readers_);
-      if (futex(&state_, FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
-        if (errno != EAGAIN) {
-          PLOG(FATAL) << "futex wait failed for " << name_;
-        }
-      }
-      android_atomic_dec(&num_pending_readers_);
-    }
-  } while(!done);
-#else
-  CHECK_MUTEX_CALL(pthread_rwlock_rdlock, (&rwlock_));
-#endif
-  RegisterAsLocked(self);
-  AssertSharedHeld(self);
-}
-
 bool ReaderWriterMutex::SharedTryLock(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
 #if ART_USE_FUTEXES
@@ -726,7 +631,7 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
     int32_t cur_state = state_;
     if (cur_state >= 0) {
       // Add as an extra reader.
-      done = android_atomic_cmpxchg(cur_state, cur_state + 1, &state_) == 0;
+      done = android_atomic_acquire_cas(cur_state, cur_state + 1, &state_) == 0;
     } else {
       // Owner holds it exclusively.
       return false;
@@ -745,32 +650,6 @@ bool ReaderWriterMutex::SharedTryLock(Thread* self) {
   RegisterAsLocked(self);
   AssertSharedHeld(self);
   return true;
-}
-
-void ReaderWriterMutex::SharedUnlock(Thread* self) {
-  DCHECK(self == NULL || self == Thread::Current());
-  AssertSharedHeld(self);
-  RegisterAsUnlocked(self);
-#if ART_USE_FUTEXES
-  bool done = false;
-  do {
-    int32_t cur_state = state_;
-    if (LIKELY(cur_state > 0)) {
-      // Reduce state by 1.
-      done = android_atomic_cmpxchg(cur_state, cur_state - 1, &state_) == 0;
-      if (done && (cur_state - 1) == 0) { // cmpxchg may fail due to noise?
-        if (num_pending_writers_ > 0 || num_pending_readers_ > 0) {
-          // Wake any exclusive waiters as there are now no readers.
-          futex(&state_, FUTEX_WAKE, -1, NULL, NULL, 0);
-        }
-      }
-    } else {
-      LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
-    }
-  } while(!done);
-#else
-  CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
-#endif
 }
 
 bool ReaderWriterMutex::IsExclusiveHeld(const Thread* self) const {

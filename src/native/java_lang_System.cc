@@ -20,6 +20,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "scoped_thread_state_change.h"
 
 /*
