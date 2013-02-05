@@ -141,34 +141,6 @@ void BaseMutex::DumpAll(std::ostream& os) {
 #endif
 }
 
-void BaseMutex::RegisterAsLocked(Thread* self) {
-  if (UNLIKELY(self == NULL)) {
-    CheckUnattachedThread(level_);
-    return;
-  }
-  if (kDebugLocking) {
-    // Check if a bad Mutex of this level or lower is held.
-    bool bad_mutexes_held = false;
-    for (int i = level_; i >= 0; --i) {
-      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
-      if (UNLIKELY(held_mutex != NULL)) {
-        LOG(ERROR) << "Lock level violation: holding \"" << held_mutex->name_ << "\" (level " << i
-            << ") while locking \"" << name_ << "\" (level " << static_cast<int>(level_) << ")";
-        if (i > kAbortLock) {
-          // Only abort in the check below if this is more than abort level lock.
-          bad_mutexes_held = true;
-        }
-      }
-    }
-    CHECK(!bad_mutexes_held);
-  }
-  // Don't record monitors as they are outside the scope of analysis. They may be inspected off of
-  // the monitor list.
-  if (level_ != kMonitorLock) {
-    self->SetHeldMutex(level_, this);
-  }
-}
-
 void BaseMutex::CheckSafeToWait(Thread* self) {
   if (self == NULL) {
     CheckUnattachedThread(level_);
