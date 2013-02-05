@@ -24,6 +24,16 @@
 
 namespace art {
 
+inline ThreadState Thread::SetState(ThreadState new_state) {
+  // Cannot use this code to change into Runnable as changing to Runnable should fail if
+  // old_state_and_flags.suspend_request is true.
+  DCHECK_NE(new_state, kRunnable);
+  DCHECK_EQ(this, Thread::Current());
+  union StateAndFlags old_state_and_flags = state_and_flags_;
+  state_and_flags_.as_struct.state = new_state;
+  return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
+}
+
 inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
 #ifdef NDEBUG
   UNUSED(check_locks);  // Keep GCC happy about unused parameters.

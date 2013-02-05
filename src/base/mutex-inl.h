@@ -40,21 +40,29 @@ static inline int futex(volatile int *uaddr, int op, int val, const struct times
 
 class ScopedContentionRecorder {
  public:
+#if CONTENTION_LOGGING
   ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid) :
       mutex_(mutex), blocked_tid_(blocked_tid), owner_tid_(owner_tid),
       start_milli_time_(MilliTime()) {
   }
+#else
+  ScopedContentionRecorder(BaseMutex*, uint64_t, uint64_t) {}
+#endif
 
   ~ScopedContentionRecorder() {
+#if CONTENTION_LOGGING
     uint64_t end_milli_time = MilliTime();
     mutex_->RecordContention(blocked_tid_, owner_tid_, end_milli_time - start_milli_time_);
+#endif
   }
 
  private:
+#if CONTENTION_LOGGING
   BaseMutex* const mutex_;
-  uint64_t blocked_tid_;
-  uint64_t owner_tid_;
+  const uint64_t blocked_tid_;
+  const uint64_t owner_tid_;
   const uint64_t start_milli_time_;
+#endif
 };
 
 static inline uint64_t SafeGetTid(const Thread* self) {
@@ -124,7 +132,7 @@ inline void ReaderWriterMutex::SharedLock(Thread* self) {
   bool done = false;
   do {
     int32_t cur_state = state_;
-    if (cur_state >= 0) {
+    if (LIKELY(cur_state >= 0)) {
       // Add as an extra reader.
       done = android_atomic_acquire_cas(cur_state, cur_state + 1, &state_) == 0;
     } else {

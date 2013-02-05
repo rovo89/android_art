@@ -22,7 +22,7 @@
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/object-inl.h"
+#include "mirror/field-inl.h"
 #include "mirror/object_array.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"

@@ -40,7 +40,7 @@
 #include "mirror/array.h"
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
-#include "mirror/object-inl.h"
+#include "mirror/field-inl.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
 #include "oat_file.h"

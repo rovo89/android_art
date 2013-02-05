@@ -41,7 +41,7 @@
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/object-inl.h"
+#include "mirror/field-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
@@ -529,16 +529,6 @@ void Thread::AtomicSetFlag(ThreadFlag flag) {
 
 void Thread::AtomicClearFlag(ThreadFlag flag) {
   android_atomic_and(-1 ^ flag, &state_and_flags_.as_int);
-}
-
-ThreadState Thread::SetState(ThreadState new_state) {
-  // Cannot use this code to change into Runnable as changing to Runnable should fail if
-  // old_state_and_flags.suspend_request is true.
-  DCHECK_NE(new_state, kRunnable);
-  DCHECK_EQ(this, Thread::Current());
-  union StateAndFlags old_state_and_flags = state_and_flags_;
-  state_and_flags_.as_struct.state = new_state;
-  return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
 
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.

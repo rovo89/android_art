@@ -30,9 +30,9 @@ namespace art {
 class ScopedThreadStateChange {
  public:
   ScopedThreadStateChange(Thread* self, ThreadState new_thread_state)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline))
       : self_(self), thread_state_(new_thread_state), expected_has_no_thread_(false) {
-    if (self_ == NULL) {
+    if (UNLIKELY(self_ == NULL)) {
       // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
       old_thread_state_ = kTerminated;
       MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
@@ -61,8 +61,8 @@ class ScopedThreadStateChange {
     }
   }
 
-  ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) {
-    if (self_ == NULL) {
+  ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline)) {
+    if (UNLIKELY(self_ == NULL)) {
       if (!expected_has_no_thread_) {
         MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
         Runtime* runtime = Runtime::Current();
@@ -120,7 +120,7 @@ class ScopedThreadStateChange {
 class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
  public:
   explicit ScopedObjectAccessUnchecked(JNIEnv* env)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline))
       : ScopedThreadStateChange(ThreadForEnv(env), kRunnable),
         env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
     self_->VerifyStack();
@@ -131,9 +131,6 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
       : ScopedThreadStateChange(self, kRunnable),
         env_(reinterpret_cast<JNIEnvExt*>(self->GetJniEnv())),
         vm_(env_ != NULL ? env_->vm : NULL) {
-    if (Vm() != NULL && !Vm()->work_around_app_jni_bugs && self != Thread::Current()) {
-      UnexpectedThreads(self, Thread::Current());
-    }
     self_->VerifyStack();
   }
 
@@ -141,6 +138,9 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   // change into Runnable or acquire a share on the mutator_lock_.
   explicit ScopedObjectAccessUnchecked(JavaVM* vm)
       : ScopedThreadStateChange(), env_(NULL), vm_(reinterpret_cast<JavaVMExt*>(vm)) {}
+
+  ~ScopedObjectAccessUnchecked() __attribute__ ((always_inline)) {
+  }
 
   JNIEnvExt* Env() const {
     return env_;
@@ -259,21 +259,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
  private:
   static Thread* ThreadForEnv(JNIEnv* env) {
     JNIEnvExt* full_env(reinterpret_cast<JNIEnvExt*>(env));
-    bool work_around_app_jni_bugs = full_env->vm->work_around_app_jni_bugs;
-    Thread* env_self = full_env->self;
-    Thread* self = work_around_app_jni_bugs ? Thread::Current() : env_self;
-    if (!work_around_app_jni_bugs && self != env_self) {
-      UnexpectedThreads(env_self, self);
-    }
-    return self;
-  }
-
-  static void UnexpectedThreads(Thread* found_self, Thread* expected_self) {
-    // TODO: pass through function name so we can use it here instead of NULL...
-    JniAbortF(NULL, "JNIEnv for %s used on %s",
-             found_self != NULL ? ToStr<Thread>(*found_self).c_str() : "NULL",
-             expected_self != NULL ? ToStr<Thread>(*expected_self).c_str() : "NULL");
-
+    return full_env->self;
   }
 
   // The full JNIEnv.
@@ -289,7 +275,7 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
  public:
   explicit ScopedObjectAccess(JNIEnv* env)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)  __attribute__ ((always_inline))
       : ScopedObjectAccessUnchecked(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
   }
@@ -301,7 +287,7 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
     Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
-  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) {
+  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_)  __attribute__ ((always_inline)) {
     // Base class will release share of lock. Invoked after this destructor.
   }
 
