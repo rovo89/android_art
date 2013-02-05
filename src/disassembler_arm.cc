@@ -554,24 +554,52 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         uint32_t imm3 = (instr >> 12) & 7;
         ArmRegister Rd(instr, 8);
         uint32_t imm8 = instr & 0xFF;
-        int32_t imm32 = (i << 12) | (imm3 << 8) | imm8;
-        switch (op3) {
-          case 0x0: opcode << "and"; break;
-          case 0x1: opcode << "bic"; break;
-          case 0x2: opcode << "orr"; break;
-          case 0x3: opcode << "orn"; break;
-          case 0x4: opcode << "eor"; break;
-          case 0x8: opcode << "add"; break;
-          case 0xA: opcode << "adc"; break;
-          case 0xB: opcode << "sbc"; break;
-          case 0xD: opcode << "sub"; break;
-          case 0xE: opcode << "rsb"; break;
-          default: opcode << "UNKNOWN DPMI-" << op3; break;
+        int32_t imm32 = (i << 11) | (imm3 << 8) | imm8;
+        if (Rn.r == 0xF && (op3 == 0x2 || op3 == 0x3)) {
+          if (op3 == 0x2) {
+            opcode << "mov";
+            if (S == 1) {
+              opcode << "s";
+            }
+            opcode << ".w";
+          } else {
+            opcode << "mvn";
+            if (S == 1) {
+              opcode << "s";
+            }
+          }
+          args << Rd << ", ThumbExpand(" << imm32 << ")";
+        } else if (Rd.r == 0xF && S == 1 &&
+                   (op3 == 0x0 || op3 == 0x4 || op3 == 0x8 || op3 == 0xD)) {
+          if (op3 == 0x0) {
+            opcode << "tst";
+          } else if (op3 == 0x4) {
+            opcode << "teq";
+          } else if (op3 == 0x8) {
+            opcode << "cmw";
+          } else {
+            opcode << "cmp.w";
+          }
+          args << Rn << ", ThumbExpand(" << imm32 << ")";
+        } else {
+          switch (op3) {
+            case 0x0: opcode << "and"; break;
+            case 0x1: opcode << "bic"; break;
+            case 0x2: opcode << "orr"; break;
+            case 0x3: opcode << "orn"; break;
+            case 0x4: opcode << "eor"; break;
+            case 0x8: opcode << "add"; break;
+            case 0xA: opcode << "adc"; break;
+            case 0xB: opcode << "sbc"; break;
+            case 0xD: opcode << "sub"; break;
+            case 0xE: opcode << "rsb"; break;
+            default: opcode << "UNKNOWN DPMI-" << op3; break;
+          }
+          if (S == 1) {
+            opcode << "s";
+          }
+          args << Rd << ", " << Rn << ", ThumbExpand(" << imm32 << ")";
         }
-        if (S == 1) {
-          opcode << "s";
-        }
-        args << Rd << ", " << Rn << ", ThumbExpand(" << imm32 << ")";
       } else if ((instr & 0x8000) == 0 && (op2 & 0x20) != 0) {
         // Data-processing (plain binary immediate)
         // |111|11|10|00000|0000|1|111110000000000|
