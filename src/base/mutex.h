@@ -223,14 +223,14 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 #endif
 
   // Block until ReaderWriterMutex is shared or free then acquire a share on the access.
-  void SharedLock(Thread* self) SHARED_LOCK_FUNCTION()  __attribute__ ((always_inline));
+  void SharedLock(Thread* self) SHARED_LOCK_FUNCTION() ALWAYS_INLINE;
   void ReaderLock(Thread* self) SHARED_LOCK_FUNCTION() { SharedLock(self); }
 
   // Try to acquire share of ReaderWriterMutex.
   bool SharedTryLock(Thread* self) EXCLUSIVE_TRYLOCK_FUNCTION(true);
 
   // Release a share of the access.
-  void SharedUnlock(Thread* self) UNLOCK_FUNCTION() __attribute__ ((always_inline));
+  void SharedUnlock(Thread* self) UNLOCK_FUNCTION() ALWAYS_INLINE;
   void ReaderUnlock(Thread* self) UNLOCK_FUNCTION() { SharedUnlock(self); }
 
   // Is the current thread the exclusive holder of the ReaderWriterMutex.

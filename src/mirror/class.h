@@ -542,7 +542,7 @@ class MANAGED Class : public StaticStorageBase {
   // super class or interface, return the specific implementation
   // method for this class.
   AbstractMethod* FindVirtualMethodForInterface(AbstractMethod* method) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) __attribute__ ((always_inline, hot));
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
 
   AbstractMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

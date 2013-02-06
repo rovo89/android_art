@@ -30,7 +30,7 @@ namespace art {
 class ScopedThreadStateChange {
  public:
   ScopedThreadStateChange(Thread* self, ThreadState new_thread_state)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline))
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) ALWAYS_INLINE
       : self_(self), thread_state_(new_thread_state), expected_has_no_thread_(false) {
     if (UNLIKELY(self_ == NULL)) {
       // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
@@ -61,7 +61,7 @@ class ScopedThreadStateChange {
     }
   }
 
-  ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline)) {
+  ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) ALWAYS_INLINE {
     if (UNLIKELY(self_ == NULL)) {
       if (!expected_has_no_thread_) {
         MutexLock mu(NULL, *Locks::runtime_shutdown_lock_);
@@ -120,7 +120,7 @@ class ScopedThreadStateChange {
 class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
  public:
   explicit ScopedObjectAccessUnchecked(JNIEnv* env)
-      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) __attribute__ ((always_inline))
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) ALWAYS_INLINE
       : ScopedThreadStateChange(ThreadForEnv(env), kRunnable),
         env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
     self_->VerifyStack();
@@ -139,7 +139,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   explicit ScopedObjectAccessUnchecked(JavaVM* vm)
       : ScopedThreadStateChange(), env_(NULL), vm_(reinterpret_cast<JavaVMExt*>(vm)) {}
 
-  ~ScopedObjectAccessUnchecked() __attribute__ ((always_inline)) {
+  // Here purely to force inlining.
+  ~ScopedObjectAccessUnchecked() ALWAYS_INLINE {
   }
 
   JNIEnvExt* Env() const {
@@ -275,7 +276,7 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
  public:
   explicit ScopedObjectAccess(JNIEnv* env)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)  __attribute__ ((always_inline))
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
       : ScopedObjectAccessUnchecked(env) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
   }
@@ -287,7 +288,7 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
     Locks::mutator_lock_->AssertSharedHeld(Self());
   }
 
-  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_)  __attribute__ ((always_inline)) {
+  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {
     // Base class will release share of lock. Invoked after this destructor.
   }
 
