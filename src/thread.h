@@ -170,14 +170,14 @@ class PACKED(4) Thread {
   ThreadState TransitionFromSuspendedToRunnable()
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
-      __attribute__ ((always_inline));
+      ALWAYS_INLINE;
 
   // Transition from runnable into a state where mutator privileges are denied. Releases share of
   // mutator lock.
   void TransitionFromRunnableToSuspended(ThreadState new_state)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       UNLOCK_FUNCTION(Locks::mutator_lock_)
-      __attribute__ ((always_inline));
+      ALWAYS_INLINE;
 
   // Wait for a debugger suspension on the thread associated with the given peer. Returns the
   // thread on success, else NULL. If the thread should be suspended then request_suspension should

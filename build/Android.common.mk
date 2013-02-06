@@ -77,6 +77,7 @@ ifeq ($(HOST_OS),linux)
 endif
 
 art_debug_cflags := \
+	-fno-inline \
 	-DDYNAMIC_ANNOTATIONS_ENABLED=1 \
 	-UNDEBUG
 
