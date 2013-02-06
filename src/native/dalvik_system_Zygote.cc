@@ -54,18 +54,6 @@ enum MountExternalKind {
   MOUNT_EXTERNAL_MULTIUSER = 2,
 };
 
-static void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
-  ScopedUtfChars command(env, javaCommand);
-  if (command.c_str() == NULL) {
-    return;
-  }
-  const char* argp[] = {_PATH_BSHELL, "-c", command.c_str(), NULL};
-  LOG(INFO) << "Exec: " << argp[0] << ' ' << argp[1] << ' ' << argp[2];
-
-  execv(_PATH_BSHELL, const_cast<char**>(argp));
-  exit(127);
-}
-
 // This signal handler is for zygote mode, since the zygote must reap its children
 static void SigChldHandler(int /*signal_number*/) {
   pid_t pid;
@@ -489,8 +477,6 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Zygote, nativeExecShell, "(Ljava/lang/String;)V"),
-  //NATIVE_METHOD(Zygote, nativeFork, "()I"),
   NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[IILjava/lang/String;Ljava/lang/String;)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
