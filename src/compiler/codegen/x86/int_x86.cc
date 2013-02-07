@@ -327,9 +327,8 @@ void X86Codegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenX86Long for x86";
-  return;
 }
-bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                          RegLocation rl_src2)
 {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
@@ -344,10 +343,9 @@ bool X86Codegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
@@ -362,10 +360,9 @@ bool X86Codegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
@@ -380,10 +377,9 @@ bool X86Codegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
+void X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2)
 {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
@@ -398,10 +394,9 @@ bool X86Codegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest,
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
+void X86Codegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2)
 {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
@@ -416,10 +411,9 @@ bool X86Codegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest,
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void X86Codegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   FlushAllRegs(cu);
   LockCallTemps(cu);  // Prepare for explicit register usage
@@ -431,7 +425,6 @@ bool X86Codegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
   RegLocation rl_result = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r0, r1,
                           INVALID_SREG, INVALID_SREG};
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
 void X86Codegen::OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int thread_offset) {
@@ -590,18 +583,18 @@ void X86Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   MarkGCCard(cu, r_value, r_array);
 }
 
-bool X86Codegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void X86Codegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_shift)
 {
   // Default implementation is just to ignore the constant case.
-  return GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
+  GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
 }
 
-bool X86Codegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+void X86Codegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   // Default - bail to non-const handler.
-  return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+  GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
 }
 
 }  // namespace art

@@ -22,7 +22,7 @@
 
 namespace art {
 
-bool MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
+void MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kMipsNop;
@@ -55,23 +55,21 @@ bool MipsCodegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
       rl_result = GetReturn(cu, true);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_FLOAT:
       GenNegFloat(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   rl_src1 = LoadValue(cu, rl_src1, kFPReg);
   rl_src2 = LoadValue(cu, rl_src2, kFPReg);
   rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
   NewLIR3(cu, op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
   StoreValue(cu, rl_dest, rl_result);
-
-  return false;
 }
 
-bool MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+void MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kMipsNop;
@@ -100,12 +98,12 @@ bool MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
       rl_result = GetReturnWide(cu, true);
       StoreValueWide(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_DOUBLE:
       GenNegDouble(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unpexpected opcode: " << opcode;
   }
   rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
   DCHECK(rl_src1.wide);
@@ -117,10 +115,9 @@ bool MipsCodegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode
   NewLIR3(cu, op, S2d(rl_result.low_reg, rl_result.high_reg), S2d(rl_src1.low_reg, rl_src1.high_reg),
           S2d(rl_src2.low_reg, rl_src2.high_reg));
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+void MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
                                 RegLocation rl_src)
 {
   int op = kMipsNop;
@@ -140,19 +137,25 @@ bool MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, R
       op = kMipsFcvtdw;
       break;
     case Instruction::FLOAT_TO_INT:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2iz), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2iz), rl_dest, rl_src);
+      return;
     case Instruction::DOUBLE_TO_INT:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2iz), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2iz), rl_dest, rl_src);
+      return;
     case Instruction::LONG_TO_DOUBLE:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      return;
     case Instruction::FLOAT_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      return;
     case Instruction::LONG_TO_FLOAT:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      return;
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(cu, rl_src, kFPReg);
@@ -170,14 +173,13 @@ bool MipsCodegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, R
     NewLIR2(cu, op, rl_result.low_reg, src_reg);
     StoreValue(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
-bool MipsCodegen::GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+void MipsCodegen::GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2)
 {
   bool wide = true;
-  int offset;
+  int offset = -1; // Make gcc happy.
 
   switch (opcode) {
     case Instruction::CMPL_FLOAT:
@@ -195,7 +197,7 @@ bool MipsCodegen::GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLoc
       offset = ENTRYPOINT_OFFSET(pCmpgDouble);
       break;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   FlushAllRegs(cu);
   LockCallTemps(cu);
@@ -211,7 +213,6 @@ bool MipsCodegen::GenCmpFP(CompilationUnit *cu, Instruction::Code opcode, RegLoc
   OpReg(cu, kOpBlx, r_tgt);
   RegLocation rl_result = GetReturn(cu, false);
   StoreValue(cu, rl_dest, rl_result);
-  return false;
 }
 
 void MipsCodegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir,

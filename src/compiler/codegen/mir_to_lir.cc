@@ -28,11 +28,10 @@ namespace art {
  * load/store utilities here, or target-dependent genXX() handlers
  * when necessary.
  */
-static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
+static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
                                      LIR* label_list)
 {
   Codegen* cg = cu->cg.get();
-  bool res = false;   // Assume success
   RegLocation rl_src[3];
   RegLocation rl_dest = GetBadLoc();
   RegLocation rl_result = GetBadLoc();
@@ -265,7 +264,7 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::CMPG_FLOAT:
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
-      res = cg->GenCmpFP(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
+      cg->GenCmpFP(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
       break;
 
     case Instruction::CMP_LONG:
@@ -484,20 +483,20 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
 
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
-      res = cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
+      cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
       break;
 
     case Instruction::NEG_LONG:
     case Instruction::NOT_LONG:
-      res = cg->GenArithOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
+      cg->GenArithOpLong(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
       break;
 
     case Instruction::NEG_FLOAT:
-      res = cg->GenArithOpFloat(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
+      cg->GenArithOpFloat(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
       break;
 
     case Instruction::NEG_DOUBLE:
-      res = cg->GenArithOpDouble(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
+      cg->GenArithOpDouble(cu, opcode, rl_dest, rl_src[0], rl_src[0]);
       break;
 
     case Instruction::INT_TO_LONG:
@@ -660,9 +659,8 @@ static bool CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       break;
 
     default:
-      res = true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
-  return res;
 }
 
 // Process extended MIR instructions
@@ -780,12 +778,7 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
       continue;
     }
 
-    bool not_handled = CompileDalvikInstruction(cu, mir, bb, label_list);
-    if (not_handled) {
-      LOG(FATAL) << StringPrintf("%#06x: Opcode %#x (%s)",
-                                 mir->offset, opcode,
-                                 Instruction::Name(mir->dalvikInsn.opcode));
-    }
+    CompileDalvikInstruction(cu, mir, bb, label_list);
   }
 
   if (head_lir) {

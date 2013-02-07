@@ -89,7 +89,7 @@ class MipsCodegen : public Codegen {
     virtual bool IsUnconditionalBranch(LIR* lir);
 
     // Required for target - Dalvik-level generators.
-    virtual bool GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2);
     virtual void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
                                 RegLocation rl_index, RegLocation rl_src, int scale);
@@ -97,32 +97,32 @@ class MipsCodegen : public Codegen {
                              RegLocation rl_index, RegLocation rl_dest, int scale);
     virtual void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale);
-    virtual bool GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+    virtual void GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_shift);
     virtual void GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
-    virtual bool GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
-    virtual bool GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
-    virtual bool GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
+    virtual void GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1,
                                   RegLocation rl_src2);
-    virtual bool GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
                                  RegLocation rl_src1, RegLocation rl_src2);
-    virtual bool GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src1, RegLocation rl_src2);
-    virtual bool GenConversion(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenConversion(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src);
     virtual bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier);
     virtual bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min);
     virtual bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info);
-    virtual bool GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
-    virtual bool GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2);
-    virtual bool GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
-    virtual bool GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+    virtual void GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2);
     virtual LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code, int reg1, int base,
                                 int offset, ThrowKind kind);
