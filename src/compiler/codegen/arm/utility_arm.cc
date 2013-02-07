@@ -500,6 +500,10 @@ LIR* ArmCodegen::OpRegRegImm(CompilationUnit* cu, OpKind op, int r_dest, int r_s
         alt_opcode = kThumb2AddRRR;
       }
       break;
+    case kOpRsub:
+      opcode = kThumb2RsubRRI8;
+      alt_opcode = kThumb2RsubRRR;
+      break;
     case kOpAdc:
       opcode = kThumb2AdcRRI8;
       alt_opcode = kThumb2AdcRRR;

@@ -137,10 +137,24 @@ void ArmCodegen::GenFusedLongCmpImmBranch(CompilationUnit* cu, BasicBlock* bb, R
 
   switch(ccode) {
     case kCondEq:
-      OpCmpImmBranch(cu, kCondNe, high_reg, val_hi, not_taken);
-      break;
     case kCondNe:
-      OpCmpImmBranch(cu, kCondNe, high_reg, val_hi, taken);
+      LIR* target;
+      ConditionCode condition;
+      if (ccode == kCondEq) {
+        target = not_taken;
+        condition = kCondEq;
+      } else {
+        target = taken;
+        condition = kCondNe;
+      }
+      if (val == 0) {
+        int t_reg = AllocTemp(cu);
+        NewLIR4(cu, kThumb2OrrRRRs, t_reg, low_reg, high_reg, 0);
+        FreeTemp(cu, t_reg);
+        OpCondBranch(cu, condition, taken);
+        return;
+      }
+      OpCmpImmBranch(cu, kCondNe, high_reg, val_hi, target);
       break;
     case kCondLt:
       OpCmpImmBranch(cu, kCondLt, high_reg, val_hi, taken);

@@ -1419,13 +1419,14 @@ void Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
   switch (opcode) {
     case Instruction::RSUB_INT_LIT8:
     case Instruction::RSUB_INT: {
-      int t_reg;
-      //TUNING: add support for use of Arm rsub op
       rl_src = LoadValue(cu, rl_src, kCoreReg);
-      t_reg = AllocTemp(cu);
-      LoadConstant(cu, t_reg, lit);
       rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
-      OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg, rl_src.low_reg);
+      if (cu->instruction_set == kThumb2) {
+        OpRegRegImm(cu, kOpRsub, rl_result.low_reg, rl_src.low_reg, lit);
+      } else {
+        OpRegReg(cu, kOpNeg, rl_result.low_reg, rl_src.low_reg);
+        OpRegImm(cu, kOpAdd, rl_result.low_reg, lit);
+      }
       StoreValue(cu, rl_dest, rl_result);
       return;
     }
