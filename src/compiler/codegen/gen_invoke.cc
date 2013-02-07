@@ -1126,6 +1126,66 @@ bool Codegen::GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info) {
   return true;
 }
 
+bool Codegen::GenInlinedUnsafeGet(CompilationUnit* cu, CallInfo* info,
+                                  bool is_long, bool is_volatile) {
+  if (cu->instruction_set == kX86 || cu->instruction_set == kMips) {
+    // TODO - add x86 and Mips implementation
+    return false;
+  }
+  // Unused - RegLocation rl_src_unsafe = info->args[0];
+  RegLocation rl_src_obj = info->args[1];  // Object
+  RegLocation rl_src_offset = info->args[2];  // long low
+  rl_src_offset.wide = 0;  // ignore high half in info->args[3]
+  RegLocation rl_dest = InlineTarget(cu, info);  // result reg
+  if (is_volatile) {
+    GenMemBarrier(cu, kLoadLoad);
+  }
+  RegLocation rl_object = LoadValue(cu, rl_src_obj, kCoreReg);
+  RegLocation rl_offset = LoadValue(cu, rl_src_offset, kCoreReg);
+  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+  if (is_long) {
+    OpRegReg(cu, kOpAdd, rl_object.low_reg, rl_offset.low_reg);
+    LoadBaseDispWide(cu, rl_object.low_reg, 0, rl_result.low_reg, rl_result.high_reg, INVALID_SREG);
+    StoreValueWide(cu, rl_dest, rl_result);
+  } else {
+    LoadBaseIndexed(cu, rl_object.low_reg, rl_offset.low_reg, rl_result.low_reg, 0, kWord);
+    StoreValue(cu, rl_dest, rl_result);
+  }
+  return true;
+}
+
+bool Codegen::GenInlinedUnsafePut(CompilationUnit* cu, CallInfo* info, bool is_long,
+                                  bool is_object, bool is_volatile, bool is_ordered) {
+  if (cu->instruction_set == kX86 || cu->instruction_set == kMips) {
+    // TODO - add x86 and Mips implementation
+    return false;
+  }
+  // Unused - RegLocation rl_src_unsafe = info->args[0];
+  RegLocation rl_src_obj = info->args[1];  // Object
+  RegLocation rl_src_offset = info->args[2];  // long low
+  rl_src_offset.wide = 0;  // ignore high half in info->args[3]
+  RegLocation rl_src_value = info->args[4];  // value to store
+  if (is_volatile || is_ordered) {
+    GenMemBarrier(cu, kStoreStore);
+  }
+  RegLocation rl_object = LoadValue(cu, rl_src_obj, kCoreReg);
+  RegLocation rl_offset = LoadValue(cu, rl_src_offset, kCoreReg);
+  RegLocation rl_value = LoadValue(cu, rl_src_value, kCoreReg);
+  if (is_long) {
+    OpRegReg(cu, kOpAdd, rl_object.low_reg, rl_offset.low_reg);
+    StoreBaseDispWide(cu, rl_object.low_reg, 0, rl_value.low_reg, rl_value.high_reg);
+  } else {
+    StoreBaseIndexed(cu, rl_object.low_reg, rl_offset.low_reg, rl_value.low_reg, 0, kWord);
+  }
+  if (is_volatile) {
+    GenMemBarrier(cu, kStoreLoad);
+  }
+  if (is_object) {
+    MarkGCCard(cu, rl_value.low_reg, rl_object.low_reg);
+  }
+  return true;
+}
+
 bool Codegen::GenIntrinsic(CompilationUnit* cu, CallInfo* info)
 {
   if (info->opt_flags & MIR_INLINED) {
@@ -1196,12 +1256,66 @@ bool Codegen::GenIntrinsic(CompilationUnit* cu, CallInfo* info)
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(cu, info);
     }
-  } else if (tgt_method.find("boolean sun.misc.Unsafe.compareAndSwap") != std::string::npos) {
+  } else if (tgt_method.find(" sun.misc.Unsafe") != std::string::npos) {
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
       return GenInlinedCas32(cu, info, false);
     }
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") {
       return GenInlinedCas32(cu, info, true);
+    }
+    if (tgt_method == "int sun.misc.Unsafe.getInt(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, false /* is_long */, false /* is_volatile */);
+    }
+    if (tgt_method == "int sun.misc.Unsafe.getIntVolatile(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, false /* is_long */, true /* is_volatile */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putInt(java.lang.Object, long, int)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, false /* is_object */,
+                                 false /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putIntVolatile(java.lang.Object, long, int)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, false /* is_object */,
+                                 true /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putOrderedInt(java.lang.Object, long, int)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, false /* is_object */,
+                                 false /* is_volatile */, true /* is_ordered */);
+    }
+    if (tgt_method == "long sun.misc.Unsafe.getLong(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, true /* is_long */, false /* is_volatile */);
+    }
+    if (tgt_method == "long sun.misc.Unsafe.getLongVolatile(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, true /* is_long */, true /* is_volatile */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putLong(java.lang.Object, long, long)") {
+      return GenInlinedUnsafePut(cu, info, true /* is_long */, false /* is_object */,
+                                 false /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putLongVolatile(java.lang.Object, long, long)") {
+      return GenInlinedUnsafePut(cu, info, true /* is_long */, false /* is_object */,
+                                 true /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putOrderedLong(java.lang.Object, long, long)") {
+      return GenInlinedUnsafePut(cu, info, true /* is_long */, false /* is_object */,
+                                 false /* is_volatile */, true /* is_ordered */);
+    }
+    if (tgt_method == "java.lang.Object sun.misc.Unsafe.getObject(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, false /* is_long */, false /* is_volatile */);
+    }
+    if (tgt_method == "java.lang.Object sun.misc.Unsafe.getObjectVolatile(java.lang.Object, long)") {
+      return GenInlinedUnsafeGet(cu, info, false /* is_long */, true /* is_volatile */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, true /* is_object */,
+                                 false /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putObjectVolatile(java.lang.Object, long, java.lang.Object)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, true /* is_object */,
+                                 true /* is_volatile */, false /* is_ordered */);
+    }
+    if (tgt_method == "void sun.misc.Unsafe.putOrderedObject(java.lang.Object, long, java.lang.Object)") {
+      return GenInlinedUnsafePut(cu, info, false /* is_long */, true /* is_object */,
+                                 false /* is_volatile */, true /* is_ordered */);
     }
   }
   return false;

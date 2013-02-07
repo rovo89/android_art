@@ -205,6 +205,9 @@ class Codegen {
     bool GenInlinedIndexOf(CompilationUnit* cu, CallInfo* info, bool zero_based);
     bool GenInlinedStringCompareTo(CompilationUnit* cu, CallInfo* info);
     bool GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info);
+    bool GenInlinedUnsafeGet(CompilationUnit* cu, CallInfo* info, bool is_long, bool is_volatile);
+    bool GenInlinedUnsafePut(CompilationUnit* cu, CallInfo* info, bool is_long, bool is_object,
+                             bool is_volatile, bool is_ordered);
     bool GenIntrinsic(CompilationUnit* cu, CallInfo* info);
 
     // Shared by all targets - implemented in gen_loadstore.cc.
