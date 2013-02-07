@@ -148,6 +148,10 @@ static BasicBlock *SplitBlock(CompilationUnit* cu, unsigned int code_offset,
   bottom_block->first_mir_insn = insn;
   bottom_block->last_mir_insn = orig_block->last_mir_insn;
 
+  /* If this block was terminated by a return, the flag needs to go with the bottom block */
+  bottom_block->terminated_by_return = orig_block->terminated_by_return;
+  orig_block->terminated_by_return = false;
+
   /* Add it to the quick lookup cache */
   cu->block_map.Put(bottom_block->start_offset, bottom_block);
 
@@ -972,6 +976,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
       cur_block = ProcessCanBranch(cu.get(), cur_block, insn, cur_offset,
                                   width, flags, code_ptr, code_end);
     } else if (flags & Instruction::kReturn) {
+      cur_block->terminated_by_return = true;
       cur_block->fall_through = exit_block;
       InsertGrowableList(cu.get(), exit_block->predecessors,
                             reinterpret_cast<uintptr_t>(cur_block));

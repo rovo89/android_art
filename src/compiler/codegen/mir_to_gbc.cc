@@ -1018,7 +1018,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRet(GetLLVMValue(cu, rl_src[0].orig_sreg));
-        bb->has_return = true;
+        DCHECK(bb->terminated_by_return);
       }
       break;
 
@@ -1028,7 +1028,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRetVoid();
-        bb->has_return = true;
+        DCHECK(bb->terminated_by_return);
       }
       break;
 
@@ -1916,7 +1916,7 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
 
   if (bb->block_type == kEntryBlock) {
     cu->entryTarget_bb = GetLLVMBlock(cu, bb->fall_through->id);
-  } else if ((bb->fall_through != NULL) && !bb->has_return) {
+  } else if ((bb->fall_through != NULL) && !bb->terminated_by_return) {
     cu->irb->CreateBr(GetLLVMBlock(cu, bb->fall_through->id));
   }
 

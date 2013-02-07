@@ -230,8 +230,8 @@ struct BasicBlock {
   bool catch_entry;
   bool explicit_throw;
   bool conditional_branch;
-  bool has_return;                  // Contains a return.
-  bool dominates_return;            // Is a member of return extended basic block
+  bool terminated_by_return;        // Block ends with a Dalvik return opcode.
+  bool dominates_return;            // Is a member of return extended basic block.
   uint16_t start_offset;
   uint16_t nesting_depth;
   BBType block_type;
