@@ -130,10 +130,10 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define LIKELY(x)       __builtin_expect((x), true)
 #define UNLIKELY(x)     __builtin_expect((x), false)
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 #define ALWAYS_INLINE
 #else
-#define ALWAYS_INLINE  __attribute__((always_inline))
+#define ALWAYS_INLINE  __attribute__ ((always_inline))
 #endif
 
 // bionic and glibc both have TEMP_FAILURE_RETRY, but Mac OS' libc doesn't.
