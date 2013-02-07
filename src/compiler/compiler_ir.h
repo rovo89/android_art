@@ -605,6 +605,11 @@ static inline int64_t ConstantValueWide(const CompilationUnit* cu, RegLocation l
       Low32Bits(static_cast<int64_t>(cu->constant_values[loc.orig_sreg]));
 }
 
+static inline bool IsConstantNullRef(const CompilationUnit* cu, RegLocation loc)
+{
+  return loc.ref && loc.is_const && (ConstantValue(cu, loc) == 0);
+}
+
 static inline bool MustFlushConstant(const CompilationUnit* cu, RegLocation loc)
 {
   DCHECK(IsConst(cu, loc));
