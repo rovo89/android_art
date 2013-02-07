@@ -639,7 +639,9 @@ void MipsCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation
   StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
   FreeTemp(cu, r_ptr);
   FreeTemp(cu, r_index);
-  MarkGCCard(cu, r_value, r_array);
+  if (!IsConstantNullRef(cu, rl_src)) {
+    MarkGCCard(cu, r_value, r_array);
+  }
 }
 
 bool MipsCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,

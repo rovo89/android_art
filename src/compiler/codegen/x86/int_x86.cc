@@ -587,7 +587,9 @@ void X86Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   StoreBaseIndexedDisp(cu, r_array, r_index, scale,
                        data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
   FreeTemp(cu, r_index);
-  MarkGCCard(cu, r_value, r_array);
+  if (!IsConstantNullRef(cu, rl_src)) {
+    MarkGCCard(cu, r_value, r_array);
+  }
 }
 
 bool X86Codegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,

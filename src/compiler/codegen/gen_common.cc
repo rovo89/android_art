@@ -425,7 +425,7 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
     if (is_volatile) {
       GenMemBarrier(cu, kStoreLoad);
     }
-    if (is_object) {
+    if (is_object && !IsConstantNullRef(cu, rl_src)) {
       MarkGCCard(cu, rl_src.low_reg, rBase);
     }
     FreeTemp(cu, rBase);
@@ -766,7 +766,7 @@ void Codegen::GenIPut(CompilationUnit* cu, uint32_t field_idx, int opt_flags, Op
       if (is_volatile) {
         GenMemBarrier(cu, kLoadLoad);
       }
-      if (is_object) {
+      if (is_object && !IsConstantNullRef(cu, rl_src)) {
         MarkGCCard(cu, rl_src.low_reg, rl_obj.low_reg);
       }
     }

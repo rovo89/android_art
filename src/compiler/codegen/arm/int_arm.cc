@@ -457,7 +457,7 @@ bool ArmCodegen::GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_
   RegLocation rl_object = LoadValue(cu, rl_src_obj, kCoreReg);
   RegLocation rl_new_value = LoadValue(cu, rl_src_new_value, kCoreReg);
 
-  if (need_write_barrier) {
+  if (need_write_barrier && !IsConstantNullRef(cu, rl_new_value)) {
     // Mark card for object assuming new value is stored.
     MarkGCCard(cu, rl_new_value.low_reg, rl_object.low_reg);
   }
@@ -946,7 +946,9 @@ void ArmCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
   FreeTemp(cu, r_ptr);
   FreeTemp(cu, r_index);
-  MarkGCCard(cu, r_value, r_array);
+  if (!IsConstantNullRef(cu, rl_src)) {
+    MarkGCCard(cu, r_value, r_array);
+  }
 }
 
 bool ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
