@@ -1890,6 +1890,11 @@ static bool CombineBlocks(struct CompilationUnit* cu, struct BasicBlock* bb)
     bb->taken = bb_next->taken;
     // Include the rest of the instructions
     bb->last_mir_insn = bb_next->last_mir_insn;
+    /*
+     * If lower-half of pair of blocks to combine contained a return, move the flag
+     * to the newly combined block.
+     */
+    bb->terminated_by_return = bb_next->terminated_by_return;
 
     /*
      * NOTE: we aren't updating all dataflow info here.  Should either make sure this pass
@@ -2096,17 +2101,17 @@ bool BuildExtendedBBList(struct CompilationUnit* cu, struct BasicBlock* bb)
   }
   BasicBlock* start_bb = bb;
   cu->extended_basic_blocks.push_back(bb);
-  bool has_return = false;
+  bool terminated_by_return = false;
   // Visit blocks strictly dominated by this head.
   while (bb != NULL) {
     bb->visited = true;
-    has_return |= bb->has_return;
+    terminated_by_return |= bb->terminated_by_return;
     bb = NextDominatedBlock(cu, bb);
     if (cu->verbose && (bb != NULL)) {
       LOG(INFO) << "...added bb " << bb->id;
     }
   }
-  if (has_return) {
+  if (terminated_by_return) {
     // This extended basic block contains a return, so mark all members.
     bb = start_bb;
     while (bb != NULL) {
