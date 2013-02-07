@@ -1018,7 +1018,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRet(GetLLVMValue(cu, rl_src[0].orig_sreg));
-        DCHECK(bb->has_return);
+        bb->has_return = true;
       }
       break;
 
@@ -1028,7 +1028,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
         }
         EmitPopShadowFrame(cu);
         cu->irb->CreateRetVoid();
-        DCHECK(bb->has_return);
+        bb->has_return = true;
       }
       break;
 

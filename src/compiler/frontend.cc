@@ -972,7 +972,6 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
       cur_block = ProcessCanBranch(cu.get(), cur_block, insn, cur_offset,
                                   width, flags, code_ptr, code_end);
     } else if (flags & Instruction::kReturn) {
-      cur_block->has_return = true;
       cur_block->fall_through = exit_block;
       InsertGrowableList(cu.get(), exit_block->predecessors,
                             reinterpret_cast<uintptr_t>(cur_block));
