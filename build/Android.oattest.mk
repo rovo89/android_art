@@ -65,10 +65,12 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
+$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OAT)
+	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$$< --oat-file=$$@ --instruction-set=$(HOST_ARCH) --host-prefix=""
+
 .PHONY: test-art-host-oat-$(1)
-test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-dependencies
+test-art-host-oat-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat test-art-host-dependencies
 	mkdir -p /tmp/android-data/test-art-host-oat-$(1)
-	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar --oat-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat --instruction-set=$(HOST_ARCH) --host-prefix=""
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
@@ -77,9 +79,8 @@ test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-depe
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-$(1)
 
 .PHONY: test-art-host-interpreter-oat-$(1)
-test-art-host-interpreter-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-dependencies
+test-art-host-interpreter-oat-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat test-art-host-dependencies
 	mkdir -p /tmp/android-data/test-art-host-interpreter-oat-$(1)
-	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar --oat-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat --instruction-set=$(HOST_ARCH) --host-prefix=""
 	ANDROID_DATA=/tmp/android-data/test-art-host-interpreter-oat-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
