@@ -345,10 +345,9 @@ void MipsCodegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocati
                              RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenMulLong for Mips";
-  return;
 }
 
-bool MipsCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void MipsCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                              RegLocation rl_src2)
 {
   rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
@@ -369,10 +368,9 @@ bool MipsCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocati
   OpRegRegReg(cu, kOpAdd, rl_result.high_reg, rl_result.high_reg, t_reg);
   FreeTemp(cu, t_reg);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool MipsCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void MipsCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                              RegLocation rl_src2)
 {
   rl_src1 = LoadValueWide(cu, rl_src1, kCoreReg);
@@ -393,10 +391,9 @@ bool MipsCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocati
   OpRegRegReg(cu, kOpSub, rl_result.high_reg, rl_result.high_reg, t_reg);
   FreeTemp(cu, t_reg);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool MipsCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void MipsCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -415,28 +412,24 @@ bool MipsCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocati
   OpRegRegReg(cu, kOpSub, rl_result.high_reg, rl_result.high_reg, t_reg);
   FreeTemp(cu, t_reg);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool MipsCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void MipsCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                              RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
-  return false;
 }
 
-bool MipsCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void MipsCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
-  return false;
 }
 
-bool MipsCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void MipsCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                              RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
-  return false;
 }
 
 /*
@@ -644,18 +637,18 @@ void MipsCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation
   }
 }
 
-bool MipsCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void MipsCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                                     RegLocation rl_src1, RegLocation rl_shift)
 {
   // Default implementation is just to ignore the constant case.
-  return GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
+  GenShiftOpLong(cu, opcode, rl_dest, rl_src1, rl_shift);
 }
 
-bool MipsCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+void MipsCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
                                     RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   // Default - bail to non-const handler.
-  return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+  GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
 }
 
 }  // namespace art

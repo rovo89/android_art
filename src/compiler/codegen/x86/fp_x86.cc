@@ -21,7 +21,7 @@
 
 namespace art {
 
-bool X86Codegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
+void X86Codegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
                                  RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
   RegLocation rl_result;
@@ -53,12 +53,12 @@ bool X86Codegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
       rl_result = GetReturn(cu, true);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_FLOAT:
       GenNegFloat(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   rl_src1 = LoadValue(cu, rl_src1, kFPReg);
   rl_src2 = LoadValue(cu, rl_src2, kFPReg);
@@ -73,11 +73,9 @@ bool X86Codegen::GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode,
   OpRegCopy(cu, r_dest, r_src1);
   NewLIR2(cu, op, r_dest, r_src2);
   StoreValue(cu, rl_dest, rl_result);
-
-  return false;
 }
 
-bool X86Codegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
+void X86Codegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   X86OpCode op = kX86Nop;
   RegLocation rl_result;
@@ -105,12 +103,12 @@ bool X86Codegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
       rl_result = GetReturnWide(cu, true);
       StoreValueWide(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_DOUBLE:
       GenNegDouble(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
   DCHECK(rl_src1.wide);
@@ -129,10 +127,9 @@ bool X86Codegen::GenArithOpDouble(CompilationUnit *cu, Instruction::Code opcode,
   OpRegCopy(cu, r_dest, r_src1);
   NewLIR2(cu, op, r_dest, r_src2);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+void X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
                                RegLocation rl_src) {
   RegisterClass rcSrc = kFPReg;
   X86OpCode op = kX86Nop;
@@ -175,7 +172,7 @@ bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, Re
       branch_pos_overflow->target = NewLIR0(cu, kPseudoTargetLabel);
       branch_normal->target = NewLIR0(cu, kPseudoTargetLabel);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
+      return;
     }
     case Instruction::DOUBLE_TO_INT: {
       rl_src = LoadValueWide(cu, rl_src, kFPReg);
@@ -197,19 +194,23 @@ bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, Re
       branch_pos_overflow->target = NewLIR0(cu, kPseudoTargetLabel);
       branch_normal->target = NewLIR0(cu, kPseudoTargetLabel);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
+      return;
     }
     case Instruction::LONG_TO_DOUBLE:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      return;
     case Instruction::LONG_TO_FLOAT:
       // TODO: inline by using memory as a 64-bit source. Be careful about promoted registers.
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      return;
     case Instruction::FLOAT_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      return;
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      return;
     default:
-      return true;
+      LOG(INFO) << "Unexpected opcode: " << opcode;
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(cu, rl_src, rcSrc);
@@ -227,10 +228,9 @@ bool X86Codegen::GenConversion(CompilationUnit *cu, Instruction::Code opcode, Re
     NewLIR2(cu, op, rl_result.low_reg, src_reg);
     StoreValue(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
-bool X86Codegen::GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
+void X86Codegen::GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocation rl_dest,
                           RegLocation rl_src1, RegLocation rl_src2) {
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
   bool unordered_gt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
@@ -279,7 +279,6 @@ bool X86Codegen::GenCmpFP(CompilationUnit *cu, Instruction::Code code, RegLocati
     branch->target = NewLIR0(cu, kPseudoTargetLabel);
   }
   StoreValue(cu, rl_dest, rl_result);
-  return false;
 }
 
 void X86Codegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,

@@ -567,7 +567,7 @@ void ArmCodegen::GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind)
 #endif
 }
 
-bool ArmCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void ArmCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
@@ -585,7 +585,6 @@ bool ArmCodegen::GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
   }
   FreeTemp(cu, z_reg);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
 
@@ -675,39 +674,34 @@ void ArmCodegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocatio
     UnmarkTemp(cu, rARM_LR);
 }
 
-bool ArmCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void ArmCodegen::GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
-  return false;
 }
 
-bool ArmCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void ArmCodegen::GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
-  return false;
 }
 
-bool ArmCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void ArmCodegen::GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
-  return false;
 }
 
-bool ArmCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void ArmCodegen::GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
-  return false;
 }
 
-bool ArmCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
+void ArmCodegen::GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
                             RegLocation rl_src2)
 {
   LOG(FATAL) << "Unexpected use of genXoLong for Arm";
-  return false;
 }
 
 /*
@@ -951,7 +945,7 @@ void ArmCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   }
 }
 
-bool ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+void ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift)
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
@@ -959,10 +953,11 @@ bool ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode
   int shift_amount = ConstantValue(cu, rl_shift) & 0x3f;
   if (shift_amount == 0) {
     StoreValueWide(cu, rl_dest, rl_src);
-    return false; // TODO: remove useless bool return result.
+    return;
   }
   if (BadOverlap(cu, rl_src, rl_dest)) {
-    return GenShiftOpLong(cu, opcode, rl_dest, rl_src, rl_shift);
+    GenShiftOpLong(cu, opcode, rl_dest, rl_src, rl_shift);
+    return;
   }
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
   switch(opcode) {
@@ -1020,19 +1015,18 @@ bool ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode
       break;
     default:
       LOG(FATAL) << "Unexpected case";
-      return true;
   }
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
+void ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   if ((opcode == Instruction::SUB_LONG_2ADDR) || (opcode == Instruction::SUB_LONG)) {
     if (!rl_src2.is_const) {
       // Don't bother with special handling for subtract from immediate.
-      return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+      GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+      return;
     }
   } else {
     // Normalize
@@ -1044,7 +1038,8 @@ bool ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode
     }
   }
   if (BadOverlap(cu, rl_src1, rl_dest)) {
-    return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+    GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+    return;
   }
   DCHECK(rl_src2.is_const);
   int64_t val = ConstantValueWide(cu, rl_src2);
@@ -1060,7 +1055,8 @@ bool ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if ((mod_imm_lo < 0) || (mod_imm_hi < 0)) {
-        return GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+        GenArithOpLong(cu, opcode, rl_dest, rl_src1, rl_src2);
+        return;
       }
       break;
     default:
@@ -1107,7 +1103,6 @@ bool ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;  // TODO: remove bool return value from all of these Gen routines.
 }
 
 }  // namespace art

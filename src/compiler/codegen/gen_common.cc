@@ -1119,10 +1119,10 @@ void Codegen::GenLong3Addr(CompilationUnit* cu, OpKind first_op, OpKind second_o
 }
 
 
-bool Codegen::GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void Codegen::GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_shift)
 {
-  int func_offset;
+  int func_offset = -1; // Make gcc happy
 
   switch (opcode) {
     case Instruction::SHL_LONG:
@@ -1139,17 +1139,15 @@ bool Codegen::GenShiftOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
       break;
     default:
       LOG(FATAL) << "Unexpected case";
-      return true;
   }
   FlushAllRegs(cu);   /* Send everything to home location */
   CallRuntimeHelperRegLocationRegLocation(cu, func_offset, rl_src1, rl_shift, false);
   RegLocation rl_result = GetReturnWide(cu, false);
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
 
-bool Codegen::GenArithOpInt(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void Codegen::GenArithOpInt(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2)
 {
   OpKind op = kOpBkpt;
@@ -1277,7 +1275,6 @@ bool Codegen::GenArithOpInt(CompilationUnit* cu, Instruction::Code opcode, RegLo
     }
     StoreValue(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
 /*
@@ -1411,7 +1408,7 @@ static bool HandleEasyMultiply(CompilationUnit* cu, RegLocation rl_src,
   return true;
 }
 
-bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
+void Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
                                RegLocation rl_dest, RegLocation rl_src, int lit)
 {
   RegLocation rl_result;
@@ -1430,8 +1427,7 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
       rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
       OpRegRegReg(cu, kOpSub, rl_result.low_reg, t_reg, rl_src.low_reg);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
-      break;
+      return;
     }
 
     case Instruction::SUB_INT:
@@ -1449,7 +1445,7 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
     case Instruction::MUL_INT_LIT8:
     case Instruction::MUL_INT_LIT16: {
       if (HandleEasyMultiply(cu, rl_src, rl_dest, lit)) {
-        return false;
+        return;
       }
       op = kOpMul;
       break;
@@ -1504,10 +1500,10 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
     case Instruction::REM_INT_LIT16: {
       if (lit == 0) {
         GenImmedCheck(cu, kCondAl, 0, 0, kThrowDivZero);
-        return false;
+        return;
       }
       if (HandleEasyDivide(cu, opcode, rl_src, rl_dest, lit)) {
-        return false;
+        return;
       }
       if ((opcode == Instruction::DIV_INT_LIT8) ||
           (opcode == Instruction::DIV_INT) ||
@@ -1532,8 +1528,7 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
           rl_result = GetReturnAlt(cu);
       }
       StoreValue(cu, rl_dest, rl_result);
-      return false;
-      break;
+      return;
     }
     default:
       LOG(FATAL) << "Unexpected opcode " << opcode;
@@ -1547,10 +1542,9 @@ bool Codegen::GenArithOpIntLit(CompilationUnit* cu, Instruction::Code opcode,
     OpRegRegImm(cu, op, rl_result.low_reg, rl_src.low_reg, lit);
   }
   StoreValue(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_src2)
 {
   RegLocation rl_result;
@@ -1577,12 +1571,12 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
         OpRegReg(cu, kOpMvn, rl_result.high_reg, rl_src2.high_reg);
       }
       StoreValueWide(cu, rl_dest, rl_result);
-      return false;
-      break;
+      return;
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
       if (cu->instruction_set != kThumb2) {
-        return GenAddLong(cu, rl_dest, rl_src1, rl_src2);
+        GenAddLong(cu, rl_dest, rl_src1, rl_src2);
+        return;
       }
       first_op = kOpAdd;
       second_op = kOpAdc;
@@ -1590,7 +1584,8 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if (cu->instruction_set != kThumb2) {
-        return GenSubLong(cu, rl_dest, rl_src1, rl_src2);
+        GenSubLong(cu, rl_dest, rl_src1, rl_src2);
+        return;
       }
       first_op = kOpSub;
       second_op = kOpSbc;
@@ -1599,7 +1594,7 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
     case Instruction::MUL_LONG_2ADDR:
       if (cu->instruction_set == kThumb2) {
         GenMulLong(cu, rl_dest, rl_src1, rl_src2);
-        return false;
+        return;
       } else {
         call_out = true;
         ret_reg = TargetReg(kRet0);
@@ -1632,7 +1627,8 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
     case Instruction::OR_LONG:
     case Instruction::OR_LONG_2ADDR:
       if (cu->instruction_set == kX86) {
-        return GenOrLong(cu, rl_dest, rl_src1, rl_src2);
+        GenOrLong(cu, rl_dest, rl_src1, rl_src2);
+        return;
       }
       first_op = kOpOr;
       second_op = kOpOr;
@@ -1640,13 +1636,15 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
     case Instruction::XOR_LONG:
     case Instruction::XOR_LONG_2ADDR:
       if (cu->instruction_set == kX86) {
-        return GenXorLong(cu, rl_dest, rl_src1, rl_src2);
+        GenXorLong(cu, rl_dest, rl_src1, rl_src2);
+        return;
       }
       first_op = kOpXor;
       second_op = kOpXor;
       break;
     case Instruction::NEG_LONG: {
-      return GenNegLong(cu, rl_dest, rl_src2);
+      GenNegLong(cu, rl_dest, rl_src2);
+      return;
     }
     default:
       LOG(FATAL) << "Invalid long arith op";
@@ -1673,10 +1671,9 @@ bool Codegen::GenArithOpLong(CompilationUnit* cu, Instruction::Code opcode, RegL
       rl_result = GetReturnWideAlt(cu);
     StoreValueWide(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
-bool Codegen::GenConversionCall(CompilationUnit* cu, int func_offset,
+void Codegen::GenConversionCall(CompilationUnit* cu, int func_offset,
                                 RegLocation rl_dest, RegLocation rl_src)
 {
   /*
@@ -1700,7 +1697,6 @@ bool Codegen::GenConversionCall(CompilationUnit* cu, int func_offset,
     rl_result = GetReturn(cu, rl_dest.fp);
     StoreValue(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
 /* Check if we need to check for pending suspend request */

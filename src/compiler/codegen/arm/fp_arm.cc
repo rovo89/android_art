@@ -21,7 +21,7 @@
 
 namespace art {
 
-bool ArmCodegen::GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void ArmCodegen::GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                                  RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kThumbBkpt;
@@ -54,22 +54,21 @@ bool ArmCodegen::GenArithOpFloat(CompilationUnit* cu, Instruction::Code opcode, 
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmodf), rl_src1, rl_src2, false);
       rl_result = GetReturn(cu, true);
       StoreValue(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_FLOAT:
       GenNegFloat(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   rl_src1 = LoadValue(cu, rl_src1, kFPReg);
   rl_src2 = LoadValue(cu, rl_src2, kFPReg);
   rl_result = EvalLoc(cu, rl_dest, kFPReg, true);
   NewLIR3(cu, op, rl_result.low_reg, rl_src1.low_reg, rl_src2.low_reg);
   StoreValue(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool ArmCodegen::GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
+void ArmCodegen::GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   int op = kThumbBkpt;
@@ -98,12 +97,12 @@ bool ArmCodegen::GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
       CallRuntimeHelperRegLocationRegLocation(cu, ENTRYPOINT_OFFSET(pFmod), rl_src1, rl_src2, false);
       rl_result = GetReturnWide(cu, true);
       StoreValueWide(cu, rl_dest, rl_result);
-      return false;
+      return;
     case Instruction::NEG_DOUBLE:
       GenNegDouble(cu, rl_dest, rl_src1);
-      return false;
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
 
   rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
@@ -116,10 +115,9 @@ bool ArmCodegen::GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
   NewLIR3(cu, op, S2d(rl_result.low_reg, rl_result.high_reg), S2d(rl_src1.low_reg, rl_src1.high_reg),
           S2d(rl_src2.low_reg, rl_src2.high_reg));
   StoreValueWide(cu, rl_dest, rl_result);
-  return false;
 }
 
-bool ArmCodegen::GenConversion(CompilationUnit* cu, Instruction::Code opcode,
+void ArmCodegen::GenConversion(CompilationUnit* cu, Instruction::Code opcode,
                                RegLocation rl_dest, RegLocation rl_src)
 {
   int op = kThumbBkpt;
@@ -146,15 +144,19 @@ bool ArmCodegen::GenConversion(CompilationUnit* cu, Instruction::Code opcode,
       op = kThumb2VcvtDI;
       break;
     case Instruction::LONG_TO_DOUBLE:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2d), rl_dest, rl_src);
+      return;
     case Instruction::FLOAT_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pF2l), rl_dest, rl_src);
+      return;
     case Instruction::LONG_TO_FLOAT:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pL2f), rl_dest, rl_src);
+      return;
     case Instruction::DOUBLE_TO_LONG:
-      return GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      GenConversionCall(cu, ENTRYPOINT_OFFSET(pD2l), rl_dest, rl_src);
+      return;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   if (rl_src.wide) {
     rl_src = LoadValueWide(cu, rl_src, kFPReg);
@@ -172,7 +174,6 @@ bool ArmCodegen::GenConversion(CompilationUnit* cu, Instruction::Code opcode,
     NewLIR2(cu, op, rl_result.low_reg, src_reg);
     StoreValue(cu, rl_dest, rl_result);
   }
-  return false;
 }
 
 void ArmCodegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,
@@ -229,11 +230,11 @@ void ArmCodegen::GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* m
 }
 
 
-bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+void ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
                           RegLocation rl_src1, RegLocation rl_src2)
 {
-  bool is_double;
-  int default_result;
+  bool is_double = false;
+  int default_result = -1;
   RegLocation rl_result;
 
   switch (opcode) {
@@ -254,7 +255,7 @@ bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLoca
       default_result = 1;
       break;
     default:
-      return true;
+      LOG(FATAL) << "Unexpected opcode: " << opcode;
   }
   if (is_double) {
     rl_src1 = LoadValueWide(cu, rl_src1, kFPReg);
@@ -287,7 +288,6 @@ bool ArmCodegen::GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLoca
   GenBarrier(cu);
 
   StoreValue(cu, rl_dest, rl_result);
-  return false;
 }
 
 void ArmCodegen::GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
