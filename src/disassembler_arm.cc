@@ -611,7 +611,8 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         // |111|10|x1| op3 | Rn |0|xxxxxxxxxxxxxxx|
         uint32_t op3 = (instr >> 20) & 0x1F;
         switch (op3) {
-          case 0x00: {
+          case 0x00: case 0x0A: {
+            // ADD/SUB.W Rd, Rn #imm12 - 111 10 i1 0101 0 nnnn 0 iii dddd iiiiiiii
             ArmRegister Rd(instr, 8);
             ArmRegister Rn(instr, 16);
             uint32_t i = (instr >> 26) & 1;
@@ -619,37 +620,25 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t imm8 = instr & 0xFF;
             uint32_t imm12 = (i << 11) | (imm3 << 8) | imm8;
             if (Rn.r != 0xF) {
-              opcode << "addw";
+              opcode << (op3 == 0 ? "addw" : "subw");
               args << Rd << ", " << Rn << ", #" << imm12;
             } else {
               opcode << "adr";
               args << Rd << ", ";
-              DumpBranchTarget(args, instr_ptr + 4, imm12);
+              DumpBranchTarget(args, instr_ptr + 4, (op3 == 0) ? imm12 : -imm12);
             }
             break;
           }
-          case 0x04: {
-            // MOVW Rd, #imm16     - 111 10 i0 0010 0 iiii 0 iii dddd iiiiiiii
+          case 0x04: case 0x0C: {
+            // MOVW/T Rd, #imm16     - 111 10 i0 0010 0 iiii 0 iii dddd iiiiiiii
             ArmRegister Rd(instr, 8);
             uint32_t i = (instr >> 26) & 1;
             uint32_t imm3 = (instr >> 12) & 0x7;
             uint32_t imm8 = instr & 0xFF;
             uint32_t Rn = (instr >> 16) & 0xF;
             uint32_t imm16 = (Rn << 12) | (i << 11) | (imm3 << 8) | imm8;
-            opcode << "movw";
+            opcode << (op3 == 0x04 ? "movw" : "movt");
             args << Rd << ", #" << imm16;
-            break;
-          }
-          case 0x0A: {
-            // SUB.W Rd, Rn #imm12 - 111 10 i1 0101 0 nnnn 0 iii dddd iiiiiiii
-            ArmRegister Rd(instr, 8);
-            ArmRegister Rn(instr, 16);
-            uint32_t i = (instr >> 26) & 1;
-            uint32_t imm3 = (instr >> 12) & 0x7;
-            uint32_t imm8 = instr & 0xFF;
-            uint32_t imm12 = (i << 11) | (imm3 << 8) | imm8;
-            opcode << "sub.w";
-            args << Rd << ", " << Rn << ", #" << imm12;
             break;
           }
           case 0x16: {
@@ -1160,8 +1149,12 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         }
         case 0x08: case 0x09: case 0x0A: case 0x0B:  // 0001xxx
         case 0x0C: case 0x0D: case 0x0E: case 0x0F:
+        case 0x18: case 0x19: case 0x1A: case 0x1B:  // 0011xxx
+        case 0x1C: case 0x1D: case 0x1E: case 0x1F:
         case 0x48: case 0x49: case 0x4A: case 0x4B:  // 1001xxx
-        case 0x4C: case 0x4D: case 0x4E: case 0x4F: {
+        case 0x4C: case 0x4D: case 0x4E: case 0x4F:
+        case 0x58: case 0x59: case 0x5A: case 0x5B:  // 1011xxx
+        case 0x5C: case 0x5D: case 0x5E: case 0x5F: {
           // CBNZ, CBZ
           uint16_t op = (instr >> 11) & 1;
           uint16_t i = (instr >> 9) & 1;
