@@ -330,7 +330,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4 }, "PcRelAdr",      "!0r,!1d" },
 };
 
-static size_t ComputeSize(const X86EncodingMap* entry, int displacement, bool has_sib) {
+static size_t ComputeSize(const X86EncodingMap* entry, int base, int displacement, bool has_sib) {
   size_t size = 0;
   if (entry->skeleton.prefix1 > 0) {
     ++size;
@@ -346,10 +346,12 @@ static size_t ComputeSize(const X86EncodingMap* entry, int displacement, bool ha
     }
   }
   ++size;  // modrm
-  if (has_sib) {
+  if (has_sib || base == rX86_SP) {
+    // SP requires a SIB byte.
     ++size;
   }
-  if (displacement != 0) {
+  if (displacement != 0 || base == rBP) {
+    // BP requires an explicit displacement, even when it's 0.
     if (entry->opcode != kX86Lea32RA) {
       DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), 0ULL) << entry->name;
     }
@@ -369,48 +371,29 @@ int X86Codegen::GetInsnSize(LIR* lir) {
     case kNullary:
       return 1;  // 1 byte of opcode
     case kReg:  // lir operands - 0: reg
-      return ComputeSize(entry, 0, false);
-    case kMem: { // lir operands - 0: base, 1: disp
-      int base = lir->operands[0];
-      int disp = lir->operands[1];
-      // SP requires a special extra SIB byte. BP requires explicit disp,
-      // so add a byte for disp 0 which would normally be omitted.
-      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
-    }
+      return ComputeSize(entry, 0, 0, false);
+    case kMem:  // lir operands - 0: base, 1: disp
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArray:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
-      return ComputeSize(entry, lir->operands[3], true);
-    case kMemReg: { // lir operands - 0: base, 1: disp, 2: reg
-      int base = lir->operands[0];
-      int disp = lir->operands[1];
-      // SP requires a special extra SIB byte. BP requires explicit disp,
-      // so add a byte for disp 0 which would normally be omitted.
-      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
-    }
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
+    case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-      return ComputeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kThreadReg:  // lir operands - 0: disp, 1: reg
-      return ComputeSize(entry, lir->operands[0], false);
+      return ComputeSize(entry, 0, lir->operands[0], false);
     case kRegReg:
-      return ComputeSize(entry, 0, false);
+      return ComputeSize(entry, 0, 0, false);
     case kRegRegStore:
-      return ComputeSize(entry, 0, false);
-    case kRegMem: { // lir operands - 0: reg, 1: base, 2: disp
-      int base = lir->operands[1];
-      int disp = lir->operands[2];
-      // SP requires a special extra SIB byte. BP requires explicit disp,
-      // so add a byte for disp 0 which would normally be omitted.
-      return ComputeSize(entry, disp, false) + ((base == rX86_SP) || (base == rBP && disp == 0) ? 1 : 0);
-    }
-    case kRegArray:  { // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
-      int base = lir->operands[1];
-      int disp = lir->operands[4];
-      // BP requires explicit disp, so add a byte for disp 0 which would normally be omitted.
-      return ComputeSize(entry, disp, true) + ((base == rBP && disp == 0) ? 1 : 0);
-    }
+      return ComputeSize(entry, 0, 0, false);
+    case kRegMem:  // lir operands - 0: reg, 1: base, 2: disp
+      return ComputeSize(entry, lir->operands[1], lir->operands[2], false);
+    case kRegArray:   // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
+      return ComputeSize(entry, lir->operands[1], lir->operands[4], true);
     case kRegThread:  // lir operands - 0: reg, 1: disp
-      return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+      return ComputeSize(entry, 0, 0x12345678, false);  // displacement size is always 32bit
     case kRegImm: {  // lir operands - 0: reg, 1: immediate
-      size_t size = ComputeSize(entry, 0, false);
+      size_t size = ComputeSize(entry, 0, 0, false);
       if (entry->skeleton.ax_opcode == 0) {
         return size;
       } else {
@@ -420,45 +403,42 @@ int X86Codegen::GetInsnSize(LIR* lir) {
       }
     }
     case kMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
-      CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return ComputeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArrayImm:  // lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
-      return ComputeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kThreadImm:  // lir operands - 0: disp, 1: imm
-      return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+      return ComputeSize(entry, 0, 0x12345678, false);  // displacement size is always 32bit
     case kRegRegImm:  // lir operands - 0: reg, 1: reg, 2: imm
-      return ComputeSize(entry, 0, false);
+      return ComputeSize(entry, 0, 0, false);
     case kRegMemImm:  // lir operands - 0: reg, 1: base, 2: disp, 3: imm
-      CHECK_NE(lir->operands[1], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return ComputeSize(entry, lir->operands[2], false);
+      return ComputeSize(entry, lir->operands[1], lir->operands[2], false);
     case kRegArrayImm:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp, 5: imm
-      return ComputeSize(entry, lir->operands[4], true);
+      return ComputeSize(entry, lir->operands[1], lir->operands[4], true);
     case kMovRegImm:  // lir operands - 0: reg, 1: immediate
       return 1 + entry->skeleton.immediate_bytes;
     case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
       // Shift by immediate one has a shorter opcode.
-      return ComputeSize(entry, 0, false) - (lir->operands[1] == 1 ? 1 : 0);
+      return ComputeSize(entry, 0, 0, false) - (lir->operands[1] == 1 ? 1 : 0);
     case kShiftMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
-      CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
       // Shift by immediate one has a shorter opcode.
-      return ComputeSize(entry, lir->operands[1], false) - (lir->operands[2] == 1 ? 1 : 0);
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false) -
+             (lir->operands[2] == 1 ? 1 : 0);
     case kShiftArrayImm:  // lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
       // Shift by immediate one has a shorter opcode.
-      return ComputeSize(entry, lir->operands[3], true) - (lir->operands[4] == 1 ? 1 : 0);
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true) -
+             (lir->operands[4] == 1 ? 1 : 0);
     case kShiftRegCl:
-      return ComputeSize(entry, 0, false);
+      return ComputeSize(entry, 0, 0, false);
     case kShiftMemCl:  // lir operands - 0: base, 1: disp, 2: cl
-      CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return ComputeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kShiftArrayCl:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-      return ComputeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kRegCond:  // lir operands - 0: reg, 1: cond
-      return ComputeSize(entry, 0, false);
+      return ComputeSize(entry, 0, 0, false);
     case kMemCond:  // lir operands - 0: base, 1: disp, 2: cond
-      CHECK_NE(lir->operands[0], static_cast<int>(rX86_SP));  // TODO: add extra SIB byte
-      return ComputeSize(entry, lir->operands[1], false);
+      return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
     case kArrayCond:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: cond
-      return ComputeSize(entry, lir->operands[3], true);
+      return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
     case kJcc:
       if (lir->opcode == kX86Jcc8) {
         return 2;  // opcode + rel8
@@ -479,11 +459,11 @@ int X86Codegen::GetInsnSize(LIR* lir) {
       switch (lir->opcode) {
         case kX86CallR: return 2;  // opcode modrm
         case kX86CallM:  // lir operands - 0: base, 1: disp
-          return ComputeSize(entry, lir->operands[1], false);
+          return ComputeSize(entry, lir->operands[0], lir->operands[1], false);
         case kX86CallA:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
-          return ComputeSize(entry, lir->operands[3], true);
+          return ComputeSize(entry, lir->operands[0], lir->operands[3], true);
         case kX86CallT:  // lir operands - 0: disp
-          return ComputeSize(entry, 0x12345678, false);  // displacement size is always 32bit
+          return ComputeSize(entry, 0, 0x12345678, false);  // displacement size is always 32bit
         default:
           break;
       }
@@ -491,7 +471,7 @@ int X86Codegen::GetInsnSize(LIR* lir) {
     case kPcRel:
       if (entry->opcode == kX86PcRelLoadRA) {
         // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
-        return ComputeSize(entry, 0x12345678, true);
+        return ComputeSize(entry, lir->operands[1], 0x12345678, true);
       } else {
         DCHECK(entry->opcode == kX86PcRelAdr);
         return 5; // opcode with reg + 4 byte immediate
@@ -499,7 +479,7 @@ int X86Codegen::GetInsnSize(LIR* lir) {
     case kMacro:
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
       return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          ComputeSize(&X86Codegen::EncodingMap[kX86Sub32RI], 0, false) -
+          ComputeSize(&X86Codegen::EncodingMap[kX86Sub32RI], 0, 0, false) -
           (lir->operands[0] == rAX  ? 1 : 0);  // shorter ax encoding
     default:
       break;

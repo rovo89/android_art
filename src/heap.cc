@@ -1107,7 +1107,9 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
   uint64_t gc_start_time = NanoTime();
   uint64_t gc_start_size = GetBytesAllocated();
   // Approximate allocation rate in bytes / second.
-  DCHECK_NE(gc_start_time, last_gc_time_);
+  if (UNLIKELY(gc_start_time == last_gc_time_)) {
+    LOG(WARNING) << "Timers are broken (gc_start_time == last_gc_time_).";
+  }
   uint64_t ms_delta = NsToMs(gc_start_time - last_gc_time_);
   if (ms_delta != 0) {
     allocation_rate_ = (gc_start_size - last_gc_size_) * 1000 / ms_delta;

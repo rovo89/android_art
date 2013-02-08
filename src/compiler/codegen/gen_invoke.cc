@@ -1128,8 +1128,8 @@ bool Codegen::GenInlinedCurrentThread(CompilationUnit* cu, CallInfo* info) {
 
 bool Codegen::GenInlinedUnsafeGet(CompilationUnit* cu, CallInfo* info,
                                   bool is_long, bool is_volatile) {
-  if (cu->instruction_set == kX86 || cu->instruction_set == kMips) {
-    // TODO - add x86 and Mips implementation
+  if (cu->instruction_set == kMips) {
+    // TODO - add Mips implementation
     return false;
   }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
@@ -1156,8 +1156,8 @@ bool Codegen::GenInlinedUnsafeGet(CompilationUnit* cu, CallInfo* info,
 
 bool Codegen::GenInlinedUnsafePut(CompilationUnit* cu, CallInfo* info, bool is_long,
                                   bool is_object, bool is_volatile, bool is_ordered) {
-  if (cu->instruction_set == kX86 || cu->instruction_set == kMips) {
-    // TODO - add x86 and Mips implementation
+  if (cu->instruction_set == kMips) {
+    // TODO - add Mips implementation
     return false;
   }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
