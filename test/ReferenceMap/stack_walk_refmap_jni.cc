@@ -125,10 +125,6 @@ struct ReferenceMap2Visitor : public StackVisitor {
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
 
-      ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x25U)));
-      CHECK(ref_bitmap);
-      CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
-
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToFirstNativeSafepointPc(0x27U)));
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
