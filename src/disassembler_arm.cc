@@ -708,8 +708,47 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             }
             break;
           case 2:
-          case 1: case 3:
+            if ((op2 & 0x38) == 0x38) {
+              if (op2 == 0x7F) {
+                opcode << "udf";
+              }
+              break;
+            }
+            // Else deliberate fall-through to B.
+          case 1: case 3: {
+            // B
+            // |111|11|1|0000|000000|11|1 |1|1 |10000000000|
+            // |5 3|21|0|9876|543  0|54|3 |2|1 |0    5    0|
+            // |---|--|-|----|------|--|--|-|--|-----------|
+            // |332|22|2|2222|221111|11|1 |1|1 |10000000000|
+            // |1 9|87|6|5  2|10   6|54|3 |2|1 |0    5    0|
+            // |---|--|-|----|------|--|--|-|--|-----------|
+            // |111|10|S|cond| imm6 |10|J1|0|J2| imm11     |
+            // |111|10|S| imm10     |10|J1|1|J2| imm11     |
+            uint32_t S = (instr >> 26) & 1;
+            uint32_t cond = (instr >> 22) & 0xF;
+            uint32_t J2 = (instr >> 11) & 1;
+            uint32_t form = (instr >> 12) & 1;
+            uint32_t J1 = (instr >> 13) & 1;
+            uint32_t imm10 = (instr >> 16) & 0x3FF;
+            uint32_t imm6  = (instr >> 16) & 0x3F;
+            uint32_t imm11 = instr & 0x7FF;
+            opcode << "b";
+            int32_t imm32;
+            if (form == 0) {
+              DumpCond(opcode, cond);
+              imm32 = (S << 20) | (J2 << 19) | (J1 << 18) | (imm6 << 12) | (imm11 << 1);
+              imm32 = (imm32 << 11) >> 11;  // sign extend 21 bit immediate.
+            } else {
+              uint32_t I1 = ~(J1 ^ S);
+              uint32_t I2 = ~(J2 ^ S);
+              imm32 = (S << 24) | (I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1);
+              imm32 = (imm32 << 8) >> 8;  // sign extend 24 bit immediate.
+            }
+            opcode << ".w";
+            DumpBranchTarget(args, instr_ptr + 4, imm32);
             break;
+          }
           case 4: case 6: case 5: case 7: {
             // BL, BLX (immediate)
             // |111|11|1|0000000000|11|1 |1|1 |10000000000|
