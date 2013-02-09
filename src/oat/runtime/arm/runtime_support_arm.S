@@ -34,7 +34,7 @@
 .macro END name
     .fnend
     .cfi_endproc
-    .size \name, .-name
+    .size \name, .-\name
 .endm
 
     /*
