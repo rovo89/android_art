@@ -21,9 +21,20 @@
     /* Deliver an exception pending on a thread */
     .extern artDeliverPendingException
 
+.macro ENTRY name
+    .type \name, #function
+    .global \name
     /* Cache alignment for function entry */
-.macro ALIGN_FUNCTION_ENTRY
     .balign 16
+\name:
+    .cfi_startproc
+    .fnstart
+.endm
+
+.macro END name
+    .fnend
+    .cfi_endproc
+    .size \name, .-name
 .endm
 
     /*
@@ -32,8 +43,23 @@
      */
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     push {r4-r11, lr} @ 9 words of callee saves
+    .save {r4-r11, lr}
+    .cfi_adjust_cfa_offset 36
+    .cfi_rel_offset r4, 0
+    .cfi_rel_offset r5, 4
+    .cfi_rel_offset r6, 8
+    .cfi_rel_offset r7, 12
+    .cfi_rel_offset r8, 16
+    .cfi_rel_offset r9, 20
+    .cfi_rel_offset r10, 24
+    .cfi_rel_offset r11, 28
+    .cfi_rel_offset lr, 32
     vpush {s0-s31}
+    .pad #128
+    .cfi_adjust_cfa_offset 128
     sub sp, #12       @ 3 words of space, bottom word will hold Method*
+    .pad #12
+    .cfi_adjust_cfa_offset 12
 .endm
 
     /*
@@ -42,17 +68,30 @@
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     push {r5-r8, r10-r11, lr} @ 7 words of callee saves
+    .save {r5-r8, r10-r11, lr}
+    .cfi_adjust_cfa_offset 28
+    .cfi_rel_offset r5, 0
+    .cfi_rel_offset r6, 4
+    .cfi_rel_offset r7, 8
+    .cfi_rel_offset r8, 12
+    .cfi_rel_offset r10, 16
+    .cfi_rel_offset r11, 20
+    .cfi_rel_offset lr, 24
     sub sp, #4                @ bottom word will hold Method*
+    .pad #4
+    .cfi_adjust_cfa_offset 4
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     ldr lr, [sp, #28]  @ restore lr for return
     add sp, #32        @ unwind stack
+    .cfi_adjust_cfa_offset -32
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     ldr lr, [sp, #28]  @ restore lr for return
     add sp, #32        @ unwind stack
+    .cfi_adjust_cfa_offset -32
     bx  lr             @ return
 .endm
 
@@ -62,7 +101,18 @@
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
+    .save {r1-r3, r5-r8, r10-r11, lr}
+    .cfi_adjust_cfa_offset 40
+    .cfi_rel_offset r5, 0
+    .cfi_rel_offset r6, 4
+    .cfi_rel_offset r7, 8
+    .cfi_rel_offset r8, 12
+    .cfi_rel_offset r10, 16
+    .cfi_rel_offset r11, 20
+    .cfi_rel_offset lr, 24
     sub sp, #8                        @ 2 words of space, bottom word will hold Method*
+    .pad #8
+    .cfi_adjust_cfa_offset 8
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -70,6 +120,7 @@
     ldrd r2, [sp, #12]         @ restore non-callee saves r2-r3
     ldr  lr, [sp, #44]         @ restore lr
     add  sp, #48               @ rewind sp
+    .cfi_adjust_cfa_offset -48
 .endm
 
     /*
@@ -77,6 +128,8 @@
      * exception is Thread::Current()->exception_
      */
 .macro DELIVER_PENDING_EXCEPTION
+    .fnend
+    .fnstart
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME           @ save callee saves for throw
     mov    r0, r9                              @ pass Thread::Current
     mov    r1, sp                              @ pass SP
@@ -84,36 +137,33 @@
 .endm
 
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
     .extern \cxx_name
-    ALIGN_FUNCTION_ENTRY
-\c_name:
+ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov r0, r9                      @ pass Thread::Current
     mov r1, sp                      @ pass SP
     b   \cxx_name                   @ \cxx_name(Thread*, SP)
+END \c_name
 .endm
 
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
     .extern \cxx_name
-    ALIGN_FUNCTION_ENTRY
-\c_name:
+ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov r1, r9                      @ pass Thread::Current
     mov r2, sp                      @ pass SP
     b   \cxx_name                   @ \cxx_name(Thread*, SP)
+END \c_name
 .endm
 
 .macro TWO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
     .extern \cxx_name
-    ALIGN_FUNCTION_ENTRY
-\c_name:
+ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
     mov r3, sp                      @ pass SP
     b   \cxx_name                   @ \cxx_name(Thread*, SP)
+END \c_name
 .endm
 
     /*
@@ -165,22 +215,24 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method_from_code, artThrowNoSu
      * pointing back to the original caller.
      */
 .macro INVOKE_TRAMPOLINE c_name, cxx_name
-    .global \c_name
     .extern \cxx_name
-    ALIGN_FUNCTION_ENTRY
-\c_name:
+ENTRY \c_name
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
     ldr    r2, [sp, #48]                  @ pass caller Method*
     mov    r3, r9                         @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!               @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
     add    sp, #16                        @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     mov    r12, r1                        @ save Method*->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ did we find the target?
     bxne   r12                            @ tail call to target if so
     DELIVER_PENDING_EXCEPTION
+END \c_name
 .endm
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
@@ -191,13 +243,11 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-    .global art_quick_update_debugger
-    .extern artUpdateDebuggerFromCode
     /*
      * On entry, r0 and r1 must be preserved, r2 is dex PC
      */
-     ALIGN_FUNCTION_ENTRY
-art_quick_update_debugger:
+    .extern artUpdateDebuggerFromCode
+ENTRY art_quick_update_debugger
     mov    r3, r0         @ stash away r0 so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     mov    r0, r2         @ arg0 is dex PC
@@ -207,13 +257,12 @@ art_quick_update_debugger:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     mov    r0, r3         @ restore original r0
     bx     lr
+END art_quick_update_debugger
 
-    .global art_quick_do_long_jump
     /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
      */
-     ALIGN_FUNCTION_ENTRY
-art_quick_do_long_jump:
+ENTRY art_quick_do_long_jump
     vldm r1, {s0-s31}     @ load all fprs from argument fprs_
     ldr  r2, [r0, #60]    @ r2 = r15 (PC from gprs_ 60=4*15)
     add  r0, r0, #12      @ increment r0 to skip gprs_[0..2] 12=4*3
@@ -221,16 +270,21 @@ art_quick_do_long_jump:
     mov  r0, #0           @ clear result registers r0 and r1
     mov  r1, #0
     bx   r2               @ do long jump
+END art_quick_do_long_jump
 
-    .global art_quick_work_around_app_jni_bugs
-    .extern artWorkAroundAppJniBugs
     /*
      * Entry point of native methods when JNI bug compatibility is enabled.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_work_around_app_jni_bugs:
+    .extern artWorkAroundAppJniBugs
+ENTRY art_quick_work_around_app_jni_bugs
     @ save registers that may contain arguments and LR that will be crushed by a call
     push {r0-r3, lr}
+    .save {r0-r3, lr}
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
     sub sp, #12      @ 3 words of space for alignment
     mov r0, r9       @ pass Thread::Current
     mov r1, sp       @ pass SP
@@ -238,16 +292,16 @@ art_quick_work_around_app_jni_bugs:
     add sp, #12      @ rewind stack
     mov r12, r0      @ save target address
     pop {r0-r3, lr}  @ restore possibly modified argument registers
+    .cfi_adjust_cfa_offset -16
     bx  r12          @ tail call into JNI routine
+END art_quick_work_around_app_jni_bugs
 
-    .global art_quick_handle_fill_data_from_code
-    .extern artHandleFillArrayDataFromCode
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
      * failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_handle_fill_data_from_code:
+    .extern artHandleFillArrayDataFromCode
+ENTRY art_quick_handle_fill_data_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                          @ pass Thread::Current
     mov    r3, sp                          @ pass SP
@@ -256,27 +310,25 @@ art_quick_handle_fill_data_from_code:
     cmp    r0, #0                          @ success?
     bxeq   lr                              @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_handle_fill_data_from_code
 
-    .global art_quick_lock_object_from_code
-    .extern artLockObjectFromCode
     /*
      * Entry from managed code that calls artLockObjectFromCode, may block for GC.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_lock_object_from_code:
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case we block
     mov    r1, r9                     @ pass Thread::Current
     mov    r2, sp                     @ pass SP
     bl     artLockObjectFromCode      @ (Object* obj, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_lock_object_from_code
 
-    .global art_quick_unlock_object_from_code
-    .extern artUnlockObjectFromCode
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_unlock_object_from_code:
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r1, r9                   @ pass Thread::Current
     mov    r2, sp                   @ pass SP
@@ -285,14 +337,13 @@ art_quick_unlock_object_from_code:
     cmp    r0, #0                   @ success?
     bxeq   lr                       @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_unlock_object_from_code
 
-    .global art_quick_check_cast_from_code
-    .extern artCheckCastFromCode
     /*
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_cast_from_code:
+    .extern artCheckCastFromCode
+ENTRY art_quick_check_cast_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                       @ pass Thread::Current
     mov    r3, sp                       @ pass SP
@@ -301,15 +352,14 @@ art_quick_check_cast_from_code:
     cmp    r0, #0                       @ success?
     bxeq   lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_check_cast_from_code
 
-    .global art_quick_can_put_array_element_from_code
-    .extern artCanPutArrayElementFromCode
     /*
      * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
      * failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_can_put_array_element_from_code:
+    .extern artCanPutArrayElementFromCode
+ENTRY art_quick_can_put_array_element_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp                         @ pass SP
@@ -318,16 +368,15 @@ art_quick_can_put_array_element_from_code:
     cmp    r0, #0                         @ success?
     bxeq   lr                             @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_can_put_array_element_from_code
 
-    .global art_quick_initialize_static_storage_from_code
-    .extern artInitializeStaticStorageFromCode
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class
      * initializer and deliver the exception on error. On success the static storage base is
      * returned.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_static_storage_from_code:
+    .extern artInitializeStaticStorageFromCode
+ENTRY art_quick_initialize_static_storage_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -337,14 +386,13 @@ art_quick_initialize_static_storage_from_code:
     cmp    r0, #0                              @ success if result is non-null
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_initialize_static_storage_from_code
 
-    .global art_quick_initialize_type_from_code
-    .extern artInitializeTypeFromCode
     /*
      * Entry from managed code when dex cache misses for a type_idx
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_type_from_code:
+    .extern artInitializeTypeFromCode
+ENTRY art_quick_initialize_type_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -354,15 +402,14 @@ art_quick_initialize_type_from_code:
     cmp    r0, #0                              @ success if result is non-null
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_initialize_type_from_code
 
-    .global art_quick_initialize_type_and_verify_access_from_code
-    .extern artInitializeTypeAndVerifyAccessFromCode
     /*
      * Entry from managed code when type_idx needs to be checked for access and dex cache may also
      * miss.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_type_and_verify_access_from_code:
+    .extern artInitializeTypeAndVerifyAccessFromCode
+ENTRY art_quick_initialize_type_and_verify_access_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
@@ -372,14 +419,13 @@ art_quick_initialize_type_and_verify_access_from_code:
     cmp    r0, #0                              @ success if result is non-null
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_initialize_type_and_verify_access_from_code
 
-    .global art_quick_get32_static_from_code
-    .extern artGet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get32_static_from_code:
+    .extern artGet32StaticFromCode
+ENTRY art_quick_get32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -390,14 +436,13 @@ art_quick_get32_static_from_code:
     cmp    r12, #0                       @ success if no exception is pending
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get32_static_from_code
 
-    .global art_quick_get64_static_from_code
-    .extern artGet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get64_static_from_code:
+    .extern artGet64StaticFromCode
+ENTRY art_quick_get64_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -408,14 +453,13 @@ art_quick_get64_static_from_code:
     cmp    r12, #0                       @ success if no exception is pending
     bxeq    lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get64_static_from_code
 
-    .global art_quick_get_obj_static_from_code
-    .extern artGetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and load an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get_obj_static_from_code:
+    .extern artGetObjStaticFromCode
+ENTRY art_quick_get_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
@@ -426,14 +470,13 @@ art_quick_get_obj_static_from_code:
     cmp    r12, #0                       @ success if no exception is pending
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get_obj_static_from_code
 
-    .global art_quick_get32_instance_from_code
-    .extern artGet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get32_instance_from_code:
+    .extern artGet32InstanceFromCode
+ENTRY art_quick_get32_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
@@ -446,173 +489,200 @@ art_quick_get32_instance_from_code:
     cmp    r12, #0                       @ success if no exception is pending
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get32_instance_from_code
 
-    .global art_quick_get64_instance_from_code
-    .extern artGet64InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get64_instance_from_code:
+    .extern artGet64InstanceFromCode
+ENTRY art_quick_get64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!              @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     bl     artGet64InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
     add    sp, #16                       @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
     bxeq    lr                           @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get64_instance_from_code
 
-    .global art_quick_get_obj_instance_from_code
-    .extern artGetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get_obj_instance_from_code:
+    .extern artGetObjInstanceFromCode
+ENTRY art_quick_get_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!              @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     bl     artGetObjInstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
     add    sp, #16                       @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_get_obj_instance_from_code
 
-    .global art_quick_set32_static_from_code
-    .extern artSet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set32_static_from_code:
+    .extern artSet32StaticFromCode
+ENTRY art_quick_set32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!              @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     bl     artSet32StaticFromCode        @ (field_idx, new_val, referrer, Thread*, SP)
     add    sp, #16                       @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set32_static_from_code
 
-    .global art_quick_set64_static_from_code
-    .extern artSet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
      * On entry r0 holds field index, r1:r2 hold new_val
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set64_static_from_code:
+    .extern artSet64StaticFromCode
+ENTRY art_quick_set64_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     mov    r3, r2                        @ pass one half of wide argument
     mov    r2, r1                        @ pass other half of wide argument
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
+    .pad #8
+    .cfi_adjust_cfa_offset 8
     push   {r9, r12}                     @ pass Thread::Current and SP
+    .save {r9, r12}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
     bl     artSet64StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
     add    sp, #16                       @ release out args
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set64_static_from_code
 
-    .global art_quick_set_obj_static_from_code
-    .extern artSetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and store an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set_obj_static_from_code:
+    .extern artSetObjStaticFromCode
+ENTRY art_quick_set_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!              @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     bl     artSetObjStaticFromCode       @ (field_idx, new_val, referrer, Thread*, SP)
     add    sp, #16                       @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set_obj_static_from_code
 
-    .global art_quick_set32_instance_from_code
-    .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set32_instance_from_code:
+    .extern artSet32InstanceFromCode
+ENTRY art_quick_set32_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r3, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
+    .pad #8
+    .cfi_adjust_cfa_offset 8
     push   {r9, r12}                     @ pass Thread::Current and SP
+    .save {r9, r12}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
+    .cfi_rel_offset r12, 4
     bl     artSet32InstanceFromCode      @ (field_idx, Object*, new_val, referrer, Thread*, SP)
     add    sp, #16                       @ release out args
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set32_instance_from_code
 
-    .global art_quick_set64_instance_from_code
-    .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set64_instance_from_code:
+    .extern artSet32InstanceFromCode
+ENTRY art_quick_set64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
+    .pad #8
+    .cfi_adjust_cfa_offset 8
     push   {r9, r12}                     @ pass Thread::Current and SP
+    .save {r9, r12}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
     bl     artSet64InstanceFromCode      @ (field_idx, Object*, new_val, Thread*, SP)
     add    sp, #16                       @ release out args
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set64_instance_from_code
 
-    .global art_quick_set_obj_instance_from_code
-    .extern artSetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set_obj_instance_from_code:
+    .extern artSetObjInstanceFromCode
+ENTRY art_quick_set_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r3, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
+    .pad #8
+    .cfi_adjust_cfa_offset 8
     push   {r9, r12}                     @ pass Thread::Current and SP
+    .save {r9, r12}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
     bl     artSetObjInstanceFromCode     @ (field_idx, Object*, new_val, referrer, Thread*, SP)
     add    sp, #16                       @ release out args
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_set_obj_instance_from_code
 
-    .global art_quick_resolve_string_from_code
-    .extern artResolveStringFromCode
     /*
      * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
      * exception on error. On success the String is returned. R0 holds the referring method,
      * R1 holds the string index. The fast path check for hit in strings cache has already been
      * performed.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_resolve_string_from_code:
+    .extern artResolveStringFromCode
+ENTRY art_quick_resolve_string_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -622,14 +692,13 @@ art_quick_resolve_string_from_code:
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_resolve_string_from_code
 
-    .global art_quick_alloc_object_from_code
-    .extern artAllocObjectFromCode
     /*
      * Called by managed code to allocate an object
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_object_from_code:
+    .extern artAllocObjectFromCode
+ENTRY art_quick_alloc_object_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -638,15 +707,14 @@ art_quick_alloc_object_from_code:
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_object_from_code
 
-    .global art_quick_alloc_object_from_code_with_access_check
-    .extern artAllocObjectFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an object when the caller doesn't know whether it has
      * access to the created type.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_object_from_code_with_access_check:
+    .extern artAllocObjectFromCodeWithAccessCheck
+ENTRY art_quick_alloc_object_from_code_with_access_check
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r2, r9                     @ pass Thread::Current
     mov    r3, sp                     @ pass SP
@@ -655,91 +723,98 @@ art_quick_alloc_object_from_code_with_access_check:
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_object_from_code_with_access_check
 
-    .global art_quick_alloc_array_from_code
-    .extern artAllocArrayFromCode
     /*
      * Called by managed code to allocate an array.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_array_from_code:
+    .extern artAllocArrayFromCode
+ENTRY art_quick_alloc_array_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     @ artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
     bl     artAllocArrayFromCode
     add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_array_from_code
 
-    .global art_quick_alloc_array_from_code_with_access_check
-    .extern artAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array when the caller doesn't know whether it has
      * access to the created type.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_array_from_code_with_access_check:
+    .extern artAllocArrayFromCodeWithAccessCheck
+ENTRY art_quick_alloc_array_from_code_with_access_check
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     @ artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, SP)
     bl     artAllocArrayFromCodeWithAccessCheck
     add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_alloc_array_from_code_with_access_check
 
-    .global art_quick_check_and_alloc_array_from_code
-    .extern artCheckAndAllocArrayFromCode
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_and_alloc_array_from_code:
+    .extern artCheckAndAllocArrayFromCode
+ENTRY art_quick_check_and_alloc_array_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCode
     add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_check_and_alloc_array_from_code
 
-    .global art_quick_check_and_alloc_array_from_code_with_access_check
-    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_and_alloc_array_from_code_with_access_check:
+    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
+ENTRY art_quick_check_and_alloc_array_from_code_with_access_check
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
     mov    r12, sp
     str    r12, [sp, #-16]!           @ expand the frame and pass SP
+    .pad #16
+    .cfi_adjust_cfa_offset 16
     @ artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCodeWithAccessCheck
     add    sp, #16                    @ strip the extra frame
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_check_and_alloc_array_from_code_with_access_check
 
-    .global art_quick_test_suspend
-    .extern artTestSuspendFromCode
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_test_suspend:
+    .extern artTestSuspendFromCode
+ENTRY art_quick_test_suspend
     ldrh    r0, [rSELF, #THREAD_FLAGS_OFFSET]
     mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     cmp    r0, #0                             @ check Thread::Current()->suspend_count_ == 0
@@ -749,16 +824,15 @@ art_quick_test_suspend:
     mov    r1, sp
     bl     artTestSuspendFromCode             @ (Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_test_suspend
 
-    .global art_quick_proxy_invoke_handler
-    .extern artProxyInvokeHandler
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method and r1 holds the receiver; r2 and r3 may contain arguments. The
      * frame size of the invoked proxy method agrees with a ref and args callee save frame.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_proxy_invoke_handler:
+    .extern artProxyInvokeHandler
+ENTRY art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
     mov     r2, r9                 @ pass Thread::Current
@@ -770,11 +844,10 @@ art_quick_proxy_invoke_handler:
     cmp     r12, #0                @ success if no exception is pending
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_proxy_invoke_handler
 
-    .global art_quick_interpreter_entry
     .extern artInterpreterEntry
-    ALIGN_FUNCTION_ENTRY
-art_quick_interpreter_entry:
+ENTRY art_quick_interpreter_entry
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
     mov     r1, r9                 @ pass Thread::Current
@@ -786,49 +859,66 @@ art_quick_interpreter_entry:
     cmp     r12, #0                @ success if no exception is pending
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
+END art_quick_interpreter_entry
 
-    .global art_quick_instrumentation_entry_from_code
-    .global art_quick_instrumentation_exit_from_code
-    .extern artInstrumentationMethodEntryFromCode
-    .extern artInstrumentationMethodExitFromCode
     /*
      * Routine that intercepts method calls and returns.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_instrumentation_entry_from_code:
+    .extern artInstrumentationMethodEntryFromCode
+    .extern artInstrumentationMethodExitFromCode
+ENTRY art_quick_instrumentation_entry_from_code
     mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r3}        @ save arguments (4 words)
+    .save {r0-r3}
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
     mov   r1, r9         @ pass Thread::Current
     mov   r2, r12        @ pass SP
     mov   r3, lr         @ pass LR
     blx   artInstrumentationMethodEntryFromCode  @ (Method*, Thread*, SP, LR)
     mov   r12, r0        @ r12 holds reference to code
     pop   {r0-r3}        @ restore arguments
-    blx   r12            @ call method
+    .cfi_adjust_cfa_offset -16
+    blx   r12            @ call method with lr set to art_quick_instrumentation_exit_from_code
+END art_quick_instrumentation_entry_from_code
+    .type art_quick_instrumentation_exit_from_code, #function
+    .global art_quick_instrumentation_exit_from_code
 art_quick_instrumentation_exit_from_code:
+    .cfi_startproc
+    .fnstart
     mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r1}        @ save return value
+    .save {r0-r1}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
     sub   sp, #8         @ align stack
+    .pad #8
+    .cfi_adjust_cfa_offset 8
     mov   r0, r9         @ pass Thread::Current
     mov   r1, r12        @ pass SP
     blx   artInstrumentationMethodExitFromCode  @ (Thread*, SP)
     add   sp, #8
+    .cfi_adjust_cfa_offset -8
     mov   r2, r0         @ link register saved by instrumentation
     mov   lr, r1         @ r1 is holding link register if we're to bounce to deoptimize
     pop   {r0, r1}       @ restore return value
+    .cfi_adjust_cfa_offset -8
     bx    r2             @ return
+END art_quick_instrumentation_exit_from_code
 
-    .global art_quick_deoptimize
-    .extern artDeoptimize
-    .extern artEnterInterpreterFromDeoptimize
     /*
      * The thread's enter interpreter flag is set and so we should transition to the interpreter
      * rather than allow execution to continue in the frame below. There may be live results in
      * registers depending on how complete the operation is when we safepoint - for example, a
      * set operation may have completed while a get operation needs writing back into the vregs.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_deoptimize:
+    .extern artDeoptimize
+    .extern artEnterInterpreterFromDeoptimize
+ENTRY art_quick_deoptimize
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     mov    r2, r9         @ Set up args.
     mov    r3, sp
@@ -844,8 +934,8 @@ art_quick_deoptimize:
     blx     artEnterInterpreterFromDeoptimize  @ Enter interpreter, callee-save ends stack fragment.
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bx lr                 @ Return to caller.
+END art_quick_deoptimize
 
-    .global art_quick_mul_long
     /*
      * Signed 64-bit integer multiply.
      *
@@ -865,9 +955,12 @@ art_quick_deoptimize:
      * cannot be the same).
      */
     /* mul-long vAA, vBB, vCC */
-    ALIGN_FUNCTION_ENTRY
-art_quick_mul_long:
+ENTRY art_quick_mul_long
     push    {r9 - r10}
+    .save {r9 - r10}
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset r9, 0
+    .cfi_rel_offset r10, 4
     mul     ip, r2, r1                  @  ip<- ZxW
     umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
     mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
@@ -875,9 +968,10 @@ art_quick_mul_long:
     mov     r0,r9
     mov     r1,r10
     pop     {r9 - r10}
+    .cfi_adjust_cfa_offset -8
     bx      lr
+END art_quick_mul_long
 
-    .global art_quick_shl_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -889,8 +983,7 @@ art_quick_mul_long:
      *   r2: shift count
      */
     /* shl-long vAA, vBB, vCC */
-    ALIGN_FUNCTION_ENTRY
-art_quick_shl_long:
+ENTRY art_quick_shl_long
     and     r2, r2, #63                 @ r2<- r2 & 0x3f
     mov     r1, r1, asl r2              @  r1<- r1 << r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -899,8 +992,8 @@ art_quick_shl_long:
     movpl   r1, r0, asl ip              @  if r2 >= 32, r1<- r0 << (r2-32)
     mov     r0, r0, asl r2              @  r0<- r0 << r2
     bx      lr
+END art_quick_shl_long
 
-    .global art_quick_shr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -912,8 +1005,7 @@ art_quick_shl_long:
      *   r2: shift count
      */
     /* shr-long vAA, vBB, vCC */
-    ALIGN_FUNCTION_ENTRY
-art_quick_shr_long:
+ENTRY art_quick_shr_long
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -922,8 +1014,8 @@ art_quick_shr_long:
     movpl   r0, r1, asr ip              @  if r2 >= 32, r0<-r1 >> (r2-32)
     mov     r1, r1, asr r2              @  r1<- r1 >> r2
     bx      lr
+END art_quick_shr_long
 
-    .global art_quick_ushr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -935,8 +1027,7 @@ art_quick_shr_long:
      *   r2: shift count
      */
     /* ushr-long vAA, vBB, vCC */
-    ALIGN_FUNCTION_ENTRY
-art_quick_ushr_long:
+ENTRY art_quick_ushr_long
     and     r2, r2, #63                 @ r0<- r0 & 0x3f
     mov     r0, r0, lsr r2              @  r0<- r2 >> r2
     rsb     r3, r2, #32                 @  r3<- 32 - r2
@@ -945,10 +1036,8 @@ art_quick_ushr_long:
     movpl   r0, r1, lsr ip              @  if r2 >= 32, r0<-r1 >>> (r2-32)
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
+END art_quick_ushr_long
 
-    .balign 4
-    .global art_quick_indexof
-art_quick_indexof:
     /*
      * String's indexOf.
      *
@@ -957,8 +1046,14 @@ art_quick_indexof:
      *    r1:   char to match (known <= 0xFFFF)
      *    r2:   Starting offset in string data
      */
-
+ENTRY art_quick_indexof
     push {r4, r10-r11, lr} @ 4 words of callee saves
+    .save {r4, r10-r11, lr}
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset r4, 0
+    .cfi_rel_offset r10, 4
+    .cfi_rel_offset r11, 8
+    .cfi_rel_offset lr, 12
     ldr   r3, [r0, #STRING_COUNT_OFFSET]
     ldr   r12, [r0, #STRING_OFFSET_OFFSET]
     ldr   r0, [r0, #STRING_VALUE_OFFSET]
@@ -1045,7 +1140,7 @@ match_3:
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
-
+END art_quick_indexof
 
    /*
      * String's compareTo.
@@ -1059,16 +1154,23 @@ match_3:
      *    r1:   comp object pointer
      *
      */
-
-    .balign 4
-    .global art_quick_string_compareto
     .extern __memcmp16
-art_quick_string_compareto:
+ENTRY art_quick_string_compareto
     mov    r2, r0         @ this to r2, opening up r0 for return value
     subs   r0, r2, r1     @ Same?
     bxeq   lr
 
     push {r4, r7-r12, lr} @ 8 words - keep alignment
+    .save {r4, r7-r12, lr}
+    .cfi_adjust_cfa_offset 32
+    .cfi_rel_offset r4, 0
+    .cfi_rel_offset r7, 4
+    .cfi_rel_offset r8, 8
+    .cfi_rel_offset r9, 12
+    .cfi_rel_offset r10, 16
+    .cfi_rel_offset r11, 20
+    .cfi_rel_offset r12, 24
+    .cfi_rel_offset lr, 28
 
     ldr    r4, [r2, #STRING_OFFSET_OFFSET]
     ldr    r9, [r1, #STRING_OFFSET_OFFSET]
@@ -1176,3 +1278,4 @@ do_memcmp16:
     moveq r0, r7
 done:
     pop   {r4, r7-r12, pc}
+END art_quick_string_compareto
