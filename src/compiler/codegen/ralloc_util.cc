@@ -1082,27 +1082,22 @@ RegLocation GetSrcWide(CompilationUnit* cu, MIR* mir,
 static void CountRefs(CompilationUnit *cu, BasicBlock* bb, RefCounts* core_counts,
                       RefCounts* fp_counts)
 {
+  // TUNING: this routine could use some tweaking.
   if ((cu->disable_opt & (1 << kPromoteRegs)) ||
     !((bb->block_type == kEntryBlock) || (bb->block_type == kExitBlock) ||
       (bb->block_type == kDalvikByteCode))) {
     return;
   }
-  for (int i = 0; i < cu->num_ssa_regs;) {
+  for (int i = 0; i < cu->num_ssa_regs; i++) {
     RegLocation loc = cu->reg_location[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
     int p_map_idx = SRegToPMap(cu, loc.s_reg_low);
     //Don't count easily regenerated immediates
-    if (loc.fp || loc.wide || !IsInexpensiveConstant(cu, loc)) {
-      counts[p_map_idx].count += cu->use_counts.elem_list[i];
+    if (loc.fp || !IsInexpensiveConstant(cu, loc)) {
+      counts[p_map_idx].count += cu->raw_use_counts.elem_list[i];
     }
-    if (loc.wide) {
-      if (loc.fp) {
-        counts[p_map_idx].double_start = true;
-        counts[p_map_idx+1].count += cu->use_counts.elem_list[i+1];
-      }
-      i += 2;
-    } else {
-      i++;
+    if (loc.wide && loc.fp && !loc.high_word) {
+      counts[p_map_idx].double_start = true;
     }
   }
 }
