@@ -16,7 +16,9 @@
 
 #include "context_mips.h"
 
+#include "mirror/abstract_method.h"
 #include "mirror/object.h"
+#include "stack.h"
 
 namespace art {
 namespace mips {
@@ -38,7 +40,7 @@ void MipsContext::Reset() {
 }
 
 void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
-  AbstractMethod* method = fr.GetMethod();
+  mirror::AbstractMethod* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   uint32_t fp_core_spills = method->GetFpSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);
