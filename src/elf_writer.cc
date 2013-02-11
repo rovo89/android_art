@@ -27,6 +27,7 @@
 #include <mcld/IRBuilder.h>
 #include <mcld/Linker.h>
 #include <mcld/LinkerConfig.h>
+#include <mcld/MC/ZOption.h>
 #include <mcld/Module.h>
 #include <mcld/Support/Path.h>
 #include <mcld/Support/TargetSelect.h>
@@ -79,6 +80,13 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
     UniquePtr<mcld::LinkerConfig> linker_config(new mcld::LinkerConfig(target_triple));
     CHECK(linker_config.get() != NULL);
     linker_config->setCodeGenType(mcld::LinkerConfig::DynObj);
+    if (compiler_->GetInstructionSet() == kMips) {
+      // MCLinker defaults MIPS section alignment to 0x10000, not 0x1000
+      mcld::ZOption z_option;
+      z_option.setKind(mcld::ZOption::MaxPageSize);
+      z_option.setPageSize(kPageSize);
+      linker_config->options().addZOption(z_option);
+    }
     linker_config->options().setSOName(elf_file->GetPath());
     // TODO: Wire up mcld DiagnosticEngine to LOG?
     if (false) {
@@ -126,15 +134,17 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
     // possible right now with the mclinker APIs.
     CHECK(oat_code_start);
 
-    // TODO: ownership of text_section?
     // we need to ensure that oatdata is page aligned so when we
     // fixup the segment load addresses, they remain page aligned.
+    uint32_t alignment = kPageSize;
+
+    // TODO: ownership of text_section?
     mcld::LDSection* text_section = ir_builder->CreateELFHeader(*input,
                                                                 ".text",
                                                                 llvm::ELF::SHT_PROGBITS,
                                                                 llvm::ELF::SHF_EXECINSTR
                                                                 | llvm::ELF::SHF_ALLOC,
-                                                                kPageSize);
+                                                                alignment);
     CHECK(text_section != NULL);
 
     mcld::SectionData* text_section_data = ir_builder->CreateSectionData(*text_section);
