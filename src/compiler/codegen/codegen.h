@@ -335,6 +335,7 @@ class Codegen {
     virtual void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,
                                      bool is_double) = 0;
     virtual void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) = 0;
+    virtual void GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir) = 0;
     virtual void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind) = 0;
     virtual void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src) = 0;
     virtual void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src) = 0;

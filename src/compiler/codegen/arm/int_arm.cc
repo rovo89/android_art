@@ -182,6 +182,57 @@ void ArmCodegen::GenFusedLongCmpImmBranch(CompilationUnit* cu, BasicBlock* bb, R
   OpCmpImmBranch(cu, ccode, low_reg, val_lo, taken);
 }
 
+void ArmCodegen::GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
+{
+  RegLocation rl_result;
+  RegLocation rl_src = GetSrc(cu, mir, 0);
+  RegLocation rl_dest = GetDest(cu, mir);
+  rl_src = LoadValue(cu, rl_src, kCoreReg);
+  if (mir->ssa_rep->num_uses == 1) {
+    // CONST case
+    int true_val = mir->dalvikInsn.vB;
+    int false_val = mir->dalvikInsn.vC;
+    rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+    if ((true_val == 1) && (false_val == 0)) {
+      OpRegRegImm(cu, kOpRsub, rl_result.low_reg, rl_src.low_reg, 1);
+      OpIT(cu, kCondCc, "");
+      LoadConstant(cu, rl_result.low_reg, 0);
+      GenBarrier(cu); // Add a scheduling barrier to keep the IT shadow intact
+    } else if (InexpensiveConstantInt(true_val) && InexpensiveConstantInt(false_val)) {
+      OpRegImm(cu, kOpCmp, rl_src.low_reg, 0);
+      OpIT(cu, kCondEq, "E");
+      LoadConstant(cu, rl_result.low_reg, true_val);
+      LoadConstant(cu, rl_result.low_reg, false_val);
+      GenBarrier(cu); // Add a scheduling barrier to keep the IT shadow intact
+    } else {
+      // Unlikely case - could be tuned.
+      int t_reg1 = AllocTemp(cu);
+      int t_reg2 = AllocTemp(cu);
+      LoadConstant(cu, t_reg1, true_val);
+      LoadConstant(cu, t_reg2, false_val);
+      OpRegImm(cu, kOpCmp, rl_src.low_reg, 0);
+      OpIT(cu, kCondEq, "E");
+      OpRegCopy(cu, rl_result.low_reg, t_reg1);
+      OpRegCopy(cu, rl_result.low_reg, t_reg2);
+      GenBarrier(cu); // Add a scheduling barrier to keep the IT shadow intact
+    }
+  } else {
+    // MOVE case
+    RegLocation rl_true = cu->reg_location[mir->ssa_rep->uses[1]];
+    RegLocation rl_false = cu->reg_location[mir->ssa_rep->uses[2]];
+    rl_true = LoadValue(cu, rl_true, kCoreReg);
+    rl_false = LoadValue(cu, rl_false, kCoreReg);
+    rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
+    OpRegImm(cu, kOpCmp, rl_src.low_reg, 0);
+    OpIT(cu, kCondEq, "E");
+    LIR* l1 = OpRegCopy(cu, rl_result.low_reg, rl_true.low_reg);
+    l1->flags.is_nop = false;  // Make sure this instruction isn't optimized away
+    LIR* l2 = OpRegCopy(cu, rl_result.low_reg, rl_false.low_reg);
+    l2->flags.is_nop = false;  // Make sure this instruction isn't optimized away
+    GenBarrier(cu); // Add a scheduling barrier to keep the IT shadow intact
+  }
+  StoreValue(cu, rl_dest, rl_result);
+}
 
 void ArmCodegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {

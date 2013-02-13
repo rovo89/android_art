@@ -689,6 +689,9 @@ static void HandleExtendedMethodMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mi
     case kMirOpFusedCmpLong:
       cg->GenFusedLongCmpBranch(cu, bb, mir);
       break;
+    case kMirOpSelect:
+      cg->GenSelect(cu, bb, mir);
+      break;
     default:
       break;
   }

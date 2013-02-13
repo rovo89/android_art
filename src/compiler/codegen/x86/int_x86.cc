@@ -168,6 +168,11 @@ void X86Codegen::OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi,
   }
 }
 
+void X86Codegen::GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
+{
+  UNIMPLEMENTED(FATAL) << "Need codegen for GenSelect";
+}
+
 void X86Codegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir) {
   LIR* label_list = cu->block_label_list;
   LIR* taken = &label_list[bb->taken->id];

@@ -598,6 +598,12 @@ static inline int32_t ConstantValue(const CompilationUnit* cu, RegLocation loc)
   return cu->constant_values[loc.orig_sreg];
 }
 
+static inline int32_t ConstantValue(const CompilationUnit* cu, int32_t s_reg)
+{
+  DCHECK(IsConst(cu, s_reg));
+  return cu->constant_values[s_reg];
+}
+
 static inline int64_t ConstantValueWide(const CompilationUnit* cu, RegLocation loc)
 {
   DCHECK(IsConst(cu, loc));

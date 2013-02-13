@@ -157,6 +157,8 @@ struct LoopInfo {
   ArenaBitVector* blocks;
 };
 
+static inline unsigned int Predecessors(BasicBlock* bb) {return bb->predecessors->num_used;}
+
 int SRegToVReg(const CompilationUnit* cu, int ssa_reg);
 char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir);
 bool FindLocalLiveIn(CompilationUnit* cu, BasicBlock* bb);

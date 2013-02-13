@@ -113,6 +113,7 @@ enum ExtendedMIROpcode {
   kMirOpDivZeroCheck,
   kMirOpCheck,
   kMirOpCheckPart2,
+  kMirOpSelect,
   kMirOpLast,
 };
 
@@ -389,6 +390,13 @@ enum OpFeatureFlags {
   kRegUseSP,
   kSetsCCodes,
   kUsesCCodes
+};
+
+enum SelectInstructionKind {
+  kSelectNone,
+  kSelectConst,
+  kSelectMove,
+  kSelectGoto
 };
 
 std::ostream& operator<<(std::ostream& os, const OpFeatureFlags& flag);
