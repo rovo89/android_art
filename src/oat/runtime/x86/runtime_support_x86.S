@@ -29,6 +29,7 @@
     // mean that literals need to be represented with $$x in macros.
     #define SYMBOL(name) _ ## name
     #define VAR(name,index) SYMBOL($index)
+    #define REG_VAR(name,index) %$index
     #define CALL_MACRO(name,index) $index
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $$value
@@ -43,10 +44,12 @@
     // Regular gas(1) uses \argument_name for macro arguments.
     // We need to turn on alternate macro syntax so we can use & instead or the preprocessor
     // will screw us by inserting a space between the \ and the name. Even in this mode there's
-    // no special meaning to $, so literals are still just $x.
+    // no special meaning to $, so literals are still just $x. The use of altmacro means % is a
+    // special character meaning care needs to be taken when passing registers as macro arguments.
     .altmacro
     #define SYMBOL(name) name
     #define VAR(name,index) name&
+    #define REG_VAR(name,index) %name
     #define CALL_MACRO(name,index) name&
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $value
@@ -57,10 +60,29 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
 END_MACRO
 
-MACRO1(DEFINE_FUNCTION,c_name)
+MACRO1(DEFINE_FUNCTION, c_name)
+    .type VAR(c_name, 0), @function
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
+    .cfi_startproc
+END_MACRO
+
+MACRO1(END_FUNCTION, c_name)
+    .cfi_endproc
+    .size \c_name, .-\c_name
+END_MACRO
+
+MACRO1(PUSH, reg)
+  pushl REG_VAR(reg, 0)
+  .cfi_adjust_cfa_offset 4
+  .cfi_rel_offset REG_VAR(reg, 0), 0
+END_MACRO
+
+MACRO1(POP, reg)
+  popl REG_VAR(reg,0)
+  .cfi_adjust_cfa_offset -4
+  .cfi_restore REG_VAR(reg,0)
 END_MACRO
 
     /*
@@ -68,10 +90,11 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
      */
 MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
-    pushl %edi  // Save callee saves (ebx is saved/restored by the upcall)
-    pushl %esi
-    pushl %ebp
+    PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    PUSH esi
+    PUSH ebp
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
+    .cfi_adjust_cfa_offset 16
 END_MACRO
 
     /*
@@ -79,14 +102,16 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsOnly)
      */
 MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
-    pushl %edi  // Save callee saves (ebx is saved/restored by the upcall)
-    pushl %esi
-    pushl %ebp
+    PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
+    PUSH esi
+    PUSH ebp
     subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
+    .cfi_adjust_cfa_offset 16
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(28), %esp  // Unwind stack up to return address
+    .cfi_adjust_cfa_offset -28
 END_MACRO
 
     /*
@@ -94,23 +119,24 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
      */
 MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
-    pushl %edi  // Save callee saves
-    pushl %esi
-    pushl %ebp
-    pushl %ebx  // Save args
-    pushl %edx
-    pushl %ecx
-    pushl %eax  // Align stack, eax will be clobbered by Method*
+    PUSH edi  // Save callee saves
+    PUSH esi
+    PUSH ebp
+    PUSH ebx  // Save args
+    PUSH edx
+    PUSH ecx
+    PUSH eax   // Align stack, eax will be clobbered by Method*
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(4), %esp  // Remove padding
-    popl %ecx  // Restore args except eax
-    popl %edx
-    popl %ebx
-    popl %ebp  // Restore callee saves
-    popl %esi
-    popl %edi
+    .cfi_adjust_cfa_offset -4
+    POP ecx  // Restore args except eax
+    POP edx
+    POP ebx
+    POP ebp  // Restore callee saves
+    POP esi
+    POP edi
 END_MACRO
 
     /*
@@ -122,54 +148,57 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     mov %esp, %ecx
     // Outgoing argument set up
     subl  MACRO_LITERAL(8), %esp             // Alignment padding
-    pushl %ecx                               // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH ecx                                 // pass SP
     pushl %fs:THREAD_SELF_OFFSET             // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*, SP)
     int3                                     // unreached
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
     subl  MACRO_LITERAL(8), %esp  // alignment padding
-    pushl %ecx                    // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH ecx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
     int3                          // unreached
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass SP
+    PUSH eax                      // alignment padding
+    PUSH ecx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*, SP)
     int3                          // unreached
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %edx
     // Outgoing argument set up
-    pushl %edx                    // pass SP
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
     int3                          // unreached
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
     /*
@@ -221,34 +250,36 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds_from_code, artThrowArrayB
      * pointing back to the original caller.
      */
 MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
     // return address
-    pushl %edi
-    pushl %esi
-    pushl %ebp
-    pushl %ebx
-    pushl %edx
-    pushl %ecx
-    pushl %eax  // <-- callee save Method* to go here
+    PUSH edi
+    PUSH esi
+    PUSH ebp
+    PUSH ebx
+    PUSH edx
+    PUSH ecx
+    PUSH eax   // <-- callee save Method* to go here
     movl %esp, %edx  // remember SP
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp  // alignment padding
-    pushl %edx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     pushl 32(%edx)                // pass caller Method*
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     movl %edx, %edi               // save code pointer in EDI
     addl MACRO_LITERAL(36), %esp  // Pop arguments skip eax
-    popl %ecx                     // Restore args
-    popl %edx
-    popl %ebx
-    popl %ebp  // Restore callee saves.
-    popl %esi
+    .cfi_adjust_cfa_offset -36
+    POP ecx                       // Restore args
+    POP edx
+    POP ebx
+    POP ebp  // Restore callee saves.
+    POP esi
     // Swap EDI callee save with code pointer.
     xchgl %edi, (%esp)
     testl %eax, %eax              // Branch forward if exception pending.
@@ -258,6 +289,7 @@ VAR(c_name, 0):
 1:
     addl MACRO_LITERAL(4), %esp   // Pop code pointer off stack
     DELIVER_PENDING_EXCEPTION
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
@@ -269,72 +301,78 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
     subl MACRO_LITERAL(8), %esp   // push padding
-    pushl %edx                    // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
-    pushl %eax                    // push padding
-    pushl %edx                    // pass SP
+    PUSH eax                      // push padding
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
-    pushl %edx                    // pass SP
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
+    DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp  // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass arg3
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass arg3
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     addl MACRO_LITERAL(32), %esp  // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro, 2)   // return or deliver exception
+    END_FUNCTION VAR(c_name, 0)
 END_MACRO
 
 MACRO0(RETURN_IF_EAX_NOT_ZERO)
@@ -381,14 +419,18 @@ DEFINE_FUNCTION art_quick_update_debugger
     mov %eax, %ebx                // stash away eax so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     subl LITERAL(4), %esp         // alignment padding
-    pushl %esp                    // pass arg2 (sp)
+    .cfi_adjust_cfa_offset 4
+    PUSH esp                      // pass arg2 (sp)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass arg0 (dex pc)
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass arg0 (dex pc)
     call SYMBOL(artUpdateDebuggerFromCode) // artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
     addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     mov %ebx, %eax                // restore original eax
     ret
+END_FUNCTION art_quick_update_debugger
 
 ONE_ARG_DOWNCALL art_quick_lock_object_from_code, artLockObjectFromCode, ret
 ONE_ARG_DOWNCALL art_quick_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
@@ -396,20 +438,24 @@ ONE_ARG_DOWNCALL art_quick_unlock_object_from_code, artUnlockObjectFromCode, RET
 TWO_ARG_DOWNCALL art_quick_handle_fill_data_from_code, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
 DEFINE_FUNCTION art_quick_is_assignable_from_code
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    PUSH eax                     // alignment padding
+    PUSH ecx                    // pass arg2
+    PUSH eax                     // pass arg1
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_is_assignable_from_code
 
 DEFINE_FUNCTION art_quick_memcpy
-    pushl %edx                    // pass arg3
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
+    PUSH edx                      // pass arg3
+    PUSH ecx                      // pass arg2
+    PUSH eax                      // pass arg1
     call SYMBOL(memcpy)           // (void*, const void*, size_t)
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_memcpy
 
 TWO_ARG_DOWNCALL art_quick_check_cast_from_code, artCheckCastFromCode, RETURN_IF_EAX_ZERO
 TWO_ARG_DOWNCALL art_quick_can_put_array_element_from_code, artCanPutArrayElementFromCode, RETURN_IF_EAX_ZERO
@@ -418,60 +464,73 @@ NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
 DEFINE_FUNCTION art_quick_fmod_from_code
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass arg4 b.hi
-    pushl %edx                    // pass arg3 b.lo
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass arg4 b.hi
+    PUSH edx                      // pass arg3 b.lo
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(fmod)             // (jdouble a, jdouble b)
     fstpl (%esp)                  // pop return value off fp stack
     movsd (%esp), %xmm0           // place into %xmm0
     addl LITERAL(28), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -28
     ret
+END_FUNCTION art_quick_fmod_from_code
 
 DEFINE_FUNCTION art_quick_fmodf_from_code
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass arg2 b
-    pushl %eax                    // pass arg1 a
+    PUSH eax                      // alignment padding
+    PUSH ecx                      // pass arg2 b
+    PUSH eax                      // pass arg1 a
     call SYMBOL(fmodf)            // (jfloat a, jfloat b)
     fstps (%esp)                  // pop return value off fp stack
     movss (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_fmodf_from_code
 
 DEFINE_FUNCTION art_quick_l2d_from_code
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    PUSH eax                      // alignment padding
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(art_l2d)          // (jlong a)
     fstpl (%esp)                  // pop return value off fp stack
     movsd (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_l2d_from_code
 
 DEFINE_FUNCTION art_quick_l2f_from_code
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    PUSH eax                      // alignment padding
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(art_l2f)          // (jlong a)
     fstps (%esp)                  // pop return value off fp stack
     movss (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_l2f_from_code
 
 DEFINE_FUNCTION art_quick_d2l_from_code
-    pushl %eax                    // alignment padding
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    PUSH eax                      // alignment padding
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(art_d2l)          // (jdouble a)
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_d2l_from_code
 
 DEFINE_FUNCTION art_quick_f2l_from_code
     subl LITERAL(8), %esp         // alignment padding
-    pushl %eax                    // pass arg1 a
+    PUSH eax                      // pass arg1 a
     call SYMBOL(art_f2l)          // (jfloat a)
     addl LITERAL(12), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -12
     ret
+END_FUNCTION art_quick_f2l_from_code
 
 DEFINE_FUNCTION art_quick_idivmod_from_code
     cmpl LITERAL(0x80000000), %eax
@@ -485,36 +544,46 @@ check_arg2:
     jne args_ok
     xorl %edx, %edx
     ret         // eax already holds min int
+END_FUNCTION art_quick_idivmod_from_code
 
 DEFINE_FUNCTION art_quick_ldiv_from_code
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass arg4 b.hi
-    pushl %edx                    // pass arg3 b.lo
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                     // pass arg4 b.hi
+    PUSH edx                     // pass arg3 b.lo
+    PUSH ecx                     // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(artLdivFromCode)  // (jlong a, jlong b)
     addl LITERAL(28), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -28
     ret
+END_FUNCTION art_quick_ldiv_from_code
 
 DEFINE_FUNCTION art_quick_ldivmod_from_code
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass arg4 b.hi
-    pushl %edx                    // pass arg3 b.lo
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                     // pass arg4 b.hi
+    PUSH edx                     // pass arg3 b.lo
+    PUSH ecx                     // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(artLdivmodFromCode) // (jlong a, jlong b)
     addl LITERAL(28), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -28
     ret
+END_FUNCTION art_quick_ldivmod_from_code
 
 DEFINE_FUNCTION art_quick_lmul_from_code
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass arg4 b.hi
-    pushl %edx                    // pass arg3 b.lo
-    pushl %ecx                    // pass arg2 a.hi
-    pushl %eax                    // pass arg1 a.lo
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass arg4 b.hi
+    PUSH edx                      // pass arg3 b.lo
+    PUSH ecx                      // pass arg2 a.hi
+    PUSH eax                      // pass arg1 a.lo
     call SYMBOL(artLmulFromCode)  // (jlong a, jlong b)
     addl LITERAL(28), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -28
     ret
+END_FUNCTION art_quick_lmul_from_code
 
 DEFINE_FUNCTION art_quick_lshl_from_code
     // ecx:eax << edx
@@ -527,6 +596,7 @@ DEFINE_FUNCTION art_quick_lshl_from_code
     xor %eax, %eax
 1:
     ret
+END_FUNCTION art_quick_lshl_from_code
 
 DEFINE_FUNCTION art_quick_lshr_from_code
     // ecx:eax >> edx
@@ -539,6 +609,7 @@ DEFINE_FUNCTION art_quick_lshr_from_code
     sar LITERAL(31), %edx
 1:
     ret
+END_FUNCTION art_quick_lshr_from_code
 
 DEFINE_FUNCTION art_quick_lushr_from_code
     // ecx:eax >>> edx
@@ -551,246 +622,302 @@ DEFINE_FUNCTION art_quick_lushr_from_code
     xor %edx, %edx
 1:
     ret
+END_FUNCTION art_quick_lushr_from_code
 
 DEFINE_FUNCTION art_quick_set32_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     mov 32(%ebx), %ebx            // get referrer
-    pushl %ebx                    // pass referrer
-    pushl %edx                    // pass new_val
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    PUSH ebx                      // pass referrer
+    PUSH edx                      // pass new_val
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artSet32InstanceFromCode)  // (field_idx, Object*, new_val, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set32_instance_from_code
 
 DEFINE_FUNCTION art_quick_set64_instance_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     subl LITERAL(8), %esp         // alignment padding
-    pushl %esp                    // pass SP-8
+    .cfi_adjust_cfa_offset 8
+    PUSH esp                      // pass SP-8
     addl LITERAL(8), (%esp)       // fix SP on stack by adding 8
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ebx                    // pass high half of new_val
-    pushl %edx                    // pass low half of new_val
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH ebx                      // pass high half of new_val
+    PUSH edx                      // pass low half of new_val
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artSet64InstanceFromCode)  // (field_idx, Object*, new_val, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    .cfi_adjust_cfa_offset -32
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set64_instance_from_code
 
 DEFINE_FUNCTION art_quick_set_obj_instance_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     mov 32(%ebx), %ebx            // get referrer
-    pushl %ebx                    // pass referrer
-    pushl %edx                    // pass new_val
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    PUSH ebx                      // pass referrer
+    PUSH edx                      // pass new_val
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artSetObjInstanceFromCode) // (field_idx, Object*, new_val, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set_obj_instance_from_code
 
 DEFINE_FUNCTION art_quick_get32_instance_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass referrer
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass referrer
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGet32InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get32_instance_from_code
 
 DEFINE_FUNCTION art_quick_get64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass referrer
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass referrer
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGet64InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get64_instance_from_code
 
 DEFINE_FUNCTION art_quick_get_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass referrer
-    pushl %ecx                    // pass object
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass referrer
+    PUSH ecx                      // pass object
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGetObjInstanceFromCode) // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get_obj_instance_from_code
 
 DEFINE_FUNCTION art_quick_set32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 12
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass referrer
-    pushl %ecx                    // pass new_val
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass referrer
+    PUSH ecx                      // pass new_val
+    PUSH eax                      // pass field_idx
     call SYMBOL(artSet32StaticFromCode)    // (field_idx, new_val, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -32
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set32_static_from_code
 
 DEFINE_FUNCTION art_quick_set64_static_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     subl LITERAL(8), %esp         // alignment padding
-    pushl %ebx                    // pass SP
+    .cfi_adjust_cfa_offset 8
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     mov 32(%ebx), %ebx            // get referrer
-    pushl %edx                    // pass high half of new_val
-    pushl %ecx                    // pass low half of new_val
-    pushl %ebx                    // pass referrer
-    pushl %eax                    // pass field_idx
-    call SYMBOL(artSet64StaticFromCode)    // (field_idx, referrer, new_val, Thread*, SP)
+    PUSH edx                      // pass high half of new_val
+    PUSH ecx                      // pass low half of new_val
+    PUSH ebx                      // pass referrer
+    PUSH eax                      // pass field_idx
+    call SYMBOL(artSet64StaticFromCode)  // (field_idx, referrer, new_val, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    .cfi_adjust_cfa_offset -32
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set64_static_from_code
 
 DEFINE_FUNCTION art_quick_set_obj_static_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
-    pushl %ebx                    // pass SP
+    PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // pass referrer
-    pushl %ecx                    // pass new_val
-    pushl %eax                    // pass field_idx
-    call SYMBOL(artSetObjStaticFromCode)   // (field_idx, new_val, referrer, Thread*, SP)
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // pass referrer
+    PUSH ecx                      // pass new_val
+    PUSH eax                      // pass field_idx
+    call SYMBOL(artSetObjStaticFromCode)  // (field_idx, new_val, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     RETURN_IF_EAX_ZERO            // return or deliver exception
+END_FUNCTION art_quick_set_obj_static_from_code
 
 DEFINE_FUNCTION art_quick_get32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
-    pushl %edx                    // pass SP
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass referrer
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass referrer
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGet32StaticFromCode)    // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get32_static_from_code
 
 DEFINE_FUNCTION art_quick_get64_static_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
-    pushl %edx                    // pass SP
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass referrer
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass referrer
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGet64StaticFromCode)    // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get64_static_from_code
 
 DEFINE_FUNCTION art_quick_get_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     mov 32(%esp), %ecx            // get referrer
-    pushl %edx                    // pass SP
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass referrer
-    pushl %eax                    // pass field_idx
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass referrer
+    PUSH eax                      // pass field_idx
     call SYMBOL(artGetObjStaticFromCode)   // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_get_obj_static_from_code
 
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
-    pushl %esp                    // pass SP
+    PUSH esp                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass receiver
-    pushl %eax                    // pass proxy method
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass receiver
+    PUSH eax                      // pass proxy method
     call SYMBOL(artProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
     addl LITERAL(44), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -44
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_proxy_invoke_handler
 
 DEFINE_FUNCTION art_quick_interpreter_entry
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
-    pushl %eax                    // alignment padding
-    pushl %esp                    // pass SP
+    mov %esp, %edx                // remember SP
+    PUSH eax                      // alignment padding
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %eax                    // pass  method
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // pass  method
     call SYMBOL(artInterpreterEntry)  // (method, Thread*, SP)
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
     addl LITERAL(44), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -44
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+END_FUNCTION art_quick_interpreter_entry
 
     /*
      * Routine that intercepts method calls and returns.
      */
 DEFINE_FUNCTION art_quick_instrumentation_entry_from_code
     xchgl %eax, (%esp)            // place LR in eax, save eax
-    pushl %ecx                    // save ecx
-    pushl %edx                    // save edx
-    pushl %ebx                    // save ebx
+    PUSH ecx                      // save ecx
+    PUSH edx                      // save edx
+    PUSH ebx                      // save ebx
     lea   16(%esp), %edx          // remember bottom of caller's frame
-    pushl %eax                    // pass LR
-    pushl %edx                    // pass SP
+    PUSH eax                      // pass LR
+    PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     pushl 24(%esp)                // pass Method*
+    .cfi_adjust_cfa_offset 4
     call  SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Thread*, SP, LR)
     addl  LITERAL(16), %esp       // pop arguments
-    popl  %ebx                    // restore ebx
-    popl  %edx                    // restore edx
+    POP ebx                       // restore ebx
+    POP edx                       // restore edx
     movl  (%esp), %ecx            // restore ecx (without popping)
     movl  %eax, (%esp)            // place method's code pointer on stack
     movl  4(%esp), %eax           // restore eax (without popping)
     movl  LITERAL(SYMBOL(art_quick_instrumentation_exit_from_code)), 4(%esp)
                                   // place instrumentation exit as return pc
     ret                           // call method (and pop)
+END_FUNCTION art_quick_instrumentation_entry_from_code
 DEFINE_FUNCTION art_quick_instrumentation_exit_from_code
     mov   %esp, %ecx              // remember bottom of caller's frame
-    pushl %edx                    // save return value
-    pushl %eax                    // save other half of return value
-    pushl %ecx                    // pass SP
+    PUSH edx                      // save return value
+    PUSH eax                      // save other half of return value
+    PUSH ecx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current
+    .cfi_adjust_cfa_offset 4
     call  SYMBOL(artInstrumentationMethodExitFromCode)  // (Thread*, SP)
     mov   %eax, %ecx              // move returned link register
     // TODO: Set link register for deopt
     addl  LITERAL(8), %esp        // pop arguments
-    popl  %eax                    // restore return value
-    popl  %edx                    // restore other half of return value
+    POP eax                       // restore return value
+    POP edx                       // restore other half of return value
     jmp   *%ecx                   // return
+END_FUNCTION art_quick_instrumentation_exit_from_code
 
     /*
      * The thread's enter interpreter flag is set and so we should transition to the interpreter
@@ -800,10 +927,11 @@ DEFINE_FUNCTION art_quick_instrumentation_exit_from_code
      */
 DEFINE_FUNCTION art_quick_deoptimize
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    pushl %esp                    // pass SP
+    PUSH esp                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %edx                    // push half of return value
-    pushl %eax                    // push other half of return value
+    .cfi_adjust_cfa_offset 4
+    PUSH edx                      // push half of return value
+    PUSH eax                      // push other half of return value
     call SYMBOL(artDeoptimize)    // artDeoptimize(return value, Thread*, SP)
                                   // Returns caller method's frame size.
     addl LITERAL(16), %esp        // pop arguments
@@ -817,6 +945,7 @@ DEFINE_FUNCTION art_quick_deoptimize
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
 1:
     ret                           // Return to caller.
+END_FUNCTION art_quick_deoptimize
 
     /*
      * String's indexOf.
@@ -827,7 +956,7 @@ DEFINE_FUNCTION art_quick_deoptimize
      *    edx:   Starting offset in string data
      */
 DEFINE_FUNCTION art_quick_indexof
-    pushl %edi                    // push callee save reg
+    PUSH edi                      // push callee save reg
     mov STRING_COUNT_OFFSET(%eax), %ebx
     mov STRING_VALUE_OFFSET(%eax), %edi
     mov STRING_OFFSET_OFFSET(%eax), %eax
@@ -856,16 +985,17 @@ clamp_done:
     sar  LITERAL(1), %edi
     decl %edi                     // index = ((curr_ptr - orig_ptr) / 2) - 1
     mov  %edi, %eax
-    popl %edi                     // pop callee save reg
+    POP edi                       // pop callee save reg
     ret
     .balign 16
 not_found:
     mov  LITERAL(-1), %eax        // return -1 (not found)
-    popl %edi                     // pop callee save reg
+    POP edi                       // pop callee save reg
     ret
 clamp_min:
     xor  %edx, %edx               // clamp start to 0
     jmp  clamp_done
+END_FUNCTION art_quick_indexof
 
     /*
      * String's compareTo.
@@ -875,8 +1005,8 @@ clamp_min:
      *    ecx:   comp string object (known non-null)
      */
 DEFINE_FUNCTION art_quick_string_compareto
-    pushl %esi                    // push callee save reg
-    pushl %edi                    // push callee save reg
+    PUSH esi                    // push callee save reg
+    PUSH edi                    // push callee save reg
     mov STRING_COUNT_OFFSET(%eax), %edx
     mov STRING_COUNT_OFFSET(%ecx), %ebx
     mov STRING_VALUE_OFFSET(%eax), %esi
@@ -900,17 +1030,18 @@ DEFINE_FUNCTION art_quick_string_compareto
      */
     repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
     jne not_equal
-    popl  %edi                    // pop callee save reg
-    popl  %esi                    // pop callee save reg
+    POP edi                       // pop callee save reg
+    POP esi                       // pop callee save reg
     ret
     .balign 16
 not_equal:
     movzwl  -2(%esi), %eax        // get last compared char from this string
     movzwl  -2(%edi), %ecx        // get last compared char from comp string
     subl  %ecx, %eax              // return the difference
-    popl  %edi                    // pop callee save reg
-    popl  %esi                    // pop callee save reg
+    POP edi                       // pop callee save reg
+    POP esi                       // pop callee save reg
     ret
+END_FUNCTION art_quick_string_compareto
 
 MACRO1(UNIMPLEMENTED,name)
     .globl VAR(name, 0)
