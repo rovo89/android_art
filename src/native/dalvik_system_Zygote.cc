@@ -41,6 +41,7 @@
 #if defined(__linux__)
 #include <sys/personality.h>
 #include <sys/utsname.h>
+#include <linux/capability.h>
 #endif
 
 namespace art {
@@ -203,6 +204,24 @@ static void EnableKeepCapabilities() {
   }
 }
 
+static void DropCapabilitiesBoundingSet() {
+  for (int i = 0; prctl(PR_CAPBSET_READ, i, 0, 0, 0) >= 0; i++) {
+    if (i == CAP_NET_RAW) {
+      // Don't break /system/bin/ping
+      continue;
+    }
+    int rc = prctl(PR_CAPBSET_DROP, i, 0, 0, 0);
+    if (rc == -1) {
+      if (errno == EINVAL) {
+        PLOG(ERROR) << "prctl(PR_CAPBSET_DROP) failed with EINVAL. Please verify "
+                    << "your kernel is compiled with file capabilities support";
+      } else {
+        PLOG(FATAL) << "prctl(PR_CAPBSET_DROP) failed";
+      }
+    }
+  }
+}
+
 static void SetCapabilities(int64_t permitted, int64_t effective) {
   __user_cap_header_struct capheader;
   __user_cap_data_struct capdata;
@@ -234,6 +253,7 @@ static int gMallocLeakZygoteChild = 0;
 
 static void EnableDebugger() {}
 static void EnableKeepCapabilities() {}
+static void DropCapabilitiesBoundingSet() {};
 static void SetCapabilities(int64_t, int64_t) {}
 static void SetSchedulerPolicy() {}
 
@@ -374,6 +394,8 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     if (uid != 0) {
       EnableKeepCapabilities();
     }
+
+    DropCapabilitiesBoundingSet();
 
     MountExternalStorage(uid, mount_external);
 
