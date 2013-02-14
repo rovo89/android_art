@@ -834,6 +834,12 @@ const int oat_data_flow_attributes[kMirOpLast] = {
 
   // 111 MIR_CHECK
   0,
+
+  // 112 MIR_CHECKPART2
+  0,
+
+  // 113 MIR_SELECT
+  DF_DA | DF_UB,
 };
 
 /* Return the base virtual register for a SSA name */
@@ -1588,7 +1594,7 @@ static MIR* AdvanceMIR(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir)
     mir = mir->next;
     if (mir == NULL) {
       bb = bb->fall_through;
-      if ((bb == NULL) || bb->predecessors->num_used != 1) {
+      if ((bb == NULL) || Predecessors(bb) != 1) {
         mir = NULL;
       } else {
       *p_bb = bb;
@@ -1629,19 +1635,62 @@ MIR* FindMoveResult(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 
 static BasicBlock* NextDominatedBlock(CompilationUnit* cu, BasicBlock* bb)
 {
+  if (bb->block_type == kDead) {
+    return NULL;
+  }
   DCHECK((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
       || (bb->block_type == kExitBlock));
   bb = bb->fall_through;
-  if (bb == NULL || (bb->predecessors->num_used != 1)) {
+  if (bb == NULL || (Predecessors(bb) != 1)) {
     return NULL;
   }
   DCHECK((bb->block_type == kDalvikByteCode) || (bb->block_type == kExitBlock));
   return bb;
 }
 
+static MIR* FindPhi(CompilationUnit* cu, BasicBlock* bb, int ssa_name)
+{
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+    if (static_cast<int>(mir->dalvikInsn.opcode) == kMirOpPhi) {
+      for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+        if (mir->ssa_rep->uses[i] == ssa_name) {
+          return mir;
+        }
+      }
+    }
+  }
+  return NULL;
+}
+
+static SelectInstructionKind SelectKind(MIR* mir)
+{
+  switch (mir->dalvikInsn.opcode) {
+    case Instruction::MOVE:
+    case Instruction::MOVE_OBJECT:
+    case Instruction::MOVE_16:
+    case Instruction::MOVE_OBJECT_16:
+    case Instruction::MOVE_FROM16:
+    case Instruction::MOVE_OBJECT_FROM16:
+      return kSelectMove;
+   case Instruction::CONST:
+   case Instruction::CONST_4:
+   case Instruction::CONST_16:
+      return kSelectConst;
+   case Instruction::GOTO:
+   case Instruction::GOTO_16:
+   case Instruction::GOTO_32:
+      return kSelectGoto;
+   default:;
+  }
+  return kSelectNone;
+}
+
 /* Do some MIR-level extended basic block optimizations */
 static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
 {
+  if (bb->block_type == kDead) {
+    return true;
+  }
   int num_temps = 0;
   BBOpt bb_opt(cu);
   while (bb != NULL) {
@@ -1749,6 +1798,133 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
         default:
           break;
       }
+      // Is this the select pattern?
+      // TODO: flesh out support for Mips and X86.  NOTE: llvm's select op doesn't quite work here.
+      // TUNING: expand to support IF_xx compare & branches
+      if (!cu->gen_bitcode && (cu->instruction_set == kThumb2) &&
+          ((mir->dalvikInsn.opcode == Instruction::IF_EQZ) ||
+          (mir->dalvikInsn.opcode == Instruction::IF_NEZ))) {
+        BasicBlock* ft = bb->fall_through;
+        DCHECK(ft != NULL);
+        BasicBlock* ft_ft = ft->fall_through;
+        BasicBlock* ft_tk = ft->taken;
+
+        BasicBlock* tk = bb->taken;
+        DCHECK(tk != NULL);
+        BasicBlock* tk_ft = tk->fall_through;
+        BasicBlock* tk_tk = tk->taken;
+
+        /*
+         * In the select pattern, the taken edge goes to a block that unconditionally
+         * transfers to the rejoin block and the fall_though edge goes to a block that
+         * unconditionally falls through to the rejoin block.
+         */
+
+        if ((tk_ft == NULL) && (ft_tk == NULL) && (tk_tk == ft_ft) &&
+            (Predecessors(tk) == 1) && (Predecessors(ft) == 1)) {
+          // Okay - we have the basic diamond shape.  Are the block bodies something we can handle?
+          if ((ft->first_mir_insn == ft->last_mir_insn) &&
+              (tk->first_mir_insn != tk->last_mir_insn) &&
+              (tk->first_mir_insn->next == tk->last_mir_insn) &&
+              ((SelectKind(ft->first_mir_insn) == kSelectMove) ||
+              (SelectKind(ft->first_mir_insn) == kSelectConst)) &&
+              (SelectKind(ft->first_mir_insn) == SelectKind(tk->first_mir_insn)) &&
+              (SelectKind(tk->last_mir_insn) == kSelectGoto)) {
+            // Almost there.  Are the instructions targeting the same vreg?
+            MIR* if_true = tk->first_mir_insn;
+            MIR* if_false = ft->first_mir_insn;
+            if (if_true->dalvikInsn.vA == if_false->dalvikInsn.vA) {
+              /*
+               * We'll convert the IF_EQZ/IF_NEZ to a SELECT.  We need to find the
+               * Phi node in the merge block and delete it (while using the SSA name
+               * of the merge as the target of the SELECT.  Delete both taken and
+               * fallthrough blocks, and set fallthrough to merge block.
+               * NOTE: not updating other dataflow info (no longer used at this point).
+               * If this changes, need to update i_dom, etc. here (and in CombineBlocks).
+               */
+              if (opcode == Instruction::IF_NEZ) {
+                // Normalize.
+                MIR* tmp_mir = if_true;
+                if_true = if_false;
+                if_false = tmp_mir;
+              }
+              mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpSelect);
+              bool const_form = (SelectKind(if_true) == kSelectConst);
+              if ((SelectKind(if_true) == kSelectMove)) {
+                if (IsConst(cu, if_true->ssa_rep->uses[0]) &&
+                    IsConst(cu, if_false->ssa_rep->uses[0])) {
+                    const_form = true;
+                    if_true->dalvikInsn.vB = ConstantValue(cu, if_true->ssa_rep->uses[0]);
+                    if_false->dalvikInsn.vB = ConstantValue(cu, if_false->ssa_rep->uses[0]);
+                }
+              }
+              if (const_form) {
+                // "true" set val in vB
+                mir->dalvikInsn.vB = if_true->dalvikInsn.vB;
+                // "false" set val in vC
+                mir->dalvikInsn.vC = if_false->dalvikInsn.vB;
+              } else {
+                DCHECK_EQ(SelectKind(if_true), kSelectMove);
+                DCHECK_EQ(SelectKind(if_false), kSelectMove);
+                int* src_ssa = static_cast<int*>(NewMem(cu, sizeof(int) * 3, false,
+                                                 kAllocDFInfo));
+                src_ssa[0] = mir->ssa_rep->uses[0];
+                src_ssa[1] = if_true->ssa_rep->uses[0];
+                src_ssa[2] = if_false->ssa_rep->uses[0];
+                mir->ssa_rep->uses = src_ssa;
+                mir->ssa_rep->num_uses = 3;
+              }
+              mir->ssa_rep->num_defs = 1;
+              mir->ssa_rep->defs = static_cast<int*>(NewMem(cu, sizeof(int) * 1, false,
+                                                     kAllocDFInfo));
+              mir->ssa_rep->fp_def = static_cast<bool*>(NewMem(cu, sizeof(bool) * 1, false,
+                                                     kAllocDFInfo));
+              mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
+              /*
+               * There is usually a Phi node in the join block for our two cases.  If the
+               * Phi node only contains our two cases as input, we will use the result
+               * SSA name of the Phi node as our select result and delete the Phi.  If
+               * the Phi node has more than two operands, we will arbitrarily use the SSA
+               * name of the "true" path, delete the SSA name of the "false" path from the
+               * Phi node (and fix up the incoming arc list).
+               */
+              MIR* phi = FindPhi(cu, tk_tk, if_true->ssa_rep->defs[0]);
+              if (phi != NULL) {
+                if (phi->ssa_rep->num_uses == 2) {
+                  mir->ssa_rep->defs[0] = phi->ssa_rep->defs[0];
+                  phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+                } else {
+                  int dead_def = if_false->ssa_rep->defs[0];
+                  int live_def = if_true->ssa_rep->defs[0];
+                  mir->ssa_rep->defs[0] = live_def;
+                  int* incoming = reinterpret_cast<int*>(phi->dalvikInsn.vB);
+                  for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
+                    if (phi->ssa_rep->uses[i] == live_def) {
+                      incoming[i] = bb->id;
+                    }
+                  }
+                  for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
+                    if (phi->ssa_rep->uses[i] == dead_def) {
+                      int last_slot = phi->ssa_rep->num_uses - 1;
+                      phi->ssa_rep->uses[i] = phi->ssa_rep->uses[last_slot];
+                      incoming[i] = incoming[last_slot];
+                    }
+                  }
+                }
+                phi->ssa_rep->num_uses--;
+              }
+              bb->taken = NULL;
+              tk->block_type = kDead;
+              for (MIR* tmir = ft->first_mir_insn; tmir != NULL; tmir = tmir->next) {
+                tmir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+              }
+            } else {
+              // At least we can eliminate the suspend check on the backwards branch.
+              tk->last_mir_insn->optimization_flags |= (MIR_IGNORE_SUSPEND_CHECK);
+            }
+          }
+        }
+      }
     }
     bb = NextDominatedBlock(cu, bb);
   }
@@ -1803,7 +1979,7 @@ static bool LayoutBlocks(struct CompilationUnit* cu, struct BasicBlock* bb)
   BasicBlock* walker = bb;
   while (true) {
     // Check termination conditions
-    if ((walker->block_type == kEntryBlock) || (walker->predecessors->num_used != 1)) {
+    if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
     BasicBlock* prev = GET_ELEM_N(walker->predecessors, BasicBlock*, 0);
@@ -1876,7 +2052,7 @@ static bool CombineBlocks(struct CompilationUnit* cu, struct BasicBlock* bb)
     // OK - got one.  Combine
     BasicBlock* bb_next = bb->fall_through;
     DCHECK(!bb_next->catch_entry);
-    DCHECK_EQ(bb_next->predecessors->num_used, 1U);
+    DCHECK_EQ(Predecessors(bb_next), 1U);
     MIR* t_mir = bb->last_mir_insn->prev;
     // Overwrite the kOpCheck insn with the paired opcode
     DCHECK_EQ(bb_next->first_mir_insn, throw_insn);
@@ -2096,9 +2272,6 @@ bool BuildExtendedBBList(struct CompilationUnit* cu, struct BasicBlock* bb)
     return false;
   }
   // Must be head of extended basic block.
-  if (cu->verbose) {
-    LOG(INFO) << "Extended bb head " << bb->id;
-  }
   BasicBlock* start_bb = bb;
   cu->extended_basic_blocks.push_back(bb);
   bool terminated_by_return = false;
@@ -2107,9 +2280,6 @@ bool BuildExtendedBBList(struct CompilationUnit* cu, struct BasicBlock* bb)
     bb->visited = true;
     terminated_by_return |= bb->terminated_by_return;
     bb = NextDominatedBlock(cu, bb);
-    if (cu->verbose && (bb != NULL)) {
-      LOG(INFO) << "...added bb " << bb->id;
-    }
   }
   if (terminated_by_return) {
     // This extended basic block contains a return, so mark all members.

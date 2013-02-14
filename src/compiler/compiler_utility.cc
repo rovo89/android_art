@@ -32,6 +32,7 @@ const char* extended_mir_op_names[kMirOpLast - kMirOpFirst] = {
   "OpDivZeroCheck",
   "Check1",
   "Check2",
+  "Select",
 };
 
 #ifdef WITH_MEMSTATS

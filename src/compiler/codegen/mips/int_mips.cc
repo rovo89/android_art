@@ -215,6 +215,11 @@ void MipsCodegen::OpRegCopyWide(CompilationUnit *cu, int dest_lo, int dest_hi, i
   }
 }
 
+void MipsCodegen::GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
+{
+  UNIMPLEMENTED(FATAL) << "Need codegen for select";
+}
+
 void MipsCodegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
