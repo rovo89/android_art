@@ -841,6 +841,7 @@ ENTRY art_quick_proxy_invoke_handler
     ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     ldr     lr,  [sp, #44]         @ restore lr
     add     sp,  #48               @ pop frame
+    .cfi_adjust_cfa_offset -48
     cmp     r12, #0                @ success if no exception is pending
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION
@@ -856,6 +857,7 @@ ENTRY art_quick_interpreter_entry
     ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     ldr     lr,  [sp, #44]         @ restore lr
     add     sp,  #48               @ pop frame
+    .cfi_adjust_cfa_offset -48
     cmp     r12, #0                @ success if no exception is pending
     bxeq    lr                     @ return on success
     DELIVER_PENDING_EXCEPTION

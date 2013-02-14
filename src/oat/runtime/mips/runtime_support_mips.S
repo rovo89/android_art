@@ -25,8 +25,17 @@
     .extern artDeliverPendingExceptionFromCode
 
     /* Cache alignment for function entry */
-.macro ALIGN_FUNCTION_ENTRY
+.macro ENTRY name
+    .type \name, %function
+    .global \name
     .balign 16
+\name:
+    .cfi_startproc
+.endm
+
+.macro END name
+    .cfi_endproc
+    .size \name, .-\name
 .endm
 
     /* Generates $gp for function calls */
@@ -41,16 +50,27 @@
      */
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
+    .cfi_adjust_cfa_offset 64
     sw     $ra, 60($sp)
+    .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
+    .cfi_rel_offset 30, 56
     sw     $s7, 52($sp)
+    .cfi_rel_offset 23, 52
     sw     $s6, 48($sp)
+    .cfi_rel_offset 22, 48
     sw     $s5, 44($sp)
+    .cfi_rel_offset 21, 44
     sw     $s4, 40($sp)
+    .cfi_rel_offset 20, 40
     sw     $s3, 36($sp)
+    .cfi_rel_offset 19, 36
     sw     $s2, 32($sp)
+    .cfi_rel_offset 18, 32
     sw     $s1, 28($sp)
+    .cfi_rel_offset 17, 28
     sw     $s0, 24($sp)
+    .cfi_rel_offset 16, 24
     # 2 words for alignment, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
@@ -62,15 +82,25 @@
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
+    .cfi_adjust_cfa_offset 64
     sw     $ra, 60($sp)
+    .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
+    .cfi_rel_offset 30, 56
     sw     $s7, 52($sp)
+    .cfi_rel_offset 23, 52
     sw     $s6, 48($sp)
+    .cfi_rel_offset 22, 48
     sw     $s5, 44($sp)
+    .cfi_rel_offset 21, 44
     sw     $s4, 40($sp)
+    .cfi_rel_offset 20, 40
     sw     $s3, 36($sp)
+    .cfi_rel_offset 19, 36
     sw     $s2, 32($sp)
+    .cfi_rel_offset 18, 32
     sw     $gp, 28($sp)
+    .cfi_rel_offset 28, 28
     # 3 words for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
@@ -78,12 +108,14 @@
     lw     $gp, 28($sp)
     lw     $ra, 60($sp)
     addiu  $sp, $sp, 64
+    .cfi_adjust_cfa_offset -64
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     lw     $ra, 60($sp)
     jr     $ra
     addiu  $sp, $sp, 64
+    .cfi_adjust_cfa_offset -64
 .endm
 
     /*
@@ -93,17 +125,29 @@
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -48
+    .cfi_adjust_cfa_offset 48
     sw     $ra, 44($sp)
+    .cfi_rel_offset 31, 44
     sw     $s8, 40($sp)
+    .cfi_rel_offset 30, 40
     sw     $s7, 36($sp)
+    .cfi_rel_offset 23, 36
     sw     $s6, 32($sp)
+    .cfi_rel_offset 22, 32
     sw     $s5, 28($sp)
+    .cfi_rel_offset 21, 28
     sw     $s4, 24($sp)
+    .cfi_rel_offset 20, 24
     sw     $s3, 20($sp)
+    .cfi_rel_offset 19, 20
     sw     $s2, 16($sp)
+    .cfi_rel_offset 18, 16
     sw     $a3, 12($sp)
+    .cfi_rel_offset 7, 12
     sw     $a2, 8($sp)
+    .cfi_rel_offset 6, 8
     sw     $a1, 4($sp)
+    .cfi_rel_offset 5, 4
     # bottom will hold Method*
 .endm
 
@@ -113,6 +157,7 @@
     lw     $a2, 8($sp)            # restore non-callee save $a2
     lw     $a3, 12($sp)           # restore non-callee save $a3
     addiu  $sp, $sp, 48           # strip frame
+    .cfi_adjust_cfa_offset -48
 .endm
 
     /*
@@ -158,13 +203,11 @@
     DELIVER_PENDING_EXCEPTION
 .endm
 
-    .global art_quick_update_debugger
-    .extern artUpdateDebuggerFromCode
     /*
      * On entry, $a0 and $a1 must be preserved, $a2 is dex PC
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_update_debugger:
+    .extern artUpdateDebuggerFromCode
+ENTRY art_quick_update_debugger
     GENERATE_GLOBAL_POINTER
     move    $a3, $a0        # stash away $a0 so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -176,14 +219,13 @@ art_quick_update_debugger:
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     jr      $ra
     move    $a0, $a3        # restore original $a0
+END art_quick_update_debugger
 
-    .global art_quick_do_long_jump
     /*
      * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_do_long_jump:
+ENTRY art_quick_do_long_jump
     l.s     $f0, 0($a1)
     l.s     $f1, 4($a1)
     l.s     $f2, 8($a1)
@@ -250,91 +292,86 @@ art_quick_do_long_jump:
     move    $v0, $zero          # clear result registers r0 and r1
     jr      $ra                 # do long jump
     move    $v1, $zero
+END art_quick_do_long_jump
 
-    .global art_quick_deliver_exception_from_code
     /*
      * Called by managed code, saves most registers (forms basis of long jump context) and passes
      * the bottom of the stack. artDeliverExceptionFromCode will place the callee save Method* at
      * the bottom of the thread. On entry r0 holds Throwable*
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_deliver_exception_from_code:
+ENTRY art_quick_deliver_exception_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, rSELF                 # pass Thread::Current
     la   $t9, artDeliverExceptionFromCode
     jr   $t9                        # artDeliverExceptionFromCode(Throwable*, Thread*, $sp)
     move $a2, $sp                   # pass $sp
+END art_quick_deliver_exception_from_code
 
-    .global art_quick_throw_null_pointer_exception_from_code
-    .extern artThrowNullPointerExceptionFromCode
     /*
      * Called by managed code to create and deliver a NullPointerException
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_throw_null_pointer_exception_from_code:
+    .extern artThrowNullPointerExceptionFromCode
+ENTRY art_quick_throw_null_pointer_exception_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowNullPointerExceptionFromCode
     jr   $t9                        # artThrowNullPointerExceptionFromCode(Thread*, $sp)
     move $a1, $sp                   # pass $sp
+END art_quick_throw_null_pointer_exception_from_code
 
-    .global art_quick_throw_div_zero_from_code
-    .extern artThrowDivZeroFromCode
     /*
      * Called by managed code to create and deliver an ArithmeticException
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_throw_div_zero_from_code:
+    .extern artThrowDivZeroFromCode
+ENTRY art_quick_throw_div_zero_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowDivZeroFromCode
     jr   $t9                        # artThrowDivZeroFromCode(Thread*, $sp)
     move $a1, $sp                   # pass $sp
+END art_quick_throw_div_zero_from_code
 
-    .global art_quick_throw_array_bounds_from_code
-    .extern artThrowArrayBoundsFromCode
     /*
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_throw_array_bounds_from_code:
+    .extern artThrowArrayBoundsFromCode
+ENTRY art_quick_throw_array_bounds_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a2, rSELF                 # pass Thread::Current
     la   $t9, artThrowArrayBoundsFromCode
     jr   $t9                        # artThrowArrayBoundsFromCode(index, limit, Thread*, $sp)
     move $a3, $sp                   # pass $sp
+END art_quick_throw_array_bounds_from_code
 
-    .global art_quick_throw_stack_overflow_from_code
-    .extern artThrowStackOverflowFromCode
     /*
      * Called by managed code to create and deliver a StackOverflowError.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_throw_stack_overflow_from_code:
+    .extern artThrowStackOverflowFromCode
+ENTRY art_quick_throw_stack_overflow_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a0, rSELF                 # pass Thread::Current
     la   $t9, artThrowStackOverflowFromCode
     jr   $t9                        # artThrowStackOverflowFromCode(Thread*, $sp)
     move $a1, $sp                   # pass $sp
+END art_quick_throw_stack_overflow_from_code
 
-    .global art_quick_throw_no_such_method_from_code
-    .extern artThrowNoSuchMethodFromCode
     /*
      * Called by managed code to create and deliver a NoSuchMethodError.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_throw_no_such_method_from_code:
+    .extern artThrowNoSuchMethodFromCode
+ENTRY art_quick_throw_no_such_method_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, rSELF                 # pass Thread::Current
     la   $t9, artThrowNoSuchMethodFromCode
     jr   $t9                        # artThrowNoSuchMethodFromCode(method_idx, Thread*, $sp)
     move $a2, $sp                   # pass $sp
+END art_quick_throw_no_such_method_from_code
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
@@ -353,20 +390,22 @@ art_quick_throw_no_such_method_from_code:
      * pointing back to the original caller.
      */
 .macro INVOKE_TRAMPOLINE c_name, cxx_name
-    .global \c_name
     .extern \cxx_name
-\c_name:
+ENTRY \c_name
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
     lw    $a2, 48($sp)                    # pass caller Method*
     move  $t0, $sp                        # save $sp
     addiu $sp, $sp, -16                   # make space for extra args
+    .cfi_adjust_cfa_offset 16
     move  $a3, rSELF                      # pass Thread::Current
     sw    $gp, 12($sp)                    # save $gp
+    .cfi_rel_offset 28, 12
     jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
     sw    $t0, 16($sp)                    # pass $sp
     lw    $gp, 12($sp)                    # restore $gp
     addiu $sp, $sp, 16                    # release out args
+    .cfi_adjust_cfa_offset -16
     move  $a0, $v0                        # save target Method*
     move  $t9, $v1                        # save $v0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -376,6 +415,7 @@ art_quick_throw_no_such_method_from_code:
     nop
 1:
     DELIVER_PENDING_EXCEPTION
+END \c_name
 .endm
 
 INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
@@ -386,21 +426,25 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-    .global art_quick_work_around_app_jni_bugs
-    .extern artWorkAroundAppJniBugs
     /*
      * Entry point of native methods when JNI bug compatibility is enabled.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_work_around_app_jni_bugs:
+    .extern artWorkAroundAppJniBugs
+ENTRY art_quick_work_around_app_jni_bugs
     GENERATE_GLOBAL_POINTER
     # save registers that may contain arguments and LR that will be crushed by a call
     addiu    $sp, $sp, -32
+    .cfi_adjust_cfa_offset 32
     sw       $ra, 28($sp)
+    .cfi_rel_offset 31, 28
     sw       $a3, 24($sp)
+    .cfi_rel_offset 7, 28
     sw       $a2, 20($sp)
+    .cfi_rel_offset 6, 28
     sw       $a1, 16($sp)
+    .cfi_rel_offset 5, 28
     sw       $a0, 12($sp)
+    .cfi_rel_offset 4, 28
     move     $a0, rSELF       # pass Thread::Current
     jal      artWorkAroundAppJniBugs  # (Thread*, $sp)
     move     $a1, $sp         # pass $sp
@@ -412,88 +456,83 @@ art_quick_work_around_app_jni_bugs:
     lw       $ra, 28($sp)
     jr       $t9              # tail call into JNI routine
     addiu    $sp, $sp, 32
+    .cfi_adjust_cfa_offset -32
+END art_quick_work_around_app_jni_bugs
 
-    .global art_quick_handle_fill_data_from_code
-    .extern artHandleFillArrayDataFromCode
     /*
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
      * failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_handle_fill_data_from_code:
+    .extern artHandleFillArrayDataFromCode
+ENTRY art_quick_handle_fill_data_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                         # pass Thread::Current
     jal     artHandleFillArrayDataFromCode     # (Array*, const DexFile::Payload*, Thread*, $sp)
     move    $a3, $sp                           # pass $sp
     RETURN_IF_ZERO
+END art_quick_handle_fill_data_from_code
 
-    .global art_quick_lock_object_from_code
-    .extern artLockObjectFromCode
     /*
      * Entry from managed code that calls artLockObjectFromCode, may block for GC.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_lock_object_from_code:
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME      # save callee saves in case we block
     move    $a1, rSELF                    # pass Thread::Current
     jal     artLockObjectFromCode         # (Object* obj, Thread*, $sp)
     move    $a2, $sp                      # pass $sp
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_lock_object_from_code
 
-    .global art_quick_unlock_object_from_code
-    .extern artUnlockObjectFromCode
     /*
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_unlock_object_from_code:
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a1, rSELF                # pass Thread::Current
     jal     artUnlockObjectFromCode   # (Object* obj, Thread*, $sp)
     move    $a2, $sp                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_unlock_object_from_code
 
-    .global art_quick_check_cast_from_code
-    .extern artCheckCastFromCode
     /*
      * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_cast_from_code:
+    .extern artCheckCastFromCode
+ENTRY art_quick_check_cast_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artCheckCastFromCode      # (Class* a, Class* b, Thread*, $sp)
     move    $a3, $sp                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_check_cast_from_code
 
-    .global art_quick_can_put_array_element_from_code
-    .extern artCanPutArrayElementFromCode
     /*
      * Entry from managed code that calls artCanPutArrayElementFromCode and delivers exception on
      * failure.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_can_put_array_element_from_code:
+    .extern artCanPutArrayElementFromCode
+ENTRY art_quick_can_put_array_element_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case exception allocation triggers GC
     move    $a2, rSELF                     # pass Thread::Current
     jal     artCanPutArrayElementFromCode  # (Object* element, Class* array_class, Thread*, $sp)
     move    $a3, $sp                       # pass $sp
     RETURN_IF_ZERO
+END art_quick_can_put_array_element_from_code
 
-    .global art_quick_initialize_static_storage_from_code
-    .extern artInitializeStaticStorageFromCode
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class
      * initializer and deliver the exception on error. On success the static storage base is
      * returned.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_static_storage_from_code:
+    .extern artInitializeStaticStorageFromCode
+ENTRY art_quick_initialize_static_storage_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME            # save callee saves in case of GC
     move    $a2, rSELF                          # pass Thread::Current
@@ -501,14 +540,13 @@ art_quick_initialize_static_storage_from_code:
     jal     artInitializeStaticStorageFromCode
     move    $a3, $sp                            # pass $sp
     RETURN_IF_NONZERO
+END art_quick_initialize_static_storage_from_code
 
-    .global art_quick_initialize_type_from_code
-    .extern artInitializeTypeFromCode
     /*
      * Entry from managed code when dex cache misses for a type_idx.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_type_from_code:
+    .extern artInitializeTypeFromCode
+ENTRY art_quick_initialize_type_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
     move    $a2, rSELF                         # pass Thread::Current
@@ -516,15 +554,14 @@ art_quick_initialize_type_from_code:
     jal     artInitializeTypeFromCode
     move    $a3, $sp                           # pass $sp
     RETURN_IF_NONZERO
+END art_quick_initialize_type_from_code
 
-    .global art_quick_initialize_type_and_verify_access_from_code
-    .extern artInitializeTypeAndVerifyAccessFromCode
     /*
      * Entry from managed code when type_idx needs to be checked for access and dex cache may also
      * miss.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_initialize_type_and_verify_access_from_code:
+    .extern artInitializeTypeAndVerifyAccessFromCode
+ENTRY art_quick_initialize_type_and_verify_access_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
     move    $a2, rSELF                         # pass Thread::Current
@@ -532,14 +569,13 @@ art_quick_initialize_type_and_verify_access_from_code:
     jal     artInitializeTypeAndVerifyAccessFromCode
     move    $a3, $sp                           # pass $sp
     RETURN_IF_NONZERO
+END art_quick_initialize_type_and_verify_access_from_code
 
-    .global art_quick_get32_static_from_code
-    .extern artGet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get32_static_from_code:
+    .extern artGet32StaticFromCode
+ENTRY art_quick_get32_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
@@ -547,14 +583,13 @@ art_quick_get32_static_from_code:
     jal    artGet32StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get32_static_from_code
 
-    .global art_quick_get64_static_from_code
-    .extern artGet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and load a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get64_static_from_code:
+    .extern artGet64StaticFromCode
+ENTRY art_quick_get64_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
@@ -562,14 +597,13 @@ art_quick_get64_static_from_code:
     jal    artGet64StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get64_static_from_code
 
-    .global art_quick_get_obj_static_from_code
-    .extern artGetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and load an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get_obj_static_from_code:
+    .extern artGetObjStaticFromCode
+ENTRY art_quick_get_obj_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
@@ -577,14 +611,13 @@ art_quick_get_obj_static_from_code:
     jal    artGetObjStaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
     move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get_obj_static_from_code
 
-    .global art_quick_get32_instance_from_code
-    .extern artGet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get32_instance_from_code:
+    .extern artGet32InstanceFromCode
+ENTRY art_quick_get32_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
@@ -592,14 +625,13 @@ art_quick_get32_instance_from_code:
     jal    artGet32InstanceFromCode      # (field_idx, Object*, referrer, Thread*, $sp)
     sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get32_instance_from_code
 
-    .global art_quick_get64_instance_from_code
-    .extern artGet64InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get64_instance_from_code:
+    .extern artGet64InstanceFromCode
+ENTRY art_quick_get64_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
@@ -607,14 +639,13 @@ art_quick_get64_instance_from_code:
     jal    artGet64InstanceFromCode      # (field_idx, Object*, referrer, Thread*, $sp)
     sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get64_instance_from_code
 
-    .global art_quick_get_obj_instance_from_code
-    .extern artGetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and load an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_get_obj_instance_from_code:
+    .extern artGetObjInstanceFromCode
+ENTRY art_quick_get_obj_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
@@ -622,14 +653,13 @@ art_quick_get_obj_instance_from_code:
     jal    artGetObjInstanceFromCode     # (field_idx, Object*, referrer, Thread*, $sp)
     sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_NO_EXCEPTION
+END art_quick_get_obj_instance_from_code
 
-    .global art_quick_set32_static_from_code
-    .extern artSet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set32_static_from_code:
+    .extern artSet32StaticFromCode
+ENTRY art_quick_set32_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
@@ -637,14 +667,13 @@ art_quick_set32_static_from_code:
     jal    artSet32StaticFromCode        # (field_idx, new_val, referrer, Thread*, $sp)
     sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set32_static_from_code
 
-    .global art_quick_set64_static_from_code
-    .extern artSet32StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set64_static_from_code:
+    .extern artSet32StaticFromCode
+ENTRY art_quick_set64_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a1, 64($sp)                  # pass referrer's Method*
@@ -652,14 +681,13 @@ art_quick_set64_static_from_code:
     jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*, $sp)
     sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set64_static_from_code
 
-    .global art_quick_set_obj_static_from_code
-    .extern artSetObjStaticFromCode
     /*
      * Called by managed code to resolve a static field and store an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set_obj_static_from_code:
+    .extern artSetObjStaticFromCode
+ENTRY art_quick_set_obj_static_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a2, 64($sp)                  # pass referrer's Method*
@@ -667,14 +695,13 @@ art_quick_set_obj_static_from_code:
     jal    artSetObjStaticFromCode       # (field_idx, new_val, referrer, Thread*, $sp)
     sw     $sp, 16($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set_obj_static_from_code
 
-    .global art_quick_set32_instance_from_code
-    .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 32-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set32_instance_from_code:
+    .extern artSet32InstanceFromCode
+ENTRY art_quick_set32_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a3, 64($sp)                  # pass referrer's Method*
@@ -682,28 +709,26 @@ art_quick_set32_instance_from_code:
     jal    artSet32InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*, $sp)
     sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set32_instance_from_code
 
-    .global art_quick_set64_instance_from_code
-    .extern artSet32InstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store a 64-bit primitive value.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set64_instance_from_code:
+    .extern artSet32InstanceFromCode
+ENTRY art_quick_set64_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     sw     rSELF, 16($sp)                # pass Thread::Current
     jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, Thread*, $sp)
     sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set64_instance_from_code
 
-    .global art_quick_set_obj_instance_from_code
-    .extern artSetObjInstanceFromCode
     /*
      * Called by managed code to resolve an instance field and store an object reference.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_set_obj_instance_from_code:
+    .extern artSetObjInstanceFromCode
+ENTRY art_quick_set_obj_instance_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
     lw     $a3, 64($sp)                  # pass referrer's Method*
@@ -711,17 +736,16 @@ art_quick_set_obj_instance_from_code:
     jal    artSetObjInstanceFromCode     # (field_idx, Object*, new_val, referrer, Thread*, $sp)
     sw     $sp, 20($sp)                  # pass $sp
     RETURN_IF_ZERO
+END art_quick_set_obj_instance_from_code
 
-    .global art_quick_resolve_string_from_code
-    .extern artResolveStringFromCode
     /*
      * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
      * exception on error. On success the String is returned. R0 holds the referring method,
      * R1 holds the string index. The fast path check for hit in strings cache has already been
      * performed.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_resolve_string_from_code:
+    .extern artResolveStringFromCode
+ENTRY art_quick_resolve_string_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
@@ -729,43 +753,40 @@ art_quick_resolve_string_from_code:
     jal     artResolveStringFromCode
     move    $a3, $sp                  # pass $sp
     RETURN_IF_NONZERO
+END art_quick_resolve_string_from_code
 
-    .global art_quick_alloc_object_from_code
-    .extern artAllocObjectFromCode
     /*
      * Called by managed code to allocate an object.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_object_from_code:
+    .extern artAllocObjectFromCode
+ENTRY art_quick_alloc_object_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artAllocObjectFromCode    # (uint32_t type_idx, Method* method, Thread*, $sp)
     move    $a3, $sp                  # pass $sp
     RETURN_IF_NONZERO
+END art_quick_alloc_object_from_code
 
-    .global art_quick_alloc_object_from_code_with_access_check
-    .extern artAllocObjectFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an object when the caller doesn't know whether it has
      * access to the created type.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_object_from_code_with_access_check:
+    .extern artAllocObjectFromCodeWithAccessCheck
+ENTRY art_quick_alloc_object_from_code_with_access_check
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a2, rSELF                # pass Thread::Current
     jal     artAllocObjectFromCodeWithAccessCheck  # (uint32_t type_idx, Method* method, Thread*, $sp)
     move    $a3, $sp                  # pass $sp
     RETURN_IF_NONZERO
+END art_quick_alloc_object_from_code_with_access_check
 
-    .global art_quick_alloc_array_from_code
-    .extern artAllocArrayFromCode
     /*
      * Called by managed code to allocate an array.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_array_from_code:
+    .extern artAllocArrayFromCode
+ENTRY art_quick_alloc_array_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
@@ -773,15 +794,14 @@ art_quick_alloc_array_from_code:
     jal     artAllocArrayFromCode
     sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
+END art_quick_alloc_array_from_code
 
-    .global art_quick_alloc_array_from_code_with_access_check
-    .extern artAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array when the caller doesn't know whether it has
      * access to the created type.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_alloc_array_from_code_with_access_check:
+    .extern artAllocArrayFromCodeWithAccessCheck
+ENTRY art_quick_alloc_array_from_code_with_access_check
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
@@ -789,14 +809,13 @@ art_quick_alloc_array_from_code_with_access_check:
     jal     artAllocArrayFromCodeWithAccessCheck
     sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
+END art_quick_alloc_array_from_code_with_access_check
 
-    .global art_quick_check_and_alloc_array_from_code
-    .extern artCheckAndAllocArrayFromCode
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_and_alloc_array_from_code:
+    .extern artCheckAndAllocArrayFromCode
+ENTRY art_quick_check_and_alloc_array_from_code
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
@@ -804,14 +823,13 @@ art_quick_check_and_alloc_array_from_code:
     jal     artCheckAndAllocArrayFromCode
     sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
+END art_quick_check_and_alloc_array_from_code
 
-    .global art_quick_check_and_alloc_array_from_code_with_access_check
-    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
     /*
      * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_check_and_alloc_array_from_code_with_access_check:
+    .extern artCheckAndAllocArrayFromCodeWithAccessCheck
+ENTRY art_quick_check_and_alloc_array_from_code_with_access_check
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
     move    $a3, rSELF                # pass Thread::Current
@@ -819,14 +837,13 @@ art_quick_check_and_alloc_array_from_code_with_access_check:
     jal     artCheckAndAllocArrayFromCodeWithAccessCheck
     sw      $sp, 16($sp)              # pass $sp
     RETURN_IF_NONZERO
+END art_quick_check_and_alloc_array_from_code_with_access_check
 
-    .global art_quick_test_suspend
-    .extern artTestSuspendFromCode
     /*
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_test_suspend:
+    .extern artTestSuspendFromCode
+ENTRY art_quick_test_suspend
     GENERATE_GLOBAL_POINTER
     lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
@@ -839,15 +856,14 @@ art_quick_test_suspend:
     jal    artTestSuspendFromCode             # (Thread*, $sp)
     move   $a1, $sp
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_test_suspend
 
-    .global art_quick_proxy_invoke_handler
-    .extern artProxyInvokeHandler
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method; r1, r2 and r3 may contain arguments.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_proxy_invoke_handler:
+    .extern artProxyInvokeHandler
+ENTRY art_quick_proxy_invoke_handler
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     sw      $a0, 0($sp)            # place proxy method at bottom of frame
@@ -858,15 +874,15 @@ art_quick_proxy_invoke_handler:
     lw      $ra, 44($sp)           # restore $ra
     bnez    $t0, 1f
     addiu   $sp, $sp, 48           # pop frame
+    .cfi_adjust_cfa_offset -48
     jr      $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
+END art_quick_proxy_invoke_handler
 
-    .global art_quick_interpreter_entry
     .extern artInterpreterEntry
-    ALIGN_FUNCTION_ENTRY
-art_quick_interpreter_entry:
+ENTRY art_quick_interpreter_entry
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     sw      $a0, 0($sp)            # place proxy method at bottom of frame
@@ -877,27 +893,31 @@ art_quick_interpreter_entry:
     lw      $ra, 44($sp)           # restore $ra
     bnez    $t0, 1f
     addiu   $sp, $sp, 48           # pop frame
+    .cfi_adjust_cfa_offset -48
     jr      $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
+END art_quick_interpreter_entry
 
-    .global art_quick_instrumentation_entry_from_code
-    .global art_quick_instrumentation_exit_from_code
-    .extern artInstrumentationMethodEntryFromCode
-    .extern artInstrumentationMethodExitFromCode
     /*
      * Routine that intercepts method calls and returns.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_instrumentation_entry_from_code:
+    .extern artInstrumentationMethodEntryFromCode
+    .extern artInstrumentationMethodExitFromCode
+ENTRY art_quick_instrumentation_entry_from_code
     GENERATE_GLOBAL_POINTER
     move     $t0, $sp       # remember bottom of caller's frame
     addiu    $sp, $sp, -16  # save arguments (4 words)
+    .cfi_adjust_cfa_offset 16
     sw       $a0, 0($sp)
+    .cfi_rel_offset 4, 0
     sw       $a1, 4($sp)
+    .cfi_rel_offset 5, 4
     sw       $a2, 8($sp)
+    .cfi_rel_offset 6, 8
     sw       $a3, 12($sp)
+    .cfi_rel_offset 7, 12
     move     $a3, $ra       # pass $ra
     move     $a2, $t0       # pass $sp
     jal      artInstrumentationMethodEntryFromCode  # (Method*, Thread*, SP, LR)
@@ -909,14 +929,21 @@ art_quick_instrumentation_entry_from_code:
     lw       $a3, 12($sp)
     jalr     $t9            # call method
     addiu    $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+END art_quick_instrumentation_entry_from_code
     /* intentional fallthrough */
+    .global art_quick_instrumentation_exit_from_code
 art_quick_instrumentation_exit_from_code:
+    .cfi_startproc
     addiu    $t9, $ra, 4    # put current address into $t9 to rebuild $gp
     GENERATE_GLOBAL_POINTER
     move     $t0, $sp       # remember bottom of caller's frame
     addiu    $sp, $sp, -16  # save return values
+    .cfi_adjust_cfa_offset 16
     sw       $v0, 0($sp)
+    .cfi_rel_offset 2, 0
     sw       $v1, 4($sp)
+    .cfi_rel_offset 3, 4
     move     $a1, $t0       # pass $sp
     jal      artInstrumentationMethodExitFromCode  # (Thread*, SP)
     move     $a0, rSELF     # pass Thread::Current
@@ -926,18 +953,18 @@ art_quick_instrumentation_exit_from_code:
     lw       $v1, 4($sp)
     jr       $t0            # return
     addiu    $sp, $sp, 16
+    .cfi_adjust_cfa_offset -16
+END art_quickInstrumentation_exit_from_code
 
-    .global art_quick_deoptimize
-    .extern artDeoptimize
-    .extern artEnterInterpreterFromDeoptimize
     /*
      * The thread's enter interpreter flag is set and so we should transition to the interpreter
      * rather than allow execution to continue in the frame below. There may be live results in
      * registers depending on how complete the operation is when we safepoint - for example, a
      * set operation may have completed while a get operation needs writing back into the vregs.
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_deoptimize:
+    .extern artDeoptimize
+    .extern artEnterInterpreterFromDeoptimize
+ENTRY art_quick_deoptimize
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     move     $a0, $v0       # pass first half of return value
@@ -958,8 +985,8 @@ art_quick_deoptimize:
 1:
     jr       $ra            # Return to caller.
     nop
+END art_quick_deoptimize
 
-    .global art_quick_shl_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -970,8 +997,7 @@ art_quick_deoptimize:
      *   $a1: high word
      *   $a2: shift count
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_shl_long:
+ENTRY art_quick_shl_long
     /* shl-long vAA, vBB, vCC */
     sll     $v0, $a0, $a2                    #  rlo<- alo << (shift&31)
     not     $v1, $a2                         #  rhi<- 31-shift  (shift is 5b)
@@ -983,8 +1009,8 @@ art_quick_shl_long:
     movn    $v1, $v0, $a2                    #  rhi<- rlo (if shift&0x20)
     jr      $ra
     movn    $v0, $zero, $a2                  #  rlo<- 0  (if shift&0x20)
+END art_quick_shl_long
 
-    .global art_quick_shr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -995,8 +1021,8 @@ art_quick_shl_long:
      *   $a1: high word
      *   $a2: shift count
      */
-    ALIGN_FUNCTION_ENTRY
-art_quick_shr_long:
+    .global art_quick_shr_long
+ENTRY art_quick_shr_long
     sra     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
     srl     $v0, $a0, $a2                    #  rlo<- alo >> (shift&31)
     sra     $a3, $a1, 31                     #  $a3<- sign(ah)
@@ -1008,8 +1034,8 @@ art_quick_shr_long:
     movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
     jr      $ra
     movn    $v1, $a3, $a2                    #  rhi<- sign(ahi) (if shift&0x20)
+END art_quick_shr_long
 
-    .global art_quick_ushr_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit
      * binary operations because vAA/vBB are 64-bit but vCC (the shift
@@ -1021,8 +1047,8 @@ art_quick_shr_long:
      *   r2: shift count
      */
     /* ushr-long vAA, vBB, vCC */
-    ALIGN_FUNCTION_ENTRY
-art_quick_ushr_long:
+    .global art_quick_ushr_long
+ENTRY art_quick_ushr_long
     srl     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
     srl     $v0, $a0, $a2                    #  rlo<- alo >> (shift&31)
     not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
@@ -1033,15 +1059,14 @@ art_quick_ushr_long:
     movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
     jr      $ra
     movn    $v1, $zero, $a2                  #  rhi<- 0 (if shift&0x20)
+END art_quick_ushr_long
 
-    .global art_quick_indexof
-    ALIGN_FUNCTION_ENTRY
-art_quick_indexof:
+ENTRY art_quick_indexof
     jr $ra
     nop
+END art_quick_indexof
 
-    .global art_quick_string_compareto
-    ALIGN_FUNCTION_ENTRY
-art_quick_string_compareto:
+ENTRY art_quick_string_compareto
     jr $ra
     nop
+END art_quick_string_compareto
