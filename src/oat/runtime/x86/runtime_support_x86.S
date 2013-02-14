@@ -288,6 +288,7 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     ret
 1:
     addl MACRO_LITERAL(4), %esp   // Pop code pointer off stack
+    .cfi_adjust_cfa_offset -4
     DELIVER_PENDING_EXCEPTION
     END_FUNCTION VAR(c_name, 0)
 END_MACRO
@@ -490,26 +491,24 @@ DEFINE_FUNCTION art_quick_fmodf_from_code
 END_FUNCTION art_quick_fmodf_from_code
 
 DEFINE_FUNCTION art_quick_l2d_from_code
-    PUSH eax                      // alignment padding
-    PUSH ecx                      // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(art_l2d)          // (jlong a)
-    fstpl (%esp)                  // pop return value off fp stack
+    PUSH ecx                      // push arg2 a.hi
+    PUSH eax                      // push arg1 a.lo
+    fildll (%esp)                 // load as integer and push into st0
+    fstpl (%esp)                  // pop value off fp stack as double
     movsd (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(12), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -12
+    addl LITERAL(8), %esp         // pop arguments
+    .cfi_adjust_cfa_offset -8
     ret
 END_FUNCTION art_quick_l2d_from_code
 
 DEFINE_FUNCTION art_quick_l2f_from_code
-    PUSH eax                      // alignment padding
-    PUSH ecx                      // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(art_l2f)          // (jlong a)
-    fstps (%esp)                  // pop return value off fp stack
+    PUSH ecx                      // push arg2 a.hi
+    PUSH eax                      // push arg1 a.lo
+    fildll (%esp)                 // load as integer and push into st0
+    fstps (%esp)                  // pop value off fp stack as a single
     movss (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(12), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -12
+    addl LITERAL(8), %esp         // pop argument
+    .cfi_adjust_cfa_offset -8
     ret
 END_FUNCTION art_quick_l2f_from_code
 
@@ -525,6 +524,7 @@ END_FUNCTION art_quick_d2l_from_code
 
 DEFINE_FUNCTION art_quick_f2l_from_code
     subl LITERAL(8), %esp         // alignment padding
+    .cfi_adjust_cfa_offset 8
     PUSH eax                      // pass arg1 a
     call SYMBOL(art_f2l)          // (jfloat a)
     addl LITERAL(12), %esp        // pop arguments
@@ -573,15 +573,11 @@ DEFINE_FUNCTION art_quick_ldivmod_from_code
 END_FUNCTION art_quick_ldivmod_from_code
 
 DEFINE_FUNCTION art_quick_lmul_from_code
-    subl LITERAL(12), %esp        // alignment padding
-    .cfi_adjust_cfa_offset 12
-    PUSH ebx                      // pass arg4 b.hi
-    PUSH edx                      // pass arg3 b.lo
-    PUSH ecx                      // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(artLmulFromCode)  // (jlong a, jlong b)
-    addl LITERAL(28), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -28
+    imul %eax, %ebx              // ebx = a.lo(eax) * b.hi(ebx)
+    imul %edx, %ecx              // ecx = b.lo(edx) * a.hi(ecx)
+    mul  %edx                    // edx:eax = a.lo(eax) * b.lo(edx)
+    add  %ebx, %ecx
+    add  %ecx, %edx              // edx += (a.lo * b.hi) + (b.lo * a.hi)
     ret
 END_FUNCTION art_quick_lmul_from_code
 
@@ -913,7 +909,8 @@ DEFINE_FUNCTION art_quick_instrumentation_exit_from_code
     call  SYMBOL(artInstrumentationMethodExitFromCode)  // (Thread*, SP)
     mov   %eax, %ecx              // move returned link register
     // TODO: Set link register for deopt
-    addl  LITERAL(8), %esp        // pop arguments
+    addl LITERAL(8), %esp         // pop arguments
+    .cfi_adjust_cfa_offset -8
     POP eax                       // restore return value
     POP edx                       // restore other half of return value
     jmp   *%ecx                   // return
