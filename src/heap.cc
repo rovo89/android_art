@@ -51,7 +51,6 @@
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "thread_list.h"
-#include "timing_logger.h"
 #include "UniquePtr.h"
 #include "well_known_classes.h"
 
@@ -377,11 +376,11 @@ void Heap::DumpGcPerformanceInfo() {
   // TODO: C++0x
   uint64_t total_paused_time = 0;
   for (Collectors::const_iterator it = mark_sweep_collectors_.begin();
-      it != mark_sweep_collectors_.end(); ++it) {
+       it != mark_sweep_collectors_.end(); ++it) {
     MarkSweep* collector = *it;
-    const CumulativeLogger& logger = collector->GetCumulativeTimings();
+    CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
-      logger.Dump();
+      LOG(INFO) << Dumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
       const uint64_t total_pause_ns = (*it)->GetTotalPausedTime();
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
@@ -1155,12 +1154,12 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, GcCause gc_cause, bool clear
                    << ((i != pauses.size() - 1) ? ", " : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
-             << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
-             << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
-             << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
-             << " total " << PrettyDuration((duration / 1000) * 1000);
+              << "GC freed " << PrettySize(collector->GetFreedBytes()) << ", "
+              << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
+              << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
+              << " total " << PrettyDuration((duration / 1000) * 1000);
     if (VLOG_IS_ON(heap)) {
-      collector->GetTimings().Dump();
+      LOG(INFO) << Dumpable<TimingLogger>(collector->GetTimings());
     }
   }
 

@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "atomic_integer.h"
+#include "base/timing_logger.h"
 #include "gc/atomic_stack.h"
 #include "gc/card_table.h"
 #include "gc/gc_type.h"
@@ -31,7 +32,6 @@
 #include "locks.h"
 #include "offsets.h"
 #include "safe_map.h"
-#include "timing_logger.h"
 #include "thread_pool.h"
 
 #define VERIFY_OBJECT_ENABLED 0

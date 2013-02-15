@@ -25,6 +25,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
+#include "base/timing_logger.h"
 #include "card_table.h"
 #include "card_table-inl.h"
 #include "heap.h"
@@ -45,7 +46,6 @@
 #include "runtime.h"
 #include "space.h"
 #include "space_bitmap-inl.h"
-#include "timing_logger.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
@@ -139,7 +139,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent)
       large_object_lock_("large object lock"),
       mark_stack_expand_lock_("mark stack expand lock"),
       timings_(GetName(), true),
-      cumulative_timings_(GetName(), true),
+      cumulative_timings_(GetName()),
       is_concurrent_(is_concurrent) {
   cumulative_timings_.SetName(GetName());
   ResetCumulativeStatistics();
@@ -828,18 +828,6 @@ class CheckpointMarkThreadRoots : public Closure {
  private:
   MarkSweep* mark_sweep_;
 };
-
-Barrier& MarkSweep::GetBarrier() {
-  return *gc_barrier_;
-}
-
-const TimingLogger& MarkSweep::GetTimings() const {
-  return timings_;
-}
-
-const CumulativeLogger& MarkSweep::GetCumulativeTimings() const {
-  return cumulative_timings_;
-}
 
 void MarkSweep::ResetCumulativeStatistics() {
   cumulative_timings_.Reset();

@@ -20,11 +20,11 @@
 #include "atomic_integer.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/timing_logger.h"
 #include "garbage_collector.h"
 #include "gc_type.h"
 #include "offsets.h"
 #include "root_visitor.h"
-#include "timing_logger.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -233,9 +233,18 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  Barrier& GetBarrier();
-  const TimingLogger& GetTimings() const;
-  const CumulativeLogger& GetCumulativeTimings() const;
+  Barrier& GetBarrier() {
+    return *gc_barrier_;
+  }
+
+  TimingLogger& GetTimings() {
+    return timings_;
+  }
+
+  CumulativeLogger& GetCumulativeTimings() {
+    return cumulative_timings_;
+  }
+
   void ResetCumulativeStatistics();
 
  protected:

@@ -21,9 +21,9 @@
 #include <unistd.h>
 
 #include "base/mutex.h"
+#include "base/timing_logger.h"
 #include "debugger.h"
 #include "thread.h"
-#include "timing_logger.h"
 #include "utils.h"
 
 namespace art {
@@ -210,8 +210,8 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       // Shouldn't need to wait for longer than 1 millisecond.
       const uint64_t threshold = 1;
       if (NsToMs(end - start) > threshold) {
-        LOG(INFO) << "Warning: waited longer than " << threshold << " ms for thread suspend"
-                  << std::endl;
+        LOG(INFO) << "Warning: waited longer than " << threshold
+                  << " ms for thread suspend\n";
       }
     }
     // We know for sure that the thread is suspended at this point.

@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include "base/stl_util.h"
+#include "base/timing_logger.h"
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "oat_compilation_unit.h"
@@ -43,7 +44,6 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_pool.h"
-#include "timing_logger.h"
 #include "verifier/method_verifier.h"
 
 #if defined(__APPLE__)
@@ -489,14 +489,14 @@ void Compiler::CompileAll(jobject class_loader,
   DCHECK(!Runtime::Current()->IsStarted());
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
-  TimingLogger timings("compiler");
+  TimingLogger timings("compiler", false);
 
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
 
   Compile(class_loader, dex_files, *thread_pool.get(), timings);
 
   if (dump_timings_ && timings.GetTotalNs() > MsToNs(1000)) {
-    timings.Dump();
+    LOG(INFO) << Dumpable<TimingLogger>(timings);
   }
 
   if (dump_stats_) {
@@ -527,7 +527,7 @@ void Compiler::CompileOne(const mirror::AbstractMethod* method) {
   dex_files.push_back(dex_file);
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(1U));
-  TimingLogger timings("CompileOne");
+  TimingLogger timings("CompileOne", false);
   PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();

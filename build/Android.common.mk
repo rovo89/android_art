@@ -144,6 +144,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/base/mutex.cc \
 	src/base/stringpiece.cc \
 	src/base/stringprintf.cc \
+        src/base/timing_logger.cc \
 	src/base/unix_file/fd_file.cc \
 	src/base/unix_file/mapped_file.cc \
 	src/base/unix_file/null_file.cc \
@@ -250,7 +251,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/thread_pool.cc \
-        src/timing_logger.cc \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
@@ -383,6 +383,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
 
 TEST_COMMON_SRC_FILES := \
 	src/barrier_test.cc \
+	src/base/histogram_test.cc \
 	src/base/mutex_test.cc \
 	src/base/unix_file/fd_file_test.cc \
 	src/base/unix_file/mapped_file_test.cc \
