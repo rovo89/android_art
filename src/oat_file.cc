@@ -60,10 +60,20 @@ OatFile* OatFile::Open(const std::string& filename,
                        byte* requested_base) {
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
+  /*
+   * TODO: Reenable dlopen when it works again on MIPS. It may have broken from this change:
+   * commit 818d98eb563ad5d7293b8b5c40f3dabf745e611f
+   * Author: Brian Carlstrom <bdc@google.com>
+   * Date:   Sun Feb 10 21:38:12 2013 -0800
+   *
+   *    Fix MIPS to use standard kPageSize=0x1000 section alignment for ELF sections
+   *
+   *    Change-Id: I905f0c5f75921a65bd7426a54d6258c780d85d0e
   OatFile* result = OpenDlopen(filename, location, requested_base);
   if (result != NULL) {
     return result;
   }
+  */
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false, false));
   if (file.get() == NULL) {
     return NULL;
