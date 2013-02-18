@@ -167,9 +167,49 @@ void RuntimeSupportBuilder::EmitTestSuspend() {
 /* Monitor */
 
 void RuntimeSupportBuilder::EmitLockObject(llvm::Value* object) {
-  // TODO: Implement a fast path.
+  Value* monitor =
+      irb_.LoadFromObjectOffset(object,
+                                mirror::Object::MonitorOffset().Int32Value(),
+                                irb_.getJIntTy(),
+                                kTBAARuntimeInfo);
+
+  Value* real_monitor =
+      irb_.CreateAnd(monitor, ~(LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+
+  // Is thin lock, unheld and not recursively acquired.
+  Value* unheld = irb_.CreateICmpEQ(real_monitor, irb_.getInt32(0));
+
+  Function* parent_func = irb_.GetInsertBlock()->getParent();
+  BasicBlock* bb_fast = BasicBlock::Create(context_, "lock_fast", parent_func);
+  BasicBlock* bb_slow = BasicBlock::Create(context_, "lock_slow", parent_func);
+  BasicBlock* bb_cont = BasicBlock::Create(context_, "lock_cont", parent_func);
+  irb_.CreateCondBr(unheld, bb_fast, bb_slow, kLikely);
+
+  irb_.SetInsertPoint(bb_fast);
+
+  // Calculate new monitor: new = old | (lock_id << LW_LOCK_OWNER_SHIFT)
+  Value* lock_id =
+      EmitLoadFromThreadOffset(Thread::ThinLockIdOffset().Int32Value(),
+                               irb_.getInt32Ty(), kTBAARuntimeInfo);
+
+  Value* owner = irb_.CreateShl(lock_id, LW_LOCK_OWNER_SHIFT);
+  Value* new_monitor = irb_.CreateOr(monitor, owner);
+
+  // Atomically update monitor.
+  Value* old_monitor =
+      irb_.CompareExchangeObjectOffset(object,
+                                       mirror::Object::MonitorOffset().Int32Value(),
+                                       monitor, new_monitor, kTBAARuntimeInfo);
+
+  Value* retry_slow_path = irb_.CreateICmpEQ(old_monitor, monitor);
+  irb_.CreateCondBr(retry_slow_path, bb_cont, bb_slow, kLikely);
+
+  irb_.SetInsertPoint(bb_slow);
   Function* slow_func = GetRuntimeSupportFunction(runtime_support::LockObject);
   irb_.CreateCall2(slow_func, object, EmitGetCurrentThread());
+  irb_.CreateBr(bb_cont);
+
+  irb_.SetInsertPoint(bb_cont);
 }
 
 void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
