@@ -468,7 +468,7 @@ void ArmCodegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, Re
  *
  * The result of the strex is 0 if we acquire the lock.
  *
- * See comments in Sync.c for the layout of the lock word.
+ * See comments in monitor.cc for the layout of the lock word.
  * Of particular interest to this code is the test for the
  * simple case - which we handle inline.  For monitor enter, the
  * simple case is thin lock, held by no-one.  For monitor exit,
