@@ -29,7 +29,7 @@
 #include "instruction_flags.h"
 #include "mirror/object.h"
 #include "reg_type.h"
-#include "reg_type_cache.h"
+#include "reg_type_cache-inl.h"
 #include "register_line.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
@@ -192,7 +192,7 @@ class MethodVerifier {
                                std::vector<uint32_t>& monitor_enter_dex_pcs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void Init();
+  static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void Shutdown();
 
   static bool IsClassRejected(CompilerDriver::ClassReference ref)
