@@ -991,12 +991,12 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
       switch (opcode2) {
         case 0x0: case 0x1: case 0x2: case 0x3: case 0x4: case 0x5: case 0x6: case 0x7:
         case 0x8: case 0x9: case 0xA: case 0xB: {
-          // Logical shift left     - 00 000xx xxxxxxxxx
-          // Logical shift right    - 00 001xx xxxxxxxxx
-          // Arithmetic shift right - 00 010xx xxxxxxxxx
+          // Logical shift left     - 00 000xx iii mmm ddd
+          // Logical shift right    - 00 001xx iii mmm ddd
+          // Arithmetic shift right - 00 010xx iii mmm ddd
           uint16_t imm5 = (instr >> 6) & 0x1F;
           ThumbRegister rm(instr, 3);
-          ThumbRegister Rd(instr, 7);
+          ThumbRegister Rd(instr, 0);
           if (opcode2 <= 3) {
             opcode << "lsls";
           } else if (opcode2 <= 7) {
