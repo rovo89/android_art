@@ -18,6 +18,7 @@
 #define ART_SRC_GC_MARK_SWEEP_H_
 
 #include "atomic_integer.h"
+#include "barrier.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
@@ -34,7 +35,6 @@ class Object;
 template<class T> class ObjectArray;
 }
 template <typename T> class AtomicStack;
-class Barrier;
 class CheckObjectVisitor;
 class ContinuousSpace;
 class Heap;

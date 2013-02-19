@@ -21,7 +21,6 @@
 #include <climits>
 #include <vector>
 
-#include "barrier.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
