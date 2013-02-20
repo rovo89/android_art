@@ -403,14 +403,14 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 
     SetRLimits(env, javaRlimits);
 
-    int rc = setgid(gid);
+    int rc = setresgid(gid, gid, gid);
     if (rc == -1) {
-      PLOG(FATAL) << "setgid(" << gid << ") failed";
+      PLOG(FATAL) << "setresgid(" << gid << ") failed";
     }
 
-    rc = setuid(uid);
+    rc = setresuid(uid, uid, uid);
     if (rc == -1) {
-      PLOG(FATAL) << "setuid(" << uid << ") failed";
+      PLOG(FATAL) << "setresuid(" << uid << ") failed";
     }
 
 #if defined(__linux__)
