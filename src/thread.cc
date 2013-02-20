@@ -987,9 +987,8 @@ void Thread::Destroy() {
         soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(opeer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
-      lock->MonitorEnter(self);
-      lock->Notify();
-      lock->MonitorExit(self);
+      ObjectLock locker(self, lock);
+      locker.Notify();
     }
   }
 

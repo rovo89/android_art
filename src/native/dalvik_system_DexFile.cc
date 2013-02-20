@@ -23,6 +23,7 @@
 #include "image.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "oat.h"
 #include "os.h"

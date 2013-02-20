@@ -46,16 +46,16 @@ class ObjectLock {
     obj_->MonitorExit(self_);
   }
 
-  void Wait() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Monitor::Wait(self_, obj_, 0, 0, false, kWaiting);
+  void WaitIgnoringInterrupts() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Monitor::Wait(self_, obj_, 0, 0, false, kWaiting);
   }
 
   void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->Notify();
+    obj_->Notify(self_);
   }
 
   void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    obj_->NotifyAll();
+    obj_->NotifyAll(self_);
   }
 
  private:

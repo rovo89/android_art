@@ -163,7 +163,7 @@ static void UnstartedRuntimeJni(Thread* self, AbstractMethod* method,
   } else if (name == "java.lang.Object java.lang.Object.internalClone()") {
     result->SetL(receiver->Clone(self));
   } else if (name == "void java.lang.Object.notifyAll()") {
-    receiver->NotifyAll();
+    receiver->NotifyAll(self);
   } else if (name == "int java.lang.String.compareTo(java.lang.String)") {
     String* rhs = args[0].GetL()->AsString();
     CHECK(rhs != NULL);

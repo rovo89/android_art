@@ -35,64 +35,6 @@
 namespace art {
 namespace mirror {
 
-Array* Object::AsArray() {
-  DCHECK(IsArrayInstance());
-  return down_cast<Array*>(this);
-}
-
-const Array* Object::AsArray() const {
-  DCHECK(IsArrayInstance());
-  return down_cast<const Array*>(this);
-}
-
-BooleanArray* Object::AsBooleanArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveBoolean());
-  return down_cast<BooleanArray*>(this);
-}
-
-ByteArray* Object::AsByteArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveByte());
-  return down_cast<ByteArray*>(this);
-}
-
-CharArray* Object::AsCharArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveChar());
-  return down_cast<CharArray*>(this);
-}
-
-ShortArray* Object::AsShortArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveShort());
-  return down_cast<ShortArray*>(this);
-}
-
-IntArray* Object::AsIntArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveInt() ||
-         GetClass()->GetComponentType()->IsPrimitiveFloat());
-  return down_cast<IntArray*>(this);
-}
-
-LongArray* Object::AsLongArray() {
-  DCHECK(GetClass()->IsArrayClass());
-  DCHECK(GetClass()->GetComponentType()->IsPrimitiveLong() ||
-         GetClass()->GetComponentType()->IsPrimitiveDouble());
-  return down_cast<LongArray*>(this);
-}
-
-String* Object::AsString() {
-  DCHECK(GetClass()->IsStringClass());
-  return down_cast<String*>(this);
-}
-
-Throwable* Object::AsThrowable() {
-  DCHECK(GetClass()->IsThrowableClass());
-  return down_cast<Throwable*>(this);
-}
-
 Object* Object::Clone(Thread* self) {
   Class* c = GetClass();
   DCHECK(!c->IsClassClass());
@@ -136,34 +78,6 @@ Object* Object::Clone(Thread* self) {
   }
 
   return copy.get();
-}
-
-uint32_t Object::GetThinLockId() {
-  return Monitor::GetThinLockId(monitor_);
-}
-
-void Object::MonitorEnter(Thread* thread) {
-  Monitor::MonitorEnter(thread, this);
-}
-
-bool Object::MonitorExit(Thread* thread) {
-  return Monitor::MonitorExit(thread, this);
-}
-
-void Object::Notify() {
-  Monitor::Notify(Thread::Current(), this);
-}
-
-void Object::NotifyAll() {
-  Monitor::NotifyAll(Thread::Current(), this);
-}
-
-void Object::Wait() {
-  Monitor::Wait(Thread::Current(), this, 0, 0, true, kWaiting);
-}
-
-void Object::Wait(int64_t ms, int32_t ns) {
-  Monitor::Wait(Thread::Current(), this, ms, ns, true, kTimedWaiting);
 }
 
 #if VERIFY_OBJECT_ENABLED

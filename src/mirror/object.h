@@ -97,21 +97,19 @@ class MANAGED Object {
 
   uint32_t GetThinLockId();
 
-  void MonitorEnter(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  void MonitorEnter(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
 
-  bool MonitorExit(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  bool MonitorExit(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       UNLOCK_FUNCTION(monitor_lock_);
 
-  void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Notify(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void NotifyAll(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Wait() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Wait(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Wait(int64_t timeout) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void Wait(int64_t timeout, int32_t nanos) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Wait(Thread* self, int64_t timeout, int32_t nanos) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsClass() const;
 

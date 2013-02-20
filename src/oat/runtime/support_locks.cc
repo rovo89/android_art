@@ -15,7 +15,7 @@
  */
 
 #include "callee_save_frame.h"
-#include "mirror/object.h"
+#include "mirror/object-inl.h"
 
 namespace art {
 

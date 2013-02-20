@@ -24,7 +24,9 @@
 #include "array.h"
 #include "field.h"
 #include "class.h"
+#include "monitor.h"
 #include "runtime.h"
+#include "throwable.h"
 
 namespace art {
 namespace mirror {
@@ -39,6 +41,34 @@ inline void Object::SetClass(Class* new_klass) {
   // Proxy classes are held live by the class loader, and other classes are roots of the class
   // linker.
   SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
+}
+
+inline uint32_t Object::GetThinLockId() {
+  return Monitor::GetThinLockId(monitor_);
+}
+
+inline void Object::MonitorEnter(Thread* self) {
+  Monitor::MonitorEnter(self, this);
+}
+
+inline bool Object::MonitorExit(Thread* self) {
+  return Monitor::MonitorExit(self, this);
+}
+
+inline void Object::Notify(Thread* self) {
+  Monitor::Notify(self, this);
+}
+
+inline void Object::NotifyAll(Thread* self) {
+  Monitor::NotifyAll(self, this);
+}
+
+inline void Object::Wait(Thread* self) {
+  Monitor::Wait(self, this, 0, 0, true, kWaiting);
+}
+
+inline void Object::Wait(Thread* self, int64_t ms, int32_t ns) {
+  Monitor::Wait(self, this, ms, ns, true, kTimedWaiting);
 }
 
 inline bool Object::InstanceOf(const Class* klass) const {
@@ -112,6 +142,64 @@ inline const AbstractMethod* Object::AsMethod() const {
 
 inline bool Object::IsReferenceInstance() const {
   return GetClass()->IsReferenceClass();
+}
+
+inline Array* Object::AsArray() {
+  DCHECK(IsArrayInstance());
+  return down_cast<Array*>(this);
+}
+
+inline const Array* Object::AsArray() const {
+  DCHECK(IsArrayInstance());
+  return down_cast<const Array*>(this);
+}
+
+inline BooleanArray* Object::AsBooleanArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveBoolean());
+  return down_cast<BooleanArray*>(this);
+}
+
+inline ByteArray* Object::AsByteArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveByte());
+  return down_cast<ByteArray*>(this);
+}
+
+inline CharArray* Object::AsCharArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveChar());
+  return down_cast<CharArray*>(this);
+}
+
+inline ShortArray* Object::AsShortArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveShort());
+  return down_cast<ShortArray*>(this);
+}
+
+inline IntArray* Object::AsIntArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveInt() ||
+         GetClass()->GetComponentType()->IsPrimitiveFloat());
+  return down_cast<IntArray*>(this);
+}
+
+inline LongArray* Object::AsLongArray() {
+  DCHECK(GetClass()->IsArrayClass());
+  DCHECK(GetClass()->GetComponentType()->IsPrimitiveLong() ||
+         GetClass()->GetComponentType()->IsPrimitiveDouble());
+  return down_cast<LongArray*>(this);
+}
+
+inline String* Object::AsString() {
+  DCHECK(GetClass()->IsStringClass());
+  return down_cast<String*>(this);
+}
+
+inline Throwable* Object::AsThrowable() {
+  DCHECK(GetClass()->IsThrowableClass());
+  return down_cast<Throwable*>(this);
 }
 
 inline bool Object::IsWeakReferenceInstance() const {

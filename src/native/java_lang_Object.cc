@@ -15,7 +15,7 @@
  */
 
 #include "jni_internal.h"
-#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 
 // TODO: better support for overloading.
@@ -34,25 +34,25 @@ static jobject Object_internalClone(JNIEnv* env, jobject java_this) {
 static void Object_notify(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Notify();
+  o->Notify(soa.Self());
 }
 
 static void Object_notifyAll(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->NotifyAll();
+  o->NotifyAll(soa.Self());
 }
 
 static void Object_wait(JNIEnv* env, jobject java_this) {
   ScopedObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Wait();
+  o->Wait(soa.Self());
 }
 
 static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
   ScopedObjectAccess soa(env);
   mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Wait(ms, ns);
+  o->Wait(soa.Self(), ms, ns);
 }
 
 static JNINativeMethod gMethods[] = {

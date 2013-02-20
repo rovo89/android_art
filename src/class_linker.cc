@@ -1250,7 +1250,7 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
     }
     // Wait for the pending initialization to complete.
     while (!klass->IsResolved() && !klass->IsErroneous()) {
-      lock.Wait();
+      lock.WaitIgnoringInterrupts();
     }
   }
   if (klass->IsErroneous()) {
@@ -2740,7 +2740,7 @@ bool ClassLinker::WaitForInitializeClass(mirror::Class* klass, Thread* self, Obj
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   while (true) {
     self->AssertNoPendingException();
-    lock.Wait();
+    lock.WaitIgnoringInterrupts();
 
     // When we wake up, repeat the test for init-in-progress.  If
     // there's an exception pending (only possible if
@@ -2873,7 +2873,8 @@ bool ClassLinker::InitializeSuperClass(mirror::Class* klass, bool can_run_clinit
     if (!super_class->IsInitialized()) {
       CHECK(!super_class->IsInterface());
       // Must hold lock on object when initializing and setting status.
-      ObjectLock lock(Thread::Current(), klass);
+      Thread* self = Thread::Current();
+      ObjectLock lock(self, klass);
       bool super_initialized = InitializeClass(super_class, can_run_clinit, can_init_fields);
       // TODO: check for a pending exception
       if (!super_initialized) {
@@ -2884,7 +2885,7 @@ bool ClassLinker::InitializeSuperClass(mirror::Class* klass, bool can_run_clinit
           return false;
         }
         klass->SetStatus(mirror::Class::kStatusError);
-        klass->NotifyAll();
+        klass->NotifyAll(self);
         return false;
       }
     }

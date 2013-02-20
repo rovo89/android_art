@@ -23,7 +23,7 @@
 #include "class_linker.h"
 #include "dex_instruction.h"
 #include "mirror/abstract_method-inl.h"
-#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
