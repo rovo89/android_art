@@ -104,7 +104,9 @@ JdwpState::JdwpState(const JdwpOptions* options)
       event_thread_lock_("JDWP event thread lock"),
       event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
       event_thread_id_(0),
-      ddm_is_active_(false) {
+      ddm_is_active_(false),
+      should_exit_(false),
+      exit_status_(0) {
 }
 
 /*
@@ -351,6 +353,10 @@ void JdwpState::Run() {
         break;
       }
 
+      if (should_exit_) {
+        exit(exit_status_);
+      }
+
       if (first && !(*transport_->awaitingHandshake)(this)) {
         /* handshake worked, tell the interpreter that we're active */
         first = false;
@@ -460,6 +466,12 @@ int64_t JdwpState::LastDebuggerActivity() {
 
   VLOG(jdwp) << "+++ debugger interval=" << (now - last);
   return now - last;
+}
+
+void JdwpState::ExitAfterReplying(int exit_status) {
+  LOG(WARNING) << "Debugger told VM to exit with status " << exit_status;
+  should_exit_ = true;
+  exit_status_ = exit_status;
 }
 
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {

@@ -421,17 +421,11 @@ static JdwpError VM_Resume(JdwpState*, const uint8_t*, int, ExpandBuf*)
   return ERR_NONE;
 }
 
-/*
- * The debugger wants the entire VM to exit.
- */
-static JdwpError VM_Exit(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError VM_Exit(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t exitCode = Get4BE(buf);
-
-  LOG(WARNING) << "Debugger is telling the VM to exit with code=" << exitCode;
-
-  Dbg::Exit(exitCode);
-  return ERR_NOT_IMPLEMENTED;     // shouldn't get here
+  uint32_t exit_status = ReadUnsigned32("exit_status", &buf);
+  state->ExitAfterReplying(exit_status);
+  return ERR_NONE;
 }
 
 /*
@@ -472,13 +466,14 @@ static JdwpError VM_ClassPaths(JdwpState*, const uint8_t*, int, ExpandBuf* pRepl
   return ERR_NONE;
 }
 
-/*
- * Release a list of object IDs.  (Seen in jdb.)
- *
- * Currently does nothing.
- */
-static JdwpError VM_DisposeObjects(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError VM_DisposeObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  size_t object_count = ReadUnsigned32("object_count", &buf);
+  for (size_t i = 0; i < object_count; ++i) {
+    ObjectId object_id = ReadObjectId(&buf);
+    uint32_t reference_count = ReadUnsigned32("reference_count", &buf);
+    Dbg::DisposeObject(object_id, reference_count);
+  }
   return ERR_NONE;
 }
 
@@ -1014,35 +1009,25 @@ static JdwpError OR_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataL
   return FinishInvoke(state, buf, dataLen, pReply, thread_id, object_id, class_id, method_id, false);
 }
 
-/*
- * Disable garbage collection of the specified object.
- */
-static JdwpError OR_DisableCollection(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError OR_DisableCollection(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // TODO: this is currently a no-op.
-  return ERR_NONE;
+  ObjectId object_id = ReadObjectId(&buf);
+  return Dbg::DisableCollection(object_id);
 }
 
-/*
- * Enable garbage collection of the specified object.
- */
-static JdwpError OR_EnableCollection(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError OR_EnableCollection(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // TODO: this is currently a no-op.
-  return ERR_NONE;
+  ObjectId object_id = ReadObjectId(&buf);
+  return Dbg::EnableCollection(object_id);
 }
 
-/*
- * Determine whether an object has been garbage collected.
- */
 static JdwpError OR_IsCollected(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  //ObjectId object_id = ReadObjectId(&buf);
-
-  // TODO: currently returning false; must integrate with GC
-  expandBufAdd1(pReply, 0);
-
-  return ERR_NONE;
+  ObjectId object_id = ReadObjectId(&buf);
+  bool is_collected;
+  JdwpError rc = Dbg::IsCollected(object_id, is_collected);
+  expandBufAdd1(pReply, is_collected ? 1 : 0);
+  return rc;
 }
 
 static JdwpError OR_ReferringObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
@@ -1824,9 +1809,9 @@ static const char* GetCommandName(size_t cmdSet, size_t cmd) {
 
 static std::string DescribeCommand(const JdwpReqHeader* pHeader, int dataLen) {
   std::string result;
-  result += "REQ: ";
+  result += "REQUEST: ";
   result += GetCommandName(pHeader->cmdSet, pHeader->cmd);
-  result += StringPrintf(" (dataLen=%d id=0x%06x)", dataLen, pHeader->id);
+  result += StringPrintf(" (length=%d id=0x%06x)", dataLen, pHeader->id);
   return result;
 }
 
@@ -1905,9 +1890,9 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
   }
 
   size_t respLen = expandBufGetLength(pReply) - kJDWPHeaderLen;
+  VLOG(jdwp) << "REPLY: " << GetCommandName(pHeader->cmdSet, pHeader->cmd) << " " << result << " (length=" << respLen << ")";
   if (false) {
-    LOG(INFO) << "reply: dataLen=" << respLen << " err=" << result << (result != ERR_NONE ? " **FAILED**" : "");
-    LOG(INFO) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
+    VLOG(jdwp) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
   }
 
   /*
@@ -1920,7 +1905,6 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
 
   /* tell the VM that GC is okay again */
   self->TransitionFromRunnableToSuspended(old_state);
-
 }
 
 }  // namespace JDWP

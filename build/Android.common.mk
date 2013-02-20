@@ -189,12 +189,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_handler.cc \
 	src/jdwp/jdwp_main.cc \
 	src/jdwp/jdwp_socket.cc \
+	src/jdwp/object_registry.cc \
 	src/jni_internal.cc \
 	src/jobject_comparator.cc \
 	src/locks.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
-        src/mirror/abstract_method.cc \
+	src/mirror/abstract_method.cc \
 	src/mirror/array.cc \
 	src/mirror/class.cc \
 	src/mirror/dex_cache.cc \

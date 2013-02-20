@@ -26,6 +26,7 @@
 #include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
+#include "jdwp/object_registry.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -37,9 +38,9 @@
 #include "oat/runtime/context.h"
 #include "object_utils.h"
 #include "safe_map.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
-#include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -49,60 +50,7 @@
 namespace art {
 
 static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
-static const size_t kNumAllocRecords = 512; // Must be power of 2.
-
-static const uintptr_t kInvalidId = 1;
-static const mirror::Object* kInvalidObject = reinterpret_cast<mirror::Object*>(kInvalidId);
-
-class ObjectRegistry {
- public:
-  ObjectRegistry() : lock_("ObjectRegistry lock") {
-  }
-
-  JDWP::ObjectId Add(mirror::Object* o) {
-    if (o == NULL) {
-      return 0;
-    }
-    JDWP::ObjectId id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(o));
-    MutexLock mu(Thread::Current(), lock_);
-    map_.Overwrite(id, o);
-    return id;
-  }
-
-  void Clear() {
-    MutexLock mu(Thread::Current(), lock_);
-    LOG(DEBUG) << "Debugger has detached; object registry had " << map_.size() << " entries";
-    map_.clear();
-  }
-
-  bool Contains(JDWP::ObjectId id) {
-    MutexLock mu(Thread::Current(), lock_);
-    return map_.find(id) != map_.end();
-  }
-
-  template<typename T> T Get(JDWP::ObjectId id) {
-    if (id == 0) {
-      return NULL;
-    }
-
-    MutexLock mu(Thread::Current(), lock_);
-    typedef SafeMap<JDWP::ObjectId, mirror::Object*>::iterator It; // C++0x auto
-    It it = map_.find(id);
-    return (it != map_.end()) ? reinterpret_cast<T>(it->second) : reinterpret_cast<T>(kInvalidId);
-  }
-
-  void VisitRoots(RootVisitor* visitor, void* arg) {
-    MutexLock mu(Thread::Current(), lock_);
-    typedef SafeMap<JDWP::ObjectId, mirror::Object*>::iterator It; // C++0x auto
-    for (It it = map_.begin(); it != map_.end(); ++it) {
-      visitor(it->second, arg);
-    }
-  }
-
- private:
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  SafeMap<JDWP::ObjectId, mirror::Object*> map_;
-};
+static const size_t kNumAllocRecords = 512; // Must be a power of 2.
 
 struct AllocRecordStackTraceElement {
   mirror::AbstractMethod* method;
@@ -213,7 +161,7 @@ static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thr
 static mirror::Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
     return NULL;
   }
@@ -228,7 +176,7 @@ static mirror::Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
 static mirror::Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
     return NULL;
   }
@@ -245,7 +193,7 @@ static JDWP::JdwpError DecodeThread(ScopedObjectAccessUnchecked& soa, JDWP::Obje
     LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* thread_peer = gRegistry->Get<mirror::Object*>(thread_id);
-  if (thread_peer == NULL || thread_peer == kInvalidObject) {
+  if (thread_peer == NULL || thread_peer == ObjectRegistry::kInvalidObject) {
     // This isn't even an object.
     return JDWP::ERR_INVALID_OBJECT;
   }
@@ -573,22 +521,12 @@ void Dbg::UndoDebuggerSuspensions() {
   Runtime::Current()->GetThreadList()->UndoDebuggerSuspensions();
 }
 
-void Dbg::Exit(int status) {
-  exit(status); // This is all dalvik did.
-}
-
-void Dbg::VisitRoots(RootVisitor* visitor, void* arg) {
-  if (gRegistry != NULL) {
-    gRegistry->VisitRoots(visitor, arg);
-  }
-}
-
 std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(class_id);
   if (o == NULL) {
     return "NULL";
   }
-  if (o == kInvalidObject) {
+  if (o == ObjectRegistry::kInvalidObject) {
     return StringPrintf("invalid object %p", reinterpret_cast<void*>(class_id));
   }
   if (!o->IsClass()) {
@@ -624,7 +562,7 @@ JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& supercla
 
 JDWP::JdwpError Dbg::GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   expandBufAddObjectId(pReply, gRegistry->Add(o->GetClass()->GetClassLoader()));
@@ -652,7 +590,7 @@ JDWP::JdwpError Dbg::GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
 JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
@@ -789,7 +727,7 @@ JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_c
                                          std::vector<JDWP::ObjectId>& referring_objects)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
@@ -799,6 +737,29 @@ JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_c
     referring_objects.push_back(gRegistry->Add(raw_instances[i]));
   }
   return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::DisableCollection(JDWP::ObjectId object_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gRegistry->DisableCollection(object_id);
+  return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::EnableCollection(JDWP::ObjectId object_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gRegistry->EnableCollection(object_id);
+  return JDWP::ERR_NONE;
+}
+
+JDWP::JdwpError Dbg::IsCollected(JDWP::ObjectId object_id, bool& is_collected)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  is_collected = gRegistry->IsCollected(object_id);
+  return JDWP::ERR_NONE;
+}
+
+void Dbg::DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  gRegistry->DisposeObject(object_id, reference_count);
 }
 
 JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId class_id, JDWP::ExpandBuf* pReply) {
@@ -825,9 +786,11 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
       return reinterpret_cast<ClassListCreator*>(arg)->Visit(c);
     }
 
-    bool Visit(mirror::Class* c) {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool Visit(mirror::Class* c) NO_THREAD_SAFETY_ANALYSIS {
       if (!c->IsPrimitive()) {
-        classes.push_back(static_cast<JDWP::RefTypeId>(gRegistry->Add(c)));
+        classes.push_back(gRegistry->AddRefType(c));
       }
       return true;
     }
@@ -873,9 +836,10 @@ void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::R
   }
 }
 
-JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply) {
+JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if (o == NULL || o == kInvalidObject) {
+  if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
@@ -887,7 +851,7 @@ JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf*
   } else {
     type_tag = JDWP::TT_CLASS;
   }
-  JDWP::RefTypeId type_id = gRegistry->Add(o->GetClass());
+  JDWP::RefTypeId type_id = gRegistry->AddRefType(o->GetClass());
 
   expandBufAdd1(pReply, type_tag);
   expandBufAddRefTypeId(pReply, type_id);
@@ -917,7 +881,7 @@ JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId class_id, std::string& result
 
 JDWP::JdwpError Dbg::GetObjectTag(JDWP::ObjectId object_id, uint8_t& tag) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if (o == kInvalidObject) {
+  if (o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   tag = TagFromObject(o);
@@ -1054,7 +1018,7 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
     for (int i = 0; i < count; ++i) {
       JDWP::ObjectId id = JDWP::ReadObjectId(&src);
       mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
-      if (o == kInvalidObject) {
+      if (o == ObjectRegistry::kInvalidObject) {
         return JDWP::ERR_INVALID_OBJECT;
       }
       oa->Set(offset + i, o);
@@ -1278,7 +1242,7 @@ JDWP::JdwpError Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId class_id, JDWP::Ex
   size_t interface_count = kh.NumDirectInterfaces();
   expandBufAdd4BE(pReply, interface_count);
   for (size_t i = 0; i < interface_count; ++i) {
-    expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetDirectInterface(i)));
+    expandBufAddRefTypeId(pReply, gRegistry->AddRefType(kh.GetDirectInterface(i)));
   }
   return JDWP::ERR_NONE;
 }
@@ -1412,7 +1376,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   }
 
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if ((!is_static && o == NULL) || o == kInvalidObject) {
+  if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   mirror::Field* f = FromFieldId(field_id);
@@ -1478,7 +1442,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
                                          uint64_t value, int width, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
-  if ((!is_static && o == NULL) || o == kInvalidObject) {
+  if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   mirror::Field* f = FromFieldId(field_id);
@@ -1510,7 +1474,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
     }
   } else {
     mirror::Object* v = gRegistry->Get<mirror::Object*>(value);
-    if (v == kInvalidObject) {
+    if (v == ObjectRegistry::kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
     if (v != NULL) {
@@ -1563,7 +1527,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string& name) 
 JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Object* thread_object = gRegistry->Get<mirror::Object*>(thread_id);
-  if (thread_object == kInvalidObject) {
+  if (thread_object == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
@@ -1784,7 +1748,9 @@ static int GetStackDepth(Thread* thread)
     CountStackDepthVisitor(Thread* thread)
         : StackVisitor(thread, NULL), depth(0) {}
 
-    bool VisitFrame() {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (!GetMethod()->IsRuntimeMethod()) {
         ++depth;
       }
@@ -2169,7 +2135,7 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
         {
           CHECK_EQ(width_, sizeof(JDWP::ObjectId));
           mirror::Object* o = gRegistry->Get<mirror::Object*>(static_cast<JDWP::ObjectId>(value_));
-          if (o == kInvalidObject) {
+          if (o == ObjectRegistry::kInvalidObject) {
             UNIMPLEMENTED(FATAL) << "return an error code when given an invalid object to store";
           }
           SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)), kReferenceVReg);
@@ -2216,26 +2182,23 @@ void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc, mirror:
 
   JDWP::JdwpLocation location;
   location.type_tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-  location.class_id = gRegistry->Add(c);
+  location.class_id = gRegistry->AddRefType(c);
   location.method_id = ToMethodId(m);
   location.dex_pc = m->IsNative() ? -1 : dex_pc;
 
-  // Note we use "NoReg" so we don't keep track of references that are
-  // never actually sent to the debugger. 'this_id' is only used to
-  // compare against registered events...
-  JDWP::ObjectId this_id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(this_object));
-  if (gJdwpState->PostLocationEvent(&location, this_id, event_flags)) {
-    // ...unless there's a registered event, in which case we
-    // need to really track the class and 'this'.
-    gRegistry->Add(c);
-    gRegistry->Add(this_object);
+  // If 'this_object' isn't already in the registry, we know that we're not looking for it,
+  // so there's no point adding it to the registry and burning through ids.
+  JDWP::ObjectId this_id = 0;
+  if (gRegistry->Contains(this_object)) {
+    this_id = gRegistry->Add(this_object);
   }
+  gJdwpState->PostLocationEvent(&location, this_id, event_flags);
 }
 
 void Dbg::PostException(Thread* thread,
                         JDWP::FrameId throw_frame_id, mirror::AbstractMethod* throw_method,
                         uint32_t throw_dex_pc, mirror::AbstractMethod* catch_method,
-                        uint32_t catch_dex_pc, mirror::Throwable* exception) {
+                        uint32_t catch_dex_pc, mirror::Throwable* exception_object) {
   if (!IsDebuggerActive()) {
     return;
   }
@@ -2251,17 +2214,8 @@ void Dbg::PostException(Thread* thread,
   visitor.WalkStack();
   JDWP::ObjectId this_id = gRegistry->Add(visitor.this_object);
 
-  /*
-   * Hand the event to the JDWP exception handler.  Note we're using the
-   * "NoReg" objectID on the exception, which is not strictly correct --
-   * the exception object WILL be passed up to the debugger if the
-   * debugger is interested in the event.  We do this because the current
-   * implementation of the debugger object registry never throws anything
-   * away, and some people were experiencing a fatal build up of exception
-   * objects when dealing with certain libraries.
-   */
-  JDWP::ObjectId exception_id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(exception));
-  JDWP::RefTypeId exception_class_id = gRegistry->Add(exception->GetClass());
+  JDWP::ObjectId exception_id = gRegistry->Add(exception_object);
+  JDWP::RefTypeId exception_class_id = gRegistry->AddRefType(exception_object->GetClass());
 
   gJdwpState->PostException(&throw_location, exception_id, exception_class_id, &catch_location, this_id);
 }
@@ -2633,12 +2587,12 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
     JDWP::JdwpError status;
     mirror::Object* receiver = gRegistry->Get<mirror::Object*>(object_id);
-    if (receiver == kInvalidObject) {
+    if (receiver == ObjectRegistry::kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
 
     mirror::Object* thread = gRegistry->Get<mirror::Object*>(thread_id);
-    if (thread == kInvalidObject) {
+    if (thread == ObjectRegistry::kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
     // TODO: check that 'thread' is actually a java.lang.Thread!
@@ -2805,17 +2759,6 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   if (old_exception.get() != NULL) {
     soa.Self()->SetException(old_exception.get());
   }
-}
-
-/*
- * Register an object ID that might not have been registered previously.
- *
- * Normally this wouldn't happen -- the conversion to an ObjectId would
- * have added the object to the registry -- but in some cases (e.g.
- * throwing exceptions) we really want to do the registration late.
- */
-void Dbg::RegisterObjectId(JDWP::ObjectId id) {
-  gRegistry->Add(reinterpret_cast<mirror::Object*>(id));
 }
 
 /*

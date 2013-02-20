@@ -131,6 +131,8 @@ struct JdwpState {
    */
   int64_t LastDebuggerActivity();
 
+  void ExitAfterReplying(int exit_status);
+
   /*
    * When we hit a debugger event that requires suspension, it's important
    * that we wait for the thread to suspend itself before processing any
@@ -344,6 +346,9 @@ struct JdwpState {
   ObjectId event_thread_id_;
 
   bool ddm_is_active_;
+
+  bool should_exit_;
+  int exit_status_;
 };
 
 }  // namespace JDWP

@@ -723,7 +723,6 @@ bool JdwpState::PostVMStart() {
  */
 bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags) {
   ModBasket basket;
-
   basket.pLoc = pLoc;
   basket.classId = pLoc->class_id;
   basket.thisPtr = thisPtr;
@@ -802,7 +801,6 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
   }
 
   SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
-
   return match_count != 0;
 }
 
@@ -951,9 +949,6 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
         expandBufAdd8BE(pReq, exceptionId);
         expandBufAddLocation(pReq, *pCatchLoc);
       }
-
-      /* don't let the GC discard it */
-      Dbg::RegisterObjectId(exceptionId);
     }
 
     CleanupMatchList(match_list, match_count);

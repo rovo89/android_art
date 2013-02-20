@@ -123,10 +123,6 @@ class Dbg {
 
   static void UndoDebuggerSuspensions();
 
-  static void Exit(int status);
-
-  static void VisitRoots(RootVisitor* visitor, void* arg);
-
   /*
    * Class, Object, Array
    */
@@ -149,7 +145,8 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetReferenceType(JDWP::ObjectId object_id, JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId ref_type_id, std::string& signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId ref_type_id, std::string& source_file)
@@ -201,6 +198,14 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReferringObjects(JDWP::ObjectId object_id, int32_t max_count,
                                              std::vector<JDWP::ObjectId>& referring_objects)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError DisableCollection(JDWP::ObjectId object_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError EnableCollection(JDWP::ObjectId object_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError IsCollected(JDWP::ObjectId object_id, bool& is_collected)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //
@@ -359,9 +364,6 @@ class Dbg {
                      Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void ExecuteMethod(DebugInvokeReq* pReq);
-
-  /* perform "late registration" of an object ID */
-  static void RegisterObjectId(JDWP::ObjectId id);
 
   /*
    * DDM support.

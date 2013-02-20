@@ -1034,7 +1034,6 @@ void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg) {
 }
 
 void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
-  Dbg::VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   if (pre_allocated_OutOfMemoryError_ != NULL) {
     visitor(pre_allocated_OutOfMemoryError_, arg);
