@@ -31,6 +31,7 @@ while true; do
         shift
     elif [ "x$1" = "x--gdb" ]; then
         GDB="y"
+        DEV_MODE="y"
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
