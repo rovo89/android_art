@@ -50,105 +50,7 @@ namespace verifier {
 
 static const bool gDebugVerify = false;
 
-class InsnFlags {
- public:
-  InsnFlags() : length_(0), flags_(0) {}
-
-  void SetLengthInCodeUnits(size_t length) {
-    CHECK_LT(length, 65536u);
-    length_ = length;
-  }
-  size_t GetLengthInCodeUnits() {
-    return length_;
-  }
-  bool IsOpcode() const {
-    return length_ != 0;
-  }
-
-  void SetInTry() {
-    flags_ |= 1 << kInTry;
-  }
-  void ClearInTry() {
-    flags_ &= ~(1 << kInTry);
-  }
-  bool IsInTry() const {
-    return (flags_ & (1 << kInTry)) != 0;
-  }
-
-  void SetBranchTarget() {
-    flags_ |= 1 << kBranchTarget;
-  }
-  void ClearBranchTarget() {
-    flags_ &= ~(1 << kBranchTarget);
-  }
-  bool IsBranchTarget() const {
-    return (flags_ & (1 << kBranchTarget)) != 0;
-  }
-
-  void SetGcPoint() {
-    flags_ |= 1 << kGcPoint;
-  }
-  void ClearGcPoint() {
-    flags_ &= ~(1 << kGcPoint);
-  }
-  bool IsGcPoint() const {
-    return (flags_ & (1 << kGcPoint)) != 0;
-  }
-
-  void SetVisited() {
-    flags_ |= 1 << kVisited;
-  }
-  void ClearVisited() {
-    flags_ &= ~(1 << kVisited);
-  }
-  bool IsVisited() const {
-    return (flags_ & (1 << kVisited)) != 0;
-  }
-
-  void SetChanged() {
-    flags_ |= 1 << kChanged;
-  }
-  void ClearChanged() {
-    flags_ &= ~(1 << kChanged);
-  }
-  bool IsChanged() const {
-    return (flags_ & (1 << kChanged)) != 0;
-  }
-
-  bool IsVisitedOrChanged() const {
-    return IsVisited() || IsChanged();
-  }
-
-  std::string Dump() {
-    char encoding[6];
-    if (!IsOpcode()) {
-      strncpy(encoding, "XXXXX", sizeof(encoding));
-    } else {
-      strncpy(encoding, "-----", sizeof(encoding));
-      if (IsInTry())        encoding[kInTry] = 'T';
-      if (IsBranchTarget()) encoding[kBranchTarget] = 'B';
-      if (IsGcPoint())      encoding[kGcPoint] = 'G';
-      if (IsVisited())      encoding[kVisited] = 'V';
-      if (IsChanged())      encoding[kChanged] = 'C';
-    }
-    return std::string(encoding);
-  }
-
- private:
-  enum {
-    kInTry,
-    kBranchTarget,
-    kGcPoint,
-    kVisited,
-    kChanged,
-  };
-
-  // Size of instruction in code units
-  uint16_t length_;
-  uint8_t flags_;
-};
-
-void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
+void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* flags,
                                  uint32_t insns_size, uint16_t registers_size,
                                  MethodVerifier* verifier) {
   DCHECK_GT(insns_size, 0U);
@@ -357,20 +259,6 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
   verifier.Dump(os);
 }
 
-std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_method_idx,
-                                                   const DexFile* dex_file,
-                                                   mirror::DexCache* dex_cache,
-                                                   mirror::ClassLoader* class_loader,
-                                                   uint32_t class_def_idx,
-                                                   const DexFile::CodeItem* code_item,
-                                                   mirror::AbstractMethod* method,
-                                                   uint32_t method_access_flags, uint32_t dex_pc) {
-  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
-                          dex_method_idx, method, method_access_flags, true);
-  verifier.Verify();
-  return verifier.DescribeVRegs(dex_pc);
-}
-
 MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
                                mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                const DexFile::CodeItem* code_item,
@@ -435,7 +323,7 @@ bool MethodVerifier::Verify() {
     return false;
   }
   // Allocate and initialize an array to hold instruction data.
-  insn_flags_.reset(new InsnFlags[code_item_->insns_size_in_code_units_]());
+  insn_flags_.reset(new InstructionFlags[code_item_->insns_size_in_code_units_]());
   // Run through the instructions and see if the width checks out.
   bool result = ComputeWidthsAndCountOps();
   // Flag instructions guarded by a "try" block and check exception handlers.
@@ -1109,7 +997,7 @@ void MethodVerifier::Dump(std::ostream& os) {
     if (reg_line != NULL) {
       indent_os << reg_line->Dump() << "\n";
     }
-    indent_os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].Dump() << " ";
+    indent_os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].ToString() << " ";
     const bool kDumpHexOfInstruction = false;
     if (kDumpHexOfInstruction) {
       indent_os << inst->DumpHex(5) << " ";
@@ -3228,7 +3116,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
   return true;
 }
 
-InsnFlags* MethodVerifier::CurrentInsnFlags() {
+InstructionFlags* MethodVerifier::CurrentInsnFlags() {
   return &insn_flags_[work_insn_idx_];
 }
 
@@ -3421,7 +3309,7 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
       result.push_back(kUndefined);
       result.push_back(0);
     } else {
-      CHECK(type.IsNonZeroReferenceTypes()) << type;
+      CHECK(type.IsNonZeroReferenceTypes());
       result.push_back(kReferenceVReg);
       result.push_back(0);
     }

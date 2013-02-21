@@ -258,6 +258,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/utils.cc \
 	src/vector_output_stream.cc \
 	src/verifier/dex_gc_map.cc \
+	src/verifier/instruction_flags.cc \
 	src/verifier/method_verifier.cc \
 	src/verifier/reg_type.cc \
 	src/verifier/reg_type_cache.cc \

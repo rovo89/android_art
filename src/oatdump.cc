@@ -585,14 +585,22 @@ class OatDumper {
                         uint32_t dex_method_idx, const DexFile* dex_file,
                         uint32_t class_def_idx, const DexFile::CodeItem* code_item,
                         uint32_t method_access_flags, uint32_t dex_pc) {
+    static UniquePtr<verifier::MethodVerifier> verifier;
+    static const DexFile* verified_dex_file = NULL;
+    static uint32_t verified_dex_method_idx = DexFile::kDexNoIndex;
+    if (dex_file != verified_dex_file || verified_dex_method_idx != dex_method_idx) {
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
+      mirror::ClassLoader* class_loader = NULL;
+      verifier.reset(new verifier::MethodVerifier(dex_file, dex_cache, class_loader, class_def_idx,
+                                                  code_item, dex_method_idx, NULL,
+                                                  method_access_flags, true));
+      verifier->Verify();
+      verified_dex_file = dex_file;
+      verified_dex_method_idx = dex_method_idx;
+    }
+    std::vector<int32_t> kinds = verifier->DescribeVRegs(dex_pc);
     bool first = true;
-    ScopedObjectAccess soa(Thread::Current());
-    mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
-    mirror::ClassLoader* class_loader = NULL;
-    std::vector<int32_t> kinds =
-        verifier::MethodVerifier::DescribeVRegs(dex_method_idx, dex_file, dex_cache,
-                                                class_loader, class_def_idx, code_item, NULL,
-                                                method_access_flags, dex_pc);
     for (size_t reg = 0; reg < code_item->registers_size_; reg++) {
       VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
       if (kind != kUndefined) {

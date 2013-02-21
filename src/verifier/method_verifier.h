@@ -17,8 +17,6 @@
 #ifndef ART_SRC_VERIFIER_METHOD_VERIFIER_H_
 #define ART_SRC_VERIFIER_METHOD_VERIFIER_H_
 
-#include <deque>
-#include <limits>
 #include <set>
 #include <vector>
 
@@ -28,6 +26,7 @@
 #include "compiler.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "instruction_flags.h"
 #include "mirror/object.h"
 #include "reg_type.h"
 #include "reg_type_cache.h"
@@ -48,7 +47,6 @@ namespace greenland {
 namespace verifier {
 
 class MethodVerifier;
-class InsnFlags;
 class DexPcToReferenceMap;
 
 /*
@@ -125,7 +123,7 @@ class PcToRegisterLineTable {
   // Initialize the RegisterTable. Every instruction address can have a different set of information
   // about what's in which register, but for verification purposes we only need to store it at
   // branch target addresses (because we merge into that).
-  void Init(RegisterTrackingMode mode, InsnFlags* flags, uint32_t insns_size,
+  void Init(RegisterTrackingMode mode, InstructionFlags* flags, uint32_t insns_size,
             uint16_t registers_size, MethodVerifier* verifier);
 
   RegisterLine* GetLine(size_t idx) {
@@ -147,7 +145,6 @@ class MethodVerifier {
 #if defined(ART_USE_LLVM_COMPILER)
   typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
 #endif
-
  public:
   enum FailureKind {
     kNoFailure,
@@ -167,15 +164,6 @@ class MethodVerifier {
                                   mirror::DexCache* dex_cache, mirror::ClassLoader* class_loader,
                                   uint32_t class_def_idx, const DexFile::CodeItem* code_item,
                                   mirror::AbstractMethod* method, uint32_t method_access_flags)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static std::vector<int32_t> DescribeVRegs(uint32_t dex_method_idx,
-                                            const DexFile* dex_file, mirror::DexCache* dex_cache,
-                                            mirror::ClassLoader* class_loader,
-                                            uint32_t class_def_idx,
-                                            const DexFile::CodeItem* code_item,
-                                            mirror::AbstractMethod* method,
-                                            uint32_t method_access_flags, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -228,14 +216,21 @@ class MethodVerifier {
     return can_load_classes_;
   }
 
- private:
-  explicit MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
-                          mirror::ClassLoader* class_loader, uint32_t class_def_idx,
-                          const DexFile::CodeItem* code_item,
-                          uint32_t method_idx, mirror::AbstractMethod* method, uint32_t access_flags,
-                          bool can_load_classes)
+  MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_cache,
+                 mirror::ClassLoader* class_loader, uint32_t class_def_idx,
+                 const DexFile::CodeItem* code_item,
+                 uint32_t method_idx, mirror::AbstractMethod* method,
+                 uint32_t access_flags, bool can_load_classes)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Run verification on the method. Returns true if verification completes and false if the input
+  // has an irrecoverable corruption.
+  bool Verify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Describe VRegs at the given dex pc.
+  std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
+
+ private:
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);
 
@@ -259,10 +254,6 @@ class MethodVerifier {
                                   const DexFile::CodeItem* code_item,
                                   mirror::AbstractMethod* method, uint32_t method_access_flags)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Run verification on the method. Returns true if verification completes and false if the input
-  // has an irrecoverable corruption.
-  bool Verify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -597,10 +588,7 @@ class MethodVerifier {
   // Compute sizes for GC map data
   void ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits, size_t* log2_max_gc_pc);
 
-  // Describe VRegs at the given dex pc.
-  std::vector<int32_t> DescribeVRegs(uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  InsnFlags* CurrentInsnFlags();
+  InstructionFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
   typedef SafeMap<const Compiler::MethodReference, const std::vector<uint8_t>*> DexGcMapTable;
@@ -652,7 +640,8 @@ class MethodVerifier {
   mirror::ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
-  UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.
+  // Instruction widths and flags, one entry per code unit.
+  UniquePtr<InstructionFlags[]> insn_flags_;
 
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;

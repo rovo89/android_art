@@ -51,11 +51,10 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, mirror::Abstract
       CHECK(code_item != NULL);
       uint16_t num_regs =  code_item->registers_size_;
       shadow_frame_ = ShadowFrame::Create(num_regs, NULL, m, GetDexPc());
-      std::vector<int32_t> kinds =
-          verifier::MethodVerifier::DescribeVRegs(m->GetDexMethodIndex(), &mh.GetDexFile(),
-                                                  mh.GetDexCache(), mh.GetClassLoader(),
-                                                  mh.GetClassDefIndex(), code_item, m,
-                                                  m->GetAccessFlags(), GetDexPc());
+      std::vector<int32_t> kinds = DescribeVRegs(m->GetDexMethodIndex(), &mh.GetDexFile(),
+                                                 mh.GetDexCache(), mh.GetClassLoader(),
+                                                 mh.GetClassDefIndex(), code_item, m,
+                                                 m->GetAccessFlags(), GetDexPc());
       for(uint16_t reg = 0; reg < num_regs; reg++) {
         VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
         switch (kind) {
@@ -72,6 +71,22 @@ extern "C" uint64_t artDeoptimize(JValue ret_val, Thread* self, mirror::Abstract
       }
       return false;  // Stop now we have built the shadow frame.
     }
+
+    std::vector<int32_t> DescribeVRegs(uint32_t dex_method_idx,
+                                       const DexFile* dex_file,
+                                       mirror::DexCache* dex_cache,
+                                       mirror::ClassLoader* class_loader,
+                                       uint32_t class_def_idx,
+                                       const DexFile::CodeItem* code_item,
+                                       mirror::AbstractMethod* method,
+                                       uint32_t method_access_flags, uint32_t dex_pc)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      verifier::MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
+                                        dex_method_idx, method, method_access_flags, true);
+      verifier.Verify();
+      return verifier.DescribeVRegs(dex_pc);
+    }
+
     ShadowFrame* shadow_frame_;
     uint32_t runtime_frames_;
   } visitor(self, self->GetLongJumpContext());
