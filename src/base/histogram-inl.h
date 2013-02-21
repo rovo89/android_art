@@ -169,7 +169,7 @@ inline void Histogram<Value>::PrintConfidenceIntervals(std::ostream &os,
   double per_1 = per_0 + interval;
   os << Name() << ":\t";
   TimeUnit unit = GetAppropriateTimeUnit(Mean() * kAdjust);
-  os << interval << "% C.I. "
+  os << (interval * 100) << "% C.I. "
      << FormatDuration(Percentile(per_0) * kAdjust, unit);
   os << "-" << FormatDuration(Percentile(per_1) * kAdjust, unit) << " ";
   os << "Avg: " << FormatDuration(Mean() * kAdjust, unit) << " Max: ";
@@ -240,6 +240,13 @@ inline double Histogram<Value>::Percentile(double per) const {
 
   double value = lower_value + (upper_value - lower_value) *
                                (per - lower_perc) / (upper_perc - lower_perc);
+
+  if (value < min_value_added_) {
+    value = min_value_added_;
+  } else if (value > max_value_added_) {
+    value = max_value_added_;
+  }
+
   return value;
 }
 
