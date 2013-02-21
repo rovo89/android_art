@@ -14,17 +14,6 @@
  * limitations under the License.
  */
 
-/*
- * Handle messages from debugger.
- *
- * GENERAL NOTE: we're not currently testing the message length for
- * correctness.  This is usually a bad idea, but here we can probably
- * get away with it so long as the debugger isn't broken.  We can
- * change the "read" macros to use "dataLen" to avoid wandering into
- * bad territory, and have a single "is dataLen correct" check at the
- * end of each function.  Not needed at this time.
- */
-
 #include "jdwp/jdwp_handler.h"
 
 #include <stdlib.h>
@@ -50,138 +39,21 @@ namespace art {
 
 namespace JDWP {
 
-static std::string DescribeField(const FieldId& field_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+std::string DescribeField(const FieldId& field_id) {
   return StringPrintf("%#x (%s)", field_id, Dbg::GetFieldName(field_id).c_str());
 }
 
-static std::string DescribeMethod(const MethodId& method_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+std::string DescribeMethod(const MethodId& method_id) {
   return StringPrintf("%#x (%s)", method_id, Dbg::GetMethodName(method_id).c_str());
 }
 
-static std::string DescribeRefTypeId(const RefTypeId& ref_type_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+std::string DescribeRefTypeId(const RefTypeId& ref_type_id) {
   std::string signature("unknown");
   Dbg::GetSignature(ref_type_id, signature);
   return StringPrintf("%#llx (%s)", ref_type_id, signature.c_str());
 }
 
-/*
- * Helper function: read a variable-width value from the input buffer.
- */
-static uint64_t ReadValue(const uint8_t** pBuf, size_t width) {
-  uint64_t value = -1;
-  switch (width) {
-  case 1:     value = Read1(pBuf); break;
-  case 2:     value = Read2BE(pBuf); break;
-  case 4:     value = Read4BE(pBuf); break;
-  case 8:     value = Read8BE(pBuf); break;
-  default:    LOG(FATAL) << width; break;
-  }
-  return value;
-}
-
-static int32_t ReadSigned32(const char* what, const uint8_t** pBuf) {
-  int32_t value = static_cast<int32_t>(Read4BE(pBuf));
-  VLOG(jdwp) << "    " << what << " " << value;
-  return value;
-}
-
-uint32_t ReadUnsigned32(const char* what, const uint8_t** pBuf) {
-  uint32_t value = Read4BE(pBuf);
-  VLOG(jdwp) << "    " << what << " " << value;
-  return value;
-}
-
-static FieldId ReadFieldId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FieldId id = Read4BE(pBuf);
-  VLOG(jdwp) << "    field id " << DescribeField(id);
-  return id;
-}
-
-static MethodId ReadMethodId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MethodId id = Read4BE(pBuf);
-  VLOG(jdwp) << "    method id " << DescribeMethod(id);
-  return id;
-}
-
-static ObjectId ReadObjectId(const char* specific_kind, const uint8_t** pBuf) {
-  ObjectId id = Read8BE(pBuf);
-  VLOG(jdwp) << StringPrintf("    %s id %#llx", specific_kind, id);
-  return id;
-}
-
-static ObjectId ReadArrayId(const uint8_t** pBuf) {
-  return ReadObjectId("array", pBuf);
-}
-
-ObjectId ReadObjectId(const uint8_t** pBuf) {
-  return ReadObjectId("object", pBuf);
-}
-
-static ObjectId ReadThreadId(const uint8_t** pBuf) {
-  return ReadObjectId("thread", pBuf);
-}
-
-static ObjectId ReadThreadGroupId(const uint8_t** pBuf) {
-  return ReadObjectId("thread group", pBuf);
-}
-
-static RefTypeId ReadRefTypeId(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId id = Read8BE(pBuf);
-  VLOG(jdwp) << "    ref type id " << DescribeRefTypeId(id);
-  return id;
-}
-
-static FrameId ReadFrameId(const uint8_t** pBuf) {
-  FrameId id = Read8BE(pBuf);
-  VLOG(jdwp) << "    frame id " << id;
-  return id;
-}
-
-static JdwpTag ReadTag(const uint8_t** pBuf) {
-  JdwpTag tag = static_cast<JdwpTag>(Read1(pBuf));
-  VLOG(jdwp) << "    tag " << tag;
-  return tag;
-}
-
-static JdwpTypeTag ReadTypeTag(const uint8_t** pBuf) {
-  JdwpTypeTag tag = static_cast<JdwpTypeTag>(Read1(pBuf));
-  VLOG(jdwp) << "    type tag " << tag;
-  return tag;
-}
-
-static JdwpLocation ReadLocation(const uint8_t** pBuf) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  JdwpLocation location;
-  memset(&location, 0, sizeof(location)); // Allows memcmp(3) later.
-  location.type_tag = ReadTypeTag(pBuf);
-  location.class_id = ReadObjectId(pBuf);
-  location.method_id = ReadMethodId(pBuf);
-  location.dex_pc = Read8BE(pBuf);
-  VLOG(jdwp) << "    location " << location;
-  return location;
-}
-
-static std::string ReadUtf8String(unsigned char const** ppSrc) {
-  uint32_t length = Read4BE(ppSrc);
-  std::string s;
-  s.resize(length);
-  memcpy(&s[0], *ppSrc, length);
-  (*ppSrc) += length;
-  VLOG(jdwp) << "    string \"" << s << "\"";
-  return s;
-}
-
-static JdwpModKind ReadModKind(const uint8_t** pBuf) {
-  JdwpModKind mod_kind = static_cast<JdwpModKind>(Read1(pBuf));
-  VLOG(jdwp) << "    mod kind " << mod_kind;
-  return mod_kind;
-}
-
-/*
- * Helper function: write a variable-width value into the output input buffer.
- */
+// Helper function: write a variable-width value into the output input buffer.
 static void WriteValue(ExpandBuf* pReply, int width, uint64_t value) {
   switch (width) {
   case 1:     expandBufAdd1(pReply, value); break;
@@ -221,13 +93,13 @@ static JdwpError WriteTaggedObjectList(ExpandBuf* reply, const std::vector<Objec
  * If "is_constructor" is set, this returns "object_id" rather than the
  * expected-to-be-void return value of the called function.
  */
-static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply,
+static JdwpError FinishInvoke(JdwpState*, Request& request, ExpandBuf* pReply,
                               ObjectId thread_id, ObjectId object_id,
                               RefTypeId class_id, MethodId method_id, bool is_constructor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(!is_constructor || object_id != 0);
 
-  int32_t arg_count = ReadSigned32("argument count", &buf);
+  int32_t arg_count = request.ReadSigned32("argument count");
 
   VLOG(jdwp) << StringPrintf("    --> thread_id=%#llx object_id=%#llx", thread_id, object_id);
   VLOG(jdwp) << StringPrintf("        class_id=%#llx method_id=%x %s.%s", class_id,
@@ -238,13 +110,13 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
   UniquePtr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
   UniquePtr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
   for (int32_t i = 0; i < arg_count; ++i) {
-    argTypes[i] = ReadTag(&buf);
+    argTypes[i] = request.ReadTag();
     size_t width = Dbg::GetTagWidth(argTypes[i]);
-    argValues[i] = ReadValue(&buf, width);
+    argValues[i] = request.ReadValue(width);
     VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): %#llx", width, argValues[i]);
   }
 
-  uint32_t options = Read4BE(&buf);  /* enum InvokeOptions bit flags */
+  uint32_t options = request.ReadUnsigned32("InvokeOptions bit flags");
   VLOG(jdwp) << StringPrintf("        options=0x%04x%s%s", options,
                              (options & INVOKE_SINGLE_THREADED) ? " (SINGLE_THREADED)" : "",
                              (options & INVOKE_NONVIRTUAL) ? " (NONVIRTUAL)" : "");
@@ -288,7 +160,7 @@ static JdwpError FinishInvoke(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
   return err;
 }
 
-static JdwpError VM_Version(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_Version(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Text information on runtime version.
   std::string version(StringPrintf("Android Runtime %s", Runtime::Current()->GetVersion()));
@@ -312,9 +184,9 @@ static JdwpError VM_Version(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
  * referenceTypeID.  We need to send back more than one if the class has
  * been loaded by multiple class loaders.
  */
-static JdwpError VM_ClassesBySignature(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError VM_ClassesBySignature(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string classDescriptor(ReadUtf8String(&buf));
+  std::string classDescriptor(request.ReadUtf8String());
 
   std::vector<RefTypeId> ids;
   Dbg::FindLoadedClassBySignature(classDescriptor.c_str(), ids);
@@ -344,7 +216,7 @@ static JdwpError VM_ClassesBySignature(JdwpState*, const uint8_t* buf, int, Expa
  * We exclude ourselves from the list, because we don't allow ourselves
  * to be suspended, and that violates some JDWP expectations.
  */
-static JdwpError VM_AllThreads(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_AllThreads(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::vector<ObjectId> thread_ids;
   Dbg::GetThreads(0, thread_ids);
@@ -360,7 +232,7 @@ static JdwpError VM_AllThreads(JdwpState*, const uint8_t*, int, ExpandBuf* pRepl
 /*
  * List all thread groups that do not have a parent.
  */
-static JdwpError VM_TopLevelThreadGroups(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_TopLevelThreadGroups(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   /*
    * TODO: maintain a list of parentless thread groups in the VM.
@@ -381,7 +253,7 @@ static JdwpError VM_TopLevelThreadGroups(JdwpState*, const uint8_t*, int, Expand
  *
  * All IDs are 8 bytes.
  */
-static JdwpError VM_IDSizes(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_IDSizes(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   expandBufAdd4BE(pReply, sizeof(FieldId));
   expandBufAdd4BE(pReply, sizeof(MethodId));
@@ -391,7 +263,7 @@ static JdwpError VM_IDSizes(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
   return ERR_NONE;
 }
 
-static JdwpError VM_Dispose(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError VM_Dispose(JdwpState*, Request&, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Dbg::Disposed();
   return ERR_NONE;
@@ -403,7 +275,7 @@ static JdwpError VM_Dispose(JdwpState*, const uint8_t*, int, ExpandBuf*)
  *
  * This needs to increment the "suspend count" on all threads.
  */
-static JdwpError VM_Suspend(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError VM_Suspend(JdwpState*, Request&, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
@@ -415,15 +287,15 @@ static JdwpError VM_Suspend(JdwpState*, const uint8_t*, int, ExpandBuf*)
 /*
  * Resume execution.  Decrements the "suspend count" of all threads.
  */
-static JdwpError VM_Resume(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError VM_Resume(JdwpState*, Request&, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Dbg::ResumeVM();
   return ERR_NONE;
 }
 
-static JdwpError VM_Exit(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError VM_Exit(JdwpState* state, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t exit_status = ReadUnsigned32("exit_status", &buf);
+  uint32_t exit_status = request.ReadUnsigned32("exit_status");
   state->ExitAfterReplying(exit_status);
   return ERR_NONE;
 }
@@ -434,9 +306,9 @@ static JdwpError VM_Exit(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
  * (Ctrl-Shift-I in Eclipse on an array of objects causes it to create the
  * string "java.util.Arrays".)
  */
-static JdwpError VM_CreateString(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError VM_CreateString(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string str(ReadUtf8String(&buf));
+  std::string str(request.ReadUtf8String());
   ObjectId stringId = Dbg::CreateString(str);
   if (stringId == 0) {
     return ERR_OUT_OF_MEMORY;
@@ -445,7 +317,7 @@ static JdwpError VM_CreateString(JdwpState*, const uint8_t* buf, int, ExpandBuf*
   return ERR_NONE;
 }
 
-static JdwpError VM_ClassPaths(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_ClassPaths(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   expandBufAddUtf8String(pReply, "/");
 
@@ -466,18 +338,18 @@ static JdwpError VM_ClassPaths(JdwpState*, const uint8_t*, int, ExpandBuf* pRepl
   return ERR_NONE;
 }
 
-static JdwpError VM_DisposeObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError VM_DisposeObjects(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  size_t object_count = ReadUnsigned32("object_count", &buf);
+  size_t object_count = request.ReadUnsigned32("object_count");
   for (size_t i = 0; i < object_count; ++i) {
-    ObjectId object_id = ReadObjectId(&buf);
-    uint32_t reference_count = ReadUnsigned32("reference_count", &buf);
+    ObjectId object_id = request.ReadObjectId();
+    uint32_t reference_count = request.ReadUnsigned32("reference_count");
     Dbg::DisposeObject(object_id, reference_count);
   }
   return ERR_NONE;
 }
 
-static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* reply)
+static JdwpError VM_Capabilities(JdwpState*, Request&, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   expandBufAdd1(reply, false);   // canWatchFieldModification
   expandBufAdd1(reply, false);   // canWatchFieldAccess
@@ -489,11 +361,11 @@ static JdwpError VM_Capabilities(JdwpState*, const uint8_t*, int, ExpandBuf* rep
   return ERR_NONE;
 }
 
-static JdwpError VM_CapabilitiesNew(JdwpState*, const uint8_t*, int, ExpandBuf* reply)
+static JdwpError VM_CapabilitiesNew(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 
   // The first few capabilities are the same as those reported by the older call.
-  VM_Capabilities(NULL, NULL, 0, reply);
+  VM_Capabilities(NULL, request, reply);
 
   expandBufAdd1(reply, false);   // canRedefineClasses
   expandBufAdd1(reply, false);   // canAddMethod
@@ -548,25 +420,25 @@ static JdwpError VM_AllClassesImpl(ExpandBuf* pReply, bool descriptor_and_status
   return ERR_NONE;
 }
 
-static JdwpError VM_AllClasses(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_AllClasses(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return VM_AllClassesImpl(pReply, true, false);
 }
 
-static JdwpError VM_AllClassesWithGeneric(JdwpState*, const uint8_t*, int, ExpandBuf* pReply)
+static JdwpError VM_AllClassesWithGeneric(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return VM_AllClassesImpl(pReply, true, true);
 }
 
-static JdwpError VM_InstanceCounts(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError VM_InstanceCounts(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  int32_t class_count = ReadSigned32("class count", &buf);
+  int32_t class_count = request.ReadSigned32("class count");
   if (class_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
   std::vector<RefTypeId> class_ids;
   for (int32_t i = 0; i < class_count; ++i) {
-    class_ids.push_back(ReadRefTypeId(&buf));
+    class_ids.push_back(request.ReadRefTypeId());
   }
 
   std::vector<uint64_t> counts;
@@ -582,22 +454,22 @@ static JdwpError VM_InstanceCounts(JdwpState*, const uint8_t* buf, int, ExpandBu
   return ERR_NONE;
 }
 
-static JdwpError RT_Modifiers(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_Modifiers(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::GetModifiers(refTypeId, pReply);
 }
 
 /*
  * Get values from static fields in a reference type.
  */
-static JdwpError RT_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
-  int32_t field_count = ReadSigned32("field count", &buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
+  int32_t field_count = request.ReadSigned32("field count");
   expandBufAdd4BE(pReply, field_count);
   for (int32_t i = 0; i < field_count; ++i) {
-    FieldId fieldId = ReadFieldId(&buf);
+    FieldId fieldId = request.ReadFieldId();
     JdwpError status = Dbg::GetStaticFieldValue(refTypeId, fieldId, pReply);
     if (status != ERR_NONE) {
       return status;
@@ -609,9 +481,9 @@ static JdwpError RT_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 /*
  * Get the name of the source file in which a reference type was declared.
  */
-static JdwpError RT_SourceFile(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_SourceFile(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   std::string source_file;
   JdwpError status = Dbg::GetSourceFile(refTypeId, source_file);
   if (status != ERR_NONE) {
@@ -624,9 +496,9 @@ static JdwpError RT_SourceFile(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
 /*
  * Return the current status of the reference type.
  */
-static JdwpError RT_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_Status(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   JDWP::JdwpTypeTag type_tag;
   uint32_t class_status;
   JDWP::JdwpError status = Dbg::GetClassInfo(refTypeId, &type_tag, &class_status, NULL);
@@ -640,18 +512,18 @@ static JdwpError RT_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 /*
  * Return interfaces implemented directly by this class.
  */
-static JdwpError RT_Interfaces(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_Interfaces(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::OutputDeclaredInterfaces(refTypeId, pReply);
 }
 
 /*
  * Return the class object corresponding to this type.
  */
-static JdwpError RT_ClassObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_ClassObject(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   ObjectId class_object_id;
   JdwpError status = Dbg::GetClassObject(refTypeId, class_object_id);
   if (status != ERR_NONE) {
@@ -667,16 +539,15 @@ static JdwpError RT_ClassObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
  *
  * JDB seems interested, but DEX files don't currently support this.
  */
-static JdwpError RT_SourceDebugExtension(JdwpState*, const uint8_t*, int, ExpandBuf*)
+static JdwpError RT_SourceDebugExtension(JdwpState*, Request&, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   /* referenceTypeId in, string out */
   return ERR_ABSENT_INFORMATION;
 }
 
-static JdwpError RT_Signature(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply,
-                              bool with_generic)
+static JdwpError RT_Signature(JdwpState*, Request& request, ExpandBuf* pReply, bool with_generic)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
 
   std::string signature;
   JdwpError status = Dbg::GetSignature(refTypeId, signature);
@@ -690,24 +561,23 @@ static JdwpError RT_Signature(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
   return ERR_NONE;
 }
 
-static JdwpError RT_Signature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply)
+static JdwpError RT_Signature(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return RT_Signature(state, buf, dataLen, pReply, false);
+  return RT_Signature(state, request, pReply, false);
 }
 
-static JdwpError RT_SignatureWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen,
-                                         ExpandBuf* pReply)
+static JdwpError RT_SignatureWithGeneric(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return RT_Signature(state, buf, dataLen, pReply, true);
+  return RT_Signature(state, request, pReply, true);
 }
 
 /*
  * Return the instance of java.lang.ClassLoader that loaded the specified
  * reference type, or null if it was loaded by the system loader.
  */
-static JdwpError RT_ClassLoader(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_ClassLoader(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::GetClassLoader(refTypeId, pReply);
 }
 
@@ -715,16 +585,16 @@ static JdwpError RT_ClassLoader(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
  * Given a referenceTypeId, return a block of stuff that describes the
  * fields declared by a class.
  */
-static JdwpError RT_FieldsWithGeneric(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_FieldsWithGeneric(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::OutputDeclaredFields(refTypeId, true, pReply);
 }
 
 // Obsolete equivalent of FieldsWithGeneric, without the generic type information.
-static JdwpError RT_Fields(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_Fields(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::OutputDeclaredFields(refTypeId, false, pReply);
 }
 
@@ -732,23 +602,23 @@ static JdwpError RT_Fields(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
  * Given a referenceTypeID, return a block of goodies describing the
  * methods declared by a class.
  */
-static JdwpError RT_MethodsWithGeneric(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_MethodsWithGeneric(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::OutputDeclaredMethods(refTypeId, true, pReply);
 }
 
 // Obsolete equivalent of MethodsWithGeneric, without the generic type information.
-static JdwpError RT_Methods(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError RT_Methods(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
   return Dbg::OutputDeclaredMethods(refTypeId, false, pReply);
 }
 
-static JdwpError RT_Instances(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError RT_Instances(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  int32_t max_count = ReadSigned32("max count", &buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  int32_t max_count = request.ReadSigned32("max count");
   if (max_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
@@ -765,9 +635,9 @@ static JdwpError RT_Instances(JdwpState*, const uint8_t* buf, int, ExpandBuf* re
 /*
  * Return the immediate superclass of a class.
  */
-static JdwpError CT_Superclass(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError CT_Superclass(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
+  RefTypeId class_id = request.ReadRefTypeId();
   RefTypeId superClassId;
   JdwpError status = Dbg::GetSuperclass(class_id, superClassId);
   if (status != ERR_NONE) {
@@ -780,18 +650,18 @@ static JdwpError CT_Superclass(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
 /*
  * Set static class values.
  */
-static JdwpError CT_SetValues(JdwpState* , const uint8_t* buf, int, ExpandBuf*)
+static JdwpError CT_SetValues(JdwpState* , Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  int32_t values_count = ReadSigned32("values count", &buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  int32_t values_count = request.ReadSigned32("values count");
 
   UNUSED(class_id);
 
   for (int32_t i = 0; i < values_count; ++i) {
-    FieldId fieldId = ReadFieldId(&buf);
+    FieldId fieldId = request.ReadFieldId();
     JDWP::JdwpTag fieldTag = Dbg::GetStaticFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
-    uint64_t value = ReadValue(&buf, width);
+    uint64_t value = request.ReadValue(width);
 
     VLOG(jdwp) << "    --> field=" << fieldId << " tag=" << fieldTag << " --> " << value;
     JdwpError status = Dbg::SetStaticFieldValue(fieldId, value, width);
@@ -809,14 +679,13 @@ static JdwpError CT_SetValues(JdwpState* , const uint8_t* buf, int, ExpandBuf*)
  * Example: Eclipse sometimes uses java/lang/Class.forName(String s) on
  * values in the "variables" display.
  */
-static JdwpError CT_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataLen,
-                                 ExpandBuf* pReply)
+static JdwpError CT_InvokeMethod(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  ObjectId thread_id = ReadThreadId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  ObjectId thread_id = request.ReadThreadId();
+  MethodId method_id = request.ReadMethodId();
 
-  return FinishInvoke(state, buf, dataLen, pReply, thread_id, 0, class_id, method_id, false);
+  return FinishInvoke(state, request, pReply, thread_id, 0, class_id, method_id, false);
 }
 
 /*
@@ -826,12 +695,11 @@ static JdwpError CT_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataL
  * Example: in IntelliJ, create a watch on "new String(myByteArray)" to
  * see the contents of a byte[] as a string.
  */
-static JdwpError CT_NewInstance(JdwpState* state, const uint8_t* buf, int dataLen,
-                                ExpandBuf* pReply)
+static JdwpError CT_NewInstance(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  ObjectId thread_id = ReadThreadId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  ObjectId thread_id = request.ReadThreadId();
+  MethodId method_id = request.ReadMethodId();
 
   ObjectId object_id;
   JdwpError status = Dbg::CreateObject(class_id, object_id);
@@ -841,16 +709,16 @@ static JdwpError CT_NewInstance(JdwpState* state, const uint8_t* buf, int dataLe
   if (object_id == 0) {
     return ERR_OUT_OF_MEMORY;
   }
-  return FinishInvoke(state, buf, dataLen, pReply, thread_id, object_id, class_id, method_id, true);
+  return FinishInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, true);
 }
 
 /*
  * Create a new array object of the requested type and length.
  */
-static JdwpError AT_newInstance(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError AT_newInstance(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId arrayTypeId = ReadRefTypeId(&buf);
-  int32_t length = ReadSigned32("length", &buf);
+  RefTypeId arrayTypeId = request.ReadRefTypeId();
+  int32_t length = request.ReadSigned32("length");
 
   ObjectId object_id;
   JdwpError status = Dbg::CreateArrayObject(arrayTypeId, length, object_id);
@@ -868,21 +736,21 @@ static JdwpError AT_newInstance(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
 /*
  * Return line number information for the method, if present.
  */
-static JdwpError M_LineTable(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError M_LineTable(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  RefTypeId refTypeId = request.ReadRefTypeId();
+  MethodId method_id = request.ReadMethodId();
 
   Dbg::OutputLineTable(refTypeId, method_id, pReply);
 
   return ERR_NONE;
 }
 
-static JdwpError M_VariableTable(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply,
+static JdwpError M_VariableTable(JdwpState*, Request& request, ExpandBuf* pReply,
                                  bool generic)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  MethodId method_id = request.ReadMethodId();
 
   // We could return ERR_ABSENT_INFORMATION here if the DEX file was built without local variable
   // information. That will cause Eclipse to make a best-effort attempt at displaying local
@@ -892,22 +760,20 @@ static JdwpError M_VariableTable(JdwpState*, const uint8_t* buf, int, ExpandBuf*
   return ERR_NONE;
 }
 
-static JdwpError M_VariableTable(JdwpState* state, const uint8_t* buf, int dataLen,
-                                 ExpandBuf* pReply)
+static JdwpError M_VariableTable(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return M_VariableTable(state, buf, dataLen, pReply, false);
+  return M_VariableTable(state, request, pReply, false);
 }
 
-static JdwpError M_VariableTableWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen,
-                                            ExpandBuf* pReply)
+static JdwpError M_VariableTableWithGeneric(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return M_VariableTable(state, buf, dataLen, pReply, true);
+  return M_VariableTable(state, request, pReply, true);
 }
 
-static JdwpError M_Bytecodes(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError M_Bytecodes(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  RefTypeId class_id = request.ReadRefTypeId();
+  MethodId method_id = request.ReadMethodId();
 
   std::vector<uint8_t> bytecodes;
   JdwpError rc = Dbg::GetBytecodes(class_id, method_id, bytecodes);
@@ -930,23 +796,23 @@ static JdwpError M_Bytecodes(JdwpState*, const uint8_t* buf, int, ExpandBuf* rep
  * This can get called on different things, e.g. thread_id gets
  * passed in here.
  */
-static JdwpError OR_ReferenceType(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError OR_ReferenceType(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
+  ObjectId object_id = request.ReadObjectId();
   return Dbg::GetReferenceType(object_id, pReply);
 }
 
 /*
  * Get values from the fields of an object.
  */
-static JdwpError OR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError OR_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
-  int32_t field_count = ReadSigned32("field count", &buf);
+  ObjectId object_id = request.ReadObjectId();
+  int32_t field_count = request.ReadSigned32("field count");
 
   expandBufAdd4BE(pReply, field_count);
   for (int32_t i = 0; i < field_count; ++i) {
-    FieldId fieldId = ReadFieldId(&buf);
+    FieldId fieldId = request.ReadFieldId();
     JdwpError status = Dbg::GetFieldValue(object_id, fieldId, pReply);
     if (status != ERR_NONE) {
       return status;
@@ -959,17 +825,17 @@ static JdwpError OR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 /*
  * Set values in the fields of an object.
  */
-static JdwpError OR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError OR_SetValues(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
-  int32_t field_count = ReadSigned32("field count", &buf);
+  ObjectId object_id = request.ReadObjectId();
+  int32_t field_count = request.ReadSigned32("field count");
 
   for (int32_t i = 0; i < field_count; ++i) {
-    FieldId fieldId = ReadFieldId(&buf);
+    FieldId fieldId = request.ReadFieldId();
 
     JDWP::JdwpTag fieldTag = Dbg::GetFieldBasicTag(fieldId);
     size_t width = Dbg::GetTagWidth(fieldTag);
-    uint64_t value = ReadValue(&buf, width);
+    uint64_t value = request.ReadValue(width);
 
     VLOG(jdwp) << "    --> fieldId=" << fieldId << " tag=" << fieldTag << "(" << width << ") value=" << value;
     JdwpError status = Dbg::SetFieldValue(object_id, fieldId, value, width);
@@ -981,9 +847,9 @@ static JdwpError OR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
   return ERR_NONE;
 }
 
-static JdwpError OR_MonitorInfo(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError OR_MonitorInfo(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
+  ObjectId object_id = request.ReadObjectId();
   return Dbg::GetMonitorInfo(object_id, reply);
 }
 
@@ -998,42 +864,41 @@ static JdwpError OR_MonitorInfo(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
  * object), it will try to invoke the object's toString() function.  This
  * feature becomes crucial when examining ArrayLists with Eclipse.
  */
-static JdwpError OR_InvokeMethod(JdwpState* state, const uint8_t* buf, int dataLen,
-                                 ExpandBuf* pReply)
+static JdwpError OR_InvokeMethod(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
-  ObjectId thread_id = ReadThreadId(&buf);
-  RefTypeId class_id = ReadRefTypeId(&buf);
-  MethodId method_id = ReadMethodId(&buf);
+  ObjectId object_id = request.ReadObjectId();
+  ObjectId thread_id = request.ReadThreadId();
+  RefTypeId class_id = request.ReadRefTypeId();
+  MethodId method_id = request.ReadMethodId();
 
-  return FinishInvoke(state, buf, dataLen, pReply, thread_id, object_id, class_id, method_id, false);
+  return FinishInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, false);
 }
 
-static JdwpError OR_DisableCollection(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError OR_DisableCollection(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
+  ObjectId object_id = request.ReadObjectId();
   return Dbg::DisableCollection(object_id);
 }
 
-static JdwpError OR_EnableCollection(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError OR_EnableCollection(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
+  ObjectId object_id = request.ReadObjectId();
   return Dbg::EnableCollection(object_id);
 }
 
-static JdwpError OR_IsCollected(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError OR_IsCollected(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
+  ObjectId object_id = request.ReadObjectId();
   bool is_collected;
   JdwpError rc = Dbg::IsCollected(object_id, is_collected);
   expandBufAdd1(pReply, is_collected ? 1 : 0);
   return rc;
 }
 
-static JdwpError OR_ReferringObjects(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError OR_ReferringObjects(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId object_id = ReadObjectId(&buf);
-  int32_t max_count = ReadSigned32("max count", &buf);
+  ObjectId object_id = request.ReadObjectId();
+  int32_t max_count = request.ReadSigned32("max count");
   if (max_count < 0) {
     return ERR_ILLEGAL_ARGUMENT;
   }
@@ -1050,9 +915,9 @@ static JdwpError OR_ReferringObjects(JdwpState*, const uint8_t* buf, int, Expand
 /*
  * Return the string value in a string object.
  */
-static JdwpError SR_Value(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError SR_Value(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId stringObject = ReadObjectId(&buf);
+  ObjectId stringObject = request.ReadObjectId();
   std::string str(Dbg::StringToUtf8(stringObject));
 
   VLOG(jdwp) << StringPrintf("    --> %s", PrintableString(str).c_str());
@@ -1065,9 +930,9 @@ static JdwpError SR_Value(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
 /*
  * Return a thread's name.
  */
-static JdwpError TR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_Name(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   std::string name;
   JdwpError error = Dbg::GetThreadName(thread_id, name);
@@ -1086,9 +951,9 @@ static JdwpError TR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
  * It's supposed to remain suspended even if interpreted code wants to
  * resume it; only the JDI is allowed to resume it.
  */
-static JdwpError TR_Suspend(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError TR_Suspend(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   if (thread_id == Dbg::GetThreadSelfId()) {
     LOG(INFO) << "  Warning: ignoring request to suspend self";
@@ -1105,9 +970,9 @@ static JdwpError TR_Suspend(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
 /*
  * Resume the specified thread.
  */
-static JdwpError TR_Resume(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError TR_Resume(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   if (thread_id == Dbg::GetThreadSelfId()) {
     LOG(INFO) << "  Warning: ignoring request to resume self";
@@ -1121,9 +986,9 @@ static JdwpError TR_Resume(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
 /*
  * Return status of specified thread.
  */
-static JdwpError TR_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_Status(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   JDWP::JdwpThreadStatus threadStatus;
   JDWP::JdwpSuspendStatus suspendStatus;
@@ -1143,9 +1008,9 @@ static JdwpError TR_Status(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 /*
  * Return the thread group that the specified thread is a member of.
  */
-static JdwpError TR_ThreadGroup(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_ThreadGroup(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
   return Dbg::GetThreadGroup(thread_id, pReply);
 }
 
@@ -1155,11 +1020,11 @@ static JdwpError TR_ThreadGroup(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
  * If the thread isn't suspended, the error code isn't defined, but should
  * be THREAD_NOT_SUSPENDED.
  */
-static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_Frames(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
-  uint32_t start_frame = ReadUnsigned32("start frame", &buf);
-  uint32_t length = ReadUnsigned32("length", &buf);
+  ObjectId thread_id = request.ReadThreadId();
+  uint32_t start_frame = request.ReadUnsigned32("start frame");
+  uint32_t length = request.ReadUnsigned32("length");
 
   size_t actual_frame_count;
   JdwpError error = Dbg::GetThreadFrameCount(thread_id, actual_frame_count);
@@ -1187,9 +1052,9 @@ static JdwpError TR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 /*
  * Returns the #of frames on the specified thread, which must be suspended.
  */
-static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_FrameCount(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   size_t frame_count;
   JdwpError rc = Dbg::GetThreadFrameCount(thread_id, frame_count);
@@ -1201,9 +1066,9 @@ static JdwpError TR_FrameCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* p
   return ERR_NONE;
 }
 
-static JdwpError TR_OwnedMonitors(const uint8_t* buf, ExpandBuf* reply, bool with_stack_depths)
+static JdwpError TR_OwnedMonitors(Request& request, ExpandBuf* reply, bool with_stack_depths)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   std::vector<ObjectId> monitors;
   std::vector<uint32_t> stack_depths;
@@ -1225,19 +1090,19 @@ static JdwpError TR_OwnedMonitors(const uint8_t* buf, ExpandBuf* reply, bool wit
   return ERR_NONE;
 }
 
-static JdwpError TR_OwnedMonitors(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError TR_OwnedMonitors(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return TR_OwnedMonitors(buf, reply, false);
+  return TR_OwnedMonitors(request, reply, false);
 }
 
-static JdwpError TR_OwnedMonitorsStackDepthInfo(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError TR_OwnedMonitorsStackDepthInfo(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return TR_OwnedMonitors(buf, reply, true);
+  return TR_OwnedMonitors(request, reply, true);
 }
 
-static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError TR_CurrentContendedMonitor(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
 
   ObjectId contended_monitor;
   JdwpError rc = Dbg::GetContendedMonitor(thread_id, contended_monitor);
@@ -1247,9 +1112,9 @@ static JdwpError TR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int,
   return WriteTaggedObject(reply, contended_monitor);
 }
 
-static JdwpError TR_Interrupt(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError TR_Interrupt(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
   return Dbg::Interrupt(thread_id);
 }
 
@@ -1259,9 +1124,9 @@ static JdwpError TR_Interrupt(JdwpState*, const uint8_t* buf, int, ExpandBuf* re
  * (The thread *might* still be running -- it might not have examined
  * its suspend count recently.)
  */
-static JdwpError TR_DebugSuspendCount(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TR_DebugSuspendCount(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
   return Dbg::GetThreadDebugSuspendCount(thread_id, pReply);
 }
 
@@ -1270,9 +1135,9 @@ static JdwpError TR_DebugSuspendCount(JdwpState*, const uint8_t* buf, int, Expan
  *
  * The Eclipse debugger recognizes "main" and "system" as special.
  */
-static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TGR_Name(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadThreadGroupId(&buf);
+  ObjectId thread_group_id = request.ReadThreadGroupId();
 
   expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(thread_group_id));
 
@@ -1283,9 +1148,9 @@ static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
  * Returns the thread group -- if any -- that contains the specified
  * thread group.
  */
-static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TGR_Parent(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadThreadGroupId(&buf);
+  ObjectId thread_group_id = request.ReadThreadGroupId();
 
   ObjectId parentGroup = Dbg::GetThreadGroupParent(thread_group_id);
   expandBufAddObjectId(pReply, parentGroup);
@@ -1297,9 +1162,9 @@ static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRep
  * Return the active threads and thread groups that are part of the
  * specified thread group.
  */
-static JdwpError TGR_Children(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError TGR_Children(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_group_id = ReadThreadGroupId(&buf);
+  ObjectId thread_group_id = request.ReadThreadGroupId();
 
   std::vector<ObjectId> thread_ids;
   Dbg::GetThreads(thread_group_id, thread_ids);
@@ -1321,9 +1186,9 @@ static JdwpError TGR_Children(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 /*
  * Return the #of components in the array.
  */
-static JdwpError AR_Length(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError AR_Length(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId array_id = ReadArrayId(&buf);
+  ObjectId array_id = request.ReadArrayId();
 
   int length;
   JdwpError status = Dbg::GetArrayLength(array_id, length);
@@ -1340,28 +1205,28 @@ static JdwpError AR_Length(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRepl
 /*
  * Return the values from an array.
  */
-static JdwpError AR_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError AR_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId array_id = ReadArrayId(&buf);
-  uint32_t offset = ReadUnsigned32("offset", &buf);
-  uint32_t length = ReadUnsigned32("length", &buf);
+  ObjectId array_id = request.ReadArrayId();
+  uint32_t offset = request.ReadUnsigned32("offset");
+  uint32_t length = request.ReadUnsigned32("length");
   return Dbg::OutputArray(array_id, offset, length, pReply);
 }
 
 /*
  * Set values in an array.
  */
-static JdwpError AR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError AR_SetValues(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId array_id = ReadArrayId(&buf);
-  uint32_t offset = ReadUnsigned32("offset", &buf);
-  uint32_t length = ReadUnsigned32("length", &buf);
-  return Dbg::SetArrayElements(array_id, offset, length, buf);
+  ObjectId array_id = request.ReadArrayId();
+  uint32_t offset = request.ReadUnsigned32("offset");
+  uint32_t count = request.ReadUnsigned32("count");
+  return Dbg::SetArrayElements(array_id, offset, count, request);
 }
 
-static JdwpError CLR_VisibleClasses(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError CLR_VisibleClasses(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ReadObjectId(&buf);  // classLoaderObject
+  request.ReadObjectId();  // classLoaderObject
   // TODO: we should only return classes which have the given class loader as a defining or
   // initiating loader. The former would be easy; the latter is hard, because we don't have
   // any such notion.
@@ -1373,23 +1238,17 @@ static JdwpError CLR_VisibleClasses(JdwpState*, const uint8_t* buf, int, ExpandB
  *
  * Reply with a requestID.
  */
-static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply)
+static JdwpError ER_Set(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const uint8_t* origBuf = buf;
-
-  uint8_t eventKind = Read1(&buf);
-  uint8_t suspend_policy = Read1(&buf);
-  int32_t modifier_count = ReadSigned32("modifier count", &buf);
-
-  VLOG(jdwp) << "  Set(kind=" << JdwpEventKind(eventKind)
-               << " suspend=" << JdwpSuspendPolicy(suspend_policy)
-               << " mods=" << modifier_count << ")";
+  JdwpEventKind event_kind = request.ReadEnum1<JdwpEventKind>("event kind");
+  JdwpSuspendPolicy suspend_policy = request.ReadEnum1<JdwpSuspendPolicy>("suspend policy");
+  int32_t modifier_count = request.ReadSigned32("modifier count");
 
   CHECK_LT(modifier_count, 256);    /* reasonableness check */
 
   JdwpEvent* pEvent = EventAlloc(modifier_count);
-  pEvent->eventKind = static_cast<JdwpEventKind>(eventKind);
-  pEvent->suspend_policy = static_cast<JdwpSuspendPolicy>(suspend_policy);
+  pEvent->eventKind = event_kind;
+  pEvent->suspend_policy = suspend_policy;
   pEvent->modCount = modifier_count;
 
   /*
@@ -1398,12 +1257,12 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
    */
   for (int32_t i = 0; i < modifier_count; ++i) {
     JdwpEventMod& mod = pEvent->mods[i];
-    mod.modKind = ReadModKind(&buf);
+    mod.modKind = request.ReadModKind();
     switch (mod.modKind) {
     case MK_COUNT:
       {
         // Report once, when "--count" reaches 0.
-        uint32_t count = ReadUnsigned32("count", &buf);
+        uint32_t count = request.ReadUnsigned32("count");
         if (count == 0) {
           return ERR_INVALID_COUNT;
         }
@@ -1413,21 +1272,21 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
     case MK_CONDITIONAL:
       {
         // Conditional on expression.
-        uint32_t exprId = ReadUnsigned32("expr id", &buf);
+        uint32_t exprId = request.ReadUnsigned32("expr id");
         mod.conditional.exprId = exprId;
       }
       break;
     case MK_THREAD_ONLY:
       {
         // Only report events in specified thread.
-        ObjectId thread_id = ReadThreadId(&buf);
+        ObjectId thread_id = request.ReadThreadId();
         mod.threadOnly.threadId = thread_id;
       }
       break;
     case MK_CLASS_ONLY:
       {
         // For ClassPrepare, MethodEntry.
-        RefTypeId class_id = ReadRefTypeId(&buf);
+        RefTypeId class_id = request.ReadRefTypeId();
         mod.classOnly.refTypeId = class_id;
       }
       break;
@@ -1435,7 +1294,7 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
       {
         // Restrict events to matching classes.
         // pattern is "java.foo.*", we want "java/foo/*".
-        std::string pattern(ReadUtf8String(&buf));
+        std::string pattern(request.ReadUtf8String());
         std::replace(pattern.begin(), pattern.end(), '.', '/');
         mod.classMatch.classPattern = strdup(pattern.c_str());
       }
@@ -1444,7 +1303,7 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
       {
         // Restrict events to non-matching classes.
         // pattern is "java.foo.*", we want "java/foo/*".
-        std::string pattern(ReadUtf8String(&buf));
+        std::string pattern(request.ReadUtf8String());
         std::replace(pattern.begin(), pattern.end(), '.', '/');
         mod.classExclude.classPattern = strdup(pattern.c_str());
       }
@@ -1452,29 +1311,23 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
     case MK_LOCATION_ONLY:
       {
         // Restrict certain events based on location.
-        JdwpLocation location = ReadLocation(&buf);
+        JdwpLocation location = request.ReadLocation();
         mod.locationOnly.loc = location;
       }
       break;
     case MK_EXCEPTION_ONLY:
       {
         // Modifies EK_EXCEPTION events,
-        RefTypeId exceptionOrNull = ReadRefTypeId(&buf); // null => all exceptions.
-        uint8_t caught = Read1(&buf);
-        uint8_t uncaught = Read1(&buf);
-        VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%#llx(%s) caught=%d uncaught=%d",
-            exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassName(exceptionOrNull).c_str(), caught, uncaught);
-
-        mod.exceptionOnly.refTypeId = exceptionOrNull;
-        mod.exceptionOnly.caught = caught;
-        mod.exceptionOnly.uncaught = uncaught;
+        mod.exceptionOnly.refTypeId = request.ReadRefTypeId(); // null => all exceptions.
+        mod.exceptionOnly.caught = request.ReadEnum1<uint8_t>("caught");
+        mod.exceptionOnly.uncaught = request.ReadEnum1<uint8_t>("uncaught");
       }
       break;
     case MK_FIELD_ONLY:
       {
         // For field access/modification events.
-        RefTypeId declaring = ReadRefTypeId(&buf);
-        FieldId fieldId = ReadFieldId(&buf);
+        RefTypeId declaring = request.ReadRefTypeId();
+        FieldId fieldId = request.ReadFieldId();
         mod.fieldOnly.refTypeId = declaring;
         mod.fieldOnly.fieldId = fieldId;
       }
@@ -1482,9 +1335,9 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
     case MK_STEP:
       {
         // For use with EK_SINGLE_STEP.
-        ObjectId thread_id = ReadThreadId(&buf);
-        uint32_t size = Read4BE(&buf);
-        uint32_t depth = Read4BE(&buf);
+        ObjectId thread_id = request.ReadThreadId();
+        uint32_t size = request.ReadUnsigned32("step size");
+        uint32_t depth = request.ReadUnsigned32("step depth");
         VLOG(jdwp) << StringPrintf("    Step: thread=%#llx", thread_id)
                      << " size=" << JdwpStepSize(size) << " depth=" << JdwpStepDepth(depth);
 
@@ -1496,7 +1349,7 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
     case MK_INSTANCE_ONLY:
       {
         // Report events related to a specific object.
-        ObjectId instance = ReadObjectId(&buf);
+        ObjectId instance = request.ReadObjectId();
         mod.instanceOnly.objectId = instance;
       }
       break;
@@ -1504,14 +1357,6 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
       LOG(WARNING) << "GLITCH: unsupported modKind=" << mod.modKind;
       break;
     }
-  }
-
-  /*
-   * Make sure we consumed all data.  It is possible that the remote side
-   * has sent us bad stuff, but for now we blame ourselves.
-   */
-  if (buf != origBuf + dataLen) {
-    LOG(WARNING) << "GLITCH: dataLen is " << dataLen << ", we have consumed " << (buf - origBuf);
   }
 
   /*
@@ -1534,35 +1379,30 @@ static JdwpError ER_Set(JdwpState* state, const uint8_t* buf, int dataLen, Expan
   return err;
 }
 
-/*
- * Clear an event.  Failure to find an event with a matching ID is a no-op
- * and does not return an error.
- */
-static JdwpError ER_Clear(JdwpState* state, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError ER_Clear(JdwpState* state, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint8_t eventKind = Read1(&buf);
-  uint32_t requestId = Read4BE(&buf);
+  request.ReadEnum1<JdwpEventKind>("event kind");
+  uint32_t requestId = request.ReadUnsigned32("request id");
 
-  VLOG(jdwp) << StringPrintf("  Req to clear eventKind=%d requestId=%#x", eventKind, requestId);
-
+  // Failure to find an event with a matching ID is a no-op
+  // and does not return an error.
   state->UnregisterEventById(requestId);
-
   return ERR_NONE;
 }
 
 /*
  * Return the values of arguments and local variables.
  */
-static JdwpError SF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError SF_GetValues(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
-  FrameId frame_id = ReadFrameId(&buf);
-  int32_t slot_count = ReadSigned32("slot count", &buf);
+  ObjectId thread_id = request.ReadThreadId();
+  FrameId frame_id = request.ReadFrameId();
+  int32_t slot_count = request.ReadSigned32("slot count");
 
   expandBufAdd4BE(pReply, slot_count);     /* "int values" */
   for (int32_t i = 0; i < slot_count; ++i) {
-    uint32_t slot = ReadUnsigned32("slot", &buf);
-    JDWP::JdwpTag reqSigByte = ReadTag(&buf);
+    uint32_t slot = request.ReadUnsigned32("slot");
+    JDWP::JdwpTag reqSigByte = request.ReadTag();
 
     VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
 
@@ -1577,17 +1417,17 @@ static JdwpError SF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pR
 /*
  * Set the values of arguments and local variables.
  */
-static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
+static JdwpError SF_SetValues(JdwpState*, Request& request, ExpandBuf*)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
-  FrameId frame_id = ReadFrameId(&buf);
-  int32_t slot_count = ReadSigned32("slot count", &buf);
+  ObjectId thread_id = request.ReadThreadId();
+  FrameId frame_id = request.ReadFrameId();
+  int32_t slot_count = request.ReadSigned32("slot count");
 
   for (int32_t i = 0; i < slot_count; ++i) {
-    uint32_t slot = ReadUnsigned32("slot", &buf);
-    JDWP::JdwpTag sigByte = ReadTag(&buf);
+    uint32_t slot = request.ReadUnsigned32("slot");
+    JDWP::JdwpTag sigByte = request.ReadTag();
     size_t width = Dbg::GetTagWidth(sigByte);
-    uint64_t value = ReadValue(&buf, width);
+    uint64_t value = request.ReadValue(width);
 
     VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
     Dbg::SetLocalValue(thread_id, frame_id, slot, sigByte, value, width);
@@ -1596,10 +1436,10 @@ static JdwpError SF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*)
   return ERR_NONE;
 }
 
-static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* reply)
+static JdwpError SF_ThisObject(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectId thread_id = ReadThreadId(&buf);
-  FrameId frame_id = ReadFrameId(&buf);
+  ObjectId thread_id = request.ReadThreadId();
+  FrameId frame_id = request.ReadFrameId();
 
   ObjectId object_id;
   JdwpError rc = Dbg::GetThisObject(thread_id, frame_id, &object_id);
@@ -1617,35 +1457,28 @@ static JdwpError SF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* r
  * reused, whereas ClassIds can be recycled like any other object.  (Either
  * that, or I have no idea what this is for.)
  */
-static JdwpError COR_ReflectedType(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply)
+static JdwpError COR_ReflectedType(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  RefTypeId class_object_id = ReadRefTypeId(&buf);
+  RefTypeId class_object_id = request.ReadRefTypeId();
   return Dbg::GetReflectedType(class_object_id, pReply);
 }
 
 /*
  * Handle a DDM packet with a single chunk in it.
  */
-static JdwpError DDM_Chunk(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply)
+static JdwpError DDM_Chunk(JdwpState* state, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  state->NotifyDdmsActive();
   uint8_t* replyBuf = NULL;
   int replyLen = -1;
-
-  VLOG(jdwp) << StringPrintf("  Handling DDM packet (%.4s)", buf);
-
-  state->NotifyDdmsActive();
-
-  /*
-   * If they want to send something back, we copy it into the buffer.
-   * A no-copy approach would be nicer.
-   *
-   * TODO: consider altering the JDWP stuff to hold the packet header
-   * in a separate buffer.  That would allow us to writev() DDM traffic
-   * instead of copying it into the expanding buffer.  The reduction in
-   * heap requirements is probably more valuable than the efficiency.
-   */
-  if (Dbg::DdmHandlePacket(buf, dataLen, &replyBuf, &replyLen)) {
-    CHECK(replyLen > 0 && replyLen < 1*1024*1024);
+  if (Dbg::DdmHandlePacket(request, &replyBuf, &replyLen)) {
+    // If they want to send something back, we copy it into the buffer.
+    // TODO: consider altering the JDWP stuff to hold the packet header
+    // in a separate buffer.  That would allow us to writev() DDM traffic
+    // instead of copying it into the expanding buffer.  The reduction in
+    // heap requirements is probably more valuable than the efficiency.
+    CHECK_GT(replyLen, 0);
+    CHECK_LT(replyLen, 1*1024*1024);
     memcpy(expandBufAddSpace(pReply, replyLen), replyBuf, replyLen);
     free(replyBuf);
   }
@@ -1655,13 +1488,13 @@ static JdwpError DDM_Chunk(JdwpState* state, const uint8_t* buf, int dataLen, Ex
 /*
  * Handler map decl.
  */
-typedef JdwpError (*JdwpRequestHandler)(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* reply);
+typedef JdwpError (*JdwpRequestHandler)(JdwpState* state, Request& request, ExpandBuf* reply);
 
 struct JdwpHandlerMap {
-  uint8_t  cmdSet;
-  uint8_t  cmd;
-  JdwpRequestHandler  func;
-  const char* descr;
+  uint8_t cmdSet;
+  uint8_t cmd;
+  JdwpRequestHandler func;
+  const char* name;
 };
 
 /*
@@ -1801,7 +1634,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
 static const char* GetCommandName(size_t cmdSet, size_t cmd) {
   for (size_t i = 0; i < arraysize(gHandlerMap); ++i) {
     if (gHandlerMap[i].cmdSet == cmdSet && gHandlerMap[i].cmd == cmd) {
-      return gHandlerMap[i].descr;
+      return gHandlerMap[i].name;
     }
   }
   return "?UNKNOWN?";
@@ -1864,7 +1697,11 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
   for (i = 0; i < arraysize(gHandlerMap); ++i) {
     if (gHandlerMap[i].cmdSet == pHeader->cmdSet && gHandlerMap[i].cmd == pHeader->cmd && gHandlerMap[i].func != NULL) {
       VLOG(jdwp) << DescribeCommand(pHeader, dataLen);
-      result = (*gHandlerMap[i].func)(this, buf, dataLen, pReply);
+      Request request(buf, dataLen);
+      result = (*gHandlerMap[i].func)(this, request, pReply);
+      if (result == ERR_NONE) {
+        request.CheckConsumed();
+      }
       break;
     }
   }

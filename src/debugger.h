@@ -161,7 +161,7 @@ class Dbg {
                                      JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError SetArrayElements(JDWP::ObjectId array_id, int offset, int count,
-                                          const uint8_t* buf)
+                                          JDWP::Request& request)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId CreateString(const std::string& str)
@@ -371,7 +371,7 @@ class Dbg {
   static void DdmSendThreadNotification(Thread* t, uint32_t type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSetThreadNotification(bool enable);
-  static bool DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen);
+  static bool DdmHandlePacket(JDWP::Request& request, uint8_t** pReplyBuf, int* pReplyLen);
   static void DdmConnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmDisconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes)

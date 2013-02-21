@@ -351,6 +351,74 @@ struct JdwpState {
   int exit_status_;
 };
 
+std::string DescribeField(const FieldId& field_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+std::string DescribeMethod(const MethodId& method_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+std::string DescribeRefTypeId(const RefTypeId& ref_type_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+class Request {
+ public:
+  Request(const uint8_t* bytes, size_t byte_count);
+
+  ~Request();
+
+  std::string ReadUtf8String();
+
+  // Helper function: read a variable-width value from the input buffer.
+  uint64_t ReadValue(size_t width);
+
+  int32_t ReadSigned32(const char* what);
+
+  uint32_t ReadUnsigned32(const char* what);
+
+  FieldId ReadFieldId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  MethodId ReadMethodId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ObjectId ReadObjectId(const char* specific_kind);
+
+  ObjectId ReadArrayId();
+
+  ObjectId ReadObjectId();
+
+  ObjectId ReadThreadId();
+
+  ObjectId ReadThreadGroupId();
+
+  RefTypeId ReadRefTypeId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  FrameId ReadFrameId();
+
+  template <typename T> T ReadEnum1(const char* specific_kind) {
+    T value = static_cast<T>(Read1(&p_));
+    VLOG(jdwp) << "    " << specific_kind << " " << value;
+    return value;
+  }
+
+  JdwpTag ReadTag();
+
+  JdwpTypeTag ReadTypeTag();
+
+  JdwpLocation ReadLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  JdwpModKind ReadModKind();
+
+  size_t size() { return end_ - p_; }
+  const uint8_t* data() { return p_; }
+
+  void Skip(size_t count) { p_ += count; }
+
+  void CheckConsumed();
+
+ private:
+  uint16_t Read2BE();
+  uint64_t Read8BE();
+
+  const uint8_t* p_;
+  const uint8_t* end_;
+
+  DISALLOW_COPY_AND_ASSIGN(Request);
+};
+
 }  // namespace JDWP
 
 }  // namespace art
