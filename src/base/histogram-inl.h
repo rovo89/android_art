@@ -145,7 +145,7 @@ template <class Value> inline double Histogram<Value>::Variance() const {
 template <class Value>
 inline void Histogram<Value>::PrintBins(std::ostream &os) {
   DCHECK_GT(sample_size_, 0ull);
-  DCHECK(new_values_added_);
+  DCHECK(!new_values_added_);
   size_t bin_idx = 0;
   while (bin_idx < cumulative_freq_.size()) {
     if (bin_idx > 0 &&
@@ -206,20 +206,30 @@ template <class Value> inline void Histogram<Value>::CreateHistogram() {
   BuildCDF();
   new_values_added_ = false;
 }
-;
 
 template <class Value>
 inline double Histogram<Value>::Percentile(double per) const {
   DCHECK_GT(cumulative_perc_.size(), 0ull);
-  size_t idx;
+  size_t idx, upper_idx = 0, lower_idx = 0;
   for (idx = 0; idx < cumulative_perc_.size(); idx++) {
-    if (per <= cumulative_perc_[idx + 1])
+
+    if (per <= cumulative_perc_[idx]) {
+      upper_idx = idx;
       break;
+    }
+
+    if (per >= cumulative_perc_[idx] &&
+        cumulative_perc_[idx] != cumulative_perc_[idx - 1] && idx != 0) {
+      lower_idx = idx;
+    }
   }
-  double lower_value = static_cast<double>(ranges_[idx]);
-  double upper_value = static_cast<double>(ranges_[idx + 1]);
-  double lower_perc = cumulative_perc_[idx];
-  double upper_perc = cumulative_perc_[idx + 1];
+
+  double upper_value = static_cast<double>(ranges_[upper_idx]);
+  double lower_value = static_cast<double>(ranges_[lower_idx]);
+
+  double lower_perc = cumulative_perc_[lower_idx];
+  double upper_perc = cumulative_perc_[upper_idx];
+
   if (per == lower_perc) {
     return lower_value;
   }
@@ -227,12 +237,12 @@ inline double Histogram<Value>::Percentile(double per) const {
     return upper_value;
   }
   DCHECK_GT(upper_perc, lower_perc);
+
   double value = lower_value + (upper_value - lower_value) *
                                (per - lower_perc) / (upper_perc - lower_perc);
-
   return value;
 }
 
-}       // namespace art
+}  // namespace art
 #endif  // SRC_BASE_HISTOGRAM_INL_H_
 

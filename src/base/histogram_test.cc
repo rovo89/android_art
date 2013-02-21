@@ -31,7 +31,6 @@ TEST(Histtest, MeanTest) {
   mean = hist->Mean();
   EXPECT_EQ(mean, 20.5);
 }
-;
 
 TEST(Histtest, VarianceTest) {
 
@@ -46,7 +45,6 @@ TEST(Histtest, VarianceTest) {
   EXPECT_EQ(variance, 64.25);
   delete hist;
 }
-;
 
 TEST(Histtest, Percentile) {
 
@@ -59,7 +57,9 @@ TEST(Histtest, Percentile) {
   hist->AddValue(50);
   hist->AddValue(60);
   hist->AddValue(70);
+
   hist->AddValue(98);
+
   hist->AddValue(110);
   hist->AddValue(121);
   hist->AddValue(132);
@@ -69,12 +69,10 @@ TEST(Histtest, Percentile) {
 
   hist->CreateHistogram();
   PerValue = hist->Percentile(0.50);
-  EXPECT_GE(PerValue, 70);
-  EXPECT_LE(PerValue, 110);
+  EXPECT_EQ(static_cast<int>(PerValue * 10), 875);
 
   delete hist;
 }
-;
 
 TEST(Histtest, UpdateRange) {
 
@@ -108,7 +106,7 @@ TEST(Histtest, UpdateRange) {
   std::string text;
   std::stringstream stream;
   std::string expected =
-      "UpdateRange:\t0.99% C.I. 15.262us-214.475us Avg: 126.380us Max: 212us\n";
+      "UpdateRange:\t0.99% C.I. 1.050us-214.475us Avg: 126.380us Max: 212us\n";
   hist->PrintConfidenceIntervals(stream, 0.99);
 
   EXPECT_EQ(expected, stream.str());
@@ -154,7 +152,7 @@ TEST(Histtest, Reset) {
   std::string text;
   std::stringstream stream;
   std::string expected =
-      "Reset:\t0.99% C.I. 15.262us-214.475us Avg: 126.380us Max: 212us\n";
+      "Reset:\t0.99% C.I. 1.050us-214.475us Avg: 126.380us Max: 212us\n";
   hist->PrintConfidenceIntervals(stream, 0.99);
 
   EXPECT_EQ(expected, stream.str());
@@ -195,10 +193,9 @@ TEST(Histtest, MultipleCreateHist) {
   hist->CreateHistogram();
   PerValue = hist->Percentile(0.50);
 
-  std::string text;
   std::stringstream stream;
   std::string expected =
-      "MultipleCreateHist:\t0.99% C.I. 15.262us-214.475us Avg: 126.380us Max: 212us\n";
+      "MultipleCreateHist:\t0.99% C.I. 1.050us-214.475us Avg: 126.380us Max: 212us\n";
   hist->PrintConfidenceIntervals(stream, 0.99);
 
   EXPECT_EQ(expected, stream.str());
@@ -207,46 +204,41 @@ TEST(Histtest, MultipleCreateHist) {
 
   delete hist;
 }
-;
 
 TEST(Histtest, SingleValue) {
 
   Histogram<uint64_t> *hist = new Histogram<uint64_t>("SingleValue");
-  double PerValue_10;
-  double PerValue_90;
 
   hist->AddValue(1);
   hist->CreateHistogram();
-  PerValue_10 = hist->Percentile(0.1);
-  PerValue_90 = hist->Percentile(0.9);
 
-  EXPECT_GT(PerValue_10, 0);
-  EXPECT_LT(PerValue_90, 5);
+  std::stringstream stream;
+  std::string expected =
+      "SingleValue:\t0.99% C.I. 0.025us-4.975us Avg: 1us Max: 1us\n";
+  hist->PrintConfidenceIntervals(stream, 0.99);
+  EXPECT_EQ(stream.str(), expected);
 
   delete hist;
 }
-;
 
 TEST(Histtest, SpikyValues) {
 
   Histogram<uint64_t> *hist = new Histogram<uint64_t>("SpikyValues");
-  double PerValue_005;
-  double PerValue_995;
 
-  for (size_t Idx = 0; Idx < 300; Idx++) {
-    hist->AddValue(rand() % 200);
+  for (uint64_t idx = 0ull; idx < 30ull; idx++) {
+    for (uint64_t idx_inner = 0ull; idx_inner < 5ull; idx_inner++) {
+      hist->AddValue(idx * idx_inner);
+    }
   }
 
   hist->AddValue(10000);
   hist->CreateHistogram();
-  PerValue_005 = hist->Percentile(0.005);
-  PerValue_995 = hist->Percentile(0.995);
 
-  EXPECT_EQ(1.075, PerValue_005);
-  EXPECT_EQ(199747, static_cast<int>(PerValue_995 * 1000));
+  std::stringstream stream;
+  std::string expected =
+      "SpikyValues:\t0.99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
+  hist->PrintConfidenceIntervals(stream, 0.99);
+  EXPECT_EQ(stream.str(), expected);
+
   delete hist;
 }
-;
-
-
-
