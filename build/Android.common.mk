@@ -188,6 +188,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_expand_buf.cc \
 	src/jdwp/jdwp_handler.cc \
 	src/jdwp/jdwp_main.cc \
+	src/jdwp/jdwp_request.cc \
 	src/jdwp/jdwp_socket.cc \
 	src/jdwp/object_registry.cc \
 	src/jni_internal.cc \

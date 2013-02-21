@@ -36,13 +36,7 @@ static inline uint8_t Read1(unsigned const char** ppSrc) {
   return *(*ppSrc)++;
 }
 
-static inline uint16_t Read2BE(unsigned char const** ppSrc) {
-  const unsigned char* pSrc = *ppSrc;
-  *ppSrc = pSrc + 2;
-  return pSrc[0] << 8 | pSrc[1];
-}
-
-static inline uint32_t Read4BE(unsigned char const** ppSrc) {
+static inline uint32_t Read4BE(uint8_t const** ppSrc) {
   const unsigned char* pSrc = *ppSrc;
   uint32_t result = pSrc[0] << 24;
   result |= pSrc[1] << 16;
@@ -50,20 +44,6 @@ static inline uint32_t Read4BE(unsigned char const** ppSrc) {
   result |= pSrc[3];
   *ppSrc = pSrc + 4;
   return result;
-}
-
-static inline uint64_t Read8BE(unsigned char const** ppSrc) {
-  const unsigned char* pSrc = *ppSrc;
-  uint32_t high = pSrc[0];
-  high = (high << 8) | pSrc[1];
-  high = (high << 8) | pSrc[2];
-  high = (high << 8) | pSrc[3];
-  uint32_t low = pSrc[4];
-  low = (low << 8) | pSrc[5];
-  low = (low << 8) | pSrc[6];
-  low = (low << 8) | pSrc[7];
-  *ppSrc = pSrc + 8;
-  return ((uint64_t) high << 32) | (uint64_t) low;
 }
 
 static inline void Append1BE(std::vector<uint8_t>& bytes, uint8_t value) {

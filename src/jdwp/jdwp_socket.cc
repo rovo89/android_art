@@ -469,7 +469,6 @@ static bool handlePacket(JdwpState* state) {
   JdwpNetState* netState = state->netState;
   const unsigned char* buf = netState->inputBuffer;
   uint8_t cmdSet, cmd;
-  bool reply;
 
   cmd = cmdSet = 0;       // shut up gcc
 
@@ -477,10 +476,8 @@ static bool handlePacket(JdwpState* state) {
   uint32_t id = Read4BE(&buf);
   int8_t flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
-    reply = true;
-    Read2BE(&buf);  // error
+    LOG(FATAL) << "reply?!";
   } else {
-    reply = false;
     cmdSet = Read1(&buf);
     cmd = Read1(&buf);
   }
@@ -488,31 +485,26 @@ static bool handlePacket(JdwpState* state) {
   CHECK_LE(length, netState->inputCount);
   int dataLen = length - (buf - netState->inputBuffer);
 
-  if (!reply) {
-    ExpandBuf* pReply = expandBufAlloc();
+  ExpandBuf* pReply = expandBufAlloc();
 
-    JdwpReqHeader hdr;
-    hdr.length = length;
-    hdr.id = id;
-    hdr.cmdSet = cmdSet;
-    hdr.cmd = cmd;
-    state->ProcessRequest(&hdr, buf, dataLen, pReply);
-    if (expandBufGetLength(pReply) > 0) {
-      ssize_t cc = netState->writePacket(pReply);
+  JdwpReqHeader hdr;
+  hdr.length = length;
+  hdr.id = id;
+  hdr.cmdSet = cmdSet;
+  hdr.cmd = cmd;
+  state->ProcessRequest(&hdr, buf, dataLen, pReply);
+  if (expandBufGetLength(pReply) > 0) {
+    ssize_t cc = netState->writePacket(pReply);
 
-      if (cc != (ssize_t) expandBufGetLength(pReply)) {
-        PLOG(ERROR) << "Failed sending reply to debugger";
-        expandBufFree(pReply);
-        return false;
-      }
-    } else {
-      LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
+    if (cc != (ssize_t) expandBufGetLength(pReply)) {
+      PLOG(ERROR) << "Failed sending reply to debugger";
+      expandBufFree(pReply);
+      return false;
     }
-    expandBufFree(pReply);
   } else {
-    LOG(ERROR) << "reply?!";
-    DCHECK(false);
+    LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
   }
+  expandBufFree(pReply);
 
   VLOG(jdwp) << "----------";
 

@@ -974,49 +974,46 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId array_id, int offset, int count,
   return JDWP::ERR_NONE;
 }
 
+template <typename T> void CopyArrayData(mirror::Array* a, JDWP::Request& src, int offset, int count) {
+  DCHECK(a->GetClass()->IsPrimitiveArray());
+
+  T* dst = &(reinterpret_cast<T*>(a->GetRawData(sizeof(T)))[offset * sizeof(T)]);
+  for (int i = 0; i < count; ++i) {
+    *dst++ = src.ReadValue(sizeof(T));
+  }
+}
+
 JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int count,
-                                      const uint8_t* src)
+                                      JDWP::Request& request)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JDWP::JdwpError status;
-  mirror::Array* a = DecodeArray(array_id, status);
-  if (a == NULL) {
+  mirror::Array* dst = DecodeArray(array_id, status);
+  if (dst == NULL) {
     return status;
   }
 
-  if (offset < 0 || count < 0 || offset > a->GetLength() || a->GetLength() - offset < count) {
+  if (offset < 0 || count < 0 || offset > dst->GetLength() || dst->GetLength() - offset < count) {
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
     return JDWP::ERR_INVALID_LENGTH;
   }
-  std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
+  std::string descriptor(ClassHelper(dst->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
     if (width == 8) {
-      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint64_t)))[offset * width]);
-      for (int i = 0; i < count; ++i) {
-        // Handle potentially non-aligned memory access one byte at a time for ARM's benefit.
-        uint64_t value;
-        for (size_t j = 0; j < sizeof(uint64_t); ++j) reinterpret_cast<uint8_t*>(&value)[j] = src[j];
-        src += sizeof(uint64_t);
-        JDWP::Write8BE(&dst, value);
-      }
+      CopyArrayData<uint64_t>(dst, request, offset, count);
     } else if (width == 4) {
-      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint32_t)))[offset * width]);
-      const uint32_t* src4 = reinterpret_cast<const uint32_t*>(src);
-      for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[i]);
+      CopyArrayData<uint32_t>(dst, request, offset, count);
     } else if (width == 2) {
-      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint16_t)))[offset * width]);
-      const uint16_t* src2 = reinterpret_cast<const uint16_t*>(src);
-      for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[i]);
+      CopyArrayData<uint16_t>(dst, request, offset, count);
     } else {
-      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint8_t)))[offset * width]);
-      memcpy(&dst[offset * width], src, count * width);
+      CopyArrayData<uint8_t>(dst, request, offset, count);
     }
   } else {
-    mirror::ObjectArray<mirror::Object>* oa = a->AsObjectArray<mirror::Object>();
+    mirror::ObjectArray<mirror::Object>* oa = dst->AsObjectArray<mirror::Object>();
     for (int i = 0; i < count; ++i) {
-      JDWP::ObjectId id = JDWP::ReadObjectId(&src);
+      JDWP::ObjectId id = request.ReadObjectId();
       mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
       if (o == ObjectRegistry::kInvalidObject) {
         return JDWP::ERR_INVALID_OBJECT;
@@ -2762,7 +2759,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 }
 
 /*
- * "buf" contains a full JDWP packet, possibly with multiple chunks.  We
+ * "request" contains a full JDWP packet, possibly with multiple chunks.  We
  * need to process each, accumulate the replies, and ship the whole thing
  * back.
  *
@@ -2772,37 +2769,35 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
  * OLD-TODO: we currently assume that the request and reply include a single
  * chunk.  If this becomes inconvenient we will need to adapt.
  */
-bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen) {
-  CHECK_GE(dataLen, 0);
-
+bool Dbg::DdmHandlePacket(JDWP::Request& request, uint8_t** pReplyBuf, int* pReplyLen) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
-  // Create a byte[] corresponding to 'buf'.
-  ScopedLocalRef<jbyteArray> dataArray(env, env->NewByteArray(dataLen));
+  uint32_t type = request.ReadUnsigned32("type");
+  uint32_t length = request.ReadUnsigned32("length");
+
+  // Create a byte[] corresponding to 'request'.
+  size_t request_length = request.size();
+  ScopedLocalRef<jbyteArray> dataArray(env, env->NewByteArray(request_length));
   if (dataArray.get() == NULL) {
-    LOG(WARNING) << "byte[] allocation failed: " << dataLen;
+    LOG(WARNING) << "byte[] allocation failed: " << request_length;
     env->ExceptionClear();
     return false;
   }
-  env->SetByteArrayRegion(dataArray.get(), 0, dataLen, reinterpret_cast<const jbyte*>(buf));
-
-  const int kChunkHdrLen = 8;
+  env->SetByteArrayRegion(dataArray.get(), 0, request_length, reinterpret_cast<const jbyte*>(request.data()));
+  request.Skip(request_length);
 
   // Run through and find all chunks.  [Currently just find the first.]
   ScopedByteArrayRO contents(env, dataArray.get());
-  jint type = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[0]));
-  jint length = JDWP::Get4BE(reinterpret_cast<const uint8_t*>(&contents[4]));
-  jint offset = kChunkHdrLen;
-  if (offset + length > dataLen) {
-    LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%d)", length, dataLen);
+  if (length != request_length) {
+    LOG(WARNING) << StringPrintf("bad chunk found (len=%u pktLen=%d)", length, request_length);
     return false;
   }
 
   // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
   ScopedLocalRef<jobject> chunk(env, env->CallStaticObjectMethod(WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer,
                                                                  WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
-                                                                 type, dataArray.get(), offset, length));
+                                                                 type, dataArray.get(), 0, length));
   if (env->ExceptionCheck()) {
     LOG(INFO) << StringPrintf("Exception thrown by dispatcher for 0x%08x", type);
     env->ExceptionDescribe();
@@ -2827,8 +2822,8 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
    * So we're pretty much stuck with copying data around multiple times.
    */
   ScopedLocalRef<jbyteArray> replyData(env, reinterpret_cast<jbyteArray>(env->GetObjectField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data)));
+  jint offset = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset);
   length = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length);
-  offset = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset);
   type = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type);
 
   VLOG(jdwp) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData.get(), offset, length);
@@ -2836,12 +2831,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
     return false;
   }
 
-  jsize replyLength = env->GetArrayLength(replyData.get());
-  if (offset + length > replyLength) {
-    LOG(WARNING) << StringPrintf("chunk off=%d len=%d exceeds reply array len %d", offset, length, replyLength);
-    return false;
-  }
-
+  const int kChunkHdrLen = 8;
   uint8_t* reply = new uint8_t[length + kChunkHdrLen];
   if (reply == NULL) {
     LOG(WARNING) << "malloc failed: " << (length + kChunkHdrLen);
@@ -2854,7 +2844,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   *pReplyBuf = reply;
   *pReplyLen = length + kChunkHdrLen;
 
-  VLOG(jdwp) << StringPrintf("dvmHandleDdm returning type=%.4s buf=%p len=%d", reinterpret_cast<char*>(reply), reply, length);
+  VLOG(jdwp) << StringPrintf("dvmHandleDdm returning type=%.4s %p len=%d", reinterpret_cast<char*>(reply), reply, length);
   return true;
 }
 
