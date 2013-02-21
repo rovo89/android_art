@@ -17,12 +17,25 @@
 #include "jdwp/jdwp.h"
 
 #include "base/stringprintf.h"
+#include "jdwp/jdwp_priv.h"
 
 namespace art {
 
 namespace JDWP {
 
-Request::Request(const uint8_t* bytes, size_t byte_count) : p_(bytes), end_(bytes + byte_count) {
+Request::Request(const uint8_t* bytes, uint32_t available) : p_(bytes) {
+  byte_count_ = Read4BE();
+  end_ =  bytes + byte_count_;
+  CHECK_LE(byte_count_, available);
+
+  id_ = Read4BE();
+  int8_t flags = Read1();
+  if ((flags & kJDWPFlagReply) != 0) {
+    LOG(FATAL) << "reply?!";
+  }
+
+  command_set_ = Read1();
+  command_ = Read1();
 }
 
 Request::~Request() {
@@ -37,7 +50,7 @@ void Request::CheckConsumed() {
 }
 
 std::string Request::ReadUtf8String() {
-  uint32_t length = Read4BE(&p_);
+  uint32_t length = Read4BE();
   std::string s;
   s.resize(length);
   memcpy(&s[0], p_, length);
@@ -50,9 +63,9 @@ std::string Request::ReadUtf8String() {
 uint64_t Request::ReadValue(size_t width) {
   uint64_t value = -1;
   switch (width) {
-    case 1: value = Read1(&p_); break;
+    case 1: value = Read1(); break;
     case 2: value = Read2BE(); break;
-    case 4: value = Read4BE(&p_); break;
+    case 4: value = Read4BE(); break;
     case 8: value = Read8BE(); break;
     default: LOG(FATAL) << width; break;
   }
@@ -60,25 +73,25 @@ uint64_t Request::ReadValue(size_t width) {
 }
 
 int32_t Request::ReadSigned32(const char* what) {
-  int32_t value = static_cast<int32_t>(Read4BE(&p_));
+  int32_t value = static_cast<int32_t>(Read4BE());
   VLOG(jdwp) << "    " << what << " " << value;
   return value;
 }
 
 uint32_t Request::ReadUnsigned32(const char* what) {
-  uint32_t value = Read4BE(&p_);
+  uint32_t value = Read4BE();
   VLOG(jdwp) << "    " << what << " " << value;
   return value;
 }
 
 FieldId Request::ReadFieldId() {
-  FieldId id = Read4BE(&p_);
+  FieldId id = Read4BE();
   VLOG(jdwp) << "    field id " << DescribeField(id);
   return id;
 }
 
 MethodId Request::ReadMethodId() {
-  MethodId id = Read4BE(&p_);
+  MethodId id = Read4BE();
   VLOG(jdwp) << "    method id " << DescribeMethod(id);
   return id;
 }
@@ -140,15 +153,28 @@ JdwpModKind Request::ReadModKind() {
   return ReadEnum1<JdwpModKind>("mod kind");
 }
 
+uint8_t Request::Read1() {
+  return *p_++;
+}
+
 uint16_t Request::Read2BE() {
   uint16_t result = p_[0] << 8 | p_[1];
   p_ += 2;
   return result;
 }
 
+uint32_t Request::Read4BE() {
+  uint32_t result = p_[0] << 24;
+  result |= p_[1] << 16;
+  result |= p_[2] << 8;
+  result |= p_[3];
+  p_ += 4;
+  return result;
+}
+
 uint64_t Request::Read8BE() {
-  uint64_t high = Read4BE(&p_);
-  uint64_t low = Read4BE(&p_);
+  uint64_t high = Read4BE();
+  uint64_t low = Read4BE();
   return (high << 32) | low;
 }
 

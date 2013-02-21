@@ -624,9 +624,9 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
         }
         // IsSuspended on the current thread will fail as the current thread is changed into
         // Runnable above. As the suspend count is now raised if this is the current thread
-        // it will self suspend on transition to Runnable, making it hard to work with. Its simpler
+        // it will self suspend on transition to Runnable, making it hard to work with. It's simpler
         // to just explicitly handle the current thread in the callers to this code.
-        CHECK_NE(thread, soa.Self()) << "Attempt to suspend for debugger the current thread";
+        CHECK_NE(thread, soa.Self()) << "Attempt to suspend the current thread for the debugger";
         // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
         // count, or else we've waited and it has self suspended) or is the current thread, we're
         // done.

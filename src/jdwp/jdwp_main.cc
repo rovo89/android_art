@@ -37,12 +37,26 @@ static void* StartJdwpThread(void* arg);
  */
 JdwpNetStateBase::JdwpNetStateBase() : socket_lock_("JdwpNetStateBase lock") {
   clientSock = -1;
+  inputCount = 0;
+}
+
+void JdwpNetStateBase::ConsumeBytes(size_t count) {
+  CHECK_GT(count, 0U);
+  CHECK_LE(count, inputCount);
+
+  if (count == inputCount) {
+    inputCount = 0;
+    return;
+  }
+
+  memmove(inputBuffer, inputBuffer + count, inputCount - count);
+  inputCount -= count;
 }
 
 /*
  * Write a packet. Grabs a mutex to assure atomicity.
  */
-ssize_t JdwpNetStateBase::writePacket(ExpandBuf* pReply) {
+ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply) {
   MutexLock mu(Thread::Current(), socket_lock_);
   return write(clientSock, expandBufGetBuffer(pReply), expandBufGetLength(pReply));
 }
@@ -50,7 +64,7 @@ ssize_t JdwpNetStateBase::writePacket(ExpandBuf* pReply) {
 /*
  * Write a buffered packet. Grabs a mutex to assure atomicity.
  */
-ssize_t JdwpNetStateBase::writeBufferedPacket(const iovec* iov, int iov_count) {
+ssize_t JdwpNetStateBase::WriteBufferedPacket(const iovec* iov, int iov_count) {
   MutexLock mu(Thread::Current(), socket_lock_);
   return writev(clientSock, iov, iov_count);
 }
@@ -266,6 +280,24 @@ JdwpState::~JdwpState() {
  */
 bool JdwpState::IsActive() {
   return IsConnected();
+}
+
+// Returns "false" if we encounter a connection-fatal error.
+bool JdwpState::HandlePacket() {
+  JdwpNetStateBase* netStateBase = reinterpret_cast<JdwpNetStateBase*>(netState);
+  JDWP::Request request(netStateBase->inputBuffer, netStateBase->inputCount);
+
+  ExpandBuf* pReply = expandBufAlloc();
+  ProcessRequest(request, pReply);
+  ssize_t cc = netStateBase->WritePacket(pReply);
+  if (cc != (ssize_t) expandBufGetLength(pReply)) {
+    PLOG(ERROR) << "Failed sending reply to debugger";
+    expandBufFree(pReply);
+    return false;
+  }
+  expandBufFree(pReply);
+  netStateBase->ConsumeBytes(request.GetLength());
+  return true;
 }
 
 /*

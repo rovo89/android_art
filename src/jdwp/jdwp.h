@@ -95,9 +95,9 @@ struct JdwpOptions {
 
 struct JdwpEvent;
 struct JdwpNetState;
-struct JdwpReqHeader;
 struct JdwpTransport;
 struct ModBasket;
+struct Request;
 
 /*
  * State for JDWP functions.
@@ -225,13 +225,7 @@ struct JdwpState {
   void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  /*
-   * Process a request from the debugger.
-   *
-   * "buf" points past the header, to the content of the message.  "dataLen"
-   * can therefore be zero.
-   */
-  void ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf, int dataLen, ExpandBuf* pReply);
+  bool HandlePacket();
 
   /*
    * Send an event, formatted into "pReq", to the debugger.
@@ -278,6 +272,7 @@ struct JdwpState {
 
  private:
   explicit JdwpState(const JdwpOptions* options);
+  void ProcessRequest(Request& request, ExpandBuf* pReply);
   bool InvokeInProgress();
   bool IsConnected();
   void SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId thread_self_id)
@@ -357,8 +352,7 @@ std::string DescribeRefTypeId(const RefTypeId& ref_type_id) SHARED_LOCKS_REQUIRE
 
 class Request {
  public:
-  Request(const uint8_t* bytes, size_t byte_count);
-
+  Request(const uint8_t* bytes, uint32_t available);
   ~Request();
 
   std::string ReadUtf8String();
@@ -389,7 +383,7 @@ class Request {
   FrameId ReadFrameId();
 
   template <typename T> T ReadEnum1(const char* specific_kind) {
-    T value = static_cast<T>(Read1(&p_));
+    T value = static_cast<T>(Read1());
     VLOG(jdwp) << "    " << specific_kind << " " << value;
     return value;
   }
@@ -402,7 +396,18 @@ class Request {
 
   JdwpModKind ReadModKind();
 
+  //
+  // Return values from this JDWP packet's header.
+  //
+  size_t GetLength() { return byte_count_; }
+  uint32_t GetId() { return id_; }
+  uint8_t GetCommandSet() { return command_set_; }
+  uint8_t GetCommand() { return command_; }
+
+  // Returns the number of bytes remaining.
   size_t size() { return end_ - p_; }
+
+  // Returns a pointer to the next byte.
   const uint8_t* data() { return p_; }
 
   void Skip(size_t count) { p_ += count; }
@@ -410,8 +415,15 @@ class Request {
   void CheckConsumed();
 
  private:
+  uint8_t Read1();
   uint16_t Read2BE();
+  uint32_t Read4BE();
   uint64_t Read8BE();
+
+  uint32_t byte_count_;
+  uint32_t id_;
+  uint8_t command_set_;
+  uint8_t command_;
 
   const uint8_t* p_;
   const uint8_t* end_;

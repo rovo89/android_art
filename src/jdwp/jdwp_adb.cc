@@ -22,7 +22,6 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "jdwp/jdwp_handler.h"
 #include "jdwp/jdwp_priv.h"
 
 #ifdef HAVE_ANDROID_OS
@@ -46,8 +45,6 @@
  *    JDWP-handshake, etc...
  */
 
-#define kInputBufferSize    8192
-
 #define kJdwpControlName    "\0jdwp-control"
 #define kJdwpControlNameLen (sizeof(kJdwpControlName)-1)
 
@@ -61,9 +58,6 @@ struct JdwpNetState : public JdwpNetStateBase {
   bool                shuttingDown;
   int                 wakeFds[2];
 
-  size_t inputCount;
-  unsigned char       inputBuffer[kInputBufferSize];
-
   socklen_t           controlAddrLen;
   union {
     sockaddr_un  controlAddrUn;
@@ -76,8 +70,6 @@ struct JdwpNetState : public JdwpNetStateBase {
     shuttingDown = false;
     wakeFds[0] = -1;
     wakeFds[1] = -1;
-
-    inputCount = 0;
 
     controlAddr.controlAddrUn.sun_family = AF_UNIX;
     controlAddrLen = sizeof(controlAddr.controlAddrUn.sun_family) + kJdwpControlNameLen;
@@ -386,77 +378,6 @@ static bool haveFullPacket(JdwpNetState* netState) {
 }
 
 /*
- * Consume bytes from the buffer.
- *
- * This would be more efficient with a circular buffer.  However, we're
- * usually only going to find one packet, which is trivial to handle.
- */
-static void consumeBytes(JdwpNetState* netState, size_t count) {
-  CHECK_GT(count, 0U);
-  CHECK_LE(count, netState->inputCount);
-
-  if (count == netState->inputCount) {
-    netState->inputCount = 0;
-    return;
-  }
-
-  memmove(netState->inputBuffer, netState->inputBuffer + count, netState->inputCount - count);
-  netState->inputCount -= count;
-}
-
-/*
- * Handle a packet.  Returns "false" if we encounter a connection-fatal error.
- */
-static bool handlePacket(JdwpState* state) {
-  JdwpNetState* netState = state->netState;
-  const unsigned char* buf = netState->inputBuffer;
-  JdwpReqHeader hdr;
-  uint32_t length, id;
-  uint8_t flags, cmdSet, cmd;
-  int dataLen;
-
-  cmd = cmdSet = 0;       // shut up gcc
-
-  length = Read4BE(&buf);
-  id = Read4BE(&buf);
-  flags = Read1(&buf);
-  if ((flags & kJDWPFlagReply) != 0) {
-    LOG(FATAL) << "reply?!";
-  } else {
-    cmdSet = Read1(&buf);
-    cmd = Read1(&buf);
-  }
-
-  CHECK_LE(length, netState->inputCount);
-  dataLen = length - (buf - netState->inputBuffer);
-
-  ExpandBuf* pReply = expandBufAlloc();
-
-  hdr.length = length;
-  hdr.id = id;
-  hdr.cmdSet = cmdSet;
-  hdr.cmd = cmd;
-  state->ProcessRequest(&hdr, buf, dataLen, pReply);
-  if (expandBufGetLength(pReply) > 0) {
-    ssize_t cc = netState->writePacket(pReply);
-
-    if (cc != (ssize_t) expandBufGetLength(pReply)) {
-      PLOG(ERROR) << "Failed sending reply to debugger";
-      expandBufFree(pReply);
-      return false;
-    }
-  } else {
-    LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
-  }
-  expandBufFree(pReply);
-
-  VLOG(jdwp) << "----------";
-
-  consumeBytes(netState, length);
-  return true;
-}
-
-/*
  * Process incoming data.  If no data is available, this will block until
  * some arrives.
  *
@@ -605,7 +526,7 @@ static bool processIncoming(JdwpState* state) {
       goto fail;
     }
 
-    consumeBytes(netState, kMagicHandshakeLen);
+    netState->ConsumeBytes(kMagicHandshakeLen);
     netState->awaitingHandshake = false;
     VLOG(jdwp) << "+++ handshake complete";
     return true;
@@ -614,7 +535,7 @@ static bool processIncoming(JdwpState* state) {
   /*
    * Handle this packet.
    */
-  return handlePacket(state);
+  return state->HandlePacket();
 
  fail:
   closeConnection(state);
@@ -640,7 +561,7 @@ static bool sendRequest(JdwpState* state, ExpandBuf* pReq) {
 
   errno = 0;
 
-  ssize_t cc = netState->writePacket(pReq);
+  ssize_t cc = netState->WritePacket(pReq);
 
   if (cc != (ssize_t) expandBufGetLength(pReq)) {
     PLOG(ERROR) << "Failed sending req to debugger (" << cc << " of " << expandBufGetLength(pReq) << ")";
@@ -672,7 +593,7 @@ static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iov_coun
     expected += iov[i].iov_len;
   }
 
-  ssize_t actual = netState->writeBufferedPacket(iov, iov_count);
+  ssize_t actual = netState->WriteBufferedPacket(iov, iov_count);
   if ((size_t)actual != expected) {
     PLOG(ERROR) << "Failed sending b-req to debugger (" << actual << " of " << expected << ")";
     return false;

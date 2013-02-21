@@ -76,9 +76,15 @@ class JdwpNetStateBase {
  public:
   int clientSock;     /* active connection to debugger */
 
+  enum { kInputBufferSize = 8192 };
+
+  unsigned char inputBuffer[kInputBufferSize];
+  size_t inputCount;
+
   JdwpNetStateBase();
-  ssize_t writePacket(ExpandBuf* pReply);
-  ssize_t writeBufferedPacket(const iovec* iov, int iov_count);
+  void ConsumeBytes(size_t byte_count);
+  ssize_t WritePacket(ExpandBuf* pReply);
+  ssize_t WriteBufferedPacket(const iovec* iov, int iov_count);
 
  private:
   // Used to serialize writes to the socket.

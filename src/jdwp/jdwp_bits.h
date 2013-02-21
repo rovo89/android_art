@@ -32,20 +32,6 @@ static inline uint32_t Get4BE(unsigned char const* pSrc) {
   return (pSrc[0] << 24) | (pSrc[1] << 16) | (pSrc[2] << 8) | pSrc[3];
 }
 
-static inline uint8_t Read1(unsigned const char** ppSrc) {
-  return *(*ppSrc)++;
-}
-
-static inline uint32_t Read4BE(uint8_t const** ppSrc) {
-  const unsigned char* pSrc = *ppSrc;
-  uint32_t result = pSrc[0] << 24;
-  result |= pSrc[1] << 16;
-  result |= pSrc[2] << 8;
-  result |= pSrc[3];
-  *ppSrc = pSrc + 4;
-  return result;
-}
-
 static inline void Append1BE(std::vector<uint8_t>& bytes, uint8_t value) {
   bytes.push_back(value);
 }

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "jdwp/jdwp_handler.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -1503,7 +1501,7 @@ struct JdwpHandlerMap {
  * Command sets 0-63 are incoming requests, 64-127 are outbound requests,
  * and 128-256 are vendor-defined.
  */
-static const JdwpHandlerMap gHandlerMap[] = {
+static const JdwpHandlerMap gHandlers[] = {
   /* VirtualMachine command set (1) */
   { 1,    1,  VM_Version,               "VirtualMachine.Version" },
   { 1,    2,  VM_ClassesBySignature,    "VirtualMachine.ClassesBySignature" },
@@ -1631,20 +1629,20 @@ static const JdwpHandlerMap gHandlerMap[] = {
   { 199,  1,  DDM_Chunk,        "DDM.Chunk" },
 };
 
-static const char* GetCommandName(size_t cmdSet, size_t cmd) {
-  for (size_t i = 0; i < arraysize(gHandlerMap); ++i) {
-    if (gHandlerMap[i].cmdSet == cmdSet && gHandlerMap[i].cmd == cmd) {
-      return gHandlerMap[i].name;
+static const char* GetCommandName(Request& request) {
+  for (size_t i = 0; i < arraysize(gHandlers); ++i) {
+    if (gHandlers[i].cmdSet == request.GetCommandSet() && gHandlers[i].cmd == request.GetCommand()) {
+      return gHandlers[i].name;
     }
   }
   return "?UNKNOWN?";
 }
 
-static std::string DescribeCommand(const JdwpReqHeader* pHeader, int dataLen) {
+static std::string DescribeCommand(Request& request) {
   std::string result;
   result += "REQUEST: ";
-  result += GetCommandName(pHeader->cmdSet, pHeader->cmd);
-  result += StringPrintf(" (length=%d id=0x%06x)", dataLen, pHeader->id);
+  result += GetCommandName(request);
+  result += StringPrintf(" (length=%d id=0x%06x)", request.GetLength(), request.GetId());
   return result;
 }
 
@@ -1653,10 +1651,10 @@ static std::string DescribeCommand(const JdwpReqHeader* pHeader, int dataLen) {
  *
  * On entry, the JDWP thread is in VMWAIT.
  */
-void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+void JdwpState::ProcessRequest(Request& request, ExpandBuf* pReply) {
   JdwpError result = ERR_NONE;
 
-  if (pHeader->cmdSet != kJDWPDdmCmdSet) {
+  if (request.GetCommandSet() != kJDWPDdmCmdSet) {
     /*
      * Activity from a debugger, not merely ddms.  Mark us as having an
      * active debugger session, and zero out the last-activity timestamp
@@ -1694,20 +1692,19 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
   expandBufAddSpace(pReply, kJDWPHeaderLen);
 
   size_t i;
-  for (i = 0; i < arraysize(gHandlerMap); ++i) {
-    if (gHandlerMap[i].cmdSet == pHeader->cmdSet && gHandlerMap[i].cmd == pHeader->cmd && gHandlerMap[i].func != NULL) {
-      VLOG(jdwp) << DescribeCommand(pHeader, dataLen);
-      Request request(buf, dataLen);
-      result = (*gHandlerMap[i].func)(this, request, pReply);
+  for (i = 0; i < arraysize(gHandlers); ++i) {
+    if (gHandlers[i].cmdSet == request.GetCommandSet() && gHandlers[i].cmd == request.GetCommand() && gHandlers[i].func != NULL) {
+      VLOG(jdwp) << DescribeCommand(request);
+      result = (*gHandlers[i].func)(this, request, pReply);
       if (result == ERR_NONE) {
         request.CheckConsumed();
       }
       break;
     }
   }
-  if (i == arraysize(gHandlerMap)) {
-    LOG(ERROR) << "Command not implemented: " << DescribeCommand(pHeader, dataLen);
-    LOG(ERROR) << HexDump(buf, dataLen);
+  if (i == arraysize(gHandlers)) {
+    LOG(ERROR) << "Command not implemented: " << DescribeCommand(request);
+    LOG(ERROR) << HexDump(request.data(), request.size());
     result = ERR_NOT_IMPLEMENTED;
   }
 
@@ -1717,7 +1714,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
    * If we encountered an error, only send the header back.
    */
   uint8_t* replyBuf = expandBufGetBuffer(pReply);
-  Set4BE(replyBuf + 4, pHeader->id);
+  Set4BE(replyBuf + 4, request.GetId());
   Set1(replyBuf + 8, kJDWPFlagReply);
   Set2BE(replyBuf + 9, result);
   if (result == ERR_NONE) {
@@ -1726,17 +1723,21 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
     Set4BE(replyBuf + 0, kJDWPHeaderLen);
   }
 
+  CHECK_GT(expandBufGetLength(pReply), 0U) << GetCommandName(request) << " " << request.GetId();
+
   size_t respLen = expandBufGetLength(pReply) - kJDWPHeaderLen;
-  VLOG(jdwp) << "REPLY: " << GetCommandName(pHeader->cmdSet, pHeader->cmd) << " " << result << " (length=" << respLen << ")";
+  VLOG(jdwp) << "REPLY: " << GetCommandName(request) << " " << result << " (length=" << respLen << ")";
   if (false) {
     VLOG(jdwp) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
   }
+
+  VLOG(jdwp) << "----------";
 
   /*
    * Update last-activity timestamp.  We really only need this during
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
-  if (pHeader->cmdSet != kJDWPDdmCmdSet) {
+  if (request.GetCommandSet() != kJDWPDdmCmdSet) {
     QuasiAtomic::Write64(&last_activity_time_ms_, MilliTime());
   }
 
