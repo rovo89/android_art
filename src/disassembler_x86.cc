@@ -480,6 +480,7 @@ DISASSEMBLER_ENTRY(cmp,
         break;
       case 0xAE:
         if (prefix[0] == 0xF3) {
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
           static const char* xAE_opcodes[] = {"rdfsbase", "rdgsbase", "wrfsbase", "wrgsbase", "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE"};
           modrm_opcodes = xAE_opcodes;
           reg_is_opcode = true;
@@ -731,7 +732,18 @@ DISASSEMBLER_ENTRY(cmp,
   for (size_t i = 0; begin_instr + i < instr; ++i) {
     hex << StringPrintf("%02X", begin_instr[i]);
   }
-  os << StringPrintf("%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(), opcode.str().c_str()) << args.str() << '\n';
+  std::stringstream prefixed_opcode;
+  switch (prefix[0]) {
+    case 0xF0: prefixed_opcode << "lock "; break;
+    case 0xF2: prefixed_opcode << "repne "; break;
+    case 0xF3: prefixed_opcode << "repe "; break;
+    case 0: break;
+    default: LOG(FATAL) << "Unreachable";
+  }
+  prefixed_opcode << opcode.str();
+  os << StringPrintf("%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(),
+                     prefixed_opcode.str().c_str())
+     << args.str() << '\n';
   return instr - begin_instr;
 }
 
