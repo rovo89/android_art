@@ -65,6 +65,15 @@ class IRBuilder : public LLVMIRBuilder {
     return inst;
   }
 
+  llvm::AtomicCmpXchgInst*
+  CreateAtomicCmpXchgInst(llvm::Value* ptr, llvm::Value* cmp, llvm::Value* val,
+                          llvm::MDNode* tbaa_info) {
+    llvm::AtomicCmpXchgInst* inst =
+        LLVMIRBuilder::CreateAtomicCmpXchg(ptr, cmp, val, llvm::Acquire);
+    inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_info);
+    return inst;
+  }
+
 
   //--------------------------------------------------------------------------
   // TBAA
@@ -118,6 +127,17 @@ class IRBuilder : public LLVMIRBuilder {
                            TBAASpecialType special_ty, JType j_ty) {
     DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
     StoreToObjectOffset(object_addr, offset, new_value, mdb_.GetTBAAMemoryJType(special_ty, j_ty));
+  }
+
+  llvm::AtomicCmpXchgInst*
+  CompareExchangeObjectOffset(llvm::Value* object_addr,
+                              int64_t offset,
+                              llvm::Value* cmp_value,
+                              llvm::Value* new_value,
+                              TBAASpecialType special_ty) {
+    DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
+    return CompareExchangeObjectOffset(object_addr, offset, cmp_value, new_value,
+                                       mdb_.GetTBAASpecialType(special_ty));
   }
 
   void SetTBAA(llvm::Instruction* inst, TBAASpecialType special_ty) {
@@ -208,6 +228,21 @@ class IRBuilder : public LLVMIRBuilder {
                                             new_value->getType()->getPointerTo());
     // Store
     CreateStore(new_value, value_addr, tbaa_info);
+  }
+
+  llvm::AtomicCmpXchgInst* CompareExchangeObjectOffset(llvm::Value* object_addr,
+                                                       int64_t offset,
+                                                       llvm::Value* cmp_value,
+                                                       llvm::Value* new_value,
+                                                       llvm::MDNode* tbaa_info) {
+    // Convert offset to llvm::value
+    llvm::Value* llvm_offset = getPtrEquivInt(offset);
+    // Calculate the value's address
+    llvm::Value* value_addr = CreatePtrDisp(object_addr,
+                                            llvm_offset,
+                                            new_value->getType()->getPointerTo());
+    // Atomic compare and exchange
+    return CreateAtomicCmpXchgInst(value_addr, cmp_value, new_value, tbaa_info);
   }
 
 
