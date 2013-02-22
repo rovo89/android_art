@@ -284,10 +284,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 
   // Default mark stack size in bytes.
   static const size_t default_mark_stack_size = 64 * KB;
-  mark_stack_.reset(ObjectStack::Create("dalvik-mark-stack", default_mark_stack_size));
-  allocation_stack_.reset(ObjectStack::Create("dalvik-allocation-stack",
+  mark_stack_.reset(ObjectStack::Create("mark stack", default_mark_stack_size));
+  allocation_stack_.reset(ObjectStack::Create("allocation stack",
                                               max_allocation_stack_size_));
-  live_stack_.reset(ObjectStack::Create("dalvik-live-stack",
+  live_stack_.reset(ObjectStack::Create("live stack",
                                       max_allocation_stack_size_));
 
   // It's still too early to take a lock because there are no threads yet, but we can create locks

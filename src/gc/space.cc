@@ -105,12 +105,12 @@ DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* msp
   CHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % kGcCardSize == 0);
   CHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % kGcCardSize == 0);
   live_bitmap_.reset(SpaceBitmap::Create(
-      StringPrintf("allocspace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      StringPrintf("allocspace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #" << bitmap_index;
 
   mark_bitmap_.reset(SpaceBitmap::Create(
-      StringPrintf("allocspace-%s-mark-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      StringPrintf("allocspace %s mark-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
 }
@@ -469,7 +469,7 @@ ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
     : MemMapSpace(name, mem_map, mem_map->Size(), kGcRetentionPolicyNeverCollect) {
   const size_t bitmap_index = bitmap_index_++;
   live_bitmap_.reset(SpaceBitmap::Create(
-      StringPrintf("imagespace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      StringPrintf("imagespace %s live-bitmap %d", name.c_str(), static_cast<int>(bitmap_index)),
       Begin(), Capacity()));
   DCHECK(live_bitmap_.get() != NULL) << "could not create imagespace live bitmap #" << bitmap_index;
 }

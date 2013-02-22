@@ -73,7 +73,11 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, in
   CheckMapRequest(addr, page_aligned_byte_count);
 
 #ifdef USE_ASHMEM
-  ScopedFd fd(ashmem_create_region(name, page_aligned_byte_count));
+  // android_os_Debug.cpp read_mapinfo assumes all ashmem regions associated with the VM are
+  // prefixed "dalvik-".
+  std::string debug_friendly_name("dalvik-");
+  debug_friendly_name += name;
+  ScopedFd fd(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count));
   int flags = MAP_PRIVATE;
   if (fd.get() == -1) {
     PLOG(ERROR) << "ashmem_create_region failed (" << name << ")";

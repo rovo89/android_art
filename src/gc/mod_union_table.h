@@ -63,12 +63,12 @@ class ModUnionTable {
   // bitmap or not.
   virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) = 0;
 
-  Heap* GetHeap() {
+  Heap* GetHeap() const {
     return heap_;
   }
 
  protected:
-  Heap* heap_;
+  Heap* const heap_;
 };
 
 // Bitmap implementation.

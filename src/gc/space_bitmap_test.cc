@@ -33,7 +33,7 @@ class SpaceBitmapTest : public CommonTest {
 TEST_F(SpaceBitmapTest, Init) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
-  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test-bitmap",
+  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
                                                           heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 }
@@ -60,7 +60,7 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
-  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test-bitmap",
+  UniquePtr<SpaceBitmap> space_bitmap(SpaceBitmap::Create("test bitmap",
                                                           heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 

@@ -60,7 +60,8 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
 }
 
 mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes) {
-  MemMap* mem_map = MemMap::MapAnonymous("allocation", NULL, num_bytes, PROT_READ | PROT_WRITE);
+  MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", NULL, num_bytes,
+                                         PROT_READ | PROT_WRITE);
   if (mem_map == NULL) {
     return NULL;
   }
