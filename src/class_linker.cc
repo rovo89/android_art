@@ -3300,7 +3300,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
           mirror::AbstractMethod* vtable_method = vtable->Get(k);
           vtable_mh.ChangeMethod(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-            if (!vtable_method->IsPublic()) {
+            if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
               self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                                        "Implementation not public: %s",
                                        PrettyMethod(vtable_method).c_str());
