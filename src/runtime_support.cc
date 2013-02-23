@@ -440,11 +440,15 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       bool unboxed_okay = UnboxPrimitiveForResult(result_ref, result_type, result_unboxed);
       if (!unboxed_okay) {
-        soa.Self()->ThrowNewWrappedException("Ljava/lang/ClassCastException;",
-                                             StringPrintf("Couldn't convert result of type %s to %s",
-                                                          PrettyTypeOf(result_ref).c_str(),
-                                                          PrettyDescriptor(result_type).c_str()
-                                             ).c_str());
+        // UnboxPrimitiveForResult creates an IllegalArgumentException. Discard and create a
+        // meaningful ClassCastException.
+        DCHECK(soa.Self()->IsExceptionPending());
+        soa.Self()->ClearException();
+        soa.Self()->ThrowNewException("Ljava/lang/ClassCastException;",
+                                      StringPrintf("Couldn't convert result of type %s to %s",
+                                                   PrettyTypeOf(result_ref).c_str(),
+                                                   PrettyDescriptor(result_type).c_str()
+                                      ).c_str());
       }
       return result_unboxed;
     }
