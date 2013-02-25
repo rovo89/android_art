@@ -560,27 +560,40 @@ class WatchDog {
     return NULL;
   }
 
+  static void Warn(const std::string& message) {
+    // TODO: Switch to LOG(WARNING) when we can guarantee it won't prevent shutdown in error cases.
+    fprintf(stderr, "%s\n", message.c_str());
+  }
+
   static void Die(const std::string& message) {
-    // TODO: Switch to LOG(FATAL) when we can guarantee it won't prevent shutdown in error cases
+    // TODO: Switch to LOG(FATAL) when we can guarantee it won't prevent shutdown in error cases.
     fprintf(stderr, "%s\n", message.c_str());
     exit(1);
   }
 
   void Wait() {
-    int64_t ms = kWatchDogTimeoutSeconds * 1000;
-    int32_t ns = 0;
-    timespec ts;
-    InitTimeSpec(true, CLOCK_REALTIME, ms, ns, &ts);
+    bool warning = true;
+    timespec warning_ts, timeout_ts;
+    CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
+    InitTimeSpec(true, CLOCK_REALTIME, kWatchDogWarningSeconds * 1000, 0, &warning_ts);
+    InitTimeSpec(true, CLOCK_REALTIME, kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
     while (!shutting_down_) {
-      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_, &ts));
+      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_,
+                                                         warning ? &warning_ts
+                                                                 : &timeout_ts));
       if (rc == ETIMEDOUT) {
         std::string message(StringPrintf("dex2oat did not finish after %d seconds",
-                                         kWatchDogTimeoutSeconds));
-        Die(message.c_str());
-      }
-      if (rc != 0) {
+                                         warning ? kWatchDogWarningSeconds
+                                                 : kWatchDogTimeoutSeconds));
+        if (warning) {
+          Warn(message.c_str());
+          warning = false;
+        } else {
+          Die(message.c_str());
+        }
+      } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
                                          strerror(errno)));
         Die(message.c_str());
@@ -589,10 +602,11 @@ class WatchDog {
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
   }
 
+  static const unsigned int kWatchDogWarningSeconds = 1 * 60;  // 1 minute.
 #ifdef ART_USE_LLVM_COMPILER
-  static const unsigned int kWatchDogTimeoutSeconds = 20 * 60; // 15 minutes + buffer
+  static const unsigned int kWatchDogTimeoutSeconds = 30 * 60;  // 25 minutes + buffer.
 #else
-  static const unsigned int kWatchDogTimeoutSeconds = 2 * 60;  // 1 minute + buffer
+  static const unsigned int kWatchDogTimeoutSeconds = 3 * 60;  // 2 minutes + buffer.
 #endif
 
   bool is_watch_dog_enabled_;
