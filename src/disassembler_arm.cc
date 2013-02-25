@@ -361,68 +361,116 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         }
       } else if ((op2 & 0x60) == 0x20) {  // 01x xxxx
         // Data-processing (shifted register)
-        // |111|1110|0000|0|0000|1111|1100|0000|0000|
-        // |5 3|2109|8765|4|3  0|5   |10 8|7 5 |3  0|
-        // |---|----|----|-|----|----|----|----|----|
-        // |332|2222|2222|2|1111|1111|1100|0000|0000|
-        // |1 9|8765|4321|0|9  6|5   |10 8|7 5 |3  0|
-        // |---|----|----|-|----|----|----|----|----|
-        // |111|0101| op3|S| Rn |    | Rd |    | Rm |
+        // |111|1110|0000|0|0000|1111|1100|00|00|0000|
+        // |5 3|2109|8765|4|3  0|5   |10 8|7 |5 |3  0|
+        // |---|----|----|-|----|----|----|--|--|----|
+        // |332|2222|2222|2|1111|1111|1100|00|00|0000|
+        // |1 9|8765|4321|0|9  6|5   |10 8|7 |5 |3  0|
+        // |---|----|----|-|----|----|----|--|--|----|
+        // |111|0101| op3|S| Rn |imm3| Rd |i2|ty| Rm |
         uint32_t op3 = (instr >> 21) & 0xF;
         uint32_t S = (instr >> 20) & 1;
-        uint32_t Rn = (instr >> 16) & 0xF;
+        uint32_t imm3 = ((instr >> 12) & 0x7);
+        uint32_t imm2 = ((instr >> 6) & 0x3);
+        uint32_t imm5 = ((imm3 << 3) | imm2) & 0x1F;
+        uint32_t shift_type = ((instr >> 4) & 0x2);
         ArmRegister Rd(instr, 8);
+        ArmRegister Rn(instr, 16);
         ArmRegister Rm(instr, 0);
         switch (op3) {
           case 0x0:
-            if (Rn != 0xF) {
+            if (Rd.r != 0xF) {
               opcode << "and";
             } else {
               opcode << "tst";
+              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
           case 0x1: opcode << "bic"; break;
           case 0x2:
-            if (Rn != 0xF) {
+            if (Rn.r != 0xF) {
               opcode << "orr";
             } else {
+              // TODO: use canonical form if there is a shift (lsl, ...).
               opcode << "mov";
             }
             break;
           case 0x3:
-            if (Rn != 0xF) {
+            if (Rn.r != 0xF) {
               opcode << "orn";
             } else {
               opcode << "mvn";
             }
             break;
           case 0x4:
-            if (Rn != 0xF) {
+            if (Rd.r != 0xF) {
               opcode << "eor";
             } else {
               opcode << "teq";
+              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
           case 0x6: opcode << "pkh"; break;
           case 0x8:
-            if (Rn != 0xF) {
+            if (Rd.r != 0xF) {
               opcode << "add";
             } else {
               opcode << "cmn";
+              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
           case 0xA: opcode << "adc"; break;
           case 0xB: opcode << "sbc"; break;
+          case 0xD:
+            if (Rd.r != 0xF) {
+              opcode << "sub";
+            } else {
+              opcode << "cmp";
+              DCHECK_EQ(S, 1U);
+              S = 0;  // don't print 's'
+            }
+            break;
+          case 0xE: opcode << "rsb"; break;
+          default: opcode << "UNKNOWN DPSR-" << op3; break;
         }
 
         if (S == 1) {
           opcode << "s";
         }
         opcode << ".w";
-        args << Rd << ", " << Rm;
+
+        if (Rd.r != 0xF) {
+          args << Rd << ", ";
+        }
+        if (Rn.r != 0xF) {
+          args << Rn << ", ";
+        }
+        args << Rm;
+
+        // Shift operand.
+        bool noShift = (imm5 == 0 && shift_type != 0x3);
+        if (!noShift) {
+          args << ", ";
+          switch (shift_type) {
+            case 0x0: args << "lsl"; break;
+            case 0x1: args << "lsr"; break;
+            case 0x2: args << "asr"; break;
+            case 0x3:
+              if (imm5 == 0) {
+                args << "rrx";
+              } else {
+                args << "ror";
+              }
+              break;
+          }
+          if (shift_type != 0x3 /* rrx */) {
+            args << StringPrintf(" #%d", imm5);
+          }
+        }
+
       } else if ((op2 & 0x40) == 0x40) {  // 1xx xxxx
         // Co-processor instructions
         // |111|1|11|000000|0000|1111|1100|000|0  |0000|
