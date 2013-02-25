@@ -26,5 +26,6 @@ public class Main {
         Clash3.main(null);
         Clash4.main(null);
         WrappedThrow.main(null);
+        NarrowingTest.main(null);
     }
 }
