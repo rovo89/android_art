@@ -30,7 +30,8 @@ std::ostream& operator<<(std::ostream& os, const ObjectRegistryEntry& rhs) {
   return os;
 }
 
-ObjectRegistry::ObjectRegistry() : lock_("ObjectRegistry lock"), next_id_(1) {
+ObjectRegistry::ObjectRegistry()
+    : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), next_id_(1) {
 }
 
 JDWP::RefTypeId ObjectRegistry::AddRefType(mirror::Class* c) {

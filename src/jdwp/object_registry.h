@@ -63,12 +63,12 @@ class ObjectRegistry {
 
   bool Contains(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Clear();
+  void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DisableCollection(JDWP::ObjectId id);
-  void EnableCollection(JDWP::ObjectId id);
+  void DisableCollection(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableCollection(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsCollected(JDWP::ObjectId id);
+  bool IsCollected(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DisposeObject(JDWP::ObjectId id, uint32_t reference_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -79,8 +79,8 @@ class ObjectRegistry {
  private:
   JDWP::ObjectId InternalAdd(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Object* InternalGet(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Demote(ObjectRegistryEntry& entry);
-  void Promote(ObjectRegistryEntry& entry);
+  void Demote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
+  void Promote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
 
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 

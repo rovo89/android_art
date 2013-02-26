@@ -416,13 +416,15 @@ void JdwpState::Run() {
       thread_->TransitionFromRunnableToSuspended(kWaitingInMainDebuggerLoop);
     }
 
-    /* release session state, e.g. remove breakpoint instructions */
     {
       ScopedObjectAccess soa(thread_);
+
+      // Release session state, e.g. remove breakpoint instructions.
       ResetState();
+
+      // Tell the rest of the runtime that the debugger is no longer around.
+      Dbg::Disconnected();
     }
-    /* tell the interpreter that the debugger is no longer around */
-    Dbg::Disconnected();
 
     /* if we had threads suspended, resume them now */
     Dbg::UndoDebuggerSuspensions();

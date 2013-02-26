@@ -644,7 +644,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
       }
       // Release locks and come out of runnable state.
     }
-    for (int i = kMaxMutexLevel; i >= 0; --i) {
+    for (int i = kLockLevelCount - 1; i >= 0; --i) {
       BaseMutex* held_mutex = Thread::Current()->GetHeldMutex(static_cast<LockLevel>(i));
       if (held_mutex != NULL) {
         LOG(FATAL) << "Holding " << held_mutex->GetName()

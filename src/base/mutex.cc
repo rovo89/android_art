@@ -149,13 +149,13 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   if (kDebugLocking) {
     CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
     bool bad_mutexes_held = false;
-    for (int i = kMaxMutexLevel; i >= 0; --i) {
+    for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {
         BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
         if (held_mutex != NULL) {
-          LOG(ERROR) << "Holding " << held_mutex->name_ << " (level " << i
-              << ") while performing wait on: "
-              << name_ << " (level " << static_cast<int>(level_) << ")";
+          LOG(ERROR) << "Holding \"" << held_mutex->name_ << "\" "
+                     << "(level " << LockLevel(i) << ") while performing wait on "
+                     << "\"" << name_ << "\" (level " << level_ << ")";
           bad_mutexes_held = true;
         }
       }

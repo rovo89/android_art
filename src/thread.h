@@ -769,7 +769,7 @@ class PACKED(4) Thread {
   pthread_t pthread_self_;
 
   // Support for Mutex lock hierarchy bug detection.
-  BaseMutex* held_mutexes_[kMaxMutexLevel + 1];
+  BaseMutex* held_mutexes_[kLockLevelCount];
 
   // A positive value implies we're in a region where thread suspension isn't expected.
   uint32_t no_thread_suspension_;

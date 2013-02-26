@@ -41,7 +41,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
   CHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
   if (check_locks) {
     bool bad_mutexes_held = false;
-    for (int i = kMaxMutexLevel; i >= 0; --i) {
+    for (int i = kLockLevelCount - 1; i >= 0; --i) {
       // We expect no locks except the mutator_lock_.
       if (i != kMutatorLock) {
         BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));

@@ -102,7 +102,7 @@ class Dbg {
    */
   static void Connected();
   static void GoActive() LOCKS_EXCLUDED(Locks::breakpoint_lock_);
-  static void Disconnected();
+  static void Disconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void Disposed();
 
   // Returns true if we're actually debugging with a real debugger, false if it's
