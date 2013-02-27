@@ -321,6 +321,11 @@ class MANAGED AbstractMethod : public Object {
     return GetFrameSizeInBytes() - kPointerSize;
   }
 
+  size_t GetSirtOffsetInBytes() const {
+    CHECK(IsNative());
+    return kPointerSize;
+  }
+
   bool IsRegistered() const;
 
   void RegisterNative(Thread* self, const void* native_method)

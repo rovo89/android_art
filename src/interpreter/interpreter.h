@@ -33,15 +33,13 @@ class Thread;
 
 namespace interpreter {
 
+// Called by AbstractMethod::Invoke, shadow frames arguments are taken from the args array.
 extern void EnterInterpreterFromInvoke(Thread* self, mirror::AbstractMethod* method,
                                        mirror::Object* receiver, uint32_t* args, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame,
-                                             JValue ret_val)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-void EnterInterpreterFromLLVM(Thread* self, ShadowFrame* shadow_frame, JValue* result)
+extern void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame,
+                                           JValue* ret_val)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh,

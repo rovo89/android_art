@@ -1202,9 +1202,8 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
       manager->GetClassLinker()->FindClass(descriptor,
                                            soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()));
   if (klass == NULL) {
-    Thread* self = Thread::Current();
-    CHECK(self->IsExceptionPending());
-    self->ClearException();
+    CHECK(soa.Self()->IsExceptionPending());
+    soa.Self()->ClearException();
 
     /*
      * At compile time, we can still structurally verify the class even if FindClass fails.
@@ -1230,13 +1229,13 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
 
   if (klass->IsErroneous()) {
     // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
-    CHECK(Thread::Current()->IsExceptionPending());
-    Thread::Current()->ClearException();
+    CHECK(soa.Self()->IsExceptionPending());
+    soa.Self()->ClearException();
   }
 
   CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
       << PrettyDescriptor(klass) << ": state=" << klass->GetStatus();
-  CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
+  soa.Self()->AssertNoPendingException();
 }
 
 void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
@@ -1435,7 +1434,6 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
   const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
-  Thread* self = Thread::Current();
   bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
   bool can_init_static_fields = compiling_boot &&
       manager->GetCompiler()->IsImageClass(descriptor);
@@ -1447,9 +1445,9 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     // its parents, whose locks are acquired. This leads to a parent-to-child and a child-to-parent
     // lock ordering and consequent potential deadlock.
     static Mutex lock1("Initializer lock", kMonitorLock);
-    MutexLock mu(self, lock1);
+    MutexLock mu(soa.Self(), lock1);
     // The lock required to initialize the class.
-    ObjectLock lock2(self, klass);
+    ObjectLock lock2(soa.Self(), klass);
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       manager->GetClassLinker()->EnsureInitialized(klass, false, can_init_static_fields);
@@ -1473,7 +1471,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             } else {
               manager->GetClassLinker()->EnsureInitialized(klass, true, can_init_static_fields);
             }
-            CHECK(!self->IsExceptionPending()) << self->GetException()->Dump();
+            soa.Self()->AssertNoPendingException();
           }
         }
       }
@@ -1494,7 +1492,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     }
   }
   // Clear any class not found or verification exceptions.
-  self->ClearException();
+  soa.Self()->ClearException();
 }
 
 void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
@@ -1651,7 +1649,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
     LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
-        << self->GetException()->Dump();
+        << self->GetException(NULL)->Dump();
   }
 }
 

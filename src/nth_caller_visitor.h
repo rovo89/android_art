@@ -18,6 +18,7 @@
 #define ART_SRC_NTH_CALLER_VISITOR_H_
 
 #include "mirror/abstract_method.h"
+#include "locks.h"
 #include "stack.h"
 
 namespace art {
@@ -25,19 +26,32 @@ class Thread;
 
 // Walks up the stack 'n' callers, when used with Thread::WalkStack.
 struct NthCallerVisitor : public StackVisitor {
-  NthCallerVisitor(Thread* thread, size_t n)
-      : StackVisitor(thread, NULL), n(n), count(0), caller(NULL) {}
+  NthCallerVisitor(Thread* thread, size_t n, bool include_runtime_and_upcalls = false)
+      : StackVisitor(thread, NULL), n(n), include_runtime_and_upcalls_(include_runtime_and_upcalls),
+        count(0), caller(NULL) {}
 
-  bool VisitFrame() {
-    DCHECK(caller == NULL);
-    if (count++ == n) {
-      caller = GetMethod();
-      return false;
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::AbstractMethod* m = GetMethod();
+    bool do_count = false;
+    if (m == NULL || m->IsRuntimeMethod()) {
+      // Upcall.
+      do_count = include_runtime_and_upcalls_;
+    } else {
+      do_count = true;
+    }
+    if (do_count) {
+      DCHECK(caller == NULL);
+      if (count == n) {
+        caller = m;
+        return false;
+      }
+      count++;
     }
     return true;
   }
 
-  size_t n;
+  const size_t n;
+  const bool include_runtime_and_upcalls_;
   size_t count;
   mirror::AbstractMethod* caller;
 };

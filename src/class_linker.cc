@@ -80,51 +80,9 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...)
 static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/NoClassDefFoundError;", fmt, args);
-  va_end(args);
-}
-
-static void ThrowClassFormatError(const char* fmt, ...)
-    __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-static void ThrowClassFormatError(const char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/ClassFormatError;", fmt, args);
-  va_end(args);
-}
-
-static void ThrowLinkageError(const char* fmt, ...)
-    __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-static void ThrowLinkageError(const char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/LinkageError;", fmt, args);
-  va_end(args);
-}
-
-static void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c, const StringPiece& type,
-                                  const StringPiece& name)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ClassHelper kh(c);
-  std::ostringstream msg;
-  msg << "No " << scope << "field " << name << " of type " << type
-      << " in class " << kh.GetDescriptor() << " or its superclasses";
-  std::string location(kh.GetLocation());
-  if (!location.empty()) {
-    msg << " (defined in " << location << ")";
-  }
-  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchFieldError;", msg.str().c_str());
-}
-
-static void ThrowNullPointerException(const char* fmt, ...)
-    __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-static void ThrowNullPointerException(const char* fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/NullPointerException;", fmt, args);
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  self->ThrowNewExceptionV(throw_location, "Ljava/lang/NoClassDefFoundError;", fmt, args);
   va_end(args);
 }
 
@@ -139,18 +97,19 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   }
 
   CHECK(c->IsErroneous()) << PrettyClass(c) << " " << c->GetStatus();
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
     ClassHelper ve_ch(c->GetVerifyErrorClass());
-    std::string error_descriptor(ve_ch.GetDescriptor());
-    Thread::Current()->ThrowNewException(error_descriptor.c_str(), PrettyDescriptor(c).c_str());
+    self->ThrowNewException(throw_location, ve_ch.GetDescriptor(), PrettyDescriptor(c).c_str());
   } else {
-    ThrowNoClassDefFoundError("%s", PrettyDescriptor(c).c_str());
+    self->ThrowNewException(throw_location, "Ljava/lang/NoClassDefFoundError;",
+                            PrettyDescriptor(c).c_str());
   }
 }
 
-static void WrapExceptionInInitializer()
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void WrapExceptionInInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -163,7 +122,8 @@ static void WrapExceptionInInitializer()
 
   // We only wrap non-Error exceptions; an Error can just be used as-is.
   if (!is_error) {
-    self->ThrowNewWrappedException("Ljava/lang/ExceptionInInitializerError;", NULL);
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewWrappedException(throw_location, "Ljava/lang/ExceptionInInitializerError;", NULL);
   }
 }
 
@@ -1244,8 +1204,7 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
     ObjectLock lock(self, klass);
     // Check for circular dependencies between classes.
     if (!klass->IsResolved() && klass->GetClinitThreadId() == self->GetTid()) {
-      self->ThrowNewException("Ljava/lang/ClassCircularityError;",
-          PrettyDescriptor(klass).c_str());
+      ThrowClassCircularityError(klass);
       klass->SetStatus(mirror::Class::kStatusError);
       return NULL;
     }
@@ -1260,9 +1219,7 @@ static mirror::Class* EnsureResolved(Thread* self, mirror::Class* klass)
   }
   // Return the loaded class.  No exceptions should be pending.
   CHECK(klass->IsResolved()) << PrettyClass(klass);
-  CHECK(!self->IsExceptionPending())
-      << PrettyClass(klass) << " " << PrettyTypeOf(self->GetException()) << "\n"
-      << self->GetException()->Dump();
+  self->AssertNoPendingException();
   return klass;
 }
 
@@ -1335,13 +1292,13 @@ mirror::Class* ClassLinker::FindClass(const char* descriptor, mirror::ClassLoade
                                                WellKnownClasses::java_lang_ClassLoader_loadClass,
                                                class_name_object.get()));
     }
-    if (soa.Env()->ExceptionCheck()) {
+    if (soa.Self()->IsExceptionPending()) {
       // If the ClassLoader threw, pass that exception up.
       return NULL;
     } else if (result.get() == NULL) {
       // broken loader - throw NPE to be compatible with Dalvik
-      ThrowNullPointerException("ClassLoader.loadClass returned null for %s",
-                                class_name_string.c_str());
+      ThrowNullPointerException(NULL, StringPrintf("ClassLoader.loadClass returned null for %s",
+                                                   class_name_string.c_str()).c_str());
       return NULL;
     } else {
       // success, return mirror::Class*
@@ -1560,7 +1517,7 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::AbstractMeth
 
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetOatCodeFor(const mirror::AbstractMethod* method) {
-  CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
+  CHECK(!method->IsAbstract()) << PrettyMethod(method);
   const void* result = GetOatMethodFor(method).GetCode();
   if (result == NULL) {
     // No code? You must mean to go into the interpreter.
@@ -1587,7 +1544,8 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   if (class_data == NULL) {
     return;  // no fields or methods - for example a marker interface
   }
-  if (!Runtime::Current()->IsStarted() || Runtime::Current()->UseCompileTimeClassPath()) {
+  Runtime* runtime = Runtime::Current();
+  if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
     // OAT file unavailable
     return;
   }
@@ -1603,32 +1561,26 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   }
   size_t method_index = 0;
   // Link the code of methods skipped by LinkCode
-  const void* trampoline = Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData();
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     mirror::AbstractMethod* method = klass->GetDirectMethod(i);
-    if (Runtime::Current()->IsMethodTracingActive()) {
-      Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-      if (instrumentation->GetSavedCodeFromMap(method) == trampoline) {
-        const void* code = oat_class->GetOatMethod(method_index).GetCode();
-        instrumentation->ResetSavedCode(method);
-        method->SetCode(code);
-        instrumentation->SaveAndUpdateCode(method);
-      }
-    } else if (method->GetCode() == trampoline) {
+    if (method->IsStatic()) {
       const void* code = oat_class->GetOatMethod(method_index).GetCode();
       if (code == NULL) {
         // No code? You must mean to go into the interpreter.
         code = GetInterpreterEntryPoint();
       }
-      method->SetCode(code);
+      runtime->GetInstrumentation()->UpdateMethodsCode(method, code);
     }
     method_index++;
   }
+  // Ignore virtual methods on the iterator.
 }
 
 static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::OatClass* oat_class,
                      uint32_t method_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Method shouldn't have already been linked.
+  DCHECK(method->GetCode() == NULL);
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
@@ -1641,23 +1593,22 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   }
 
   if (method->IsStatic() && !method->IsConstructor()) {
-    // For static methods excluding the class initializer, install the trampoline
+    // For static methods excluding the class initializer, install the trampoline.
     method->SetCode(runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
   }
-  if (method->IsNative()) {
-    // unregistering restores the dlsym lookup stub
-    method->UnregisterNative(Thread::Current());
-  }
 
-  if (Runtime::Current()->IsMethodTracingActive()) {
-    Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-    instrumentation->SaveAndUpdateCode(method.get());
+  if (method->IsNative()) {
+    // Unregistering restores the dlsym lookup stub.
+    method->UnregisterNative(Thread::Current());
   }
 
   if (method->GetCode() == NULL) {
     // No code? You must mean to go into the interpreter.
     method->SetCode(GetInterpreterEntryPoint());
   }
+
+  // Allow instrumentation its chance to hijack code.
+  runtime->GetInstrumentation()->UpdateMethodsCode(method.get(), method->GetCode());
 }
 
 void ClassLinker::LoadClass(const DexFile& dex_file,
@@ -2229,7 +2180,6 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
 
   // Verify super class.
   mirror::Class* super = klass->GetSuperClass();
-  std::string error_msg;
   if (super != NULL) {
     // Acquire lock to prevent races on verifying the super class.
     ObjectLock lock(self, super);
@@ -2238,18 +2188,17 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
       Runtime::Current()->GetClassLinker()->VerifyClass(super);
     }
     if (!super->IsCompileTimeVerified()) {
-      error_msg = "Rejecting class ";
-      error_msg += PrettyDescriptor(klass);
-      error_msg += " that attempts to sub-class erroneous class ";
-      error_msg += PrettyDescriptor(super);
+      std::string error_msg(StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
+                                         PrettyDescriptor(klass).c_str(),
+                                         PrettyDescriptor(super).c_str()));
       LOG(ERROR) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
-      SirtRef<mirror::Throwable> cause(self, self->GetException());
+      SirtRef<mirror::Throwable> cause(self, self->GetException(NULL));
       if (cause.get() != NULL) {
         self->ClearException();
       }
-      self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+      ThrowVerifyError(klass, "%s", error_msg.c_str());
       if (cause.get() != NULL) {
-        self->GetException()->SetCause(cause.get());
+        self->GetException(NULL)->SetCause(cause.get());
       }
       klass->SetStatus(mirror::Class::kStatusError);
       return;
@@ -2264,13 +2213,12 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   if (oat_file_class_status == mirror::Class::kStatusError) {
     LOG(WARNING) << "Skipping runtime verification of erroneous class " << PrettyDescriptor(klass)
                  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
-    error_msg = "Rejecting class ";
-    error_msg += PrettyDescriptor(klass);
-    error_msg += " because it failed compile-time verification";
-    Thread::Current()->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+    ThrowVerifyError(klass, "Rejecting class %s because it failed compile-time verification",
+                     PrettyDescriptor(klass).c_str());
     klass->SetStatus(mirror::Class::kStatusError);
     return;
   }
+  std::string error_msg;
   if (!preverified) {
     verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg);
   }
@@ -2301,7 +2249,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
         << " because: " << error_msg;
     self->AssertNoPendingException();
-    self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+    ThrowVerifyError(klass, "%s", error_msg.c_str());
     klass->SetStatus(mirror::Class::kStatusError);
   }
 }
@@ -2463,7 +2411,7 @@ mirror::Class* ClassLinker::CreateProxyClass(mirror::String* name,
 
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
   klass->SetStatus(mirror::Class::kStatusLoaded);  // Class is now effectively in the loaded state
-  DCHECK(!Thread::Current()->IsExceptionPending());
+  self->AssertNoPendingException();
 
   // Link the fields and virtual methods, creating vtable and iftables
   if (!LinkClass(klass, interfaces)) {
@@ -2798,7 +2746,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const mirror::Class* klass) {
       const mirror::AbstractMethod* method = klass->GetVTable()->Get(i);
       if (method != super->GetVTable()->Get(i) &&
           !IsSameMethodSignatureInDifferentClassContexts(method, super, klass)) {
-        ThrowLinkageError("Class %s method %s resolves differently in superclass %s",
+        ThrowLinkageError(klass, "Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass).c_str(), PrettyMethod(method).c_str(),
                           PrettyDescriptor(super).c_str());
         return false;
@@ -2813,7 +2761,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(const mirror::Class* klass) {
         const mirror::AbstractMethod* method = iftable->GetMethodArray(i)->Get(j);
         if (!IsSameMethodSignatureInDifferentClassContexts(method, interface,
                                                            method->GetDeclaringClass())) {
-          ThrowLinkageError("Class %s method %s resolves differently in interface %s",
+          ThrowLinkageError(klass, "Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(method->GetDeclaringClass()).c_str(),
                             PrettyMethod(method).c_str(),
                             PrettyDescriptor(interface).c_str());
@@ -2996,10 +2944,9 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<mirror::Class>& klass, const De
     }
     // Verify
     if (!klass->CanAccess(super_class)) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-          "Class %s extended by class %s is inaccessible",
-          PrettyDescriptor(super_class).c_str(),
-          PrettyDescriptor(klass.get()).c_str());
+      ThrowIllegalAccessError(klass.get(), "Class %s extended by class %s is inaccessible",
+                              PrettyDescriptor(super_class).c_str(),
+                              PrettyDescriptor(klass.get()).c_str());
       return false;
     }
     klass->SetSuperClass(super_class);
@@ -3016,10 +2963,9 @@ bool ClassLinker::LoadSuperAndInterfaces(SirtRef<mirror::Class>& klass, const De
       // Verify
       if (!klass->CanAccess(interface)) {
         // TODO: the RI seemed to ignore this in my testing.
-        Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-            "Interface %s implemented by class %s is inaccessible",
-            PrettyDescriptor(interface).c_str(),
-            PrettyDescriptor(klass.get()).c_str());
+        ThrowIllegalAccessError(klass.get(), "Interface %s implemented by class %s is inaccessible",
+                                PrettyDescriptor(interface).c_str(),
+                                PrettyDescriptor(klass.get()).c_str());
         return false;
       }
     }
@@ -3034,31 +2980,28 @@ bool ClassLinker::LinkSuperClass(SirtRef<mirror::Class>& klass) {
   mirror::Class* super = klass->GetSuperClass();
   if (klass.get() == GetClassRoot(kJavaLangObject)) {
     if (super != NULL) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassFormatError;",
-          "java.lang.Object must not have a superclass");
+      ThrowClassFormatError(klass.get(), "java.lang.Object must not have a superclass");
       return false;
     }
     return true;
   }
   if (super == NULL) {
-    ThrowLinkageError("No superclass defined for class %s", PrettyDescriptor(klass.get()).c_str());
+    ThrowLinkageError(klass.get(), "No superclass defined for class %s",
+                      PrettyDescriptor(klass.get()).c_str());
     return false;
   }
   // Verify
   if (super->IsFinal() || super->IsInterface()) {
-    Thread* self = Thread::Current();
-    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-        "Superclass %s of %s is %s",
-        PrettyDescriptor(super).c_str(),
-        PrettyDescriptor(klass.get()).c_str(),
-        super->IsFinal() ? "declared final" : "an interface");
+    ThrowIncompatibleClassChangeError(klass.get(), "Superclass %s of %s is %s",
+                                      PrettyDescriptor(super).c_str(),
+                                      PrettyDescriptor(klass.get()).c_str(),
+                                      super->IsFinal() ? "declared final" : "an interface");
     return false;
   }
   if (!klass->CanAccess(super)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-        "Superclass %s is inaccessible by %s",
-        PrettyDescriptor(super).c_str(),
-        PrettyDescriptor(klass.get()).c_str());
+    ThrowIllegalAccessError(klass.get(), "Superclass %s is inaccessible to class %s",
+                            PrettyDescriptor(super).c_str(),
+                            PrettyDescriptor(klass.get()).c_str());
     return false;
   }
 
@@ -3074,8 +3017,9 @@ bool ClassLinker::LinkSuperClass(SirtRef<mirror::Class>& klass) {
   }
   // Disallow custom direct subclasses of java.lang.ref.Reference.
   if (init_done_ && super == GetClassRoot(kJavaLangRefReference)) {
-    ThrowLinkageError("Class %s attempts to subclass java.lang.ref.Reference, which is not allowed",
-        PrettyDescriptor(klass.get()).c_str());
+    ThrowLinkageError(klass.get(),
+                      "Class %s attempts to subclass java.lang.ref.Reference, which is not allowed",
+                      PrettyDescriptor(klass.get()).c_str());
     return false;
   }
 
@@ -3096,7 +3040,7 @@ bool ClassLinker::LinkMethods(SirtRef<mirror::Class>& klass,
     // No vtable.
     size_t count = klass->NumVirtualMethods();
     if (!IsUint(16, count)) {
-      ThrowClassFormatError("Too many methods on interface: %zd", count);
+      ThrowClassFormatError(klass.get(), "Too many methods on interface: %zd", count);
       return false;
     }
     for (size_t i = 0; i < count; ++i) {
@@ -3133,7 +3077,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
         if (local_mh.HasSameNameAndSignature(&super_mh)) {
           if (klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
             if (super_method->IsFinal()) {
-              ThrowLinkageError("Method %s overrides final method in class %s",
+              ThrowLinkageError(klass.get(), "Method %s overrides final method in class %s",
                                 PrettyMethod(local_method).c_str(),
                                 super_mh.GetDeclaringClassDescriptor());
               return false;
@@ -3156,7 +3100,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
       }
     }
     if (!IsUint(16, actual_count)) {
-      ThrowClassFormatError("Too many methods defined on class: %zd", actual_count);
+      ThrowClassFormatError(klass.get(), "Too many methods defined on class: %zd", actual_count);
       return false;
     }
     // Shrink vtable if possible
@@ -3169,7 +3113,7 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<mirror::Class>& klass) {
     CHECK(klass.get() == GetClassRoot(kJavaLangObject));
     uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
-      ThrowClassFormatError("Too many methods: %d", num_virtual_methods);
+      ThrowClassFormatError(klass.get(), "Too many methods: %d", num_virtual_methods);
       return false;
     }
     SirtRef<mirror::ObjectArray<mirror::AbstractMethod> >
@@ -3238,10 +3182,9 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
       ClassHelper ih(interface);
-      self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-          "Class %s implements non-interface class %s",
-          PrettyDescriptor(klass.get()).c_str(),
-          PrettyDescriptor(ih.GetDescriptor()).c_str());
+      ThrowIncompatibleClassChangeError(klass.get(), "Class %s implements non-interface class %s",
+                                        PrettyDescriptor(klass.get()).c_str(),
+                                        PrettyDescriptor(ih.GetDescriptor()).c_str());
       return false;
     }
     // Check if interface is already in iftable
@@ -3297,7 +3240,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
           AllocMethodArray(self, num_methods);
       iftable->SetMethodArray(i, method_array);
       mirror::ObjectArray<mirror::AbstractMethod>* vtable = klass->GetVTableDuringLinking();
-      for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
+      for (size_t j = 0; j < num_methods; ++j) {
         mirror::AbstractMethod* interface_method = interface->GetVirtualMethod(j);
         interface_mh.ChangeMethod(interface_method);
         int32_t k;
@@ -3314,9 +3257,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<mirror::Class>& klass,
           vtable_mh.ChangeMethod(vtable_method);
           if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
-              self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                                       "Implementation not public: %s",
-                                       PrettyMethod(vtable_method).c_str());
+              ThrowIllegalAccessError(klass.get(),
+                                      "Method '%s' implementing interface method '%s' is not public",
+                                      PrettyMethod(vtable_method).c_str(),
+                                      PrettyMethod(interface_method).c_str());
               return false;
             }
             method_array->Set(j, vtable_method);
@@ -3657,12 +3601,15 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
       //       same name to be loaded simultaneously by different loaders
       dex_cache->SetResolvedType(type_idx, resolved);
     } else {
-      CHECK(Thread::Current()->IsExceptionPending())
+      Thread* self = Thread::Current();
+      CHECK(self->IsExceptionPending())
           << "Expected pending exception for failed resolution of: " << descriptor;
-      // Convert a ClassNotFoundException to a NoClassDefFoundError
-      if (Thread::Current()->GetException()->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
+      // Convert a ClassNotFoundException to a NoClassDefFoundError.
+      SirtRef<mirror::Throwable> cause(self, self->GetException(NULL));
+      if (cause->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
         Thread::Current()->ClearException();
         ThrowNoClassDefFoundError("Failed resolution of: %s", descriptor);
+        self->GetException(NULL)->SetCause(cause.get());
       }
     }
   }
@@ -3779,7 +3726,7 @@ mirror::AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
           if (resolved != NULL) {
             ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
+            ThrowNoSuchMethodError(type, klass, name, signature);
           }
         }
         break;
@@ -3791,12 +3738,12 @@ mirror::AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
           if (resolved != NULL) {
             ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
+            ThrowNoSuchMethodError(type, klass, name, signature);
           }
         }
         break;
       case kSuper:
-        ThrowNoSuchMethodError(type, klass, name, signature, referrer);
+        ThrowNoSuchMethodError(type, klass, name, signature);
         break;
       case kVirtual:
         if (resolved != NULL) {
@@ -3806,7 +3753,7 @@ mirror::AbstractMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
           if (resolved != NULL) {
             ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
+            ThrowNoSuchMethodError(type, klass, name, signature);
           }
         }
         break;

@@ -866,10 +866,10 @@ class DexFile {
   Index index_;
 
   // The base address of the memory mapping.
-  const byte* begin_;
+  const byte* const begin_;
 
   // The size of the underlying memory allocation in bytes.
-  size_t size_;
+  const size_t size_;
 
   // Typically the dex file name when available, alternatively some identifying string.
   //
@@ -883,6 +883,7 @@ class DexFile {
   UniquePtr<MemMap> mem_map_;
 
   // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
+  // TODO: this is mutable as it shouldn't be here. We should move it to the dex cache or similar.
   mutable jobject dex_object_;
 
   // Points to the header section.

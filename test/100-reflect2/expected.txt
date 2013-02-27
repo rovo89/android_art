@@ -22,7 +22,7 @@ z
 30
 62
 14
-java.lang.IllegalArgumentException: invalid primitive conversion from int to short
+java.lang.IllegalArgumentException: Invalid primitive conversion from int to short
 	at java.lang.reflect.Field.set(Native Method)
 	at Main.testFieldReflection(Main.java:121)
 	at Main.main(Main.java:269)

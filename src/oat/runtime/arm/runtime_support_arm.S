@@ -340,22 +340,6 @@ ENTRY art_quick_invoke_stub
 END art_quick_invoke_stub
 
     /*
-     * On entry, r0 and r1 must be preserved, r2 is dex PC
-     */
-    .extern artUpdateDebuggerFromCode
-ENTRY art_quick_update_debugger
-    mov    r3, r0         @ stash away r0 so that it's saved as if it were an argument
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    mov    r0, r2         @ arg0 is dex PC
-    mov    r1, rSELF      @ arg1 is Thread*
-    mov    r2, sp         @ arg2 is sp
-    bl     artUpdateDebuggerFromCode      @ artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    mov    r0, r3         @ restore original r0
-    bx     lr
-END art_quick_update_debugger
-
-    /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
      */
 ENTRY art_quick_do_long_jump
@@ -979,21 +963,21 @@ END art_quick_interpreter_entry
     .extern artInstrumentationMethodEntryFromCode
     .extern artInstrumentationMethodExitFromCode
 ENTRY art_quick_instrumentation_entry_from_code
-    mov   r12, sp        @ remember bottom of caller's frame
-    push  {r0-r3}        @ save arguments (4 words)
-    .save {r0-r3}
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str   r0, [sp, #4]     @ preserve r0
+    mov   r12, sp          @ remember sp
+    str   lr, [sp, #-16]!  @ expand the frame and pass LR
+    .pad #16
     .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r1, 4
-    .cfi_rel_offset r2, 8
-    .cfi_rel_offset r3, 12
-    mov   r1, r9         @ pass Thread::Current
-    mov   r2, r12        @ pass SP
-    mov   r3, lr         @ pass LR
-    blx   artInstrumentationMethodEntryFromCode  @ (Method*, Thread*, SP, LR)
-    mov   r12, r0        @ r12 holds reference to code
-    pop   {r0-r3}        @ restore arguments
+    .cfi_rel_offset lr, 0
+    mov   r2, r9         @ pass Thread::Current
+    mov   r3, r12        @ pass SP
+    blx   artInstrumentationMethodEntryFromCode  @ (Method*, Object*, Thread*, SP, LR)
+    add   sp, #16        @ remove out argument and padding from stack
     .cfi_adjust_cfa_offset -16
+    mov   r12, r0        @ r12 holds reference to code
+    ldr   r0, [sp, #4]   @ restore r0
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     blx   r12            @ call method with lr set to art_quick_instrumentation_exit_from_code
 END art_quick_instrumentation_entry_from_code
     .type art_quick_instrumentation_exit_from_code, #function
@@ -1001,51 +985,44 @@ END art_quick_instrumentation_entry_from_code
 art_quick_instrumentation_exit_from_code:
     .cfi_startproc
     .fnstart
+    mov   lr, #0         @ link register is to here, so clobber with 0 for later checks
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     mov   r12, sp        @ remember bottom of caller's frame
     push  {r0-r1}        @ save return value
     .save {r0-r1}
     .cfi_adjust_cfa_offset 8
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r1, 4
-    sub   sp, #8         @ align stack
+    sub   sp, #8         @ space for return value argument
     .pad #8
     .cfi_adjust_cfa_offset 8
+    strd r0, [sp]        @ r0/r1 -> [sp] for fpr_res
+    mov   r2, r0         @ pass return value as gpr_res
+    mov   r3, r1
     mov   r0, r9         @ pass Thread::Current
     mov   r1, r12        @ pass SP
-    blx   artInstrumentationMethodExitFromCode  @ (Thread*, SP)
+    blx   artInstrumentationMethodExitFromCode  @ (Thread*, SP, gpr_res, fpr_res)
     add   sp, #8
     .cfi_adjust_cfa_offset -8
+
     mov   r2, r0         @ link register saved by instrumentation
     mov   lr, r1         @ r1 is holding link register if we're to bounce to deoptimize
     pop   {r0, r1}       @ restore return value
-    .cfi_adjust_cfa_offset -8
+    add sp, #32          @ remove callee save frame
+    .cfi_adjust_cfa_offset -32
     bx    r2             @ return
 END art_quick_instrumentation_exit_from_code
 
     /*
-     * The thread's enter interpreter flag is set and so we should transition to the interpreter
-     * rather than allow execution to continue in the frame below. There may be live results in
-     * registers depending on how complete the operation is when we safepoint - for example, a
-     * set operation may have completed while a get operation needs writing back into the vregs.
+     * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
      */
     .extern artDeoptimize
-    .extern artEnterInterpreterFromDeoptimize
 ENTRY art_quick_deoptimize
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    mov    r2, r9         @ Set up args.
-    mov    r3, sp
-    blx    artDeoptimize  @ artDeoptimize(return value, Thread*, SP)
-                          @ Returns caller method's frame size.
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cmp    r0, #0         @ Was the caller an upcall?
-    bxeq   lr             @ Return if caller was upcall.
-    add    r12, sp, r0    @ r12 == bottom of caller's frame.
-    ldr    lr, [r12, #-4] @ Restore lr.
-    mov    sp, r12        @ Remove frame.
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    blx     artEnterInterpreterFromDeoptimize  @ Enter interpreter, callee-save ends stack fragment.
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bx lr                 @ Return to caller.
+    mov    r0, r9         @ Set up args.
+    mov    r1, sp
+    blx    artDeoptimize  @ artDeoptimize(Thread*, SP)
 END art_quick_deoptimize
 
     /*

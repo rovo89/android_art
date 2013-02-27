@@ -246,6 +246,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/thread_pool.cc \
+	src/throw_location.cc \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
@@ -263,7 +264,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/context.cc \
 	src/oat/runtime/support_alloc.cc \
 	src/oat/runtime/support_cast.cc \
-	src/oat/runtime/support_debug.cc \
 	src/oat/runtime/support_deoptimize.cc \
 	src/oat/runtime/support_dexcache.cc \
 	src/oat/runtime/support_field.cc \

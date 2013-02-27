@@ -1069,21 +1069,31 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   // Try to avoid blocking GC during a send, but only safe when not using mutexes at a lower-level
   // than mutator for lock ordering reasons.
   Thread* self = Thread::Current();
-  bool safe_to_release_mutator_lock_over_send;
-  for (size_t i=0; i < kMutatorLock; ++i) {
-    if (self->GetHeldMutex(static_cast<LockLevel>(i)) != NULL) {
-      safe_to_release_mutator_lock_over_send = false;
-      break;
+  bool safe_to_release_mutator_lock_over_send = !Locks::mutator_lock_->IsExclusiveHeld(self);
+  if (safe_to_release_mutator_lock_over_send) {
+    for (size_t i=0; i < kMutatorLock; ++i) {
+      if (self->GetHeldMutex(static_cast<LockLevel>(i)) != NULL) {
+        safe_to_release_mutator_lock_over_send = false;
+        break;
+      }
     }
   }
+  bool success;
   if (safe_to_release_mutator_lock_over_send) {
     // Change state to waiting to allow GC, ... while we're sending.
     self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
-    (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+    success = (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
     self->TransitionFromSuspendedToRunnable();
   } else {
     // Send and possibly block GC...
-    (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+    success = (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+  }
+  if (!success) {
+    LOG(INFO) << StringPrintf("JDWP send of type %c%c%c%c failed.",
+                              static_cast<uint8_t>(type >> 24),
+                              static_cast<uint8_t>(type >> 16),
+                              static_cast<uint8_t>(type >> 8),
+                              static_cast<uint8_t>(type));
   }
 }
 

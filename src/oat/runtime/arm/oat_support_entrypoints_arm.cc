@@ -33,10 +33,6 @@ extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
 extern "C" void art_quick_can_put_array_element_from_code(void*, void*);
 extern "C" void art_quick_check_cast_from_code(void*, void*);
 
-// Debug entrypoints.
-extern void DebugMe(mirror::AbstractMethod* method, uint32_t info);
-extern "C" void art_quick_update_debugger(void*, void*, int32_t, void*);
-
 // DexCache entrypoints.
 extern "C" void* art_quick_initialize_static_storage_from_code(uint32_t, void*);
 extern "C" void* art_quick_initialize_type_from_code(uint32_t, void*);
@@ -145,10 +141,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCanPutArrayElementFromCode = art_quick_can_put_array_element_from_code;
   points->pCheckCastFromCode = art_quick_check_cast_from_code;
 
-  // Debug
-  points->pDebugMe = DebugMe;
-  points->pUpdateDebuggerFromCode = NULL; // Controlled by SetDebuggerUpdatesEnabled.
-
   // DexCache
   points->pInitializeStaticStorage = art_quick_initialize_static_storage_from_code;
   points->pInitializeTypeAndVerifyAccessFromCode = art_quick_initialize_type_and_verify_access_from_code;
@@ -235,10 +227,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pThrowNullPointerFromCode = art_quick_throw_null_pointer_exception_from_code;
   points->pThrowStackOverflowFromCode = art_quick_throw_stack_overflow_from_code;
 };
-
-void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled) {
-  points->pUpdateDebuggerFromCode = (enabled ? art_quick_update_debugger : NULL);
-}
 
 uintptr_t GetInstrumentationExitPc() {
   return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit_from_code);

@@ -20,6 +20,7 @@
 #include "abstract_method.h"
 
 #include "dex_file.h"
+#include "oat/runtime/oat_support_entrypoints.h"
 #include "object_array.h"
 #include "runtime.h"
 
@@ -111,6 +112,9 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
     return;
   }
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
+    return;
+  }
+  if (GetCode() == GetInterpreterEntryPoint()) {
     return;
   }
   Runtime* runtime = Runtime::Current();

@@ -135,15 +135,16 @@ void art_portable_unlock_object_from_code(mirror::Object* obj, Thread* thread)
   obj->MonitorExit(thread);
 }
 
-void art_portable_test_suspend_from_code(Thread* thread)
+void art_portable_test_suspend_from_code(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CheckSuspend(thread);
-  if (thread->ReadFlag(kEnterInterpreter)) {
+  CheckSuspend(self);
+  if (Runtime::Current()->GetInstrumentation()->ShouldPortableCodeDeoptimize()) {
     // Save out the shadow frame to the heap
-    ShadowFrameCopyVisitor visitor(thread);
+    ShadowFrameCopyVisitor visitor(self);
     visitor.WalkStack(true);
-    thread->SetDeoptimizationShadowFrame(visitor.GetShadowFrameCopy(), JValue());
-    thread->SetException(reinterpret_cast<mirror::Throwable*>(-1));
+    self->SetDeoptimizationShadowFrame(visitor.GetShadowFrameCopy());
+    self->SetDeoptimizationReturnValue(JValue());
+    self->SetException(ThrowLocation(), reinterpret_cast<mirror::Throwable*>(-1));
   }
 }
 
@@ -175,51 +176,59 @@ bool art_portable_is_exception_pending_from_code() {
 }
 
 void art_portable_throw_div_zero_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Thread::Current()->ThrowNewException("Ljava/lang/ArithmeticException;",
-                                       "divide by zero");
+  ThrowArithmeticExceptionDivideByZero(Thread::Current());
 }
 
 void art_portable_throw_array_bounds_from_code(int32_t index, int32_t length)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                        "length=%d; index=%d", length, index);
+  ThrowArrayIndexOutOfBoundsException(index, length);
 }
 
 void art_portable_throw_no_such_method_from_code(int32_t method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // We need the calling method as context for the method_idx.
-  mirror::AbstractMethod* method = Thread::Current()->GetCurrentMethod();
-  ThrowNoSuchMethodError(method_idx, method);
+  ThrowNoSuchMethodError(method_idx);
 }
 
 void art_portable_throw_null_pointer_exception_from_code(uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::AbstractMethod* throw_method =
-      Thread::Current()->GetManagedStack()->GetTopShadowFrame()->GetMethod();
-  ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
+  // TODO: remove dex_pc argument from caller.
+  UNUSED(dex_pc);
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  ThrowNullPointerExceptionFromDexPC(throw_location);
 }
 
 void art_portable_throw_stack_overflow_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ThrowStackOverflowError(Thread::Current());
 }
 
-void art_portable_throw_exception_from_code(mirror::Object* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Thread::Current()->DeliverException(static_cast<mirror::Throwable*>(exception));
+void art_portable_throw_exception_from_code(mirror::Throwable* exception)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  if (exception == NULL) {
+    ThrowNullPointerException(NULL, "throw with null exception");
+  } else {
+    self->SetException(throw_location, exception);
+  }
 }
 
 void* art_portable_get_and_clear_exception(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(self->IsExceptionPending());
-  mirror::Throwable* exception = self->GetException();
+  // TODO: make this inline.
+  mirror::Throwable* exception = self->GetException(NULL);
   self->ClearException();
   return exception;
 }
 
 int32_t art_portable_find_catch_block_from_code(mirror::AbstractMethod* current_method, uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Throwable* exception = Thread::Current()->GetException();
-  // Check for magic deoptimization exception.
-  if (reinterpret_cast<int32_t>(exception) == -1) {
+  Thread* self = Thread::Current();  // TODO: make an argument.
+  ThrowLocation throw_location;
+  mirror::Throwable* exception = self->GetException(&throw_location);
+  // Check for special deoptimization exception.
+  if (UNLIKELY(reinterpret_cast<int32_t>(exception) == -1)) {
     return -1;
   }
   mirror::Class* exception_type = exception->GetClass();
@@ -229,26 +238,40 @@ int32_t art_portable_find_catch_block_from_code(mirror::AbstractMethod* current_
   const DexFile::TryItem* try_item = DexFile::GetTryItems(*code_item, ti_offset);
 
   int iter_index = 0;
+  int result = -1;
+  uint32_t catch_dex_pc = -1;
   // Iterate over the catch handlers associated with dex_pc
   for (CatchHandlerIterator it(*code_item, *try_item); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
     if (iter_type_idx == DexFile::kDexNoIndex16) {
-      return iter_index;
+      catch_dex_pc = it.GetHandlerAddress();
+      result = iter_index;
+      break;
     }
     // Does this catch exception type apply?
     mirror::Class* iter_exception_type = mh.GetDexCacheResolvedType(iter_type_idx);
-    if (iter_exception_type == NULL) {
-      // The verifier should take care of resolving all exception classes early
+    if (UNLIKELY(iter_exception_type == NULL)) {
+      // TODO: check, the verifier (class linker?) should take care of resolving all exception
+      //       classes early.
       LOG(WARNING) << "Unresolved exception class when finding catch block: "
           << mh.GetTypeDescriptorFromTypeIdx(iter_type_idx);
     } else if (iter_exception_type->IsAssignableFrom(exception_type)) {
-      return iter_index;
+      catch_dex_pc = it.GetHandlerAddress();
+      result = iter_index;
+      break;
     }
     ++iter_index;
   }
-  // Handler not found
-  return -1;
+  if (result != -1) {
+    // Handler found.
+    Runtime::Current()->GetInstrumentation()->ExceptionCaughtEvent(self,
+                                                                   throw_location,
+                                                                   current_method,
+                                                                   catch_dex_pc,
+                                                                   exception);
+  }
+  return result;
 }
 
 
@@ -640,14 +663,12 @@ void art_portable_check_cast_from_code(const mirror::Class* dest_type, const mir
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-                                          "%s cannot be cast to %s",
-                                          PrettyDescriptor(src_type).c_str(),
-                                          PrettyDescriptor(dest_type).c_str());
+    ThrowClassCastException(dest_type, src_type);
   }
 }
 
-void art_portable_check_put_array_element_from_code(const mirror::Object* element, const mirror::Object* array)
+void art_portable_check_put_array_element_from_code(const mirror::Object* element,
+                                                    const mirror::Object* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (element == NULL) {
     return;
@@ -658,10 +679,7 @@ void art_portable_check_put_array_element_from_code(const mirror::Object* elemen
   mirror::Class* component_type = array_class->GetComponentType();
   mirror::Class* element_class = element->GetClass();
   if (UNLIKELY(!component_type->IsAssignableFrom(element_class))) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-                                          "%s cannot be stored in an array of type %s",
-                                          PrettyDescriptor(element_class).c_str(),
-                                          PrettyDescriptor(array_class).c_str());
+    ThrowArrayStoreException(element_class, array_class);
   }
   return;
 }

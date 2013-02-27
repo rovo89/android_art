@@ -46,10 +46,6 @@ struct PACKED(4) EntryPoints {
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void (*pCheckCastFromCode)(void*, void*);
 
-  // Debug
-  void (*pDebugMe)(mirror::AbstractMethod*, uint32_t);
-  void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
-
   // DexCache
   void* (*pInitializeStaticStorage)(uint32_t, void*);
   void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);

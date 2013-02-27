@@ -204,24 +204,6 @@
 .endm
 
     /*
-     * On entry, $a0 and $a1 must be preserved, $a2 is dex PC
-     */
-    .extern artUpdateDebuggerFromCode
-ENTRY art_quick_update_debugger
-    GENERATE_GLOBAL_POINTER
-    move    $a3, $a0        # stash away $a0 so that it's saved as if it were an argument
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    move    $a0, $a2        # arg0 is dex PC
-    move    $a1, rSELF      # arg1 is Thread*
-    move    $a2, $sp        # arg2 is $sp
-    jal     artUpdateDebuggerFromCode      # artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
-    nop
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    jr      $ra
-    move    $a0, $a3        # restore original $a0
-END art_quick_update_debugger
-
-    /*
      * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
@@ -989,29 +971,22 @@ END art_quick_interpreter_entry
     .extern artInstrumentationMethodExitFromCode
 ENTRY art_quick_instrumentation_entry_from_code
     GENERATE_GLOBAL_POINTER
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     move     $t0, $sp       # remember bottom of caller's frame
-    addiu    $sp, $sp, -16  # save arguments (4 words)
-    .cfi_adjust_cfa_offset 16
-    sw       $a0, 0($sp)
-    .cfi_rel_offset 4, 0
-    sw       $a1, 4($sp)
-    .cfi_rel_offset 5, 4
-    sw       $a2, 8($sp)
-    .cfi_rel_offset 6, 8
-    sw       $a3, 12($sp)
-    .cfi_rel_offset 7, 12
-    move     $a3, $ra       # pass $ra
-    move     $a2, $t0       # pass $sp
-    jal      artInstrumentationMethodEntryFromCode  # (Method*, Thread*, SP, LR)
-    move     $a1, rSELF     # pass Thread::Current
+    addiu    $sp, $sp, -32  # space for args, pad (3 words), arguments (5 words)
+    .cfi_adjust_cfa_offset 32
+    sw       $a0, 28($sp)   # save arg0
+    sw       $ra, 16($sp)   # pass $ra
+    move     $a3, $t0       # pass $sp
+    jal      artInstrumentationMethodEntryFromCode  # (Method*, Object*, Thread*, SP, LR)
+    move     $a2, rSELF     # pass Thread::Current
     move     $t9, $v0       # $t9 holds reference to code
-    lw       $a0, 0($sp)
-    lw       $a1, 4($sp)
-    lw       $a2, 8($sp)
-    lw       $a3, 12($sp)
+    lw       $a0, 28($sp)   # restore arg0
+    addiu    $sp, $sp, 32   # remove args
+    .cfi_adjust_cfa_offset -32
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     jalr     $t9            # call method
-    addiu    $sp, $sp, 16
-    .cfi_adjust_cfa_offset -16
+    nop
 END art_quick_instrumentation_entry_from_code
     /* intentional fallthrough */
     .global art_quick_instrumentation_exit_from_code
@@ -1020,53 +995,46 @@ art_quick_instrumentation_exit_from_code:
     addiu    $t9, $ra, 4    # put current address into $t9 to rebuild $gp
     GENERATE_GLOBAL_POINTER
     move     $t0, $sp       # remember bottom of caller's frame
-    addiu    $sp, $sp, -16  # save return values
-    .cfi_adjust_cfa_offset 16
-    sw       $v0, 0($sp)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    addiu    $sp, $sp, -48  # save return values and set up args
+    .cfi_adjust_cfa_offset 48
+    sw       $v0, 32($sp)
     .cfi_rel_offset 2, 0
-    sw       $v1, 4($sp)
+    sw       $v1, 36($sp)
     .cfi_rel_offset 3, 4
+    s.s      $f0, 40($sp)
+    s.s      $f1, 44($sp)
+    s.s      $f0, 16($sp)   # pass fpr result
+    s.s      $f1, 20($sp)
+    move     $a2, $v0       # pass gpr result
+    move     $a3, $v1
     move     $a1, $t0       # pass $sp
-    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP)
+    jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res, fpr_res)
     move     $a0, rSELF     # pass Thread::Current
     move     $t0, $v0       # set aside returned link register
     move     $ra, $v1       # set link register for deoptimization
-    lw       $v0, 0($sp)
-    lw       $v1, 4($sp)
+    lw       $v0, 32($sp)   # restore return values
+    lw       $v1, 36($sp)
+    l.s      $f0, 40($sp)
+    l.s      $f1, 44($sp)
     jr       $t0            # return
-    addiu    $sp, $sp, 16
-    .cfi_adjust_cfa_offset -16
+    addiu    $sp, $sp, 112  # 48 bytes of args + 64 bytes of callee save frame
+    .cfi_adjust_cfa_offset -112
 END art_quick_instrumentation_exit_from_code
 
     /*
-     * The thread's enter interpreter flag is set and so we should transition to the interpreter
-     * rather than allow execution to continue in the frame below. There may be live results in
-     * registers depending on how complete the operation is when we safepoint - for example, a
-     * set operation may have completed while a get operation needs writing back into the vregs.
+     * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
      */
     .extern artDeoptimize
     .extern artEnterInterpreterFromDeoptimize
 ENTRY art_quick_deoptimize
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    move     $a0, $v0       # pass first half of return value
-    move     $a1, $v1       # pass second half of return value
-    move     $a2, rSELF     # pass Thread::current
-    jal      artDeoptimize  # artDeoptimize(return value, Thread*, SP)
+    move     $a0, rSELF     # pass Thread::current
+    jal      artDeoptimize  # artDeoptimize(Thread*, SP)
                             # Returns caller method's frame size.
-    move     $a3, $sp       # pass $sp
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    beqz     $v0, 1f        # Return if caller was upcall.
-    add      $t9, $sp, $v0  # $t9 == bottom of caller's frame.
-    lw       $ra, -4($t9)   # Restore $ra.
-    move     $sp, $t9       # Remove frame.
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    jal      artEnterInterpreterFromDeoptimize  # Enter interpreter, callee-save ends stack fragment.
-    nop
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-1:
-    jr       $ra            # Return to caller.
-    nop
+    move     $a1, $sp       # pass $sp
 END art_quick_deoptimize
 
     /*

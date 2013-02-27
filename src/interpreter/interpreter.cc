@@ -21,7 +21,6 @@
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
-#include "debugger.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "gc/card_table-inl.h"
@@ -49,10 +48,6 @@ static const int32_t kMaxInt = std::numeric_limits<int32_t>::max();
 static const int32_t kMinInt = std::numeric_limits<int32_t>::min();
 static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
 static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
-
-static JDWP::FrameId throw_frame_id_ = 0;
-static AbstractMethod* throw_method_ = NULL;
-static uint32_t throw_dex_pc_ = 0;
 
 static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
                                    Object* receiver, uint32_t* args, JValue* result)
@@ -441,7 +436,7 @@ static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
     } else {
       obj = shadow_frame.GetVRegReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
-        ThrowNullPointerExceptionForFieldAccess(f, true);
+        ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(), f, true);
         return;
       }
     }
@@ -488,7 +483,8 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
     } else {
       obj = shadow_frame.GetVRegReference(dec_insn.vB);
       if (UNLIKELY(obj == NULL)) {
-        ThrowNullPointerExceptionForFieldAccess(f, false);
+        ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(),
+                                                f, false);
         return;
       }
     }
@@ -523,7 +519,7 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
 static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+    ThrowArithmeticExceptionDivideByZero(self);
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
     shadow_frame.SetVReg(result_reg, kMinInt);
   } else {
@@ -534,7 +530,7 @@ static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_r
 static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+    ThrowArithmeticExceptionDivideByZero(self);
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
     shadow_frame.SetVReg(result_reg, 0);
   } else {
@@ -545,7 +541,7 @@ static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resul
 static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+    ThrowArithmeticExceptionDivideByZero(self);
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
     shadow_frame.SetVRegLong(result_reg, kMinLong);
   } else {
@@ -556,7 +552,7 @@ static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_
 static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    self->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
+    ThrowArithmeticExceptionDivideByZero(self);
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
     shadow_frame.SetVRegLong(result_reg, 0);
   } else {
@@ -567,41 +563,46 @@ static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resu
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
+    LOG(FATAL) << "Invalid shadow frame for interpreter use";
+    return JValue();
+  }
+  self->VerifyStack();
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   const uint16_t* insns = code_item->insns_;
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
-  bool entry = (inst->GetDexPc(insns) == 0);
+  if (inst->GetDexPc(insns) == 0) {  // We are entering the method as opposed to deoptimizing..
+    instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(), shadow_frame.GetMethod(),
+                                      0);
+  }
   while (true) {
     CheckSuspend(self);
     uint32_t dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
-    if (entry) {
-      Dbg::UpdateDebugger(-1, self);
-    }
-    entry = false;
-    Dbg::UpdateDebugger(dex_pc, self);
+    instrumentation->DexPcMovedEvent(self, shadow_frame.GetThisObject(), shadow_frame.GetMethod(),
+                                     dex_pc);
     DecodedInstruction dec_insn(inst);
     const bool kTracing = false;
     if (kTracing) {
-      LOG(INFO) << PrettyMethod(shadow_frame.GetMethod())
-                << StringPrintf("\n0x%x: %s\nReferences:",
-                                inst->GetDexPc(insns), inst->DumpString(&mh.GetDexFile()).c_str());
+#define TRACE_LOG std::cerr
+      TRACE_LOG << PrettyMethod(shadow_frame.GetMethod())
+                << StringPrintf("\n0x%x: ", inst->GetDexPc(insns))
+                << inst->DumpString(&mh.GetDexFile()) << "\n";
       for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
-        Object* o = shadow_frame.GetVRegReference(i);
-        if (o != NULL) {
-          if (o->GetClass()->IsStringClass() && o->AsString()->GetCharArray() != NULL) {
-            LOG(INFO) << i << ": java.lang.String " << static_cast<void*>(o)
-                  << " \"" << o->AsString()->ToModifiedUtf8() << "\"";
+        uint32_t raw_value = shadow_frame.GetVReg(i);
+        Object* ref_value = shadow_frame.GetVRegReference(i);
+        TRACE_LOG << StringPrintf(" vreg%d=0x%08X", i, raw_value);
+        if (ref_value != NULL) {
+          if (ref_value->GetClass()->IsStringClass() &&
+              ref_value->AsString()->GetCharArray() != NULL) {
+            TRACE_LOG << "/java.lang.String \"" << ref_value->AsString()->ToModifiedUtf8() << "\"";
           } else {
-            LOG(INFO) << i << ": " << PrettyTypeOf(o) << " " << static_cast<void*>(o);
+            TRACE_LOG << "/" << PrettyTypeOf(ref_value);
           }
-        } else {
-          LOG(INFO) << i << ": null";
         }
       }
-      LOG(INFO) << "vregs:";
-      for (size_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
-        LOG(INFO) << StringPrintf("%d: %08x", i, shadow_frame.GetVReg(i));
-      }
+      TRACE_LOG << "\n";
+#undef TRACE_LOG
     }
     const Instruction* next_inst = inst->Next();
     switch (dec_insn.opcode) {
@@ -632,31 +633,42 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetVRegReference(dec_insn.vA, result_register.GetL());
         break;
       case Instruction::MOVE_EXCEPTION: {
-        Throwable* exception = self->GetException();
+        Throwable* exception = self->GetException(NULL);
         self->ClearException();
         shadow_frame.SetVRegReference(dec_insn.vA, exception);
         break;
       }
       case Instruction::RETURN_VOID: {
         JValue result;
-        result.SetJ(0);
+        instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(),
+                                         shadow_frame.GetMethod(), shadow_frame.GetDexPC(),
+                                         result);
         return result;
       }
       case Instruction::RETURN: {
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(dec_insn.vA));
+        instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(),
+                                         shadow_frame.GetMethod(), shadow_frame.GetDexPC(),
+                                         result);
         return result;
       }
       case Instruction::RETURN_WIDE: {
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(dec_insn.vA));
+        instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(),
+                                         shadow_frame.GetMethod(), shadow_frame.GetDexPC(),
+                                         result);
         return result;
       }
       case Instruction::RETURN_OBJECT: {
         JValue result;
         result.SetJ(0);
         result.SetL(shadow_frame.GetVRegReference(dec_insn.vA));
+        instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(),
+                                         shadow_frame.GetMethod(), shadow_frame.GetDexPC(),
+                                         result);
         return result;
       }
       case Instruction::CONST_4: {
@@ -721,7 +733,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::MONITOR_ENTER: {
         Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
         } else {
           DoMonitorEnter(self, obj);
         }
@@ -730,7 +742,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::MONITOR_EXIT: {
         Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
         } else {
           DoMonitorExit(self, obj);
         }
@@ -743,10 +755,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         } else {
           Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
           if (UNLIKELY(obj != NULL && !obj->InstanceOf(c))) {
-            self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-                "%s cannot be cast to %s",
-                PrettyDescriptor(obj->GetClass()).c_str(),
-                PrettyDescriptor(c).c_str());
+            ThrowClassCastException(c, obj->GetClass());
           }
         }
         break;
@@ -764,7 +773,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::ARRAY_LENGTH:  {
         Object* array = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(array == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         shadow_frame.SetVReg(dec_insn.vA, array->AsArray()->GetLength());
@@ -787,7 +796,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t length = dec_insn.vA;
         CHECK(is_range || length <= 5);
         if (UNLIKELY(length < 0)) {
-          self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+          ThrowNegativeArraySizeException(length);
           break;
         }
         Class* arrayClass = ResolveVerifyAndClinit(dec_insn.vB, shadow_frame.GetMethod(), self, false, true);
@@ -799,11 +808,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         Class* componentClass = arrayClass->GetComponentType();
         if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
           if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
-            self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-                                     "Bad filled array request for type %s",
-                                     PrettyDescriptor(componentClass).c_str());
+            ThrowRuntimeException("Bad filled array request for type %s",
+                                  PrettyDescriptor(componentClass).c_str());
           } else {
-            self->ThrowNewExceptionF("Ljava/lang/InternalError;",
+            self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
+                                     "Ljava/lang/InternalError;",
                                      "Found type %s; filled-new-array not implemented for anything but \'int\'",
                                      PrettyDescriptor(componentClass).c_str());
           }
@@ -902,9 +911,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::THROW: {
-        Object* o = shadow_frame.GetVRegReference(dec_insn.vA);
-        Throwable* t = (o == NULL) ? NULL : o->AsThrowable();
-        self->DeliverException(t);
+        Object* exception = shadow_frame.GetVRegReference(dec_insn.vA);
+        if (exception == NULL) {
+          ThrowNullPointerException(NULL, "throw with null exception");
+        } else {
+          self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
+        }
         break;
       }
       case Instruction::GOTO:
@@ -962,8 +974,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::FILL_ARRAY_DATA: {
         Object* obj = shadow_frame.GetVRegReference(dec_insn.vA);
         if (UNLIKELY(obj == NULL)) {
-          Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-              "null array in FILL_ARRAY_DATA");
+          ThrowNullPointerException(NULL, "null array in FILL_ARRAY_DATA");
           break;
         }
         Array* array = obj->AsArray();
@@ -972,9 +983,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         const Instruction::ArrayDataPayload* payload =
             reinterpret_cast<const Instruction::ArrayDataPayload*>(insns + dex_pc + dec_insn.vB);
         if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
-          Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                                "failed FILL_ARRAY_DATA; length=%d, index=%d",
-                                                array->GetLength(), payload->element_count);
+          self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
+                                   "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                                   "failed FILL_ARRAY_DATA; length=%d, index=%d",
+                                   array->GetLength(), payload->element_count);
           break;
         }
         uint32_t size_in_bytes = payload->element_count * payload->element_width;
@@ -1068,7 +1080,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_BOOLEAN: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1078,7 +1090,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_BYTE: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1088,7 +1100,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_CHAR: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1098,7 +1110,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_SHORT: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1108,7 +1120,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1118,7 +1130,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_WIDE:  {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1128,7 +1140,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::AGET_OBJECT: {
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1139,7 +1151,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         uint8_t val = shadow_frame.GetVReg(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1150,7 +1162,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int8_t val = shadow_frame.GetVReg(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1161,7 +1173,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         uint16_t val = shadow_frame.GetVReg(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1172,7 +1184,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int16_t val = shadow_frame.GetVReg(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1183,7 +1195,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int32_t val = shadow_frame.GetVReg(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1194,7 +1206,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         int64_t val = shadow_frame.GetVRegLong(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1205,7 +1217,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         Object* val = shadow_frame.GetVRegReference(dec_insn.vA);
         Object* a = shadow_frame.GetVRegReference(dec_insn.vB);
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetMethod(), inst->GetDexPc(insns));
+          ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           break;
         }
         int32_t index = shadow_frame.GetVReg(dec_insn.vC);
@@ -1777,22 +1789,21 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
     }
     if (UNLIKELY(self->IsExceptionPending())) {
-      if (throw_frame_id_ == 0) {
-        throw_method_ = shadow_frame.GetMethod();
-        throw_dex_pc_ = dex_pc;
-      }
-      throw_frame_id_++;
+      self->VerifyStack();
+      ThrowLocation throw_location;
+      mirror::Throwable* exception = self->GetException(&throw_location);
       uint32_t found_dex_pc =
-          shadow_frame.GetMethod()->FindCatchBlock(self->GetException()->GetClass(),
-                                                   inst->GetDexPc(insns));
+          shadow_frame.GetMethod()->FindCatchBlock(exception->GetClass(), inst->GetDexPc(insns));
       if (found_dex_pc == DexFile::kDexNoIndex) {
         JValue result;
         result.SetJ(0);
+        instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),
+                                           shadow_frame.GetMethod(), shadow_frame.GetDexPC());
         return result;  // Handler in caller.
       } else {
-        Dbg::PostException(self, throw_frame_id_, throw_method_, throw_dex_pc_,
-                           shadow_frame.GetMethod(), found_dex_pc, self->GetException());
-        throw_frame_id_ = 0;
+        Runtime::Current()->GetInstrumentation()->ExceptionCaughtEvent(self, throw_location,
+                                                                       shadow_frame.GetMethod(),
+                                                                       found_dex_pc, exception);
         next_inst = Instruction::At(insns + found_dex_pc);
       }
     }
@@ -1816,8 +1827,9 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     num_regs =  code_item->registers_size_;
     num_ins = code_item->ins_size_;
   } else if (method->IsAbstract()) {
-    self->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;", "abstract method \"%s\"",
-                             PrettyMethod(method).c_str());
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
+                             "abstract method \"%s\"", PrettyMethod(method).c_str());
     return;
   } else {
     DCHECK(method->IsNative());
@@ -1884,23 +1896,18 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   self->PopShadowFrame();
 }
 
-JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame, JValue ret_val)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  MethodHelper mh(shadow_frame.GetMethod());
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  return Execute(self, mh, code_item, shadow_frame, ret_val);
-}
-
-void EnterInterpreterFromLLVM(Thread* self, ShadowFrame* shadow_frame, JValue* ret_val)
+void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JValue* ret_val)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JValue value;
-  MethodHelper mh(shadow_frame->GetMethod());
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  value.SetJ(ret_val->GetJ());  // Set value to last known result in case the shadow frame chain is empty.
+  MethodHelper mh;
   while (shadow_frame != NULL) {
+    self->SetTopOfShadowStack(shadow_frame);
+    mh.ChangeMethod(shadow_frame->GetMethod());
+    const DexFile::CodeItem* code_item = mh.GetCodeItem();
     value = Execute(self, mh, code_item, *shadow_frame, value);
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
-    mh.ChangeMethod(shadow_frame->GetMethod());
     delete old_frame;
   }
   ret_val->SetJ(value.GetJ());

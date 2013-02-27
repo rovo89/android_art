@@ -103,8 +103,9 @@ uint16_t String::CharAt(int32_t index) const {
   // bounds check itself.
   if (index < 0 || index >= count_) {
     Thread* self = Thread::Current();
-    self->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
-        "length=%i; index=%i", count_, index);
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
+                             "length=%i; index=%i", count_, index);
     return 0;
   }
   return GetCharArray()->Get(index + GetOffset());

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "common_throws.h"
 #include "jni_internal.h"
 #include "mirror/string.h"
 #include "scoped_thread_state_change.h"
@@ -22,12 +23,11 @@
 namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
+  ScopedObjectAccess soa(env);
   if (UNLIKELY(javaRhs == NULL)) {
-    ScopedLocalRef<jclass> npe(env, env->FindClass("java/lang/NullPointerException"));
-    env->ThrowNew(npe.get(), "rhs == null");
+    ThrowNullPointerException(NULL, "rhs == null");
     return -1;
   } else {
-    ScopedObjectAccess soa(env);
     return soa.Decode<mirror::String*>(javaThis)->CompareTo(soa.Decode<mirror::String*>(javaRhs));
   }
 }

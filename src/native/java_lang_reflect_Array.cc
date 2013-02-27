@@ -15,6 +15,7 @@
  */
 
 #include "class_linker.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
@@ -44,7 +45,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   DCHECK(javaElementClass != NULL);
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (UNLIKELY(length < 0)) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    ThrowNegativeArraySizeException(length);
     return NULL;
   }
   std::string descriptor("[");

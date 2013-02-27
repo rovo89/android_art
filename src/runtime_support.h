@@ -68,7 +68,8 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx, mirror::Abs
   }
   if (access_check) {
     if (UNLIKELY(!klass->IsInstantiable())) {
-      self->ThrowNewException("Ljava/lang/InstantiationError;",
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
                               PrettyDescriptor(klass).c_str());
       return NULL;  // Failure
     }
@@ -95,7 +96,7 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx, mirror::Abstr
                                                 Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
-    self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
+    ThrowNegativeArraySizeException(component_count);
     return NULL;  // Failure
   }
   mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
@@ -257,8 +258,9 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
     UNLOCK_FUNCTION(monitor_lock_) {
   // Save any pending exception over monitor exit call.
   mirror::Throwable* saved_exception = NULL;
+  ThrowLocation saved_throw_location;
   if (UNLIKELY(self->IsExceptionPending())) {
-    saved_exception = self->GetException();
+    saved_exception = self->GetException(&saved_throw_location);
     self->ClearException();
   }
   // Decode locked object and unlock, before popping local references.
@@ -267,11 +269,11 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
     LOG(FATAL) << "Synchronized JNI code returning with an exception:\n"
         << saved_exception->Dump()
         << "\nEncountered second exception during implicit MonitorExit:\n"
-        << self->GetException()->Dump();
+        << self->GetException(NULL)->Dump();
   }
   // Restore pending exception.
   if (saved_exception != NULL) {
-    self->SetException(saved_exception);
+    self->SetException(saved_throw_location, saved_exception);
   }
 }
 
@@ -280,14 +282,12 @@ static inline void CheckReferenceResult(mirror::Object* o, Thread* self)
   if (o == NULL) {
     return;
   }
+  mirror::AbstractMethod* m = self->GetCurrentMethod(NULL);
   if (o == kInvalidIndirectRefObject) {
-    JniAbortF(NULL, "invalid reference returned from %s",
-              PrettyMethod(self->GetCurrentMethod()).c_str());
+    JniAbortF(NULL, "invalid reference returned from %s", PrettyMethod(m).c_str());
   }
   // Make sure that the result is an instance of the type this method was expected to return.
-  mirror::AbstractMethod* m = self->GetCurrentMethod();
-  MethodHelper mh(m);
-  mirror::Class* return_type = mh.GetReturnType();
+  mirror::Class* return_type = MethodHelper(m).GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
     JniAbortF(NULL, "attempt to return an instance of %s from %s",

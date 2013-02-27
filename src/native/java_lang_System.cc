@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "common_throws.h"
 #include "gc/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
@@ -171,31 +172,33 @@ namespace art {
 static void ThrowArrayStoreException_NotAnArray(const char* identifier, mirror::Object* array)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-      "%s of type %s is not an array", identifier, actualType.c_str());
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  self->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+                           "%s of type %s is not an array", identifier, actualType.c_str());
 }
 
 static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
   ScopedObjectAccess soa(env);
 
   // Null pointer checks.
-  if (javaSrc == NULL) {
-    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "src == null");
+  if (UNLIKELY(javaSrc == NULL)) {
+    ThrowNullPointerException(NULL, "src == null");
     return;
   }
-  if (javaDst == NULL) {
-    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "dst == null");
+  if (UNLIKELY(javaDst == NULL)) {
+    ThrowNullPointerException(NULL, "dst == null");
     return;
   }
 
   // Make sure source and destination are both arrays.
   mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
   mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
-  if (!srcObject->IsArrayInstance()) {
+  if (UNLIKELY(!srcObject->IsArrayInstance())) {
     ThrowArrayStoreException_NotAnArray("source", srcObject);
     return;
   }
-  if (!dstObject->IsArrayInstance()) {
+  if (UNLIKELY(!dstObject->IsArrayInstance())) {
     ThrowArrayStoreException_NotAnArray("destination", dstObject);
     return;
   }
@@ -205,21 +208,24 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   mirror::Class* dstComponentType = dstArray->GetClass()->GetComponentType();
 
   // Bounds checking.
-  if (srcPos < 0 || dstPos < 0 || length < 0 || srcPos > srcArray->GetLength() - length || dstPos > dstArray->GetLength() - length) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-        "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
-        srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos, length);
+  if (UNLIKELY(srcPos < 0 || dstPos < 0 || length < 0 || srcPos > srcArray->GetLength() - length || dstPos > dstArray->GetLength() - length)) {
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                                   "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
+                                   srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos, length);
     return;
   }
 
   // Handle primitive arrays.
   if (srcComponentType->IsPrimitive() || dstComponentType->IsPrimitive()) {
     // If one of the arrays holds a primitive type the other array must hold the exact same type.
-    if (srcComponentType->IsPrimitive() != dstComponentType->IsPrimitive() || srcComponentType != dstComponentType) {
+    if (UNLIKELY(srcComponentType != dstComponentType)) {
       std::string srcType(PrettyTypeOf(srcArray));
       std::string dstType(PrettyTypeOf(dstArray));
-      soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-          "Incompatible types: src=%s, dst=%s", srcType.c_str(), dstType.c_str());
+      ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+      soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+                                     "Incompatible types: src=%s, dst=%s",
+                                     srcType.c_str(), dstType.c_str());
       return;
     }
 
@@ -299,12 +305,13 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   }
 
   Runtime::Current()->GetHeap()->WriteBarrierArray(dstArray, dstPos, length);
-  if (i != length) {
+  if (UNLIKELY(i != length)) {
     std::string actualSrcType(PrettyTypeOf(o));
     std::string dstType(PrettyTypeOf(dstArray));
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-        "source[%d] of type %s cannot be stored in destination array of type %s",
-        srcPos + i, actualSrcType.c_str(), dstType.c_str());
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+                                   "source[%d] of type %s cannot be stored in destination array of type %s",
+                                   srcPos + i, actualSrcType.c_str(), dstType.c_str());
     return;
   }
 }

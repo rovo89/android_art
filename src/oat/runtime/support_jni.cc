@@ -33,7 +33,7 @@ extern void* FindNativeMethod(Thread* self) {
   DCHECK(Thread::Current() == self);
   ScopedObjectAccess soa(self);
 
-  mirror::AbstractMethod* method = self->GetCurrentMethod();
+  mirror::AbstractMethod* method = self->GetCurrentMethod(NULL);
   DCHECK(method != NULL);
 
   // Lookup symbol address for method, on failure we'll return NULL with an
@@ -139,7 +139,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
   // | unused |
   // | unused |
   // | unused | <- sp
-  mirror::AbstractMethod* jni_method = self->GetCurrentMethod();
+  mirror::AbstractMethod* jni_method = self->GetCurrentMethod(NULL);
   DCHECK(jni_method->IsNative()) << PrettyMethod(jni_method);
   intptr_t* arg_ptr = sp + 4;  // pointer to r1 on stack
   // Fix up this/jclass argument

@@ -512,26 +512,6 @@ TWO_ARG_DOWNCALL art_quick_initialize_static_storage_from_code, artInitializeSta
 TWO_ARG_DOWNCALL art_quick_initialize_type_from_code, artInitializeTypeFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access_from_code, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_EAX_NOT_ZERO
 
-    /*
-     * On entry, eax and ecx must be preserved, edx is dex PC
-     */
-DEFINE_FUNCTION art_quick_update_debugger
-    mov %eax, %ebx                // stash away eax so that it's saved as if it were an argument
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    subl LITERAL(4), %esp         // alignment padding
-    .cfi_adjust_cfa_offset 4
-    PUSH esp                      // pass arg2 (sp)
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    PUSH edx                      // pass arg0 (dex pc)
-    call SYMBOL(artUpdateDebuggerFromCode) // artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
-    addl LITERAL(16), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -16
-    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    mov %ebx, %eax                // restore original eax
-    ret
-END_FUNCTION art_quick_update_debugger
-
 ONE_ARG_DOWNCALL art_quick_lock_object_from_code, artLockObjectFromCode, ret
 ONE_ARG_DOWNCALL art_quick_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
 
@@ -879,6 +859,7 @@ DEFINE_FUNCTION art_quick_set_obj_static_from_code
     mov %esp, %ebx                // remember SP
     mov 32(%esp), %edx            // get referrer
     subl LITERAL(12), %esp        // alignment padding
+    .cfi_adjust_cfa_offset 12
     PUSH ebx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     .cfi_adjust_cfa_offset 4
@@ -972,7 +953,7 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
 END_FUNCTION art_quick_proxy_invoke_handler
 
 DEFINE_FUNCTION art_quick_interpreter_entry
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
     mov %esp, %edx                // remember SP
     PUSH eax                      // alignment padding
     PUSH edx                      // pass SP
@@ -992,71 +973,84 @@ END_FUNCTION art_quick_interpreter_entry
      * Routine that intercepts method calls and returns.
      */
 DEFINE_FUNCTION art_quick_instrumentation_entry_from_code
-    xchgl %eax, (%esp)            // place LR in eax, save eax
-    PUSH ecx                      // save ecx
-    PUSH edx                      // save edx
-    PUSH ebx                      // save ebx
-    lea   16(%esp), %edx          // remember bottom of caller's frame
-    PUSH eax                      // pass LR
-    PUSH edx                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    movl  %esp, %edx              // Save SP.
+    PUSH eax                      // Save eax which will be clobbered by the callee-save method.
+    subl LITERAL(8), %esp         // Align stack.
+    .cfi_adjust_cfa_offset 8
+    pushl 40(%esp)                // Pass LR.
     .cfi_adjust_cfa_offset 4
-    pushl 24(%esp)                // pass Method*
+    PUSH edx                      // Pass SP.
+    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     .cfi_adjust_cfa_offset 4
-    call  SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Thread*, SP, LR)
-    addl  LITERAL(16), %esp       // pop arguments
-    POP ebx                       // restore ebx
-    POP edx                       // restore edx
-    movl  (%esp), %ecx            // restore ecx (without popping)
-    movl  %eax, (%esp)            // place method's code pointer on stack
-    movl  4(%esp), %eax           // restore eax (without popping)
-    movl  LITERAL(SYMBOL(art_quick_instrumentation_exit_from_code)), 4(%esp)
-                                  // place instrumentation exit as return pc
-    ret                           // call method (and pop)
+    PUSH ecx                      // Pass receiver.
+    PUSH eax                      // Pass Method*.
+    call  SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, SP, LR)
+    addl  LITERAL(28), %esp       // Pop arguments upto saved Method*.
+    movl 28(%esp), %edi           // Restore edi.
+    movl %eax, 28(%esp)           // Place code* over edi, just under return pc.
+    movl LITERAL(SYMBOL(art_quick_instrumentation_exit_from_code)), 32(%esp)
+                                  // Place instrumentation exit as return pc.
+    movl (%esp), %eax             // Restore eax.
+    movl 8(%esp), %ecx            // Restore ecx.
+    movl 12(%esp), %edx           // Restore edx.
+    movl 16(%esp), %ebx           // Restore ebx.
+    movl 20(%esp), %ebp           // Restore ebp.
+    movl 24(%esp), %esi           // Restore esi.
+    addl LITERAL(28), %esp        // Wind stack back upto code*.
+    ret                           // Call method (and pop).
 END_FUNCTION art_quick_instrumentation_entry_from_code
+
 DEFINE_FUNCTION art_quick_instrumentation_exit_from_code
-    mov   %esp, %ecx              // remember bottom of caller's frame
-    PUSH edx                      // save return value
-    PUSH eax                      // save other half of return value
-    PUSH ecx                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current
+    pushl LITERAL(0)              // Push a fake return PC as there will be none on the stack.
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    mov  %esp, %ecx               // Remember SP
+    subl LITERAL(8), %esp         // Save float return value.
+    .cfi_adjust_cfa_offset 8
+    movd %xmm0, (%esp)
+    PUSH edx                      // Save gpr return value.
+    PUSH eax
+    subl LITERAL(8), %esp         // Align stack
+    movd %xmm0, (%esp)
+    subl LITERAL(8), %esp         // Pass float return value.
+    .cfi_adjust_cfa_offset 8
+    movd %xmm0, (%esp)
+    PUSH edx                      // Pass gpr return value.
+    PUSH eax
+    PUSH ecx                      // Pass SP.
+    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current.
     .cfi_adjust_cfa_offset 4
-    call  SYMBOL(artInstrumentationMethodExitFromCode)  // (Thread*, SP)
-    mov   %eax, %ecx              // move returned link register
-    // TODO: Set link register for deopt
-    addl LITERAL(8), %esp         // pop arguments
+    call  SYMBOL(artInstrumentationMethodExitFromCode)  // (Thread*, SP, gpr_result, fpr_result)
+    mov   %eax, %ecx              // Move returned link register.
+    addl LITERAL(32), %esp        // Pop arguments.
+    .cfi_adjust_cfa_offset -32
+    movl %edx, %ebx               // Move returned link register for deopt
+                                  // (ebx is pretending to be our LR).
+    POP eax                       // Restore gpr return value.
+    POP edx
+    movd (%esp), %xmm0            // Restore fpr return value.
+    addl LITERAL(8), %esp
     .cfi_adjust_cfa_offset -8
-    POP eax                       // restore return value
-    POP edx                       // restore other half of return value
-    jmp   *%ecx                   // return
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    addl LITERAL(4), %esp         // Remove fake return pc.
+    jmp   *%ecx                   // Return.
 END_FUNCTION art_quick_instrumentation_exit_from_code
 
     /*
-     * The thread's enter interpreter flag is set and so we should transition to the interpreter
-     * rather than allow execution to continue in the frame below. There may be live results in
-     * registers depending on how complete the operation is when we safepoint - for example, a
-     * set operation may have completed while a get operation needs writing back into the vregs.
+     * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
      */
 DEFINE_FUNCTION art_quick_deoptimize
+    pushl %ebx                    // Fake that we were called.
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    PUSH esp                      // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    mov  %esp, %ecx               // Remember SP.
+    subl LITERAL(8), %esp         // Align stack.
+    .cfi_adjust_cfa_offset 8
+    PUSH ecx                      // Pass SP.
+    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     .cfi_adjust_cfa_offset 4
-    PUSH edx                      // push half of return value
-    PUSH eax                      // push other half of return value
-    call SYMBOL(artDeoptimize)    // artDeoptimize(return value, Thread*, SP)
-                                  // Returns caller method's frame size.
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    testl %eax, %eax              // Was the caller an upcall?
-    jz    1f                      // Return if caller was upcall.
-    lea   (%esp, %eax), %edx      // edx == bottom of caller's frame.
-    mov   %edx, %esp              // Remove frame.
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    call SYMBOL(artEnterInterpreterFromDeoptimize) // Enter interpreter, callee-save ends stack fragment.
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-1:
-    ret                           // Return to caller.
+    call SYMBOL(artDeoptimize)    // artDeoptimize(Thread*, SP)
+    int3                          // Unreachable.
 END_FUNCTION art_quick_deoptimize
 
     /*

@@ -507,17 +507,6 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
   }
 }
 
-
-// Debugging routine - if null target, branch to DebugMe
-void Mir2Lir::GenShowTarget()
-{
-  DCHECK_NE(cu_->instruction_set, kX86) << "unimplemented GenShowTarget";
-  LIR* branch_over = OpCmpImmBranch(kCondNe, TargetReg(kInvokeTgt), 0, NULL);
-  LoadWordDisp(TargetReg(kSelf), ENTRYPOINT_OFFSET(pDebugMe), TargetReg(kInvokeTgt));
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
-}
-
 void Mir2Lir::HandleSuspendLaunchPads()
 {
   LIR** suspend_label = reinterpret_cast<LIR**>(suspend_launchpads_.elem_list);

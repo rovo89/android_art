@@ -15,6 +15,7 @@
  */
 
 #include "callee_save_frame.h"
+#include "common_throws.h"
 #include "dex_instruction.h"
 #include "mirror/array.h"
 #include "mirror/object-inl.h"
@@ -43,15 +44,15 @@ extern "C" int artHandleFillArrayDataFromCode(mirror::Array* array,
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
   if (UNLIKELY(array == NULL)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-        "null array in FILL_ARRAY_DATA");
+    ThrowNullPointerException(NULL, "null array in FILL_ARRAY_DATA");
     return -1;  // Error
   }
   DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
   if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                          "failed FILL_ARRAY_DATA; length=%d, index=%d",
-                                          array->GetLength(), payload->element_count);
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                             "failed FILL_ARRAY_DATA; length=%d, index=%d",
+                             array->GetLength(), payload->element_count);
     return -1;  // Error
   }
   uint32_t size_in_bytes = payload->element_count * payload->element_width;

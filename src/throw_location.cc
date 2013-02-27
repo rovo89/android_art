@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,28 @@
  * limitations under the License.
  */
 
-#include "callee_save_frame.h"
-#include "dex_file-inl.h"
-#include "interpreter/interpreter.h"
+#include "throw_location.h"
+
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
-#include "stack.h"
-#include "thread.h"
-#include "verifier/method_verifier.h"
+#include "utils.h"
 
 namespace art {
 
-extern "C" void artDeoptimize(Thread* self, mirror::AbstractMethod** sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  self->SetException(ThrowLocation(), reinterpret_cast<mirror::Throwable*>(-1));
-  self->QuickDeliverException();
+std::string ThrowLocation::Dump() const {
+  return StringPrintf("%s:%d", PrettyMethod(method_).c_str(),
+                      MethodHelper(method_).GetLineNumFromDexPC(dex_pc_));
+}
+
+void ThrowLocation::VisitRoots(RootVisitor* visitor, void* arg) {
+  if (this_object_ != NULL) {
+    visitor(this_object_, arg);
+  }
+  if (method_ != NULL) {
+    visitor(method_, arg);
+  }
 }
 
 }  // namespace art

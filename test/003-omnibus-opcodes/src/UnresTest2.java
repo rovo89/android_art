@@ -33,22 +33,23 @@ class UnresTest2 {
             un = new UnresClass();
             Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
-          ncdfe.printStackTrace();
+            Main.assertTrue(ncdfe.getCause() instanceof ClassNotFoundException);
             // good
         }
 
         try {
-          new UnresClassSubclass();
-          Main.assertTrue(false);
+            new UnresClassSubclass();
+            Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
-          ncdfe.printStackTrace();
-          // good
+            Main.assertTrue(ncdfe.getCause() instanceof ClassNotFoundException);
+            // good
         }
 
         try {
             UnresClass[] uar = new UnresClass[3];
             Main.assertTrue(false);
         } catch (NoClassDefFoundError ncdfe) {
+            Main.assertTrue(ncdfe.getCause() instanceof ClassNotFoundException);
             // good
         }
 

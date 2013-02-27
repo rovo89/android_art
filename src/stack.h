@@ -168,6 +168,10 @@ class ShadowFrame {
     return method_;
   }
 
+  mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void SetMethod(mirror::AbstractMethod* method) {
     DCHECK_NE(method, static_cast<void*>(NULL));
     method_ = method;
@@ -368,6 +372,8 @@ class StackVisitor {
 
   uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   size_t GetNativePcOffset() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t* CalleeSaveAddress(int num, size_t frame_size) const {
@@ -383,7 +389,7 @@ class StackVisitor {
 
   // Returns the height of the stack in the managed stack frames, including transitions.
   size_t GetFrameHeight() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetNumFrames() - cur_depth_;
+    return GetNumFrames() - cur_depth_ - 1;
   }
 
   // Returns a frame ID for JDWP use, starting from 1.
@@ -503,7 +509,7 @@ class StackVisitor {
 
  private:
 
-  InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const;
+  instrumentation::InstrumentationStackFrame GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

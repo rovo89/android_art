@@ -18,61 +18,261 @@
 #define ART_SRC_INSTRUMENTATION_H_
 
 #include "base/macros.h"
-#include "safe_map.h"
+#include "locks.h"
 
 #include <stdint.h>
+#include <list>
 
 namespace art {
-
 namespace mirror {
 class AbstractMethod;
-}
+class Class;
+class Object;
+class Throwable;
+}  // namespace mirror
+union JValue;
 class Thread;
-class Trace;
+class ThrowLocation;
 
-uint32_t InstrumentationMethodUnwindFromCode(Thread* self);
+namespace instrumentation {
 
-struct InstrumentationStackFrame {
-  InstrumentationStackFrame() : method_(NULL), return_pc_(0), frame_id_(0) {}
-  InstrumentationStackFrame(mirror::AbstractMethod* method, uintptr_t return_pc, size_t frame_id)
-      : method_(method), return_pc_(return_pc), frame_id_(frame_id) {
-  }
-  mirror::AbstractMethod* method_;
-  uintptr_t return_pc_;
-  size_t frame_id_;
+const bool kVerboseInstrumentation = false;
+
+// Instrumentation event listener API. Registered listeners will get the appropriate call back for
+// the events they are listening for. The call backs supply the thread, method and dex_pc the event
+// occurred upon. The thread may or may not be Thread::Current().
+struct InstrumentationListener {
+  InstrumentationListener() {}
+  virtual ~InstrumentationListener() {}
+
+  // Call-back for when a method is entered.
+  virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
+                             const mirror::AbstractMethod* method,
+                             uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  // Call-back for when a method is exited.
+  // TODO: its likely passing the return value would be useful, however, we may need to get and
+  //       parse the shorty to determine what kind of register holds the result.
+  virtual void MethodExited(Thread* thread, mirror::Object* this_object,
+                            const mirror::AbstractMethod* method, uint32_t dex_pc,
+                            const JValue& return_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  // Call-back for when a method is popped due to an exception throw. A method will either cause a
+  // MethodExited call-back or a MethodUnwind call-back when its activation is removed.
+  virtual void MethodUnwind(Thread* thread, const mirror::AbstractMethod* method,
+                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  // Call-back for when the dex pc moves in a method.
+  virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
+                          const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  // Call-back when an exception is caught.
+  virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
+                               mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                               mirror::Throwable* exception_object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 };
 
+// Instrumentation is a catch-all for when extra information is required from the runtime. The
+// typical use for instrumentation is for profiling and debugging. Instrumentation may add stubs
+// to method entry and exit, it may also force execution to be switched to the interpreter and
+// trigger deoptimization.
 class Instrumentation {
  public:
-  Instrumentation() {}
-  ~Instrumentation();
+  enum InstrumentationEvent {
+    kMethodEntered = 1,
+    kMethodExited = 2,
+    kMethodUnwind = 4,
+    kDexPcMoved = 8,
+    kExceptionCaught = 16
+  };
 
-  // Replaces code of each method with a pointer to a stub for method tracing.
-  void InstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  Instrumentation() :
+      instrumentation_stubs_installed_(false), entry_exit_stubs_installed_(false),
+      interpreter_stubs_installed_(false),
+      interpret_only_(false), forced_interpret_only_(false),
+      have_method_entry_listeners_(false), have_method_exit_listeners_(false),
+      have_method_unwind_listeners_(false), have_dex_pc_listeners_(false),
+      have_exception_caught_listeners_(false) {}
 
-  // Restores original code for each method and fixes the return values of each thread's stack.
-  void UninstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  // Add a listener to be notified of the masked together sent of instrumentation events. This
+  // suspend the runtime to install stubs. You are expected to hold the mutator lock as a proxy
+  // for saying you should have suspended all threads (installing stubs while threads are running
+  // will break).
+  void AddListener(InstrumentationListener* listener, uint32_t events)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
-  const void* GetSavedCodeFromMap(const mirror::AbstractMethod* method);
-  void SaveAndUpdateCode(mirror::AbstractMethod* method);
-  void ResetSavedCode(mirror::AbstractMethod* method);
+  // Removes a listener possibly removing instrumentation stubs.
+  void RemoveListener(InstrumentationListener* listener, uint32_t events)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
-  Trace* GetTrace() const;
-  void SetTrace(Trace* trace);
-  void RemoveTrace();
+  // Update the code of a method respecting any installed stubs.
+  void UpdateMethodsCode(mirror::AbstractMethod* method, const void* code) const;
+
+  // Get the quick code for the given method. More efficient than asking the class linker as it
+  // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
+  // installed.
+  const void* GetQuickCodeFor(const mirror::AbstractMethod* method) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void ForceInterpretOnly() {
+    interpret_only_ = true;
+    forced_interpret_only_ = true;
+  }
+
+  // Called by AbstractMethod::Invoke to determine dispatch mechanism.
+  bool InterpretOnly() const {
+    return interpret_only_;
+  }
+
+  bool ShouldPortableCodeDeoptimize() const {
+    return instrumentation_stubs_installed_;
+  }
+
+  bool AreExitStubsInstalled() const {
+    return instrumentation_stubs_installed_;
+  }
+
+  // Inform listeners that a method has been entered. A dex PC is provided as we may install
+  // listeners into executing code and get method enter events for methods already on the stack.
+  void MethodEnterEvent(Thread* thread, mirror::Object* this_object,
+                        const mirror::AbstractMethod* method, uint32_t dex_pc) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (have_method_entry_listeners_) {
+      MethodEnterEventImpl(thread, this_object, method, dex_pc);
+    }
+  }
+
+  // Inform listeners that a method has been exited.
+  void MethodExitEvent(Thread* thread, mirror::Object* this_object,
+                       const mirror::AbstractMethod* method, uint32_t dex_pc,
+                       const JValue& return_value) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (have_method_exit_listeners_) {
+      MethodExitEventImpl(thread, this_object, method, dex_pc, return_value);
+    }
+  }
+
+  // Inform listeners that a method has been exited due to an exception.
+  void MethodUnwindEvent(Thread* thread, mirror::Object* this_object,
+                         const mirror::AbstractMethod* method, uint32_t dex_pc) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Inform listeners that the dex pc has moved (only supported by the interpreter).
+  void DexPcMovedEvent(Thread* thread, mirror::Object* this_object,
+                       const mirror::AbstractMethod* method, uint32_t dex_pc) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (have_dex_pc_listeners_) {
+      DexPcMovedEventImpl(thread, this_object, method, dex_pc);
+    }
+  }
+
+  // Inform listeners that an exception was caught.
+  void ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
+                            mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                            mirror::Throwable* exception_object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Called when an instrumented method is entered. The intended link register (lr) is saved so
+  // that returning causes a branch to the method exit stub. Generates method enter events.
+  void PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
+                                     mirror::AbstractMethod* method, uintptr_t lr)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Called when an instrumented method is exited. Removes the pushed instrumentation frame
+  // returning the intended link register. Generates method exit events.
+  uint64_t PopInstrumentationStackFrame(Thread* self, uintptr_t* return_pc, uint64_t gpr_result,
+                                        uint64_t fpr_result)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Pops an instrumentation frame from the current thread and generate an unwind event.
+  void PopMethodForUnwind(Thread* self, bool is_deoptimization) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Call back for configure stubs.
+  bool InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  void AddSavedCodeToMap(const mirror::AbstractMethod* method, const void* code);
-  void RemoveSavedCodeFromMap(const mirror::AbstractMethod* method);
+  // Does the job of installing or removing instrumentation code within methods.
+  void ConfigureStubs(bool require_entry_exit_stubs, bool require_interpreter)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::classlinker_classes_lock_);
 
-  // Maps a method to its original code pointer.
-  SafeMap<const mirror::AbstractMethod*, const void*> saved_code_map_;
+  void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
+                            const mirror::AbstractMethod* method, uint32_t dex_pc) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MethodExitEventImpl(Thread* thread, mirror::Object* this_object,
+                           const mirror::AbstractMethod* method,
+                           uint32_t dex_pc, const JValue& return_value) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
+                           const mirror::AbstractMethod* method, uint32_t dex_pc) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Trace* trace_;
+  // Have we hijacked AbstractMethod::code_ so that it calls instrumentation/interpreter code?
+  bool instrumentation_stubs_installed_;
+
+  // Have we hijacked AbstractMethod::code_ to reference the enter/exit stubs?
+  bool entry_exit_stubs_installed_;
+
+  // Have we hijacked AbstractMethod::code_ to reference the enter interpreter stub?
+  bool interpreter_stubs_installed_;
+
+  // Do we need the fidelity of events that we only get from running within the interpreter?
+  bool interpret_only_;
+
+  // Did the runtime request we only run in the interpreter? ie -Xint mode.
+  bool forced_interpret_only_;
+
+  // Do we have any listeners for method entry events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_method_entry_listeners_;
+
+  // Do we have any listeners for method exit events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_method_exit_listeners_;
+
+  // Do we have any listeners for method unwind events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_method_unwind_listeners_;
+
+  // Do we have any listeners for dex move events? Short-cut to avoid taking the
+  // instrumentation_lock_.
+  bool have_dex_pc_listeners_;
+
+  // Do we have any exception caught listeners? Short-cut to avoid taking the instrumentation_lock_.
+  bool have_exception_caught_listeners_;
+
+  // The event listeners, written to with the mutator_lock_ exclusively held.
+  std::list<InstrumentationListener*> method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> dex_pc_listeners_ GUARDED_BY(Locks::mutator_lock_);
+  std::list<InstrumentationListener*> exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
 
+// An element in the instrumentation side stack maintained in art::Thread.
+struct InstrumentationStackFrame {
+  InstrumentationStackFrame(mirror::Object* this_object, mirror::AbstractMethod* method,
+                            uintptr_t return_pc, size_t frame_id)
+      : this_object_(this_object), method_(method), return_pc_(return_pc), frame_id_(frame_id) {
+  }
+
+  std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::Object* this_object_;
+  mirror::AbstractMethod* method_;
+  const uintptr_t return_pc_;
+  const size_t frame_id_;
+};
+
+}  // namespace instrumentation
 }  // namespace art
 
 #endif  // ART_SRC_INSTRUMENTATION_H_

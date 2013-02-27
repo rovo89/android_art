@@ -242,7 +242,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
     // go into deliver exception with the pending exception in r0
     CHECK(thread->IsExceptionPending());
     code = reinterpret_cast<void*>(art_quick_deliver_exception_from_code);
-    regs[0] = reinterpret_cast<uintptr_t>(thread->GetException());
+    regs[0] = reinterpret_cast<uintptr_t>(thread->GetException(NULL));
     thread->ClearException();
   } else {
     // Expect class to at least be initializing.
@@ -350,13 +350,14 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
 
 #if !defined(ART_USE_PORTABLE_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
-extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
+extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* self,
                                              mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
-  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(method).c_str());
-  thread->QuickDeliverException();
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
+                           "abstract method \"%s\"", PrettyMethod(method).c_str());
+  self->QuickDeliverException();
 }
 #else // ART_USE_PORTABLE_COMPILER
 extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,

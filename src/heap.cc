@@ -611,44 +611,46 @@ void Heap::DumpSpaces() {
 }
 
 void Heap::VerifyObjectBody(const mirror::Object* obj) {
-  if (!IsAligned<kObjectAlignment>(obj)) {
+  if (UNLIKELY(!IsAligned<kObjectAlignment>(obj))) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   }
+  if (UNLIKELY(GetObjectsAllocated() <= 10)) {  // Ignore early dawn of the universe verifications.
+    return;
+  }
+  const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
+      mirror::Object::ClassOffset().Int32Value();
+  const mirror::Class* c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+  if (UNLIKELY(c == NULL)) {
+    LOG(FATAL) << "Null class in object: " << obj;
+  } else if (UNLIKELY(!IsAligned<kObjectAlignment>(c))) {
+    LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
+  }
+  // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
+  // Note: we don't use the accessors here as they have internal sanity checks
+  // that we don't want to run
+  raw_addr = reinterpret_cast<const byte*>(c) + mirror::Object::ClassOffset().Int32Value();
+  const mirror::Class* c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+  raw_addr = reinterpret_cast<const byte*>(c_c) + mirror::Object::ClassOffset().Int32Value();
+  const mirror::Class* c_c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
+  CHECK_EQ(c_c, c_c_c);
 
-  // TODO: the bitmap tests below are racy if VerifyObjectBody is called without the
-  //       heap_bitmap_lock_.
-  if (!GetLiveBitmap()->Test(obj)) {
-    // Check the allocation stack / live stack.
-    if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
-        std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
-            allocation_stack_->End()) {
-      if (large_object_space_->GetLiveObjects()->Test(obj)) {
-        DumpSpaces();
-        LOG(FATAL) << "Object is dead: " << obj;
+  if (verify_object_mode_ != kVerifyAllFast) {
+    // TODO: the bitmap tests below are racy if VerifyObjectBody is called without the
+    //       heap_bitmap_lock_.
+    if (!GetLiveBitmap()->Test(obj)) {
+      // Check the allocation stack / live stack.
+      if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
+          std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
+              allocation_stack_->End()) {
+        if (large_object_space_->GetLiveObjects()->Test(obj)) {
+          DumpSpaces();
+          LOG(FATAL) << "Object is dead: " << obj;
+        }
       }
     }
-  }
-
-  // Ignore early dawn of the universe verifications
-  if (verify_object_mode_ != kVerifyAllFast && GetObjectsAllocated() > 10) {
-    const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
-        mirror::Object::ClassOffset().Int32Value();
-    const mirror::Class* c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
-    if (c == NULL) {
-      LOG(FATAL) << "Null class in object: " << obj;
-    } else if (!IsAligned<kObjectAlignment>(c)) {
-      LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
-    } else if (!GetLiveBitmap()->Test(c)) {
+    if (!GetLiveBitmap()->Test(c)) {
       LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
     }
-    // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
-    // Note: we don't use the accessors here as they have internal sanity checks
-    // that we don't want to run
-    raw_addr = reinterpret_cast<const byte*>(c) + mirror::Object::ClassOffset().Int32Value();
-    const mirror::Class* c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
-    raw_addr = reinterpret_cast<const byte*>(c_c) + mirror::Object::ClassOffset().Int32Value();
-    const mirror::Class* c_c_c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
-    CHECK_EQ(c_c, c_c_c);
   }
 }
 

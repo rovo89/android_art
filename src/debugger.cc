@@ -46,6 +46,7 @@
 #include "sirt_ref.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
+#include "throw_location.h"
 #include "utf.h"
 #include "well_known_classes.h"
 
@@ -104,6 +105,55 @@ struct SingleStepControl {
   int stack_depth;
 };
 
+class DebugInstrumentationListener : public instrumentation::InstrumentationListener {
+ public:
+  DebugInstrumentationListener() {}
+  virtual ~DebugInstrumentationListener() {}
+
+  virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
+                             const mirror::AbstractMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (method->IsNative()) {
+      // TODO: post location events is a suspension point and native method entry stubs aren't.
+      return;
+    }
+    Dbg::PostLocationEvent(method, 0, this_object, Dbg::kMethodEntry);
+  }
+
+  virtual void MethodExited(Thread* thread, mirror::Object* this_object,
+                            const mirror::AbstractMethod* method,
+                            uint32_t dex_pc, const JValue& return_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(return_value);
+    if (method->IsNative()) {
+      // TODO: post location events is a suspension point and native method entry stubs aren't.
+      return;
+    }
+    Dbg::PostLocationEvent(method, dex_pc, this_object, Dbg::kMethodExit);
+  }
+
+  virtual void MethodUnwind(Thread* thread, const mirror::AbstractMethod* method,
+                            uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // We're not recorded to listen to this kind of event, so complain.
+    LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
+        << " " << dex_pc;
+  }
+
+  virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
+                          const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Dbg::UpdateDebugger(thread, this_object, method, new_dex_pc);
+  }
+
+  virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
+                               mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                               mirror::Throwable* exception_object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Dbg::PostException(thread, throw_location, catch_method, catch_dex_pc, exception_object);
+  }
+
+} gDebugInstrumentationListener;
+
 // JDWP is allowed unless the Zygote forbids it.
 static bool gJdwpAllowed = true;
 
@@ -140,7 +190,7 @@ static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 static SingleStepControl gSingleStepControl GUARDED_BY(Locks::breakpoint_lock_);
 
-static bool IsBreakpoint(mirror::AbstractMethod* m, uint32_t dex_pc)
+static bool IsBreakpoint(const mirror::AbstractMethod* m, uint32_t dex_pc)
     LOCKS_EXCLUDED(Locks::breakpoint_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
@@ -466,15 +516,6 @@ bool Dbg::IsDisposed() {
   return gDisposed;
 }
 
-static void SetDebuggerUpdatesEnabledCallback(Thread* t, void* user_data) {
-  t->SetDebuggerUpdatesEnabled(*reinterpret_cast<bool*>(user_data));
-}
-
-static void SetDebuggerUpdatesEnabled(bool enabled) {
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  Runtime::Current()->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
-}
-
 void Dbg::GoActive() {
   // Enable all debugging features, including scans for breakpoints.
   // This is a no-op if we're already active.
@@ -483,16 +524,26 @@ void Dbg::GoActive() {
     return;
   }
 
-  LOG(INFO) << "Debugger is active";
-
   {
     // TODO: dalvik only warned if there were breakpoints left over. clear in Dbg::Disconnected?
     MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
     CHECK_EQ(gBreakpoints.size(), 0U);
   }
 
+  Runtime* runtime = Runtime::Current();
+  runtime->GetThreadList()->SuspendAll();
+  Thread* self = Thread::Current();
+  ThreadState old_state = self->SetStateUnsafe(kRunnable);
+  CHECK_NE(old_state, kRunnable);
+  runtime->GetInstrumentation()->AddListener(&gDebugInstrumentationListener,
+                                             instrumentation::Instrumentation::kMethodEntered |
+                                             instrumentation::Instrumentation::kMethodExited |
+                                             instrumentation::Instrumentation::kDexPcMoved);
   gDebuggerActive = true;
-  SetDebuggerUpdatesEnabled(true);
+  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
+  runtime->GetThreadList()->ResumeAll();
+
+  LOG(INFO) << "Debugger is active";
 }
 
 void Dbg::Disconnected() {
@@ -500,11 +551,22 @@ void Dbg::Disconnected() {
 
   LOG(INFO) << "Debugger is no longer active";
 
+  // Suspend all threads and exclusively acquire the mutator lock. Set the state of the thread
+  // to kRunnable to avoid scoped object access transitions. Remove the debugger as a listener
+  // and clear the object registry.
+  Runtime* runtime = Runtime::Current();
+  runtime->GetThreadList()->SuspendAll();
+  Thread* self = Thread::Current();
+  ThreadState old_state = self->SetStateUnsafe(kRunnable);
+  runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
+                                                instrumentation::Instrumentation::kMethodEntered |
+                                                instrumentation::Instrumentation::kMethodExited |
+                                                instrumentation::Instrumentation::kDexPcMoved);
   gDebuggerActive = false;
-  SetDebuggerUpdatesEnabled(false);
-
   gRegistry->Clear();
   gDebuggerConnected = false;
+  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
+  runtime->GetThreadList()->ResumeAll();
 }
 
 bool Dbg::IsDebuggerActive() {
@@ -1902,33 +1964,15 @@ struct GetThisVisitor : public StackVisitor {
   virtual bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
     if (frame_id != GetFrameId()) {
       return true;  // continue
-    }
-    mirror::AbstractMethod* m = GetMethod();
-    if (m->IsNative() || m->IsStatic()) {
-      this_object = NULL;
     } else {
-      uint16_t reg = DemangleSlot(0, m);
-      this_object = reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
+      this_object = GetThisObject();
+      return false;
     }
-    return false;
   }
 
   mirror::Object* this_object;
   JDWP::FrameId frame_id;
 };
-
-static mirror::Object* GetThis(Thread* self, mirror::AbstractMethod* m, size_t frame_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // TODO: should we return the 'this' we passed through to non-static native methods?
-  if (m->IsNative() || m->IsStatic()) {
-    return NULL;
-  }
-
-  UniquePtr<Context> context(Context::Create());
-  GetThisVisitor visitor(self, context.get(), frame_id);
-  visitor.WalkStack();
-  return visitor.this_object;
-}
 
 JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id,
                                    JDWP::ObjectId* result) {
@@ -2176,7 +2220,8 @@ void Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int sl
   visitor.WalkStack();
 }
 
-void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc, mirror::Object* this_object, int event_flags) {
+void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc,
+                            mirror::Object* this_object, int event_flags) {
   mirror::Class* c = m->GetDeclaringClass();
 
   JDWP::JdwpLocation location;
@@ -2194,29 +2239,25 @@ void Dbg::PostLocationEvent(const mirror::AbstractMethod* m, int dex_pc, mirror:
   gJdwpState->PostLocationEvent(&location, this_id, event_flags);
 }
 
-void Dbg::PostException(Thread* thread,
-                        JDWP::FrameId throw_frame_id, mirror::AbstractMethod* throw_method,
-                        uint32_t throw_dex_pc, mirror::AbstractMethod* catch_method,
+void Dbg::PostException(Thread* thread, const ThrowLocation& throw_location,
+                        mirror::AbstractMethod* catch_method,
                         uint32_t catch_dex_pc, mirror::Throwable* exception_object) {
   if (!IsDebuggerActive()) {
     return;
   }
 
-  JDWP::JdwpLocation throw_location;
-  SetLocation(throw_location, throw_method, throw_dex_pc);
+  JDWP::JdwpLocation jdwp_throw_location;
+  SetLocation(jdwp_throw_location, throw_location.GetMethod(), throw_location.GetDexPc());
   JDWP::JdwpLocation catch_location;
   SetLocation(catch_location, catch_method, catch_dex_pc);
 
   // We need 'this' for InstanceOnly filters.
-  UniquePtr<Context> context(Context::Create());
-  GetThisVisitor visitor(thread, context.get(), throw_frame_id);
-  visitor.WalkStack();
-  JDWP::ObjectId this_id = gRegistry->Add(visitor.this_object);
-
+  JDWP::ObjectId this_id = gRegistry->Add(throw_location.GetThis());
   JDWP::ObjectId exception_id = gRegistry->Add(exception_object);
   JDWP::RefTypeId exception_class_id = gRegistry->AddRefType(exception_object->GetClass());
 
-  gJdwpState->PostException(&throw_location, exception_id, exception_class_id, &catch_location, this_id);
+  gJdwpState->PostException(&jdwp_throw_location, exception_id, exception_class_id, &catch_location,
+                            this_id);
 }
 
 void Dbg::PostClassPrepare(mirror::Class* c) {
@@ -2232,20 +2273,9 @@ void Dbg::PostClassPrepare(mirror::Class* c) {
   gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
 }
 
-void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
-  if (!IsDebuggerActive() || dex_pc == -2 /* fake method exit */) {
-    return;
-  }
-
-  size_t frame_id;
-  mirror::AbstractMethod* m = self->GetCurrentMethod(NULL, &frame_id);
-  //LOG(INFO) << "UpdateDebugger " << PrettyMethod(m) << "@" << dex_pc << " frame " << frame_id;
-
-  if (dex_pc == -1) {
-    // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
-    // This means that for this special notification, there can't be anything else interesting
-    // going on, so we're done already.
-    Dbg::PostLocationEvent(m, 0, GetThis(self, m, frame_id), kMethodEntry);
+void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
+                         const mirror::AbstractMethod* m, uint32_t dex_pc) {
+  if (!IsDebuggerActive() || dex_pc == static_cast<uint32_t>(-2) /* fake method exit */) {
     return;
   }
 
@@ -2259,7 +2289,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
     // If the debugger is single-stepping one of our threads, check to
     // see if we're that thread and we've reached a step point.
     MutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
-    if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
+    if (gSingleStepControl.is_active && gSingleStepControl.thread == thread) {
       CHECK(!m->IsNative());
       if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
         // Step into method calls.  We break when the line number
@@ -2282,7 +2312,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
         // might get unrolled past it by an exception, and it's tricky
         // to identify recursion.)
 
-        int stack_depth = GetStackDepth(self);
+        int stack_depth = GetStackDepth(thread);
 
         if (stack_depth < gSingleStepControl.stack_depth) {
           // popped up one or more frames, always trigger
@@ -2307,7 +2337,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
         // with the PC at the next instruction in the returned-to
         // function, rather than the end of the returning function.
 
-        int stack_depth = GetStackDepth(self);
+        int stack_depth = GetStackDepth(thread);
         if (stack_depth < gSingleStepControl.stack_depth) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS method pop";
@@ -2316,27 +2346,10 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
     }
   }
 
-  // Check to see if this is a "return" instruction.  JDWP says we should
-  // send the event *after* the code has been executed, but it also says
-  // the location we provide is the last instruction.  Since the "return"
-  // instruction has no interesting side effects, we should be safe.
-  // (We can't just move this down to the returnFromMethod label because
-  // we potentially need to combine it with other events.)
-  // We're also not supposed to generate a method exit event if the method
-  // terminates "with a thrown exception".
-  if (dex_pc >= 0) {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    CHECK(code_item != NULL) << PrettyMethod(m) << " @" << dex_pc;
-    CHECK_LT(dex_pc, static_cast<int32_t>(code_item->insns_size_in_code_units_));
-    if (Instruction::At(&code_item->insns_[dex_pc])->IsReturn()) {
-      event_flags |= kMethodExit;
-    }
-  }
-
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, GetThis(self, m, frame_id), event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, this_object, event_flags);
   }
 }
 
@@ -2706,8 +2719,19 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  SirtRef<mirror::Throwable> old_exception(soa.Self(), soa.Self()->GetException());
-  soa.Self()->ClearException();
+  SirtRef<mirror::Object> old_throw_this_object(soa.Self(), NULL);
+  SirtRef<mirror::AbstractMethod> old_throw_method(soa.Self(), NULL);
+  SirtRef<mirror::Throwable> old_exception(soa.Self(), NULL);
+  uint32_t old_throw_dex_pc;
+  {
+    ThrowLocation old_throw_location;
+    mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
+    old_throw_this_object.reset(old_throw_location.GetThis());
+    old_throw_method.reset(old_throw_location.GetMethod());
+    old_exception.reset(old_exception_obj);
+    old_throw_dex_pc = old_throw_location.GetDexPc();
+    soa.Self()->ClearException();
+  }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   mirror::AbstractMethod* m = pReq->method_;
@@ -2731,12 +2755,13 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   arg_array.BuildArgArray(soa, pReq->receiver_, reinterpret_cast<jvalue*>(pReq->arg_values_));
   InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, mh.GetShorty()[0]);
 
-  pReq->exception = gRegistry->Add(soa.Self()->GetException());
+  mirror::Throwable* exception = soa.Self()->GetException(NULL);
+  soa.Self()->ClearException();
+  pReq->exception = gRegistry->Add(exception);
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
   if (pReq->exception != 0) {
-    mirror::Object* exc = soa.Self()->GetException();
-    VLOG(jdwp) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
-    soa.Self()->ClearException();
+    VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception
+        << " " << exception->Dump();
     pReq->result_value.SetJ(0);
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
@@ -2759,7 +2784,9 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   if (old_exception.get() != NULL) {
-    soa.Self()->SetException(old_exception.get());
+    ThrowLocation gc_safe_throw_location(old_throw_this_object.get(), old_throw_method.get(),
+                                         old_throw_dex_pc);
+    soa.Self()->SetException(gc_safe_throw_location, old_exception.get());
   }
 }
 
@@ -2943,9 +2970,6 @@ void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
     gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
-    // If this thread's just joined the party while we're already debugging, make sure it knows
-    // to give us updates when it's running.
-    t->SetDebuggerUpdatesEnabled(true);
   }
   Dbg::DdmSendThreadNotification(t, type);
 }
@@ -3326,9 +3350,9 @@ void Dbg::DdmSendHeapSegments(bool native) {
     Heap* heap = Runtime::Current()->GetHeap();
     const Spaces& spaces = heap->GetSpaces();
     Thread* self = Thread::Current();
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       if ((*cur)->IsAllocSpace()) {
-        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }

@@ -254,10 +254,12 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   va_list args;
   va_start(args, fmt);
-  Thread::Current()->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
+  Thread* self = Thread::Current();
+  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+  self->ThrowNewExceptionV(throw_location, "Ljava/lang/IllegalMonitorStateException;", fmt, args);
   if (!Runtime::Current()->IsStarted()) {
     std::ostringstream ss;
-    Thread::Current()->Dump(ss);
+    self->Dump(ss);
     std::string str(ss.str());
     LOG(ERROR) << "IllegalMonitorStateException: " << str;
   }
@@ -411,8 +413,9 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
                            bool interruptShouldThrow, ThreadState why) {
   // Enforce the timeout range.
   if (ms < 0 || ns < 0 || ns > 999999) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "timeout arguments out of range: ms=%lld ns=%d", ms, ns);
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/IllegalArgumentException;",
+                             "timeout arguments out of range: ms=%lld ns=%d", ms, ns);
     return;
   }
 
@@ -517,7 +520,8 @@ void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns,
       self->interrupted_ = false;
     }
     if (interruptShouldThrow) {
-      Thread::Current()->ThrowNewException("Ljava/lang/InterruptedException;", NULL);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      self->ThrowNewException(throw_location, "Ljava/lang/InterruptedException;", NULL);
     }
   }
 }

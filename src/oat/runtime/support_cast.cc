@@ -32,19 +32,16 @@ extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
 }
 
 // Check whether it is safe to cast one class to the other, throw exception and return -1 on failure
-extern "C" int artCheckCastFromCode(const mirror::Class* a, const mirror::Class* b, Thread* self,
-                                    mirror::AbstractMethod** sp)
+extern "C" int artCheckCastFromCode(mirror::Class* src_type, mirror::Class* dest_type,
+                                    Thread* self, mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(a->IsClass()) << PrettyClass(a);
-  DCHECK(b->IsClass()) << PrettyClass(b);
-  if (LIKELY(b->IsAssignableFrom(a))) {
+  DCHECK(src_type->IsClass()) << PrettyClass(src_type);
+  DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
+  if (LIKELY(dest_type->IsAssignableFrom(src_type))) {
     return 0;  // Success
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-        "%s cannot be cast to %s",
-        PrettyDescriptor(a).c_str(),
-        PrettyDescriptor(b).c_str());
+    ThrowClassCastException(dest_type, src_type);
     return -1;  // Failure
   }
 }
@@ -63,10 +60,7 @@ extern "C" int artCanPutArrayElementFromCode(const mirror::Object* element,
     return 0;  // Success
   } else {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-        "%s cannot be stored in an array of type %s",
-        PrettyDescriptor(element_class).c_str(),
-        PrettyDescriptor(array_class).c_str());
+    ThrowArrayStoreException(element_class, array_class);
     return -1;  // Failure
   }
 }

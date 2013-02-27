@@ -18,6 +18,7 @@
 
 #include "class.h"
 #include "class-inl.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "gc/card_table-inl.h"
 #include "object-inl.h"
@@ -43,10 +44,10 @@ Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
 
   // Check for overflow and throw OutOfMemoryError if this was an unreasonable request.
   size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
-  if (data_size >> component_shift != size_t(component_count) || size < data_size) {
-    self->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
-        "%s of length %d would overflow",
-        PrettyDescriptor(array_class).c_str(), component_count);
+  if (UNLIKELY(data_size >> component_shift != size_t(component_count) || size < data_size)) {
+    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
+                                             PrettyDescriptor(array_class).c_str(),
+                                             component_count).c_str());
     return NULL;
   }
 
@@ -108,8 +109,7 @@ Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dim
   for (int i = 0; i < num_dimensions; i++) {
     int dimension = dimensions->Get(i);
     if (UNLIKELY(dimension < 0)) {
-      self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
-                               "Dimension %d: %d", i, dimension);
+      ThrowNegativeArraySizeException(StringPrintf("Dimension %d: %d", i, dimension).c_str());
       return NULL;
     }
   }
@@ -135,15 +135,12 @@ Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dim
 }
 
 bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-      "length=%i; index=%i", length_, index);
+  art::ThrowArrayIndexOutOfBoundsException(index, GetLength());
   return false;
 }
 
 bool Array::ThrowArrayStoreException(Object* object) const {
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-      "%s cannot be stored in an array of type %s",
-      PrettyTypeOf(object).c_str(), PrettyTypeOf(this).c_str());
+  art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
   return false;
 }
 

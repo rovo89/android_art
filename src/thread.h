@@ -36,6 +36,7 @@
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_state.h"
+#include "throw_location.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -80,14 +81,13 @@ enum ThreadPriority {
 enum ThreadFlag {
   kSuspendRequest   = 1,  // If set implies that suspend_count_ > 0 and the Thread should enter the
                           // safepoint handler.
-  kCheckpointRequest = 2, // Request that the thread do some checkpoint work and then continue.
-  kEnterInterpreter = 4,  // Instruct managed code it should enter the interpreter.
+  kCheckpointRequest = 2  // Request that the thread do some checkpoint work and then continue.
 };
 
 class PACKED(4) Thread {
  public:
   // Space to throw a StackOverflowError in.
-  static const size_t kStackOverflowReservedBytes = 10 * KB;
+  static const size_t kStackOverflowReservedBytes = 16 * KB;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -279,28 +279,27 @@ class PACKED(4) Thread {
     return exception_ != NULL;
   }
 
-  mirror::Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Throwable* GetException(ThrowLocation* throw_location) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (throw_location != NULL) {
+      *throw_location = throw_location_;
+    }
     return exception_;
   }
 
   void AssertNoPendingException() const;
 
-  void SetException(mirror::Throwable* new_exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void SetException(const ThrowLocation& throw_location, mirror::Throwable* new_exception)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_exception != NULL);
     // TODO: DCHECK(!IsExceptionPending());
     exception_ = new_exception;
+    throw_location_ = throw_location;
   }
 
   void ClearException() {
     exception_ = NULL;
-  }
-
-  void DeliverException(mirror::Throwable* exception) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (exception == NULL) {
-      ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
-    } else {
-      SetException(exception);
-    }
+    throw_location_.Clear();
   }
 
   // Find catch block and perform long jump to appropriate exception handle
@@ -312,8 +311,10 @@ class PACKED(4) Thread {
     long_jump_context_ = context;
   }
 
-  mirror::AbstractMethod* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
+  mirror::AbstractMethod* GetCurrentMethod(uint32_t* dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetTopOfStack(void* stack, uintptr_t pc) {
     mirror::AbstractMethod** top_method = reinterpret_cast<mirror::AbstractMethod**>(stack);
@@ -330,31 +331,29 @@ class PACKED(4) Thread {
   }
 
   // If 'msg' is NULL, no detail message is set.
-  void ThrowNewException(const char* exception_class_descriptor, const char* msg)
+  void ThrowNewException(const ThrowLocation& throw_location,
+                         const char* exception_class_descriptor, const char* msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // If 'msg' is NULL, no detail message is set. An exception must be pending, and will be
   // used as the new exception's cause.
-  void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg)
+  void ThrowNewWrappedException(const ThrowLocation& throw_location,
+                                const char* exception_class_descriptor,
+                                const char* msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
-      __attribute__((format(printf, 3, 4)))
+  void ThrowNewExceptionF(const ThrowLocation& throw_location,
+                          const char* exception_class_descriptor, const char* fmt, ...)
+      __attribute__((format(printf, 4, 5)))
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap)
+  void ThrowNewExceptionV(const ThrowLocation& throw_location,
+                          const char* exception_class_descriptor, const char* fmt, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
   // Only the GC should call this.
   void ThrowOutOfMemoryError(const char* msg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
-
-  void* FindExceptionHandlerInMethod(const mirror::AbstractMethod* method,
-                                     void* throw_pc,
-                                     const DexFile& dex_file,
-                                     ClassLinker* class_linker);
 
   static void Startup();
   static void FinishStartup();
@@ -395,8 +394,7 @@ class PACKED(4) Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
       jobjectArray output_array = NULL, int* stack_depth = NULL);
 
-  void VisitRoots(RootVisitor* visitor, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VerifyRoots(VerifyRootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -535,32 +533,13 @@ class PACKED(4) Thread {
     return debug_invoke_req_;
   }
 
-  void SetDebuggerUpdatesEnabled(bool enabled);
-
-  void SetDeoptimizationShadowFrame(ShadowFrame* sf, const JValue& ret_val);
+  void SetDeoptimizationShadowFrame(ShadowFrame* sf);
+  void SetDeoptimizationReturnValue(const JValue& ret_val);
 
   ShadowFrame* GetAndClearDeoptimizationShadowFrame(JValue* ret_val);
 
-  const std::deque<InstrumentationStackFrame>* GetInstrumentationStack() const {
+  std::deque<instrumentation::InstrumentationStackFrame>* GetInstrumentationStack() {
     return instrumentation_stack_;
-  }
-
-  bool IsInstrumentationStackEmpty() const {
-    return instrumentation_stack_->empty();
-  }
-
-  void PushInstrumentationStackFrame(const InstrumentationStackFrame& frame) {
-    instrumentation_stack_->push_front(frame);
-  }
-
-  void PushBackInstrumentationStackFrame(const InstrumentationStackFrame& frame) {
-    instrumentation_stack_->push_back(frame);
-  }
-
-  InstrumentationStackFrame PopInstrumentationStackFrame() {
-    InstrumentationStackFrame frame = instrumentation_stack_->front();
-    instrumentation_stack_->pop_front();
-    return frame;
   }
 
   BaseMutex* GetHeldMutex(LockLevel level) const {
@@ -598,13 +577,15 @@ class PACKED(4) Thread {
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
   friend class Runtime; // For CreatePeer.
 
-  // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit and ~Thread.
+  // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
+  // Dbg::Disconnected.
   ThreadState SetStateUnsafe(ThreadState new_state) {
     ThreadState old_state = GetState();
     state_and_flags_.as_struct.state = new_state;
     return old_state;
   }
   friend class SignalCatcher;  // For SetStateUnsafe.
+  friend class Dbg;  // For SetStateUnsafe.
 
   void VerifyStackImpl() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -710,6 +691,8 @@ class PACKED(4) Thread {
   // System thread id.
   pid_t tid_;
 
+  ThrowLocation throw_location_;
+
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
@@ -755,7 +738,7 @@ class PACKED(4) Thread {
 
   // Additional stack used by method instrumentation to store method and return pc values.
   // Stored as a pointer since std::deque is not PACKED.
-  std::deque<InstrumentationStackFrame>* instrumentation_stack_;
+  std::deque<instrumentation::InstrumentationStackFrame>* instrumentation_stack_;
 
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;

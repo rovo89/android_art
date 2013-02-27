@@ -101,16 +101,16 @@ int32_t art_f2i(float f) {
 namespace art {
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* method,
+mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMethod* referrer,
                                           int32_t component_count, Thread* self,
                                           bool access_check) {
   if (UNLIKELY(component_count < 0)) {
-    self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
+    ThrowNegativeArraySizeException(component_count);
     return NULL;  // Failure
   }
-  mirror::Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
+  mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
+    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, referrer);
     if (klass == NULL) {  // Error
       DCHECK(self->IsExceptionPending());
       return NULL;  // Failure
@@ -118,20 +118,21 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMet
   }
   if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
-      self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-                               "Bad filled array request for type %s",
-                                PrettyDescriptor(klass).c_str());
+      ThrowRuntimeException("Bad filled array request for type %s",
+                            PrettyDescriptor(klass).c_str());
     } else {
-      self->ThrowNewExceptionF("Ljava/lang/InternalError;",
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      DCHECK(throw_location.GetMethod() == referrer);
+      self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
                                "Found type %s; filled-new-array not implemented for anything but \'int\'",
                                PrettyDescriptor(klass).c_str());
     }
     return NULL;  // Failure
   } else {
     if (access_check) {
-      mirror::Class* referrer = method->GetDeclaringClass();
-      if (UNLIKELY(!referrer->CanAccess(klass))) {
-        ThrowIllegalAccessErrorClass(referrer, klass);
+      mirror::Class* referrer_klass = referrer->GetDeclaringClass();
+      if (UNLIKELY(!referrer_klass->CanAccess(klass))) {
+        ThrowIllegalAccessErrorClass(referrer_klass, klass);
         return NULL;  // Failure
       }
     }
@@ -194,7 +195,9 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
       FieldHelper fh(resolved_field);
       if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
                    fh.FieldSize() != expected_size)) {
-        self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+        ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+        DCHECK(throw_location.GetMethod() == referrer);
+        self->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                  "Attempted read of %zd-bit %s on field '%s'",
                                  expected_size * (32 / sizeof(int32_t)),
                                  is_primitive ? "primitive" : "non-primitive",
@@ -232,7 +235,9 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
   } else if (UNLIKELY(this_object == NULL && type != kStatic)) {
     // Maintain interpreter-like semantics where NullPointerException is thrown
     // after potential NoSuchMethodError from class linker.
-    ThrowNullPointerExceptionForMethodAccess(referrer, method_idx, type);
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    DCHECK(referrer == throw_location.GetMethod());
+    ThrowNullPointerExceptionForMethodAccess(throw_location, method_idx, type);
     return NULL;  // Failure.
   } else {
     if (!access_check) {
@@ -320,7 +325,7 @@ mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object* 
           // Behavior to agree with that of the verifier.
           MethodHelper mh(resolved_method);
           ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(), mh.GetName(),
-                                 mh.GetSignature(), referrer);
+                                 mh.GetSignature());
           return NULL;  // Failure.
         }
       }
@@ -363,10 +368,12 @@ mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx, const mirror::AbstractM
 
 void ThrowStackOverflowError(Thread* self) {
   CHECK(!self->IsHandlingStackOverflow()) << "Recursive stack overflow.";
-  // Remove extra entry pushed onto second stack during method tracing.
-  if (Runtime::Current()->IsMethodTracingActive()) {
-    InstrumentationMethodUnwindFromCode(self);
+
+  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+    // Remove extra entry pushed onto second stack during method tracing.
+    Runtime::Current()->GetInstrumentation()->PopMethodForUnwind(self, false);
   }
+
   self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
   JNIEnvExt* env = self->GetJniEnv();
   std::string msg("stack size ");
@@ -430,33 +437,36 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
                                    invocation_args);
 
   // Unbox result and handle error conditions.
-  if (!soa.Self()->IsExceptionPending()) {
-    if (shorty[0] == 'V' || result == NULL) {
+  if (LIKELY(!soa.Self()->IsExceptionPending())) {
+    if (shorty[0] == 'V' || (shorty[0] == 'L' && result == NULL)) {
       // Do nothing.
       return zero;
     } else {
-      JValue result_unboxed;
-      MethodHelper mh(soa.Decode<mirror::AbstractMethod*>(interface_method_jobj));
-      mirror::Class* result_type = mh.GetReturnType();
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
-      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, result_type, result_unboxed);
-      if (!unboxed_okay) {
-        // UnboxPrimitiveForResult creates an IllegalArgumentException. Discard and create a
-        // meaningful ClassCastException.
+      mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
+      mirror::AbstractMethod* interface_method =
+          soa.Decode<mirror::AbstractMethod*>(interface_method_jobj);
+      mirror::Class* result_type = MethodHelper(interface_method).GetReturnType();
+      mirror::AbstractMethod* proxy_method;
+      if (interface_method->GetDeclaringClass()->IsInterface()) {
+        proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(interface_method);
+      } else {
+        // Proxy dispatch to a method defined in Object.
+        DCHECK(interface_method->GetDeclaringClass()->IsObjectClass());
+        proxy_method = interface_method;
+      }
+      ThrowLocation throw_location(rcvr, proxy_method, -1);
+      JValue result_unboxed;
+      if (!UnboxPrimitiveForResult(throw_location, result_ref, result_type, result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
-        soa.Self()->ClearException();
-        soa.Self()->ThrowNewException("Ljava/lang/ClassCastException;",
-                                      StringPrintf("Couldn't convert result of type %s to %s",
-                                                   PrettyTypeOf(result_ref).c_str(),
-                                                   PrettyDescriptor(result_type).c_str()
-                                      ).c_str());
+        return zero;
       }
       return result_unboxed;
     }
   } else {
     // In the case of checked exceptions that aren't declared, the exception must be wrapped by
     // a UndeclaredThrowableException.
-    mirror::Throwable* exception = soa.Self()->GetException();
+    mirror::Throwable* exception = soa.Self()->GetException(NULL);
     if (exception->IsCheckedException()) {
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::SynthesizedProxyClass* proxy_class =
@@ -482,7 +492,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
       if (!declares_exception) {
-        soa.Self()->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;",
+        ThrowLocation throw_location(rcvr, proxy_method, -1);
+        soa.Self()->ThrowNewWrappedException(throw_location,
+                                             "Ljava/lang/reflect/UndeclaredThrowableException;",
                                              NULL);
       }
     }

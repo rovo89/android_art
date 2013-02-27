@@ -135,8 +135,8 @@ void MarkSweep::BindBitmaps() {
 MarkSweep::MarkSweep(Heap* heap, bool is_concurrent)
     : GarbageCollector(heap),
       gc_barrier_(new Barrier(0)),
-      large_object_lock_("large object lock"),
-      mark_stack_expand_lock_("mark stack expand lock"),
+      large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
+      mark_stack_expand_lock_("mark sweep mark stack expand lock"),
       timings_(GetName(), true),
       cumulative_timings_(GetName()),
       is_concurrent_(is_concurrent) {

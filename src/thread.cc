@@ -61,6 +61,7 @@
 #include "thread_list.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
+#include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -92,24 +93,16 @@ void Thread::InitFunctionPointers() {
   InitEntryPoints(&entrypoints_);
 }
 
-void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  ChangeDebuggerEntryPoint(&entrypoints_, enabled);
-#else
-  UNIMPLEMENTED(FATAL);
-#endif
+void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf) {
+  deoptimization_shadow_frame_ = sf;
 }
 
-
-void Thread::SetDeoptimizationShadowFrame(ShadowFrame* sf, const JValue& ret_val) {
-  CHECK(sf != NULL);
-  deoptimization_shadow_frame_ = sf;
+void Thread::SetDeoptimizationReturnValue(const JValue& ret_val) {
   deoptimization_return_value_.SetJ(ret_val.GetJ());
 }
 
 ShadowFrame* Thread::GetAndClearDeoptimizationShadowFrame(JValue* ret_val) {
   ShadowFrame* sf = deoptimization_shadow_frame_;
-  DCHECK(sf != NULL);
   deoptimization_shadow_frame_ = NULL;
   ret_val->SetJ(deoptimization_return_value_.GetJ());
   return sf;
@@ -327,9 +320,6 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   InitFunctionPointers();
   InitCardTable();
   InitTid();
-  if (Runtime::Current()->InterpreterOnly()) {
-    AtomicSetFlag(kEnterInterpreter);
-  }
   // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
   // avoids pthread_self_ ever being invalid when discovered from Thread::Current().
   pthread_self_ = pthread_self();
@@ -864,7 +854,7 @@ static bool ShouldShowNativeStack(const Thread* thread) {
   // We don't just check kNative because native methods will be in state kSuspended if they're
   // calling back into the VM, or kBlocked if they're blocked on a monitor, or one of the
   // thread-startup states if it's early enough in their life cycle (http://b/7432159).
-  mirror::AbstractMethod* current_method = thread->GetCurrentMethod();
+  mirror::AbstractMethod* current_method = thread->GetCurrentMethod(NULL);
   return current_method != NULL && current_method->IsNative();
 }
 
@@ -948,7 +938,8 @@ Thread::Thread(bool daemon)
       throwing_OutOfMemoryError_(false),
       debug_suspend_count_(0),
       debug_invoke_req_(new DebugInvokeReq),
-      instrumentation_stack_(new std::deque<InstrumentationStackFrame>),
+      deoptimization_shadow_frame_(NULL),
+      instrumentation_stack_(new std::deque<instrumentation::InstrumentationStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
       daemon_(daemon),
       pthread_self_(0),
@@ -975,7 +966,7 @@ bool Thread::IsStillStarting() const {
 void Thread::AssertNoPendingException() const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::Throwable* exception = GetException();
+    mirror::Throwable* exception = GetException(NULL);
     LOG(FATAL) << "No pending exception expected: " << exception->Dump();
   }
 }
@@ -1427,82 +1418,131 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   return result;
 }
 
-void Thread::ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...) {
+void Thread::ThrowNewExceptionF(const ThrowLocation& throw_location,
+                                const char* exception_class_descriptor, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowNewExceptionV(exception_class_descriptor, fmt, args);
+  ThrowNewExceptionV(throw_location, exception_class_descriptor,
+                     fmt, args);
   va_end(args);
 }
 
-void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap) {
+void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
+                                const char* exception_class_descriptor,
+                                const char* fmt, va_list ap) {
   std::string msg;
   StringAppendV(&msg, fmt, ap);
-  ThrowNewException(exception_class_descriptor, msg.c_str());
+  ThrowNewException(throw_location, exception_class_descriptor, msg.c_str());
 }
 
-void Thread::ThrowNewException(const char* exception_class_descriptor, const char* msg) {
+void Thread::ThrowNewException(const ThrowLocation& throw_location, const char* exception_class_descriptor,
+                               const char* msg) {
   AssertNoPendingException(); // Callers should either clear or call ThrowNewWrappedException.
-  ThrowNewWrappedException(exception_class_descriptor, msg);
+  ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
 }
 
-void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg) {
-  // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
-  CHECK_EQ('L', exception_class_descriptor[0]);
-  std::string descriptor(exception_class_descriptor + 1);
-  CHECK_EQ(';', descriptor[descriptor.length() - 1]);
-  descriptor.erase(descriptor.length() - 1);
+void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
+                                      const char* exception_class_descriptor,
+                                      const char* msg) {
+  DCHECK_EQ(this, Thread::Current());
+  // Ensure we don't forget arguments over object allocation.
+  SirtRef<mirror::Object> saved_throw_this(this, throw_location.GetThis());
+  SirtRef<mirror::AbstractMethod> saved_throw_method(this, throw_location.GetMethod());
+  // Ignore the cause throw location. TODO: should we report this as a re-throw?
+  SirtRef<mirror::Throwable> cause(this, GetException(NULL));
+  ClearException();
+  Runtime* runtime = Runtime::Current();
 
-  JNIEnv* env = GetJniEnv();
-  jobject cause = env->ExceptionOccurred();
-  env->ExceptionClear();
-
-  ScopedLocalRef<jclass> exception_class(env, env->FindClass(descriptor.c_str()));
-  if (exception_class.get() == NULL) {
-    LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI FindClass failed: "
-               << PrettyTypeOf(GetException());
+  mirror::ClassLoader* cl = NULL;
+  if (throw_location.GetMethod() != NULL) {
+    cl = throw_location.GetMethod()->GetDeclaringClass()->GetClassLoader();
+  }
+  SirtRef<mirror::Class>
+      exception_class(this, runtime->GetClassLinker()->FindClass(exception_class_descriptor, cl));
+  if (UNLIKELY(exception_class.get() == NULL)) {
     CHECK(IsExceptionPending());
+    LOG(ERROR) << "No exception class " << PrettyDescriptor(exception_class_descriptor);
     return;
   }
-  if (!Runtime::Current()->IsStarted()) {
-    // Something is trying to throw an exception without a started
-    // runtime, which is the common case in the compiler. We won't be
-    // able to invoke the constructor of the exception, so use
-    // AllocObject which will not invoke a constructor.
-    ScopedLocalRef<jthrowable> exception(
-        env, reinterpret_cast<jthrowable>(env->AllocObject(exception_class.get())));
-    if (exception.get() != NULL) {
-      ScopedObjectAccessUnchecked soa(env);
-      mirror::Throwable* t =
-          reinterpret_cast<mirror::Throwable*>(soa.Self()->DecodeJObject(exception.get()));
-      t->SetDetailMessage(mirror::String::AllocFromModifiedUtf8(soa.Self(), msg));
-      if (cause != NULL) {
-        t->SetCause(soa.Decode<mirror::Throwable*>(cause));
-      }
-      soa.Self()->SetException(t);
-    } else {
-      LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "
-                 << PrettyTypeOf(GetException());
-      CHECK(IsExceptionPending());
+
+  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(exception_class.get(), true, true))) {
+    DCHECK(IsExceptionPending());
+    return;
+  }
+  DCHECK(!runtime->IsStarted() || exception_class->IsThrowableClass());
+  SirtRef<mirror::Throwable> exception(this,
+                                down_cast<mirror::Throwable*>(exception_class->AllocObject(this)));
+
+  // Choose an appropriate constructor and set up the arguments.
+  const char* signature;
+  SirtRef<mirror::String> msg_string(this, NULL);
+  if (msg != NULL) {
+    // Ensure we remember this and the method over the String allocation.
+    msg_string.reset(mirror::String::AllocFromModifiedUtf8(this, msg));
+    if (UNLIKELY(msg_string.get() == NULL)) {
+      CHECK(IsExceptionPending());  // OOME.
+      return;
     }
-    return;
+    if (cause.get() == NULL) {
+      signature = "(Ljava/lang/String;)V";
+    } else {
+      signature = "(Ljava/lang/String;Ljava/lang/Throwable;)V";
+    }
+  } else {
+    if (cause.get() == NULL) {
+      signature = "()V";
+    } else {
+      signature = "(Ljava/lang/Throwable;)V";
+    }
   }
-  int rc = ::art::ThrowNewException(env, exception_class.get(), msg, cause);
-  if (rc != JNI_OK) {
-    LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI ThrowNew failed: "
-               << PrettyTypeOf(GetException());
-    CHECK(IsExceptionPending());
+  mirror::AbstractMethod* exception_init_method =
+      exception_class->FindDeclaredDirectMethod("<init>", signature);
+
+  CHECK(exception_init_method != NULL) << "No <init>" << signature << " in "
+      << PrettyDescriptor(exception_class_descriptor);
+
+  if (UNLIKELY(!runtime->IsStarted())) {
+    // Something is trying to throw an exception without a started runtime, which is the common
+    // case in the compiler. We won't be able to invoke the constructor of the exception, so set
+    // the exception fields directly.
+    if (msg != NULL) {
+      exception->SetDetailMessage(msg_string.get());
+    }
+    if (cause.get() != NULL) {
+      exception->SetCause(cause.get());
+    }
+    ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
+                                         throw_location.GetDexPc());
+    SetException(gc_safe_throw_location, exception.get());
+  } else {
+    ArgArray args("VLL", 3);
+    args.Append(reinterpret_cast<uint32_t>(exception.get()));
+    if (msg != NULL) {
+      args.Append(reinterpret_cast<uint32_t>(msg_string.get()));
+    }
+    if (cause.get() != NULL) {
+      args.Append(reinterpret_cast<uint32_t>(cause.get()));
+    }
+    JValue result;
+    exception_init_method->Invoke(this, args.GetArray(), args.GetNumBytes(), &result, 'V');
+    if (LIKELY(!IsExceptionPending())) {
+      ThrowLocation gc_safe_throw_location(saved_throw_this.get(), saved_throw_method.get(),
+                                           throw_location.GetDexPc());
+      SetException(gc_safe_throw_location, exception.get());
+    }
   }
 }
 
 void Thread::ThrowOutOfMemoryError(const char* msg) {
   LOG(ERROR) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
       msg, (throwing_OutOfMemoryError_ ? " (recursive case)" : ""));
+  ThrowLocation throw_location = GetCurrentLocationForThrow();
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
-    ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
+    ThrowNewException(throw_location, "Ljava/lang/OutOfMemoryError;", msg);
   } else {
     Dump(LOG(ERROR)); // The pre-allocated OOME has no stack, so help out and log one.
-    SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
   throwing_OutOfMemoryError_ = false;
 }
@@ -1538,8 +1578,6 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pInstanceofNonTrivialFromCode),
   ENTRY_POINT_INFO(pCanPutArrayElementFromCode),
   ENTRY_POINT_INFO(pCheckCastFromCode),
-  ENTRY_POINT_INFO(pDebugMe),
-  ENTRY_POINT_INFO(pUpdateDebuggerFromCode),
   ENTRY_POINT_INFO(pInitializeStaticStorage),
   ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccessFromCode),
   ENTRY_POINT_INFO(pInitializeTypeFromCode),
@@ -1644,13 +1682,17 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
 static const bool kDebugExceptionDelivery = false;
 class CatchBlockStackVisitor : public StackVisitor {
  public:
-  CatchBlockStackVisitor(Thread* self, mirror::Throwable* exception)
+  CatchBlockStackVisitor(Thread* self, const ThrowLocation& throw_location,
+                         mirror::Throwable* exception, bool is_deoptimization)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, self->GetLongJumpContext()),
-        self_(self), exception_(exception), to_find_(exception->GetClass()), throw_method_(NULL),
-        throw_frame_id_(0), throw_dex_pc_(0), handler_quick_frame_(NULL),
-        handler_quick_frame_pc_(0), handler_dex_pc_(0), native_method_count_(0),
-        method_tracing_active_(Runtime::Current()->IsMethodTracingActive()) {
+        self_(self), exception_(exception), is_deoptimization_(is_deoptimization),
+        to_find_(is_deoptimization ? NULL : exception->GetClass()), throw_location_(throw_location),
+        handler_quick_frame_(NULL), handler_quick_frame_pc_(0), handler_dex_pc_(0),
+        native_method_count_(0),
+        method_tracing_active_(is_deoptimization ||
+                               Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
+        instrumentation_frames_to_pop_(0), top_shadow_frame_(NULL), prev_shadow_frame_(NULL) {
     // Exception not in root sets, can't allow GC.
     last_no_assert_suspension_cause_ = self->StartAssertNoThreadSuspension("Finding catch block");
   }
@@ -1659,37 +1701,37 @@ class CatchBlockStackVisitor : public StackVisitor {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::AbstractMethod* method = GetMethod();
     if (method == NULL) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       handler_quick_frame_pc_ = GetCurrentQuickFramePc();
       handler_quick_frame_ = GetCurrentQuickFrame();
       return false;  // End stack walk.
-    }
-    uint32_t dex_pc = DexFile::kDexNoIndex;
-    if (method->IsRuntimeMethod()) {
-      // ignore callee save method
-      DCHECK(method->IsCalleeSaveMethod());
     } else {
-      if (throw_method_ == NULL) {
-        throw_method_ = method;
-        throw_frame_id_ = GetFrameId();
-        throw_dex_pc_ = GetDexPc();
+      if (UNLIKELY(method_tracing_active_ &&
+                   GetInstrumentationExitPc() == GetReturnPc())) {
+        // Keep count of the number of unwinds during instrumentation.
+        instrumentation_frames_to_pop_++;
       }
-      if (method->IsNative()) {
-        native_method_count_++;
+      if (method->IsRuntimeMethod()) {
+        // Ignore callee save method.
+        DCHECK(method->IsCalleeSaveMethod());
+        return true;
+      } else if (is_deoptimization_) {
+        return HandleDeoptimization(method);
       } else {
-        // Unwind stack when an exception occurs during instrumentation
-        if (UNLIKELY(method_tracing_active_ &&
-                     GetInstrumentationExitPc() == GetCurrentQuickFramePc())) {
-          uintptr_t pc = InstrumentationMethodUnwindFromCode(Thread::Current());
-          dex_pc = method->ToDexPc(pc);
-        } else {
-          dex_pc = GetDexPc();
-        }
+        return HandleTryItems(method);
       }
+    }
+  }
+
+  bool HandleTryItems(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t dex_pc = DexFile::kDexNoIndex;
+    if (method->IsNative()) {
+      native_method_count_++;
+    } else {
+      dex_pc = GetDexPc();
     }
     if (dex_pc != DexFile::kDexNoIndex) {
       uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
@@ -1703,22 +1745,81 @@ class CatchBlockStackVisitor : public StackVisitor {
     return true;  // Continue stack walk.
   }
 
+  bool HandleDeoptimization(mirror::AbstractMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    MethodHelper mh(m);
+    const DexFile::CodeItem* code_item = mh.GetCodeItem();
+    CHECK(code_item != NULL);
+    uint16_t num_regs =  code_item->registers_size_;
+    uint32_t dex_pc = GetDexPc();
+    const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
+    uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
+    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, m, new_dex_pc);
+    verifier::MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
+                                      mh.GetClassDefIndex(), code_item,
+                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), false);
+    verifier.Verify();
+    std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
+    for(uint16_t reg = 0; reg < num_regs; reg++) {
+      VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
+      switch (kind) {
+        case kUndefined:
+          new_frame->SetVReg(reg, 0xEBADDE09);
+          break;
+        case kConstant:
+          new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
+          break;
+        case kReferenceVReg:
+          new_frame->SetVRegReference(reg,
+                                      reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
+          break;
+        default:
+          new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          break;
+      }
+    }
+    if (prev_shadow_frame_ != NULL) {
+      prev_shadow_frame_->SetLink(new_frame);
+    } else {
+      top_shadow_frame_ = new_frame;
+    }
+    prev_shadow_frame_ = new_frame;
+    return true;
+  }
+
   void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::AbstractMethod* catch_method = *handler_quick_frame_;
-    if (kDebugExceptionDelivery) {
-      if (catch_method == NULL) {
+    if (catch_method == NULL) {
+      if (kDebugExceptionDelivery) {
         LOG(INFO) << "Handler is upcall";
-      } else {
+      }
+    } else {
+      CHECK(!is_deoptimization_);
+      if (instrumentation_frames_to_pop_ > 0) {
+        // Don't pop the instrumentation frame of the catch handler.
+        instrumentation_frames_to_pop_--;
+      }
+      if (kDebugExceptionDelivery) {
         const DexFile& dex_file = *catch_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
         int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
         LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
       }
     }
-    self_->SetException(exception_);  // Exception back in root set.
+    // Put exception back in root set and clear throw location.
+    self_->SetException(ThrowLocation(), exception_);
     self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
-    // Do debugger PostException after allowing thread suspension again.
-    Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
-                       catch_method, handler_dex_pc_, exception_);
+    // Do instrumentation events after allowing thread suspension again.
+    instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+    for (size_t i = 0; i < instrumentation_frames_to_pop_; ++i) {
+      // We pop the instrumentation stack here so as not to corrupt it during the stack walk.
+      instrumentation->PopMethodForUnwind(self_, is_deoptimization_);
+    }
+    if (!is_deoptimization_) {
+      instrumentation->ExceptionCaughtEvent(self_, throw_location_, catch_method, handler_dex_pc_,
+                                            exception_);
+    } else {
+      // TODO: proper return value.
+      self_->SetDeoptimizationShadowFrame(top_shadow_frame_);
+    }
     // Place context back on thread so it will be available when we continue.
     self_->ReleaseLongJumpContext(context_);
     context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));
@@ -1729,13 +1830,13 @@ class CatchBlockStackVisitor : public StackVisitor {
   }
 
  private:
-  Thread* self_;
-  mirror::Throwable* exception_;
+  Thread* const self_;
+  mirror::Throwable* const exception_;
+  const bool is_deoptimization_;
   // The type of the exception catch block to find.
-  mirror::Class* to_find_;
-  mirror::AbstractMethod* throw_method_;
-  JDWP::FrameId throw_frame_id_;
-  uint32_t throw_dex_pc_;
+  mirror::Class* const to_find_;
+  // Location of the throw.
+  const ThrowLocation& throw_location_;
   // Quick frame with found handler or last frame if no handler found.
   mirror::AbstractMethod** handler_quick_frame_;
   // PC to branch to for the handler.
@@ -1748,21 +1849,32 @@ class CatchBlockStackVisitor : public StackVisitor {
   const bool method_tracing_active_;
   // Support for nesting no thread suspension checks.
   const char* last_no_assert_suspension_cause_;
+  // Number of frames to pop in long jump.
+  size_t instrumentation_frames_to_pop_;
+  ShadowFrame* top_shadow_frame_;
+  ShadowFrame* prev_shadow_frame_;
 };
 
 void Thread::QuickDeliverException() {
-  mirror::Throwable* exception = GetException();  // Get exception from thread
+  // Get exception from thread.
+  ThrowLocation throw_location;
+  mirror::Throwable* exception = GetException(&throw_location);
   CHECK(exception != NULL);
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
   ClearException();
+  bool is_deoptimization = (exception == reinterpret_cast<mirror::Throwable*>(-1));
   if (kDebugExceptionDelivery) {
-    mirror::String* msg = exception->GetDetailMessage();
-    std::string str_msg(msg != NULL ? msg->ToModifiedUtf8() : "");
-    DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
-                        << ": " << str_msg << "\n");
+    if (!is_deoptimization) {
+      mirror::String* msg = exception->GetDetailMessage();
+      std::string str_msg(msg != NULL ? msg->ToModifiedUtf8() : "");
+      DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
+                << ": " << str_msg << "\n");
+    } else {
+      DumpStack(LOG(INFO) << "Deoptimizing: ");
+    }
   }
-  CatchBlockStackVisitor catch_finder(this, exception);
+  CatchBlockStackVisitor catch_finder(this, throw_location, exception, is_deoptimization);
   catch_finder.WalkStack(true);
   catch_finder.DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
@@ -1779,37 +1891,43 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
-mirror::AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
-  struct CurrentMethodVisitor : public StackVisitor {
-    CurrentMethodVisitor(Thread* thread)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : StackVisitor(thread, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
-
-    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      mirror::AbstractMethod* m = GetMethod();
-      if (m->IsRuntimeMethod()) {
-        // Continue if this is a runtime method.
-        return true;
-      }
-      method_ = m;
-      dex_pc_ = GetDexPc();
-      frame_id_ = GetFrameId();
-      return false;
+struct CurrentMethodVisitor : public StackVisitor {
+  CurrentMethodVisitor(Thread* thread, Context* context)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : StackVisitor(thread, context), this_object_(NULL), method_(NULL), dex_pc_(0) {}
+  virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::AbstractMethod* m = GetMethod();
+    if (m->IsRuntimeMethod()) {
+      // Continue if this is a runtime method.
+      return true;
     }
-    mirror::AbstractMethod* method_;
-    uint32_t dex_pc_;
-    size_t frame_id_;
-  };
+    if (context_ != NULL) {
+      this_object_ = GetThisObject();
+    }
+    method_ = m;
+    dex_pc_ = GetDexPc();
+    return false;
+  }
+  mirror::Object* this_object_;
+  mirror::AbstractMethod* method_;
+  uint32_t dex_pc_;
+};
 
-  CurrentMethodVisitor visitor(const_cast<Thread*>(this));
+mirror::AbstractMethod* Thread::GetCurrentMethod(uint32_t* dex_pc) const {
+  CurrentMethodVisitor visitor(const_cast<Thread*>(this), NULL);
   visitor.WalkStack(false);
   if (dex_pc != NULL) {
     *dex_pc = visitor.dex_pc_;
   }
-  if (frame_id != NULL) {
-    *frame_id = visitor.frame_id_;
-  }
   return visitor.method_;
+}
+
+ThrowLocation Thread::GetCurrentLocationForThrow() {
+  Context* context = GetLongJumpContext();
+  CurrentMethodVisitor visitor(this, context);
+  visitor.WalkStack(false);
+  ReleaseLongJumpContext(context);
+  return ThrowLocation(visitor.this_object_, visitor.method_, visitor.dex_pc_);
 }
 
 bool Thread::HoldsLock(mirror::Object* object) {
@@ -1981,6 +2099,7 @@ void Thread::VerifyRoots(VerifyRootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {
     VerifyRootWrapperCallback(exception_, &wrapperArg);
   }
+  throw_location_.VisitRoots(VerifyRootWrapperCallback, &wrapperArg);
   if (class_loader_override_ != NULL) {
     VerifyRootWrapperCallback(class_loader_override_, &wrapperArg);
   }
@@ -1995,6 +2114,17 @@ void Thread::VerifyRoots(VerifyRootVisitor* visitor, void* arg) {
   ReferenceMapVisitor<VerifyCallbackVisitor> mapper(this, context, visitorToCallback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
+
+  std::deque<instrumentation::InstrumentationStackFrame>* instrumentation_stack = GetInstrumentationStack();
+  typedef std::deque<instrumentation::InstrumentationStackFrame>::const_iterator It;
+  for (It it = instrumentation_stack->begin(), end = instrumentation_stack->end(); it != end; ++it) {
+    mirror::Object* this_object = (*it).this_object_;
+    if (this_object != NULL) {
+      VerifyRootWrapperCallback(this_object, &wrapperArg);
+    }
+    mirror::AbstractMethod* method = (*it).method_;
+    VerifyRootWrapperCallback(method, &wrapperArg);
+  }
 }
 
 void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
@@ -2004,6 +2134,7 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {
     visitor(exception_, arg);
   }
+  throw_location_.VisitRoots(visitor, arg);
   if (class_loader_override_ != NULL) {
     visitor(class_loader_override_, arg);
   }
@@ -2018,6 +2149,17 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context, visitorToCallback);
   mapper.WalkStack();
   ReleaseLongJumpContext(context);
+
+  std::deque<instrumentation::InstrumentationStackFrame>* instrumentation_stack = GetInstrumentationStack();
+  typedef std::deque<instrumentation::InstrumentationStackFrame>::const_iterator It;
+  for (It it = instrumentation_stack->begin(), end = instrumentation_stack->end(); it != end; ++it) {
+    mirror::Object* this_object = (*it).this_object_;
+    if (this_object != NULL) {
+      visitor(this_object, arg);
+    }
+    mirror::AbstractMethod* method = (*it).method_;
+    visitor(method, arg);
+  }
 }
 
 static void VerifyObject(const mirror::Object* root, void* arg) {

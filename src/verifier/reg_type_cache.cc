@@ -148,6 +148,10 @@ mirror::Class* RegTypeCache::ResolveClass(std::string descriptor, mirror::ClassL
     klass = class_linker->FindClass(descriptor.c_str(), loader);
   } else {
     klass = class_linker->LookupClass(descriptor.c_str(), loader);
+    if (klass != NULL && !klass->IsLoaded()) {
+      // We found the class but without it being loaded its not safe for use.
+      klass = NULL;
+    }
   }
   return klass;
 }
@@ -244,12 +248,12 @@ const RegType& RegTypeCache::FromClass(mirror::Class* klass, bool precise) {
 RegTypeCache::~RegTypeCache() {
   CHECK_LE(primitive_count_, entries_.size());
   // Delete only the non primitive types.
-  if (primitive_count_  == static_cast<uint16_t>(entries_.size())) {
+  if (entries_.size() == kNumPrimitives) {
     // All entries are primitive, nothing to delete.
     return;
   }
   std::vector<RegType*>::iterator non_primitive_begin = entries_.begin();
-  std::advance(non_primitive_begin, primitive_count_);
+  std::advance(non_primitive_begin, kNumPrimitives);
   STLDeleteContainerPointers(non_primitive_begin, entries_.end());
 }
 
@@ -267,8 +271,8 @@ void RegTypeCache::ShutDown() {
     FloatType::GetInstance();
     DoubleLoType::Destroy();
     DoubleHiType::Destroy();
-   RegTypeCache::primitive_initialized_ = false;
-   RegTypeCache::primitive_count_ = 0;
+    RegTypeCache::primitive_initialized_ = false;
+    RegTypeCache::primitive_count_ = 0;
   }
 }
 

@@ -1375,9 +1375,6 @@ void Mir2Lir::GenInvoke(CallInfo* info)
                              vtable_idx, direct_code, direct_method,
                              original_type);
   }
-  if (cu_->enable_debug & (1 << kDebugDisplayMissingTargets)) {
-    GenShowTarget();
-  }
   LIR* call_inst;
   if (cu_->instruction_set != kX86) {
     call_inst = OpReg(kOpBlx, TargetReg(kInvokeTgt));

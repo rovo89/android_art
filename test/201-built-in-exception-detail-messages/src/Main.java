@@ -393,7 +393,7 @@ public class Main {
       m.invoke("hello"); // Wrong number of arguments.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("wrong number of arguments; expected 1, got 0", iae.getMessage());
+      assertEquals("Wrong number of arguments; expected 1, got 0", iae.getMessage());
     }
     try {
       Method m = String.class.getMethod("charAt", int.class);
@@ -414,14 +414,14 @@ public class Main {
       m.invoke(new Integer(5)); // Wrong type for 'this'.
       fail();
     } catch (IllegalArgumentException iae) {
-      assertEquals("expected receiver of type java.lang.String, but got java.lang.Integer", iae.getMessage());
+      assertEquals("Expected receiver of type java.lang.String, but got java.lang.Integer", iae.getMessage());
     }
     try {
       Method m = String.class.getMethod("charAt", int.class);
       m.invoke(null); // Null for 'this'.
       fail();
     } catch (NullPointerException npe) {
-      assertEquals("expected receiver of type java.lang.String, but got null", npe.getMessage());
+      assertEquals("null receiver", npe.getMessage());
     }
   }
 

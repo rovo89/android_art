@@ -18,6 +18,7 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "gc/space.h"
 #include "image.h"
@@ -103,18 +104,18 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   }
   if (dex_file == NULL) {
     LOG(WARNING) << "Failed to open dex file: " << source;
-    Thread::Current()->ThrowNewExceptionF("Ljava/io/IOException;", "Unable to open dex file: %s",
-                                          source.c_str());
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/IOException;",
+                                   "Unable to open dex file: %s", source.c_str());
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(int dex_file_address)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static const DexFile* toDexFile(int dex_file_address) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
   if (dex_file == NULL) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;", "dex_file == null");
+    ThrowNullPointerException(NULL, "dex_file == null");
   }
   return dex_file;
 }
@@ -188,7 +189,9 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   if (!OS::FileExists(filename.c_str())) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
     ScopedObjectAccess soa(env);
-    Thread::Current()->ThrowNewExceptionF("Ljava/io/FileNotFoundException;", "%s", filename.c_str());
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/io/FileNotFoundException;",
+                                   "%s", filename.c_str());
     return JNI_TRUE;
   }
 

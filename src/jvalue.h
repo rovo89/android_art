@@ -19,6 +19,8 @@
 
 #include "base/macros.h"
 
+#include <stdint.h>
+
 namespace art {
 namespace mirror {
 class Object;

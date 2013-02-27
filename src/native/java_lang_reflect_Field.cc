@@ -16,6 +16,7 @@
 
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
@@ -71,22 +72,23 @@ static bool GetFieldValue(const ScopedObjectAccess& soa, mirror::Object* o, mirr
     // Never okay.
     break;
   }
-  soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-      "Not a primitive field: %s", PrettyField(f).c_str());
+  ThrowIllegalArgumentException(NULL,
+                                StringPrintf("Not a primitive field: %s",
+                                             PrettyField(f).c_str()).c_str());
   return false;
 }
 
-static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, mirror::Field* f,
-                          mirror::Object*& o)
+static bool CheckReceiver(const ScopedObjectAccess& soa, jobject j_rcvr, mirror::Field* f,
+                          mirror::Object*& class_or_rcvr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (f->IsStatic()) {
-    o = f->GetDeclaringClass();
+    class_or_rcvr = f->GetDeclaringClass();
     return true;
   }
 
-  o = soa.Decode<mirror::Object*>(javaObj);
+  class_or_rcvr = soa.Decode<mirror::Object*>(j_rcvr);
   mirror::Class* declaringClass = f->GetDeclaringClass();
-  if (!VerifyObjectInClass(o, declaringClass)) {
+  if (!VerifyObjectInClass(class_or_rcvr, declaringClass)) {
     return false;
   }
   return true;
@@ -126,8 +128,8 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   // Widen it if necessary (and possible).
   JValue wide_value;
   mirror::Class* dst_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(dst_descriptor);
-  if (!ConvertPrimitiveValue(FieldHelper(f).GetTypeAsPrimitiveType(), dst_type->GetPrimitiveType(),
-                             field_value, wide_value)) {
+  if (!ConvertPrimitiveValue(NULL, false, FieldHelper(f).GetTypeAsPrimitiveType(),
+                             dst_type->GetPrimitiveType(), field_value, wide_value)) {
     return JValue();
   }
   return wide_value;
@@ -205,8 +207,8 @@ static void SetFieldValue(mirror::Object* o, mirror::Field* f, const JValue& new
     // Else fall through to report an error.
   case Primitive::kPrimVoid:
     // Never okay.
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "Not a primitive field: %s", PrettyField(f).c_str());
+    ThrowIllegalArgumentException(NULL, StringPrintf("Not a primitive field: %s",
+                                                     PrettyField(f).c_str()).c_str());
     return;
   }
 
@@ -247,15 +249,15 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
   }
   FieldHelper fh(f);
   if (!fh.IsPrimitiveType()) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "Not a primitive field: %s", PrettyField(f).c_str());
+    ThrowIllegalArgumentException(NULL, StringPrintf("Not a primitive field: %s",
+                                                     PrettyField(f).c_str()).c_str());
     return;
   }
 
   // Widen the value if necessary (and possible).
   JValue wide_value;
   mirror::Class* src_type = Runtime::Current()->GetClassLinker()->FindPrimitiveClass(src_descriptor);
-  if (!ConvertPrimitiveValue(src_type->GetPrimitiveType(), fh.GetTypeAsPrimitiveType(),
+  if (!ConvertPrimitiveValue(NULL, false, src_type->GetPrimitiveType(), fh.GetTypeAsPrimitiveType(),
                              new_value, wide_value)) {
     return;
   }

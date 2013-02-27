@@ -112,7 +112,7 @@ static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
           << mh.GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
-          << self->GetException()->Dump();
+          << self->GetException(NULL)->Dump();
       self->ClearException();
       ++error_count;
     } else if (!param_type->IsPrimitive()) {
@@ -214,8 +214,10 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, Class* c,
                                    const char* name, const char* sig, const char* kind)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-      "no %s method \"%s.%s%s\"", kind, ClassHelper(c).GetDescriptor(), name, sig);
+  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
+                                 "no %s method \"%s.%s%s\"",
+                                 kind, ClassHelper(c).GetDescriptor(), name, sig);
 }
 
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
@@ -248,7 +250,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 
 static ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  AbstractMethod* method = soa.Self()->GetCurrentMethod();
+  AbstractMethod* method = soa.Self()->GetCurrentMethod(NULL);
   if (method == NULL ||
       method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
     return soa.Self()->GetClassLoaderOverride();
@@ -276,10 +278,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   if (field_type == NULL) {
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
+    ThrowLocation throw_location;
+    SirtRef<mirror::Throwable> cause(soa.Self(), soa.Self()->GetException(&throw_location));
     soa.Self()->ClearException();
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-        "no type \"%s\" found and so no field \"%s\" could be found in class "
-        "\"%s\" or its superclasses", sig, name, ClassHelper(c).GetDescriptor());
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
+                                   "no type \"%s\" found and so no field \"%s\" could be found in class "
+                                   "\"%s\" or its superclasses", sig, name,
+                                   ClassHelper(c).GetDescriptor());
+    soa.Self()->GetException(NULL)->SetCause(cause.get());
     return NULL;
   }
   if (is_static) {
@@ -288,9 +294,10 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     field = c->FindInstanceField(name, ClassHelper(field_type).GetDescriptor());
   }
   if (field == NULL) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-        "no \"%s\" field \"%s\" in class \"%s\" or its superclasses", sig,
-        name, ClassHelper(c).GetDescriptor());
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
+                                   "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
+                                   sig, name, ClassHelper(c).GetDescriptor());
     return NULL;
   }
   return soa.EncodeField(field);
@@ -314,16 +321,19 @@ static void ThrowAIOOBE(ScopedObjectAccess& soa, Array* array, jsize start,
                         jsize length, const char* identifier)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string type(PrettyTypeOf(array));
-  soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-      "%s offset=%d length=%d %s.length=%d",
-      type.c_str(), start, length, identifier, array->GetLength());
+  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                                 "%s offset=%d length=%d %s.length=%d",
+                                 type.c_str(), start, length, identifier, array->GetLength());
 }
 
 static void ThrowSIOOBE(ScopedObjectAccess& soa, jsize start, jsize length,
                         jsize array_length)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
-      "offset=%d length=%d string.length()=%d", start, length, array_length);
+  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
+                                 "offset=%d length=%d string.length()=%d", start, length,
+                                 array_length);
 }
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause)
@@ -362,10 +372,9 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
   if (exception.get() == NULL) {
     return JNI_ERR;
   }
-
   ScopedObjectAccess soa(env);
-  soa.Self()->SetException(soa.Decode<Throwable*>(exception.get()));
-
+  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  soa.Self()->SetException(throw_location, soa.Decode<Throwable*>(exception.get()));
   return JNI_OK;
 }
 
@@ -678,7 +687,8 @@ class JNI {
     if (exception == NULL) {
       return JNI_ERR;
     }
-    soa.Self()->SetException(exception);
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->SetException(throw_location, exception);
     return JNI_OK;
   }
 
@@ -697,31 +707,42 @@ class JNI {
   static void ExceptionDescribe(JNIEnv* env) {
     ScopedObjectAccess soa(env);
 
-    Thread* self = soa.Self();
-    Throwable* original_exception = self->GetException();
-    self->ClearException();
-
-    ScopedLocalRef<jthrowable> exception(env, soa.AddLocalReference<jthrowable>(original_exception));
+    SirtRef<mirror::Object> old_throw_this_object(soa.Self(), NULL);
+    SirtRef<mirror::AbstractMethod> old_throw_method(soa.Self(), NULL);
+    SirtRef<mirror::Throwable> old_exception(soa.Self(), NULL);
+    uint32_t old_throw_dex_pc;
+    {
+      ThrowLocation old_throw_location;
+      mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
+      old_throw_this_object.reset(old_throw_location.GetThis());
+      old_throw_method.reset(old_throw_location.GetMethod());
+      old_exception.reset(old_exception_obj);
+      old_throw_dex_pc = old_throw_location.GetDexPc();
+      soa.Self()->ClearException();
+    }
+    ScopedLocalRef<jthrowable> exception(env, soa.AddLocalReference<jthrowable>(old_exception.get()));
     ScopedLocalRef<jclass> exception_class(env, env->GetObjectClass(exception.get()));
     jmethodID mid = env->GetMethodID(exception_class.get(), "printStackTrace", "()V");
     if (mid == NULL) {
       LOG(WARNING) << "JNI WARNING: no printStackTrace()V in "
-                   << PrettyTypeOf(original_exception);
+                   << PrettyTypeOf(old_exception.get());
     } else {
       env->CallVoidMethod(exception.get(), mid);
-      if (self->IsExceptionPending()) {
-        LOG(WARNING) << "JNI WARNING: " << PrettyTypeOf(self->GetException())
+      if (soa.Self()->IsExceptionPending()) {
+        LOG(WARNING) << "JNI WARNING: " << PrettyTypeOf(soa.Self()->GetException(NULL))
                      << " thrown while calling printStackTrace";
-        self->ClearException();
+        soa.Self()->ClearException();
       }
     }
+    ThrowLocation gc_safe_throw_location(old_throw_this_object.get(), old_throw_method.get(),
+                                         old_throw_dex_pc);
 
-    self->SetException(original_exception);
+    soa.Self()->SetException(gc_safe_throw_location, old_exception.get());
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
     ScopedObjectAccess soa(env);
-    Object* exception = soa.Self()->GetException();
+    Object* exception = soa.Self()->GetException(NULL);
     return soa.AddLocalReference<jthrowable>(exception);
   }
 
@@ -2134,10 +2155,10 @@ class JNI {
 
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     if (capacity < 0) {
-      JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %d", capacity);
+      JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %lld", capacity);
     }
     if (address == NULL && capacity != 0) {
-      JniAbortF("NewDirectByteBuffer", "non-zero capacity for NULL pointer: %d", capacity);
+      JniAbortF("NewDirectByteBuffer", "non-zero capacity for NULL pointer: %lld", capacity);
     }
 
     // At the moment, the Java side is limited to 32 bits.
@@ -2676,7 +2697,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       force_copy(false), // TODO: add a way to enable this
       trace(options->jni_trace_),
       work_around_app_jni_bugs(false),
-      pins_lock("JNI pin table lock"),
+      pins_lock("JNI pin table lock", kPinTableLock),
       pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),
       globals(gGlobalsInitial, gGlobalsMax, kGlobal),
@@ -2889,9 +2910,10 @@ void* JavaVMExt::FindCodeForNativeMethod(AbstractMethod* m) {
     MutexLock mu(self, libraries_lock);
     native_method = libraries->FindNativeMethod(m, detail);
   }
-  // throwing can cause libraries_lock to be reacquired
+  // Throwing can cause libraries_lock to be reacquired.
   if (native_method == NULL) {
-    self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewException(throw_location, "Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
 }

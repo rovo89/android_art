@@ -60,10 +60,22 @@ void Class::SetStatus(Status new_status) {
   if (new_status == kStatusError) {
     CHECK_NE(GetStatus(), kStatusError) << PrettyClass(this);
 
-    // stash current exception
+    // Stash current exception.
     Thread* self = Thread::Current();
-    SirtRef<Throwable> exception(self, self->GetException());
-    CHECK(exception.get() != NULL);
+    SirtRef<mirror::Object> old_throw_this_object(self, NULL);
+    SirtRef<mirror::AbstractMethod> old_throw_method(self, NULL);
+    SirtRef<mirror::Throwable> old_exception(self, NULL);
+    uint32_t old_throw_dex_pc;
+    {
+      ThrowLocation old_throw_location;
+      mirror::Throwable* old_exception_obj = self->GetException(&old_throw_location);
+      old_throw_this_object.reset(old_throw_location.GetThis());
+      old_throw_method.reset(old_throw_location.GetMethod());
+      old_exception.reset(old_exception_obj);
+      old_throw_dex_pc = old_throw_location.GetDexPc();
+      self->ClearException();
+    }
+    CHECK(old_exception.get() != NULL);
 
     // clear exception to call FindSystemClass
     self->ClearException();
@@ -71,15 +83,18 @@ void Class::SetStatus(Status new_status) {
     Class* eiie_class = class_linker->FindSystemClass("Ljava/lang/ExceptionInInitializerError;");
     CHECK(!self->IsExceptionPending());
 
-    // only verification errors, not initialization problems, should set a verify error.
-    // this is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
-    Class* exception_class = exception->GetClass();
+    // Only verification errors, not initialization problems, should set a verify error.
+    // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
+    Class* exception_class = old_exception->GetClass();
     if (!eiie_class->IsAssignableFrom(exception_class)) {
       SetVerifyErrorClass(exception_class);
     }
 
-    // restore exception
-    self->SetException(exception.get());
+    // Restore exception.
+    ThrowLocation gc_safe_throw_location(old_throw_this_object.get(), old_throw_method.get(),
+                                         old_throw_dex_pc);
+
+    self->SetException(gc_safe_throw_location, old_exception.get());
   }
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
 }

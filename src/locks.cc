@@ -29,6 +29,7 @@ ReaderWriterMutex* Locks::mutator_lock_ = NULL;
 Mutex* Locks::runtime_shutdown_lock_ = NULL;
 Mutex* Locks::thread_list_lock_ = NULL;
 Mutex* Locks::thread_suspend_count_lock_ = NULL;
+Mutex* Locks::trace_lock_ = NULL;
 Mutex* Locks::unexpected_signal_lock_ = NULL;
 
 void Locks::Init() {
@@ -42,6 +43,7 @@ void Locks::Init() {
     DCHECK(mutator_lock_ != NULL);
     DCHECK(thread_list_lock_ != NULL);
     DCHECK(thread_suspend_count_lock_ != NULL);
+    DCHECK(trace_lock_ != NULL);
     DCHECK(unexpected_signal_lock_ != NULL);
   } else {
     logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
@@ -61,6 +63,8 @@ void Locks::Init() {
     thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
     DCHECK(thread_suspend_count_lock_ == NULL);
     thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
+    DCHECK(trace_lock_ == NULL);
+    trace_lock_ = new Mutex("trace lock", kTraceLock);
     DCHECK(unexpected_signal_lock_ == NULL);
     unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
   }

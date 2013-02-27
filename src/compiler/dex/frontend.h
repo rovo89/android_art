@@ -55,7 +55,6 @@ enum opt_control_vector {
 
 // Force code generation paths for testing.
 enum debugControlVector {
-  kDebugDisplayMissingTargets,
   kDebugVerbose,
   kDebugDumpCFG,
   kDebugSlowFieldPath,

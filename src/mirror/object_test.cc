@@ -116,12 +116,12 @@ TEST_F(ObjectTest, AllocObjectArray) {
 
   EXPECT_TRUE(oa->Get(-1) == NULL);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
   soa.Self()->ClearException();
 
   EXPECT_TRUE(oa->Get(2) == NULL);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
   soa.Self()->ClearException();
 
   ASSERT_TRUE(oa->GetClass() != NULL);
@@ -166,12 +166,12 @@ void TestPrimitiveArray(ClassLinker* cl) {
 
   EXPECT_EQ(0, a->Get(-1));
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
   soa.Self()->ClearException();
 
   EXPECT_EQ(0, a->Get(2));
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(aioobe, soa.Self()->GetException()->GetClass());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
   soa.Self()->ClearException();
 }
 
@@ -231,7 +231,7 @@ TEST_F(ObjectTest, CreateMultiArray) {
   dims->Set(0, -1);
   multi = Array::CreateMultiArray(soa.Self(), c.get(), dims.get());
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException()->GetClass()),
+  EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException(NULL)->GetClass()),
             "java.lang.NegativeArraySizeException");
   soa.Self()->ClearException();
 

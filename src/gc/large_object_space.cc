@@ -50,7 +50,7 @@ void LargeObjectSpace::CopyLiveToMarked() {
 
 LargeObjectMapSpace::LargeObjectMapSpace(const std::string& name)
     : LargeObjectSpace(name),
-      lock_("large object space lock", kAllocSpaceLock)
+      lock_("large object map space lock", kAllocSpaceLock)
 {
 
 }

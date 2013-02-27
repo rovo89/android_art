@@ -396,7 +396,6 @@ class Mir2Lir : public Backend {
                  bool is_long_or_double, bool is_object);
     void GenSget(uint32_t field_idx, RegLocation rl_dest,
                  bool is_long_or_double, bool is_object);
-    void GenShowTarget();
     void GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
                  RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double, bool is_object);
     void GenIPut(uint32_t field_idx, int opt_flags, OpSize size,

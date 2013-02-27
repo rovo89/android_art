@@ -44,7 +44,7 @@ namespace art {
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  mirror::AbstractMethod* current_method = self->GetCurrentMethod();
+  mirror::AbstractMethod* current_method = self->GetCurrentMethod(NULL);
 
   std::ostringstream os;
   os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
@@ -401,8 +401,7 @@ class ScopedCheck {
    *
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
-  void Check(bool entry, const char* fmt0, ...)
-      SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
+  void Check(bool entry, const char* fmt0, ...) SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
     va_list ap;
 
     const mirror::AbstractMethod* traceMethod = NULL;
@@ -411,7 +410,7 @@ class ScopedCheck {
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
       if ((flags_ & kFlag_Invocation) == 0 || self != NULL) {
-        traceMethod = self->GetCurrentMethod();
+        traceMethod = self->GetCurrentMethod(NULL);
       }
     }
 
@@ -812,14 +811,19 @@ class ScopedCheck {
     // Verify that, if an exception has been raised, the native code doesn't
     // make any JNI calls other than the Exception* methods.
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
-      std::string type(PrettyTypeOf(self->GetException()));
+      ThrowLocation throw_location;
+      mirror::Throwable* exception = self->GetException(&throw_location);
+      std::string type(PrettyTypeOf(exception));
       // TODO: write native code that doesn't require allocation for dumping an exception.
       // TODO: do we care any more? art always dumps pending exceptions on aborting threads.
-      if (type != "java.lang.OutOfMemoryError") {
-        JniAbortF(function_name_, "JNI %s called with pending exception: %s",
-                  function_name_, type.c_str(), jniGetStackTrace(soa_.Env()).c_str());
+      bool with_stack_trace = (type != "java.lang.OutOfMemoryError");
+      if (with_stack_trace) {
+        JniAbortF(function_name_, "JNI %s called with pending exception '%s' thrown in %s\n%s",
+                  function_name_, type.c_str(), throw_location.Dump().c_str(),
+                  jniGetStackTrace(soa_.Env()).c_str());
       } else {
-        JniAbortF(function_name_, "JNI %s called with %s pending", function_name_, type.c_str());
+        JniAbortF(function_name_, "JNI %s called with pending exception '%s' thrown in %s",
+                  function_name_, type.c_str(), throw_location.Dump().c_str());
       }
       return;
     }
@@ -1772,7 +1776,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
       JniAbortF(__FUNCTION__, "non-nullable address is NULL");
     }
     if (capacity <= 0) {
-      JniAbortF(__FUNCTION__, "capacity must be greater than 0: %d", capacity);
+      JniAbortF(__FUNCTION__, "capacity must be greater than 0: %lld", capacity);
     }
     return CHECK_JNI_EXIT("L", baseEnv(env)->NewDirectByteBuffer(env, address, capacity));
   }

@@ -77,7 +77,7 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   cp = EventLogWriteInt(cp, wait_ms);
 
   // Emit the source code file name, <= 37 bytes.
-  uintptr_t pc;
+  uint32_t pc;
   mirror::AbstractMethod* m = self->GetCurrentMethod(&pc);
   const char* filename;
   uint32_t line_number;

@@ -334,6 +334,7 @@ void JdwpState::Run() {
 
   /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
   CHECK_EQ(thread_->GetState(), kNative);
+  Locks::mutator_lock_->AssertNotHeld(thread_);
   thread_->SetState(kWaitingInMainDebuggerLoop);
 
   /*
@@ -421,10 +422,9 @@ void JdwpState::Run() {
 
       // Release session state, e.g. remove breakpoint instructions.
       ResetState();
-
-      // Tell the rest of the runtime that the debugger is no longer around.
-      Dbg::Disconnected();
     }
+    // Tell the rest of the runtime that the debugger is no longer around.
+    Dbg::Disconnected();
 
     /* if we had threads suspended, resume them now */
     Dbg::UndoDebuggerSuspensions();

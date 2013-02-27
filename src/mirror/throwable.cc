@@ -35,7 +35,9 @@ Class* Throwable::java_lang_Throwable_ = NULL;
 void Throwable::SetCause(Throwable* cause) {
   CHECK(cause != NULL);
   CHECK(cause != this);
-  CHECK(GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false) == NULL);
+  Throwable* current_cause = GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_),
+                                                        false);
+  CHECK(current_cause == NULL || current_cause == this);
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), cause, false);
 }
 

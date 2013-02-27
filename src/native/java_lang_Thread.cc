@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "common_throws.h"
 #include "debugger.h"
 #include "jni_internal.h"
 #include "monitor.h"
@@ -90,7 +91,7 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
   ScopedObjectAccess soa(env);
   mirror::Object* object = soa.Decode<mirror::Object*>(java_object);
   if (object == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
+    ThrowNullPointerException(NULL, "object == null");
     return JNI_FALSE;
   }
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);

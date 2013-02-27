@@ -41,6 +41,7 @@
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "globals.h"
@@ -450,16 +451,14 @@ class Hprof {
       if (fd_ >= 0) {
         out_fd = dup(fd_);
         if (out_fd < 0) {
-          self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-                                   "Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
+          ThrowRuntimeException("Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
           return;
         }
       } else {
         out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
         if (out_fd < 0) {
-          self->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-                                   "Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
-                                   strerror(errno));
+          ThrowRuntimeException("Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
+                                strerror(errno));
           return;
         }
       }
@@ -470,7 +469,7 @@ class Hprof {
       if (!okay) {
         std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
                                      filename_.c_str(), strerror(errno)));
-        self->ThrowNewException("Ljava/lang/RuntimeException;", msg.c_str());
+        ThrowRuntimeException("%s", msg.c_str());
         LOG(ERROR) << msg;
       }
     }

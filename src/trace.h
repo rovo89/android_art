@@ -23,6 +23,7 @@
 
 #include "base/macros.h"
 #include "globals.h"
+#include "instrumentation.h"
 #include "os.h"
 #include "safe_map.h"
 #include "UniquePtr.h"
@@ -37,45 +38,65 @@ class Thread;
 enum ProfilerClockSource {
   kProfilerClockSourceThreadCpu,
   kProfilerClockSourceWall,
-  kProfilerClockSourceDual,
+  kProfilerClockSourceDual,  // Both wall and thread CPU clocks.
 };
 
-class Trace {
+class Trace : public instrumentation::InstrumentationListener {
  public:
-  enum TraceEvent {
-    kMethodTraceEnter = 0,
-    kMethodTraceExit = 1,
-    kMethodTraceUnwind = 2,
-  };
-
   enum TraceFlag {
     kTraceCountAllocs = 1,
   };
 
   static void SetDefaultClockSource(ProfilerClockSource clock_source);
 
-  static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms);
-  static void Stop();
-  static void Shutdown() NO_THREAD_SAFETY_ANALYSIS;  // TODO: implement appropriate locking.
+  static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
+                    bool direct_to_ddms)
+  LOCKS_EXCLUDED(Locks::mutator_lock_,
+                 Locks::thread_list_lock_,
+                 Locks::thread_suspend_count_lock_,
+                 Locks::trace_lock_);
+  static void Stop() LOCKS_EXCLUDED(Locks::trace_lock_);
+  static void Shutdown() LOCKS_EXCLUDED(Locks::trace_lock_);
+  static bool IsMethodTracingActive() LOCKS_EXCLUDED(Locks::trace_lock_);
 
   bool UseWallClock();
   bool UseThreadCpuClock();
 
-  void LogMethodTraceEvent(Thread* self, const mirror::AbstractMethod* method, TraceEvent event);
-
+  virtual void MethodEntered(Thread* thread, mirror::Object* this_object,
+                             const mirror::AbstractMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void MethodExited(Thread* thread, mirror::Object* this_object,
+                            const mirror::AbstractMethod* method, uint32_t dex_pc,
+                            const JValue& return_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void MethodUnwind(Thread* thread, const mirror::AbstractMethod* method, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void DexPcMoved(Thread* thread, mirror::Object* this_object,
+                          const mirror::AbstractMethod* method, uint32_t new_dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
+                               mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
+                               mirror::Throwable* exception_object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
 
-  void BeginTracing();
   void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void LogMethodTraceEvent(Thread* thread, const mirror::AbstractMethod* method,
+                           instrumentation::Instrumentation::InstrumentationEvent event);
+
   // Methods to output traced methods and threads.
-  void GetVisitedMethods(size_t end_offset);
-  void DumpMethodList(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void GetVisitedMethods(size_t end_offset, std::set<mirror::AbstractMethod*>* visited_methods);
+  void DumpMethodList(std::ostream& os, const std::set<mirror::AbstractMethod*>& visited_methods)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
-  // Set of methods visited by the profiler.
-  std::set<const mirror::AbstractMethod*> visited_methods_;
+  // Singleton instance of the Trace or NULL when no method tracing is active.
+  static Trace* the_trace_ GUARDED_BY(Locks::trace_lock_);
+
+  // The default profiler clock source.
+  static ProfilerClockSource default_clock_source_;
 
   // Maps a thread to its clock base.
   SafeMap<Thread*, uint64_t> thread_clock_base_map_;
@@ -87,17 +108,21 @@ class Trace {
   UniquePtr<uint8_t> buf_;
 
   // Flags enabling extra tracing of things such as alloc counts.
-  int flags_;
+  const int flags_;
 
-  ProfilerClockSource clock_source_;
+  const ProfilerClockSource clock_source_;
 
-  bool overflow_;
-  int buffer_size_;
-  uint64_t start_time_;
-  uint16_t trace_version_;
-  uint16_t record_size_;
+  // Size of buf_.
+  const int buffer_size_;
 
+  // Time trace was created.
+  const uint64_t start_time_;
+
+  // Offset into buf_.
   volatile int32_t cur_offset_;
+
+  // Did we overflow the buffer recording traces?
+  bool overflow_;
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };

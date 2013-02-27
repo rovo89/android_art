@@ -37,17 +37,20 @@ enum LockLevel {
   kThreadSuspendCountLock,
   kAbortLock,
   kDefaultMutexLevel,
+  kJdwpSerialLock,
   kAllocSpaceLock,
+  kMarkSweepLargeObjectLock,
+  kPinTableLock,
   kLoadLibraryLock,
   kClassLinkerClassesLock,
   kBreakpointLock,
+  kJdwpObjectRegistryLock,
   kThreadListLock,
   kBreakpointInvokeLock,
-  kJdwpObjectRegistryLock,
+  kTraceLock,
   kJdwpEventListLock,
   kJdwpAttachLock,
   kJdwpStartLock,
-  kJdwpSerialLock,
   kRuntimeShutdownLock,
   kHeapBitmapLock,
   kMonitorLock,
@@ -136,8 +139,11 @@ class Locks {
   // Guards breakpoints and single-stepping.
   static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
 
+  // Guards trace requests.
+  static Mutex* trace_lock_ ACQUIRED_AFTER(breakpoint_lock_);
+
   // Guards lists of classes within the class linker.
-  static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);
+  static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(trace_lock_);
 
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.

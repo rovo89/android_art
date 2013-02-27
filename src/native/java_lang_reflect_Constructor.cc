@@ -37,9 +37,12 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   ScopedObjectAccess soa(env);
   mirror::AbstractMethod* m = soa.Decode<mirror::Object*>(javaMethod)->AsMethod();
   mirror::Class* c = m->GetDeclaringClass();
-  if (c->IsAbstract()) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
-        "Can't instantiate abstract class %s", PrettyDescriptor(c).c_str());
+  if (UNLIKELY(c->IsAbstract())) {
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/InstantiationException;",
+                                   "Can't instantiate %s %s",
+                                   c->IsInterface() ? "interface" : "abstract class",
+                                   PrettyDescriptor(c).c_str());
     return NULL;
   }
 

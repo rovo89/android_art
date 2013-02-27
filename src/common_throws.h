@@ -28,17 +28,39 @@ class Field;
 class Object;
 }  // namespace mirror
 class StringPiece;
+class ThrowLocation;
 
-// NullPointerException
+// ArithmeticException
 
-void ThrowNullPointerExceptionForFieldAccess(mirror::Field* field, bool is_read)
+void ThrowArithmeticExceptionDivideByZero(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// ArrayIndexOutOfBoundsException
+
+void ThrowArrayIndexOutOfBoundsException(int index, int length)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionForMethodAccess(mirror::AbstractMethod* caller, uint32_t method_idx,
-                                              InvokeType type)
+// ArrayStoreException
+
+void ThrowArrayStoreException(const mirror::Class* element_class,
+                              const mirror::Class* array_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNullPointerExceptionFromDexPC(mirror::AbstractMethod* throw_method, uint32_t dex_pc)
+// ClassCircularityError
+
+void ThrowClassCircularityError(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// ClassCastException
+
+void ThrowClassCastException(const mirror::Class* dest_type, const mirror::Class* src_type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowClassCastException(const ThrowLocation* throw_location, const char* msg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// ClassFormatError
+
+void ThrowClassFormatError(const mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // IllegalAccessError
@@ -62,6 +84,15 @@ void ThrowIllegalAccessErrorFinalField(const mirror::AbstractMethod* referrer,
                                        mirror::Field* accessed)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// IllegalArgumentException
+
+void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const char* msg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 // IncompatibleClassChangeError
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
@@ -78,13 +109,66 @@ void ThrowIncompatibleClassChangeErrorField(const mirror::Field* resolved_field,
                                             const mirror::AbstractMethod* referrer)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void ThrowIncompatibleClassChangeError(const mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// LinkageError
+
+void ThrowLinkageError(const mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// NegativeArraySizeException
+
+void ThrowNegativeArraySizeException(int size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowNegativeArraySizeException(const char* msg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+
+// NoSuchFieldError
+
+void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
+                           const StringPiece& type, const StringPiece& name)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 // NoSuchMethodError
 
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
-                            const StringPiece& signature, const mirror::AbstractMethod* referrer)
+                            const StringPiece& signature)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void ThrowNoSuchMethodError(uint32_t method_idx, const mirror::AbstractMethod* referrer)
+void ThrowNoSuchMethodError(uint32_t method_idx)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// NullPointerException
+
+void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location,
+                                             mirror::Field* field,
+                                             bool is_read)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
+                                              uint32_t method_idx,
+                                              InvokeType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowNullPointerException(const ThrowLocation* throw_location, const char* msg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// RuntimeException
+
+void ThrowRuntimeException(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+// VerifyError
+
+void ThrowVerifyError(const mirror::Class* referrer, const char* fmt, ...)
+    __attribute__((__format__(__printf__, 2, 3)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

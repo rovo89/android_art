@@ -70,14 +70,6 @@ Throw.rethrow
 UnresTest1...
 UnresTest1...
 UnresTest2...
-java.lang.NoClassDefFoundError: Failed resolution of: LUnresClass;
-	at UnresTest2.run(UnresTest2.java:33)
-	at Main.run(Main.java:64)
-	at Main.main(Main.java:26)
-java.lang.NoClassDefFoundError: Failed resolution of: LUnresClassSubclass;
-	at UnresTest2.run(UnresTest2.java:41)
-	at Main.run(Main.java:64)
-	at Main.main(Main.java:26)
 UnresTest2 done
 InternedString.run
 Done!

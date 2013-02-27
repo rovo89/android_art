@@ -24,8 +24,27 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "thread_list.h"
+#include "throw_location.h"
 
 namespace art {
+
+mirror::Object* ShadowFrame::GetThisObject() const {
+  mirror::AbstractMethod* m = GetMethod();
+  if (m->IsStatic()) {
+    return NULL;
+  } else if (m->IsNative()) {
+    return GetVRegReference(0);
+  } else {
+    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    CHECK(code_item != NULL) << PrettyMethod(m);
+    uint16_t reg = code_item->registers_size_ - code_item->ins_size_;
+    return GetVRegReference(reg);
+  }
+}
+
+ThrowLocation ShadowFrame::GetCurrentLocationForThrow() const {
+  return ThrowLocation(GetThisObject(), GetMethod(), GetDexPC());
+}
 
 size_t ManagedStack::NumJniShadowFrameReferences() const {
   size_t count = 0;
@@ -59,7 +78,7 @@ StackVisitor::StackVisitor(Thread* thread, Context* context)
     : thread_(thread), cur_shadow_frame_(NULL),
       cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
       context_(context) {
-  DCHECK(thread == Thread::Current() || thread->IsSuspended());
+  DCHECK(thread == Thread::Current() || thread->IsSuspended()) << *thread;
 }
 
 uint32_t StackVisitor::GetDexPc() const {
@@ -69,6 +88,33 @@ uint32_t StackVisitor::GetDexPc() const {
     return GetMethod()->ToDexPc(cur_quick_frame_pc_);
   } else {
     return 0;
+  }
+}
+
+mirror::Object* StackVisitor::GetThisObject() const {
+  mirror::AbstractMethod* m = GetMethod();
+  if (m->IsStatic()) {
+    return NULL;
+  } else if (m->IsNative()) {
+    if (cur_quick_frame_ != NULL) {
+      StackIndirectReferenceTable* sirt =
+          reinterpret_cast<StackIndirectReferenceTable*>(
+              reinterpret_cast<char*>(cur_quick_frame_) +
+              m->GetSirtOffsetInBytes());
+      return sirt->GetReference(0);
+    } else {
+      return cur_shadow_frame_->GetVRegReference(0);
+    }
+  } else {
+    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    if (code_item == NULL) {
+      UNIMPLEMENTED(ERROR) << "Failed to determine this object of abstract or proxy method"
+          << PrettyMethod(m);
+      return NULL;
+    } else {
+      uint16_t reg = code_item->registers_size_ - code_item->ins_size_;
+      return reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kReferenceVReg));
+    }
   }
 }
 
@@ -198,7 +244,7 @@ std::string StackVisitor::DescribeLocation() const {
   return result;
 }
 
-InstrumentationStackFrame StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
+instrumentation::InstrumentationStackFrame StackVisitor::GetInstrumentationStackFrame(uint32_t depth) const {
   return thread_->GetInstrumentationStack()->at(depth);
 }
 
@@ -221,9 +267,8 @@ void StackVisitor::SanityCheckFrame() const {
 
 void StackVisitor::WalkStack(bool include_transitions) {
   DCHECK(thread_ == Thread::Current() || thread_->IsSuspended());
-  const std::deque<InstrumentationStackFrame>* instrumentation_stack =
-      thread_->GetInstrumentationStack();
-  bool method_tracing_active = instrumentation_stack != NULL;
+  CHECK_EQ(cur_depth_, 0U);
+  bool exit_stubs_installed = Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled();
   uint32_t instrumentation_stack_depth = 0;
   for (const ManagedStack* current_fragment = thread_->GetManagedStack(); current_fragment != NULL;
        current_fragment = current_fragment->GetLink()) {
@@ -235,6 +280,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
       mirror::AbstractMethod* method = *cur_quick_frame_;
       while (method != NULL) {
+        DCHECK(cur_quick_frame_pc_ != GetInstrumentationExitPc());
         SanityCheckFrame();
         bool should_continue = VisitFrame();
         if (UNLIKELY(!should_continue)) {
@@ -248,16 +294,24 @@ void StackVisitor::WalkStack(bool include_transitions) {
         size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
         byte* return_pc_addr = reinterpret_cast<byte*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
-        if (UNLIKELY(method_tracing_active)) {
+        if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
-          // TODO: stop using include_transitions as a proxy for is this the catch block visitor.
-          if (GetInstrumentationExitPc() == return_pc && !include_transitions) {
-            // TODO: unify trace and managed stack.
-            InstrumentationStackFrame instrumentation_frame = GetInstrumentationStackFrame(instrumentation_stack_depth);
+          if (GetInstrumentationExitPc() == return_pc) {
+            instrumentation::InstrumentationStackFrame instrumentation_frame =
+                GetInstrumentationStackFrame(instrumentation_stack_depth);
             instrumentation_stack_depth++;
-            CHECK(instrumentation_frame.method_ == GetMethod()) << "Excepted: " << PrettyMethod(method)
+            if (instrumentation_frame.method_ != GetMethod()) {
+              LOG(FATAL)  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
                 << " Found: " << PrettyMethod(GetMethod());
+            }
+            if (num_frames_ != 0) {
+              // Check agreement of frame Ids only if num_frames_ is computed to avoid infinite
+              // recursion.
+              CHECK(instrumentation_frame.frame_id_ == GetFrameId())
+                    << "Expected: " << instrumentation_frame.frame_id_
+                    << " Found: " << GetFrameId();
+            }
             return_pc = instrumentation_frame.return_pc_;
           }
         }
@@ -278,13 +332,16 @@ void StackVisitor::WalkStack(bool include_transitions) {
         cur_shadow_frame_ = cur_shadow_frame_->GetLink();
       } while(cur_shadow_frame_ != NULL);
     }
-    cur_depth_++;
     if (include_transitions) {
       bool should_continue = VisitFrame();
       if (!should_continue) {
         return;
       }
     }
+    cur_depth_++;
+  }
+  if (num_frames_ != 0) {
+    CHECK_EQ(cur_depth_, num_frames_);
   }
 }
 

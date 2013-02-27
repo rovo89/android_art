@@ -39,6 +39,7 @@ class Throwable;
 }  // namespace mirror
 struct AllocRecord;
 class Thread;
+class ThrowLocation;
 
 /*
  * Invoke-during-breakpoint support.
@@ -101,8 +102,8 @@ class Dbg {
    * when the debugger attaches.
    */
   static void Connected();
-  static void GoActive() LOCKS_EXCLUDED(Locks::breakpoint_lock_);
-  static void Disconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void GoActive() LOCKS_EXCLUDED(Locks::breakpoint_lock_, Locks::mutator_lock_);
+  static void Disconnected() LOCKS_EXCLUDED(Locks::mutator_lock_);
   static void Disposed();
 
   // Returns true if we're actually debugging with a real debugger, false if it's
@@ -326,9 +327,8 @@ class Dbg {
   static void PostLocationEvent(const mirror::AbstractMethod* method, int pcOffset,
                                 mirror::Object* thisPtr, int eventFlags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id,
-                            mirror::AbstractMethod* throw_method,
-                            uint32_t throw_dex_pc, mirror::AbstractMethod* catch_method,
+  static void PostException(Thread* thread, const ThrowLocation& throw_location,
+                            mirror::AbstractMethod* catch_method,
                             uint32_t catch_dex_pc, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
@@ -338,7 +338,8 @@ class Dbg {
   static void PostClassPrepare(mirror::Class* c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void UpdateDebugger(int32_t dex_pc, Thread* self)
+  static void UpdateDebugger(Thread* thread, mirror::Object* this_object,
+                             const mirror::AbstractMethod* method, uint32_t new_dex_pc)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

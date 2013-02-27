@@ -35,6 +35,7 @@ namespace verifier {
 
 class RegType;
 
+const size_t kNumPrimitives = 12;
 class RegTypeCache {
  public:
   explicit RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
@@ -45,7 +46,7 @@ class RegTypeCache {
     if(!RegTypeCache::primitive_initialized_) {
       CHECK_EQ(RegTypeCache::primitive_count_, 0);
       CreatePrimitiveTypes();
-      CHECK_EQ(RegTypeCache::primitive_count_, 12);
+      CHECK_EQ(RegTypeCache::primitive_count_, kNumPrimitives);
       RegTypeCache::primitive_initialized_ = true;
     }
   }

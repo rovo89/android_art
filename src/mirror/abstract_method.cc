@@ -151,23 +151,9 @@ AbstractMethod* AbstractMethod::FindOverriddenMethod() const {
   return result;
 }
 
-static const void* GetOatCode(const AbstractMethod* m)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Runtime* runtime = Runtime::Current();
-  const void* code = m->GetCode();
-  // Peel off any method tracing trampoline.
-  if (runtime->IsMethodTracingActive() && runtime->GetInstrumentation()->GetSavedCodeFromMap(m) != NULL) {
-    code = runtime->GetInstrumentation()->GetSavedCodeFromMap(m);
-  }
-  // Peel off any resolution stub.
-  if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
-    code = runtime->GetClassLinker()->GetOatCodeFor(m);
-  }
-  return code;
-}
-
 uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
-  return pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
+  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+  return pc - reinterpret_cast<uintptr_t>(code);
 }
 
 // Find the lowest-address native safepoint pc for a given dex pc
@@ -181,7 +167,8 @@ uintptr_t AbstractMethod::ToFirstNativeSafepointPc(const uint32_t dex_pc) const 
   size_t mapping_table_length = GetPcToDexMappingTableLength();
   for (size_t i = 0; i < mapping_table_length; i += 2) {
     if (mapping_table[i + 1] == dex_pc) {
-      return mapping_table[i] + reinterpret_cast<uintptr_t>(GetOatCode(this));
+      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+      return mapping_table[i] + reinterpret_cast<uintptr_t>(code);
     }
   }
   LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
@@ -201,14 +188,16 @@ uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetPcToDexMappingTableLength();
-  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
+  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code);
   for (size_t i = 0; i < mapping_table_length; i += 2) {
     if (mapping_table[i] == sought_offset) {
       return mapping_table[i + 1];
     }
   }
-  LOG(ERROR) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
-             << "(PC " << reinterpret_cast<void*>(pc) << ") in " << PrettyMethod(this);
+  LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
+             << "(PC " << reinterpret_cast<void*>(pc) << ", code=" << code
+             << ") in " << PrettyMethod(this);
   return DexFile::kDexNoIndex;
 #else
   // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
@@ -227,7 +216,8 @@ uintptr_t AbstractMethod::ToNativePc(const uint32_t dex_pc) const {
     uint32_t map_offset = mapping_table[i];
     uint32_t map_dex_offset = mapping_table[i + 1];
     if (map_dex_offset == dex_pc) {
-      return reinterpret_cast<uintptr_t>(GetOatCode(this)) + map_offset;
+      const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+      return reinterpret_cast<uintptr_t>(code) + map_offset;
     }
   }
   LOG(FATAL) << "Looking up Dex PC not contained in method, 0x" << std::hex << dex_pc
@@ -270,14 +260,16 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
   ManagedStack fragment;
   self->PushManagedStackFragment(&fragment);
 
+  Runtime* runtime = Runtime::Current();
   // Call the invoke stub, passing everything as arguments.
-  if (UNLIKELY(!Runtime::Current()->IsStarted())){
+  if (UNLIKELY(!runtime->IsStarted())){
     LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
       result->SetJ(0);
     }
   } else {
-    bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative() && !IsProxyMethod();
+    bool interpret = runtime->GetInstrumentation()->InterpretOnly() && !IsNative() &&
+        !IsProxyMethod();
     const bool kLogInvocationStartAndReturn = false;
     if (GetCode() != NULL) {
       if (!interpret) {
@@ -289,15 +281,15 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
 #else
         (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
 #endif
-        if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException()) == -1)) {
+        if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException(NULL)) == -1)) {
           // Unusual case where we were running LLVM generated code and an
           // exception was thrown to force the activations to be removed from the
           // stack. Continue execution in the interpreter.
-          JValue value;
           self->ClearException();
-          ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(&value);
+          ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(result);
+          self->SetTopOfStack(NULL, 0);
           self->SetTopOfShadowStack(shadow_frame);
-          interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
+          interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
         }
         if (kLogInvocationStartAndReturn) {
           LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetCode());

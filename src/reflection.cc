@@ -17,6 +17,7 @@
 #include "reflection.h"
 
 #include "class_linker.h"
+#include "common_throws.h"
 #include "dex_file-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
@@ -64,9 +65,9 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
   uint32_t classes_size = classes == NULL ? 0 : classes->Size();
   uint32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "wrong number of arguments; expected %d, got %d",
-        classes_size, arg_count);
+    ThrowIllegalArgumentException(NULL,
+                                  StringPrintf("Wrong number of arguments; expected %d, got %d",
+                                               classes_size, arg_count).c_str());
     return NULL;
   }
 
@@ -103,23 +104,23 @@ jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject 
 }
 
 bool VerifyObjectInClass(mirror::Object* o, mirror::Class* c) {
-  const char* exception = NULL;
   if (o == NULL) {
-    exception = "Ljava/lang/NullPointerException;";
+    ThrowNullPointerException(NULL, "null receiver");
+    return false;
   } else if (!o->InstanceOf(c)) {
-    exception = "Ljava/lang/IllegalArgumentException;";
-  }
-  if (exception != NULL) {
     std::string expected_class_name(PrettyDescriptor(c));
     std::string actual_class_name(PrettyTypeOf(o));
-    Thread::Current()->ThrowNewExceptionF(exception, "expected receiver of type %s, but got %s",
-                                          expected_class_name.c_str(), actual_class_name.c_str());
+    ThrowIllegalArgumentException(NULL,
+                                  StringPrintf("Expected receiver of type %s, but got %s",
+                                               expected_class_name.c_str(),
+                                               actual_class_name.c_str()).c_str());
     return false;
   }
   return true;
 }
 
-bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
+bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
+                           Primitive::Type srcType, Primitive::Type dstType,
                            const JValue& src, JValue& dst) {
   CHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
   switch (dstType) {
@@ -196,10 +197,18 @@ bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
   default:
     break;
   }
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                                        "invalid primitive conversion from %s to %s",
-                                        PrettyDescriptor(srcType).c_str(),
-                                        PrettyDescriptor(dstType).c_str());
+  if (!unbox_for_result) {
+    ThrowIllegalArgumentException(throw_location,
+                                  StringPrintf("Invalid primitive conversion from %s to %s",
+                                               PrettyDescriptor(srcType).c_str(),
+                                               PrettyDescriptor(dstType).c_str()).c_str());
+  } else {
+    ThrowClassCastException(throw_location,
+                            StringPrintf("Couldn't convert result of type %s to %s",
+                                         PrettyDescriptor(srcType).c_str(),
+                                         PrettyDescriptor(dstType).c_str()
+                                         ).c_str());
+  }
   return false;
 }
 
@@ -271,32 +280,48 @@ static std::string UnboxingFailureKind(mirror::AbstractMethod* m, int index, mir
   return "result";
 }
 
-static bool UnboxPrimitive(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
+static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* o,
+                           mirror::Class* dst_class, JValue& unboxed_value,
                            mirror::AbstractMethod* m, int index, mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool unbox_for_result = (f == NULL) && (index == -1);
   if (!dst_class->IsPrimitive()) {
-    if (o != NULL && !o->InstanceOf(dst_class)) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                                            "%s has type %s, got %s",
-                                            UnboxingFailureKind(m, index, f).c_str(),
-                                            PrettyDescriptor(dst_class).c_str(),
-                                            PrettyTypeOf(o).c_str());
+    if (UNLIKELY(o != NULL && !o->InstanceOf(dst_class))) {
+      if (!unbox_for_result) {
+        ThrowIllegalArgumentException(throw_location,
+                                      StringPrintf("%s has type %s, got %s",
+                                                   UnboxingFailureKind(m, index, f).c_str(),
+                                                   PrettyDescriptor(dst_class).c_str(),
+                                                   PrettyTypeOf(o).c_str()).c_str());
+      } else {
+        ThrowClassCastException(throw_location,
+                                StringPrintf("Couldn't convert result of type %s to %s",
+                                             PrettyTypeOf(o).c_str(),
+                                             PrettyDescriptor(dst_class).c_str()
+                                             ).c_str());
+      }
       return false;
     }
     unboxed_value.SetL(o);
     return true;
-  } else if (dst_class->GetPrimitiveType() == Primitive::kPrimVoid) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                                          "can't unbox %s to void",
-                                          UnboxingFailureKind(m, index, f).c_str());
+  }
+  if (UNLIKELY(dst_class->GetPrimitiveType() == Primitive::kPrimVoid)) {
+    ThrowIllegalArgumentException(throw_location,
+                                  StringPrintf("Can't unbox %s to void",
+                                               UnboxingFailureKind(m, index, f).c_str()).c_str());
     return false;
   }
-
-  if (o == NULL) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                                          "%s has type %s, got null",
-                                          UnboxingFailureKind(m, index, f).c_str(),
-                                          PrettyDescriptor(dst_class).c_str());
+  if (UNLIKELY(o == NULL)) {
+    if (!unbox_for_result) {
+      ThrowIllegalArgumentException(throw_location,
+                                    StringPrintf("%s has type %s, got null",
+                                                 UnboxingFailureKind(m, index, f).c_str(),
+                                                 PrettyDescriptor(dst_class).c_str()).c_str());
+    } else {
+      ThrowNullPointerException(throw_location,
+                                StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
+                                             PrettyDescriptor(dst_class).c_str()).c_str());
+    }
     return false;
   }
 
@@ -330,32 +355,35 @@ static bool UnboxPrimitive(mirror::Object* o, mirror::Class* dst_class, JValue& 
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.SetS(primitive_field->GetShort(o));
   } else {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                                          "%s has type %s, got %s",
-                                          UnboxingFailureKind(m, index, f).c_str(),
-                                          PrettyDescriptor(dst_class).c_str(),
-                                          PrettyDescriptor(src_descriptor.c_str()).c_str());
+    ThrowIllegalArgumentException(throw_location,
+                                  StringPrintf("%s has type %s, got %s",
+                                               UnboxingFailureKind(m, index, f).c_str(),
+                                               PrettyDescriptor(dst_class).c_str(),
+                                               PrettyDescriptor(src_descriptor.c_str()).c_str()
+                                               ).c_str());
     return false;
   }
 
-  return ConvertPrimitiveValue(src_class->GetPrimitiveType(), dst_class->GetPrimitiveType(),
+  return ConvertPrimitiveValue(throw_location, unbox_for_result,
+                               src_class->GetPrimitiveType(), dst_class->GetPrimitiveType(),
                                boxed_value, unboxed_value);
 }
 
 bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
                                mirror::AbstractMethod* m, size_t index) {
   CHECK(m != NULL);
-  return UnboxPrimitive(o, dst_class, unboxed_value, m, index, NULL);
+  return UnboxPrimitive(NULL, o, dst_class, unboxed_value, m, index, NULL);
 }
 
 bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
                             mirror::Field* f) {
   CHECK(f != NULL);
-  return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, f);
+  return UnboxPrimitive(NULL, o, dst_class, unboxed_value, NULL, -1, f);
 }
 
-bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value) {
-  return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, NULL);
+bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
+                             mirror::Class* dst_class, JValue& unboxed_value) {
+  return UnboxPrimitive(&throw_location, o, dst_class, unboxed_value, NULL, -1, NULL);
 }
 
 }  // namespace art

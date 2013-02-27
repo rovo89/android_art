@@ -86,7 +86,8 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object*
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, true);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
     } else {
       return field->Get32(obj);
     }
@@ -106,7 +107,8 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object*
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, true);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
     } else {
       return field->Get64(obj);
     }
@@ -127,7 +129,8 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror:
   field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, true);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
     } else {
       return field->GetObj(obj);
     }
@@ -204,7 +207,8 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, false);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
       field->Set32(obj, new_value);
       return 0;  // success
@@ -230,7 +234,8 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, false);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
       field->Set64(obj, new_value);
       return 0;  // success
@@ -255,7 +260,8 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
                             sizeof(mirror::Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(field, false);
+      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
     } else {
       field->SetObj(obj, new_value);
       return 0;  // success

@@ -43,13 +43,24 @@ class ArgArray {
  public:
   explicit ArgArray(const char* shorty, uint32_t shorty_len)
       : shorty_(shorty), shorty_len_(shorty_len), num_bytes_(0) {
-    // TODO: This code is conservative. The multiply by 2 is to handle the case where all args are
-    // doubles or longs. We could scan the shorty to use the arg array more often.
-    if (shorty_len * 2 <= kSmallArgArraySize) {
+    size_t num_slots = shorty_len + 1;  // +1 in case of receiver.
+    if (LIKELY((num_slots * 2) < kSmallArgArraySize)) {
+      // We can trivially use the small arg array.
       arg_array_ = small_arg_array_;
     } else {
-      large_arg_array_.reset(new uint32_t[shorty_len_ * 2]);
-      arg_array_ = large_arg_array_.get();
+      // Analyze shorty to see if we need the large arg array.
+      for (size_t i = 1; i < shorty_len; ++i) {
+        char c = shorty[i];
+        if (c == 'J' || c == 'D') {
+          num_slots++;
+        }
+      }
+      if (num_slots <= kSmallArgArraySize) {
+        arg_array_ = small_arg_array_;
+      } else {
+        large_arg_array_.reset(new uint32_t[num_slots]);
+        arg_array_ = large_arg_array_.get();
+      }
     }
   }
 

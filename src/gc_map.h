@@ -66,8 +66,11 @@ class NativePcOffsetToReferenceMap {
   const uint8_t* FindBitMap(uintptr_t native_pc_offset) {
     size_t num_entries = NumEntries();
     size_t index = Hash(native_pc_offset) % num_entries;
+    size_t misses = 0;
     while (GetNativePcOffset(index) != native_pc_offset) {
       index = (index + 1) % num_entries;
+      misses++;
+      DCHECK_LT(misses, num_entries) << "Failed to find offset: " << native_pc_offset;
     }
     return GetBitMap(index);
   }

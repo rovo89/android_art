@@ -29,6 +29,7 @@ class Object;
 }  // namespace mirror
 union JValue;
 class ScopedObjectAccess;
+class ThrowLocation;
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -38,11 +39,13 @@ bool UnboxPrimitiveForArgument(mirror::Object* o, mirror::Class* dst_class, JVal
 bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value,
                             mirror::Field* f)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue& unboxed_value)
+bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
+                             mirror::Class* dst_class, JValue& unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src,
-                           JValue& dst)
+bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
+                           Primitive::Type src_class, Primitive::Type dst_class,
+                           const JValue& src, JValue& dst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject receiver, jobject args)

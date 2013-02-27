@@ -43,6 +43,7 @@
 #include "jni_internal.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/array.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
 #include "mirror/field-inl.h"
@@ -97,7 +98,7 @@ Runtime::Runtime()
       stats_enabled_(false),
       method_trace_(0),
       method_trace_file_size_(0),
-      instrumentation_(NULL),
+      instrumentation_(),
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
       system_thread_group_(NULL) {
@@ -119,11 +120,7 @@ Runtime::~Runtime() {
     }
     shutting_down_ = true;
   }
-
-  if (IsMethodTracingActive()) {
-    Trace::Shutdown();
-  }
-  delete instrumentation_;
+  Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
   heap_->WaitForConcurrentGcToComplete(self);
@@ -171,8 +168,11 @@ struct AbortState {
       os << "Aborting thread:\n";
       self->Dump(os);
       if (self->IsExceptionPending()) {
-        os << "Pending " << PrettyTypeOf(self->GetException()) << " on thread:\n"
-           << self->GetException()->Dump();
+        ThrowLocation throw_location;
+        mirror::Throwable* exception = self->GetException(&throw_location);
+        os << "Pending exception " << PrettyTypeOf(exception)
+            << " thrown by '" << throw_location.Dump() << "\n"
+            << exception->Dump();
       }
     }
     DumpAllThreads(os, self);
@@ -652,9 +652,9 @@ bool Runtime::Start() {
 
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
   Thread* self = Thread::Current();
-  self->ThrowNewException("Ljava/lang/OutOfMemoryError;",
+  self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
-  pre_allocated_OutOfMemoryError_ = self->GetException();
+  pre_allocated_OutOfMemoryError_ = self->GetException(NULL);
   self->ClearException();
 
   // Restore main thread state to kNative as expected by native code.
@@ -794,7 +794,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
-  interpreter_only_ = options->interpreter_only_;
   is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
 
   vfprintf_ = options->hook_vfprintf_;
@@ -808,6 +807,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
+
+  if (options->interpreter_only_) {
+    GetInstrumentation()->ForceInterpretOnly();
+  }
 
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,
@@ -1194,28 +1197,6 @@ mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instructi
 void Runtime::SetCalleeSaveMethod(mirror::AbstractMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = method;
-}
-
-void Runtime::EnableMethodTracing(Trace* trace) {
-  CHECK(!IsMethodTracingActive());
-  if (instrumentation_ == NULL) {
-    instrumentation_ = new Instrumentation();
-  }
-  instrumentation_->SetTrace(trace);
-}
-
-void Runtime::DisableMethodTracing() {
-  CHECK(IsMethodTracingActive());
-  instrumentation_->RemoveTrace();
-}
-
-bool Runtime::IsMethodTracingActive() const {
-  return instrumentation_ != NULL && instrumentation_->GetTrace() != NULL;
-}
-
-Instrumentation* Runtime::GetInstrumentation() const {
-  CHECK(IsMethodTracingActive());
-  return instrumentation_;
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {

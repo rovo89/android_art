@@ -30,6 +30,7 @@
 #include "globals.h"
 #include "heap.h"
 #include "instruction_set.h"
+#include "instrumentation.h"
 #include "jobject_comparator.h"
 #include "locks.h"
 #include "root_visitor.h"
@@ -49,7 +50,6 @@ class Throwable;
 class ClassLinker;
 class DexFile;
 class Heap;
-class Instrumentation;
 class InternTable;
 struct JavaVMExt;
 class MonitorList;
@@ -110,10 +110,6 @@ class Runtime {
 
   bool IsZygote() const {
     return is_zygote_;
-  }
-
-  bool InterpreterOnly() const {
-    return interpreter_only_;
   }
 
   bool IsConcurrentGcEnabled() const {
@@ -234,8 +230,7 @@ class Runtime {
   void DirtyRoots();
 
   // Visit all the roots.
-  void VisitRoots(RootVisitor* visitor, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
   void VisitConcurrentRoots(RootVisitor* visitor, void* arg);
@@ -350,10 +345,9 @@ class Runtime {
   bool InitZygote();
   void DidForkFromZygote();
 
-  void EnableMethodTracing(Trace* trace);
-  void DisableMethodTracing();
-  bool IsMethodTracingActive() const;
-  Instrumentation* GetInstrumentation() const;
+  instrumentation::Instrumentation* GetInstrumentation() {
+    return &instrumentation_;
+  }
 
   bool UseCompileTimeClassPath() const {
     return use_compile_time_class_path_;
@@ -383,7 +377,6 @@ class Runtime {
 
   bool is_compiler_;
   bool is_zygote_;
-  bool interpreter_only_;
   bool is_concurrent_gc_enabled_;
 
   // The host prefix is used during cross compilation. It is removed
@@ -466,7 +459,7 @@ class Runtime {
   bool method_trace_;
   std::string method_trace_file_;
   size_t method_trace_file_size_;
-  Instrumentation* instrumentation_;
+  instrumentation::Instrumentation instrumentation_;
 
   typedef SafeMap<jobject, std::vector<const DexFile*>, JobjectComparator> CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;

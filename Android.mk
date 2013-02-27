@@ -305,7 +305,7 @@ oat-target-sync: oat-target
 # oatdump targets
 
 .PHONY: dump-oat
-dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
+dump-oat: dump-oat-core dump-oat-boot
 
 .PHONY: dump-oat-core
 dump-oat-core: dump-oat-core-host dump-oat-core-target

@@ -17,6 +17,7 @@
 #include <limits.h>
 
 #include "class_linker.h"
+#include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
@@ -57,11 +58,11 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
 
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (element_class == NULL) {
-    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
+    ThrowNullPointerException(NULL, "element class == null");
     return NULL;
   }
   if (length < 0) {
-    soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    ThrowNegativeArraySizeException(length);
     return NULL;
   }
 
@@ -84,7 +85,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   ScopedObjectAccess soa(env);
   mirror::Array* array = soa.Decode<mirror::Array*>(javaArray);
   if (!array->IsArrayInstance()) {
-    soa.Self()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
+    ThrowIllegalArgumentException(NULL, "not an array");
     return 0;
   }
   // TODO: we should also check that this is a non-movable array.

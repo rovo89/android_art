@@ -14,58 +14,51 @@
  * limitations under the License.
  */
 
-#include "base/logging.h"
+#include "callee_save_frame.h"
 #include "instrumentation.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
 #include "runtime.h"
 #include "thread-inl.h"
-#include "trace.h"
 
 namespace art {
 
 extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::AbstractMethod* method,
+                                                             mirror::Object* this_object,
                                                              Thread* self,
                                                              mirror::AbstractMethod** sp,
                                                              uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  self->SetTopOfStack(sp, lr);
-  self->VerifyStack();
-  Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  // +1 as frame id's start at 1, +1 as we haven't yet built this method's frame.
-  size_t frame_id = StackVisitor::ComputeNumFrames(self) + 2;
-  InstrumentationStackFrame instrumentation_frame(method, lr, frame_id);
-  self->PushInstrumentationStackFrame(instrumentation_frame);
-
-  Trace* trace = instrumentation->GetTrace();
-  if (trace != NULL) {
-    trace->LogMethodTraceEvent(self, method, Trace::kMethodTraceEnter);
-  }
-
-  return instrumentation->GetSavedCodeFromMap(method);
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? NULL : this_object,
+                                                 method, lr);
+  const void* result = instrumentation->GetQuickCodeFor(method);
+  CHECK(result != NULL) << PrettyMethod(method);
+  return result;
 }
 
-extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::AbstractMethod** sp)
+extern "C" uint64_t artInstrumentationMethodExitFromCode(Thread* self, mirror::AbstractMethod** sp,
+                                                         uint64_t gpr_result, uint64_t fpr_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // TODO: use FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly) not the hand inlined below.
+  //       We use the hand inline version to ensure the return_pc is assigned before verifying the
+  //       stack.
+  // Be aware the store below may well stomp on an incoming argument.
+  Locks::mutator_lock_->AssertSharedHeld(self);
+  mirror::AbstractMethod* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  *sp = callee_save;
+  uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
+                                                      callee_save->GetReturnPcOffsetInBytes());
+  CHECK(*return_pc == 0);
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();
-  // +1 as frame id's start at 1, +1 as we want the called frame not the frame being returned into.
-  size_t frame_id = StackVisitor::ComputeNumFrames(self) + 2;
-  InstrumentationStackFrame instrumentation_frame;
-  instrumentation_frame = self->PopInstrumentationStackFrame();
-  if (frame_id != instrumentation_frame.frame_id_) {
-    LOG(ERROR) << "Expected frame_id=" << frame_id << " but found " << instrumentation_frame.frame_id_;
-    StackVisitor::DescribeStack(self);
-  }
-  Runtime* runtime = Runtime::Current();
-  if (runtime->IsMethodTracingActive()) {
-    Trace* trace = runtime->GetInstrumentation()->GetTrace();
-    trace->LogMethodTraceEvent(self, instrumentation_frame.method_, Trace::kMethodTraceExit);
-  }
-  if (self->ReadFlag(kEnterInterpreter)) {
-    return static_cast<uint64_t>(GetDeoptimizationEntryPoint()) |
-        (static_cast<uint64_t>(instrumentation_frame.return_pc_) << 32);
-  } else {
-    return instrumentation_frame.return_pc_;
-  }
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  uint64_t return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(self, return_pc,
+                                                                                   gpr_result,
+                                                                                   fpr_result);
+  self->VerifyStack();
+  return return_or_deoptimize_pc;
 }
 
 }  // namespace art

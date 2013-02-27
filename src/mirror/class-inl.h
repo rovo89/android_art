@@ -24,7 +24,7 @@
 #include "dex_cache.h"
 #include "field.h"
 #include "iftable.h"
-#include "object_array.h"
+#include "object_array-inl.h"
 #include "runtime.h"
 #include "string.h"
 
