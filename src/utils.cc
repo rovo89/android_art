@@ -312,6 +312,9 @@ std::string PrettyField(const mirror::Field* f, bool with_type) {
 }
 
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type) {
+  if (field_idx >= dex_file.NumFieldIds()) {
+    return StringPrintf("<<invalid-field-idx-%d>>", field_idx);
+  }
   const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
   std::string result;
   if (with_type) {
@@ -325,6 +328,9 @@ std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_t
 }
 
 std::string PrettyType(uint32_t type_idx, const DexFile& dex_file) {
+  if (type_idx >= dex_file.NumTypeIds()) {
+    return StringPrintf("<<invalid-type-idx-%d>>", type_idx);
+  }
   const DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
   return PrettyDescriptor(dex_file.GetTypeDescriptor(type_id));
 }
@@ -383,6 +389,9 @@ std::string PrettyMethod(const mirror::AbstractMethod* m, bool with_signature) {
 }
 
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature) {
+  if (method_idx >= dex_file.NumMethodIds()) {
+    return StringPrintf("<<invalid-method-idx-%d>>", method_idx);
+  }
   const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
   std::string result(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(method_id)));
   result += '.';
