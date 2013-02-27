@@ -25,8 +25,8 @@
 #include "thread.h"
 #include "verifier/method_verifier.h"
 
-#include "compiler/compiler_ir.h"
-#include "compiler/codegen/codegen.h"
+#include "compiler/dex/compiler_ir.h"
+#include "compiler/dex/quick/codegen.h"
 using art::kMIRIgnoreNullCheck;
 using art::kMIRIgnoreRangeCheck;
 

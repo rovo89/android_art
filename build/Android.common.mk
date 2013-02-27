@@ -348,7 +348,7 @@ endif # HOST_ARCH != x86
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/base/mutex.h \
-	src/compiler/compiler_enums.h \
+	src/compiler/dex/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
 	src/gc/gc_type.h \

@@ -19,7 +19,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
-#include "compiler/compiler_internals.h"
+#include "compiler/dex/compiler_internals.h"
 #include "compiler.h"
 #include "globals.h"
 #include "instruction_set.h"
@@ -27,7 +27,6 @@
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 #include "safe_map.h"
-
 
 #include <UniquePtr.h>
 #include <string>
