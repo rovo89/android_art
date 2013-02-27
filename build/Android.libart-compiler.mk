@@ -61,35 +61,25 @@ LIBART_COMPILER_SRC_FILES := \
 	src/oat/jni/x86/jni_internal_x86.cc
 
 LIBART_COMPILER_CFLAGS :=
-ifeq ($(ART_USE_LLVM_COMPILER),true)
-  LIBART_COMPILER_CFLAGS += -DART_USE_LLVM_COMPILER=1
-endif
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
-ifeq ($(ART_USE_LLVM_COMPILER),true)
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_SRC_FILES += \
 	src/compiler_llvm/compiler_llvm.cc \
-	src/compiler_llvm/dalvik_reg.cc \
+	src/compiler_llvm/gbc_expander.cc \
 	src/compiler_llvm/generated/art_module.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/llvm_compilation_unit.cc \
 	src/compiler_llvm/md_builder.cc \
-	src/compiler_llvm/method_compiler.cc \
 	src/compiler_llvm/runtime_support_builder.cc \
 	src/compiler_llvm/runtime_support_builder_arm.cc \
 	src/compiler_llvm/runtime_support_builder_thumb2.cc \
 	src/compiler_llvm/runtime_support_builder_x86.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/stub_compiler.cc \
-	src/greenland/inferred_reg_category_map.cc
-endif
-
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_COMPILER_SRC_FILES += \
-	src/compiler_llvm/gbc_expander.cc
+	src/compiler_llvm/stub_compiler.cc
 endif
 
 # $(1): target or host

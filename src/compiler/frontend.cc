@@ -28,7 +28,7 @@
 #include <llvm/Support/Threading.h>
 
 namespace {
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
 #endif
   void InitializeLLVMForQuick() {
@@ -39,7 +39,7 @@ namespace {
 namespace art {
 
 LLVMInfo::LLVMInfo() {
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   pthread_once(&llvm_multi_init, InitializeLLVMForQuick);
 #endif
   // Create context, module, intrinsic helper & ir builder
@@ -814,7 +814,6 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   if ((compiler_backend == kQuickGBC) || (compiler_backend == kPortable)) {
     cu->gen_bitcode = true;
   }
-  DCHECK_NE(compiler_backend, kIceland);  // TODO: remove when Portable/Iceland merge complete
   cu->llvm_info = llvm_info;
   /* Adjust this value accordingly once inlining is performed */
   cu->num_dalvik_registers = code_item->registers_size_;

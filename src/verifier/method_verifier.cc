@@ -40,11 +40,6 @@
 #include "runtime.h"
 #include "verifier/dex_gc_map.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
-#include "greenland/backend_types.h"
-#include "greenland/inferred_reg_category_map.h"
-#endif
-
 namespace art {
 namespace verifier {
 
@@ -953,12 +948,6 @@ bool MethodVerifier::VerifyCodeFlow() {
 #endif
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
-
-#if defined(ART_USE_LLVM_COMPILER)
-  /* Generate Inferred Register Category for LLVM-based Code Generator */
-  const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
-  verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
-#endif
 
   return true;
 }
@@ -3323,11 +3312,6 @@ MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
-#if defined(ART_USE_LLVM_COMPILER)
-Mutex* MethodVerifier::inferred_reg_category_maps_lock_ = NULL;
-MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_category_maps_ = NULL;
-#endif
-
 void MethodVerifier::Init() {
   dex_gc_maps_lock_ = new Mutex("verifier GC maps lock");
   Thread* self = Thread::Current();
@@ -3341,14 +3325,6 @@ void MethodVerifier::Init() {
     MutexLock mu(self, *rejected_classes_lock_);
     rejected_classes_ = new MethodVerifier::RejectedClassesTable;
   }
-
-#if defined(ART_USE_LLVM_COMPILER)
-  inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
-  {
-    MutexLock mu(self, *inferred_reg_category_maps_lock_);
-    inferred_reg_category_maps_ = new MethodVerifier::InferredRegCategoryMapTable;
-  }
-#endif
 }
 
 void MethodVerifier::Shutdown() {
@@ -3369,17 +3345,6 @@ void MethodVerifier::Shutdown() {
   }
   delete rejected_classes_lock_;
   rejected_classes_lock_ = NULL;
-
-#if defined(ART_USE_LLVM_COMPILER)
-  {
-    MutexLock mu(self, *inferred_reg_category_maps_lock_);
-    STLDeleteValues(inferred_reg_category_maps_);
-    delete inferred_reg_category_maps_;
-    inferred_reg_category_maps_ = NULL;
-  }
-  delete inferred_reg_category_maps_lock_;
-  inferred_reg_category_maps_lock_ = NULL;
-#endif
 }
 
 void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
@@ -3394,70 +3359,6 @@ bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
   MutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }
-
-#if defined(ART_USE_LLVM_COMPILER)
-const greenland::InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
-  uint32_t insns_size = code_item_->insns_size_in_code_units_;
-  uint16_t regs_size = code_item_->registers_size_;
-
-  UniquePtr<InferredRegCategoryMap> table(new InferredRegCategoryMap(insns_size, regs_size));
-
-  for (size_t i = 0; i < insns_size; ++i) {
-    if (RegisterLine* line = reg_table_.GetLine(i)) {
-      const Instruction* inst = Instruction::At(code_item_->insns_ + i);
-      /* We only use InferredRegCategoryMap in one case */
-      if (inst->IsBranch()) {
-        for (size_t r = 0; r < regs_size; ++r) {
-          const RegType &rt = line->GetRegisterType(r);
-
-          if (rt.IsZero()) {
-            table->SetRegCategory(i, r, greenland::kRegZero);
-          } else if (rt.IsCategory1Types()) {
-            table->SetRegCategory(i, r, greenland::kRegCat1nr);
-          } else if (rt.IsCategory2Types()) {
-            table->SetRegCategory(i, r, greenland::kRegCat2);
-          } else if (rt.IsReferenceTypes()) {
-            table->SetRegCategory(i, r, greenland::kRegObject);
-          } else {
-            table->SetRegCategory(i, r, greenland::kRegUnknown);
-          }
-        }
-      }
-    }
-  }
-
-  return table.release();
-}
-
-void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
-                                          const InferredRegCategoryMap& inferred_reg_category_map) {
-  {
-    MutexLock mu(Thread::Current(), *inferred_reg_category_maps_lock_);
-    InferredRegCategoryMapTable::iterator it = inferred_reg_category_maps_->find(ref);
-    if (it == inferred_reg_category_maps_->end()) {
-      inferred_reg_category_maps_->Put(ref, &inferred_reg_category_map);
-    } else {
-      CHECK(*(it->second) == inferred_reg_category_map);
-      delete &inferred_reg_category_map;
-    }
-  }
-  CHECK(GetInferredRegCategoryMap(ref) != NULL);
-}
-
-const greenland::InferredRegCategoryMap*
-MethodVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
-  MutexLock mu(Thread::Current(), *inferred_reg_category_maps_lock_);
-
-  InferredRegCategoryMapTable::const_iterator it =
-      inferred_reg_category_maps_->find(ref);
-
-  if (it == inferred_reg_category_maps_->end()) {
-    return NULL;
-  }
-  CHECK(it->second != NULL);
-  return it->second;
-}
-#endif
 
 }  // namespace verifier
 }  // namespace art

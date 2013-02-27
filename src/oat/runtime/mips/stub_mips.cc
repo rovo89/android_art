@@ -29,7 +29,7 @@ namespace mips {
 
 mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // | Out args   |
   // | Method*    | <- SP on entry
   // | RA         |    return address into caller
@@ -78,7 +78,7 @@ mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) 
   __ Jr(T9);  // Leaf call to method's code
 
   __ Break();
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   // Build frame and save argument registers and RA.
   __ AddConstant(SP, SP, -32);
   __ StoreToOffset(kStoreWord, RA, SP, 28);
@@ -107,7 +107,7 @@ mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) 
   __ Jr(V0); // If V0 != 0 tail call method's code
   __ Bind(&resolve_fail, false);
   __ Jr(RA); // Return to caller to handle exception
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
 
@@ -125,7 +125,7 @@ typedef void (*ThrowAme)(mirror::AbstractMethod*, Thread*);
 
 mirror::ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<MipsAssembler> assembler(static_cast<MipsAssembler*>(Assembler::Create(kMips)));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // Save callee saves and ready frame for exception delivery
   __ AddConstant(SP, SP, -64);
   __ StoreToOffset(kStoreWord, RA, SP, 60);
@@ -147,7 +147,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
   __ Jr(T9);  // Leaf call to routine that never returns
 
   __ Break();
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   // R0 is the Method* already
   __ Move(A1, S1);  // Pass Thread::Current() in A1
   // Call to throw AbstractMethodError
@@ -155,7 +155,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
   __ Jr(T9);  // Leaf call to routine that never returns
 
   __ Break();
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
 

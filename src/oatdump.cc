@@ -1024,9 +1024,7 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-#if !defined(ART_USE_LLVM_COMPILER)
         DCHECK(method->GetNativeGcMap() != NULL) << PrettyMethod(method);
-#endif
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;

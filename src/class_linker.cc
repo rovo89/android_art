@@ -57,7 +57,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "runtime_support.h"
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler_llvm/runtime_support_llvm.h"
 #endif
 #include "ScopedLocalRef.h"
@@ -2569,7 +2569,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   method->SetCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
 #else
   OatFile::OatMethod oat_method = GetOatMethodFor(prototype.get());

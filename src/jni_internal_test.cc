@@ -1175,7 +1175,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
   } while (false)
 
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");

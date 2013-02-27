@@ -147,7 +147,7 @@ OatMethodOffsets::OatMethodOffsets()
     vmap_table_offset_(0),
     gc_map_offset_(0),
     invoke_stub_offset_(0)
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(0)
 #endif
 {}
@@ -160,7 +160,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t vmap_table_offset,
                                    uint32_t gc_map_offset,
                                    uint32_t invoke_stub_offset
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
                                  , uint32_t proxy_stub_offset
 #endif
                                    )
@@ -172,7 +172,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     vmap_table_offset_(vmap_table_offset),
     gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset)
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(proxy_stub_offset)
 #endif
 {}

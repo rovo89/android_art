@@ -25,7 +25,7 @@
 #include "mirror/dex_cache.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
 #endif
 #include "object_utils.h"
@@ -193,7 +193,7 @@ const void* Instrumentation::GetSavedCodeFromMap(const mirror::AbstractMethod* m
 }
 
 void Instrumentation::SaveAndUpdateCode(mirror::AbstractMethod* method) {
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   UNUSED(method);
   UNIMPLEMENTED(FATAL);
 #else

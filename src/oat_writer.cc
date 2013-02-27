@@ -244,7 +244,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t gc_map_offset = 0;
   // derived from CompiledInvokeStub if available
   uint32_t invoke_stub_offset = 0;
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   uint32_t proxy_stub_offset = 0;
 #endif
 
@@ -358,7 +358,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     }
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (type != kStatic) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
@@ -393,7 +393,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          vmap_table_offset,
                          gc_map_offset,
                          invoke_stub_offset
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
                        , proxy_stub_offset
 #endif
                          );
@@ -737,7 +737,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     }
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (!is_static) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {

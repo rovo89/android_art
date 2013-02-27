@@ -24,7 +24,6 @@
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "llvm_compilation_unit.h"
-#include "method_compiler.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "stub_compiler.h"
@@ -37,7 +36,6 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
-#if defined(ART_USE_PORTABLE_COMPILER)
 namespace art {
 void CompileOneMethod(Compiler& compiler,
                       const CompilerBackend compilerBackend,
@@ -47,7 +45,6 @@ void CompileOneMethod(Compiler& compiler,
                       const DexFile& dex_file,
                       LLVMInfo* llvm_info);
 }
-#endif
 
 namespace llvm {
   extern bool TimePassesIsEnabled;
@@ -139,47 +136,31 @@ CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_type) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
-#if defined(ART_USE_PORTABLE_COMPILER)
   std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
                                       *oat_compilation_unit->GetDexFile()));
-  if (insn_set_ == kX86) {
-    // Use iceland
-    UniquePtr<MethodCompiler> method_compiler(
-        new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
+  // TODO: consolidate ArtCompileMethods
+  CompileOneMethod(*compiler_,
+                   kPortable,
+                   oat_compilation_unit->GetCodeItem(),
+                   oat_compilation_unit->access_flags_,
+                   invoke_type,
+                   oat_compilation_unit->GetClassDefIndex(),
+                   oat_compilation_unit->GetDexMethodIndex(),
+                   oat_compilation_unit->GetClassLoader(),
+                   *oat_compilation_unit->GetDexFile(),
+                   cunit->GetQuickContext()
+  );
 
-    return method_compiler->Compile();
-  } else {
+  cunit->SetCompiler(compiler_);
+  cunit->SetOatCompilationUnit(oat_compilation_unit);
 
-    // TODO: consolidate ArtCompileMethods
-    CompileOneMethod(*compiler_,
-                     kPortable,
-                     oat_compilation_unit->GetCodeItem(),
-                     oat_compilation_unit->access_flags_,
-                     invoke_type,
-                     oat_compilation_unit->GetClassDefIndex(),
-                     oat_compilation_unit->GetDexMethodIndex(),
-                     oat_compilation_unit->GetClassLoader(),
-                     *oat_compilation_unit->GetDexFile(),
-                     cunit->GetQuickContext()
-                     );
+  cunit->Materialize();
 
-    cunit->SetCompiler(compiler_);
-    cunit->SetOatCompilationUnit(oat_compilation_unit);
-
-    cunit->Materialize();
-
-    Compiler::MethodReference mref(oat_compilation_unit->GetDexFile(),
-                                   oat_compilation_unit->GetDexMethodIndex());
-    return new CompiledMethod(compiler_->GetInstructionSet(),
-                              cunit->GetCompiledCode(),
-                              *verifier::MethodVerifier::GetDexGcMap(mref));
-  }
-#else
-  UniquePtr<MethodCompiler> method_compiler(
-      new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
-
-  return method_compiler->Compile();
-#endif
+  Compiler::MethodReference mref(oat_compilation_unit->GetDexFile(),
+                                 oat_compilation_unit->GetDexMethodIndex());
+  return new CompiledMethod(compiler_->GetInstructionSet(),
+                            cunit->GetCompiledCode(),
+                            *verifier::MethodVerifier::GetDexGcMap(mref));
 }
 
 

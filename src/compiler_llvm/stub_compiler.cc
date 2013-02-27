@@ -151,7 +151,6 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAARuntimeInfo);
 
   llvm::CallInst* retval = irb_.CreateCall(code_addr, args);
-#if defined(ART_USE_PORTABLE_COMPILER)
   for (size_t i = 1; i < shorty_size; ++i) {
     switch(shorty[i]) {
       case 'Z':
@@ -167,7 +166,6 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
       default: break;
     }
   }
-#endif
 
   // Store the returned value
   if (shorty[0] != 'V') {
@@ -216,7 +214,6 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   llvm::Function* func =
     llvm::Function::Create(accurate_func_type, llvm::Function::ExternalLinkage,
                            func_name, module_);
-#if defined(ART_USE_PORTABLE_COMPILER)
   switch(shorty[0]) {
     case 'Z':
     case 'C':
@@ -230,7 +227,6 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
 
     default: break;
   }
-#endif
 
   // Create basic block for the body of this function
   llvm::BasicBlock* block_body =

@@ -19,17 +19,15 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"
+#include "compiler/compiler_internals.h"
+#include "compiler.h"
 #include "globals.h"
 #include "instruction_set.h"
+#include "oat_compilation_unit.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 #include "safe_map.h"
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-# include "compiler/compiler_internals.h"
-# include "compiler.h"
-# include "oat_compilation_unit.h"
-#endif
 
 #include <UniquePtr.h>
 #include <string>
@@ -78,7 +76,6 @@ class LlvmCompilationUnit {
     bitcode_filename_ = bitcode_filename;
   }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
   LLVMInfo* GetQuickContext() const {
     return llvm_info_.get();
   }
@@ -88,7 +85,6 @@ class LlvmCompilationUnit {
   void SetOatCompilationUnit(OatCompilationUnit* oat_compilation_unit) {
     oat_compilation_unit_ = oat_compilation_unit;
   }
-#endif
 
   bool Materialize();
 
@@ -112,11 +108,9 @@ class LlvmCompilationUnit {
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_; // Managed by context_
-#if defined(ART_USE_PORTABLE_COMPILER)
   UniquePtr<LLVMInfo> llvm_info_;
   Compiler* compiler_;
   OatCompilationUnit* oat_compilation_unit_;
-#endif
 
   std::string bitcode_filename_;
 

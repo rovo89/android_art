@@ -318,7 +318,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
   // TODO: more work needed to combine initializations and allow per-method backend selection
   typedef void (*InitCompilerContextFn)(Compiler&);
   InitCompilerContextFn init_compiler_context;
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+  if (compiler_backend_ == kPortable){
     // Initialize compiler_context_
     init_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
                                                   compiler_library_, "ArtInitCompilerContext");
@@ -331,13 +331,13 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
 
   init_compiler_context(*this);
 
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+  if (compiler_backend_ == kPortable) {
     jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtLLVMJniCompileMethod");
   } else {
     jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtQuickJniCompileMethod");
   }
 
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)){
+  if (compiler_backend_ == kPortable) {
     create_invoke_stub_ =
         FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateLLVMInvokeStub");
   } else {
@@ -360,7 +360,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
     }
   }
 
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+  if (compiler_backend_ == kPortable) {
     create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
         compiler_so_name, compiler_library_, "ArtCreateProxyStub");
   }
@@ -403,7 +403,7 @@ Compiler::~Compiler() {
   UninitCompilerContextFn uninit_compiler_context;
   // Uninitialize compiler_context_
   // TODO: rework to combine initialization/uninitialization
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+  if (compiler_backend_ == kPortable) {
     uninit_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
                                                     compiler_library_, "ArtUnInitCompilerContext");
   } else {
@@ -836,7 +836,7 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   // invoked, so this can be passed to the out-of-line runtime support code.
   direct_code = 0;
   direct_method = 0;
-  if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+  if (compiler_backend_ == kPortable) {
     if (sharp_type != kStatic && sharp_type != kDirect) {
       return;
     }
@@ -1647,7 +1647,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
-#ifdef ART_USE_LLVM_COMPILER
+#ifdef ART_USE_PORTABLE_COMPILER
   const uint64_t kWarnMilliSeconds = 1000;
 #else
   const uint64_t kWarnMilliSeconds = 100;
@@ -1679,7 +1679,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     InsertInvokeStub(key, compiled_invoke_stub);
   }
 
-  if (((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) && !is_static) {
+  if ((compiler_backend_ == kPortable) && !is_static) {
     const CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
     if (compiled_proxy_stub == NULL) {
       compiled_proxy_stub = (*create_proxy_stub_)(*this, shorty, shorty_len);

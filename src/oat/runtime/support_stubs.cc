@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 #include "callee_save_frame.h"
 #endif
 #include "class_linker-inl.h"
@@ -24,7 +24,7 @@
 #include "mirror/object.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 #include "nth_caller_visitor.h"
 #endif
 #include "scoped_thread_state_change.h"
@@ -34,7 +34,7 @@ extern "C" void art_quick_deliver_exception_from_code(void*);
 
 namespace art {
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 // Lazily resolve a method. Called by stub code.
 const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
                                                      mirror::AbstractMethod** sp, Thread* thread,
@@ -252,7 +252,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   }
   return code;
 }
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
 const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
                                                      mirror::AbstractMethod** called_addr,
                                                      Thread* thread, Runtime::TrampolineType type)
@@ -344,9 +344,9 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   }
   return code;
 }
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
 extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
                                              mirror::AbstractMethod** sp)
@@ -356,13 +356,13 @@ extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thr
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
   thread->QuickDeliverException();
 }
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
 extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
                                              mirror::AbstractMethod**)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
 }
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
 }  // namespace art

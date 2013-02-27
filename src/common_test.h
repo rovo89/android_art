@@ -199,7 +199,7 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(vmap_table),
                                 reinterpret_cast<uint32_t>(gc_map),
                                 reinterpret_cast<uint32_t>(invoke_stub)
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
                               , 0
 #endif
                                 );
@@ -360,8 +360,6 @@ class CommonTest : public testing::Test {
     // TODO: make selectable
 #if defined(ART_USE_PORTABLE_COMPILER)
     CompilerBackend compiler_backend = kPortable;
-#elif defined(ART_USE_LLVM_COMPILER)
-    CompilerBackend compiler_backend = kIceland; // TODO: remove
 #else
     CompilerBackend compiler_backend = kQuick;
 #endif
