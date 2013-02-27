@@ -3588,6 +3588,12 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return call_inst.getArgOperand(0);
     }
 
+    //==- Constructor barrier-----------------------------------------------==//
+    case IntrinsicHelper::ConstructorBarrier: {
+      irb_.CreateMemoryBarrier(art::kStoreStore);
+      return NULL;
+    }
+
     //==- Unknown Cases ----------------------------------------------------==//
     case IntrinsicHelper::MaxIntrinsicId:
     case IntrinsicHelper::UnknownId:

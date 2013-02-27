@@ -816,6 +816,12 @@ static void ConvertNot(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
+static void EmitConstructorBarrier(CompilationUnit* cu) {
+  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
+      compiler_llvm::IntrinsicHelper::ConstructorBarrier);
+  cu->irb->CreateCall(intr);
+}
+
 /*
  * Target-independent code generation.  Use only high-level
  * load/store utilities here, or target-dependent genXX() handlers
@@ -1025,6 +1031,12 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::RETURN_VOID: {
+        if (((cu->access_flags & kAccConstructor) != 0) &&
+            cu->compiler->RequiresConstructorBarrier(Thread::Current(),
+                                                     cu->dex_file,
+                                                     cu->class_def_idx)) {
+          EmitConstructorBarrier(cu);
+        }
         if (!(cu->attrs & METHOD_IS_LEAF)) {
           EmitSuspendCheck(cu);
         }
@@ -2892,6 +2904,11 @@ static void CvtInvoke(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_vo
   }
 }
 
+static void CvtConstructorBarrier(CompilationUnit* cu) {
+  Codegen* cg = cu->cg.get();
+  cg->GenMemBarrier(cu, kStoreStore);
+}
+
 /* Look up the RegLocation associated with a Value.  Must already be defined */
 static RegLocation ValToLoc(CompilationUnit* cu, llvm::Value* val)
 {
@@ -3308,6 +3325,10 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
                    next_bb = target_bb;
                 }
                 break;
+              case compiler_llvm::IntrinsicHelper::ConstructorBarrier: {
+                CvtConstructorBarrier(cu);
+                break;
+              }
 
               default:
                 LOG(FATAL) << "Unexpected intrinsic " << cu->intrinsic_helper->GetName(id);

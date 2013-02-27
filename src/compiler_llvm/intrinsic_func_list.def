@@ -1768,6 +1768,16 @@ _EVAL_DEF_INTRINSICS_FUNC(IntToShort,
                           kInt32Ty,
                           _EXPAND_ARG1(kInt32Ty))
 
+//----------------------------------------------------------------------------
+// Memory barrier
+//----------------------------------------------------------------------------
+// void constructor_barrier()
+_EVAL_DEF_INTRINSICS_FUNC(ConstructorBarrier,
+                          art_portable_constructor_barrier,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG0())
+
 // Clean up all internal used macros
 #undef _EXPAND_ARG0
 #undef _EXPAND_ARG1

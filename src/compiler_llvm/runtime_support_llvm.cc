@@ -897,4 +897,12 @@ void* art_portable_find_runtime_support_func(void* context, const char* name) {
   return 0;
 }
 
+//----------------------------------------------------------------------------
+// Memory barrier
+//----------------------------------------------------------------------------
+
+void art_portable_constructor_barrier() {
+  LOG(FATAL) << "Implemented by IRBuilder.";
+}
+
 }  // extern "C"

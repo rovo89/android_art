@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_IR_BUILDER_H_
 
 #include "backend_types.h"
+#include "compiler/dex/compiler_enums.h"
 #include "intrinsic_helper.h"
 #include "md_builder.h"
 #include "runtime_support_builder.h"
@@ -94,6 +95,15 @@ class IRBuilder : public LLVMIRBuilder {
     return inst;
   }
 
+  //--------------------------------------------------------------------------
+  // Extend memory barrier
+  //--------------------------------------------------------------------------
+  void CreateMemoryBarrier(MemBarrierKind barrier_kind) {
+#if ANDROID_SMP
+    // TODO: select atomic ordering according to given barrier kind.
+    CreateFence(llvm::SequentiallyConsistent);
+#endif
+  }
 
   //--------------------------------------------------------------------------
   // TBAA
