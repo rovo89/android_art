@@ -38,7 +38,7 @@ class OatTest : public CommonTest {
     if (compiled_method == NULL) {
       EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "
                                                 << oat_method.GetCode();
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
@@ -54,7 +54,7 @@ class OatTest : public CommonTest {
       EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
           << PrettyMethod(method) << " " << code_size;
       CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
       EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
       EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
@@ -72,8 +72,6 @@ TEST_F(OatTest, WriteRead) {
     // TODO: make selectable
 #if defined(ART_USE_PORTABLE_COMPILER)
     CompilerBackend compiler_backend = kPortable;
-#elif defined(ART_USE_LLVM_COMPILER)
-    CompilerBackend compiler_backend = kIceland; // TODO: remove
 #else
     CompilerBackend compiler_backend = kQuick;
 #endif
@@ -140,7 +138,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
   EXPECT_EQ(36U, sizeof(OatHeader));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   EXPECT_EQ(32U, sizeof(OatMethodOffsets));
 #else
   // ART-LLVM has a extra 4 bytes field: proxy_stub_offset_

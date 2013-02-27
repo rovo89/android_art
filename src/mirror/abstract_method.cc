@@ -189,7 +189,7 @@ uintptr_t AbstractMethod::NativePcOffset(const uintptr_t pc) const {
 
 // Find the lowest-address native safepoint pc for a given dex pc
 uintptr_t AbstractMethod::ToFirstNativeSafepointPc(const uint32_t dex_pc) const {
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   const uint32_t* mapping_table = GetPcToDexMappingTable();
   if (mapping_table == NULL) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
@@ -211,7 +211,7 @@ uintptr_t AbstractMethod::ToFirstNativeSafepointPc(const uint32_t dex_pc) const 
 }
 
 uint32_t AbstractMethod::ToDexPc(const uintptr_t pc) const {
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   const uint32_t* mapping_table = GetPcToDexMappingTable();
   if (mapping_table == NULL) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
@@ -361,7 +361,7 @@ void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
     // around JNI bugs, that include not giving Object** SIRT references to native methods. Direct
     // the native method to runtime support and store the target somewhere runtime support will
     // find it.
-#if defined(__arm__) && !defined(ART_USE_LLVM_COMPILER)
+#if defined(__arm__) && !defined(ART_USE_PORTABLE_COMPILER)
     SetNativeMethod(native_method);
 #else
     UNIMPLEMENTED(FATAL);

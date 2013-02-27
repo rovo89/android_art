@@ -249,7 +249,7 @@ class Dex2Oat {
                                               dump_stats,
                                               dump_timings));
 
-    if ((compiler_backend_ == kPortable) || (compiler_backend_ == kIceland)) {
+    if (compiler_backend_ == kPortable) {
       compiler->SetBitcodeFileName(bitcode_filename);
     }
 
@@ -603,7 +603,7 @@ class WatchDog {
   }
 
   static const unsigned int kWatchDogWarningSeconds = 1 * 60;  // 1 minute.
-#ifdef ART_USE_LLVM_COMPILER
+#ifdef ART_USE_PORTABLE_COMPILER
   static const unsigned int kWatchDogTimeoutSeconds = 30 * 60;  // 25 minutes + buffer.
 #else
   static const unsigned int kWatchDogTimeoutSeconds = 3 * 60;  // 2 minutes + buffer.
@@ -647,8 +647,6 @@ static int dex2oat(int argc, char** argv) {
   bool support_debugging = false;
 #if defined(ART_USE_PORTABLE_COMPILER)
   CompilerBackend compiler_backend = kPortable;
-#elif defined(ART_USE_LLVM_COMPILER)
-  CompilerBackend compiler_backend = kIceland;
 #else
   CompilerBackend compiler_backend = kQuick;
 #endif
@@ -734,9 +732,6 @@ static int dex2oat(int argc, char** argv) {
         compiler_backend = kQuick;
       } else if (backend_str == "QuickGBC") {
         compiler_backend = kQuickGBC;
-      } else if (backend_str == "Iceland") {
-        // TODO: remove this when Portable/Iceland merge complete
-        compiler_backend = kIceland;
       } else if (backend_str == "Portable") {
         compiler_backend = kPortable;
       }

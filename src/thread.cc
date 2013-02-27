@@ -92,7 +92,7 @@ void Thread::InitFunctionPointers() {
 }
 
 void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   ChangeDebuggerEntryPoint(&entrypoints_, enabled);
 #else
   UNIMPLEMENTED(FATAL);
@@ -1016,9 +1016,9 @@ Thread::~Thread() {
   delete wait_cond_;
   delete wait_mutex_;
 
-#if !defined(ART_USE_LLVM_COMPILER)
-  delete long_jump_context_;
-#endif
+  if (long_jump_context_ != NULL) {
+    delete long_jump_context_;
+  }
 
   delete debug_invoke_req_;
   delete instrumentation_stack_;

@@ -145,7 +145,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_EQ(kStackAlignment, 16);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
   // to dex pc 3.
   const uint32_t dex_pc = 3;
@@ -213,7 +213,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   thread->SetTopOfStack(NULL, 0); // Disarm the assertion that no code is running when we detach.
 #else
   thread->PopShadowFrame();

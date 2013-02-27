@@ -114,7 +114,7 @@ class OatFile {
     mirror::AbstractMethod::InvokeStub* GetInvokeStub() const;
     uint32_t GetInvokeStubSize() const;
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
     const void* GetProxyStub() const;
 #endif
 
@@ -130,7 +130,7 @@ class OatFile {
               const uint32_t vmap_table_offset,
               const uint32_t gc_map_offset,
               const uint32_t invoke_stub_offset
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
             , const uint32_t proxy_stub_offset
 #endif
               );
@@ -155,7 +155,7 @@ class OatFile {
     uint32_t native_gc_map_offset_;
     uint32_t invoke_stub_offset_;
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
     uint32_t proxy_stub_offset_;
 #endif
 

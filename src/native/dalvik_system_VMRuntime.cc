@@ -122,7 +122,7 @@ static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
 static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
@@ -136,7 +136,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
     Runtime* runtime = Runtime::Current();
     JavaVMExt* vm = runtime->GetJavaVM();
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
       Thread* self = static_cast<JNIEnvExt*>(env)->self;

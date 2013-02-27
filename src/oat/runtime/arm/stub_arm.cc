@@ -29,7 +29,7 @@ namespace arm {
 
 mirror::ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // | Out args |
   // | Method*  | <- SP on entry
   // | LR       |    return address into caller
@@ -60,7 +60,7 @@ mirror::ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ bx(R12);  // Leaf call to method's code
 
   __ bkpt(0);
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   RegList save = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3) | (1 << LR);
   __ PushList(save);
   __ LoadFromOffset(kLoadWord, R12, TR,
@@ -78,7 +78,7 @@ mirror::ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ bx(R12, NE);                   // If R12 != 0 tail call method's code
 
   __ bx(LR);                        // Return to caller to handle exception
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
@@ -95,7 +95,7 @@ typedef void (*ThrowAme)(mirror::AbstractMethod*, Thread*);
 
 mirror::ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<ArmAssembler> assembler(static_cast<ArmAssembler*>(Assembler::Create(kArm)));
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // Save callee saves and ready frame for exception delivery
   RegList save = (1 << R4) | (1 << R5) | (1 << R6) | (1 << R7) | (1 << R8) | (1 << R9) |
                  (1 << R10) | (1 << R11) | (1 << LR);
@@ -116,7 +116,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
   __ mov(PC, ShifterOperand(R12));  // Leaf call to routine that never returns
 
   __ bkpt(0);
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   // R0 is the Method* already
   __ mov(R1, ShifterOperand(R9));  // Pass Thread::Current() in R1
   // Call to throw AbstractMethodError
@@ -124,7 +124,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
   __ mov(PC, ShifterOperand(R12));  // Leaf call to routine that never returns
 
   __ bkpt(0);
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
 

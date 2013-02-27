@@ -36,7 +36,7 @@
 #include "runtime_stats.h"
 #include "safe_map.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler_llvm/procedure_linkage_table.h"
 #endif
 
@@ -477,7 +477,7 @@ class Runtime {
 
   jobject main_thread_group_;
   jobject system_thread_group_;
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   compiler_llvm::ProcedureLinkageTable plt_;
 #endif
 

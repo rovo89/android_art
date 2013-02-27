@@ -57,7 +57,7 @@
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler_llvm/procedure_linkage_table.h"
 #endif
 
@@ -100,7 +100,7 @@ Runtime::Runtime()
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
       system_thread_group_(NULL)
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 #if defined(__arm__)
     , plt_(kArm)
 #elif defined(__mips__)
@@ -117,7 +117,7 @@ Runtime::Runtime()
     callee_save_methods_[i] = NULL;
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   CHECK(plt_.AllocateTable()) << "Failed to allocate PLT";
 #endif
 }

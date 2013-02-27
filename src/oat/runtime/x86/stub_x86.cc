@@ -30,7 +30,7 @@ namespace x86 {
 mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
   // return address
   __ pushl(EDI);
@@ -62,7 +62,7 @@ mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ xchgl(EDI, Address(ESP, 0));
   // Tail call to intended method.
   __ ret();
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   __ pushl(EBP);
   __ movl(EBP, ESP);          // save ESP
   __ subl(ESP, Immediate(8));  // Align stack
@@ -88,7 +88,7 @@ mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
 
   __ Bind(&resolve_fail);
   __ ret();
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
@@ -106,7 +106,7 @@ typedef void (*ThrowAme)(mirror::AbstractMethod*, Thread*);
 mirror::ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_PORTABLE_COMPILER)
   // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kSaveAll)
 
   // return address
@@ -129,7 +129,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
 
   // Call never returns.
   __ int3();
-#else // ART_USE_LLVM_COMPILER
+#else // ART_USE_PORTABLE_COMPILER
   __ pushl(EBP);
   __ movl(EBP, ESP);          // save ESP
   __ subl(ESP, Immediate(12));  // Align stack
@@ -142,7 +142,7 @@ mirror::ByteArray* CreateAbstractMethodErrorStub() {
   __ leave();
   // Return to caller who will handle pending exception.
   __ ret();
-#endif // ART_USE_LLVM_COMPILER
+#endif // ART_USE_PORTABLE_COMPILER
 
   assembler->EmitSlowPaths();
 

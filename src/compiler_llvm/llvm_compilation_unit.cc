@@ -80,11 +80,9 @@
 namespace art {
 namespace compiler_llvm {
 
-#if defined(ART_USE_PORTABLE_COMPILER)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
-#endif
 
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
@@ -92,16 +90,11 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
                                  size_t cunit_idx)
 : compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  context_.reset(new llvm::LLVMContext());
-  module_ = new llvm::Module("art", *context_);
-#else
   compiler_ = NULL;
   oat_compilation_unit_ = NULL;
   llvm_info_.reset(new LLVMInfo());
   context_.reset(llvm_info_->GetLLVMContext());
   module_ = llvm_info_->GetLLVMModule();
-#endif
 
   // Include the runtime function declaration
   makeLLVMModuleContents(module_);
@@ -130,10 +123,8 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
 
 
 LlvmCompilationUnit::~LlvmCompilationUnit() {
-#if defined(ART_USE_PORTABLE_COMPILER)
   llvm::LLVMContext* llvm_context = context_.release(); // Managed by llvm_info_
   CHECK(llvm_context != NULL);
-#endif
 }
 
 
@@ -219,12 +210,9 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream)
   if (bitcode_filename_.empty()) {
     // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the
     // regular FunctionPass.
-#if defined(ART_USE_PORTABLE_COMPILER)
     fpm.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                   compiler_, oat_compilation_unit_));
-#endif
   } else {
-#if defined(ART_USE_PORTABLE_COMPILER)
     llvm::FunctionPassManager fpm2(module_);
     fpm2.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
                                    compiler_, oat_compilation_unit_));
@@ -234,7 +222,6 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream)
       fpm2.run(*F);
     }
     fpm2.doFinalization();
-#endif
 
     // Write bitcode to file
     std::string errmsg;

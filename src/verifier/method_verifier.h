@@ -38,12 +38,6 @@ namespace art {
 
 struct ReferenceMap2Visitor;
 
-#if defined(ART_USE_LLVM_COMPILER)
-namespace greenland {
-  class InferredRegCategoryMap;
-}  // namespace greenland
-#endif
-
 namespace verifier {
 
 class MethodVerifier;
@@ -142,9 +136,6 @@ class PcToRegisterLineTable {
 
 // The verifier
 class MethodVerifier {
-#if defined(ART_USE_LLVM_COMPILER)
-  typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
-#endif
  public:
   enum FailureKind {
     kNoFailure,
@@ -203,11 +194,6 @@ class MethodVerifier {
 
   static void Init();
   static void Shutdown();
-
-#if defined(ART_USE_LLVM_COMPILER)
-  static const InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref)
-      LOCKS_EXCLUDED(inferred_reg_category_maps_lock_);
-#endif
 
   static bool IsClassRejected(Compiler::ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
@@ -566,14 +552,6 @@ class MethodVerifier {
   // Get a type representing the declaring class of the method.
   const RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-#if defined(ART_USE_LLVM_COMPILER)
-  /*
-   * Generate the inferred register category for LLVM-based code generator.
-   * Returns a pointer to a two-dimension Class array, or NULL on failure.
-   */
-  const InferredRegCategoryMap* GenerateInferredRegCategoryMap();
-#endif
-
   /*
    * Generate the GC map for a method that has just been verified (i.e. we're doing this as part of
    * verification). For type-precise determination we have all the data we need, so we just need to
@@ -600,17 +578,6 @@ class MethodVerifier {
   typedef std::set<Compiler::ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static RejectedClassesTable* rejected_classes_;
-
-#if defined(ART_USE_LLVM_COMPILER)
-  // All the inferred register category maps that the verifier has created.
-  typedef SafeMap<const Compiler::MethodReference,
-                  const InferredRegCategoryMap*> InferredRegCategoryMapTable;
-  static Mutex* inferred_reg_category_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static InferredRegCategoryMapTable* inferred_reg_category_maps_ GUARDED_BY(inferred_reg_category_maps_lock_);
-  static void SetInferredRegCategoryMap(Compiler::MethodReference ref,
-                                        const InferredRegCategoryMap& m)
-      LOCKS_EXCLUDED(inferred_reg_category_maps_lock_);
-#endif
 
   static void AddRejectedClass(Compiler::ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);

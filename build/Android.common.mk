@@ -23,20 +23,6 @@ ifeq ($(WITH_ART_USE_PORTABLE_COMPILER),true)
 $(info Enabling ART_USE_PORTABLE_COMPILER because WITH_ART_USE_PORTABLE_COMPILER=true)
 ART_USE_PORTABLE_COMPILER := true
 endif
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-WITH_ART_USE_LLVM_COMPILER := true
-endif
-
-# Use llvm as the backend
-ART_USE_LLVM_COMPILER := false
-ifneq ($(wildcard art/USE_LLVM_COMPILER),)
-$(info Enabling ART_USE_LLVM_COMPILER because of existence of art/USE_LLVM_COMPILER)
-ART_USE_LLVM_COMPILER := true
-endif
-ifeq ($(WITH_ART_USE_LLVM_COMPILER),true)
-$(info Enabling ART_USE_LLVM_COMPILER because WITH_ART_USE_LLVM_COMPILER=true)
-ART_USE_LLVM_COMPILER := true
-endif
 
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
@@ -124,7 +110,7 @@ endif
 
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 
-ifeq ($(ART_USE_LLVM_COMPILER),true)
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 PARALLEL_ART_COMPILE_JOBS := -j8
 endif
 
@@ -144,7 +130,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/base/mutex.cc \
 	src/base/stringpiece.cc \
 	src/base/stringprintf.cc \
-        src/base/timing_logger.cc \
+	src/base/timing_logger.cc \
 	src/base/unix_file/fd_file.cc \
 	src/base/unix_file/mapped_file.cc \
 	src/base/unix_file/null_file.cc \
@@ -266,11 +252,10 @@ LIBART_COMMON_SRC_FILES := \
 	src/well_known_classes.cc \
 	src/zip_archive.cc
 
-ifeq ($(ART_USE_LLVM_COMPILER),true)
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/procedure_linkage_table.cc \
-	src/compiler_llvm/runtime_support_llvm.cc \
-	src/greenland/inferred_reg_category_map.cc
+	src/compiler_llvm/runtime_support_llvm.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \
@@ -291,7 +276,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_stubs.cc \
 	src/oat/runtime/support_thread.cc \
 	src/oat/runtime/support_throw.cc \
-        src/oat/runtime/support_interpreter.cc
+	src/oat/runtime/support_interpreter.cc
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -366,7 +351,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/compiler/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
-        src/gc/gc_type.h \
+	src/gc/gc_type.h \
 	src/gc/space.h \
 	src/heap.h \
 	src/indirect_reference_table.h \
@@ -377,7 +362,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/locks.h \
 	src/mirror/class.h \
 	src/thread.h \
-        src/thread_state.h \
+	src/thread_state.h \
 	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
@@ -410,7 +395,7 @@ TEST_COMMON_SRC_FILES := \
 	src/jni_compiler_test.cc \
 	src/jni_internal_test.cc \
 	src/mirror/dex_cache_test.cc \
-        src/mirror/object_test.cc \
+	src/mirror/object_test.cc \
 	src/oat/utils/arm/managed_register_arm_test.cc \
 	src/oat/utils/x86/managed_register_x86_test.cc \
 	src/oat_test.cc \

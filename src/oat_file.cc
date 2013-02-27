@@ -343,7 +343,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.vmap_table_offset_,
       oat_method_offsets.gc_map_offset_,
       oat_method_offsets.invoke_stub_offset_
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
     , oat_method_offsets.proxy_stub_offset_
 #endif
       );
@@ -358,7 +358,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t vmap_table_offset,
                               const uint32_t gc_map_offset,
                               const uint32_t invoke_stub_offset
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
                             , const uint32_t proxy_stub_offset
 #endif
                               )
@@ -371,7 +371,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
     vmap_table_offset_(vmap_table_offset),
     native_gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset)
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(proxy_stub_offset)
 #endif
 {
@@ -421,7 +421,7 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_PORTABLE_COMPILER)
 const void* OatFile::OatMethod::GetProxyStub() const {
   return GetOatPointer<const void*>(proxy_stub_offset_);
 }
