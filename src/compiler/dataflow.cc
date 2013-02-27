@@ -1791,7 +1791,7 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
           if (bb->taken->dominates_return) {
             mir->optimization_flags |= MIR_IGNORE_SUSPEND_CHECK;
             if (cu->verbose) {
-              LOG(INFO) << "Suppressed suspend check at 0x" << std::hex << mir->offset;
+              LOG(INFO) << "Suppressed suspend check on branch to return at 0x" << std::hex << mir->offset;
             }
           }
           break;
@@ -1819,10 +1819,16 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
          * transfers to the rejoin block and the fall_though edge goes to a block that
          * unconditionally falls through to the rejoin block.
          */
-
         if ((tk_ft == NULL) && (ft_tk == NULL) && (tk_tk == ft_ft) &&
             (Predecessors(tk) == 1) && (Predecessors(ft) == 1)) {
-          // Okay - we have the basic diamond shape.  Are the block bodies something we can handle?
+          /*
+           * Okay - we have the basic diamond shape.  At the very least, we can eliminate the
+           * suspend check on the taken-taken branch back to the join point.
+           */
+          if (SelectKind(tk->last_mir_insn) == kSelectGoto) {
+              tk->last_mir_insn->optimization_flags |= (MIR_IGNORE_SUSPEND_CHECK);
+          }
+          // Are the block bodies something we can handle?
           if ((ft->first_mir_insn == ft->last_mir_insn) &&
               (tk->first_mir_insn != tk->last_mir_insn) &&
               (tk->first_mir_insn->next == tk->last_mir_insn) &&
@@ -1833,7 +1839,9 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
             // Almost there.  Are the instructions targeting the same vreg?
             MIR* if_true = tk->first_mir_insn;
             MIR* if_false = ft->first_mir_insn;
-            if (if_true->dalvikInsn.vA == if_false->dalvikInsn.vA) {
+            // It's possible that the target of the select isn't used - skip those (rare) cases.
+            MIR* phi = FindPhi(cu, tk_tk, if_true->ssa_rep->defs[0]);
+            if ((phi != NULL) && (if_true->dalvikInsn.vA == if_false->dalvikInsn.vA)) {
               /*
                * We'll convert the IF_EQZ/IF_NEZ to a SELECT.  We need to find the
                * Phi node in the merge block and delete it (while using the SSA name
@@ -1888,39 +1896,33 @@ static bool BasicBlockOpt(CompilationUnit* cu, BasicBlock* bb)
                * name of the "true" path, delete the SSA name of the "false" path from the
                * Phi node (and fix up the incoming arc list).
                */
-              MIR* phi = FindPhi(cu, tk_tk, if_true->ssa_rep->defs[0]);
-              if (phi != NULL) {
-                if (phi->ssa_rep->num_uses == 2) {
-                  mir->ssa_rep->defs[0] = phi->ssa_rep->defs[0];
-                  phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-                } else {
-                  int dead_def = if_false->ssa_rep->defs[0];
-                  int live_def = if_true->ssa_rep->defs[0];
-                  mir->ssa_rep->defs[0] = live_def;
-                  int* incoming = reinterpret_cast<int*>(phi->dalvikInsn.vB);
-                  for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
-                    if (phi->ssa_rep->uses[i] == live_def) {
-                      incoming[i] = bb->id;
-                    }
-                  }
-                  for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
-                    if (phi->ssa_rep->uses[i] == dead_def) {
-                      int last_slot = phi->ssa_rep->num_uses - 1;
-                      phi->ssa_rep->uses[i] = phi->ssa_rep->uses[last_slot];
-                      incoming[i] = incoming[last_slot];
-                    }
+              if (phi->ssa_rep->num_uses == 2) {
+                mir->ssa_rep->defs[0] = phi->ssa_rep->defs[0];
+                phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+              } else {
+                int dead_def = if_false->ssa_rep->defs[0];
+                int live_def = if_true->ssa_rep->defs[0];
+                mir->ssa_rep->defs[0] = live_def;
+                int* incoming = reinterpret_cast<int*>(phi->dalvikInsn.vB);
+                for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
+                  if (phi->ssa_rep->uses[i] == live_def) {
+                    incoming[i] = bb->id;
                   }
                 }
-                phi->ssa_rep->num_uses--;
+                for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
+                  if (phi->ssa_rep->uses[i] == dead_def) {
+                    int last_slot = phi->ssa_rep->num_uses - 1;
+                    phi->ssa_rep->uses[i] = phi->ssa_rep->uses[last_slot];
+                    incoming[i] = incoming[last_slot];
+                  }
+                }
               }
+              phi->ssa_rep->num_uses--;
               bb->taken = NULL;
               tk->block_type = kDead;
               for (MIR* tmir = ft->first_mir_insn; tmir != NULL; tmir = tmir->next) {
                 tmir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
               }
-            } else {
-              // At least we can eliminate the suspend check on the backwards branch.
-              tk->last_mir_insn->optimization_flags |= (MIR_IGNORE_SUSPEND_CHECK);
             }
           }
         }

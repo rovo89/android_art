@@ -186,6 +186,23 @@ void ArmCodegen::GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
 {
   RegLocation rl_result;
   RegLocation rl_src = GetSrc(cu, mir, 0);
+  // Temporary debugging code
+  int dest_sreg = mir->ssa_rep->defs[0];
+  if ((dest_sreg < 0) || (dest_sreg >= cu->num_ssa_regs)) {
+    LOG(INFO) << "Bad target sreg: " << dest_sreg << ", in "
+              << PrettyMethod(cu->method_idx,*cu->dex_file);
+    LOG(INFO) << "at dex offset 0x" << std::hex << mir->offset;
+    LOG(INFO) << "vreg = " << SRegToVReg(cu, dest_sreg);
+    LOG(INFO) << "num uses = " << mir->ssa_rep->num_uses;
+    if (mir->ssa_rep->num_uses == 1) {
+      LOG(INFO) << "CONST case, vals = " << mir->dalvikInsn.vB << ", " << mir->dalvikInsn.vC;
+    } else {
+      LOG(INFO) << "MOVE case, operands = " << mir->ssa_rep->uses[1] << ", "
+                << mir->ssa_rep->uses[2];
+    }
+    CHECK(false) << "Invalid target sreg on Select.";
+  }
+  // End temporary debugging code
   RegLocation rl_dest = GetDest(cu, mir);
   rl_src = LoadValue(cu, rl_src, kCoreReg);
   if (mir->ssa_rep->num_uses == 1) {
