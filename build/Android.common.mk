@@ -141,6 +141,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/common_throws.cc \
 	src/compiled_method.cc \
 	src/compiler.cc \
+	src/compiler_llvm/procedure_linkage_table.cc \
+	src/compiler_llvm/runtime_support_llvm.cc \
 	src/debugger.cc \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \
@@ -251,12 +253,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/verifier/register_line.cc \
 	src/well_known_classes.cc \
 	src/zip_archive.cc
-
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-LIBART_COMMON_SRC_FILES += \
-	src/compiler_llvm/procedure_linkage_table.cc \
-	src/compiler_llvm/runtime_support_llvm.cc
-endif
 
 LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/context.cc \

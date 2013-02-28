@@ -48,23 +48,6 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/ralloc.cc \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
-	src/elf_writer.cc \
-	src/oat/jni/arm/calling_convention_arm.cc \
-	src/oat/jni/arm/jni_internal_arm.cc \
-	src/oat/jni/calling_convention.cc \
-	src/oat/jni/jni_compiler.cc \
-	src/oat/jni/mips/calling_convention_mips.cc \
-	src/oat/jni/mips/jni_internal_mips.cc \
-	src/oat/jni/x86/calling_convention_x86.cc \
-	src/oat/jni/x86/jni_internal_x86.cc
-
-LIBART_COMPILER_CFLAGS :=
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
-
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_COMPILER_SRC_FILES += \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/gbc_expander.cc \
 	src/compiler_llvm/generated/art_module.cc \
@@ -78,7 +61,20 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 	src/compiler_llvm/runtime_support_builder_thumb2.cc \
 	src/compiler_llvm/runtime_support_builder_x86.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/stub_compiler.cc
+	src/compiler_llvm/stub_compiler.cc \
+	src/elf_writer.cc \
+	src/oat/jni/arm/calling_convention_arm.cc \
+	src/oat/jni/arm/jni_internal_arm.cc \
+	src/oat/jni/calling_convention.cc \
+	src/oat/jni/jni_compiler.cc \
+	src/oat/jni/mips/calling_convention_mips.cc \
+	src/oat/jni/mips/jni_internal_mips.cc \
+	src/oat/jni/x86/calling_convention_x86.cc \
+	src/oat/jni/x86/jni_internal_x86.cc
+
+LIBART_COMPILER_CFLAGS :=
+ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 # $(1): target or host
