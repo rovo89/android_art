@@ -107,6 +107,7 @@ class LlvmCompilationUnit {
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_; // Managed by context_
+  UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
   Compiler* compiler_;
   OatCompilationUnit* oat_compilation_unit_;

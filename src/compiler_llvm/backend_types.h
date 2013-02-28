@@ -38,15 +38,6 @@ enum JType {
   MAX_JTYPE
 };
 
-
-enum JTypeSpace {
-  kAccurate,
-  kReg,
-  kField,
-  kArray,
-};
-
-
 enum RegCategory {
   kRegUnknown,
   kRegZero,

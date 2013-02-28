@@ -18,7 +18,7 @@
 #include "utils_llvm.h"
 
 #include "compiler.h"
-#include "greenland/intrinsic_helper.h"
+#include "intrinsic_helper.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
 #include "oat_compilation_unit.h"
@@ -43,7 +43,7 @@ using art::kMIRIgnoreRangeCheck;
 
 using namespace art::compiler_llvm;
 
-using art::greenland::IntrinsicHelper;
+using art::compiler_llvm::IntrinsicHelper;
 
 namespace art {
 extern char RemapShorty(char shortyType);
@@ -124,6 +124,12 @@ class GBCExpanderPass : public llvm::FunctionPass {
   void UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
                             llvm::BasicBlock* new_basic_block);
 
+
+  // Sign or zero extend category 1 types < 32bits in size to 32bits.
+  llvm::Value* SignOrZeroExtendCat1Types(llvm::Value* value, JType jty);
+
+  // Truncate category 1 types from 32bits to the given JType size.
+  llvm::Value* TruncateCat1Types(llvm::Value* value, JType jty);
 
   //----------------------------------------------------------------------------
   // Dex cache code generation helper function
@@ -752,7 +758,7 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
   llvm::Constant* data_offset_value =
     irb_.getPtrEquivInt(data_offset);
 
-  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
+  llvm::Type* elem_type = irb_.getJType(elem_jty);
 
   llvm::Value* array_data_addr =
     irb_.CreatePtrDisp(array_addr, data_offset_value,
@@ -913,7 +919,7 @@ llvm::Value* GBCExpanderPass::Expand_IGetFast(llvm::Value* field_offset_value,
   DCHECK_GE(field_offset, 0);
 
   llvm::PointerType* field_type =
-    irb_.getJType(field_jty, kField)->getPointerTo();
+    irb_.getJType(field_jty)->getPointerTo();
 
   field_offset_value = irb_.getPtrEquivInt(field_offset);
 
@@ -936,7 +942,7 @@ void GBCExpanderPass::Expand_IPutFast(llvm::Value* field_offset_value,
   DCHECK_GE(field_offset, 0);
 
   llvm::PointerType* field_type =
-    irb_.getJType(field_jty, kField)->getPointerTo();
+    irb_.getJType(field_jty)->getPointerTo();
 
   field_offset_value = irb_.getPtrEquivInt(field_offset);
 
@@ -963,7 +969,7 @@ llvm::Value* GBCExpanderPass::Expand_SGetFast(llvm::Value* static_storage_addr,
 
   llvm::Value* static_field_addr =
     irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
-                       irb_.getJType(field_jty, kField)->getPointerTo());
+                       irb_.getJType(field_jty)->getPointerTo());
 
   // TODO: Check is_volatile.  We need to generate atomic store instruction
   // when is_volatile is true.
@@ -984,7 +990,7 @@ void GBCExpanderPass::Expand_SPutFast(llvm::Value* static_storage_addr,
 
   llvm::Value* static_field_addr =
     irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
-                       irb_.getJType(field_jty, kField)->getPointerTo());
+                       irb_.getJType(field_jty)->getPointerTo());
 
   // TODO: Check is_volatile.  We need to generate atomic store instruction
   // when is_volatile is true.
@@ -1070,7 +1076,7 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
   // That case will cause overflow, which is undefined behavior in llvm.
   // So we check the divisor is -1 or not, if the divisor is -1, we do
   // the special path to avoid undefined behavior.
-  llvm::Type* op_type = irb_.getJType(op_jty, kAccurate);
+  llvm::Type* op_type = irb_.getJType(op_jty);
   llvm::Value* zero = irb_.getJZero(op_jty);
   llvm::Value* neg_one = llvm::ConstantInt::getSigned(op_type, -1);
 
@@ -1291,6 +1297,47 @@ llvm::Value* GBCExpanderPass::Expand_IntegerShift(llvm::Value* src1_value,
   }
 }
 
+llvm::Value* GBCExpanderPass::SignOrZeroExtendCat1Types(llvm::Value* value, JType jty) {
+  switch (jty) {
+    case kBoolean:
+    case kChar:
+      return irb_.CreateZExt(value, irb_.getJType(kInt));
+    case kByte:
+    case kShort:
+      return irb_.CreateSExt(value, irb_.getJType(kInt));
+    case kVoid:
+    case kInt:
+    case kLong:
+    case kFloat:
+    case kDouble:
+    case kObject:
+      return value;  // Nothing to do.
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
+      return NULL;
+  }
+}
+
+llvm::Value* GBCExpanderPass::TruncateCat1Types(llvm::Value* value, JType jty) {
+  switch (jty) {
+    case kBoolean:
+    case kChar:
+    case kByte:
+    case kShort:
+      return irb_.CreateTrunc(value, irb_.getJType(jty));
+    case kVoid:
+    case kInt:
+    case kLong:
+    case kFloat:
+    case kDouble:
+    case kObject:
+      return value;  // Nothing to do.
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
+      return NULL;
+  }
+}
+
 llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
                                                 JType elem_jty) {
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
@@ -1309,32 +1356,7 @@ llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
 
   llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAHeapArray, elem_jty);
 
-  switch (elem_jty) {
-  case kVoid:
-    break;
-
-  case kBoolean:
-  case kChar:
-    array_elem_value = irb_.CreateZExt(array_elem_value, irb_.getJType(elem_jty, kReg));
-    break;
-
-  case kByte:
-  case kShort:
-    array_elem_value = irb_.CreateSExt(array_elem_value, irb_.getJType(elem_jty, kReg));
-    break;
-
-  case kInt:
-  case kLong:
-  case kFloat:
-  case kDouble:
-  case kObject:
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown java type: " << elem_jty;
-  }
-
-  return array_elem_value;
+  return SignOrZeroExtendCat1Types(array_elem_value, elem_jty);
 }
 
 
@@ -1353,27 +1375,7 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
     EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, index_value);
   }
 
-  switch (elem_jty) {
-  case kVoid:
-    break;
-
-  case kBoolean:
-  case kChar:
-  case kByte:
-  case kShort:
-    new_value = irb_.CreateTrunc(new_value, irb_.getJType(elem_jty, kArray));
-    break;
-
-  case kInt:
-  case kLong:
-  case kFloat:
-  case kDouble:
-  case kObject:
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown java type: " << elem_jty;
-  }
+  new_value = TruncateCat1Types(new_value, elem_jty);
 
   llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
@@ -1436,7 +1438,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     DCHECK_GE(field_offset, 0);
 
     llvm::PointerType* field_type =
-      irb_.getJType(field_jty, kField)->getPointerTo();
+      irb_.getJType(field_jty)->getPointerTo();
 
     llvm::ConstantInt* field_offset_value = irb_.getPtrEquivInt(field_offset);
 
@@ -1446,10 +1448,11 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
     field_value = irb_.CreateLoad(field_addr, kTBAAHeapInstance, field_jty);
+    field_value = SignOrZeroExtendCat1Types(field_value, field_jty);
   }
 
   if (field_jty == kFloat || field_jty == kDouble) {
-    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty, kAccurate));
+    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty));
   }
 
   return field_value;
@@ -1464,7 +1467,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
   if (field_jty == kFloat || field_jty == kDouble) {
-    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kField));
+    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty));
   }
 
   if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
@@ -1502,7 +1505,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     DCHECK_GE(field_offset, 0);
 
     llvm::PointerType* field_type =
-      irb_.getJType(field_jty, kField)->getPointerTo();
+      irb_.getJType(field_jty)->getPointerTo();
 
     llvm::Value* field_offset_value = irb_.getPtrEquivInt(field_offset);
 
@@ -1511,6 +1514,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
+    new_value = TruncateCat1Types(new_value, field_jty);
     irb_.CreateStore(new_value, field_addr, kTBAAHeapInstance, field_jty);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
@@ -1718,16 +1722,17 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
-                         irb_.getJType(field_jty, kField)->getPointerTo());
+                         irb_.getJType(field_jty)->getPointerTo());
 
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
     static_field_value = irb_.CreateLoad(static_field_addr, kTBAAHeapStatic, field_jty);
+    static_field_value = SignOrZeroExtendCat1Types(static_field_value, field_jty);
   }
 
   if (field_jty == kFloat || field_jty == kDouble) {
     static_field_value =
-        irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty, kAccurate));
+        irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty));
   }
 
   return static_field_value;
@@ -1740,7 +1745,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   llvm::Value* new_value = call_inst.getArgOperand(1);
 
   if (field_jty == kFloat || field_jty == kDouble) {
-    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kField));
+    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty));
   }
 
   int field_offset;
@@ -1799,10 +1804,11 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
-                         irb_.getJType(field_jty, kField)->getPointerTo());
+                         irb_.getJType(field_jty)->getPointerTo());
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
+    new_value = TruncateCat1Types(new_value, field_jty);
     irb_.CreateStore(new_value, static_field_addr, kTBAAHeapStatic, field_jty);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
@@ -2488,7 +2494,7 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
 
   char ret_shorty = shorty[0];
   ret_shorty = art::RemapShorty(ret_shorty);
-  llvm::Type* ret_type = irb_.getJType(ret_shorty, kAccurate);
+  llvm::Type* ret_type = irb_.getJType(ret_shorty);
 
   // Get argument type
   std::vector<llvm::Type*> args_type;
@@ -2496,12 +2502,12 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
   args_type.push_back(irb_.getJObjectTy()); // method object pointer
 
   if (!is_static) {
-    args_type.push_back(irb_.getJType('L', kAccurate)); // "this" object pointer
+    args_type.push_back(irb_.getJType('L')); // "this" object pointer
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
     char shorty_type = art::RemapShorty(shorty[i]);
-    args_type.push_back(irb_.getJType(shorty_type, kAccurate));
+    args_type.push_back(irb_.getJType(shorty_type));
   }
 
   return llvm::FunctionType::get(ret_type, args_type, false);

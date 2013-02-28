@@ -23,7 +23,8 @@
 #include "compiler_utility.h"
 #include "oat_compilation_unit.h"
 #include "safe_map.h"
-#include "greenland/ir_builder.h"
+#include "compiler_llvm/ir_builder.h"
+#include "compiler_llvm/intrinsic_helper.h"
 #include "llvm/Module.h"
 #include "compiler_enums.h"
 
@@ -510,8 +511,8 @@ struct CompilationUnit {
   llvm::LLVMContext* context;
   llvm::Module* module;
   llvm::Function* func;
-  greenland::IntrinsicHelper* intrinsic_helper;
-  greenland::IRBuilder* irb;
+  compiler_llvm::IntrinsicHelper* intrinsic_helper;
+  compiler_llvm::IRBuilder* irb;
   llvm::BasicBlock* placeholder_bb;
   llvm::BasicBlock* entry_bb;
   llvm::BasicBlock* entryTarget_bb;

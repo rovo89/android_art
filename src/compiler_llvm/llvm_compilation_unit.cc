@@ -81,7 +81,7 @@ namespace art {
 namespace compiler_llvm {
 
 llvm::FunctionPass*
-CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
+CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
 
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
@@ -99,8 +99,11 @@ LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
   // Include the runtime function declaration
   makeLLVMModuleContents(module_);
 
+
+  intrinsic_helper_.reset(new IntrinsicHelper(*context_, *module_));
+
   // Create IRBuilder
-  irb_.reset(new IRBuilder(*context_, *module_));
+  irb_.reset(new IRBuilder(*context_, *module_, *intrinsic_helper_));
 
   // We always need a switch case, so just use a normal function.
   switch(GetInstructionSet()) {

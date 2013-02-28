@@ -37,6 +37,9 @@ namespace {
 }
 
 namespace art {
+namespace compiler_llvm {
+llvm::Module* makeLLVMModuleContents(llvm::Module* module);
+}
 
 LLVMInfo::LLVMInfo() {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -46,8 +49,9 @@ LLVMInfo::LLVMInfo() {
   llvm_context_.reset(new llvm::LLVMContext());
   llvm_module_ = new llvm::Module("art", *llvm_context_);
   llvm::StructType::create(*llvm_context_, "JavaObject");
-  intrinsic_helper_.reset( new greenland::IntrinsicHelper(*llvm_context_, *llvm_module_));
-  ir_builder_.reset(new greenland::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
+  compiler_llvm::makeLLVMModuleContents(llvm_module_);
+  intrinsic_helper_.reset( new compiler_llvm::IntrinsicHelper(*llvm_context_, *llvm_module_));
+  ir_builder_.reset(new compiler_llvm::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
 }
 
 LLVMInfo::~LLVMInfo() {

@@ -92,7 +92,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   llvm::Value* old_thread_register = irb_.Runtime().EmitSetCurrentThread(thread_object_addr);
 
   // Accurate function type
-  llvm::Type* accurate_ret_type = irb_.getJType(shorty[0], kAccurate);
+  llvm::Type* accurate_ret_type = irb_.getJType(shorty[0]);
 
   std::vector<llvm::Type*> accurate_arg_types;
 
@@ -103,7 +103,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   }
 
   for (size_t i = 1; i < shorty_size; ++i) {
-    accurate_arg_types.push_back(irb_.getJType(shorty[i], kAccurate));
+    accurate_arg_types.push_back(irb_.getJType(shorty[i]));
   }
 
   llvm::FunctionType* accurate_func_type =
@@ -126,7 +126,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
         arg_shorty == 'F' || arg_shorty == 'D' || arg_shorty == 'L') {
 
       llvm::Type* arg_type =
-        irb_.getJType(shorty[i], kAccurate)->getPointerTo();
+        irb_.getJType(shorty[i])->getPointerTo();
 
       llvm::Value* arg_jvalue_addr =
         irb_.CreateConstGEP1_32(actual_args_array_addr, i - 1);
@@ -197,14 +197,14 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
   // Accurate function type
-  llvm::Type* accurate_ret_type = irb_.getJType(shorty[0], kAccurate);
+  llvm::Type* accurate_ret_type = irb_.getJType(shorty[0]);
 
   std::vector<llvm::Type*> accurate_arg_types;
   accurate_arg_types.push_back(irb_.getJObjectTy()); // method
   accurate_arg_types.push_back(irb_.getJObjectTy()); // this
 
   for (size_t i = 1; i < shorty_size; ++i) {
-    accurate_arg_types.push_back(irb_.getJType(shorty[i], kAccurate));
+    accurate_arg_types.push_back(irb_.getJType(shorty[i]));
   }
 
   llvm::FunctionType* accurate_func_type =

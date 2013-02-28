@@ -49,8 +49,6 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
 	src/elf_writer.cc \
-	src/greenland/intrinsic_helper.cc \
-	src/greenland/ir_builder.cc \
 	src/oat/jni/arm/calling_convention_arm.cc \
 	src/oat/jni/arm/jni_internal_arm.cc \
 	src/oat/jni/calling_convention.cc \
@@ -70,6 +68,7 @@ ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/gbc_expander.cc \
 	src/compiler_llvm/generated/art_module.cc \
+        src/compiler_llvm/intrinsic_helper.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/llvm_compilation_unit.cc \

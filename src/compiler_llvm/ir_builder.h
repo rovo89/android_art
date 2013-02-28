@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_IR_BUILDER_H_
 
 #include "backend_types.h"
+#include "intrinsic_helper.h"
 #include "md_builder.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
@@ -26,6 +27,7 @@
 #include <llvm/DerivedTypes.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Support/IRBuilder.h>
+#include <llvm/Support/NoFolder.h>
 #include <llvm/Type.h>
 
 #include <stdint.h>
@@ -34,8 +36,26 @@
 namespace art {
 namespace compiler_llvm {
 
+class InserterWithDexOffset
+   : public llvm::IRBuilderDefaultInserter<true> {
+  public:
+    InserterWithDexOffset() : node_(NULL) {}
+    void InsertHelper(llvm::Instruction *I, const llvm::Twine &Name,
+                      llvm::BasicBlock *BB,
+                      llvm::BasicBlock::iterator InsertPt) const {
+      llvm::IRBuilderDefaultInserter<true>::InsertHelper(I, Name, BB, InsertPt);
+      if (node_ != NULL) {
+        I->setMetadata("DexOff", node_);
+      }
+    }
+    void SetDexOffset(llvm::MDNode* node) {
+      node_ = node;
+    }
+  private:
+    llvm::MDNode* node_;
+};
 
-typedef llvm::IRBuilder<> LLVMIRBuilder;
+typedef llvm::IRBuilder<true, llvm::ConstantFolder, InserterWithDexOffset> LLVMIRBuilder;
 // NOTE: Here we define our own LLVMIRBuilder type alias, so that we can
 // switch "preserveNames" template parameter easily.
 
@@ -46,7 +66,7 @@ class IRBuilder : public LLVMIRBuilder {
   // General
   //--------------------------------------------------------------------------
 
-  IRBuilder(llvm::LLVMContext& context, llvm::Module& module);
+  IRBuilder(llvm::LLVMContext& context, llvm::Module& module, IntrinsicHelper& intrinsic_helper);
 
 
   //--------------------------------------------------------------------------
@@ -273,33 +293,18 @@ class IRBuilder : public LLVMIRBuilder {
   // Type Helper Function
   //--------------------------------------------------------------------------
 
-  llvm::Type* getJType(char shorty_jty, JTypeSpace space) {
-    return getJType(GetJTypeFromShorty(shorty_jty), space);
+  llvm::Type* getJType(char shorty_jty) {
+    return getJType(GetJTypeFromShorty(shorty_jty));
   }
 
-  llvm::Type* getJType(JType jty, JTypeSpace space) {
-    switch (space) {
-    case kAccurate:
-      return getJTypeInAccurateSpace(jty);
-
-    case kReg:
-    case kField: // Currently field space is equivalent to register space.
-      return getJTypeInRegSpace(jty);
-
-    case kArray:
-      return getJTypeInArraySpace(jty);
-    }
-
-    LOG(FATAL) << "Unknown type space: " << space;
-    return NULL;
-  }
+  llvm::Type* getJType(JType jty);
 
   llvm::Type* getJVoidTy() {
     return getVoidTy();
   }
 
   llvm::IntegerType* getJBooleanTy() {
-    return getInt1Ty();
+    return getInt8Ty();
   }
 
   llvm::IntegerType* getJByteTy() {
@@ -331,7 +336,15 @@ class IRBuilder : public LLVMIRBuilder {
   }
 
   llvm::PointerType* getJObjectTy() {
-    return jobject_type_;
+    return java_object_type_;
+  }
+
+  llvm::PointerType* getJMethodTy() {
+    return java_method_type_;
+  }
+
+  llvm::PointerType* getJThreadTy() {
+    return java_thread_type_;
   }
 
   llvm::Type* getArtFrameTy() {
@@ -438,27 +451,21 @@ class IRBuilder : public LLVMIRBuilder {
 
 
  private:
-  //--------------------------------------------------------------------------
-  // Type Helper Function (Private)
-  //--------------------------------------------------------------------------
-
-  llvm::Type* getJTypeInAccurateSpace(JType jty);
-  llvm::Type* getJTypeInRegSpace(JType jty);
-  llvm::Type* getJTypeInArraySpace(JType jty);
-
-
- private:
   llvm::Module* module_;
 
-  llvm::PointerType* jobject_type_;
+  MDBuilder mdb_;
+
+  llvm::PointerType* java_object_type_;
+  llvm::PointerType* java_method_type_;
+  llvm::PointerType* java_thread_type_;
 
   llvm::PointerType* jenv_type_;
 
   llvm::StructType* art_frame_type_;
 
-  MDBuilder mdb_;
-
   RuntimeSupportBuilder* runtime_support_;
+
+  IntrinsicHelper& intrinsic_helper_;
 };
 
 

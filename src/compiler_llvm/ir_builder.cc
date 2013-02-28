@@ -28,13 +28,30 @@ namespace compiler_llvm {
 // General
 //----------------------------------------------------------------------------
 
-IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
-: LLVMIRBuilder(context), module_(&module), mdb_(context) {
-
+IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module,
+                     IntrinsicHelper& intrinsic_helper)
+    : LLVMIRBuilder(context), module_(&module), mdb_(context), java_object_type_(NULL),
+      java_method_type_(NULL), java_thread_type_(NULL), intrinsic_helper_(intrinsic_helper) {
   // Get java object type from module
   llvm::Type* jobject_struct_type = module.getTypeByName("JavaObject");
   CHECK(jobject_struct_type != NULL);
-  jobject_type_ = jobject_struct_type->getPointerTo();
+  java_object_type_ = jobject_struct_type->getPointerTo();
+
+  // If type of Method is not explicitly defined in the module, use JavaObject*
+  llvm::Type* type = module.getTypeByName("Method");
+  if (type != NULL) {
+    java_method_type_ = type->getPointerTo();
+  } else {
+    java_method_type_ = java_object_type_;
+  }
+
+  // If type of Thread is not explicitly defined in the module, use JavaObject*
+  type = module.getTypeByName("Thread");
+  if (type != NULL) {
+    java_thread_type_ = type->getPointerTo();
+  } else {
+    java_thread_type_ = java_object_type_;
+  }
 
   // Create JEnv* type
   llvm::Type* jenv_struct_type = llvm::StructType::create(context, "JEnv");
@@ -52,7 +69,7 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
 // Type Helper Function
 //----------------------------------------------------------------------------
 
-llvm::Type* IRBuilder::getJTypeInAccurateSpace(JType jty) {
+llvm::Type* IRBuilder::getJType(JType jty) {
   switch (jty) {
   case kVoid:
     return getJVoidTy();
@@ -89,68 +106,6 @@ llvm::Type* IRBuilder::getJTypeInAccurateSpace(JType jty) {
     return NULL;
   }
 }
-
-
-llvm::Type* IRBuilder::getJTypeInRegSpace(JType jty) {
-  RegCategory regcat = GetRegCategoryFromJType(jty);
-
-  switch (regcat) {
-  case kRegUnknown:
-  case kRegZero:
-    LOG(FATAL) << "Register category \"Unknown\" or \"Zero\" does not have "
-               << "the LLVM type";
-    return NULL;
-
-  case kRegCat1nr:
-    return getInt32Ty();
-
-  case kRegCat2:
-    return getInt64Ty();
-
-  case kRegObject:
-    return getJObjectTy();
-  }
-
-  LOG(FATAL) << "Unknown register category: " << regcat;
-  return NULL;
-}
-
-
-llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
-  switch (jty) {
-  case kVoid:
-    LOG(FATAL) << "void type should not be used in array type space";
-    return NULL;
-
-  case kBoolean:
-  case kByte:
-    return getInt8Ty();
-
-  case kChar:
-  case kShort:
-    return getInt16Ty();
-
-  case kInt:
-    return getInt32Ty();
-
-  case kLong:
-    return getInt64Ty();
-
-  case kFloat:
-    return getFloatTy();
-
-  case kDouble:
-    return getDoubleTy();
-
-  case kObject:
-    return getJObjectTy();
-
-  default:
-    LOG(FATAL) << "Unknown java type: " << jty;
-    return NULL;
-  }
-}
-
 
 llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t vreg_size) {
   std::string name(StringPrintf("ShadowFrame%u", vreg_size));

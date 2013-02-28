@@ -55,8 +55,8 @@ static llvm::Value* GetLLVMValue(CompilationUnit* cu, int s_reg)
 static void SetVregOnValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
 {
   // Set vreg for debugging
-  greenland::IntrinsicHelper::IntrinsicId id =
-      greenland::IntrinsicHelper::SetVReg;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id =
+      compiler_llvm::IntrinsicHelper::SetVReg;
   llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
   int v_reg = SRegToVReg(cu, s_reg);
   llvm::Value* table_slot = cu->irb->getInt32(v_reg);
@@ -101,7 +101,7 @@ static llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cu, RegLocation loc)
       res = cu->irb->getFloatTy();
     } else {
       if (loc.ref)
-        res = cu->irb->GetJObjectTy();
+        res = cu->irb->getJObjectTy();
       else
         res = cu->irb->getInt32Ty();
     }
@@ -156,7 +156,7 @@ static void CreateLocFromValue(CompilationUnit* cu, llvm::Value* val)
       loc.location = kLocPhysReg;
       loc.home = true;
     }
-  } else if (ty == cu->irb->GetJObjectTy()) {
+  } else if (ty == cu->irb->getJObjectTy()) {
     loc.ref = true;
     if (p_map.core_location == kLocPhysReg) {
       loc.low_reg = p_map.core_reg;
@@ -275,7 +275,7 @@ static void ConvertSparseSwitch(CompilationUnit* cu, BasicBlock* bb,
 }
 
 static void ConvertSget(CompilationUnit* cu, int32_t field_index,
-                        greenland::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
 {
   llvm::Constant* field_idx = cu->irb->getInt32(field_index);
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -284,7 +284,7 @@ static void ConvertSget(CompilationUnit* cu, int32_t field_index,
 }
 
 static void ConvertSput(CompilationUnit* cu, int32_t field_index,
-                        greenland::IntrinsicHelper::IntrinsicId id, RegLocation rl_src)
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_src)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(field_index));
@@ -295,8 +295,8 @@ static void ConvertSput(CompilationUnit* cu, int32_t field_index,
 
 static void ConvertFillArrayData(CompilationUnit* cu, int32_t offset, RegLocation rl_array)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::HLFillArrayData;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::HLFillArrayData;
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(offset));
   args.push_back(GetLLVMValue(cu, rl_array.orig_sreg));
@@ -307,20 +307,20 @@ static void ConvertFillArrayData(CompilationUnit* cu, int32_t offset, RegLocatio
 static llvm::Value* EmitConst(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> src,
                               RegLocation loc)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
-      id = greenland::IntrinsicHelper::ConstDouble;
+      id = compiler_llvm::IntrinsicHelper::ConstDouble;
     } else {
-      id = greenland::IntrinsicHelper::ConstLong;
+      id = compiler_llvm::IntrinsicHelper::ConstLong;
     }
   } else {
     if (loc.fp) {
-      id = greenland::IntrinsicHelper::ConstFloat;
+      id = compiler_llvm::IntrinsicHelper::ConstFloat;
     } else if (loc.ref) {
-      id = greenland::IntrinsicHelper::ConstObj;
+      id = compiler_llvm::IntrinsicHelper::ConstObj;
     } else {
-      id = greenland::IntrinsicHelper::ConstInt;
+      id = compiler_llvm::IntrinsicHelper::ConstInt;
     }
   }
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -330,27 +330,27 @@ static llvm::Value* EmitConst(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> 
 static void EmitPopShadowFrame(CompilationUnit* cu)
 {
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::PopShadowFrame);
+      compiler_llvm::IntrinsicHelper::PopShadowFrame);
   cu->irb->CreateCall(intr);
 }
 
 static llvm::Value* EmitCopy(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> src,
                              RegLocation loc)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
-      id = greenland::IntrinsicHelper::CopyDouble;
+      id = compiler_llvm::IntrinsicHelper::CopyDouble;
     } else {
-      id = greenland::IntrinsicHelper::CopyLong;
+      id = compiler_llvm::IntrinsicHelper::CopyLong;
     }
   } else {
     if (loc.fp) {
-      id = greenland::IntrinsicHelper::CopyFloat;
+      id = compiler_llvm::IntrinsicHelper::CopyFloat;
     } else if (loc.ref) {
-      id = greenland::IntrinsicHelper::CopyObj;
+      id = compiler_llvm::IntrinsicHelper::CopyObj;
     } else {
-      id = greenland::IntrinsicHelper::CopyInt;
+      id = compiler_llvm::IntrinsicHelper::CopyInt;
     }
   }
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -360,7 +360,7 @@ static llvm::Value* EmitCopy(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> s
 static void ConvertMoveException(CompilationUnit* cu, RegLocation rl_dest)
 {
   llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::GetException);
+      compiler_llvm::IntrinsicHelper::GetException);
   llvm::Value* res = cu->irb->CreateCall(func);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
@@ -369,12 +369,12 @@ static void ConvertThrow(CompilationUnit* cu, RegLocation rl_src)
 {
   llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
   llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::HLThrowException);
+      compiler_llvm::IntrinsicHelper::HLThrowException);
   cu->irb->CreateCall(func, src);
 }
 
 static void ConvertMonitorEnterExit(CompilationUnit* cu, int opt_flags,
-                                    greenland::IntrinsicHelper::IntrinsicId id,
+                                    compiler_llvm::IntrinsicHelper::IntrinsicId id,
                                     RegLocation rl_src)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
@@ -391,15 +391,15 @@ static void ConvertArrayLength(CompilationUnit* cu, int opt_flags,
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
   llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::OptArrayLength);
+      compiler_llvm::IntrinsicHelper::OptArrayLength);
   llvm::Value* res = cu->irb->CreateCall(func, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void EmitSuspendCheck(CompilationUnit* cu)
 {
-  greenland::IntrinsicHelper::IntrinsicId id =
-      greenland::IntrinsicHelper::CheckSuspend;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id =
+      compiler_llvm::IntrinsicHelper::CheckSuspend;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr);
 }
@@ -446,7 +446,7 @@ static void ConvertCompareZeroAndBranch(CompilationUnit* cu, BasicBlock* bb,
   llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
   llvm::Value* src2;
   if (rl_src1.ref) {
-    src2 = cu->irb->GetJNull();
+    src2 = cu->irb->getJNull();
   } else {
     src2 = cu->irb->getInt32(0);
   }
@@ -460,18 +460,18 @@ static void ConvertCompareZeroAndBranch(CompilationUnit* cu, BasicBlock* bb,
 static llvm::Value* GenDivModOp(CompilationUnit* cu, bool is_div, bool is_long,
                                 llvm::Value* src1, llvm::Value* src2)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
   if (is_long) {
     if (is_div) {
-      id = greenland::IntrinsicHelper::DivLong;
+      id = compiler_llvm::IntrinsicHelper::DivLong;
     } else {
-      id = greenland::IntrinsicHelper::RemLong;
+      id = compiler_llvm::IntrinsicHelper::RemLong;
     }
   } else {
     if (is_div) {
-      id = greenland::IntrinsicHelper::DivInt;
+      id = compiler_llvm::IntrinsicHelper::DivInt;
     } else {
-      id = greenland::IntrinsicHelper::RemInt;
+      id = compiler_llvm::IntrinsicHelper::RemInt;
     }
   }
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -522,7 +522,7 @@ static void ConvertFPArithOp(CompilationUnit* cu, OpKind op, RegLocation rl_dest
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertShift(CompilationUnit* cu, greenland::IntrinsicHelper::IntrinsicId id,
+static void ConvertShift(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
                          RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -533,7 +533,7 @@ static void ConvertShift(CompilationUnit* cu, greenland::IntrinsicHelper::Intrin
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertShiftLit(CompilationUnit* cu, greenland::IntrinsicHelper::IntrinsicId id,
+static void ConvertShiftLit(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
                             RegLocation rl_dest, RegLocation rl_src, int shift_amount)
 {
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -591,24 +591,24 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
    * be different than shorty.  For example, if a function return value
    * is not used, we'll treat this as a void invoke.
    */
-  greenland::IntrinsicHelper::IntrinsicId id;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
   if (is_filled_new_array) {
-    id = greenland::IntrinsicHelper::HLFilledNewArray;
+    id = compiler_llvm::IntrinsicHelper::HLFilledNewArray;
   } else if (info->result.location == kLocInvalid) {
-    id = greenland::IntrinsicHelper::HLInvokeVoid;
+    id = compiler_llvm::IntrinsicHelper::HLInvokeVoid;
   } else {
     if (info->result.wide) {
       if (info->result.fp) {
-        id = greenland::IntrinsicHelper::HLInvokeDouble;
+        id = compiler_llvm::IntrinsicHelper::HLInvokeDouble;
       } else {
-        id = greenland::IntrinsicHelper::HLInvokeLong;
+        id = compiler_llvm::IntrinsicHelper::HLInvokeLong;
       }
     } else if (info->result.ref) {
-        id = greenland::IntrinsicHelper::HLInvokeObj;
+        id = compiler_llvm::IntrinsicHelper::HLInvokeObj;
     } else if (info->result.fp) {
-        id = greenland::IntrinsicHelper::HLInvokeFloat;
+        id = compiler_llvm::IntrinsicHelper::HLInvokeFloat;
     } else {
-        id = greenland::IntrinsicHelper::HLInvokeInt;
+        id = compiler_llvm::IntrinsicHelper::HLInvokeInt;
     }
   }
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
@@ -619,7 +619,7 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
 }
 
 static void ConvertConstObject(CompilationUnit* cu, uint32_t idx,
-                               greenland::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
+                               compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
 {
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* index = cu->irb->getInt32(idx);
@@ -629,8 +629,8 @@ static void ConvertConstObject(CompilationUnit* cu, uint32_t idx,
 
 static void ConvertCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_src)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::HLCheckCast;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::HLCheckCast;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
@@ -640,8 +640,8 @@ static void ConvertCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation
 
 static void ConvertNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::NewInstance;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::NewInstance;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* index = cu->irb->getInt32(type_idx);
   llvm::Value* res = cu->irb->CreateCall(intr, index);
@@ -651,8 +651,8 @@ static void ConvertNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocati
 static void ConvertNewArray(CompilationUnit* cu, uint32_t type_idx,
                             RegLocation rl_dest, RegLocation rl_src)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::NewArray;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::NewArray;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
@@ -662,7 +662,7 @@ static void ConvertNewArray(CompilationUnit* cu, uint32_t type_idx,
 }
 
 static void ConvertAget(CompilationUnit* cu, int opt_flags,
-                        greenland::IntrinsicHelper::IntrinsicId id,
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_dest, RegLocation rl_array, RegLocation rl_index)
 {
   llvm::SmallVector<llvm::Value*, 3> args;
@@ -675,7 +675,7 @@ static void ConvertAget(CompilationUnit* cu, int opt_flags,
 }
 
 static void ConvertAput(CompilationUnit* cu, int opt_flags,
-                        greenland::IntrinsicHelper::IntrinsicId id,
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_src, RegLocation rl_array, RegLocation rl_index)
 {
   llvm::SmallVector<llvm::Value*, 4> args;
@@ -688,7 +688,7 @@ static void ConvertAput(CompilationUnit* cu, int opt_flags,
 }
 
 static void ConvertIget(CompilationUnit* cu, int opt_flags,
-                        greenland::IntrinsicHelper::IntrinsicId id,
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_dest, RegLocation rl_obj, int field_index)
 {
   llvm::SmallVector<llvm::Value*, 3> args;
@@ -701,7 +701,7 @@ static void ConvertIget(CompilationUnit* cu, int opt_flags,
 }
 
 static void ConvertIput(CompilationUnit* cu, int opt_flags,
-                        greenland::IntrinsicHelper::IntrinsicId id,
+                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_src, RegLocation rl_obj, int field_index)
 {
   llvm::SmallVector<llvm::Value*, 4> args;
@@ -716,8 +716,8 @@ static void ConvertIput(CompilationUnit* cu, int opt_flags,
 static void ConvertInstanceOf(CompilationUnit* cu, uint32_t type_idx,
                               RegLocation rl_dest, RegLocation rl_src)
 {
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::InstanceOf;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::InstanceOf;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
@@ -755,7 +755,7 @@ static void ConvertDoubleToFloat(CompilationUnit* cu, RegLocation rl_dest, RegLo
 }
 
 static void ConvertWideComparison(CompilationUnit* cu,
-                                  greenland::IntrinsicHelper::IntrinsicId id,
+                                  compiler_llvm::IntrinsicHelper::IntrinsicId id,
                                   RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2)
 {
@@ -770,7 +770,7 @@ static void ConvertWideComparison(CompilationUnit* cu,
 }
 
 static void ConvertIntNarrowing(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src,
-                                greenland::IntrinsicHelper::IntrinsicId id)
+                                compiler_llvm::IntrinsicHelper::IntrinsicId id)
 {
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* res =
@@ -792,7 +792,7 @@ static void ConvertIntToFP(CompilationUnit* cu, llvm::Type* ty, RegLocation rl_d
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertFPToInt(CompilationUnit* cu, greenland::IntrinsicHelper::IntrinsicId id,
+static void ConvertFPToInt(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
                            RegLocation rl_dest,
                     RegLocation rl_src)
 {
@@ -908,7 +908,7 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16: {
-        llvm::Constant* imm_value = cu->irb->GetJInt(vB);
+        llvm::Constant* imm_value = cu->irb->getJInt(vB);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
@@ -918,14 +918,14 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::CONST_WIDE_32: {
         // Sign extend to 64 bits
         int64_t imm = static_cast<int32_t>(vB);
-        llvm::Constant* imm_value = cu->irb->GetJLong(imm);
+        llvm::Constant* imm_value = cu->irb->getJLong(imm);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
 
     case Instruction::CONST_HIGH16: {
-        llvm::Constant* imm_value = cu->irb->GetJInt(vB << 16);
+        llvm::Constant* imm_value = cu->irb->getJInt(vB << 16);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
@@ -933,82 +933,82 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::CONST_WIDE: {
         llvm::Constant* imm_value =
-            cu->irb->GetJLong(mir->dalvikInsn.vB_wide);
+            cu->irb->getJLong(mir->dalvikInsn.vB_wide);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
     case Instruction::CONST_WIDE_HIGH16: {
         int64_t imm = static_cast<int64_t>(vB) << 48;
-        llvm::Constant* imm_value = cu->irb->GetJLong(imm);
+        llvm::Constant* imm_value = cu->irb->getJLong(imm);
         llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
 
     case Instruction::SPUT_OBJECT:
-      ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputObject,
+      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputObject,
                   rl_src[0]);
       break;
     case Instruction::SPUT:
       if (rl_src[0].fp) {
-        ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputFloat,
+        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputFloat,
                     rl_src[0]);
       } else {
-        ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSput, rl_src[0]);
+        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSput, rl_src[0]);
       }
       break;
     case Instruction::SPUT_BOOLEAN:
-      ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputBoolean,
+      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputBoolean,
                   rl_src[0]);
       break;
     case Instruction::SPUT_BYTE:
-      ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputByte, rl_src[0]);
+      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputByte, rl_src[0]);
       break;
     case Instruction::SPUT_CHAR:
-      ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputChar, rl_src[0]);
+      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputChar, rl_src[0]);
       break;
     case Instruction::SPUT_SHORT:
-      ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputShort, rl_src[0]);
+      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputShort, rl_src[0]);
       break;
     case Instruction::SPUT_WIDE:
       if (rl_src[0].fp) {
-        ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputDouble,
+        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputDouble,
                     rl_src[0]);
       } else {
-        ConvertSput(cu, vB, greenland::IntrinsicHelper::HLSputWide,
+        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputWide,
                     rl_src[0]);
       }
       break;
 
     case Instruction::SGET_OBJECT:
-      ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetObject, rl_dest);
+      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetObject, rl_dest);
       break;
     case Instruction::SGET:
       if (rl_dest.fp) {
-        ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetFloat, rl_dest);
+        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetFloat, rl_dest);
       } else {
-        ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSget, rl_dest);
+        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSget, rl_dest);
       }
       break;
     case Instruction::SGET_BOOLEAN:
-      ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetBoolean, rl_dest);
+      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetBoolean, rl_dest);
       break;
     case Instruction::SGET_BYTE:
-      ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetByte, rl_dest);
+      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetByte, rl_dest);
       break;
     case Instruction::SGET_CHAR:
-      ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetChar, rl_dest);
+      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetChar, rl_dest);
       break;
     case Instruction::SGET_SHORT:
-      ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetShort, rl_dest);
+      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetShort, rl_dest);
       break;
     case Instruction::SGET_WIDE:
       if (rl_dest.fp) {
-        ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetDouble,
+        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetDouble,
                     rl_dest);
       } else {
-        ConvertSget(cu, vB, greenland::IntrinsicHelper::HLSgetWide, rl_dest);
+        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetWide, rl_dest);
       }
       break;
 
@@ -1131,32 +1131,32 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       break;
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::SHLLong,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHLLong,
                     rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHL_INT:
     case Instruction::SHL_INT_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::SHLInt,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHLInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHR_LONG:
     case Instruction::SHR_LONG_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::SHRLong,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHRLong,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHR_INT:
     case Instruction::SHR_INT_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::SHRInt,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHRInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::USHR_LONG:
     case Instruction::USHR_LONG_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::USHRLong,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::USHRLong,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
-      ConvertShift(cu, greenland::IntrinsicHelper::USHRInt,
+      ConvertShift(cu, compiler_llvm::IntrinsicHelper::USHRInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
 
@@ -1193,15 +1193,15 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       ConvertArithOpLit(cu, kOpXor, rl_dest, rl_src[0], vC);
       break;
     case Instruction::SHL_INT_LIT8:
-      ConvertShiftLit(cu, greenland::IntrinsicHelper::SHLInt,
+      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::SHLInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
     case Instruction::SHR_INT_LIT8:
-      ConvertShiftLit(cu, greenland::IntrinsicHelper::SHRInt,
+      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::SHRInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
     case Instruction::USHR_INT_LIT8:
-      ConvertShiftLit(cu, greenland::IntrinsicHelper::USHRInt,
+      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::USHRInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
 
@@ -1295,12 +1295,12 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      ConvertConstObject(cu, vB, greenland::IntrinsicHelper::ConstString,
+      ConvertConstObject(cu, vB, compiler_llvm::IntrinsicHelper::ConstString,
                          rl_dest);
       break;
 
     case Instruction::CONST_CLASS:
-      ConvertConstObject(cu, vB, greenland::IntrinsicHelper::ConstClass,
+      ConvertConstObject(cu, vB, compiler_llvm::IntrinsicHelper::ConstClass,
                          rl_dest);
       break;
 
@@ -1342,13 +1342,13 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::MONITOR_ENTER:
       ConvertMonitorEnterExit(cu, opt_flags,
-                              greenland::IntrinsicHelper::MonitorEnter,
+                              compiler_llvm::IntrinsicHelper::MonitorEnter,
                               rl_src[0]);
       break;
 
     case Instruction::MONITOR_EXIT:
       ConvertMonitorEnterExit(cu, opt_flags,
-                              greenland::IntrinsicHelper::MonitorExit,
+                              compiler_llvm::IntrinsicHelper::MonitorExit,
                               rl_src[0]);
       break;
 
@@ -1367,41 +1367,41 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::AGET:
       if (rl_dest.fp) {
         ConvertAget(cu, opt_flags,
-                    greenland::IntrinsicHelper::HLArrayGetFloat,
+                    compiler_llvm::IntrinsicHelper::HLArrayGetFloat,
                     rl_dest, rl_src[0], rl_src[1]);
       } else {
-        ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGet,
+        ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGet,
                     rl_dest, rl_src[0], rl_src[1]);
       }
       break;
     case Instruction::AGET_OBJECT:
-      ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGetObject,
+      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetObject,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_BOOLEAN:
       ConvertAget(cu, opt_flags,
-                  greenland::IntrinsicHelper::HLArrayGetBoolean,
+                  compiler_llvm::IntrinsicHelper::HLArrayGetBoolean,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_BYTE:
-      ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGetByte,
+      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetByte,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_CHAR:
-      ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGetChar,
+      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetChar,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_SHORT:
-      ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGetShort,
+      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetShort,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_WIDE:
       if (rl_dest.fp) {
         ConvertAget(cu, opt_flags,
-                    greenland::IntrinsicHelper::HLArrayGetDouble,
+                    compiler_llvm::IntrinsicHelper::HLArrayGetDouble,
                     rl_dest, rl_src[0], rl_src[1]);
       } else {
-        ConvertAget(cu, opt_flags, greenland::IntrinsicHelper::HLArrayGetWide,
+        ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetWide,
                     rl_dest, rl_src[0], rl_src[1]);
       }
       break;
@@ -1409,118 +1409,118 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::APUT:
       if (rl_src[0].fp) {
         ConvertAput(cu, opt_flags,
-                    greenland::IntrinsicHelper::HLArrayPutFloat,
+                    compiler_llvm::IntrinsicHelper::HLArrayPutFloat,
                     rl_src[0], rl_src[1], rl_src[2]);
       } else {
-        ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPut,
+        ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPut,
                     rl_src[0], rl_src[1], rl_src[2]);
       }
       break;
     case Instruction::APUT_OBJECT:
-      ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPutObject,
+      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutObject,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_BOOLEAN:
       ConvertAput(cu, opt_flags,
-                  greenland::IntrinsicHelper::HLArrayPutBoolean,
+                  compiler_llvm::IntrinsicHelper::HLArrayPutBoolean,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_BYTE:
-      ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPutByte,
+      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutByte,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_CHAR:
-      ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPutChar,
+      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutChar,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_SHORT:
-      ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPutShort,
+      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutShort,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_WIDE:
       if (rl_src[0].fp) {
         ConvertAput(cu, opt_flags,
-                    greenland::IntrinsicHelper::HLArrayPutDouble,
+                    compiler_llvm::IntrinsicHelper::HLArrayPutDouble,
                     rl_src[0], rl_src[1], rl_src[2]);
       } else {
-        ConvertAput(cu, opt_flags, greenland::IntrinsicHelper::HLArrayPutWide,
+        ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutWide,
                     rl_src[0], rl_src[1], rl_src[2]);
       }
       break;
 
     case Instruction::IGET:
       if (rl_dest.fp) {
-        ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetFloat,
+        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetFloat,
                     rl_dest, rl_src[0], vC);
       } else {
-        ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGet,
+        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGet,
                     rl_dest, rl_src[0], vC);
       }
       break;
     case Instruction::IGET_OBJECT:
-      ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetObject,
+      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetObject,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_BOOLEAN:
-      ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetBoolean,
+      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetBoolean,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_BYTE:
-      ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetByte,
+      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetByte,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_CHAR:
-      ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetChar,
+      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetChar,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_SHORT:
-      ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetShort,
+      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetShort,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_WIDE:
       if (rl_dest.fp) {
-        ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetDouble,
+        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetDouble,
                     rl_dest, rl_src[0], vC);
       } else {
-        ConvertIget(cu, opt_flags, greenland::IntrinsicHelper::HLIGetWide,
+        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetWide,
                     rl_dest, rl_src[0], vC);
       }
       break;
     case Instruction::IPUT:
       if (rl_src[0].fp) {
-        ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutFloat,
+        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutFloat,
                     rl_src[0], rl_src[1], vC);
       } else {
-        ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPut,
+        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPut,
                     rl_src[0], rl_src[1], vC);
       }
       break;
     case Instruction::IPUT_OBJECT:
-      ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutObject,
+      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutObject,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_BOOLEAN:
-      ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutBoolean,
+      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutBoolean,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_BYTE:
-      ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutByte,
+      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutByte,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_CHAR:
-      ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutChar,
+      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutChar,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_SHORT:
-      ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutShort,
+      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutShort,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_WIDE:
       if (rl_src[0].fp) {
-        ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutDouble,
+        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutDouble,
                     rl_src[0], rl_src[1], vC);
       } else {
-        ConvertIput(cu, opt_flags, greenland::IntrinsicHelper::HLIPutWide,
+        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutWide,
                     rl_src[0], rl_src[1], vC);
       }
       break;
@@ -1539,15 +1539,15 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::INT_TO_CHAR:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          greenland::IntrinsicHelper::IntToChar);
+                          compiler_llvm::IntrinsicHelper::IntToChar);
       break;
     case Instruction::INT_TO_BYTE:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          greenland::IntrinsicHelper::IntToByte);
+                          compiler_llvm::IntrinsicHelper::IntToByte);
       break;
     case Instruction::INT_TO_SHORT:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          greenland::IntrinsicHelper::IntToShort);
+                          compiler_llvm::IntrinsicHelper::IntToShort);
       break;
 
     case Instruction::INT_TO_FLOAT:
@@ -1584,39 +1584,39 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::FLOAT_TO_INT:
-      ConvertFPToInt(cu, greenland::IntrinsicHelper::F2I, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::F2I, rl_dest, rl_src[0]);
       break;
 
     case Instruction::DOUBLE_TO_INT:
-      ConvertFPToInt(cu, greenland::IntrinsicHelper::D2I, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::D2I, rl_dest, rl_src[0]);
       break;
 
     case Instruction::FLOAT_TO_LONG:
-      ConvertFPToInt(cu, greenland::IntrinsicHelper::F2L, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::F2L, rl_dest, rl_src[0]);
       break;
 
     case Instruction::DOUBLE_TO_LONG:
-      ConvertFPToInt(cu, greenland::IntrinsicHelper::D2L, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::D2L, rl_dest, rl_src[0]);
       break;
 
     case Instruction::CMPL_FLOAT:
-      ConvertWideComparison(cu, greenland::IntrinsicHelper::CmplFloat,
+      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmplFloat,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPG_FLOAT:
-      ConvertWideComparison(cu, greenland::IntrinsicHelper::CmpgFloat,
+      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpgFloat,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPL_DOUBLE:
-      ConvertWideComparison(cu, greenland::IntrinsicHelper::CmplDouble,
+      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmplDouble,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPG_DOUBLE:
-      ConvertWideComparison(cu, greenland::IntrinsicHelper::CmpgDouble,
+      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpgDouble,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMP_LONG:
-      ConvertWideComparison(cu, greenland::IntrinsicHelper::CmpLong,
+      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpLong,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
 
@@ -1649,8 +1649,8 @@ static void SetMethodInfo(CompilationUnit* cu)
 {
   // We don't want dex offset on this
   cu->irb->SetDexOffset(NULL);
-  greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::MethodInfo;
+  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  id = compiler_llvm::IntrinsicHelper::MethodInfo;
   llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Instruction* inst = cu->irb->CreateCall(intr);
   llvm::SmallVector<llvm::Value*, 2> reg_info;
@@ -1801,8 +1801,8 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
     SetMethodInfo(cu);
 
     { // Allocate shadowframe.
-      greenland::IntrinsicHelper::IntrinsicId id =
-              greenland::IntrinsicHelper::AllocaShadowFrame;
+      compiler_llvm::IntrinsicHelper::IntrinsicId id =
+              compiler_llvm::IntrinsicHelper::AllocaShadowFrame;
       llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
       llvm::Value* entries = cu->irb->getInt32(cu->num_dalvik_registers);
       cu->irb->CreateCall(func, entries);
@@ -1875,7 +1875,7 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
       work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
       if (bb->successor_block_list.block_list_type == kCatch) {
         llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
-            greenland::IntrinsicHelper::CatchTargets);
+            compiler_llvm::IntrinsicHelper::CatchTargets);
         llvm::Value* switch_key =
             cu->irb->CreateCall(intr, cu->irb->getInt32(mir->offset));
         GrowableListIterator iter;
@@ -1950,23 +1950,21 @@ char RemapShorty(char shorty_type) {
 static llvm::FunctionType* GetFunctionType(CompilationUnit* cu) {
 
   // Get return type
-  llvm::Type* ret_type = cu->irb->GetJType(RemapShorty(cu->shorty[0]),
-                                              greenland::kAccurate);
+  llvm::Type* ret_type = cu->irb->getJType(RemapShorty(cu->shorty[0]));
 
   // Get argument type
   std::vector<llvm::Type*> args_type;
 
   // method object
-  args_type.push_back(cu->irb->GetJMethodTy());
+  args_type.push_back(cu->irb->getJMethodTy());
 
   // Do we have  a "this"?
   if ((cu->access_flags & kAccStatic) == 0) {
-    args_type.push_back(cu->irb->GetJObjectTy());
+    args_type.push_back(cu->irb->getJObjectTy());
   }
 
   for (uint32_t i = 1; i < strlen(cu->shorty); ++i) {
-    args_type.push_back(cu->irb->GetJType(RemapShorty(cu->shorty[i]),
-                                             greenland::kAccurate));
+    args_type.push_back(cu->irb->getJType(RemapShorty(cu->shorty[i])));
   }
 
   return llvm::FunctionType::get(ret_type, args_type, false);
@@ -2060,7 +2058,7 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
     } else if ((i < cu->num_regs) ||
                (i >= (cu->num_regs + cu->num_ins))) {
       llvm::Constant* imm_value = cu->reg_location[i].wide ?
-         cu->irb->GetJLong(0) : cu->irb->GetJInt(0);
+         cu->irb->getJLong(0) : cu->irb->getJInt(0);
       val = EmitConst(cu, imm_value, cu->reg_location[i]);
       val->setName(LlvmSSAName(cu, i));
       InsertGrowableList(cu, &cu->llvm_values, reinterpret_cast<uintptr_t>(val));
@@ -3021,278 +3019,278 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
         case llvm::Instruction::Call: {
             llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(inst);
             llvm::Function* callee = call_inst->getCalledFunction();
-            greenland::IntrinsicHelper::IntrinsicId id =
+            compiler_llvm::IntrinsicHelper::IntrinsicId id =
                 cu->intrinsic_helper->GetIntrinsicId(callee);
             switch (id) {
-              case greenland::IntrinsicHelper::AllocaShadowFrame:
-              case greenland::IntrinsicHelper::PopShadowFrame:
-              case greenland::IntrinsicHelper::SetVReg:
+              case compiler_llvm::IntrinsicHelper::AllocaShadowFrame:
+              case compiler_llvm::IntrinsicHelper::PopShadowFrame:
+              case compiler_llvm::IntrinsicHelper::SetVReg:
                 // Ignore shadow frame stuff for quick compiler
                 break;
-              case greenland::IntrinsicHelper::CopyInt:
-              case greenland::IntrinsicHelper::CopyObj:
-              case greenland::IntrinsicHelper::CopyFloat:
-              case greenland::IntrinsicHelper::CopyLong:
-              case greenland::IntrinsicHelper::CopyDouble:
+              case compiler_llvm::IntrinsicHelper::CopyInt:
+              case compiler_llvm::IntrinsicHelper::CopyObj:
+              case compiler_llvm::IntrinsicHelper::CopyFloat:
+              case compiler_llvm::IntrinsicHelper::CopyLong:
+              case compiler_llvm::IntrinsicHelper::CopyDouble:
                 CvtCopy(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::ConstInt:
-              case greenland::IntrinsicHelper::ConstObj:
-              case greenland::IntrinsicHelper::ConstLong:
-              case greenland::IntrinsicHelper::ConstFloat:
-              case greenland::IntrinsicHelper::ConstDouble:
+              case compiler_llvm::IntrinsicHelper::ConstInt:
+              case compiler_llvm::IntrinsicHelper::ConstObj:
+              case compiler_llvm::IntrinsicHelper::ConstLong:
+              case compiler_llvm::IntrinsicHelper::ConstFloat:
+              case compiler_llvm::IntrinsicHelper::ConstDouble:
                 CvtConst(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::DivInt:
-              case greenland::IntrinsicHelper::DivLong:
+              case compiler_llvm::IntrinsicHelper::DivInt:
+              case compiler_llvm::IntrinsicHelper::DivLong:
                 CvtBinOp(cu, kOpDiv, inst);
                 break;
-              case greenland::IntrinsicHelper::RemInt:
-              case greenland::IntrinsicHelper::RemLong:
+              case compiler_llvm::IntrinsicHelper::RemInt:
+              case compiler_llvm::IntrinsicHelper::RemLong:
                 CvtBinOp(cu, kOpRem, inst);
                 break;
-              case greenland::IntrinsicHelper::MethodInfo:
+              case compiler_llvm::IntrinsicHelper::MethodInfo:
                 // Already dealt with - just ignore it here.
                 break;
-              case greenland::IntrinsicHelper::CheckSuspend:
+              case compiler_llvm::IntrinsicHelper::CheckSuspend:
                 cg->GenSuspendTest(cu, 0 /* opt_flags already applied */);
                 break;
-              case greenland::IntrinsicHelper::HLInvokeObj:
-              case greenland::IntrinsicHelper::HLInvokeFloat:
-              case greenland::IntrinsicHelper::HLInvokeDouble:
-              case greenland::IntrinsicHelper::HLInvokeLong:
-              case greenland::IntrinsicHelper::HLInvokeInt:
+              case compiler_llvm::IntrinsicHelper::HLInvokeObj:
+              case compiler_llvm::IntrinsicHelper::HLInvokeFloat:
+              case compiler_llvm::IntrinsicHelper::HLInvokeDouble:
+              case compiler_llvm::IntrinsicHelper::HLInvokeLong:
+              case compiler_llvm::IntrinsicHelper::HLInvokeInt:
                 CvtInvoke(cu, call_inst, false /* is_void */, false /* new_array */);
                 break;
-              case greenland::IntrinsicHelper::HLInvokeVoid:
+              case compiler_llvm::IntrinsicHelper::HLInvokeVoid:
                 CvtInvoke(cu, call_inst, true /* is_void */, false /* new_array */);
                 break;
-              case greenland::IntrinsicHelper::HLFilledNewArray:
+              case compiler_llvm::IntrinsicHelper::HLFilledNewArray:
                 CvtInvoke(cu, call_inst, false /* is_void */, true /* new_array */);
                 break;
-              case greenland::IntrinsicHelper::HLFillArrayData:
+              case compiler_llvm::IntrinsicHelper::HLFillArrayData:
                 CvtFillArrayData(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::ConstString:
+              case compiler_llvm::IntrinsicHelper::ConstString:
                 CvtConstObject(cu, call_inst, true /* is_string */);
                 break;
-              case greenland::IntrinsicHelper::ConstClass:
+              case compiler_llvm::IntrinsicHelper::ConstClass:
                 CvtConstObject(cu, call_inst, false /* is_string */);
                 break;
-              case greenland::IntrinsicHelper::HLCheckCast:
+              case compiler_llvm::IntrinsicHelper::HLCheckCast:
                 CvtCheckCast(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::NewInstance:
+              case compiler_llvm::IntrinsicHelper::NewInstance:
                 CvtNewInstance(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::HLSgetObject:
+              case compiler_llvm::IntrinsicHelper::HLSgetObject:
                 CvtSget(cu, call_inst, false /* wide */, true /* Object */);
                 break;
-              case greenland::IntrinsicHelper::HLSget:
-              case greenland::IntrinsicHelper::HLSgetFloat:
-              case greenland::IntrinsicHelper::HLSgetBoolean:
-              case greenland::IntrinsicHelper::HLSgetByte:
-              case greenland::IntrinsicHelper::HLSgetChar:
-              case greenland::IntrinsicHelper::HLSgetShort:
+              case compiler_llvm::IntrinsicHelper::HLSget:
+              case compiler_llvm::IntrinsicHelper::HLSgetFloat:
+              case compiler_llvm::IntrinsicHelper::HLSgetBoolean:
+              case compiler_llvm::IntrinsicHelper::HLSgetByte:
+              case compiler_llvm::IntrinsicHelper::HLSgetChar:
+              case compiler_llvm::IntrinsicHelper::HLSgetShort:
                 CvtSget(cu, call_inst, false /* wide */, false /* Object */);
                 break;
-              case greenland::IntrinsicHelper::HLSgetWide:
-              case greenland::IntrinsicHelper::HLSgetDouble:
+              case compiler_llvm::IntrinsicHelper::HLSgetWide:
+              case compiler_llvm::IntrinsicHelper::HLSgetDouble:
                 CvtSget(cu, call_inst, true /* wide */, false /* Object */);
                 break;
-              case greenland::IntrinsicHelper::HLSput:
-              case greenland::IntrinsicHelper::HLSputFloat:
-              case greenland::IntrinsicHelper::HLSputBoolean:
-              case greenland::IntrinsicHelper::HLSputByte:
-              case greenland::IntrinsicHelper::HLSputChar:
-              case greenland::IntrinsicHelper::HLSputShort:
+              case compiler_llvm::IntrinsicHelper::HLSput:
+              case compiler_llvm::IntrinsicHelper::HLSputFloat:
+              case compiler_llvm::IntrinsicHelper::HLSputBoolean:
+              case compiler_llvm::IntrinsicHelper::HLSputByte:
+              case compiler_llvm::IntrinsicHelper::HLSputChar:
+              case compiler_llvm::IntrinsicHelper::HLSputShort:
                 CvtSput(cu, call_inst, false /* wide */, false /* Object */);
                 break;
-              case greenland::IntrinsicHelper::HLSputWide:
-              case greenland::IntrinsicHelper::HLSputDouble:
+              case compiler_llvm::IntrinsicHelper::HLSputWide:
+              case compiler_llvm::IntrinsicHelper::HLSputDouble:
                 CvtSput(cu, call_inst, true /* wide */, false /* Object */);
                 break;
-              case greenland::IntrinsicHelper::HLSputObject:
+              case compiler_llvm::IntrinsicHelper::HLSputObject:
                 CvtSput(cu, call_inst, false /* wide */, true /* Object */);
                 break;
-              case greenland::IntrinsicHelper::GetException:
+              case compiler_llvm::IntrinsicHelper::GetException:
                 CvtMoveException(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::HLThrowException:
+              case compiler_llvm::IntrinsicHelper::HLThrowException:
                 CvtThrow(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::MonitorEnter:
+              case compiler_llvm::IntrinsicHelper::MonitorEnter:
                 CvtMonitorEnterExit(cu, true /* is_enter */, call_inst);
                 break;
-              case greenland::IntrinsicHelper::MonitorExit:
+              case compiler_llvm::IntrinsicHelper::MonitorExit:
                 CvtMonitorEnterExit(cu, false /* is_enter */, call_inst);
                 break;
-              case greenland::IntrinsicHelper::OptArrayLength:
+              case compiler_llvm::IntrinsicHelper::OptArrayLength:
                 CvtArrayLength(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::NewArray:
+              case compiler_llvm::IntrinsicHelper::NewArray:
                 CvtNewArray(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::InstanceOf:
+              case compiler_llvm::IntrinsicHelper::InstanceOf:
                 CvtInstanceOf(cu, call_inst);
                 break;
 
-              case greenland::IntrinsicHelper::HLArrayGet:
-              case greenland::IntrinsicHelper::HLArrayGetObject:
-              case greenland::IntrinsicHelper::HLArrayGetFloat:
+              case compiler_llvm::IntrinsicHelper::HLArrayGet:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetObject:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetFloat:
                 CvtAget(cu, call_inst, kWord, 2);
                 break;
-              case greenland::IntrinsicHelper::HLArrayGetWide:
-              case greenland::IntrinsicHelper::HLArrayGetDouble:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetWide:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetDouble:
                 CvtAget(cu, call_inst, kLong, 3);
                 break;
-              case greenland::IntrinsicHelper::HLArrayGetBoolean:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetBoolean:
                 CvtAget(cu, call_inst, kUnsignedByte, 0);
                 break;
-              case greenland::IntrinsicHelper::HLArrayGetByte:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetByte:
                 CvtAget(cu, call_inst, kSignedByte, 0);
                 break;
-              case greenland::IntrinsicHelper::HLArrayGetChar:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetChar:
                 CvtAget(cu, call_inst, kUnsignedHalf, 1);
                 break;
-              case greenland::IntrinsicHelper::HLArrayGetShort:
+              case compiler_llvm::IntrinsicHelper::HLArrayGetShort:
                 CvtAget(cu, call_inst, kSignedHalf, 1);
                 break;
 
-              case greenland::IntrinsicHelper::HLArrayPut:
-              case greenland::IntrinsicHelper::HLArrayPutFloat:
+              case compiler_llvm::IntrinsicHelper::HLArrayPut:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutFloat:
                 CvtAputPrimitive(cu, call_inst, kWord, 2);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutObject:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutObject:
                 CvtAputObj(cu, call_inst);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutWide:
-              case greenland::IntrinsicHelper::HLArrayPutDouble:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutWide:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutDouble:
                 CvtAputPrimitive(cu, call_inst, kLong, 3);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutBoolean:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutBoolean:
                 CvtAputPrimitive(cu, call_inst, kUnsignedByte, 0);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutByte:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutByte:
                 CvtAputPrimitive(cu, call_inst, kSignedByte, 0);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutChar:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutChar:
                 CvtAputPrimitive(cu, call_inst, kUnsignedHalf, 1);
                 break;
-              case greenland::IntrinsicHelper::HLArrayPutShort:
+              case compiler_llvm::IntrinsicHelper::HLArrayPutShort:
                 CvtAputPrimitive(cu, call_inst, kSignedHalf, 1);
                 break;
 
-              case greenland::IntrinsicHelper::HLIGet:
-              case greenland::IntrinsicHelper::HLIGetFloat:
+              case compiler_llvm::IntrinsicHelper::HLIGet:
+              case compiler_llvm::IntrinsicHelper::HLIGetFloat:
                 CvtIget(cu, call_inst, kWord, false /* is_wide */, false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetObject:
+              case compiler_llvm::IntrinsicHelper::HLIGetObject:
                 CvtIget(cu, call_inst, kWord, false /* is_wide */, true /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetWide:
-              case greenland::IntrinsicHelper::HLIGetDouble:
+              case compiler_llvm::IntrinsicHelper::HLIGetWide:
+              case compiler_llvm::IntrinsicHelper::HLIGetDouble:
                 CvtIget(cu, call_inst, kLong, true /* is_wide */, false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetBoolean:
+              case compiler_llvm::IntrinsicHelper::HLIGetBoolean:
                 CvtIget(cu, call_inst, kUnsignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetByte:
+              case compiler_llvm::IntrinsicHelper::HLIGetByte:
                 CvtIget(cu, call_inst, kSignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetChar:
+              case compiler_llvm::IntrinsicHelper::HLIGetChar:
                 CvtIget(cu, call_inst, kUnsignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIGetShort:
+              case compiler_llvm::IntrinsicHelper::HLIGetShort:
                 CvtIget(cu, call_inst, kSignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
 
-              case greenland::IntrinsicHelper::HLIPut:
-              case greenland::IntrinsicHelper::HLIPutFloat:
+              case compiler_llvm::IntrinsicHelper::HLIPut:
+              case compiler_llvm::IntrinsicHelper::HLIPutFloat:
                 CvtIput(cu, call_inst, kWord, false /* is_wide */, false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutObject:
+              case compiler_llvm::IntrinsicHelper::HLIPutObject:
                 CvtIput(cu, call_inst, kWord, false /* is_wide */, true /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutWide:
-              case greenland::IntrinsicHelper::HLIPutDouble:
+              case compiler_llvm::IntrinsicHelper::HLIPutWide:
+              case compiler_llvm::IntrinsicHelper::HLIPutDouble:
                 CvtIput(cu, call_inst, kLong, true /* is_wide */, false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutBoolean:
+              case compiler_llvm::IntrinsicHelper::HLIPutBoolean:
                 CvtIput(cu, call_inst, kUnsignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutByte:
+              case compiler_llvm::IntrinsicHelper::HLIPutByte:
                 CvtIput(cu, call_inst, kSignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutChar:
+              case compiler_llvm::IntrinsicHelper::HLIPutChar:
                 CvtIput(cu, call_inst, kUnsignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
-              case greenland::IntrinsicHelper::HLIPutShort:
+              case compiler_llvm::IntrinsicHelper::HLIPutShort:
                 CvtIput(cu, call_inst, kSignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
 
-              case greenland::IntrinsicHelper::IntToChar:
+              case compiler_llvm::IntrinsicHelper::IntToChar:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_CHAR);
                 break;
-              case greenland::IntrinsicHelper::IntToShort:
+              case compiler_llvm::IntrinsicHelper::IntToShort:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_SHORT);
                 break;
-              case greenland::IntrinsicHelper::IntToByte:
+              case compiler_llvm::IntrinsicHelper::IntToByte:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_BYTE);
                 break;
 
-              case greenland::IntrinsicHelper::F2I:
-              case greenland::IntrinsicHelper::D2I:
-              case greenland::IntrinsicHelper::F2L:
-              case greenland::IntrinsicHelper::D2L:
+              case compiler_llvm::IntrinsicHelper::F2I:
+              case compiler_llvm::IntrinsicHelper::D2I:
+              case compiler_llvm::IntrinsicHelper::F2L:
+              case compiler_llvm::IntrinsicHelper::D2L:
                 CvtFPToInt(cu, call_inst);
                 break;
 
-              case greenland::IntrinsicHelper::CmplFloat:
+              case compiler_llvm::IntrinsicHelper::CmplFloat:
                 CvtFPCompare(cu, call_inst, Instruction::CMPL_FLOAT);
                 break;
-              case greenland::IntrinsicHelper::CmpgFloat:
+              case compiler_llvm::IntrinsicHelper::CmpgFloat:
                 CvtFPCompare(cu, call_inst, Instruction::CMPG_FLOAT);
                 break;
-              case greenland::IntrinsicHelper::CmplDouble:
+              case compiler_llvm::IntrinsicHelper::CmplDouble:
                 CvtFPCompare(cu, call_inst, Instruction::CMPL_DOUBLE);
                 break;
-              case greenland::IntrinsicHelper::CmpgDouble:
+              case compiler_llvm::IntrinsicHelper::CmpgDouble:
                 CvtFPCompare(cu, call_inst, Instruction::CMPG_DOUBLE);
                 break;
 
-              case greenland::IntrinsicHelper::CmpLong:
+              case compiler_llvm::IntrinsicHelper::CmpLong:
                 CvtLongCompare(cu, call_inst);
                 break;
 
-              case greenland::IntrinsicHelper::SHLLong:
+              case compiler_llvm::IntrinsicHelper::SHLLong:
                 CvtShiftOp(cu, Instruction::SHL_LONG, call_inst);
                 break;
-              case greenland::IntrinsicHelper::SHRLong:
+              case compiler_llvm::IntrinsicHelper::SHRLong:
                 CvtShiftOp(cu, Instruction::SHR_LONG, call_inst);
                 break;
-              case greenland::IntrinsicHelper::USHRLong:
+              case compiler_llvm::IntrinsicHelper::USHRLong:
                 CvtShiftOp(cu, Instruction::USHR_LONG, call_inst);
                 break;
-              case greenland::IntrinsicHelper::SHLInt:
+              case compiler_llvm::IntrinsicHelper::SHLInt:
                 CvtShiftOp(cu, Instruction::SHL_INT, call_inst);
                 break;
-              case greenland::IntrinsicHelper::SHRInt:
+              case compiler_llvm::IntrinsicHelper::SHRInt:
                 CvtShiftOp(cu, Instruction::SHR_INT, call_inst);
                 break;
-              case greenland::IntrinsicHelper::USHRInt:
+              case compiler_llvm::IntrinsicHelper::USHRInt:
                 CvtShiftOp(cu, Instruction::USHR_INT, call_inst);
                 break;
 
-              case greenland::IntrinsicHelper::CatchTargets: {
+              case compiler_llvm::IntrinsicHelper::CatchTargets: {
                   llvm::SwitchInst* sw_inst =
                       llvm::dyn_cast<llvm::SwitchInst>(next_it);
                   DCHECK(sw_inst != NULL);
@@ -3456,9 +3454,9 @@ void MethodBitcode2LIR(CompilationUnit* cu)
     llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(&*i);
     if (call_inst != NULL) {
       llvm::Function* callee = call_inst->getCalledFunction();
-      greenland::IntrinsicHelper::IntrinsicId id =
+      compiler_llvm::IntrinsicHelper::IntrinsicId id =
           cu->intrinsic_helper->GetIntrinsicId(callee);
-      if (id == greenland::IntrinsicHelper::MethodInfo) {
+      if (id == compiler_llvm::IntrinsicHelper::MethodInfo) {
         if (cu->verbose) {
           LOG(INFO) << "Found MethodInfo";
         }

@@ -268,7 +268,7 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
-  llvm::Type* ret_type = irb_.getJType(shorty[0], kAccurate);
+  llvm::Type* ret_type = irb_.getJType(shorty[0]);
 
   // Get argument type
   std::vector<llvm::Type*> args_type;
@@ -278,11 +278,11 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
   if (!is_static || is_native_function) {
     // "this" object pointer for non-static
     // "class" object pointer for static naitve
-    args_type.push_back(irb_.getJType('L', kAccurate));
+    args_type.push_back(irb_.getJType('L'));
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
-    args_type.push_back(irb_.getJType(shorty[i], kAccurate));
+    args_type.push_back(irb_.getJType(shorty[i]));
   }
 
   return llvm::FunctionType::get(ret_type, args_type, false);

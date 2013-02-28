@@ -24,7 +24,7 @@
 #include <llvm/Support/IRBuilder.h>
 
 using namespace art;
-using namespace greenland;
+using namespace compiler_llvm;
 
 namespace {
 
@@ -36,13 +36,13 @@ GetLLVMTypeOfIntrinsicValType(IRBuilder& irb,
       return irb.getVoidTy();
     }
     case IntrinsicHelper::kJavaObjectTy: {
-      return irb.GetJObjectTy();
+      return irb.getJObjectTy();
     }
     case IntrinsicHelper::kJavaMethodTy: {
-      return irb.GetJMethodTy();
+      return irb.getJMethodTy();
     }
     case IntrinsicHelper::kJavaThreadTy: {
-      return irb.GetJThreadTy();
+      return irb.getJThreadTy();
     }
     case IntrinsicHelper::kInt1Ty:
     case IntrinsicHelper::kInt1ConstantTy: {
@@ -85,7 +85,7 @@ GetLLVMTypeOfIntrinsicValType(IRBuilder& irb,
 } // anonymous namespace
 
 namespace art {
-namespace greenland {
+namespace compiler_llvm {
 
 const IntrinsicHelper::IntrinsicInfo IntrinsicHelper::Info[] = {
 #define DEF_INTRINSICS_FUNC(_, NAME, ATTR, RET_TYPE, ARG1_TYPE, ARG2_TYPE, \
@@ -172,5 +172,5 @@ IntrinsicHelper::IntrinsicHelper(llvm::LLVMContext& context,
   return;
 }
 
-} // namespace greenland
+} // namespace compiler_llvm
 } // namespace art

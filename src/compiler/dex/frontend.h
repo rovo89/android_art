@@ -26,7 +26,7 @@ namespace llvm {
 }
 
 namespace art {
-namespace greenland {
+namespace compiler_llvm {
   class IntrinsicHelper;
   class IRBuilder;
 }
@@ -118,19 +118,19 @@ class LLVMInfo {
       return llvm_module_;
     }
 
-    art::greenland::IntrinsicHelper* GetIntrinsicHelper() {
+    art::compiler_llvm::IntrinsicHelper* GetIntrinsicHelper() {
       return intrinsic_helper_.get();
     }
 
-    art::greenland::IRBuilder* GetIRBuilder() {
+    art::compiler_llvm::IRBuilder* GetIRBuilder() {
       return ir_builder_.get();
     }
 
   private:
     UniquePtr<llvm::LLVMContext> llvm_context_;
     llvm::Module* llvm_module_; // Managed by context_.
-    UniquePtr<art::greenland::IntrinsicHelper> intrinsic_helper_;
-    UniquePtr<art::greenland::IRBuilder> ir_builder_;
+    UniquePtr<art::compiler_llvm::IntrinsicHelper> intrinsic_helper_;
+    UniquePtr<art::compiler_llvm::IRBuilder> ir_builder_;
 };
 
 struct CompilationUnit;

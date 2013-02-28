@@ -29,7 +29,7 @@ namespace llvm {
 }
 
 namespace art {
-namespace greenland {
+namespace compiler_llvm {
 
 class IRBuilder;
 
@@ -109,7 +109,7 @@ class IntrinsicHelper {
 
  public:
   static const IntrinsicInfo& GetInfo(IntrinsicId id) {
-    DCHECK(id >= 0 && id < MaxIntrinsicId) << "Unknown Dalvik intrinsics ID: "
+    DCHECK(id >= 0 && id < MaxIntrinsicId) << "Unknown ART intrinsics ID: "
                                            << id;
     return Info[id];
   }
@@ -126,7 +126,7 @@ class IntrinsicHelper {
   IntrinsicHelper(llvm::LLVMContext& context, llvm::Module& module);
 
   inline llvm::Function* GetIntrinsicFunction(IntrinsicId id) {
-    DCHECK(id >= 0 && id < MaxIntrinsicId) << "Unknown Dalvik intrinsics ID: "
+    DCHECK(id >= 0 && id < MaxIntrinsicId) << "Unknown ART intrinsics ID: "
                                            << id;
     return intrinsic_funcs_[id];
   }
@@ -151,7 +151,7 @@ class IntrinsicHelper {
   llvm::DenseMap<const llvm::Function*, IntrinsicId> intrinsic_funcs_map_;
 };
 
-} // namespace greenland
+} // namespace compiler_llvm
 } // namespace art
 
 #endif // ART_SRC_GREENLAND_INTRINSIC_HELPER_H_
