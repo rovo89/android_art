@@ -18,6 +18,7 @@
 
 #include "base/stringprintf.h"
 #include "compiler/dex/compiler_ir.h"
+#include "compiler/dex/mir_graph.h"
 #include "utils.h"
 
 namespace art {

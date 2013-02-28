@@ -30,15 +30,15 @@ bool IsInexpensiveConstant(CompilationUnit* cu, RegLocation rl_src)
   if (rl_src.is_const) {
     if (rl_src.wide) {
       if (rl_src.fp) {
-         res = cu->cg->InexpensiveConstantDouble(ConstantValueWide(cu, rl_src));
+         res = cu->cg->InexpensiveConstantDouble(cu->mir_graph->ConstantValueWide(rl_src));
       } else {
-         res = cu->cg->InexpensiveConstantLong(ConstantValueWide(cu, rl_src));
+         res = cu->cg->InexpensiveConstantLong(cu->mir_graph->ConstantValueWide(rl_src));
       }
     } else {
       if (rl_src.fp) {
-         res = cu->cg->InexpensiveConstantFloat(ConstantValue(cu, rl_src));
+         res = cu->cg->InexpensiveConstantFloat(cu->mir_graph->ConstantValue(rl_src));
       } else {
-         res = cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src));
+         res = cu->cg->InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src));
       }
     }
   }
@@ -55,9 +55,8 @@ void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
 bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
                   int& field_offset, bool& is_volatile, bool is_put)
 {
-  DexCompilationUnit m_unit(cu);
-  return cu->compiler_driver->ComputeInstanceFieldInfo(field_idx, &m_unit,
-           field_offset, is_volatile, is_put);
+  return cu->compiler_driver->ComputeInstanceFieldInfo(
+      field_idx, cu->mir_graph->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
 }
 
 /* Convert an instruction to a NOP */
@@ -336,7 +335,7 @@ void CodegenDump(CompilationUnit* cu)
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cu->method_idx, *cu->dex_file);
   LIR* lir_insn;
-  int insns_size = cu->insns_size;
+  int insns_size = cu->code_item->insns_size_in_code_units_;
 
   LOG(INFO) << "Regs (excluding ins) : " << cu->num_regs;
   LOG(INFO) << "Ins          : " << cu->num_ins;
@@ -595,7 +594,8 @@ static void InstallSwitchTables(CompilationUnit* cu)
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cu->switch_tables, &iterator);
   while (true) {
-    SwitchTable* tab_rec = reinterpret_cast<SwitchTable*>(GrowableListIteratorNext( &iterator));
+    Codegen::SwitchTable* tab_rec =
+      reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext( &iterator));
     if (tab_rec == NULL) break;
     AlignBuffer(cu->code_buffer, tab_rec->offset);
     /*
@@ -654,8 +654,8 @@ static void InstallFillArrayData(CompilationUnit* cu)
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cu->fill_array_data, &iterator);
   while (true) {
-    FillArrayData *tab_rec =
-        reinterpret_cast<FillArrayData*>(GrowableListIteratorNext( &iterator));
+    Codegen::FillArrayData *tab_rec =
+        reinterpret_cast<Codegen::FillArrayData*>(GrowableListIteratorNext( &iterator));
     if (tab_rec == NULL) break;
     AlignBuffer(cu->code_buffer, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
@@ -678,7 +678,8 @@ static int AssignLiteralOffsetCommon(LIR* lir, int offset)
 static bool VerifyCatchEntries(CompilationUnit* cu)
 {
   bool success = true;
-  for (std::set<uint32_t>::const_iterator it = cu->catches.begin(); it != cu->catches.end(); ++it) {
+  for (std::set<uint32_t>::const_iterator it = cu->mir_graph->catches_.begin();
+       it != cu->mir_graph->catches_.end(); ++it) {
     uint32_t dex_pc = *it;
     bool found = false;
     for (size_t i = 0; i < cu->dex2pcMappingTable.size(); i += 2) {
@@ -695,18 +696,19 @@ static bool VerifyCatchEntries(CompilationUnit* cu)
   // Now, try in the other direction
   for (size_t i = 0; i < cu->dex2pcMappingTable.size(); i += 2) {
     uint32_t dex_pc = cu->dex2pcMappingTable[i+1];
-    if (cu->catches.find(dex_pc) == cu->catches.end()) {
+    if (cu->mir_graph->catches_.find(dex_pc) == cu->mir_graph->catches_.end()) {
       LOG(INFO) << "Unexpected catch entry @ dex pc 0x" << std::hex << dex_pc;
       success = false;
     }
   }
   if (!success) {
     LOG(INFO) << "Bad dex2pcMapping table in " << PrettyMethod(cu->method_idx, *cu->dex_file);
-    LOG(INFO) << "Entries @ decode: " << cu->catches.size() << ", Entries in table: "
+    LOG(INFO) << "Entries @ decode: " << cu->mir_graph->catches_.size() << ", Entries in table: "
               << cu->dex2pcMappingTable.size()/2;
   }
   return success;
 }
+
 
 static void CreateMappingTables(CompilationUnit* cu)
 {
@@ -720,7 +722,9 @@ static void CreateMappingTables(CompilationUnit* cu)
       cu->dex2pcMappingTable.push_back(tgt_lir->dalvik_offset);
     }
   }
-  DCHECK(VerifyCatchEntries(cu));
+  if (kIsDebugBuild) {
+    DCHECK(VerifyCatchEntries(cu));
+  }
   cu->combined_mapping_table.push_back(cu->pc2dexMappingTable.size() +
                                         cu->dex2pcMappingTable.size());
   cu->combined_mapping_table.push_back(cu->pc2dexMappingTable.size());
@@ -850,7 +854,8 @@ static int AssignSwitchTablesOffset(CompilationUnit* cu, int offset)
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cu->switch_tables, &iterator);
   while (true) {
-    SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Codegen::SwitchTable *tab_rec =
+        reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -869,8 +874,8 @@ static int AssignFillArrayDataOffset(CompilationUnit* cu, int offset)
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cu->fill_array_data, &iterator);
   while (true) {
-    FillArrayData *tab_rec =
-        reinterpret_cast<FillArrayData*>(GrowableListIteratorNext(&iterator));
+    Codegen::FillArrayData *tab_rec =
+        reinterpret_cast<Codegen::FillArrayData*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     offset += tab_rec->size;
@@ -938,6 +943,7 @@ void AssembleLIR(CompilationUnit* cu)
 {
   Codegen* cg = cu->cg.get();
   AssignOffsets(cu);
+  int assembler_retries = 0;
   /*
    * Assemble here.  Note that we generate code with optimistic assumptions
    * and if found now to work, we'll have to redo the sequence and retry.
@@ -948,8 +954,8 @@ void AssembleLIR(CompilationUnit* cu)
     if (res == kSuccess) {
       break;
     } else {
-      cu->assembler_retries++;
-      if (cu->assembler_retries > MAX_ASSEMBLER_RETRIES) {
+      assembler_retries++;
+      if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
         CodegenDump(cu);
         LOG(FATAL) << "Assembler error - too many retries";
       }
@@ -996,7 +1002,7 @@ static LIR* InsertCaseLabel(CompilationUnit* cu, int vaddr, int keyVal)
   return new_label;
 }
 
-static void MarkPackedCaseLabels(CompilationUnit* cu, SwitchTable *tab_rec)
+static void MarkPackedCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_rec)
 {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
@@ -1008,7 +1014,7 @@ static void MarkPackedCaseLabels(CompilationUnit* cu, SwitchTable *tab_rec)
   }
 }
 
-static void MarkSparseCaseLabels(CompilationUnit* cu, SwitchTable *tab_rec)
+static void MarkSparseCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_rec)
 {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
@@ -1025,8 +1031,8 @@ void ProcessSwitchTables(CompilationUnit* cu)
   GrowableListIterator iterator;
   GrowableListIteratorInit(&cu->switch_tables, &iterator);
   while (true) {
-    SwitchTable *tab_rec =
-        reinterpret_cast<SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Codegen::SwitchTable *tab_rec =
+        reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     if (tab_rec->table[0] == Instruction::kPackedSwitchSignature) {
       MarkPackedCaseLabels(cu, tab_rec);

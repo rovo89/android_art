@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#include "bb_opt.h"
-#include "dataflow.h"
+#include "local_value_numbering.h"
 
 namespace art {
 
 
-uint16_t BBOpt::GetValueNumber(MIR* mir)
+uint16_t LocalValueNumbering::GetValueNumber(MIR* mir)
 {
   uint16_t res = NO_VALUE;
   uint16_t opcode = mir->dalvikInsn.opcode;

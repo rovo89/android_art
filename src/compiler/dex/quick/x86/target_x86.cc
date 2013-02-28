@@ -341,9 +341,9 @@ void X86Codegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 
     info1->dirty = false;
     info2->dirty = false;
-    if (SRegToVReg(cu, info2->s_reg) < SRegToVReg(cu, info1->s_reg))
+    if (cu->mir_graph->SRegToVReg(info2->s_reg) < cu->mir_graph->SRegToVReg(info1->s_reg))
       info1 = info2;
-    int v_reg = SRegToVReg(cu, info1->s_reg);
+    int v_reg = cu->mir_graph->SRegToVReg(info1->s_reg);
     StoreBaseDispWide(cu, rX86_SP, VRegOffset(cu, v_reg), info1->reg, info1->partner);
   }
 }
@@ -353,7 +353,7 @@ void X86Codegen::FlushReg(CompilationUnit* cu, int reg)
   RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
     info->dirty = false;
-    int v_reg = SRegToVReg(cu, info->s_reg);
+    int v_reg = cu->mir_graph->SRegToVReg(info->s_reg);
     StoreBaseDisp(cu, rX86_SP, VRegOffset(cu, v_reg), reg, kWord);
   }
 }

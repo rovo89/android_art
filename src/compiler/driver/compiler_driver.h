@@ -41,7 +41,6 @@ class TimingLogger;
 
 enum CompilerBackend {
   kQuick,
-  kQuickGBC,
   kPortable
 };
 

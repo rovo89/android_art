@@ -23,7 +23,6 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_utility.h"
-#include "compiler/dex/dataflow.h"
 
 namespace art {
 
@@ -155,7 +154,6 @@ int VRegOffset(CompilationUnit* cu, int reg);
 int SRegOffset(CompilationUnit* cu, int reg);
 void RecordCorePromotion(CompilationUnit* cu, int reg, int s_reg);
 void RecordFpPromotion(CompilationUnit* cu, int reg, int s_reg);
-int ComputeFrameSize(CompilationUnit* cu);
 int SRegToPMap(CompilationUnit* cu, int s_reg);
 void DumpRegPool(RegisterInfo* p, int num_regs);
 

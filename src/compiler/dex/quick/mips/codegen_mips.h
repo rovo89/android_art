@@ -151,9 +151,9 @@ class MipsCodegen : public Codegen {
                                                int second_bit);
     virtual void GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
     virtual void GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
-    virtual void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
+    virtual void GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src);
-    virtual void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
+    virtual void GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src);
     virtual void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case);

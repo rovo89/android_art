@@ -597,7 +597,7 @@ void ArmCodegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
   }
 }
 /*
- * TUNING: is leaf?  Can't just use "has_invoke" to determine as some
+ * TUNING: is true leaf?  Can't just use METHOD_IS_LEAF to determine as some
  * instructions might call out to C/assembly helper functions.  Until
  * machinery is in place, always spill lr.
  */
@@ -645,10 +645,10 @@ void ArmCodegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 
     info1->dirty = false;
     info2->dirty = false;
-    if (SRegToVReg(cu, info2->s_reg) <
-      SRegToVReg(cu, info1->s_reg))
+    if (cu->mir_graph->SRegToVReg(info2->s_reg) <
+      cu->mir_graph->SRegToVReg(info1->s_reg))
       info1 = info2;
-    int v_reg = SRegToVReg(cu, info1->s_reg);
+    int v_reg = cu->mir_graph->SRegToVReg(info1->s_reg);
     StoreBaseDispWide(cu, rARM_SP, VRegOffset(cu, v_reg), info1->reg, info1->partner);
   }
 }
@@ -658,7 +658,7 @@ void ArmCodegen::FlushReg(CompilationUnit* cu, int reg)
   RegisterInfo* info = GetRegInfo(cu, reg);
   if (info->live && info->dirty) {
     info->dirty = false;
-    int v_reg = SRegToVReg(cu, info->s_reg);
+    int v_reg = cu->mir_graph->SRegToVReg(info->s_reg);
     StoreBaseDisp(cu, rARM_SP, VRegOffset(cu, v_reg), reg, kWord);
   }
 }

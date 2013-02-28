@@ -20,7 +20,6 @@
 namespace art {
 
 void MethodMIR2Bitcode(CompilationUnit* cu);
-void MethodBitcode2LIR(CompilationUnit* cu);
 
 }  // namespace art
 

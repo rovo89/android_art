@@ -61,7 +61,8 @@ void MipsCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  * done:
  *
  */
-void MipsCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void MipsCodegen::GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                  RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -140,7 +141,8 @@ void MipsCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, Re
  *   jr    r_RA
  * done:
  */
-void MipsCodegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void MipsCodegen::GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                  RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -341,7 +343,7 @@ void MipsCodegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, Re
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = ((cu->attrs & METHOD_IS_LEAF) &&
+  bool skip_overflow_check = ((cu->attributes & METHOD_IS_LEAF) &&
       (static_cast<size_t>(cu->frame_size) < Thread::kStackOverflowReservedBytes));
   NewLIR0(cu, kPseudoMethodEntry);
   int check_reg = AllocTemp(cu);

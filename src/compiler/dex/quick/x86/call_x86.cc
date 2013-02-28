@@ -33,7 +33,8 @@ void X86Codegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-void X86Codegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void X86Codegen::GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                 RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -45,7 +46,8 @@ void X86Codegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, Reg
   rl_src = LoadValue(cu, rl_src, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
-    BasicBlock* case_block = FindBlock(cu, cu->current_dalvik_offset + targets[i]);
+    BasicBlock* case_block =
+        cu->mir_graph.get()->FindBlock(cu->current_dalvik_offset + targets[i]);
     LIR* label_list = cu->block_label_list;
     OpCmpImmBranch(cu, kCondEq, rl_src.low_reg, key,
                    &label_list[case_block->id]);
@@ -68,7 +70,8 @@ void X86Codegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, Reg
  * jmp  r_start_of_method
  * done:
  */
-void X86Codegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void X86Codegen::GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                 RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -237,7 +240,7 @@ void X86Codegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, Reg
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = ((cu->attrs & METHOD_IS_LEAF) &&
+  bool skip_overflow_check = ((cu->attributes & METHOD_IS_LEAF) &&
                 (static_cast<size_t>(cu->frame_size) <
                 Thread::kStackOverflowReservedBytes));
   NewLIR0(cu, kPseudoMethodEntry);

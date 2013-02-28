@@ -585,7 +585,7 @@ void X86Codegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   StoreBaseIndexedDisp(cu, r_array, r_index, scale,
                        data_offset, r_value, INVALID_REG, kWord, INVALID_SREG);
   FreeTemp(cu, r_index);
-  if (!IsConstantNullRef(cu, rl_src)) {
+  if (!cu->mir_graph->IsConstantNullRef(rl_src)) {
     MarkGCCard(cu, r_value, r_array);
   }
 }

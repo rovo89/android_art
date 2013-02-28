@@ -28,7 +28,7 @@ namespace art {
 /* Return the position of an ssa name within the argument list */
 static int InPosition(CompilationUnit* cu, int s_reg)
 {
-  int v_reg = SRegToVReg(cu, s_reg);
+  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
   return v_reg - cu->num_regs;
 }
 
@@ -89,7 +89,7 @@ static void LockLiveArgs(CompilationUnit* cu, MIR* mir)
   int first_in = cu->num_regs;
   const int num_arg_regs = 3;  // TODO: generalize & move to RegUtil.cc
   for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
-    int v_reg = SRegToVReg(cu, mir->ssa_rep->uses[i]);
+    int v_reg = cu->mir_graph->SRegToVReg(mir->ssa_rep->uses[i]);
     int InPosition = v_reg - first_in;
     if (InPosition < num_arg_regs) {
       LockTemp(cu, rARM_ARG1 + InPosition);
@@ -324,7 +324,8 @@ void ArmCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  *   add   rARM_PC, r_disp   ; This is the branch from which we compute displacement
  *   cbnz  r_idx, lp
  */
-void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                 RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -371,7 +372,8 @@ void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset, Reg
 }
 
 
-void ArmCodegen::GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void ArmCodegen::GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+                                 RegLocation rl_src)
 {
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
   if (cu->verbose) {
@@ -588,7 +590,7 @@ void ArmCodegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, Reg
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = ((cu->attrs & METHOD_IS_LEAF) &&
+  bool skip_overflow_check = ((cu->attributes & METHOD_IS_LEAF) &&
                             (static_cast<size_t>(cu->frame_size) <
                             Thread::kStackOverflowReservedBytes));
   NewLIR0(cu, kPseudoMethodEntry);

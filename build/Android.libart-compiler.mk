@@ -15,7 +15,7 @@
 #
 
 LIBART_COMPILER_SRC_FILES := \
-	src/compiler/dex/bb_opt.cc \
+	src/compiler/dex/local_value_numbering.cc \
 	src/compiler/dex/quick/arm/assemble_arm.cc \
 	src/compiler/dex/quick/arm/call_arm.cc \
 	src/compiler/dex/quick/arm/fp_arm.cc \
@@ -43,9 +43,12 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/quick/x86/utility_x86.cc \
 	src/compiler/dex/portable/mir_to_gbc.cc \
 	src/compiler/dex/compiler_utility.cc \
-	src/compiler/dex/dataflow.cc \
+	src/compiler/dex/mir_dataflow.cc \
+	src/compiler/dex/dataflow_iterator.cc \
+	src/compiler/dex/mir_optimization.cc \
 	src/compiler/dex/frontend.cc \
-	src/compiler/dex/ralloc.cc \
+	src/compiler/dex/mir_graph.cc \
+	src/compiler/dex/vreg_analysis.cc \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
 	src/compiler/driver/dex_compilation_unit.cc \

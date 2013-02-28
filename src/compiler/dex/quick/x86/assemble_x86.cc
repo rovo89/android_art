@@ -1099,11 +1099,11 @@ static void EmitPcRel(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t 
                       int base_or_table, uint8_t index, int scale, int table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    SwitchTable *tab_rec = reinterpret_cast<SwitchTable*>(table_or_disp);
+    Codegen::SwitchTable *tab_rec = reinterpret_cast<Codegen::SwitchTable*>(table_or_disp);
     disp = tab_rec->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
-    FillArrayData *tab_rec = reinterpret_cast<FillArrayData*>(base_or_table);
+    Codegen::FillArrayData *tab_rec = reinterpret_cast<Codegen::FillArrayData*>(base_or_table);
     disp = tab_rec->offset;
   }
   if (entry->skeleton.prefix1 != 0) {

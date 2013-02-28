@@ -16,6 +16,7 @@
 
 #include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
+#include "compiler/dex/compiler_internals.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "ralloc_util.h"
 
@@ -132,9 +133,9 @@ void Codegen::GenCompareAndBranch(CompilationUnit* cu, Instruction::Code opcode,
     // If it's already live in a register or not easily materialized, just keep going
     RegLocation rl_temp = UpdateLoc(cu, rl_src2);
     if ((rl_temp.location == kLocDalvikFrame) &&
-        InexpensiveConstantInt(ConstantValue(cu, rl_src2))) {
+        InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src2))) {
       // OK - convert this to a compare immediate and branch
-      OpCmpImmBranch(cu, cond, rl_src1.low_reg, ConstantValue(cu, rl_src2), taken);
+      OpCmpImmBranch(cu, cond, rl_src1.low_reg, cu->mir_graph->ConstantValue(rl_src2), taken);
       OpUnconditionalBranch(cu, fall_through);
       return;
     }
@@ -353,14 +354,9 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
   int ssb_index;
   bool is_volatile;
   bool is_referrers_class;
-
-  DexCompilationUnit m_unit(cu);
-
-  bool fast_path =
-      cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,
-                                                  field_offset, ssb_index,
-                                                  is_referrers_class, is_volatile,
-                                                  true);
+  bool fast_path = cu->compiler_driver->ComputeStaticFieldInfo(
+      field_idx, cu->mir_graph->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
+      is_referrers_class, is_volatile, true);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -424,7 +420,7 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
     if (is_volatile) {
       GenMemBarrier(cu, kStoreLoad);
     }
-    if (is_object && !IsConstantNullRef(cu, rl_src)) {
+    if (is_object && !cu->mir_graph->IsConstantNullRef(rl_src)) {
       MarkGCCard(cu, rl_src.low_reg, rBase);
     }
     FreeTemp(cu, rBase);
@@ -444,14 +440,9 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
   int ssb_index;
   bool is_volatile;
   bool is_referrers_class;
-
-  DexCompilationUnit m_unit(cu);
-
-  bool fast_path =
-      cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,
-                                                  field_offset, ssb_index,
-                                                  is_referrers_class, is_volatile,
-                                                  false);
+  bool fast_path = cu->compiler_driver->ComputeStaticFieldInfo(
+      field_idx, cu->mir_graph->GetCurrentDexCompilationUnit(), field_offset, ssb_index,
+      is_referrers_class, is_volatile, false);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -762,7 +753,7 @@ void Codegen::GenIPut(CompilationUnit* cu, uint32_t field_idx, int opt_flags, Op
       if (is_volatile) {
         GenMemBarrier(cu, kLoadLoad);
       }
-      if (is_object && !IsConstantNullRef(cu, rl_src)) {
+      if (is_object && !cu->mir_graph->IsConstantNullRef(rl_src)) {
         MarkGCCard(cu, rl_src.low_reg, rl_obj.low_reg);
       }
     }

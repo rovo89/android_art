@@ -31,17 +31,6 @@ namespace llvm {
   class IRBuilder;
 }
 
-#define COMPILER_TRACED(X)
-#define COMPILER_TRACEE(X)
-
-/*
- * Special offsets to denote method entry/exit for debugger update.
- * NOTE: bit pattern must be loadable using 1 instruction and must
- * not be a valid Dalvik offset.
- */
-#define DEBUGGER_METHOD_ENTRY -1
-#define DEBUGGER_METHOD_EXIT -2
-
 /*
  * Assembly is an iterative process, and usually terminates within
  * two or three passes.  This should be high enough to handle bizarre
@@ -57,7 +46,6 @@ enum opt_control_vector {
   kNullCheckElimination,
   kPromoteRegs,
   kTrackLiveTemps,
-  kSkipLargeMethodOptimization,
   kSafeOptimizations,
   kBBOpt,
   kMatch,
@@ -86,24 +74,12 @@ enum debugControlVector {
 };
 
 enum OatMethodAttributes {
-  kIsCallee = 0,      // Code is part of a callee (invoked by a hot trace).
-  kIsHot,             // Code is part of a hot trace.
   kIsLeaf,            // Method is leaf.
-  kIsEmpty,           // Method is empty.
-  kIsThrowFree,       // Method doesn't throw.
-  kIsGetter,          // Method fits the getter pattern.
-  kIsSetter,          // Method fits the setter pattern.
-  kCannotCompile,     // Method cannot be compiled.
+  kHasLoop,           // Method contains simple loop.
 };
 
-#define METHOD_IS_CALLEE        (1 << kIsCallee)
-#define METHOD_IS_HOT           (1 << kIsHot)
 #define METHOD_IS_LEAF          (1 << kIsLeaf)
-#define METHOD_IS_EMPTY         (1 << kIsEmpty)
-#define METHOD_IS_THROW_FREE    (1 << kIsThrowFree)
-#define METHOD_IS_GETTER        (1 << kIsGetter)
-#define METHOD_IS_SETTER        (1 << kIsSetter)
-#define METHOD_CANNOT_COMPILE   (1 << kCannotCompile)
+#define METHOD_HAS_LOOP         (1 << kHasLoop)
 
 class LLVMInfo {
   public:
@@ -135,9 +111,6 @@ class LLVMInfo {
 
 struct CompilationUnit;
 struct BasicBlock;
-
-BasicBlock* FindBlock(CompilationUnit* cu, unsigned int code_offset);
-void ReplaceSpecialChars(std::string& str);
 
 }  // namespace art
 

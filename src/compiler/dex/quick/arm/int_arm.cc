@@ -187,11 +187,11 @@ void ArmCodegen::GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir)
   RegLocation rl_src = GetSrc(cu, mir, 0);
   // Temporary debugging code
   int dest_sreg = mir->ssa_rep->defs[0];
-  if ((dest_sreg < 0) || (dest_sreg >= cu->num_ssa_regs)) {
+  if ((dest_sreg < 0) || (dest_sreg >= cu->mir_graph->GetNumSSARegs())) {
     LOG(INFO) << "Bad target sreg: " << dest_sreg << ", in "
               << PrettyMethod(cu->method_idx,*cu->dex_file);
     LOG(INFO) << "at dex offset 0x" << std::hex << mir->offset;
-    LOG(INFO) << "vreg = " << SRegToVReg(cu, dest_sreg);
+    LOG(INFO) << "vreg = " << cu->mir_graph->SRegToVReg(dest_sreg);
     LOG(INFO) << "num uses = " << mir->ssa_rep->num_uses;
     if (mir->ssa_rep->num_uses == 1) {
       LOG(INFO) << "CONST case, vals = " << mir->dalvikInsn.vB << ", " << mir->dalvikInsn.vC;
@@ -265,7 +265,7 @@ void ArmCodegen::GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR*
   if (rl_src2.is_const) {
     RegLocation rl_temp = UpdateLocWide(cu, rl_src2);
     // Do special compare/branch against simple const operand if not already in registers.
-    int64_t val = ConstantValueWide(cu, rl_src2);
+    int64_t val = cu->mir_graph->ConstantValueWide(rl_src2);
     if ((rl_temp.location != kLocPhysReg) &&
         ((ModifiedImmediate(Low32Bits(val)) >= 0) && (ModifiedImmediate(High32Bits(val)) >= 0))) {
       GenFusedLongCmpImmBranch(cu, bb, rl_src1, val, ccode);
@@ -538,7 +538,7 @@ bool ArmCodegen::GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_
   RegLocation rl_object = LoadValue(cu, rl_src_obj, kCoreReg);
   RegLocation rl_new_value = LoadValue(cu, rl_src_new_value, kCoreReg);
 
-  if (need_write_barrier && !IsConstantNullRef(cu, rl_new_value)) {
+  if (need_write_barrier && !cu->mir_graph->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
     MarkGCCard(cu, rl_new_value.low_reg, rl_object.low_reg);
   }
@@ -678,7 +678,7 @@ static bool BadOverlap(CompilationUnit* cu, RegLocation rl_src, RegLocation rl_d
 {
   DCHECK(rl_src.wide);
   DCHECK(rl_dest.wide);
-  return (abs(SRegToVReg(cu, rl_src.s_reg_low) - SRegToVReg(cu, rl_dest.s_reg_low)) == 1);
+  return (abs(cu->mir_graph->SRegToVReg(rl_src.s_reg_low) - cu->mir_graph->SRegToVReg(rl_dest.s_reg_low)) == 1);
 }
 
 void ArmCodegen::GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
@@ -809,7 +809,7 @@ void ArmCodegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, Re
 
   // If index is constant, just fold it into the data offset
   if (constant_index) {
-    data_offset += ConstantValue(cu, rl_index) << scale;
+    data_offset += cu->mir_graph->ConstantValue(rl_index) << scale;
   }
 
   /* null object? */
@@ -837,7 +837,7 @@ void ArmCodegen::GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, Re
 
     if (needs_range_check) {
       if (constant_index) {
-        GenImmedCheck(cu, kCondLs, reg_len, ConstantValue(cu, rl_index), kThrowConstantArrayBounds);
+        GenImmedCheck(cu, kCondLs, reg_len, cu->mir_graph->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
         GenRegRegCheck(cu, kCondLs, reg_len, rl_index.low_reg, kThrowArrayBounds);
       }
@@ -895,7 +895,7 @@ void ArmCodegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, Re
 
   // If index is constant, just fold it into the data offset.
   if (constant_index) {
-    data_offset += ConstantValue(cu, rl_index) << scale;
+    data_offset += cu->mir_graph->ConstantValue(rl_index) << scale;
   }
 
   rl_array = LoadValue(cu, rl_array, kCoreReg);
@@ -937,7 +937,7 @@ void ArmCodegen::GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, Re
     }
     if (needs_range_check) {
       if (constant_index) {
-        GenImmedCheck(cu, kCondLs, reg_len, ConstantValue(cu, rl_index), kThrowConstantArrayBounds);
+        GenImmedCheck(cu, kCondLs, reg_len, cu->mir_graph->ConstantValue(rl_index), kThrowConstantArrayBounds);
       } else {
         GenRegRegCheck(cu, kCondLs, reg_len, rl_index.low_reg, kThrowArrayBounds);
       }
@@ -1021,7 +1021,7 @@ void ArmCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation 
   StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
   FreeTemp(cu, r_ptr);
   FreeTemp(cu, r_index);
-  if (!IsConstantNullRef(cu, rl_src)) {
+  if (!cu->mir_graph->IsConstantNullRef(rl_src)) {
     MarkGCCard(cu, r_value, r_array);
   }
 }
@@ -1031,7 +1031,7 @@ void ArmCodegen::GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode
 {
   rl_src = LoadValueWide(cu, rl_src, kCoreReg);
   // Per spec, we only care about low 6 bits of shift amount.
-  int shift_amount = ConstantValue(cu, rl_shift) & 0x3f;
+  int shift_amount = cu->mir_graph->ConstantValue(rl_shift) & 0x3f;
   if (shift_amount == 0) {
     StoreValueWide(cu, rl_dest, rl_src);
     return;
@@ -1123,7 +1123,7 @@ void ArmCodegen::GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode
     return;
   }
   DCHECK(rl_src2.is_const);
-  int64_t val = ConstantValueWide(cu, rl_src2);
+  int64_t val = cu->mir_graph->ConstantValueWide(rl_src2);
   uint32_t val_lo = Low32Bits(val);
   uint32_t val_hi = High32Bits(val);
   int32_t mod_imm_lo = ModifiedImmediate(val_lo);

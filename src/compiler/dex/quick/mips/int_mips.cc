@@ -637,7 +637,7 @@ void MipsCodegen::GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation
   StoreBaseIndexed(cu, r_ptr, r_index, r_value, scale, kWord);
   FreeTemp(cu, r_ptr);
   FreeTemp(cu, r_index);
-  if (!IsConstantNullRef(cu, rl_src)) {
+  if (!cu->mir_graph->IsConstantNullRef(rl_src)) {
     MarkGCCard(cu, r_value, r_array);
   }
 }

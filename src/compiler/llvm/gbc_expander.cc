@@ -26,6 +26,7 @@
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"
 
+#include "compiler/dex/mir_graph.h"
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/quick/codegen.h"
 using art::kMIRIgnoreNullCheck;

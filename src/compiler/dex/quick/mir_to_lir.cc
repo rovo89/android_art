@@ -17,6 +17,7 @@
 #include "object_utils.h"
 
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/dataflow_iterator.h"
 #include "local_optimizations.h"
 #include "codegen_util.h"
 #include "ralloc_util.h"
@@ -91,21 +92,21 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
                                                           cu->class_def_idx)) {
         cg->GenMemBarrier(cu, kStoreStore);
       }
-      if (!(cu->attrs & METHOD_IS_LEAF)) {
+      if (!(cu->attributes & METHOD_IS_LEAF)) {
         cg->GenSuspendTest(cu, opt_flags);
       }
       break;
 
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
-      if (!(cu->attrs & METHOD_IS_LEAF)) {
+      if (!(cu->attributes & METHOD_IS_LEAF)) {
         cg->GenSuspendTest(cu, opt_flags);
       }
       cg->StoreValue(cu, GetReturn(cu, cu->shorty[0] == 'F'), rl_src[0]);
       break;
 
     case Instruction::RETURN_WIDE:
-      if (!(cu->attrs & METHOD_IS_LEAF)) {
+      if (!(cu->attributes & METHOD_IS_LEAF)) {
         cg->GenSuspendTest(cu, opt_flags);
       }
       cg->StoreValueWide(cu, GetReturnWide(cu,
@@ -253,11 +254,11 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       break;
 
     case Instruction::PACKED_SWITCH:
-      cg->GenPackedSwitch(cu, vB, rl_src[0]);
+      cg->GenPackedSwitch(cu, mir, vB, rl_src[0]);
       break;
 
     case Instruction::SPARSE_SWITCH:
-      cg->GenSparseSwitch(cu, vB, rl_src[0]);
+      cg->GenSparseSwitch(cu, mir, vB, rl_src[0]);
       break;
 
     case Instruction::CMPL_FLOAT:
@@ -283,8 +284,8 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       backward_branch = (bb->taken->start_offset <= mir->offset);
       // Result known at compile time?
       if (rl_src[0].is_const && rl_src[1].is_const) {
-        bool is_taken = EvaluateBranch(opcode, cu->constant_values[rl_src[0].orig_sreg],
-                                       cu->constant_values[rl_src[1].orig_sreg]);
+        bool is_taken = EvaluateBranch(opcode, cu->mir_graph->ConstantValue(rl_src[0].orig_sreg),
+                                       cu->mir_graph->ConstantValue(rl_src[1].orig_sreg));
         if (is_taken && backward_branch) {
           cg->GenSuspendTest(cu, opt_flags);
         }
@@ -312,7 +313,7 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
       backward_branch = (bb->taken->start_offset <= mir->offset);
       // Result known at compile time?
       if (rl_src[0].is_const) {
-        bool is_taken = EvaluateBranch(opcode, cu->constant_values[rl_src[0].orig_sreg], 0);
+        bool is_taken = EvaluateBranch(opcode, cu->mir_graph->ConstantValue(rl_src[0].orig_sreg), 0);
         if (is_taken && backward_branch) {
           cg->GenSuspendTest(cu, opt_flags);
         }
@@ -540,13 +541,13 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::XOR_INT:
     case Instruction::XOR_INT_2ADDR:
       if (rl_src[0].is_const &&
-          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[0]))) {
+          cu->cg->InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src[0]))) {
         cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[1],
-                             cu->constant_values[rl_src[0].orig_sreg]);
+                             cu->mir_graph->ConstantValue(rl_src[0].orig_sreg));
       } else if (rl_src[1].is_const &&
-          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[1]))) {
+          cu->cg->InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src[1]))) {
         cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0],
-                             cu->constant_values[rl_src[1].orig_sreg]);
+                             cu->mir_graph->ConstantValue(rl_src[1].orig_sreg));
       } else {
         cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
       }
@@ -565,8 +566,8 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
       if (rl_src[1].is_const &&
-          cu->cg->InexpensiveConstantInt(ConstantValue(cu, rl_src[1]))) {
-        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0], ConstantValue(cu, rl_src[1]));
+          cu->cg->InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src[1]))) {
+        cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src[0], cu->mir_graph->ConstantValue(rl_src[1]));
       } else {
         cg->GenArithOpInt(cu, opcode, rl_dest, rl_src[0], rl_src[1]);
       }
@@ -707,7 +708,6 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
   LIR* label_list = cu->block_label_list;
   int block_id = bb->id;
 
-  cu->cur_block = bb;
   label_list[block_id].operands[0] = bb->start_offset;
 
   // Insert the block label.
@@ -745,10 +745,10 @@ static bool MethodBlockCodeGen(CompilationUnit* cu, BasicBlock* bb)
       ResetDefTracking(cu);
     }
 
-#ifndef NDEBUG
     // Reset temp tracking sanity check.
-    cu->live_sreg = INVALID_SREG;
-#endif
+    if (kIsDebugBuild) {
+      cu->live_sreg = INVALID_SREG;
+    }
 
     cu->current_dalvik_offset = mir->offset;
     int opcode = mir->dalvikInsn.opcode;
@@ -800,12 +800,12 @@ void SpecialMIR2LIR(CompilationUnit* cu, SpecialCaseHandler special_case)
 {
   Codegen* cg = cu->cg.get();
   // Find the first DalvikByteCode block.
-  int num_reachable_blocks = cu->num_reachable_blocks;
-  const GrowableList *block_list = &cu->block_list;
+  int num_reachable_blocks = cu->mir_graph->GetNumReachableBlocks();
   BasicBlock*bb = NULL;
   for (int idx = 0; idx < num_reachable_blocks; idx++) {
-    int dfs_index = cu->dfs_order.elem_list[idx];
-    bb = reinterpret_cast<BasicBlock*>(GrowableListGetElement(block_list, dfs_index));
+    // TODO: no direct access of growable lists.
+    int dfs_index = cu->mir_graph->GetDfsOrder()->elem_list[idx];
+    bb = cu->mir_graph->GetBasicBlock(dfs_index);
     if (bb->block_type == kDalvikByteCode) {
       break;
     }
@@ -832,10 +832,12 @@ void MethodMIR2LIR(CompilationUnit* cu)
   Codegen* cg = cu->cg.get();
   // Hold the labels of each block.
   cu->block_label_list =
-      static_cast<LIR*>(NewMem(cu, sizeof(LIR) * cu->num_blocks, true, kAllocLIR));
+      static_cast<LIR*>(NewMem(cu, sizeof(LIR) * cu->mir_graph->GetNumBlocks(), true, kAllocLIR));
 
-  DataFlowAnalysisDispatcher(cu, MethodBlockCodeGen,
-                                kPreOrderDFSTraversal, false /* Iterative */);
+  DataflowIterator iter(cu->mir_graph.get(), kPreOrderDFSTraversal, false /* not iterative */);
+  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+    MethodBlockCodeGen(cu, bb);
+  }
 
   cg->HandleSuspendLaunchPads(cu);
 

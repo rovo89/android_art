@@ -1336,18 +1336,14 @@ void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
   // Explicit register usage
   LockCallTemps(cu);
 
-  DexCompilationUnit m_unit(cu);
-
   uint32_t dex_method_idx = info->index;
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
   bool skip_this;
-  bool fast_path =
-    cu->compiler_driver->ComputeInvokeInfo(dex_method_idx, &m_unit, info->type,
-                                           vtable_idx, direct_code,
-                                           direct_method)
-    && !SLOW_INVOKE_PATH;
+  bool fast_path = cu->compiler_driver->ComputeInvokeInfo(
+      dex_method_idx, cu->mir_graph->GetCurrentDexCompilationUnit(), info->type, vtable_idx,
+      direct_code, direct_method) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     if (fast_path) {
       p_null_ck = &null_ck;
@@ -1450,7 +1446,7 @@ CallInfo* Codegen::NewMemCallInfo(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
                                   bool is_range)
 {
   CallInfo* info = static_cast<CallInfo*>(NewMem(cu, sizeof(CallInfo), true, kAllocMisc));
-  MIR* move_result_mir = FindMoveResult(cu, bb, mir);
+  MIR* move_result_mir = cu->mir_graph->FindMoveResult(bb, mir);
   if (move_result_mir == NULL) {
     info->result.location = kLocInvalid;
   } else {

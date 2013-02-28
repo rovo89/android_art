@@ -31,9 +31,9 @@ typedef SafeMap<uint64_t, uint16_t> ValueMap;
 // Key represents a memory address, value is generation.
 typedef SafeMap<uint32_t, uint16_t> MemoryVersionMap;
 
-class BBOpt {
+class LocalValueNumbering {
  public:
-  BBOpt(CompilationUnit* cu) : cu_(cu) {};
+  LocalValueNumbering(CompilationUnit* cu) : cu_(cu) {};
 
   uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier)
   {

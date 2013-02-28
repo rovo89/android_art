@@ -17,8 +17,9 @@
 /* This file contains register alloction support. */
 
 #include "compiler/dex/compiler_ir.h"
+#include "compiler/dex/compiler_internals.h"
 #include "compiler/dex/compiler_utility.h"
-#include "compiler/dex/dataflow.h"
+//#include "compiler/dex/dataflow.h"
 #include "compiler/dex/quick/codegen_util.h"
 #include "ralloc_util.h"
 
@@ -137,12 +138,12 @@ static void ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
  */
 void ClobberSReg(CompilationUnit* cu, int s_reg)
 {
-#ifndef NDEBUG
   /* Reset live temp tracking sanity checker */
-  if (s_reg == cu->live_sreg) {
-    cu->live_sreg = INVALID_SREG;
+  if (kIsDebugBuild) {
+    if (s_reg == cu->live_sreg) {
+      cu->live_sreg = INVALID_SREG;
+    }
   }
-#endif
   ClobberSRegBody(cu->reg_pool->core_regs, cu->reg_pool->num_core_regs, s_reg);
   ClobberSRegBody(cu->reg_pool->FPRegs, cu->reg_pool->num_fp_regs, s_reg);
 }
@@ -158,9 +159,9 @@ void ClobberSReg(CompilationUnit* cu, int s_reg)
  */
 int SRegToPMap(CompilationUnit* cu, int s_reg)
 {
-  DCHECK_LT(s_reg, cu->num_ssa_regs);
+  DCHECK_LT(s_reg, cu->mir_graph->GetNumSSARegs());
   DCHECK_GE(s_reg, 0);
-  int v_reg = SRegToVReg(cu, s_reg);
+  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
   if (v_reg >= 0) {
     DCHECK_LT(v_reg, cu->num_dalvik_registers);
     return v_reg;
@@ -175,7 +176,7 @@ void RecordCorePromotion(CompilationUnit* cu, int reg, int s_reg)
 {
   Codegen* cg = cu->cg.get();
   int p_map_idx = SRegToPMap(cu, s_reg);
-  int v_reg = SRegToVReg(cu, s_reg);
+  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
   cg->GetRegInfo(cu, reg)->in_use = true;
   cu->core_spill_mask |= (1 << reg);
   // Include reg for later sort
@@ -205,7 +206,7 @@ void RecordFpPromotion(CompilationUnit* cu, int reg, int s_reg)
 {
   Codegen* cg = cu->cg.get();
   int p_map_idx = SRegToPMap(cu, s_reg);
-  int v_reg = SRegToVReg(cu, s_reg);
+  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
   cg->GetRegInfo(cu, reg)->in_use = true;
   cg->MarkPreservedSingle(cu, v_reg, reg);
   cu->promotion_map[p_map_idx].fp_location = kLocPhysReg;
@@ -244,7 +245,7 @@ static int AllocPreservedDouble(CompilationUnit* cu, int s_reg)
 {
   Codegen* cg = cu->cg.get();
   int res = -1; // Assume failure
-  int v_reg = SRegToVReg(cu, s_reg);
+  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
   int p_map_idx = SRegToPMap(cu, s_reg);
   if (cu->promotion_map[p_map_idx+1].fp_location == kLocPhysReg) {
     // Upper reg is already allocated.  Can we fit?
@@ -1088,13 +1089,13 @@ static void CountRefs(CompilationUnit *cu, BasicBlock* bb, RefCounts* core_count
       (bb->block_type == kDalvikByteCode))) {
     return;
   }
-  for (int i = 0; i < cu->num_ssa_regs; i++) {
+  for (int i = 0; i < cu->mir_graph->GetNumSSARegs(); i++) {
     RegLocation loc = cu->reg_location[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
     int p_map_idx = SRegToPMap(cu, loc.s_reg_low);
     //Don't count easily regenerated immediates
     if (loc.fp || !IsInexpensiveConstant(cu, loc)) {
-      counts[p_map_idx].count += cu->raw_use_counts.elem_list[i];
+      counts[p_map_idx].count += cu->mir_graph->GetUseCount(i);
     }
     if (loc.wide && loc.fp && !loc.high_word) {
       counts[p_map_idx].double_start = true;
@@ -1162,8 +1163,7 @@ void DoPromotion(CompilationUnit* cu)
     FpRegs[dalvik_regs + i].s_reg = ct->s_reg;
   }
 
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->block_list, &iterator);
+  GrowableListIterator iterator = cu->mir_graph->GetBasicBlockIterator();
   while (true) {
     BasicBlock* bb;
     bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
@@ -1217,19 +1217,10 @@ void DoPromotion(CompilationUnit* cu)
         }
       }
     }
-  } else if (cu->qd_mode) {
-    AllocPreservedCoreReg(cu, cu->method_sreg);
-    for (int i = 0; i < num_regs; i++) {
-      int reg = AllocPreservedCoreReg(cu, i);
-      if (reg < 0) {
-         break;  // No more left
-      }
-    }
   }
 
-
   // Now, update SSA names to new home locations
-  for (int i = 0; i < cu->num_ssa_regs; i++) {
+  for (int i = 0; i < cu->mir_graph->GetNumSSARegs(); i++) {
     RegLocation *curr = &cu->reg_location[i];
     int p_map_idx = SRegToPMap(cu, curr->s_reg_low);
     if (!curr->wide) {
@@ -1292,7 +1283,7 @@ int VRegOffset(CompilationUnit* cu, int v_reg)
 /* Returns sp-relative offset in bytes for a SReg */
 int SRegOffset(CompilationUnit* cu, int s_reg)
 {
-  return VRegOffset(cu, SRegToVReg(cu, s_reg));
+  return VRegOffset(cu, cu->mir_graph->SRegToVReg(s_reg));
 }
 
 RegLocation GetBadLoc()
@@ -1329,6 +1320,22 @@ RegLocation GetReturn(CompilationUnit* cu, bool is_float)
     LockTemp(cu, res.low_reg);
   }
   return res;
+}
+
+void Codegen::SimpleRegAlloc(CompilationUnit* cu)
+{
+  DoPromotion(cu);
+
+  /* Get easily-accessable post-promotion copy of RegLocation for Method* */
+  cu->method_loc = cu->reg_location[cu->method_sreg];
+
+  if (cu->verbose && !(cu->disable_opt & (1 << kPromoteRegs))) {
+    LOG(INFO) << "After Promotion";
+    cu->mir_graph->DumpRegLocTable(cu->reg_location, cu->mir_graph->GetNumSSARegs());
+  }
+
+  /* Set the frame size */
+  cu->frame_size = cu->mir_graph->ComputeFrameSize();
 }
 
 }  // namespace art

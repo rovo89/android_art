@@ -16,6 +16,7 @@
 
 #include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
+#include "compiler/dex/compiler_internals.h"
 #include "invoke_type.h"
 #include "ralloc_util.h"
 
@@ -50,9 +51,9 @@ void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int ze
       if (!cu->gen_bitcode) {
         // TUNING: We no longer have this info for QuickGBC - assume the worst
         bool used_as_reference = false;
-        int base_vreg = SRegToVReg(cu, rl_dest.s_reg_low);
-        for (int i = 0; !used_as_reference && (i < cu->num_ssa_regs); i++) {
-          if (SRegToVReg(cu, cu->reg_location[i].s_reg_low) == base_vreg) {
+        int base_vreg = cu->mir_graph->SRegToVReg(rl_dest.s_reg_low);
+        for (int i = 0; !used_as_reference && (i < cu->mir_graph->GetNumSSARegs()); i++) {
+          if (cu->mir_graph->SRegToVReg(cu->reg_location[i].s_reg_low) == base_vreg) {
             used_as_reference |= cu->reg_location[i].ref;
           }
         }
@@ -102,7 +103,7 @@ void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_des
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(cu, r_dest, rl_src.low_reg);
   } else if (IsInexpensiveConstant(cu, rl_src)) {
-    LoadConstantNoClobber(cu, r_dest, ConstantValue(cu, rl_src));
+    LoadConstantNoClobber(cu, r_dest, cu->mir_graph->ConstantValue(rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
@@ -134,7 +135,7 @@ void Codegen::LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int r
   if (rl_src.location == kLocPhysReg) {
     OpRegCopyWide(cu, reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
   } else if (IsInexpensiveConstant(cu, rl_src)) {
-    LoadConstantWide(cu, reg_lo, reg_hi, ConstantValueWide(cu, rl_src));
+    LoadConstantWide(cu, reg_lo, reg_hi, cu->mir_graph->ConstantValueWide(rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
@@ -171,16 +172,16 @@ RegLocation Codegen::LoadValue(CompilationUnit* cu, RegLocation rl_src, Register
 
 void Codegen::StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-#ifndef NDEBUG
   /*
    * Sanity checking - should never try to store to the same
    * ssa name during the compilation of a single instruction
    * without an intervening ClobberSReg().
    */
-  DCHECK((cu->live_sreg == INVALID_SREG) ||
-         (rl_dest.s_reg_low != cu->live_sreg));
-  cu->live_sreg = rl_dest.s_reg_low;
-#endif
+  if (kIsDebugBuild) {
+    DCHECK((cu->live_sreg == INVALID_SREG) ||
+           (rl_dest.s_reg_low != cu->live_sreg));
+    cu->live_sreg = rl_dest.s_reg_low;
+  }
   LIR* def_start;
   LIR* def_end;
   DCHECK(!rl_dest.wide);
@@ -240,16 +241,16 @@ RegLocation Codegen::LoadValueWide(CompilationUnit* cu, RegLocation rl_src, Regi
 
 void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-#ifndef NDEBUG
   /*
    * Sanity checking - should never try to store to the same
    * ssa name during the compilation of a single instruction
    * without an intervening ClobberSReg().
    */
-  DCHECK((cu->live_sreg == INVALID_SREG) ||
-      (rl_dest.s_reg_low != cu->live_sreg));
-  cu->live_sreg = rl_dest.s_reg_low;
-#endif
+  if (kIsDebugBuild) {
+    DCHECK((cu->live_sreg == INVALID_SREG) ||
+           (rl_dest.s_reg_low != cu->live_sreg));
+    cu->live_sreg = rl_dest.s_reg_low;
+  }
   LIR* def_start;
   LIR* def_end;
   DCHECK_EQ(IsFpReg(rl_src.low_reg), IsFpReg(rl_src.high_reg));
@@ -291,8 +292,8 @@ void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocati
       (oat_live_out(cu, rl_dest.s_reg_low) ||
       oat_live_out(cu, GetSRegHi(rl_dest.s_reg_low)))) {
     def_start = cu->last_lir_insn;
-    DCHECK_EQ((SRegToVReg(cu, rl_dest.s_reg_low)+1),
-              SRegToVReg(cu, GetSRegHi(rl_dest.s_reg_low)));
+    DCHECK_EQ((cu->mir_graph->SRegToVReg(rl_dest.s_reg_low)+1),
+              cu->mir_graph->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
     StoreBaseDispWide(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low),
                       rl_dest.low_reg, rl_dest.high_reg);
     MarkClean(cu, rl_dest);

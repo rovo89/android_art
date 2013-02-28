@@ -153,6 +153,7 @@ enum BBType;
 
 void CompilerInitGrowableList(CompilationUnit* cu, GrowableList* g_list,
                               size_t init_length, oat_list_kind kind = kListMisc);
+void ReallocGrowableList(CompilationUnit* cu, GrowableList* g_list, size_t new_length);
 void InsertGrowableList(CompilationUnit* cu, GrowableList* g_list, uintptr_t elem);
 void DeleteGrowableList(GrowableList* g_list, uintptr_t elem);
 void GrowableListIteratorInit(GrowableList* g_list, GrowableListIterator* iterator);
@@ -191,6 +192,10 @@ void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
 void AppendLIR(CompilationUnit *cu, LIR* lir);
 void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
 void InsertLIRAfter(LIR* current_lir, LIR* new_lir);
+void ReplaceSpecialChars(std::string& str);
+char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir);
+std::string GetSSAName(const CompilationUnit* cu, int ssa_reg);
+std::string GetSSANameWithConst(const CompilationUnit* cu, int ssa_reg, bool singles_only);
 
 }  // namespace art
 

@@ -761,8 +761,6 @@ static int dex2oat(int argc, char** argv) {
       StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
       if (backend_str == "Quick") {
         compiler_backend = kQuick;
-      } else if (backend_str == "QuickGBC") {
-        compiler_backend = kQuickGBC;
       } else if (backend_str == "Portable") {
         compiler_backend = kPortable;
       }

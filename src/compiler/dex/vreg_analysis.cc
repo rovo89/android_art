@@ -15,7 +15,7 @@
  */
 
 #include "compiler_internals.h"
-#include "dataflow.h"
+#include "dataflow_iterator.h"
 #include "quick/ralloc_util.h"
 
 namespace art {
@@ -73,7 +73,7 @@ static bool SetHigh(CompilationUnit* cu, int index, bool is_high) {
  * as it doesn't propagate.  We're guaranteed at least one pass through
  * the cfg.
  */
-static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
+bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
 {
   MIR *mir;
   bool changed = false;   // Did anything change?
@@ -90,17 +90,17 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
       // Handle defs
       if (attrs & DF_DA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(cu, ssa_rep->defs[0], true);
+          changed |= SetCore(cu_, ssa_rep->defs[0], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(cu, ssa_rep->defs[0], true);
+          changed |= SetRef(cu_, ssa_rep->defs[0], true);
         }
         if (attrs & DF_A_WIDE) {
-          cu->reg_location[ssa_rep->defs[0]].wide = true;
-          cu->reg_location[ssa_rep->defs[1]].wide = true;
-          cu->reg_location[ssa_rep->defs[1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(cu, ssa_rep->defs[0])+1,
-          SRegToVReg(cu, ssa_rep->defs[1]));
+          cu_->reg_location[ssa_rep->defs[0]].wide = true;
+          cu_->reg_location[ssa_rep->defs[1]].wide = true;
+          cu_->reg_location[ssa_rep->defs[1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(ssa_rep->defs[0])+1,
+          SRegToVReg(ssa_rep->defs[1]));
         }
       }
 
@@ -108,17 +108,17 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
       int next = 0;
       if (attrs & DF_UA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(cu, ssa_rep->uses[next], true);
+          changed |= SetCore(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(cu, ssa_rep->uses[next], true);
+          changed |= SetRef(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_A_WIDE) {
-          cu->reg_location[ssa_rep->uses[next]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(cu, ssa_rep->uses[next])+1,
-          SRegToVReg(cu, ssa_rep->uses[next + 1]));
+          cu_->reg_location[ssa_rep->uses[next]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
+          SRegToVReg(ssa_rep->uses[next + 1]));
           next += 2;
         } else {
           next++;
@@ -126,17 +126,17 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
       }
       if (attrs & DF_UB) {
         if (attrs & DF_CORE_B) {
-          changed |= SetCore(cu, ssa_rep->uses[next], true);
+          changed |= SetCore(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_B) {
-          changed |= SetRef(cu, ssa_rep->uses[next], true);
+          changed |= SetRef(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_B_WIDE) {
-          cu->reg_location[ssa_rep->uses[next]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(cu, ssa_rep->uses[next])+1,
-                               SRegToVReg(cu, ssa_rep->uses[next + 1]));
+          cu_->reg_location[ssa_rep->uses[next]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
+                               SRegToVReg(ssa_rep->uses[next + 1]));
           next += 2;
         } else {
           next++;
@@ -144,17 +144,17 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
       }
       if (attrs & DF_UC) {
         if (attrs & DF_CORE_C) {
-          changed |= SetCore(cu, ssa_rep->uses[next], true);
+          changed |= SetCore(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_C) {
-          changed |= SetRef(cu, ssa_rep->uses[next], true);
+          changed |= SetRef(cu_, ssa_rep->uses[next], true);
         }
         if (attrs & DF_C_WIDE) {
-          cu->reg_location[ssa_rep->uses[next]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu->reg_location[ssa_rep->uses[next + 1]].high_word = true;
-          DCHECK_EQ(SRegToVReg(cu, ssa_rep->uses[next])+1,
-          SRegToVReg(cu, ssa_rep->uses[next + 1]));
+          cu_->reg_location[ssa_rep->uses[next]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
+          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
+          SRegToVReg(ssa_rep->uses[next + 1]));
         }
       }
 
@@ -162,29 +162,29 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
       if ((mir->dalvikInsn.opcode == Instruction::RETURN) ||
           (mir->dalvikInsn.opcode == Instruction::RETURN_WIDE) ||
           (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
-        switch(cu->shorty[0]) {
+        switch(cu_->shorty[0]) {
             case 'I':
-              changed |= SetCore(cu, ssa_rep->uses[0], true);
+              changed |= SetCore(cu_, ssa_rep->uses[0], true);
               break;
             case 'J':
-              changed |= SetCore(cu, ssa_rep->uses[0], true);
-              changed |= SetCore(cu, ssa_rep->uses[1], true);
-              cu->reg_location[ssa_rep->uses[0]].wide = true;
-              cu->reg_location[ssa_rep->uses[1]].wide = true;
-              cu->reg_location[ssa_rep->uses[1]].high_word = true;
+              changed |= SetCore(cu_, ssa_rep->uses[0], true);
+              changed |= SetCore(cu_, ssa_rep->uses[1], true);
+              cu_->reg_location[ssa_rep->uses[0]].wide = true;
+              cu_->reg_location[ssa_rep->uses[1]].wide = true;
+              cu_->reg_location[ssa_rep->uses[1]].high_word = true;
               break;
             case 'F':
-              changed |= SetFp(cu, ssa_rep->uses[0], true);
+              changed |= SetFp(cu_, ssa_rep->uses[0], true);
               break;
             case 'D':
-              changed |= SetFp(cu, ssa_rep->uses[0], true);
-              changed |= SetFp(cu, ssa_rep->uses[1], true);
-              cu->reg_location[ssa_rep->uses[0]].wide = true;
-              cu->reg_location[ssa_rep->uses[1]].wide = true;
-              cu->reg_location[ssa_rep->uses[1]].high_word = true;
+              changed |= SetFp(cu_, ssa_rep->uses[0], true);
+              changed |= SetFp(cu_, ssa_rep->uses[1], true);
+              cu_->reg_location[ssa_rep->uses[0]].wide = true;
+              cu_->reg_location[ssa_rep->uses[1]].wide = true;
+              cu_->reg_location[ssa_rep->uses[1]].high_word = true;
               break;
             case 'L':
-              changed |= SetRef(cu, ssa_rep->uses[0], true);
+              changed |= SetRef(cu_, ssa_rep->uses[0], true);
               break;
             default: break;
         }
@@ -198,20 +198,20 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
           (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
         DCHECK_EQ(next, 0);
         int target_idx = mir->dalvikInsn.vB;
-        const char* shorty = GetShortyFromTargetIdx(cu, target_idx);
+        const char* shorty = GetShortyFromTargetIdx(cu_, target_idx);
         // Handle result type if floating point
         if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
-          MIR* move_result_mir = FindMoveResult(cu, bb, mir);
+          MIR* move_result_mir = FindMoveResult(bb, mir);
           // Result might not be used at all, so no move-result
           if (move_result_mir && (move_result_mir->dalvikInsn.opcode !=
               Instruction::MOVE_RESULT_OBJECT)) {
             SSARepresentation* tgt_rep = move_result_mir->ssa_rep;
             DCHECK(tgt_rep != NULL);
             tgt_rep->fp_def[0] = true;
-            changed |= SetFp(cu, tgt_rep->defs[0], true);
+            changed |= SetFp(cu_, tgt_rep->defs[0], true);
             if (shorty[0] == 'D') {
               tgt_rep->fp_def[1] = true;
-              changed |= SetFp(cu, tgt_rep->defs[1], true);
+              changed |= SetFp(cu_, tgt_rep->defs[1], true);
             }
           }
         }
@@ -219,8 +219,8 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
         // If this is a non-static invoke, mark implicit "this"
         if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
             (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
-          cu->reg_location[ssa_rep->uses[next]].defined = true;
-          cu->reg_location[ssa_rep->uses[next]].ref = true;
+          cu_->reg_location[ssa_rep->uses[next]].defined = true;
+          cu_->reg_location[ssa_rep->uses[next]].ref = true;
           next++;
         }
         uint32_t cpos = 1;
@@ -231,30 +231,28 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
               case 'D':
                 ssa_rep->fp_use[i] = true;
                 ssa_rep->fp_use[i+1] = true;
-                cu->reg_location[ssa_rep->uses[i]].wide = true;
-                cu->reg_location[ssa_rep->uses[i+1]].wide = true;
-                cu->reg_location[ssa_rep->uses[i+1]].high_word = true;
-                DCHECK_EQ(SRegToVReg(cu, ssa_rep->uses[i])+1,
-                                     SRegToVReg(cu, ssa_rep->uses[i+1]));
+                cu_->reg_location[ssa_rep->uses[i]].wide = true;
+                cu_->reg_location[ssa_rep->uses[i+1]].wide = true;
+                cu_->reg_location[ssa_rep->uses[i+1]].high_word = true;
+                DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
                 i++;
                 break;
               case 'J':
-                cu->reg_location[ssa_rep->uses[i]].wide = true;
-                cu->reg_location[ssa_rep->uses[i+1]].wide = true;
-                cu->reg_location[ssa_rep->uses[i+1]].high_word = true;
-                DCHECK_EQ(SRegToVReg(cu, ssa_rep->uses[i])+1,
-                                     SRegToVReg(cu, ssa_rep->uses[i+1]));
-                changed |= SetCore(cu, ssa_rep->uses[i],true);
+                cu_->reg_location[ssa_rep->uses[i]].wide = true;
+                cu_->reg_location[ssa_rep->uses[i+1]].wide = true;
+                cu_->reg_location[ssa_rep->uses[i+1]].high_word = true;
+                DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
+                changed |= SetCore(cu_, ssa_rep->uses[i],true);
                 i++;
                 break;
               case 'F':
                 ssa_rep->fp_use[i] = true;
                 break;
               case 'L':
-                changed |= SetRef(cu,ssa_rep->uses[i], true);
+                changed |= SetRef(cu_,ssa_rep->uses[i], true);
                 break;
               default:
-                changed |= SetCore(cu,ssa_rep->uses[i], true);
+                changed |= SetCore(cu_,ssa_rep->uses[i], true);
                 break;
             }
             i++;
@@ -264,11 +262,11 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
 
       for (int i=0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
         if (ssa_rep->fp_use[i])
-          changed |= SetFp(cu, ssa_rep->uses[i], true);
+          changed |= SetFp(cu_, ssa_rep->uses[i], true);
         }
       for (int i=0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
         if (ssa_rep->fp_def[i])
-          changed |= SetFp(cu, ssa_rep->defs[i], true);
+          changed |= SetFp(cu_, ssa_rep->defs[i], true);
         }
       // Special-case handling for moves & Phi
       if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
@@ -280,14 +278,14 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
          */
         bool is_phi = (static_cast<int>(mir->dalvikInsn.opcode) ==
                       kMirOpPhi);
-        RegLocation rl_temp = cu->reg_location[ssa_rep->defs[0]];
+        RegLocation rl_temp = cu_->reg_location[ssa_rep->defs[0]];
         bool defined_fp = rl_temp.defined && rl_temp.fp;
         bool defined_core = rl_temp.defined && rl_temp.core;
         bool defined_ref = rl_temp.defined && rl_temp.ref;
         bool is_wide = rl_temp.wide || ((attrs & DF_A_WIDE) != 0);
         bool is_high = is_phi && rl_temp.wide && rl_temp.high_word;
         for (int i = 0; i < ssa_rep->num_uses;i++) {
-          rl_temp = cu->reg_location[ssa_rep->uses[i]];
+          rl_temp = cu_->reg_location[ssa_rep->uses[i]];
           defined_fp |= rl_temp.defined && rl_temp.fp;
           defined_core |= rl_temp.defined && rl_temp.core;
           defined_ref |= rl_temp.defined && rl_temp.ref;
@@ -309,32 +307,32 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
          * relies on distinctions between core and fp usages.
          */
         if ((defined_fp && (defined_core | defined_ref)) &&
-            ((cu->disable_opt & (1 << kPromoteRegs)) == 0)) {
-          LOG(WARNING) << PrettyMethod(cu->method_idx, *cu->dex_file)
+            ((cu_->disable_opt & (1 << kPromoteRegs)) == 0)) {
+          LOG(WARNING) << PrettyMethod(cu_->method_idx, *cu_->dex_file)
                        << " op at block " << bb->id
                        << " has both fp and core/ref uses for same def.";
-          cu->disable_opt |= (1 << kPromoteRegs);
+          cu_->disable_opt |= (1 << kPromoteRegs);
         }
-        changed |= SetFp(cu, ssa_rep->defs[0], defined_fp);
-        changed |= SetCore(cu, ssa_rep->defs[0], defined_core);
-        changed |= SetRef(cu, ssa_rep->defs[0], defined_ref);
-        changed |= SetWide(cu, ssa_rep->defs[0], is_wide);
-        changed |= SetHigh(cu, ssa_rep->defs[0], is_high);
+        changed |= SetFp(cu_, ssa_rep->defs[0], defined_fp);
+        changed |= SetCore(cu_, ssa_rep->defs[0], defined_core);
+        changed |= SetRef(cu_, ssa_rep->defs[0], defined_ref);
+        changed |= SetWide(cu_, ssa_rep->defs[0], is_wide);
+        changed |= SetHigh(cu_, ssa_rep->defs[0], is_high);
         if (attrs & DF_A_WIDE) {
-          changed |= SetWide(cu, ssa_rep->defs[1], true);
-          changed |= SetHigh(cu, ssa_rep->defs[1], true);
+          changed |= SetWide(cu_, ssa_rep->defs[1], true);
+          changed |= SetHigh(cu_, ssa_rep->defs[1], true);
         }
         for (int i = 0; i < ssa_rep->num_uses; i++) {
-          changed |= SetFp(cu, ssa_rep->uses[i], defined_fp);
-          changed |= SetCore(cu, ssa_rep->uses[i], defined_core);
-          changed |= SetRef(cu, ssa_rep->uses[i], defined_ref);
-          changed |= SetWide(cu, ssa_rep->uses[i], is_wide);
-          changed |= SetHigh(cu, ssa_rep->uses[i], is_high);
+          changed |= SetFp(cu_, ssa_rep->uses[i], defined_fp);
+          changed |= SetCore(cu_, ssa_rep->uses[i], defined_core);
+          changed |= SetRef(cu_, ssa_rep->uses[i], defined_ref);
+          changed |= SetWide(cu_, ssa_rep->uses[i], is_wide);
+          changed |= SetHigh(cu_, ssa_rep->uses[i], is_high);
         }
         if (attrs & DF_A_WIDE) {
           DCHECK_EQ(ssa_rep->num_uses, 2);
-          changed |= SetWide(cu, ssa_rep->uses[1], true);
-          changed |= SetHigh(cu, ssa_rep->uses[1], true);
+          changed |= SetWide(cu_, ssa_rep->uses[1], true);
+          changed |= SetHigh(cu_, ssa_rep->uses[1], true);
         }
       }
     }
@@ -344,20 +342,33 @@ static bool InferTypeAndSize(CompilationUnit* cu, BasicBlock* bb)
 
 static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
-static void DumpRegLocTable(CompilationUnit* cu, RegLocation* table, int count)
+void MIRGraph::DumpRegLocTable(RegLocation* table, int count)
 {
-  Codegen* cg = cu->cg.get();
-  for (int i = 0; i < count; i++) {
-    LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c %c%d %c%d S%d",
-        table[i].orig_sreg, storage_name[table[i].location],
-        table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
-        table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
-        table[i].is_const ? 'c' : 'n',
-        table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-        cg->IsFpReg(table[i].low_reg) ? 's' : 'r',
-        table[i].low_reg & cg->FpRegMask(),
-        cg->IsFpReg(table[i].high_reg) ? 's' : 'r',
-        table[i].high_reg & cg->FpRegMask(), table[i].s_reg_low);
+  Codegen* cg = cu_->cg.get();
+  if (cg != NULL) {
+    for (int i = 0; i < count; i++) {
+      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c %c%d %c%d S%d",
+          table[i].orig_sreg, storage_name[table[i].location],
+          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
+          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
+          table[i].is_const ? 'c' : 'n',
+          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
+          cg->IsFpReg(table[i].low_reg) ? 's' : 'r',
+          table[i].low_reg & cg->FpRegMask(),
+          cg->IsFpReg(table[i].high_reg) ? 's' : 'r',
+          table[i].high_reg & cg->FpRegMask(), table[i].s_reg_low);
+    }
+  } else {
+    // Either pre-regalloc or Portable.
+    for (int i = 0; i < count; i++) {
+      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c S%d",
+          table[i].orig_sreg, storage_name[table[i].location],
+          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
+          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
+          table[i].is_const ? 'c' : 'n',
+          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
+          table[i].s_reg_low);
+    }
   }
 }
 
@@ -365,12 +376,12 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG,
                                      INVALID_SREG};
 
-int ComputeFrameSize(CompilationUnit* cu) {
+int MIRGraph::ComputeFrameSize() {
   /* Figure out the frame size */
   static const uint32_t kAlignMask = kStackAlignment - 1;
-  uint32_t size = (cu->num_core_spills + cu->num_fp_spills +
-                   1 /* filler word */ + cu->num_regs + cu->num_outs +
-                   cu->num_compiler_temps + 1 /* cur_method* */)
+  uint32_t size = (cu_->num_core_spills + cu_->num_fp_spills +
+                   1 /* filler word */ + cu_->num_regs + cu_->num_outs +
+                   cu_->num_compiler_temps + 1 /* cur_method* */)
                    * sizeof(uint32_t);
   /* Align and set */
   return (size + kAlignMask) & ~(kAlignMask);
@@ -382,79 +393,79 @@ int ComputeFrameSize(CompilationUnit* cu) {
  * allocation is done on the fly.  We also do some initialization and
  * type inference here.
  */
-void SimpleRegAlloc(CompilationUnit* cu)
+void MIRGraph::BuildRegLocations()
 {
   int i;
   RegLocation* loc;
 
   /* Allocate the location map */
-  loc = static_cast<RegLocation*>(NewMem(cu, cu->num_ssa_regs * sizeof(*loc),
+  loc = static_cast<RegLocation*>(NewMem(cu_, GetNumSSARegs() * sizeof(*loc),
                                   true, kAllocRegAlloc));
-  for (i=0; i< cu->num_ssa_regs; i++) {
+  for (i=0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
-    loc[i].is_const = IsBitSet(cu->is_constant_v, i);
+    loc[i].is_const = IsBitSet(is_constant_v_, i);
   }
 
   /* Patch up the locations for Method* and the compiler temps */
-  loc[cu->method_sreg].location = kLocCompilerTemp;
-  loc[cu->method_sreg].defined = true;
-  for (i = 0; i < cu->num_compiler_temps; i++) {
-    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cu->compiler_temps.elem_list[i]);
+  loc[cu_->method_sreg].location = kLocCompilerTemp;
+  loc[cu_->method_sreg].defined = true;
+  for (i = 0; i < cu_->num_compiler_temps; i++) {
+    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cu_->compiler_temps.elem_list[i]);
     loc[ct->s_reg].location = kLocCompilerTemp;
     loc[ct->s_reg].defined = true;
   }
 
-  cu->reg_location = loc;
+  cu_->reg_location = loc;
 
   /* Allocation the promotion map */
-  int num_regs = cu->num_dalvik_registers;
-  cu->promotion_map = static_cast<PromotionMap*>
-      (NewMem(cu, (num_regs + cu->num_compiler_temps + 1) * sizeof(cu->promotion_map[0]),
+  int num_regs = cu_->num_dalvik_registers;
+  cu_->promotion_map = static_cast<PromotionMap*>
+      (NewMem(cu_, (num_regs + cu_->num_compiler_temps + 1) * sizeof(cu_->promotion_map[0]),
               true, kAllocRegAlloc));
 
   /* Add types of incoming arguments based on signature */
-  int num_ins = cu->num_ins;
+  int num_ins = cu_->num_ins;
   if (num_ins > 0) {
     int s_reg = num_regs - num_ins;
-    if ((cu->access_flags & kAccStatic) == 0) {
+    if ((cu_->access_flags & kAccStatic) == 0) {
       // For non-static, skip past "this"
-      cu->reg_location[s_reg].defined = true;
-      cu->reg_location[s_reg].ref = true;
+      cu_->reg_location[s_reg].defined = true;
+      cu_->reg_location[s_reg].ref = true;
       s_reg++;
     }
-    const char* shorty = cu->shorty;
+    const char* shorty = cu_->shorty;
     int shorty_len = strlen(shorty);
     for (int i = 1; i < shorty_len; i++) {
       switch (shorty[i]) {
         case 'D':
-          cu->reg_location[s_reg].wide = true;
-          cu->reg_location[s_reg+1].high_word = true;
-          cu->reg_location[s_reg+1].fp = true;
-          DCHECK_EQ(SRegToVReg(cu, s_reg)+1, SRegToVReg(cu, s_reg+1));
-          cu->reg_location[s_reg].fp = true;
-          cu->reg_location[s_reg].defined = true;
+          cu_->reg_location[s_reg].wide = true;
+          cu_->reg_location[s_reg+1].high_word = true;
+          cu_->reg_location[s_reg+1].fp = true;
+          DCHECK_EQ(SRegToVReg(s_reg)+1, SRegToVReg(s_reg+1));
+          cu_->reg_location[s_reg].fp = true;
+          cu_->reg_location[s_reg].defined = true;
           s_reg++;
           break;
         case 'J':
-          cu->reg_location[s_reg].wide = true;
-          cu->reg_location[s_reg+1].high_word = true;
-          DCHECK_EQ(SRegToVReg(cu, s_reg)+1, SRegToVReg(cu, s_reg+1));
-          cu->reg_location[s_reg].core = true;
-          cu->reg_location[s_reg].defined = true;
+          cu_->reg_location[s_reg].wide = true;
+          cu_->reg_location[s_reg+1].high_word = true;
+          DCHECK_EQ(SRegToVReg(s_reg)+1, SRegToVReg(s_reg+1));
+          cu_->reg_location[s_reg].core = true;
+          cu_->reg_location[s_reg].defined = true;
           s_reg++;
           break;
         case 'F':
-          cu->reg_location[s_reg].fp = true;
-          cu->reg_location[s_reg].defined = true;
+          cu_->reg_location[s_reg].fp = true;
+          cu_->reg_location[s_reg].defined = true;
           break;
         case 'L':
-          cu->reg_location[s_reg].ref = true;
-          cu->reg_location[s_reg].defined = true;
+          cu_->reg_location[s_reg].ref = true;
+          cu_->reg_location[s_reg].defined = true;
           break;
         default:
-          cu->reg_location[s_reg].core = true;
-          cu->reg_location[s_reg].defined = true;
+          cu_->reg_location[s_reg].core = true;
+          cu_->reg_location[s_reg].defined = true;
           break;
         }
         s_reg++;
@@ -462,72 +473,24 @@ void SimpleRegAlloc(CompilationUnit* cu)
   }
 
   /* Do type & size inference pass */
-  DataFlowAnalysisDispatcher(cu, InferTypeAndSize,
-                                kPreOrderDFSTraversal,
-                                true /* is_iterative */);
+  DataflowIterator iter(this, kPreOrderDFSTraversal, true /* iterative */);
+  bool change = false;
+  for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
+    change = InferTypeAndSize(bb);
+  }
 
   /*
    * Set the s_reg_low field to refer to the pre-SSA name of the
    * base Dalvik virtual register.  Once we add a better register
    * allocator, remove this remapping.
    */
-  for (i=0; i < cu->num_ssa_regs; i++) {
-    if (cu->reg_location[i].location != kLocCompilerTemp) {
-      int orig_sreg = cu->reg_location[i].s_reg_low;
-      cu->reg_location[i].orig_sreg = orig_sreg;
-      cu->reg_location[i].s_reg_low = SRegToVReg(cu, orig_sreg);
+  for (i=0; i < GetNumSSARegs(); i++) {
+    if (cu_->reg_location[i].location != kLocCompilerTemp) {
+      int orig_sreg = cu_->reg_location[i].s_reg_low;
+      cu_->reg_location[i].orig_sreg = orig_sreg;
+      cu_->reg_location[i].s_reg_low = SRegToVReg(orig_sreg);
     }
   }
-
-  /*
-   * Now that everything is typed and constants propagated, identify those constants
-   * that can be cheaply materialized and don't need to be flushed to a home location.
-   * The default is to not flush, and some have already been marked as must flush.
-   */
-  for (i=0; i < cu->num_ssa_regs; i++) {
-    if (IsBitSet(cu->is_constant_v, i)) {
-      bool flush = false;
-      RegLocation loc = cu->reg_location[i];
-      if (loc.wide) {
-        int64_t value = ConstantValueWide(cu, loc);
-        if (loc.fp) {
-          flush = !cu->cg->InexpensiveConstantDouble(value);
-        } else {
-          flush = !cu->cg->InexpensiveConstantLong(value);
-        }
-      } else {
-        int32_t value = ConstantValue(cu, loc);
-        if (loc.fp) {
-          flush = !cu->cg->InexpensiveConstantFloat(value);
-        } else {
-          flush = !cu->cg->InexpensiveConstantInt(value);
-        }
-      }
-      if (flush) {
-        SetBit(cu, cu->must_flush_constant_v, i);
-      }
-      if (loc.wide) {
-        i++;  // Skip the high word
-      }
-    }
-  }
-
-  cu->core_spill_mask = 0;
-  cu->fp_spill_mask = 0;
-  cu->num_core_spills = 0;
-
-  DoPromotion(cu);
-
-  /* Get easily-accessable post-promotion copy of RegLocation for Method* */
-  cu->method_loc = cu->reg_location[cu->method_sreg];
-
-  if (cu->verbose && !(cu->disable_opt & (1 << kPromoteRegs))) {
-    LOG(INFO) << "After Promotion";
-    DumpRegLocTable(cu, cu->reg_location, cu->num_ssa_regs);
-  }
-
-  /* Set the frame size */
-  cu->frame_size = ComputeFrameSize(cu);
 }
 
 }  // namespace art

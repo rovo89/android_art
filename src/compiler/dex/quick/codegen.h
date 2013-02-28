@@ -105,7 +105,25 @@ class Codegen {
 
   public:
 
+    struct SwitchTable {
+      int offset;
+      const uint16_t* table;      // Original dex table.
+      int vaddr;                  // Dalvik offset of switch opcode.
+      LIR* anchor;                // Reference instruction for relative offsets.
+      LIR** targets;              // Array of case targets.
+    };
+
+    struct FillArrayData {
+      int offset;
+      const uint16_t* table;      // Original dex table.
+      int size;
+      int vaddr;                  // Dalvik offset of FILL_ARRAY_DATA opcode.
+    };
+
     virtual ~Codegen(){};
+
+    // Shared by all targets - implemented in ralloc_util.cc
+    void SimpleRegAlloc(CompilationUnit* cu);
 
     // Shared by all targets - implemented in gen_common.cc.
     void HandleSuspendLaunchPads(CompilationUnit *cu);
@@ -355,9 +373,9 @@ class Codegen {
                                                int second_bit) = 0;
     virtual void GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src) = 0;
     virtual void GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src) = 0;
-    virtual void GenPackedSwitch(CompilationUnit* cu, uint32_t table_offset,
+    virtual void GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src) = 0;
-    virtual void GenSparseSwitch(CompilationUnit* cu, uint32_t table_offset,
+    virtual void GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src) = 0;
     virtual void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case) = 0;
