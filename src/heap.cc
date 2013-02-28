@@ -40,6 +40,7 @@
 #include "gc/mod_union_table-inl.h"
 #include "gc/space.h"
 #include "image.h"
+#include "invoke_arg_array_builder.h"
 #include "mirror/class-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/object.h"
@@ -1730,10 +1731,12 @@ mirror::Object* Heap::DequeuePendingReference(mirror::Object** list) {
 
 void Heap::AddFinalizerReference(Thread* self, mirror::Object* object) {
   ScopedObjectAccess soa(self);
-  JValue args[1];
-  args[0].SetL(object);
-  soa.DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self, NULL, args,
-                                                                                   NULL);
+  JValue result;
+  JValue float_result;
+  ArgArray arg_array(NULL, 0);
+  arg_array.Append(reinterpret_cast<uint32_t>(object));
+  soa.DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self,
+      arg_array.GetArray(), arg_array.GetNumBytes(), &result, &float_result);
 }
 
 size_t Heap::GetBytesAllocated() const {
@@ -1766,10 +1769,12 @@ void Heap::EnqueueClearedReferences(mirror::Object** cleared) {
     // When a runtime isn't started there are no reference queues to care about so ignore.
     if (LIKELY(Runtime::Current()->IsStarted())) {
       ScopedObjectAccess soa(Thread::Current());
-      JValue args[1];
-      args[0].SetL(*cleared);
-      soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(), NULL,
-                                                                                   args, NULL);
+      JValue result;
+      JValue float_result;
+      ArgArray arg_array(NULL, 0);
+      arg_array.Append(reinterpret_cast<uint32_t>(*cleared));
+      soa.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(soa.Self(),
+          arg_array.GetArray(), arg_array.GetNumBytes(), &result, &float_result);
     }
     *cleared = NULL;
   }

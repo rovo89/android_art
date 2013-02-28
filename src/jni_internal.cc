@@ -85,20 +85,19 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   return reinterpret_cast<jweak>(ref);
 }
 
-static bool IsBadJniVersion(int version) {
-  // We don't support JNI_VERSION_1_1. These are the only other valid versions.
-  return version != JNI_VERSION_1_2 && version != JNI_VERSION_1_4 && version != JNI_VERSION_1_6;
-}
-
-static void CheckMethodArguments(AbstractMethod* m, JValue* args)
+static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
   const DexFile::TypeList* params = mh.GetParameterTypeList();
   if (params == NULL) {
     return;  // No arguments so nothing to check.
   }
+  uint32_t offset = 0;
   uint32_t num_params = params->Size();
   size_t error_count = 0;
+  if (!m->IsStatic()) {
+    offset = 1;
+  }
   for (uint32_t i = 0; i < num_params; i++) {
     uint16_t type_idx = params->GetTypeItem(i).type_idx_;
     Class* param_type = mh.GetClassFromTypeIdx(type_idx);
@@ -112,12 +111,14 @@ static void CheckMethodArguments(AbstractMethod* m, JValue* args)
       ++error_count;
     } else if (!param_type->IsPrimitive()) {
       // TODO: check primitives are in range.
-      Object* argument = args[i].GetL();
+      Object* argument = reinterpret_cast<Object*>(args[i + offset]);
       if (argument != NULL && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
                    << PrettyTypeOf(argument) << " as argument " << (i + 1) << " to " << PrettyMethod(m);
         ++error_count;
       }
+    } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
+      offset++;
     }
   }
   if (error_count > 0) {
@@ -127,15 +128,13 @@ static void CheckMethodArguments(AbstractMethod* m, JValue* args)
   }
 }
 
-static JValue InvokeWithArgArray(const ScopedObjectAccess& soa, Object* receiver,
-                                 AbstractMethod* method, JValue* args)
+void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
+                        ArgArray* arg_array, JValue* result, JValue* float_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(soa.Env()->check_jni)) {
-    CheckMethodArguments(method, args);
+    CheckMethodArguments(method, arg_array->GetArray());
   }
-  JValue result;
-  method->Invoke(soa.Self(), receiver, args, &result);
-  return result;
+  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, float_result);
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
@@ -144,9 +143,16 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
   MethodHelper mh(method);
+  JValue result;
+  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, args);
-  return InvokeWithArgArray(soa, receiver, method, arg_array.get());
+  arg_array.BuildArgArray(soa, receiver, args);
+  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
+  if (mh.IsReturnFloatOrDouble()) {
+    return float_result;
+  } else {
+    return result;
+  }
 }
 
 static AbstractMethod* FindVirtualMethod(Object* receiver, AbstractMethod* method)
@@ -160,9 +166,16 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
+  JValue result;
+  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, args);
-  return InvokeWithArgArray(soa, receiver, method, arg_array.get());
+  arg_array.BuildArgArray(soa, receiver, args);
+  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
+  if (mh.IsReturnFloatOrDouble()) {
+    return float_result;
+  } else {
+    return result;
+  }
 }
 
 static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
@@ -171,9 +184,16 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
+  JValue result;
+  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, args);
-  return InvokeWithArgArray(soa, receiver, method, arg_array.get());
+  arg_array.BuildArgArray(soa, receiver, args);
+  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
+  if (mh.IsReturnFloatOrDouble()) {
+    return float_result;
+  } else {
+    return result;
+  }
 }
 
 // Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
@@ -570,15 +590,16 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
   MethodHelper mh(method);
+  JValue result;
+  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  arg_array.BuildArgArray(soa, args);
-  return InvokeWithArgArray(soa, receiver, method, arg_array.get());
-}
-
-JValue InvokeWithJValues(const ScopedObjectAccess& soa, Object* receiver, AbstractMethod* m,
-                         JValue* args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return InvokeWithArgArray(soa, receiver, m, args);
+  arg_array.BuildArgArray(soa, receiver, args);
+  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
+  if (mh.IsReturnFloatOrDouble()) {
+    return float_result;
+  } else {
+    return result;
+  }
 }
 
 class JNI {

@@ -17,6 +17,7 @@
 #include "reflection.h"
 
 #include "class_linker.h"
+#include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"
 #include "mirror/abstract_method-inl.h"
@@ -243,9 +244,18 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   if (kIsDebugBuild) {
     CHECK_EQ(soa.Self()->GetState(), kRunnable);
   }
-  JValue args[1] = { value };
+
+  ArgArray arg_array(NULL, 0);
   JValue result;
-  soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &result);
+  JValue float_result;
+  if (src_class == Primitive::kPrimDouble || src_class == Primitive::kPrimLong) {
+    arg_array.AppendWide(value.GetJ());
+  } else {
+    arg_array.Append(value.GetI());
+  }
+
+  soa.DecodeMethod(m)->Invoke(soa.Self(), arg_array.GetArray(), arg_array.GetNumBytes(),
+                              &result, &float_result);
   return result.GetL();
 }
 

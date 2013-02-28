@@ -34,7 +34,8 @@ class Thread;
 namespace interpreter {
 
 extern void EnterInterpreterFromInvoke(Thread* self, mirror::AbstractMethod* method,
-                                       mirror::Object* receiver, JValue* args, JValue* result)
+                                       mirror::Object* receiver, uint32_t* args,
+                                       JValue* result, JValue* float_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern JValue EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame& shadow_frame,

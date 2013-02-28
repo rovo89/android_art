@@ -31,6 +31,9 @@
 namespace art {
 namespace mirror {
 
+extern "C" void art_quick_invoke_stub(AbstractMethod*, uint32_t*, uint32_t,
+                                      Thread*, JValue*, JValue*);
+
 // TODO: get global references for these
 Class* AbstractMethod::java_lang_reflect_Constructor_ = NULL;
 Class* AbstractMethod::java_lang_reflect_Method_ = NULL;
@@ -276,7 +279,8 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) 
   return DexFile::kDexNoIndex;
 }
 
-void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) {
+void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
+                            JValue* float_result) {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
@@ -294,47 +298,83 @@ void AbstractMethod::Invoke(Thread* self, Object* receiver, JValue* args, JValue
     LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
       result->SetJ(0);
+      float_result->SetJ(0);
     }
   } else {
     bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative() && !IsProxyMethod();
     const bool kLogInvocationStartAndReturn = false;
-    if (!interpret && GetCode() != NULL && stub != NULL) {
-      if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Invoking '%s' code=%p stub=%p",
-                                  PrettyMethod(this).c_str(), GetCode(), stub);
-      }
-      (*stub)(this, receiver, self, args, result);
-      if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException()) == -1)) {
-        // Unusual case where we were running LLVM generated code and an
-        // exception was thrown to force the activations to be removed from the
-        // stack. Continue execution in the interpreter.
-        JValue value;
-        self->ClearException();
-        ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(&value);
-        self->SetTopOfShadowStack(shadow_frame);
-        interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
-      }
-      if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
-                                  PrettyMethod(this).c_str(), GetCode(), stub);
-      }
-    } else {
-      const bool kInterpretMethodsWithNoCode = false;
-      if (interpret || kInterpretMethodsWithNoCode) {
+    if (GetCode() != NULL) {
+      if (!interpret) {
+        if (kLogInvocationStartAndReturn) {
+          LOG(INFO) << StringPrintf("Invoking '%s' code=%p stub=%p",
+                                    PrettyMethod(this).c_str(), GetCode(), stub);
+        }
+        // TODO: Temporary to keep portable working while stubs are removed from quick.
+#ifdef ART_USE_PORTABLE_COMPILER
+        MethodHelper mh(this);
+        const char* shorty = mh.GetShorty();
+        uint32_t shorty_len = mh.GetShortyLength();
+        UniquePtr<JValue[]> jvalue_args(new JValue[shorty_len - 1]);
+        Object* receiver = NULL;
+        uint32_t* ptr = args;
+        if (!this->IsStatic()) {
+          receiver = reinterpret_cast<Object*>(*ptr);
+          ptr++;
+        }
+        for (uint32_t i = 1; i < shorty_len; i++) {
+          if ((shorty[i] == 'J') || (shorty[i] == 'D')) {
+            jvalue_args[i - 1].SetJ(*((uint64_t*)ptr));
+            ptr++;
+          } else {
+            jvalue_args[i - 1].SetI(*ptr);
+          }
+          ptr++;
+        }
+        if (mh.IsReturnFloatOrDouble()) {
+          (*stub)(this, receiver, self, jvalue_args.get(), float_result);
+        } else {
+          (*stub)(this, receiver, self, jvalue_args.get(), result);
+        }
+#else
+        (*art_quick_invoke_stub)(this, args, args_size, self, result, float_result);
+#endif
+        if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException()) == -1)) {
+          // Unusual case where we were running LLVM generated code and an
+          // exception was thrown to force the activations to be removed from the
+          // stack. Continue execution in the interpreter.
+          JValue value;
+          self->ClearException();
+          ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(&value);
+          self->SetTopOfShadowStack(shadow_frame);
+          interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
+        }
+        if (kLogInvocationStartAndReturn) {
+          LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
+                                    PrettyMethod(this).c_str(), GetCode(), stub);
+        }
+      } else {
         if (kLogInvocationStartAndReturn) {
           LOG(INFO) << "Interpreting " << PrettyMethod(this) << "'";
         }
-        art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args, result);
+        if (this->IsStatic()) {
+          art::interpreter::EnterInterpreterFromInvoke(self, this, NULL, args,
+                                                       result, float_result);
+        } else {
+          Object* receiver = reinterpret_cast<Object*>(args[0]);
+          art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1,
+                                                       result, float_result);
+        }
         if (kLogInvocationStartAndReturn) {
           LOG(INFO) << "Returned '" << PrettyMethod(this) << "'";
         }
-      } else {
-        LOG(INFO) << "Not invoking '" << PrettyMethod(this)
-              << "' code=" << reinterpret_cast<const void*>(GetCode())
-              << " stub=" << reinterpret_cast<void*>(stub);
-        if (result != NULL) {
-          result->SetJ(0);
-        }
+      }
+    } else {
+      LOG(INFO) << "Not invoking '" << PrettyMethod(this)
+          << "' code=" << reinterpret_cast<const void*>(GetCode())
+          << " stub=" << reinterpret_cast<void*>(stub);
+      if (result != NULL) {
+        result->SetJ(0);
+        float_result->SetJ(0);
       }
     }
   }

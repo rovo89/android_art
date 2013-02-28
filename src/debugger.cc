@@ -26,6 +26,7 @@
 #include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
+#include "invoke_arg_array_builder.h"
 #include "jdwp/object_registry.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class.h"
@@ -2723,8 +2724,16 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   LOG(INFO) << "self=" << soa.Self() << " pReq->receiver_=" << pReq->receiver_ << " m=" << m
       << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
-  pReq->result_value = InvokeWithJValues(soa, pReq->receiver_, m,
-                                         reinterpret_cast<JValue*>(pReq->arg_values_));
+
+  MethodHelper mh(m);
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  arg_array.BuildArgArray(soa, pReq->receiver_, reinterpret_cast<jvalue*>(pReq->arg_values_));
+  JValue unused_result;
+  if (mh.IsReturnFloatOrDouble()) {
+    InvokeWithArgArray(soa, m, &arg_array, &unused_result, &pReq->result_value);
+  } else {
+    InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, &unused_result);
+  }
 
   pReq->exception = gRegistry->Add(soa.Self()->GetException());
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());

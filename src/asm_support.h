@@ -27,6 +27,9 @@
 #define STRING_OFFSET_OFFSET 20
 #define STRING_DATA_OFFSET 12
 
+// Offset of field Method::code_
+#define METHOD_CODE_OFFSET 32
+
 #if defined(__arm__)
 // Register holding suspend check count down.
 #define rSUSPEND r4

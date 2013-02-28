@@ -39,6 +39,7 @@
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
+#include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/array.h"
@@ -628,8 +629,11 @@ static void CreateSystemClassLoader() {
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
-  mirror::ClassLoader* class_loader =
-    down_cast<mirror::ClassLoader*>(InvokeWithJValues(soa, NULL, getSystemClassLoader, NULL).GetL());
+  JValue result;
+  JValue float_result;
+  ArgArray arg_array(NULL, 0);
+  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, &float_result);
+  mirror::ClassLoader* class_loader = down_cast<mirror::ClassLoader*>(result.GetL());
   CHECK(class_loader != NULL);
 
   soa.Self()->SetClassLoaderOverride(class_loader);

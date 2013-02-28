@@ -54,6 +54,10 @@ class MANAGED AbstractMethod : public Object {
     return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_));
   }
 
+  static MemberOffset CodeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, code_));
+  }
+
   uint32_t GetAccessFlags() const;
 
   void SetAccessFlags(uint32_t new_access_flags) {
@@ -189,7 +193,8 @@ class MANAGED AbstractMethod : public Object {
   // Find the method that this method overrides
   AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result)
+  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
+              JValue* float_result)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {

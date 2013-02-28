@@ -103,13 +103,16 @@
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
     .save {r1-r3, r5-r8, r10-r11, lr}
     .cfi_adjust_cfa_offset 40
-    .cfi_rel_offset r5, 0
-    .cfi_rel_offset r6, 4
-    .cfi_rel_offset r7, 8
-    .cfi_rel_offset r8, 12
-    .cfi_rel_offset r10, 16
-    .cfi_rel_offset r11, 20
-    .cfi_rel_offset lr, 24
+    .cfi_rel_offset r1, 0
+    .cfi_rel_offset r2, 4
+    .cfi_rel_offset r3, 8
+    .cfi_rel_offset r5, 12
+    .cfi_rel_offset r6, 16
+    .cfi_rel_offset r7, 20
+    .cfi_rel_offset r8, 24
+    .cfi_rel_offset r10, 28
+    .cfi_rel_offset r11, 32
+    .cfi_rel_offset lr, 36
     sub sp, #8                        @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
@@ -243,6 +246,53 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+    /*
+     * Invocation stub.
+     * On entry:
+     *   r0 = method pointer
+     *   r1 = argument array or NULL for no argument methods
+     *   r2 = size of argument array in bytes
+     *   r3 = (managed) thread pointer
+     *   [sp] = JValue* result for non-floating point returns
+     *   [sp + 4] = JValue* result for floating point returns
+     */
+ENTRY art_quick_invoke_stub
+    push   {r0, r4, r5, r9, r11, lr}       @ spill regs
+    .save  {r0, r4, r5, r9, r11, lr}
+    .pad #24
+    .cfi_adjust_cfa_offset 24
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r4, 4
+    .cfi_rel_offset r5, 8
+    .cfi_rel_offset r9, 12
+    .cfi_rel_offset r11, 16
+    .cfi_rel_offset lr, 20
+    mov    r11, sp                         @ save the stack pointer
+    .cfi_def_cfa_register r11
+    mov    r9, r3                          @ move managed thread pointer into r9
+    mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
+    add    r5, r2, #16                     @ create space for method pointer in frame
+    and    r5, #0xFFFFFFF8                 @ align frame size to 16 bytes
+    sub    sp, r5                          @ reserve stack space for argument array
+    add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
+    bl     memcpy                          @ memcpy (dest, src, bytes)
+    ldr    r0, [r11]                       @ restore method*
+    ldr    r1, [sp, #4]                    @ copy arg value for r1
+    ldr    r2, [sp, #8]                    @ copy arg value for r2
+    ldr    r3, [sp, #12]                   @ copy arg value for r3
+    mov    ip, #0                          @ set ip to 0
+    str    ip, [sp]                        @ store NULL for method* at bottom of frame
+    ldr    ip, [r0, #METHOD_CODE_OFFSET]   @ get pointer to the code
+    blx    ip                              @ call the method
+    add    sp, r5                          @ restore the stack
+    ldr    ip, [sp, #24]                   @ load the result pointer
+    strd   r0, [ip]                        @ store r0/r1 into result pointer
+    ldr    ip, [sp, #28]                   @ load the floating point result pointer
+    strd   r0, [ip]                        @ store r0/r1 into floating point result pointer
+    pop    {r0, r4, r5, r9, r11, lr}       @ restore spill regs
+    .cfi_adjust_cfa_offset -24
+    bx     lr
+END art_quick_invoke_stub
     /*
      * On entry, r0 and r1 must be preserved, r2 is dex PC
      */

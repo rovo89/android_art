@@ -42,6 +42,7 @@ class AbstractMethod;
 class ClassLoader;
 class Field;
 }
+class ArgArray;
 union JValue;
 class Libraries;
 class ScopedObjectAccess;
@@ -55,8 +56,8 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-JValue InvokeWithJValues(const ScopedObjectAccess&, mirror::Object* receiver,
-                         mirror::AbstractMethod* m, JValue* args)
+void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::AbstractMethod* method,
+                        ArgArray *arg_array, JValue* result, JValue* float_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);

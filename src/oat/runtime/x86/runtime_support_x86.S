@@ -301,6 +301,50 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+    /*
+     * Invocation stub.
+     * On entry:
+     *   [sp] = return address
+     *   [sp + 4] = method pointer
+     *   [sp + 8] = argument array or NULL for no argument methods
+     *   [sp + 12] = size of argument array in bytes
+     *   [sp + 16] = (managed) thread pointer
+     *   [sp + 20] = JValue* result for non-floating point returns
+     *   [sp + 24] = JValue* result for floating point returns
+     */
+DEFINE_FUNCTION art_quick_invoke_stub
+    PUSH ebp                      // save ebp
+    PUSH ebx                      // save ebx
+    mov %esp, %ebp                // copy value of stack pointer into base pointer
+    .cfi_def_cfa_register ebp
+    mov 20(%ebp), %ebx            // get arg array size
+    addl LITERAL(28), %ebx        // reserve space for return addr, method*, ebx, and ebp in frame
+    andl LITERAL(0xFFFFFFF8), %ebx    // align frame size to 16 bytes
+    subl LITERAL(12), %ebx        // remove space for return address, ebx, and ebp
+    subl %ebx, %esp               // reserve stack space for argument array
+    lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
+    pushl 20(%ebp)                // push size of region to memcpy
+    pushl 16(%ebp)                // push arg array as source of memcpy
+    pushl %eax                    // push stack pointer as destination of memcpy
+    call SYMBOL(memcpy)           // (void*, const void*, size_t)
+    addl LITERAL(12), %esp        // pop arguments to memcpy
+    movl LITERAL(0), (%esp)       // store NULL for method*
+    mov 12(%ebp), %eax            // move method pointer into eax
+    mov 4(%esp), %ecx             // copy arg1 into ecx
+    mov 8(%esp), %edx             // copy arg2 into edx
+    mov 12(%esp), %ebx            // copy arg3 into ebx
+    call METHOD_CODE_OFFSET(%eax) // call the method
+    mov %ebp, %esp                // restore stack pointer
+    POP ebx                       // pop ebx
+    POP ebp                       // pop ebp
+    mov 20(%esp), %ecx            // get result pointer
+    mov %eax, (%ecx)              // store the result
+    mov %edx, 4(%ecx)             // store the other half of the result
+    mov 24(%esp), %ecx            // get floating point result pointer
+    movsd %xmm0, (%ecx)           // store the floating point result
+    ret
+END_FUNCTION art_quick_invoke_stub
+
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name, 0)
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
