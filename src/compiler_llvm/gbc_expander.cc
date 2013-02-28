@@ -1135,11 +1135,18 @@ void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_vregs_value) {
   llvm::StructType* shadow_frame_type =
     irb_.getShadowFrameTy(num_vregs);
 
+  // Create allocas at the start of entry block.
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  llvm::BasicBlock* entry_block = &func_->front();
+  irb_.SetInsertPoint(&entry_block->front());
+
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Alloca a pointer to old shadow frame
   old_shadow_frame_ =
     irb_.CreateAlloca(shadow_frame_type->getElementType(0)->getPointerTo());
+
+  irb_.restoreIP(irb_ip_original);
 
   // Push the shadow frame
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
