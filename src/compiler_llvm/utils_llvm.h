@@ -27,7 +27,7 @@
 namespace art {
 
 #ifndef NDEBUG
-#define VERIFY_LLVM_FUNCTION(func) llvm::verifyFunction(func, llvm::PrintMessageAction)
+#define VERIFY_LLVM_FUNCTION(func) llvm::verifyFunction(func, llvm::AbortProcessAction)
 #else
 #define VERIFY_LLVM_FUNCTION(func)
 #endif
