@@ -41,7 +41,7 @@
 #if defined(__linux__)
 #include <sys/personality.h>
 #include <sys/utsname.h>
-#include <linux/capability.h>
+#include <sys/capability.h>
 #endif
 
 namespace art {
