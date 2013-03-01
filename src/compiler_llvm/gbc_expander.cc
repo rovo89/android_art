@@ -294,12 +294,13 @@ class GBCExpanderPass : public llvm::FunctionPass {
                                   llvm::Value* denominator,
                                   JType op_jty);
 
-  void EmitGuard_NullPointerException(uint32_t dex_pc,
-                                      llvm::Value* object);
+  void EmitGuard_NullPointerException(uint32_t dex_pc, llvm::Value* object,
+                                      int opt_flags);
 
   void EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
                                                 llvm::Value* array,
-                                                llvm::Value* index);
+                                                llvm::Value* index,
+                                                int opt_flags);
 
   llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
 
@@ -1352,12 +1353,9 @@ llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
   llvm::Value* index_value = call_inst.getArgOperand(2);
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, array_addr);
-  }
-  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-    EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, index_value);
-  }
+  EmitGuard_NullPointerException(dex_pc, array_addr, opt_flags);
+  EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, index_value,
+                                           opt_flags);
 
   llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
@@ -1375,12 +1373,9 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
   llvm::Value* index_value = call_inst.getArgOperand(3);
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, array_addr);
-  }
-  if (!(opt_flags & MIR_IGNORE_RANGE_CHECK)) {
-    EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, index_value);
-  }
+  EmitGuard_NullPointerException(dex_pc, array_addr, opt_flags);
+  EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, index_value,
+                                           opt_flags);
 
   new_value = TruncateCat1Types(new_value, elem_jty);
 
@@ -1408,9 +1403,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(2));
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, object_addr);
-  }
+  EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
   llvm::Value* field_value;
 
@@ -1477,9 +1470,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty));
   }
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, object_addr);
-  }
+  EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
   int field_offset;
   bool is_volatile;
@@ -1901,9 +1892,7 @@ void GBCExpanderPass::Expand_MonitorEnter(llvm::CallInst& call_inst) {
   llvm::Value* object_addr = call_inst.getArgOperand(1);
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, object_addr);
-  }
+  EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
   EmitUpdateDexPC(dex_pc);
 
@@ -1917,9 +1906,7 @@ void GBCExpanderPass::Expand_MonitorExit(llvm::CallInst& call_inst) {
   llvm::Value* object_addr = call_inst.getArgOperand(1);
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, object_addr);
-  }
+  EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
   EmitUpdateDexPC(dex_pc);
 
@@ -2117,12 +2104,12 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
       EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
                                                this_addr, dex_pc, is_fast_path);
 
-    if (!is_static && !(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-      EmitGuard_NullPointerException(dex_pc, this_addr);
+    if (!is_static) {
+      EmitGuard_NullPointerException(dex_pc, this_addr, opt_flags);
     }
   } else {
-    if (!is_static && !(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-      EmitGuard_NullPointerException(dex_pc, this_addr);
+    if (!is_static) {
+      EmitGuard_NullPointerException(dex_pc, this_addr, opt_flags);
     }
 
     switch (invoke_type) {
@@ -2196,9 +2183,7 @@ llvm::Value* GBCExpanderPass::Expand_OptArrayLength(llvm::CallInst& call_inst) {
   llvm::Value* array_addr = call_inst.getArgOperand(1);
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (!(opt_flags & MIR_IGNORE_NULL_CHECK)) {
-    EmitGuard_NullPointerException(dex_pc, array_addr);
-  }
+  EmitGuard_NullPointerException(dex_pc, array_addr, opt_flags);
 
   // Get the array length and store it to the register
   return EmitLoadArrayLength(array_addr);
@@ -2284,7 +2269,7 @@ void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
     // When the number of the elements in the payload is zero, we don't have
     // to copy any numbers.  However, we should check whether the array object
     // address is equal to null or not.
-    EmitGuard_NullPointerException(dex_pc, array_addr);
+    EmitGuard_NullPointerException(dex_pc, array_addr, 0);
   } else {
     // To save the code size, we are going to call the runtime function to
     // copy the content from DexFile.
@@ -2443,49 +2428,89 @@ void GBCExpanderPass::EmitGuard_DivZeroException(uint32_t dex_pc,
 }
 
 void GBCExpanderPass::EmitGuard_NullPointerException(uint32_t dex_pc,
-                                                     llvm::Value* object) {
-  llvm::Value* equal_null = irb_.CreateICmpEQ(object, irb_.getJNull());
+                                                     llvm::Value* object,
+                                                     int opt_flags) {
+  bool ignore_null_check = ((opt_flags & MIR_IGNORE_NULL_CHECK) != 0);
+  if (ignore_null_check) {
+    llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc);
+    if (lpad) {
+      // There is at least one catch: create a "fake" conditional branch to
+      // keep the exception edge to the catch block.
+      landing_pad_phi_mapping_[lpad].push_back(
+          std::make_pair(current_bb_->getUniquePredecessor(),
+                         irb_.GetInsertBlock()));
 
-  llvm::BasicBlock* block_exception =
-    CreateBasicBlockWithDexPC(dex_pc, "nullp");
+      llvm::BasicBlock* block_continue =
+          CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  llvm::BasicBlock* block_continue =
-    CreateBasicBlockWithDexPC(dex_pc, "cont");
+      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue);
 
-  irb_.CreateCondBr(equal_null, block_exception, block_continue, kUnlikely);
+      irb_.SetInsertPoint(block_continue);
+    }
+  } else {
+    llvm::Value* equal_null = irb_.CreateICmpEQ(object, irb_.getJNull());
 
-  irb_.SetInsertPoint(block_exception);
-  EmitUpdateDexPC(dex_pc);
-  irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowNullPointerException),
-                  irb_.getInt32(dex_pc));
-  EmitBranchExceptionLandingPad(dex_pc);
+    llvm::BasicBlock* block_exception =
+        CreateBasicBlockWithDexPC(dex_pc, "nullp");
 
-  irb_.SetInsertPoint(block_continue);
+    llvm::BasicBlock* block_continue =
+        CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+    irb_.CreateCondBr(equal_null, block_exception, block_continue, kUnlikely);
+
+    irb_.SetInsertPoint(block_exception);
+    EmitUpdateDexPC(dex_pc);
+    irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowNullPointerException),
+                    irb_.getInt32(dex_pc));
+    EmitBranchExceptionLandingPad(dex_pc);
+
+    irb_.SetInsertPoint(block_continue);
+  }
 }
 
 void
 GBCExpanderPass::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
                                                           llvm::Value* array,
-                                                          llvm::Value* index) {
-  llvm::Value* array_len = EmitLoadArrayLength(array);
+                                                          llvm::Value* index,
+                                                          int opt_flags) {
+  bool ignore_range_check = ((opt_flags & MIR_IGNORE_RANGE_CHECK) != 0);
+  if (ignore_range_check) {
+    llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc);
+    if (lpad) {
+      // There is at least one catch: create a "fake" conditional branch to
+      // keep the exception edge to the catch block.
+      landing_pad_phi_mapping_[lpad].push_back(
+          std::make_pair(current_bb_->getUniquePredecessor(),
+                         irb_.GetInsertBlock()));
 
-  llvm::Value* cmp = irb_.CreateICmpUGE(index, array_len);
+      llvm::BasicBlock* block_continue =
+          CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  llvm::BasicBlock* block_exception =
-    CreateBasicBlockWithDexPC(dex_pc, "overflow");
+      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue);
 
-  llvm::BasicBlock* block_continue =
-    CreateBasicBlockWithDexPC(dex_pc, "cont");
+      irb_.SetInsertPoint(block_continue);
+    }
+  } else {
+    llvm::Value* array_len = EmitLoadArrayLength(array);
 
-  irb_.CreateCondBr(cmp, block_exception, block_continue, kUnlikely);
+    llvm::Value* cmp = irb_.CreateICmpUGE(index, array_len);
 
-  irb_.SetInsertPoint(block_exception);
+    llvm::BasicBlock* block_exception =
+        CreateBasicBlockWithDexPC(dex_pc, "overflow");
 
-  EmitUpdateDexPC(dex_pc);
-  irb_.CreateCall2(irb_.GetRuntime(runtime_support::ThrowIndexOutOfBounds), index, array_len);
-  EmitBranchExceptionLandingPad(dex_pc);
+    llvm::BasicBlock* block_continue =
+        CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  irb_.SetInsertPoint(block_continue);
+    irb_.CreateCondBr(cmp, block_exception, block_continue, kUnlikely);
+
+    irb_.SetInsertPoint(block_exception);
+
+    EmitUpdateDexPC(dex_pc);
+    irb_.CreateCall2(irb_.GetRuntime(runtime_support::ThrowIndexOutOfBounds), index, array_len);
+    EmitBranchExceptionLandingPad(dex_pc);
+
+    irb_.SetInsertPoint(block_continue);
+  }
 }
 
 llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
