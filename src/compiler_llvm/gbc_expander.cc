@@ -1434,6 +1434,9 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 
+    if (field_jty == kFloat || field_jty == kDouble) {
+      field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty));
+    }
   } else {
     DCHECK_GE(field_offset, 0);
 
@@ -1451,10 +1454,6 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     field_value = SignOrZeroExtendCat1Types(field_value, field_jty);
   }
 
-  if (field_jty == kFloat || field_jty == kDouble) {
-    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty));
-  }
-
   return field_value;
 }
 
@@ -1466,10 +1465,6 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(3));
   int opt_flags = LV2UInt(call_inst.getArgOperand(0));
 
-  if (field_jty == kFloat || field_jty == kDouble) {
-    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty));
-  }
-
   EmitGuard_NullPointerException(dex_pc, object_addr, opt_flags);
 
   int field_offset;
@@ -1479,6 +1474,12 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
+
+    if (field_jty == kFloat) {
+      new_value = irb_.CreateBitCast(new_value, irb_.getJType(kInt));
+    } else if (field_jty == kDouble) {
+      new_value = irb_.CreateBitCast(new_value, irb_.getJType(kLong));
+    }
 
     if (field_jty == kObject) {
       runtime_func = irb_.GetRuntime(runtime_support::SetObjectInstance);
@@ -1695,6 +1696,9 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 
+    if (field_jty == kFloat || field_jty == kDouble) {
+      static_field_value = irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty));
+    }
   } else {
     DCHECK_GE(field_offset, 0);
 
@@ -1728,11 +1732,6 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
     static_field_value = SignOrZeroExtendCat1Types(static_field_value, field_jty);
   }
 
-  if (field_jty == kFloat || field_jty == kDouble) {
-    static_field_value =
-        irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty));
-  }
-
   return static_field_value;
 }
 
@@ -1764,6 +1763,12 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
       runtime_func = irb_.GetRuntime(runtime_support::Set64Static);
     } else {
       runtime_func = irb_.GetRuntime(runtime_support::Set32Static);
+    }
+
+    if (field_jty == kFloat) {
+      new_value = irb_.CreateBitCast(new_value, irb_.getJType(kInt));
+    } else if (field_jty == kDouble) {
+      new_value = irb_.CreateBitCast(new_value, irb_.getJType(kLong));
     }
 
     llvm::Constant* field_idx_value = irb_.getInt32(field_idx);
