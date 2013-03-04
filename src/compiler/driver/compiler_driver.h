@@ -35,7 +35,7 @@
 namespace art {
 
 class AOTCompilationStats;
-class CompilationContext;
+class ParallelCompilationManager;
 class OatCompilationUnit;
 class TimingLogger;
 
@@ -313,7 +313,7 @@ class CompilerDriver {
                      jobject class_loader, const DexFile& dex_file)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  static void CompileClass(const CompilationContext* context, size_t class_def_index)
+  static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub)
