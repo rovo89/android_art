@@ -22,7 +22,7 @@
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "ir_builder.h"
-#include "jni_compiler.h"
+#include "compiler/jni/portable/jni_compiler.h"
 #include "llvm_compilation_unit.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"

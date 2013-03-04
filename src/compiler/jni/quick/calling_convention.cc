@@ -17,9 +17,9 @@
 #include "calling_convention.h"
 
 #include "base/logging.h"
-#include "oat/jni/arm/calling_convention_arm.h"
-#include "oat/jni/mips/calling_convention_mips.h"
-#include "oat/jni/x86/calling_convention_x86.h"
+#include "compiler/jni/quick/arm/calling_convention_arm.h"
+#include "compiler/jni/quick/mips/calling_convention_mips.h"
+#include "compiler/jni/quick/x86/calling_convention_x86.h"
 #include "utils.h"
 
 namespace art {

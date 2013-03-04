@@ -14,20 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
-#define ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
+#ifndef ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_
+#define ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_
 
-#include "oat/jni/calling_convention.h"
+#include "compiler/jni/quick/calling_convention.h"
 
 namespace art {
-namespace x86 {
+namespace arm {
 
-class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
+class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  explicit X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
-                                              const char* shorty)
+  ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
       : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
-  virtual ~X86ManagedRuntimeCallingConvention() {}
+  virtual ~ArmManagedRuntimeCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
@@ -38,20 +37,23 @@ class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
   virtual ManagedRegister CurrentParamRegister();
   virtual FrameOffset CurrentParamStackOffset();
   virtual const std::vector<ManagedRegister>& EntrySpills();
+
  private:
   std::vector<ManagedRegister> entry_spills_;
-  DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
+
+  DISALLOW_COPY_AND_ASSIGN(ArmManagedRuntimeCallingConvention);
 };
 
-class X86JniCallingConvention : public JniCallingConvention {
+class ArmJniCallingConvention : public JniCallingConvention {
  public:
-  explicit X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
-  virtual ~X86JniCallingConvention() {}
+  explicit ArmJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  virtual ~ArmJniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
   virtual ManagedRegister IntReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
   // JNI calling convention
+  virtual void Next();  // Override default behavior for AAPCS
   virtual size_t FrameSize();
   virtual size_t OutArgSize();
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const {
@@ -60,7 +62,7 @@ class X86JniCallingConvention : public JniCallingConvention {
   virtual ManagedRegister ReturnScratchRegister() const;
   virtual uint32_t CoreSpillMask() const;
   virtual uint32_t FpSpillMask() const {
-    return 0;
+    return 0;  // Floats aren't spilled in JNI down call
   }
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
@@ -74,10 +76,13 @@ class X86JniCallingConvention : public JniCallingConvention {
   // TODO: these values aren't unique and can be shared amongst instances
   std::vector<ManagedRegister> callee_save_regs_;
 
-  DISALLOW_COPY_AND_ASSIGN(X86JniCallingConvention);
+  // Padding to ensure longs and doubles are not split in AAPCS
+  size_t padding_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArmJniCallingConvention);
 };
 
-}  // namespace x86
+}  // namespace arm
 }  // namespace art
 
-#endif  // ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
+#endif  // ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_

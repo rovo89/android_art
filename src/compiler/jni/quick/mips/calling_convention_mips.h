@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_
-#define ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_
+#ifndef ART_SRC_OAT_JNI_MIPS_CALLING_CONVENTION_MIPS_H_
+#define ART_SRC_OAT_JNI_MIPS_CALLING_CONVENTION_MIPS_H_
 
-#include "oat/jni/calling_convention.h"
+#include "compiler/jni/quick/calling_convention.h"
 
 namespace art {
-namespace arm {
-
-class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
+namespace mips {
+class MipsManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+  MipsManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
       : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
-  virtual ~ArmManagedRuntimeCallingConvention() {}
+  virtual ~MipsManagedRuntimeCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
@@ -41,13 +40,13 @@ class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
  private:
   std::vector<ManagedRegister> entry_spills_;
 
-  DISALLOW_COPY_AND_ASSIGN(ArmManagedRuntimeCallingConvention);
+  DISALLOW_COPY_AND_ASSIGN(MipsManagedRuntimeCallingConvention);
 };
 
-class ArmJniCallingConvention : public JniCallingConvention {
+class MipsJniCallingConvention : public JniCallingConvention {
  public:
-  explicit ArmJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
-  virtual ~ArmJniCallingConvention() {}
+  explicit MipsJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  virtual ~MipsJniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
   virtual ManagedRegister IntReturnRegister();
@@ -79,10 +78,9 @@ class ArmJniCallingConvention : public JniCallingConvention {
   // Padding to ensure longs and doubles are not split in AAPCS
   size_t padding_;
 
-  DISALLOW_COPY_AND_ASSIGN(ArmJniCallingConvention);
+  DISALLOW_COPY_AND_ASSIGN(MipsJniCallingConvention);
 };
-
-}  // namespace arm
+}  // namespace mips
 }  // namespace art
 
-#endif  // ART_SRC_OAT_JNI_ARM_CALLING_CONVENTION_ARM_H_
+#endif  // ART_SRC_OAT_JNI_MIPS_CALLING_CONVENTION_MIPS_H_

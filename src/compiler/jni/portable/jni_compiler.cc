@@ -20,16 +20,16 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
-#include "compiler_llvm.h"
-#include "ir_builder.h"
-#include "llvm_compilation_unit.h"
+#include "compiler_llvm/compiler_llvm.h"
+#include "compiler_llvm/ir_builder.h"
+#include "compiler_llvm/llvm_compilation_unit.h"
+#include "compiler_llvm/runtime_support_func.h"
+#include "compiler_llvm/utils_llvm.h"
 #include "mirror/abstract_method.h"
 #include "oat_compilation_unit.h"
 #include "runtime.h"
-#include "runtime_support_func.h"
 #include "stack.h"
 #include "thread.h"
-#include "utils_llvm.h"
 
 #include <llvm/BasicBlock.h>
 #include <llvm/DerivedTypes.h>

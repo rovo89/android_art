@@ -48,12 +48,17 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/ralloc.cc \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
+	src/compiler/jni/portable/jni_compiler.cc \
+	src/compiler/jni/quick/arm/calling_convention_arm.cc \
+	src/compiler/jni/quick/mips/calling_convention_mips.cc \
+	src/compiler/jni/quick/x86/calling_convention_x86.cc \
+	src/compiler/jni/quick/calling_convention.cc \
+	src/compiler/jni/quick/jni_compiler.cc \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/gbc_expander.cc \
 	src/compiler_llvm/generated/art_module.cc \
         src/compiler_llvm/intrinsic_helper.cc \
 	src/compiler_llvm/ir_builder.cc \
-	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/llvm_compilation_unit.cc \
 	src/compiler_llvm/md_builder.cc \
 	src/compiler_llvm/runtime_support_builder.cc \
@@ -63,13 +68,8 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/stub_compiler.cc \
 	src/elf_writer.cc \
-	src/oat/jni/arm/calling_convention_arm.cc \
 	src/oat/jni/arm/jni_internal_arm.cc \
-	src/oat/jni/calling_convention.cc \
-	src/oat/jni/jni_compiler.cc \
-	src/oat/jni/mips/calling_convention_mips.cc \
 	src/oat/jni/mips/jni_internal_mips.cc \
-	src/oat/jni/x86/calling_convention_x86.cc \
 	src/oat/jni/x86/jni_internal_x86.cc
 
 LIBART_COMPILER_CFLAGS :=
