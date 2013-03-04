@@ -196,7 +196,7 @@ static void InitIR(CompilationUnit* cu)
 {
   LLVMInfo* llvm_info = cu->llvm_info;
   if (llvm_info == NULL) {
-    CompilerTls* tls = cu->compiler->GetTls();
+    CompilerTls* tls = cu->compiler_driver->GetTls();
     CHECK(tls != NULL);
     llvm_info = static_cast<LLVMInfo*>(tls->GetLLVMInfo());
     if (llvm_info == NULL) {
@@ -1032,9 +1032,9 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::RETURN_VOID: {
         if (((cu->access_flags & kAccConstructor) != 0) &&
-            cu->compiler->RequiresConstructorBarrier(Thread::Current(),
-                                                     cu->dex_file,
-                                                     cu->class_def_idx)) {
+            cu->compiler_driver->RequiresConstructorBarrier(Thread::Current(),
+                                                            cu->dex_file,
+                                                            cu->class_def_idx)) {
           EmitConstructorBarrier(cu);
         }
         if (!(cu->attrs & METHOD_IS_LEAF)) {

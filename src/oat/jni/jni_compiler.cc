@@ -22,7 +22,7 @@
 #include "calling_convention.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "disassembler.h"
 #include "jni_internal.h"
 #include "oat/runtime/oat_support_entrypoints.h"
@@ -51,7 +51,7 @@ static void SetNativeParameter(Assembler* jni_asm,
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
+CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver& compiler,
                                             uint32_t access_flags, uint32_t method_idx,
                                             const DexFile& dex_file) {
   const bool is_native = (access_flags & kAccNative) != 0;
@@ -481,7 +481,7 @@ static void SetNativeParameter(Assembler* jni_asm,
 
 }  // namespace art
 
-extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver& compiler,
                                                          uint32_t access_flags, uint32_t method_idx,
                                                          const art::DexFile& dex_file) {
   return ArtJniCompileMethodInternal(compiler, access_flags, method_idx, dex_file);

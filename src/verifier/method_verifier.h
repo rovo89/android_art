@@ -23,7 +23,7 @@
 #include "base/casts.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "instruction_flags.h"
@@ -183,7 +183,7 @@ class MethodVerifier {
   // information
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static const std::vector<uint8_t>* GetDexGcMap(Compiler::MethodReference ref)
+  static const std::vector<uint8_t>* GetDexGcMap(CompilerDriver::MethodReference ref)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
@@ -195,7 +195,7 @@ class MethodVerifier {
   static void Init();
   static void Shutdown();
 
-  static bool IsClassRejected(Compiler::ClassReference ref)
+  static bool IsClassRejected(CompilerDriver::ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
 
   bool CanLoadClasses() const {
@@ -569,17 +569,17 @@ class MethodVerifier {
   InstructionFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
-  typedef SafeMap<const Compiler::MethodReference, const std::vector<uint8_t>*> DexGcMapTable;
+  typedef SafeMap<const CompilerDriver::MethodReference, const std::vector<uint8_t>*> DexGcMapTable;
   static Mutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
-  static void SetDexGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
+  static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
-  typedef std::set<Compiler::ClassReference> RejectedClassesTable;
+  typedef std::set<CompilerDriver::ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static RejectedClassesTable* rejected_classes_;
 
-  static void AddRejectedClass(Compiler::ClassReference ref)
+  static void AddRejectedClass(CompilerDriver::ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
 
   RegTypeCache reg_types_;

@@ -221,9 +221,9 @@ void Codegen::GenNewArray(CompilationUnit* cu, uint32_t type_idx, RegLocation rl
 {
   FlushAllRegs(cu);  /* Everything to home location */
   int func_offset;
-  if (cu->compiler->CanAccessTypeWithoutChecks(cu->method_idx,
-                                                  *cu->dex_file,
-                                                  type_idx)) {
+  if (cu->compiler_driver->CanAccessTypeWithoutChecks(cu->method_idx,
+                                                      *cu->dex_file,
+                                                      type_idx)) {
     func_offset = ENTRYPOINT_OFFSET(pAllocArrayFromCode);
   } else {
     func_offset= ENTRYPOINT_OFFSET(pAllocArrayFromCodeWithAccessCheck);
@@ -245,9 +245,9 @@ void Codegen::GenFilledNewArray(CompilationUnit* cu, CallInfo* info)
   int type_idx = info->index;
   FlushAllRegs(cu);  /* Everything to home location */
   int func_offset;
-  if (cu->compiler->CanAccessTypeWithoutChecks(cu->method_idx,
-                                                  *cu->dex_file,
-                                                  type_idx)) {
+  if (cu->compiler_driver->CanAccessTypeWithoutChecks(cu->method_idx,
+                                                      *cu->dex_file,
+                                                      type_idx)) {
     func_offset = ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCode);
   } else {
     func_offset = ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCodeWithAccessCheck);
@@ -358,10 +358,10 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
                             cu->class_def_idx, cu->method_idx, cu->access_flags);
 
   bool fast_path =
-      cu->compiler->ComputeStaticFieldInfo(field_idx, &m_unit,
-                                              field_offset, ssb_index,
-                                              is_referrers_class, is_volatile,
-                                              true);
+      cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,
+                                                  field_offset, ssb_index,
+                                                  is_referrers_class, is_volatile,
+                                                  true);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -452,10 +452,10 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
                             cu->access_flags);
 
   bool fast_path =
-    cu->compiler->ComputeStaticFieldInfo(field_idx, &m_unit,
-                                            field_offset, ssb_index,
-                                            is_referrers_class, is_volatile,
-                                            false);
+      cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,
+                                                  field_offset, ssb_index,
+                                                  is_referrers_class, is_volatile,
+                                                  false);
   if (fast_path && !SLOW_FIELD_PATH) {
     DCHECK_GE(field_offset, 0);
     int rBase;
@@ -783,7 +783,7 @@ void Codegen::GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation 
   RegLocation rl_method = LoadCurrMethod(cu);
   int res_reg = AllocTemp(cu);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
-  if (!cu->compiler->CanAccessTypeWithoutChecks(cu->method_idx,
+  if (!cu->compiler_driver->CanAccessTypeWithoutChecks(cu->method_idx,
                                                    *cu->dex_file,
                                                    type_idx)) {
     // Call out to helper which resolves type and verifies access.
@@ -801,7 +801,7 @@ void Codegen::GenConstClass(CompilationUnit* cu, uint32_t type_idx, RegLocation 
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
                           * type_idx);
     LoadWordDisp(cu, res_reg, offset_of_type, rl_result.low_reg);
-    if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(*cu->dex_file,
+    if (!cu->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu->dex_file,
         type_idx) || SLOW_TYPE_PATH) {
       // Slow path, at runtime test if type is null and if so initialize
       FlushAllRegs(cu);
@@ -842,7 +842,7 @@ void Codegen::GenConstString(CompilationUnit* cu, uint32_t string_idx, RegLocati
   /* NOTE: Most strings should be available at compile time */
   int32_t offset_of_string = mirror::Array::DataOffset(sizeof(mirror::String*)).Int32Value() +
                  (sizeof(mirror::String*) * string_idx);
-  if (!cu->compiler->CanAssumeStringIsPresentInDexCache(
+  if (!cu->compiler_driver->CanAssumeStringIsPresentInDexCache(
       *cu->dex_file, string_idx) || SLOW_STRING_PATH) {
     // slow path, resolve string if not in dex cache
     FlushAllRegs(cu);
@@ -900,7 +900,7 @@ void Codegen::GenNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation
   // alloc will always check for resolution, do we also need to verify
   // access because the verifier was unable to?
   int func_offset;
-  if (cu->compiler->CanAccessInstantiableTypeWithoutChecks(
+  if (cu->compiler_driver->CanAccessInstantiableTypeWithoutChecks(
       cu->method_idx, *cu->dex_file, type_idx)) {
     func_offset = ENTRYPOINT_OFFSET(pAllocObjectFromCode);
   } else {
@@ -925,7 +925,7 @@ void Codegen::GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation 
   LockCallTemps(cu);
   LoadCurrMethodDirect(cu, TargetReg(kArg1));  // kArg1 <= current Method*
   int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*
-  if (!cu->compiler->CanAccessTypeWithoutChecks(cu->method_idx,
+  if (!cu->compiler_driver->CanAccessTypeWithoutChecks(cu->method_idx,
                                                    *cu->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -943,7 +943,7 @@ void Codegen::GenInstanceof(CompilationUnit* cu, uint32_t type_idx, RegLocation 
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
         * type_idx);
     LoadWordDisp(cu, class_reg, offset_of_type, class_reg);
-    if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(
+    if (!cu->compiler_driver->CanAssumeTypeIsPresentInDexCache(
         *cu->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hop_branch = OpCmpImmBranch(cu, kCondNe, class_reg, 0, NULL);
@@ -1010,7 +1010,7 @@ void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation r
   LockCallTemps(cu);
   LoadCurrMethodDirect(cu, TargetReg(kArg1));  // kArg1 <= current Method*
   int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*
-  if (!cu->compiler->CanAccessTypeWithoutChecks(cu->method_idx,
+  if (!cu->compiler_driver->CanAccessTypeWithoutChecks(cu->method_idx,
                                                    *cu->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -1027,7 +1027,7 @@ void Codegen::GenCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation r
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
         (sizeof(mirror::Class*) * type_idx);
     LoadWordDisp(cu, class_reg, offset_of_type, class_reg);
-    if (!cu->compiler->CanAssumeTypeIsPresentInDexCache(
+    if (!cu->compiler_driver->CanAssumeTypeIsPresentInDexCache(
         *cu->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hop_branch = OpCmpImmBranch(cu, kCondNe, class_reg, 0, NULL);

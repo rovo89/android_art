@@ -21,7 +21,7 @@
 
 #include <cstddef>
 
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "mem_map.h"
 #include "oat.h"
 #include "mirror/class.h"
@@ -68,7 +68,7 @@ class OatWriter {
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
-                     const Compiler& compiler)
+                     const CompilerDriver& compiler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
@@ -76,7 +76,7 @@ class OatWriter {
             uint32_t image_file_location_oat_checksum,
             uint32_t image_file_location_oat_begin,
             const std::string& image_file_location,
-            const Compiler& compiler) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+            const CompilerDriver* compiler) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ~OatWriter();
 
   size_t InitOatHeader();
@@ -148,7 +148,7 @@ class OatWriter {
     DISALLOW_COPY_AND_ASSIGN(OatClass);
   };
 
-  const Compiler* compiler_;
+  const CompilerDriver* const compiler_driver_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;

@@ -20,7 +20,7 @@
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "compiler/dex/compiler_internals.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "globals.h"
 #include "instruction_set.h"
 #include "oat_compilation_unit.h"
@@ -78,8 +78,8 @@ class LlvmCompilationUnit {
   LLVMInfo* GetQuickContext() const {
     return llvm_info_.get();
   }
-  void SetCompiler(Compiler* compiler) {
-    compiler_ = compiler;
+  void SetCompiler(CompilerDriver* driver) {
+    driver_ = driver;
   }
   void SetOatCompilationUnit(OatCompilationUnit* oat_compilation_unit) {
     oat_compilation_unit_ = oat_compilation_unit;
@@ -109,7 +109,7 @@ class LlvmCompilationUnit {
   llvm::Module* module_; // Managed by context_
   UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
-  Compiler* compiler_;
+  CompilerDriver* driver_;
   OatCompilationUnit* oat_compilation_unit_;
 
   std::string bitcode_filename_;

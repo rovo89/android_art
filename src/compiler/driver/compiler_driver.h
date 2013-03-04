@@ -59,18 +59,19 @@ class CompilerTls {
     void* llvm_info_;
 };
 
-class Compiler {
+class CompilerDriver {
  public:
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit Compiler(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
-                    size_t thread_count, bool support_debugging,
-                    const std::set<std::string>* image_classes, bool dump_stats, bool dump_timings);
+  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
+                          size_t thread_count, bool support_debugging,
+                          const std::set<std::string>* image_classes, bool dump_stats,
+                          bool dump_timings);
 
-  ~Compiler();
+  ~CompilerDriver();
 
   void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -252,7 +253,7 @@ class Compiler {
     InvokeType target_invoke_type_;
     size_t literal_offset_;
 
-    friend class Compiler;
+    friend class CompilerDriver;
     DISALLOW_COPY_AND_ASSIGN(PatchInformation);
   };
 
@@ -363,12 +364,12 @@ class Compiler {
 
   const std::set<std::string>* image_classes_;
 
-  typedef void (*CompilerCallbackFn)(Compiler& compiler);
-  typedef MutexLock* (*CompilerMutexLockFn)(Compiler& compiler);
+  typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
+  typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
 
   void* compiler_library_;
 
-  typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
+  typedef CompiledMethod* (*CompilerFn)(CompilerDriver& driver,
                                         const DexFile::CodeItem* code_item,
                                         uint32_t access_flags, InvokeType invoke_type,
                                         uint32_t class_dex_idx, uint32_t method_idx,
@@ -377,36 +378,36 @@ class Compiler {
 
   void* compiler_context_;
 
-  typedef CompiledMethod* (*JniCompilerFn)(Compiler& compiler,
+  typedef CompiledMethod* (*JniCompilerFn)(CompilerDriver& driver,
                                            uint32_t access_flags, uint32_t method_idx,
                                            const DexFile& dex_file);
   JniCompilerFn jni_compiler_;
-  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
+  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(CompilerDriver& driver, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
   CreateInvokeStubFn create_invoke_stub_;
 
   pthread_key_t tls_key_;
 
   typedef CompiledInvokeStub* (*CreateProxyStubFn)
-      (Compiler& compiler, const char* shorty, uint32_t shorty_len);
+      (CompilerDriver& driver, const char* shorty, uint32_t shorty_len);
   CreateProxyStubFn create_proxy_stub_;
 
-  typedef void (*CompilerEnableAutoElfLoadingFn)(Compiler& compiler);
+  typedef void (*CompilerEnableAutoElfLoadingFn)(CompilerDriver& driver);
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
 
   typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const Compiler& compiler, const CompiledMethod* cm, const mirror::AbstractMethod* method);
+      (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   typedef const mirror::AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
-      (const Compiler& compiler, const CompiledInvokeStub* cm, const mirror::AbstractMethod* method);
+      (const CompilerDriver& driver, const CompiledInvokeStub* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
 
 
-  DISALLOW_COPY_AND_ASSIGN(Compiler);
+  DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
 
-inline bool operator<(const Compiler::ClassReference& lhs, const Compiler::ClassReference& rhs) {
+inline bool operator<(const CompilerDriver::ClassReference& lhs, const CompilerDriver::ClassReference& rhs) {
   if (lhs.second < rhs.second) {
     return true;
   } else if (lhs.second > rhs.second) {

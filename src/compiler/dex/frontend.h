@@ -141,7 +141,7 @@ void ReplaceSpecialChars(std::string& str);
 
 }  // namespace art
 
-extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,

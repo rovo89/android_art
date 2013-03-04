@@ -22,7 +22,7 @@
 namespace art {
   class CompiledInvokeStub;
   class CompiledProxyStub;
-  class Compiler;
+  class CompilerDriver;
 }
 
 namespace llvm {
@@ -39,14 +39,14 @@ class IRBuilder;
 
 class StubCompiler {
  public:
-  StubCompiler(LlvmCompilationUnit* cunit, Compiler& compiler);
+  StubCompiler(LlvmCompilationUnit* cunit, const CompilerDriver& compiler);
 
   CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty);
   CompiledInvokeStub* CreateProxyStub(const char* shorty);
 
  private:
   LlvmCompilationUnit* cunit_;
-  const Compiler* compiler_;
+  const CompilerDriver* const driver_;
   llvm::Module* module_;
   llvm::LLVMContext* context_;
   IRBuilder& irb_;

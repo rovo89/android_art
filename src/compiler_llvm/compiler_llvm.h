@@ -18,7 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 
 #include "base/macros.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "mirror/object.h"
@@ -33,7 +33,7 @@
 namespace art {
   class CompiledInvokeStub;
   class CompiledMethod;
-  class Compiler;
+  class CompilerDriver;
   class OatCompilationUnit;
   namespace mirror {
     class AbstractMethod;
@@ -60,12 +60,12 @@ class IRBuilder;
 
 class CompilerLLVM {
  public:
-  CompilerLLVM(Compiler* compiler, InstructionSet insn_set);
+  CompilerLLVM(CompilerDriver* driver, InstructionSet insn_set);
 
   ~CompilerLLVM();
 
-  Compiler* GetCompiler() const {
-    return compiler_;
+  CompilerDriver* GetCompiler() const {
+    return compiler_driver_;
   }
 
   InstructionSet GetInstructionSet() const {
@@ -94,7 +94,7 @@ class CompilerLLVM {
  private:
   LlvmCompilationUnit* AllocateCompilationUnit();
 
-  Compiler* compiler_;
+  CompilerDriver* compiler_driver_;
 
   InstructionSet insn_set_;
 

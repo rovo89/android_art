@@ -32,7 +32,7 @@ class OatTest : public CommonTest {
                    const DexFile* dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const CompiledMethod* compiled_method =
-        compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file,
+        compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(dex_file,
                                                                method->GetDexMethodIndex()));
 
     if (compiled_method == NULL) {
@@ -75,8 +75,8 @@ TEST_F(OatTest, WriteRead) {
 #else
     CompilerBackend compiler_backend = kQuick;
 #endif
-    compiler_.reset(new Compiler(compiler_backend, kThumb2, false, 2, false, NULL, true, true));
-    compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, 2, false, NULL, true, true));
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -88,13 +88,13 @@ TEST_F(OatTest, WriteRead) {
                                        42U,
                                        4096U,
                                        "lue.art",
-                                       *compiler_.get());
+                                       *compiler_driver_.get());
   ASSERT_TRUE(success_oat);
-  bool success_elf = compiler_->WriteElf(oat_contents, tmp.GetFile());
+  bool success_elf = compiler_driver_->WriteElf(oat_contents, tmp.GetFile());
   ASSERT_TRUE(success_elf);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
-    compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL));
   ASSERT_TRUE(oat_file.get() != NULL);

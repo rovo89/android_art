@@ -15,7 +15,7 @@
  */
 
 #include "compiled_method.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method.h"
@@ -165,7 +165,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
 }  // namespace x86
 }  // namespace art
 
-extern "C" art::CompiledInvokeStub* ArtCreateX86InvokeStub(art::Compiler& /*compiler*/, bool is_static,
+extern "C" art::CompiledInvokeStub* ArtCreateX86InvokeStub(art::CompilerDriver& /*compiler*/, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
   return art::x86::CreateInvokeStub(is_static, shorty, shorty_len);
 }

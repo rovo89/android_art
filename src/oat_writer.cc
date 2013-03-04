@@ -38,12 +38,12 @@ bool OatWriter::Create(OutputStream& output_stream,
                        uint32_t image_file_location_oat_checksum,
                        uint32_t image_file_location_oat_begin,
                        const std::string& image_file_location,
-                       const Compiler& compiler) {
+                       const CompilerDriver& driver) {
   OatWriter oat_writer(dex_files,
                        image_file_location_oat_checksum,
                        image_file_location_oat_begin,
                        image_file_location,
-                       compiler);
+                       &driver);
   return oat_writer.Write(output_stream);
 }
 
@@ -51,8 +51,8 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
-                     const Compiler& compiler) {
-  compiler_ = &compiler;
+                     const CompilerDriver* compiler)
+    : compiler_driver_(compiler) {
   image_file_location_oat_checksum_ = image_file_location_oat_checksum;
   image_file_location_oat_begin_ = image_file_location_oat_begin;
   image_file_location_ = image_file_location;
@@ -78,7 +78,7 @@ OatWriter::~OatWriter() {
 
 size_t OatWriter::InitOatHeader() {
   // create the OatHeader
-  oat_header_ = new OatHeader(compiler_->GetInstructionSet(),
+  oat_header_ = new OatHeader(compiler_driver_->GetInstructionSet(),
                               dex_files_,
                               image_file_location_oat_checksum_,
                               image_file_location_oat_begin_,
@@ -134,8 +134,8 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         num_methods = num_direct_methods + num_virtual_methods;
       }
 
-      Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
-      CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
+      CompilerDriver::ClassReference class_ref = CompilerDriver::ClassReference(dex_file, class_def_index);
+      CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
       mirror::Class::Status status;
       if (compiled_class != NULL) {
         status = compiled_class->GetStatus();
@@ -249,7 +249,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 #endif
 
   CompiledMethod* compiled_method =
-      compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
     offset = compiled_method->AlignCode(offset);
     DCHECK_ALIGNED(offset, kArmAlignment);
@@ -307,8 +307,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if !defined(NDEBUG)
     // We expect GC maps except when the class hasn't been verified or the method is native
-    Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
-    CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
+    CompilerDriver::ClassReference class_ref = CompilerDriver::ClassReference(dex_file, class_def_index);
+    CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
     mirror::Class::Status status;
     if (compiled_class != NULL) {
       status = compiled_class->GetStatus();
@@ -335,10 +335,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   }
 
   const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
-  const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(type == kStatic,
+  const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(type == kStatic,
                                                                              shorty);
   if (compiled_invoke_stub != NULL) {
-    offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
+    offset = CompiledMethod::AlignCode(offset, compiler_driver_->GetInstructionSet());
     DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
     uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
@@ -360,9 +360,9 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   if (type != kStatic) {
-    const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
+    const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
-      offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
+      offset = CompiledMethod::AlignCode(offset, compiler_driver_->GetInstructionSet());
       DCHECK_ALIGNED(offset, kArmAlignment);
       const std::vector<uint8_t>& proxy_stub = compiled_proxy_stub->GetCode();
       uint32_t proxy_stub_size = proxy_stub.size() * sizeof(proxy_stub[0]);
@@ -398,7 +398,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 #endif
                          );
 
-  if (compiler_->IsImage()) {
+  if (compiler_driver_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
     mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
     // Unchecked as we hold mutator_lock_ on entry.
@@ -579,7 +579,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
                                   size_t class_def_method_index, bool is_static,
                                   uint32_t method_idx, const DexFile& dex_file) {
   const CompiledMethod* compiled_method =
-      compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file, method_idx));
 
   OatMethodOffsets method_offsets =
       oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];
@@ -694,10 +694,10 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
     DCHECK_CODE_OFFSET();
   }
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
-  const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
+  const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
     uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
-                                                             compiler_->GetInstructionSet());
+                                                             compiler_driver_->GetInstructionSet());
     uint32_t aligned_code_delta = aligned_code_offset - code_offset;
     if (aligned_code_delta != 0) {
       off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
@@ -739,10 +739,10 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t code_offset, size_t 
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   if (!is_static) {
-    const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
+    const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
-                                                               compiler_->GetInstructionSet());
+                                                               compiler_driver_->GetInstructionSet());
       uint32_t aligned_code_delta = aligned_code_offset - code_offset;
       CHECK(aligned_code_delta < 48u);
       if (aligned_code_delta != 0) {

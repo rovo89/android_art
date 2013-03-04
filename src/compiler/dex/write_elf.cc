@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-#include "compiler.h"
 #include "elf_writer.h"
 #include "os.h"
 
-extern "C" bool WriteElf(art::Compiler& compiler,
+namespace art {
+class CompilerDriver;
+}  // namespace art
+
+extern "C" bool WriteElf(art::CompilerDriver& driver,
                          std::vector<uint8_t>& oat_contents,
                          art::File* file) {
-  return art::ElfWriter::Create(file, oat_contents, compiler);
+  return art::ElfWriter::Create(file, oat_contents, driver);
 }
 extern "C" bool FixupElf(art::File* file, uintptr_t oat_data_begin) {
   return art::ElfWriter::Fixup(file, oat_data_begin);

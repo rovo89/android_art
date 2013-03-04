@@ -28,7 +28,7 @@
 #include "base/timing_logger.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "mirror/abstract_method-inl.h"
@@ -213,7 +213,7 @@ class Dex2Oat {
     return image_classes.release();
   }
 
-  const Compiler* CreateOatFile(const std::string& boot_image_option,
+  const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
                                 const std::string* host_prefix,
                                 const std::vector<const DexFile*>& dex_files,
                                 File* oat_file,
@@ -240,22 +240,22 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    UniquePtr<Compiler> compiler(new Compiler(compiler_backend_,
-                                              instruction_set_,
-                                              image,
-                                              thread_count_,
-                                              support_debugging_,
-                                              image_classes,
-                                              dump_stats,
-                                              dump_timings));
+    UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_backend_,
+                                                        instruction_set_,
+                                                        image,
+                                                        thread_count_,
+                                                        support_debugging_,
+                                                        image_classes,
+                                                        dump_stats,
+                                                        dump_timings));
 
     if (compiler_backend_ == kPortable) {
-      compiler->SetBitcodeFileName(bitcode_filename);
+      driver->SetBitcodeFileName(bitcode_filename);
     }
 
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
-    compiler->CompileAll(class_loader, dex_files);
+    driver->CompileAll(class_loader, dex_files);
 
     Thread::Current()->TransitionFromSuspendedToRunnable();
 
@@ -280,17 +280,17 @@ class Dex2Oat {
                            image_file_location_oat_checksum,
                            image_file_location_oat_data_begin,
                            image_file_location,
-                           *compiler.get())) {
+                           *driver.get())) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->GetPath();
       return NULL;
     }
 
-    if (!compiler->WriteElf(oat_contents, oat_file)) {
+    if (!driver->WriteElf(oat_contents, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
 
-    return compiler.release();
+    return driver.release();
   }
 
   bool CreateImageFile(const std::string& image_filename,
@@ -298,7 +298,7 @@ class Dex2Oat {
                        const std::set<std::string>* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location,
-                       const Compiler& compiler)
+                       const CompilerDriver& compiler)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
     uintptr_t oat_data_begin;
     {
@@ -346,15 +346,15 @@ class Dex2Oat {
     Runtime* runtime = Runtime::Current();
     // if we loaded an existing image, we will reuse values from the image roots.
     if (!runtime->HasJniDlsymLookupStub()) {
-      runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
+      runtime->SetJniDlsymLookupStub(CompilerDriver::CreateJniDlsymLookupStub(instruction_set));
     }
     if (!runtime->HasAbstractMethodErrorStubArray()) {
-      runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
+      runtime->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
     }
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
       if (!runtime->HasResolutionStubArray(type)) {
-        runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(instruction_set, type), type);
+        runtime->SetResolutionStubArray(CompilerDriver::CreateResolutionStub(instruction_set, type), type);
       }
     }
     if (!runtime->HasResolutionMethod()) {
@@ -919,15 +919,15 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-  UniquePtr<const Compiler> compiler(dex2oat->CreateOatFile(boot_image_option,
-                                                            host_prefix.get(),
-                                                            dex_files,
-                                                            oat_file.get(),
-                                                            bitcode_filename,
-                                                            image,
-                                                            image_classes.get(),
-                                                            dump_stats,
-                                                            dump_timings));
+  UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
+                                                                  host_prefix.get(),
+                                                                  dex_files,
+                                                                  oat_file.get(),
+                                                                  bitcode_filename,
+                                                                  image,
+                                                                  image_classes.get(),
+                                                                  dump_stats,
+                                                                  dump_timings));
 
   if (compiler.get() == NULL) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;

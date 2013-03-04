@@ -25,7 +25,7 @@
 #include "base/logging.h"
 #include "class_linker.h"
 #include "quick/codegen.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "compiler_ir.h"
 #include "compiler_utility.h"
 #include "frontend.h"

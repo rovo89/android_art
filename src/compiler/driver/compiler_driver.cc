@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler.h"
+#include "compiler_driver.h"
 
 #include <vector>
 
@@ -282,9 +282,10 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
   return fn;
 }
 
-Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
-                   size_t thread_count, bool support_debugging, const std::set<std::string>* image_classes,
-                   bool dump_stats, bool dump_timings)
+CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                               bool image, size_t thread_count, bool support_debugging,
+                               const std::set<std::string>* image_classes, bool dump_stats,
+                               bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -304,7 +305,9 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      create_invoke_stub_(NULL)
+      create_invoke_stub_(NULL),
+      compiler_get_method_code_addr_(NULL),
+      compiler_get_method_invoke_stub_addr_(NULL)
 {
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -316,15 +319,15 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
   // TODO: more work needed to combine initializations and allow per-method backend selection
-  typedef void (*InitCompilerContextFn)(Compiler&);
+  typedef void (*InitCompilerContextFn)(CompilerDriver&);
   InitCompilerContextFn init_compiler_context;
   if (compiler_backend_ == kPortable){
     // Initialize compiler_context_
-    init_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+    init_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
                                                   compiler_library_, "ArtInitCompilerContext");
     compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
   } else {
-    init_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+    init_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
                                                   compiler_library_, "ArtInitQuickCompilerContext");
     compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtQuickCompileMethod");
   }
@@ -371,7 +374,7 @@ Compiler::Compiler(CompilerBackend compiler_backend, InstructionSet instruction_
   }
 }
 
-Compiler::~Compiler() {
+CompilerDriver::~CompilerDriver() {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, compiled_classes_lock_);
@@ -398,16 +401,16 @@ Compiler::~Compiler() {
     STLDeleteElements(&methods_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
-  typedef void (*UninitCompilerContextFn)(Compiler&);
+  typedef void (*UninitCompilerContextFn)(CompilerDriver&);
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   UninitCompilerContextFn uninit_compiler_context;
   // Uninitialize compiler_context_
   // TODO: rework to combine initialization/uninitialization
   if (compiler_backend_ == kPortable) {
-    uninit_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+    uninit_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
                                                     compiler_library_, "ArtUnInitCompilerContext");
   } else {
-    uninit_compiler_context = FindFunction<void (*)(Compiler&)>(compiler_so_name,
+    uninit_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
                                                     compiler_library_, "ArtUnInitQuickCompilerContext");
   }
   uninit_compiler_context(*this);
@@ -428,7 +431,7 @@ Compiler::~Compiler() {
   }
 }
 
-CompilerTls* Compiler::GetTls() {
+CompilerTls* CompilerDriver::GetTls() {
   // Lazily create thread-local storage
   CompilerTls* res = static_cast<CompilerTls*>(pthread_getspecific(tls_key_));
   if (res == NULL) {
@@ -438,8 +441,8 @@ CompilerTls* Compiler::GetTls() {
   return res;
 }
 
-mirror::ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
-                                          Runtime::TrampolineType type) {
+mirror::ByteArray* CompilerDriver::CreateResolutionStub(InstructionSet instruction_set,
+                                                        Runtime::TrampolineType type) {
   switch (instruction_set) {
     case kArm:
     case kThumb2:
@@ -454,7 +457,7 @@ mirror::ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set
   }
 }
 
-mirror::ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
+mirror::ByteArray* CompilerDriver::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
     case kThumb2:
@@ -469,7 +472,7 @@ mirror::ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction
   }
 }
 
-mirror::ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
+mirror::ByteArray* CompilerDriver::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:
     case kThumb2:
@@ -484,8 +487,8 @@ mirror::ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instru
   }
 }
 
-void Compiler::CompileAll(jobject class_loader,
-                          const std::vector<const DexFile*>& dex_files) {
+void CompilerDriver::CompileAll(jobject class_loader,
+                                const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(thread_count_));
@@ -504,7 +507,7 @@ void Compiler::CompileAll(jobject class_loader,
   }
 }
 
-void Compiler::CompileOne(const mirror::AbstractMethod* method) {
+void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
   jobject class_loader;
@@ -540,8 +543,8 @@ void Compiler::CompileOne(const mirror::AbstractMethod* method) {
   self->TransitionFromSuspendedToRunnable();
 }
 
-void Compiler::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                       ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                             ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -549,8 +552,8 @@ void Compiler::Resolve(jobject class_loader, const std::vector<const DexFile*>& 
   }
 }
 
-void Compiler::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                          ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                                ThreadPool& thread_pool, TimingLogger& timings) {
   Resolve(class_loader, dex_files, thread_pool, timings);
 
   Verify(class_loader, dex_files, thread_pool, timings);
@@ -558,20 +561,20 @@ void Compiler::PreCompile(jobject class_loader, const std::vector<const DexFile*
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
 }
 
-bool Compiler::IsImageClass(const std::string& descriptor) const {
+bool CompilerDriver::IsImageClass(const std::string& descriptor) const {
   if (image_classes_ == NULL) {
     return true;
   }
   return image_classes_->find(descriptor) != image_classes_->end();
 }
 
-void Compiler::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
-  MutexLock mu(Thread::Current(), Compiler::compiled_classes_lock_);
+void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
+  MutexLock mu(Thread::Current(), CompilerDriver::compiled_classes_lock_);
   compiled_classes_.Put(ref, compiled_class);
 }
 
-bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
-                                                uint32_t type_idx) {
+bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
+                                                      uint32_t type_idx) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   if (!IsImage()) {
@@ -592,8 +595,8 @@ bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
   return result;
 }
 
-bool Compiler::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
-                                                  uint32_t string_idx) {
+bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
+                                                        uint32_t string_idx) {
   // See also Compiler::ResolveDexFile
 
   bool result = false;
@@ -612,8 +615,8 @@ bool Compiler::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   return result;
 }
 
-bool Compiler::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                          uint32_t type_idx) {
+bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
+                                                uint32_t type_idx) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier
@@ -639,9 +642,9 @@ bool Compiler::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& 
   return result;
 }
 
-bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
-                                                      const DexFile& dex_file,
-                                                      uint32_t type_idx) {
+bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
+                                                            const DexFile& dex_file,
+                                                            uint32_t type_idx) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier.
@@ -698,8 +701,8 @@ static mirror::AbstractMethod* ComputeMethodReferencedFromCompilingMethod(Scoped
                                              class_loader, NULL, type);
 }
 
-bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
-                                        int& field_offset, bool& is_volatile, bool is_put) {
+bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+                                              int& field_offset, bool& is_volatile, bool is_put) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
   field_offset = -1;
@@ -743,9 +746,10 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* 
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
-                                      int& field_offset, int& ssb_index,
-                                      bool& is_referrers_class, bool& is_volatile, bool is_put) {
+bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+                                            int& field_offset, int& ssb_index,
+                                            bool& is_referrers_class, bool& is_volatile,
+                                            bool is_put) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
   field_offset = -1;
@@ -827,9 +831,10 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
-                                             mirror::AbstractMethod* method,
-                                             uintptr_t& direct_code, uintptr_t& direct_method) {
+void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+                                                   mirror::AbstractMethod* method,
+                                                   uintptr_t& direct_code,
+                                                   uintptr_t& direct_method) {
   // For direct and static methods compute possible direct_code and direct_method values, ie
   // an address for the Method* being invoked and an address of the code for that Method*.
   // For interface calls compute a value for direct_method that is the interface method being
@@ -877,9 +882,9 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   }
 }
 
-bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
-                                 int& vtable_idx, uintptr_t& direct_code,
-                                 uintptr_t& direct_method) {
+bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
+                                       InvokeType& type, int& vtable_idx, uintptr_t& direct_code,
+                                       uintptr_t& direct_method) {
   ScopedObjectAccess soa(Thread::Current());
   vtable_idx = -1;
   direct_code = 0;
@@ -946,7 +951,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void Compiler::AddCodePatch(const DexFile* dex_file,
+void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                             uint32_t referrer_method_idx,
                             InvokeType referrer_invoke_type,
                             uint32_t target_method_idx,
@@ -960,7 +965,7 @@ void Compiler::AddCodePatch(const DexFile* dex_file,
                                                 target_invoke_type,
                                                 literal_offset));
 }
-void Compiler::AddMethodPatch(const DexFile* dex_file,
+void CompilerDriver::AddMethodPatch(const DexFile* dex_file,
                               uint32_t referrer_method_idx,
                               InvokeType referrer_invoke_type,
                               uint32_t target_method_idx,
@@ -981,7 +986,7 @@ class CompilationContext {
 
   CompilationContext(ClassLinker* class_linker,
           jobject class_loader,
-          Compiler* compiler,
+          CompilerDriver* compiler,
           const DexFile* dex_file,
           ThreadPool& thread_pool)
     : class_linker_(class_linker),
@@ -999,7 +1004,7 @@ class CompilationContext {
     return class_loader_;
   }
 
-  Compiler* GetCompiler() const {
+  CompilerDriver* GetCompiler() const {
     CHECK(compiler_ != NULL);
     return compiler_;
   }
@@ -1064,7 +1069,7 @@ class CompilationContext {
 
   ClassLinker* const class_linker_;
   const jobject class_loader_;
-  Compiler* const compiler_;
+  CompilerDriver* const compiler_;
   const DexFile* const dex_file_;
   ThreadPool* thread_pool_;
 };
@@ -1193,8 +1198,8 @@ static void ResolveType(const CompilationContext* context, size_t type_idx)
   }
 }
 
-void Compiler::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
-                              ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
+                                    ThreadPool& thread_pool, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   // TODO: we could resolve strings here, although the string table is largely filled with class
@@ -1208,8 +1213,8 @@ void Compiler::ResolveDexFile(jobject class_loader, const DexFile& dex_file,
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
-void Compiler::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
-                      ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                            ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1263,8 +1268,8 @@ static void VerifyClass(const CompilationContext* context, size_t class_def_inde
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 
-void Compiler::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
-                             ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+                                   ThreadPool& thread_pool, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   CompilationContext context(class_linker, class_loader, this, &dex_file, thread_pool);
   context.ForAll(0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
@@ -1506,7 +1511,7 @@ static void InitializeClass(const CompilationContext* context, size_t class_def_
     }
     // Record the final class status if necessary.
     mirror::Class::Status status = klass->GetStatus();
-    Compiler::ClassReference ref(context->GetDexFile(), class_def_index);
+    CompilerDriver::ClassReference ref(context->GetDexFile(), class_def_index);
     CompiledClass* compiled_class = context->GetCompiler()->GetCompiledClass(ref);
     if (compiled_class == NULL) {
       compiled_class = new CompiledClass(status);
@@ -1519,8 +1524,8 @@ static void InitializeClass(const CompilationContext* context, size_t class_def_
   self->ClearException();
 }
 
-void Compiler::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
-                                 ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::InitializeClasses(jobject jni_class_loader, const DexFile& dex_file,
+                                       ThreadPool& thread_pool, TimingLogger& timings) {
 #ifndef NDEBUG
   for (size_t i = 0; i < arraysize(class_initializer_black_list); ++i) {
     const char* descriptor = class_initializer_black_list[i];
@@ -1533,9 +1538,9 @@ void Compiler::InitializeClasses(jobject jni_class_loader, const DexFile& dex_fi
   timings.AddSplit("InitializeNoClinit " + dex_file.GetLocation());
 }
 
-void Compiler::InitializeClasses(jobject class_loader,
-                                 const std::vector<const DexFile*>& dex_files,
-                                 ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::InitializeClasses(jobject class_loader,
+                                       const std::vector<const DexFile*>& dex_files,
+                                       ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1543,7 +1548,7 @@ void Compiler::InitializeClasses(jobject class_loader,
   }
 }
 
-void Compiler::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                        ThreadPool& thread_pool, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
@@ -1552,7 +1557,7 @@ void Compiler::Compile(jobject class_loader, const std::vector<const DexFile*>& 
   }
 }
 
-void Compiler::CompileClass(const CompilationContext* context, size_t class_def_index) {
+void CompilerDriver::CompileClass(const CompilationContext* context, size_t class_def_index) {
   jobject class_loader = context->GetClassLoader();
   const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
@@ -1616,10 +1621,10 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
   DCHECK(!it.HasNext());
 }
 
-void Compiler::CompileDexFile(jobject class_loader, const DexFile& dex_file,
-                              ThreadPool& thread_pool, TimingLogger& timings) {
+void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_file,
+                                    ThreadPool& thread_pool, TimingLogger& timings) {
   CompilationContext context(NULL, class_loader, this, &dex_file, thread_pool);
-  context.ForAll(0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
+  context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
   timings.AddSplit("Compile " + dex_file.GetLocation());
 }
 
@@ -1631,9 +1636,10 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
   return key;
 }
 
-void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                             InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
-                             jobject class_loader, const DexFile& dex_file) {
+void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
+                                   InvokeType invoke_type, uint32_t class_def_idx,
+                                   uint32_t method_idx, jobject class_loader,
+                                   const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
 
@@ -1695,12 +1701,12 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   }
 }
 
-const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
+const CompiledInvokeStub* CompilerDriver::FindInvokeStub(bool is_static, const char* shorty) const {
   const std::string key(MakeInvokeStubKey(is_static, shorty));
   return FindInvokeStub(key);
 }
 
-const CompiledInvokeStub* Compiler::FindInvokeStub(const std::string& key) const {
+const CompiledInvokeStub* CompilerDriver::FindInvokeStub(const std::string& key) const {
   MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
@@ -1711,8 +1717,8 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(const std::string& key) const
   }
 }
 
-void Compiler::InsertInvokeStub(const std::string& key,
-                                const CompiledInvokeStub* compiled_invoke_stub) {
+void CompilerDriver::InsertInvokeStub(const std::string& key,
+                                      const CompiledInvokeStub* compiled_invoke_stub) {
   MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::iterator it = compiled_invoke_stubs_.find(key);
   if (it != compiled_invoke_stubs_.end()) {
@@ -1723,7 +1729,7 @@ void Compiler::InsertInvokeStub(const std::string& key,
   }
 }
 
-const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
+const CompiledInvokeStub* CompilerDriver::FindProxyStub(const char* shorty) const {
   MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
   if (it == compiled_proxy_stubs_.end()) {
@@ -1734,8 +1740,8 @@ const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
   }
 }
 
-void Compiler::InsertProxyStub(const char* shorty,
-                               const CompiledInvokeStub* compiled_proxy_stub) {
+void CompilerDriver::InsertProxyStub(const char* shorty,
+                                     const CompiledInvokeStub* compiled_proxy_stub) {
   MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   InvokeStubTable::iterator it = compiled_proxy_stubs_.find(shorty);
   if (it != compiled_proxy_stubs_.end()) {
@@ -1746,7 +1752,7 @@ void Compiler::InsertProxyStub(const char* shorty,
   }
 }
 
-CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
+CompiledClass* CompilerDriver::GetCompiledClass(ClassReference ref) const {
   MutexLock mu(Thread::Current(), compiled_classes_lock_);
   ClassTable::const_iterator it = compiled_classes_.find(ref);
   if (it == compiled_classes_.end()) {
@@ -1756,7 +1762,7 @@ CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
   return it->second;
 }
 
-CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
+CompiledMethod* CompilerDriver::GetCompiledMethod(MethodReference ref) const {
   MutexLock mu(Thread::Current(), compiled_methods_lock_);
   MethodTable::const_iterator it = compiled_methods_.find(ref);
   if (it == compiled_methods_.end()) {
@@ -1766,8 +1772,8 @@ CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
   return it->second;
 }
 
-void Compiler::SetBitcodeFileName(std::string const& filename) {
-  typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
+void CompilerDriver::SetBitcodeFileName(std::string const& filename) {
+  typedef void (*SetBitcodeFileNameFn)(CompilerDriver&, std::string const&);
 
   SetBitcodeFileNameFn set_bitcode_file_name =
     FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
@@ -1777,35 +1783,35 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
 }
 
 
-void Compiler::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+void CompilerDriver::AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                              size_t class_def_index) {
   MutexLock mu(self, freezing_constructor_lock_);
   freezing_constructor_classes_.insert(ClassReference(dex_file, class_def_index));
 }
 
-bool Compiler::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
+bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                           size_t class_def_index) {
   MutexLock mu(self, freezing_constructor_lock_);
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
-bool Compiler::WriteElf(std::vector<uint8_t>& oat_contents, File* file) {
-  typedef bool (*WriteElfFn)(Compiler&, std::vector<uint8_t>&, File*);
+bool CompilerDriver::WriteElf(std::vector<uint8_t>& oat_contents, File* file) {
+  typedef bool (*WriteElfFn)(CompilerDriver&, std::vector<uint8_t>&, File*);
   WriteElfFn WriteElf =
     FindFunction<WriteElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "WriteElf");
   return WriteElf(*this, oat_contents, file);
 }
 
-bool Compiler::FixupElf(File* file, uintptr_t oat_data_begin) const {
+bool CompilerDriver::FixupElf(File* file, uintptr_t oat_data_begin) const {
   typedef bool (*FixupElfFn)(File*, uintptr_t oat_data_begin);
   FixupElfFn FixupElf =
     FindFunction<FixupElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "FixupElf");
   return FixupElf(file, oat_data_begin);
 }
 
-void Compiler::GetOatElfInformation(File* file,
-                                    size_t& oat_loaded_size,
-                                    size_t& oat_data_offset) const {
+void CompilerDriver::GetOatElfInformation(File* file,
+                                          size_t& oat_loaded_size,
+                                          size_t& oat_data_offset) const {
   typedef bool (*GetOatElfInformationFn)(File*, size_t& oat_loaded_size, size_t& oat_data_offset);
   GetOatElfInformationFn GetOatElfInformation =
     FindFunction<GetOatElfInformationFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
@@ -1813,10 +1819,10 @@ void Compiler::GetOatElfInformation(File* file,
   GetOatElfInformation(file, oat_loaded_size, oat_data_offset);
 }
 
-void Compiler::InstructionSetToLLVMTarget(InstructionSet instruction_set,
-                                          std::string& target_triple,
-                                          std::string& target_cpu,
-                                          std::string& target_attr) {
+void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
+                                                std::string& target_triple,
+                                                std::string& target_cpu,
+                                                std::string& target_attr) {
     switch (instruction_set) {
     case kThumb2:
       target_triple = "thumb-none-linux-gnueabi";

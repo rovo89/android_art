@@ -20,7 +20,7 @@
 #include "backend_options.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "llvm_compilation_unit.h"
@@ -37,7 +37,7 @@
 #include <llvm/Support/Threading.h>
 
 namespace art {
-void CompileOneMethod(Compiler& compiler,
+void CompileOneMethod(CompilerDriver& driver,
                       const CompilerBackend compilerBackend,
                       const DexFile::CodeItem* code_item,
                       uint32_t access_flags, InvokeType invoke_type,
@@ -108,8 +108,8 @@ namespace compiler_llvm {
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
-CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
-    : compiler_(compiler), insn_set_(insn_set),
+CompilerLLVM::CompilerLLVM(CompilerDriver* driver, InstructionSet insn_set)
+    : compiler_driver_(driver), insn_set_(insn_set),
       num_cunits_lock_("compilation unit counter lock"), num_cunits_(0),
       plt_(insn_set) {
 
@@ -139,7 +139,7 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
   std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
                                       *oat_compilation_unit->GetDexFile()));
   // TODO: consolidate ArtCompileMethods
-  CompileOneMethod(*compiler_,
+  CompileOneMethod(*compiler_driver_,
                    kPortable,
                    oat_compilation_unit->GetCodeItem(),
                    oat_compilation_unit->access_flags_,
@@ -151,14 +151,14 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
                    cunit->GetQuickContext()
   );
 
-  cunit->SetCompiler(compiler_);
+  cunit->SetCompiler(compiler_driver_);
   cunit->SetOatCompilationUnit(oat_compilation_unit);
 
   cunit->Materialize();
 
-  Compiler::MethodReference mref(oat_compilation_unit->GetDexFile(),
-                                 oat_compilation_unit->GetDexMethodIndex());
-  return new CompiledMethod(compiler_->GetInstructionSet(),
+  CompilerDriver::MethodReference mref(oat_compilation_unit->GetDexFile(),
+                                       oat_compilation_unit->GetDexMethodIndex());
+  return new CompiledMethod(compiler_driver_->GetInstructionSet(),
                             cunit->GetCompiledCode(),
                             *verifier::MethodVerifier::GetDexGcMap(mref));
 }
@@ -169,7 +169,7 @@ CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(cunit.get(), *compiler_, oat_compilation_unit));
+      new JniCompiler(cunit.get(), *compiler_driver_, oat_compilation_unit));
 
   return jni_compiler->Compile();
 }
@@ -180,7 +180,7 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(cunit.get(), *compiler_));
+    new StubCompiler(cunit.get(), *compiler_driver_));
 
   return stub_compiler->CreateInvokeStub(is_static, shorty);
 }
@@ -190,7 +190,7 @@ CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(cunit.get(), *compiler_));
+    new StubCompiler(cunit.get(), *compiler_driver_));
 
   return stub_compiler->CreateProxyStub(shorty);
 }
@@ -198,33 +198,33 @@ CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
 } // namespace compiler_llvm
 } // namespace art
 
-inline static art::compiler_llvm::CompilerLLVM* ContextOf(art::Compiler& compiler) {
-  void *compiler_context = compiler.GetCompilerContext();
+inline static art::compiler_llvm::CompilerLLVM* ContextOf(art::CompilerDriver& driver) {
+  void *compiler_context = driver.GetCompilerContext();
   CHECK(compiler_context != NULL);
   return reinterpret_cast<art::compiler_llvm::CompilerLLVM*>(compiler_context);
 }
 
-inline static const art::compiler_llvm::CompilerLLVM* ContextOf(const art::Compiler& compiler) {
-  void *compiler_context = compiler.GetCompilerContext();
+inline static const art::compiler_llvm::CompilerLLVM* ContextOf(const art::CompilerDriver& driver) {
+  void *compiler_context = driver.GetCompilerContext();
   CHECK(compiler_context != NULL);
   return reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler_context);
 }
 
-extern "C" void ArtInitCompilerContext(art::Compiler& compiler) {
-  CHECK(compiler.GetCompilerContext() == NULL);
+extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver) {
+  CHECK(driver.GetCompilerContext() == NULL);
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm =
-      new art::compiler_llvm::CompilerLLVM(&compiler,
-                                           compiler.GetInstructionSet());
+      new art::compiler_llvm::CompilerLLVM(&driver,
+                                           driver.GetInstructionSet());
 
-  compiler.SetCompilerContext(compiler_llvm);
+  driver.SetCompilerContext(compiler_llvm);
 }
 
-extern "C" void ArtUnInitCompilerContext(art::Compiler& compiler) {
-  delete ContextOf(compiler);
-  compiler.SetCompilerContext(NULL);
+extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver) {
+  delete ContextOf(driver);
+  driver.SetCompilerContext(NULL);
 }
-extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags,
                                                  art::InvokeType invoke_type,
@@ -238,12 +238,12 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
   art::OatCompilationUnit oat_compilation_unit(
     class_loader, class_linker, dex_file, code_item,
     class_def_idx, method_idx, access_flags);
-  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit, invoke_type);
   return result;
 }
 
-extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
                                                         uint32_t access_flags, uint32_t method_idx,
                                                         const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
@@ -252,29 +252,29 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::Compiler& compiler,
     NULL, class_linker, dex_file, NULL,
     0, method_idx, access_flags);
 
-  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&oat_compilation_unit);
   return result;
 }
 
-extern "C" art::CompiledInvokeStub* ArtCreateLLVMInvokeStub(art::Compiler& compiler,
+extern "C" art::CompiledInvokeStub* ArtCreateLLVMInvokeStub(art::CompilerDriver& driver,
                                                             bool is_static,
                                                             const char* shorty,
                                                             uint32_t shorty_len) {
-  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
   return result;
 }
 
-extern "C" art::CompiledInvokeStub* ArtCreateProxyStub(art::Compiler& compiler,
+extern "C" art::CompiledInvokeStub* ArtCreateProxyStub(art::CompilerDriver& driver,
                                                        const char* shorty,
                                                        uint32_t shorty_len) {
-  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledInvokeStub* result = compiler_llvm->CreateProxyStub(shorty);
   return result;
 }
 
-extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,
+extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
                                                std::string const& filename) {
-  ContextOf(compiler)->SetBitcodeFileName(filename);
+  ContextOf(driver)->SetBitcodeFileName(filename);
 }

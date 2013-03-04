@@ -19,7 +19,7 @@
 
 #include <vector>
 #include "dex_instruction.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "compiler_utility.h"
 #include "oat_compilation_unit.h"
 #include "safe_map.h"
@@ -274,7 +274,7 @@ class Codegen;
 struct CompilationUnit {
   CompilationUnit()
     : num_blocks(0),
-      compiler(NULL),
+      compiler_driver(NULL),
       class_linker(NULL),
       dex_file(NULL),
       class_loader(NULL),
@@ -366,7 +366,7 @@ struct CompilationUnit {
 
   int num_blocks;
   GrowableList block_list;
-  Compiler* compiler;                  // Compiler driving this compiler.
+  CompilerDriver* compiler_driver;
   ClassLinker* class_linker;           // Linker to resolve fields and methods.
   const DexFile* dex_file;             // DexFile containing the method being compiled.
   jobject class_loader;                // compiling method's class loader.

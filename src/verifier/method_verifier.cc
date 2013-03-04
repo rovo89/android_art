@@ -21,7 +21,7 @@
 #include "base/logging.h"
 #include "base/stringpiece.h"
 #include "class_linker.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
@@ -363,7 +363,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
       if (Runtime::Current()->IsCompiler()) {
-        Compiler::ClassReference ref(dex_file_, class_def_idx_);
+        CompilerDriver::ClassReference ref(dex_file_, class_def_idx_);
         AddRejectedClass(ref);
       }
       have_pending_hard_failure_ = true;
@@ -934,7 +934,7 @@ bool MethodVerifier::VerifyCodeFlow() {
     return false;
   }
 
-  Compiler::MethodReference ref(dex_file_, dex_method_idx_);
+  CompilerDriver::MethodReference ref(dex_file_, dex_method_idx_);
 
 
   /* Generate a register map and add it to the method. */
@@ -3238,7 +3238,7 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-void MethodVerifier::SetDexGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   {
     MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
     DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
@@ -3251,7 +3251,7 @@ void MethodVerifier::SetDexGcMap(Compiler::MethodReference ref, const std::vecto
   CHECK(GetDexGcMap(ref) != NULL);
 }
 
-const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(Compiler::MethodReference ref) {
+const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
   MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
@@ -3347,7 +3347,7 @@ void MethodVerifier::Shutdown() {
   rejected_classes_lock_ = NULL;
 }
 
-void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
+void MethodVerifier::AddRejectedClass(CompilerDriver::ClassReference ref) {
   {
     MutexLock mu(Thread::Current(), *rejected_classes_lock_);
     rejected_classes_->insert(ref);
@@ -3355,7 +3355,7 @@ void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
   CHECK(IsClassRejected(ref));
 }
 
-bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
+bool MethodVerifier::IsClassRejected(CompilerDriver::ClassReference ref) {
   MutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }

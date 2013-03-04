@@ -47,7 +47,7 @@ TEST_F(ImageTest, WriteRead) {
       std::vector<const DexFile*> dex_files;
       dex_files.push_back(java_lang_dex_file_);
       VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
-      bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "", *compiler_.get());
+      bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "", *compiler_driver_.get());
       ASSERT_TRUE(success_oat);
 
       // Force all system classes into memory
@@ -58,7 +58,7 @@ TEST_F(ImageTest, WriteRead) {
         EXPECT_TRUE(klass != NULL) << descriptor;
       }
     }
-    bool success_elf = compiler_->WriteElf(oat_contents, tmp_elf.GetFile());
+    bool success_elf = compiler_driver_->WriteElf(oat_contents, tmp_elf.GetFile());
     ASSERT_TRUE(success_elf);
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.
@@ -71,9 +71,9 @@ TEST_F(ImageTest, WriteRead) {
     ImageWriter writer(NULL);
     bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
                                       tmp_oat->GetPath(), tmp_oat->GetPath(),
-                                      *compiler_.get());
+                                      *compiler_driver_.get());
     ASSERT_TRUE(success_image);
-    bool success_fixup = compiler_->FixupElf(tmp_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = compiler_driver_->FixupElf(tmp_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
   }
 
@@ -94,7 +94,7 @@ TEST_F(ImageTest, WriteRead) {
   }
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.
-  compiler_.reset();
+  compiler_driver_.reset();
 
   // Tear down old runtime before making a new one, clearing out misc state.
   runtime_.reset();

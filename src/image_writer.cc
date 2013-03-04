@@ -24,7 +24,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"
@@ -57,7 +57,7 @@ bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
                         const std::string& oat_location,
-                        const Compiler& compiler) {
+                        const CompilerDriver& compiler_driver) {
   CHECK(!image_filename.empty());
 
   CHECK_NE(image_begin, 0U);
@@ -109,10 +109,10 @@ bool ImageWriter::Write(const std::string& image_filename,
   Thread::Current()->TransitionFromSuspendedToRunnable();
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
-  compiler.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
+  compiler_driver.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
   CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
-  PatchOatCodeAndMethods(compiler);
+  PatchOatCodeAndMethods(compiler_driver);
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
   UniquePtr<File> image_file(OS::OpenFile(image_filename.c_str(), true));
@@ -616,7 +616,7 @@ void ImageWriter::FixupFields(const Object* orig,
   }
 }
 
-static AbstractMethod* GetTargetMethod(const Compiler::PatchInformation* patch)
+static AbstractMethod* GetTargetMethod(const CompilerDriver::PatchInformation* patch)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
@@ -637,15 +637,15 @@ static AbstractMethod* GetTargetMethod(const Compiler::PatchInformation* patch)
   return method;
 }
 
-void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
+void ImageWriter::PatchOatCodeAndMethods(const CompilerDriver& compiler) {
   Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
 
-  typedef std::vector<const Compiler::PatchInformation*> Patches;
+  typedef std::vector<const CompilerDriver::PatchInformation*> Patches;
   const Patches& code_to_patch = compiler.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
-    const Compiler::PatchInformation* patch = code_to_patch[i];
+    const CompilerDriver::PatchInformation* patch = code_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);
     uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
     uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
@@ -655,7 +655,7 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
 
   const Patches& methods_to_patch = compiler.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
-    const Compiler::PatchInformation* patch = methods_to_patch[i];
+    const CompilerDriver::PatchInformation* patch = methods_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
   }
@@ -666,7 +666,7 @@ void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
   self->EndAssertNoThreadSuspension(old_cause);
 }
 
-void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value) {
+void ImageWriter::SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* oat_code = class_linker->GetOatCodeFor(patch->GetDexFile(),
                                                      patch->GetReferrerMethodIdx());

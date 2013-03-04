@@ -22,7 +22,7 @@
 namespace art {
   class ClassLinker;
   class CompiledMethod;
-  class Compiler;
+  class CompilerDriver;
   class DexFile;
   class OatCompilationUnit;
   namespace mirror {
@@ -52,7 +52,7 @@ class IRBuilder;
 class JniCompiler {
  public:
   JniCompiler(LlvmCompilationUnit* cunit,
-              Compiler const& compiler,
+              const CompilerDriver& driver,
               OatCompilationUnit* oat_compilation_unit);
 
   CompiledMethod* Compile();
@@ -65,7 +65,7 @@ class JniCompiler {
 
  private:
   LlvmCompilationUnit* cunit_;
-  const Compiler* compiler_;
+  const CompilerDriver* const driver_;
 
   llvm::Module* module_;
   llvm::LLVMContext* context_;

@@ -58,7 +58,7 @@ bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
                             *cu->dex_file, cu->code_item,
                             cu->class_def_idx, cu->method_idx,
                             cu->access_flags);
-  return cu->compiler->ComputeInstanceFieldInfo(field_idx, &m_unit,
+  return cu->compiler_driver->ComputeInstanceFieldInfo(field_idx, &m_unit,
            field_offset, is_volatile, is_put);
 }
 
@@ -562,12 +562,12 @@ static void InstallLiteralPools(CompilationUnit* cu)
   data_lir = cu->code_literal_list;
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
-    cu->compiler->AddCodePatch(cu->dex_file,
-                                  cu->method_idx,
-                                  cu->invoke_type,
-                                  target,
-                                  static_cast<InvokeType>(data_lir->operands[1]),
-                                  cu->code_buffer.size());
+    cu->compiler_driver->AddCodePatch(cu->dex_file,
+                                      cu->method_idx,
+                                      cu->invoke_type,
+                                      target,
+                                      static_cast<InvokeType>(data_lir->operands[1]),
+                                      cu->code_buffer.size());
     const DexFile::MethodId& id = cu->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
@@ -577,12 +577,12 @@ static void InstallLiteralPools(CompilationUnit* cu)
   data_lir = cu->method_literal_list;
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
-    cu->compiler->AddMethodPatch(cu->dex_file,
-                                    cu->method_idx,
-                                    cu->invoke_type,
-                                    target,
-                                    static_cast<InvokeType>(data_lir->operands[1]),
-                                    cu->code_buffer.size());
+    cu->compiler_driver->AddMethodPatch(cu->dex_file,
+                                        cu->method_idx,
+                                        cu->invoke_type,
+                                        target,
+                                        static_cast<InvokeType>(data_lir->operands[1]),
+                                        cu->code_buffer.size());
     const DexFile::MethodId& id = cu->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
@@ -821,7 +821,7 @@ static void CreateNativeGcMap(CompilationUnit* cu) {
       max_native_offset = native_offset;
     }
   }
-  Compiler::MethodReference method_ref(cu->dex_file, cu->method_idx);
+  CompilerDriver::MethodReference method_ref(cu->dex_file, cu->method_idx);
   const std::vector<uint8_t>* gc_map_raw = verifier::MethodVerifier::GetDexGcMap(method_ref);
   verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[4], gc_map_raw->size() - 4);
   // Compute native offset to references size.

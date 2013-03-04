@@ -17,6 +17,7 @@
 #include "elf_writer.h"
 
 #include "base/unix_file/fd_file.h"
+#include "compiler/driver/compiler_driver.h"
 #include "elf_file.h"
 #include "oat.h"
 #include "oat_file.h"
@@ -34,12 +35,12 @@
 
 namespace art {
 
-bool ElfWriter::Create(File* file, std::vector<uint8_t>& oat_contents, const Compiler& compiler) {
-  ElfWriter elf_writer(compiler);
+bool ElfWriter::Create(File* file, std::vector<uint8_t>& oat_contents, const CompilerDriver& compiler) {
+  ElfWriter elf_writer(&compiler);
   return elf_writer.Write(oat_contents, file);
 }
 
-ElfWriter::ElfWriter(const Compiler& compiler) : compiler_(&compiler) {}
+ElfWriter::ElfWriter(const CompilerDriver* driver) : compiler_driver_(driver) {}
 
 ElfWriter::~ElfWriter() {}
 
@@ -59,7 +60,7 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
   std::string target_triple;
   std::string target_cpu;
   std::string target_attr;
-  Compiler::InstructionSetToLLVMTarget(compiler_->GetInstructionSet(),
+  CompilerDriver::InstructionSetToLLVMTarget(compiler_driver_->GetInstructionSet(),
                                        target_triple,
                                        target_cpu,
                                        target_attr);
@@ -80,7 +81,7 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
     UniquePtr<mcld::LinkerConfig> linker_config(new mcld::LinkerConfig(target_triple));
     CHECK(linker_config.get() != NULL);
     linker_config->setCodeGenType(mcld::LinkerConfig::DynObj);
-    if (compiler_->GetInstructionSet() == kMips) {
+    if (compiler_driver_->GetInstructionSet() == kMips) {
       // MCLinker defaults MIPS section alignment to 0x10000, not 0x1000
       mcld::ZOption z_option;
       z_option.setKind(mcld::ZOption::MaxPageSize);

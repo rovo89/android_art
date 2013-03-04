@@ -140,7 +140,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/class_linker.cc \
 	src/common_throws.cc \
 	src/compiled_method.cc \
-	src/compiler.cc \
+	src/compiler/driver/compiler_driver.cc \
 	src/compiler_llvm/procedure_linkage_table.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/debugger.cc \
@@ -375,7 +375,7 @@ TEST_COMMON_SRC_FILES := \
 	src/base/unix_file/random_access_file_utils_test.cc \
 	src/base/unix_file/string_file_test.cc \
 	src/class_linker_test.cc \
-	src/compiler_test.cc \
+	src/compiler/driver/compiler_driver_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/elf_writer_test.cc \

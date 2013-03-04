@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "compiler_internals.h"
 #include "dataflow.h"
 #include "ssa_transformation.h"
@@ -57,13 +57,13 @@ LLVMInfo::LLVMInfo() {
 LLVMInfo::~LLVMInfo() {
 }
 
-extern "C" void ArtInitQuickCompilerContext(art::Compiler& compiler) {
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& compiler) {
   CHECK(compiler.GetCompilerContext() == NULL);
   LLVMInfo* llvm_info = new LLVMInfo();
   compiler.SetCompilerContext(llvm_info);
 }
 
-extern "C" void ArtUnInitQuickCompilerContext(art::Compiler& compiler) {
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler) {
   delete reinterpret_cast<LLVMInfo*>(compiler.GetCompilerContext());
   compiler.SetCompilerContext(NULL);
 }
@@ -755,7 +755,7 @@ static BasicBlock* ProcessCanThrow(CompilationUnit* cu, BasicBlock* cur_block,
   return new_block;
 }
 
-void CompilerInit(CompilationUnit* cu, const Compiler& compiler) {
+void CompilerInit(CompilationUnit* cu, const CompilerDriver& compiler) {
   bool success = false;
   switch (compiler.GetInstructionSet()) {
     case kThumb2:
@@ -777,7 +777,7 @@ void CompilerInit(CompilationUnit* cu, const Compiler& compiler) {
   }
 }
 
-static CompiledMethod* CompileMethod(Compiler& compiler,
+static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
@@ -797,7 +797,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
 
   CompilerInit(cu.get(), compiler);
 
-  cu->compiler = &compiler;
+  cu->compiler_driver = &compiler;
   cu->class_linker = class_linker;
   cu->dex_file = &dex_file;
   cu->class_def_idx = class_def_idx;
@@ -1228,7 +1228,7 @@ static CompiledMethod* CompileMethod(Compiler& compiler,
   return result;
 }
 
-CompiledMethod* CompileOneMethod(Compiler& compiler,
+CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
                                  const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, InvokeType invoke_type,
@@ -1243,7 +1243,7 @@ CompiledMethod* CompileOneMethod(Compiler& compiler,
 }  // namespace art
 
 extern "C" art::CompiledMethod*
-    ArtQuickCompileMethod(art::Compiler& compiler,
+    ArtQuickCompileMethod(art::CompilerDriver& compiler,
                           const art::DexFile::CodeItem* code_item,
                           uint32_t access_flags, art::InvokeType invoke_type,
                           uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,

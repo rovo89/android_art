@@ -1346,9 +1346,9 @@ void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
   uintptr_t direct_method;
   bool skip_this;
   bool fast_path =
-    cu->compiler->ComputeInvokeInfo(dex_method_idx, &m_unit, info->type,
-                                       vtable_idx, direct_code,
-                                       direct_method)
+    cu->compiler_driver->ComputeInvokeInfo(dex_method_idx, &m_unit, info->type,
+                                           vtable_idx, direct_code,
+                                           direct_method)
     && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     if (fast_path) {

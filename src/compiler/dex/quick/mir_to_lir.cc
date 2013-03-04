@@ -87,8 +87,8 @@ static void CompileDalvikInstruction(CompilationUnit* cu, MIR* mir, BasicBlock* 
 
     case Instruction::RETURN_VOID:
       if (((cu->access_flags & kAccConstructor) != 0) &&
-          cu->compiler->RequiresConstructorBarrier(Thread::Current(), cu->dex_file,
-                                                   cu->class_def_idx)) {
+          cu->compiler_driver->RequiresConstructorBarrier(Thread::Current(), cu->dex_file,
+                                                          cu->class_def_idx)) {
         cg->GenMemBarrier(cu, kStoreStore);
       }
       if (!(cu->attrs & METHOD_IS_LEAF)) {

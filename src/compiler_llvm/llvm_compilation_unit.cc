@@ -82,7 +82,7 @@ namespace compiler_llvm {
 
 llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                      Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
+                      CompilerDriver* compiler, OatCompilationUnit* oat_compilation_unit);
 
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
@@ -90,7 +90,7 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 LlvmCompilationUnit::LlvmCompilationUnit(const CompilerLLVM* compiler_llvm,
                                  size_t cunit_idx)
 : compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
-  compiler_ = NULL;
+  driver_ = NULL;
   oat_compilation_unit_ = NULL;
   llvm_info_.reset(new LLVMInfo());
   context_.reset(llvm_info_->GetLLVMContext());
@@ -175,7 +175,7 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream)
   std::string target_triple;
   std::string target_cpu;
   std::string target_attr;
-  Compiler::InstructionSetToLLVMTarget(GetInstructionSet(), target_triple, target_cpu, target_attr);
+  CompilerDriver::InstructionSetToLLVMTarget(GetInstructionSet(), target_triple, target_cpu, target_attr);
 
   std::string errmsg;
   const llvm::Target* target =
@@ -214,11 +214,11 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream)
     // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the
     // regular FunctionPass.
     fpm.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
-                                  compiler_, oat_compilation_unit_));
+                                  driver_, oat_compilation_unit_));
   } else {
     llvm::FunctionPassManager fpm2(module_);
     fpm2.add(CreateGBCExpanderPass(*llvm_info_->GetIntrinsicHelper(), *irb_.get(),
-                                   compiler_, oat_compilation_unit_));
+                                   driver_, oat_compilation_unit_));
     fpm2.doInitialization();
     for (llvm::Module::iterator F = module_->begin(), E = module_->end();
          F != E; ++F) {

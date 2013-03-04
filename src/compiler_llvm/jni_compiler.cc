@@ -19,7 +19,7 @@
 #include "base/logging.h"
 #include "class_linker.h"
 #include "compiled_method.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
 #include "llvm_compilation_unit.h"
@@ -43,14 +43,15 @@ namespace compiler_llvm {
 using namespace runtime_support;
 
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
-                         Compiler const& compiler,
+                         const CompilerDriver& driver,
                          OatCompilationUnit* oat_compilation_unit)
-: cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),
+: cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
   context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
   oat_compilation_unit_(oat_compilation_unit),
   access_flags_(oat_compilation_unit->access_flags_),
   method_idx_(oat_compilation_unit->method_idx_),
-  dex_file_(oat_compilation_unit->dex_file_) {
+  dex_file_(oat_compilation_unit->dex_file_),
+  func_(NULL), elf_func_idx_(0) {
 
   // Check: Ensure that JNI compiler will only get "native" method
   CHECK((access_flags_ & kAccNative) != 0);

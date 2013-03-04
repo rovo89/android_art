@@ -17,15 +17,18 @@
 #ifndef ART_SRC_ELF_WRITER_H_
 #define ART_SRC_ELF_WRITER_H_
 
-#include "compiler.h"
+#include "elf_file.h"
 #include "os.h"
 
+#include <vector>
+
 namespace art {
+class CompilerDriver;
 
 class ElfWriter {
  public:
   // Write an ELF file. Returns true on success, false on failure.
-  static bool Create(File* file, std::vector<uint8_t>& oat_contents, const Compiler& compiler);
+  static bool Create(File* file, std::vector<uint8_t>& oat_contents, const CompilerDriver& compiler);
 
   // Fixup an ELF file so that that oat header will be loaded at oat_begin.
   // Returns true on success, false on failure.
@@ -38,7 +41,7 @@ class ElfWriter {
                                    size_t& oat_data_offset);
 
  private:
-  ElfWriter(const Compiler& compiler);
+  ElfWriter(const CompilerDriver* driver);
   ~ElfWriter();
 
   bool Write(std::vector<uint8_t>& oat_contents, File* elf_file);
@@ -55,7 +58,7 @@ class ElfWriter {
   // Fixup symbol table
   static bool FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dynamic);
 
-  const Compiler* compiler_;
+  const CompilerDriver* const compiler_driver_;
 };
 
 }  // namespace art

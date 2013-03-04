@@ -23,7 +23,7 @@
 #include <set>
 #include <string>
 
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "mem_map.h"
 #include "oat_file.h"
 #include "mirror/dex_cache.h"
@@ -47,7 +47,7 @@ class ImageWriter {
              uintptr_t image_begin,
              const std::string& oat_filename,
              const std::string& oat_location,
-             const Compiler& compiler)
+             const CompilerDriver& compiler_driver)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   uintptr_t GetOatDataBegin() {
@@ -153,9 +153,9 @@ class ImageWriter {
                    bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void PatchOatCodeAndMethods(const Compiler& compiler)
+  void PatchOatCodeAndMethods(const CompilerDriver& compiler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value)
+  void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   SafeMap<const mirror::Object*, size_t> offsets_;

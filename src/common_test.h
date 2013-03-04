@@ -26,7 +26,7 @@
 #include "base/stringprintf.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
@@ -210,7 +210,7 @@ class CommonTest : public testing::Test {
 
     MethodHelper mh(method);
     const CompiledInvokeStub* compiled_invoke_stub =
-        compiler_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
+        compiler_driver_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
     CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
 
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
@@ -227,8 +227,8 @@ class CommonTest : public testing::Test {
       const mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
       const DexFile& dex_file = *dex_cache->GetDexFile();
       const CompiledMethod* compiled_method =
-          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
-                                                                 method->GetDexMethodIndex()));
+          compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file,
+                                                                              method->GetDexMethodIndex()));
       CHECK(compiled_method != NULL) << PrettyMethod(method);
 
       const std::vector<uint8_t>& code = compiled_method->GetCode();
@@ -364,13 +364,13 @@ class CommonTest : public testing::Test {
     CompilerBackend compiler_backend = kQuick;
 #endif
 
-    runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
-    runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
+    runtime_->SetJniDlsymLookupStub(CompilerDriver::CreateJniDlsymLookupStub(instruction_set));
+    runtime_->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
       if (!runtime_->HasResolutionStubArray(type)) {
         runtime_->SetResolutionStubArray(
-            Compiler::CreateResolutionStub(instruction_set, type), type);
+            CompilerDriver::CreateResolutionStub(instruction_set, type), type);
       }
     }
     if (!runtime_->HasResolutionMethod()) {
@@ -385,8 +385,8 @@ class CommonTest : public testing::Test {
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     image_classes_.reset(new std::set<std::string>);
-    compiler_.reset(new Compiler(compiler_backend, instruction_set, true, 2, false, image_classes_.get(),
-                                 true, true));
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false, image_classes_.get(),
+                                              true, true));
 
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
     // pool is created by the runtime.
@@ -426,7 +426,7 @@ class CommonTest : public testing::Test {
     IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
     (*icu_cleanup_fn)();
 
-    compiler_.reset();
+    compiler_driver_.reset();
     image_classes_.reset();
     STLDeleteElements(&opened_dex_files_);
 
@@ -490,7 +490,7 @@ class CommonTest : public testing::Test {
 
   void CompileMethod(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-    compiler_->CompileOne(method);
+    compiler_driver_->CompileOne(method);
     MakeExecutable(method);
 
     MakeExecutable(runtime_->GetJniDlsymLookupStub());
@@ -543,7 +543,7 @@ class CommonTest : public testing::Test {
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
-  UniquePtr<Compiler> compiler_;
+  UniquePtr<CompilerDriver> compiler_driver_;
   UniquePtr<std::set<std::string> > image_classes_;
 
  private:

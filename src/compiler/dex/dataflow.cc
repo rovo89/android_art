@@ -2501,9 +2501,9 @@ static bool InvokeUsesMethodStar(CompilationUnit* cu, MIR* mir)
   uintptr_t direct_code;
   uintptr_t direct_method;
   bool fast_path =
-      cu->compiler->ComputeInvokeInfo(dex_method_idx, &m_unit, type,
-                                         vtable_idx, direct_code,
-                                         direct_method) &&
+      cu->compiler_driver->ComputeInvokeInfo(dex_method_idx, &m_unit, type,
+                                             vtable_idx, direct_code,
+                                             direct_method) &&
       !SLOW_INVOKE_PATH;
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));

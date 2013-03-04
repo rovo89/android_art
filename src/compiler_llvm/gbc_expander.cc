@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 #include "intrinsic_helper.h"
 #include "ir_builder.h"
 #include "mirror/abstract_method.h"
@@ -63,7 +63,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
   llvm::Value* old_shadow_frame_;
 
  private:
-  art::Compiler* compiler_;
+  art::CompilerDriver* const driver_;
 
   art::OatCompilationUnit* oat_compilation_unit_;
 
@@ -326,11 +326,11 @@ class GBCExpanderPass : public llvm::FunctionPass {
   static char ID;
 
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                  art::Compiler* compiler, art::OatCompilationUnit* oat_compilation_unit)
+                  art::CompilerDriver* compiler, art::OatCompilationUnit* oat_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
         shadow_frame_(NULL), old_shadow_frame_(NULL),
-        compiler_(compiler),
+        driver_(compiler),
         oat_compilation_unit_(oat_compilation_unit),
         func_(NULL), current_bb_(NULL), basic_block_unwind_(NULL), changed_(false) {}
 
@@ -1392,7 +1392,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
 
   int field_offset;
   bool is_volatile;
-  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+  bool is_fast_path = driver_->ComputeInstanceFieldInfo(
     field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
 
   if (!is_fast_path) {
@@ -1452,7 +1452,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
   int field_offset;
   bool is_volatile;
-  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+  bool is_fast_path = driver_->ComputeInstanceFieldInfo(
     field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
 
   if (!is_fast_path) {
@@ -1509,7 +1509,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
 llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
                                                     uint32_t type_idx) {
-  if (!compiler_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+  if (!driver_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
                                              *oat_compilation_unit_->dex_file_, type_idx)) {
     llvm::Value* type_idx_value = irb_.getInt32(type_idx);
 
@@ -1536,7 +1536,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
-    if (compiler_->CanAssumeTypeIsPresentInDexCache(*oat_compilation_unit_->dex_file_, type_idx)) {
+    if (driver_->CanAssumeTypeIsPresentInDexCache(*oat_compilation_unit_->dex_file_, type_idx)) {
       return type_object_addr;
     }
 
@@ -1652,7 +1652,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
   bool is_referrers_class;
   bool is_volatile;
 
-  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+  bool is_fast_path = driver_->ComputeStaticFieldInfo(
     field_idx, oat_compilation_unit_, field_offset, ssb_index,
     is_referrers_class, is_volatile, false);
 
@@ -1734,7 +1734,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   bool is_referrers_class;
   bool is_volatile;
 
-  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+  bool is_fast_path = driver_->ComputeStaticFieldInfo(
     field_idx, oat_compilation_unit_, field_offset, ssb_index,
     is_referrers_class, is_volatile, true);
 
@@ -1814,7 +1814,7 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 
   llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
-  if (!compiler_->CanAssumeStringIsPresentInDexCache(*oat_compilation_unit_->dex_file_,
+  if (!driver_->CanAssumeStringIsPresentInDexCache(*oat_compilation_unit_->dex_file_,
                                                      string_idx)) {
     llvm::BasicBlock* block_str_exist =
       CreateBasicBlockWithDexPC(dex_pc, "str_exist");
@@ -2037,7 +2037,7 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
   llvm::Function* runtime_func;
-  if (compiler_->CanAccessInstantiableTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+  if (driver_->CanAccessInstantiableTypeWithoutChecks(oat_compilation_unit_->method_idx_,
                                                         *oat_compilation_unit_->dex_file_,
                                                         type_idx)) {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
@@ -2072,7 +2072,7 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
   int vtable_idx = -1;
   uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
-  bool is_fast_path = compiler_->
+  bool is_fast_path = driver_->
     ComputeInvokeInfo(callee_method_idx, oat_compilation_unit_,
                       invoke_type, vtable_idx, direct_code, direct_method);
 
@@ -2289,7 +2289,7 @@ llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Function* runtime_func;
 
   bool skip_access_check =
-    compiler_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+    driver_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
                                           *oat_compilation_unit_->dex_file_, type_idx);
 
 
@@ -3634,8 +3634,8 @@ namespace compiler_llvm {
 
 llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                      Compiler* compiler, OatCompilationUnit* oat_compilation_unit) {
-  return new GBCExpanderPass(intrinsic_helper, irb, compiler, oat_compilation_unit);
+                      CompilerDriver* driver, OatCompilationUnit* oat_compilation_unit) {
+  return new GBCExpanderPass(intrinsic_helper, irb, driver, oat_compilation_unit);
 }
 
 } // namespace compiler_llvm

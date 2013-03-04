@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler.h"
+#include "compiler/driver/compiler_driver.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -32,10 +32,10 @@
 
 namespace art {
 
-class CompilerTest : public CommonTest {
+class CompilerDriverTest : public CommonTest {
  protected:
   void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
-    compiler_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
+    compiler_driver_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 
@@ -89,7 +89,7 @@ class CompilerTest : public CommonTest {
 };
 
 // Disabled due to 10 second runtime on host
-TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
+TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   CompileAll(NULL);
 
   // All libcore references should resolve
@@ -131,7 +131,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   // TODO: check that all Method::GetCode() values are non-null
 }
 
-TEST_F(CompilerTest, AbstractMethodErrorStub) {
+TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());
