@@ -376,6 +376,7 @@ TEST_COMMON_SRC_FILES := \
 	src/base/unix_file/string_file_test.cc \
 	src/class_linker_test.cc \
 	src/compiler/driver/compiler_driver_test.cc \
+	src/compiler/jni/jni_compiler_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
 	src/elf_writer_test.cc \
@@ -388,7 +389,6 @@ TEST_COMMON_SRC_FILES := \
 	src/indenter_test.cc \
 	src/indirect_reference_table_test.cc \
 	src/intern_table_test.cc \
-	src/jni_compiler_test.cc \
 	src/jni_internal_test.cc \
 	src/mirror/dex_cache_test.cc \
 	src/mirror/object_test.cc \
