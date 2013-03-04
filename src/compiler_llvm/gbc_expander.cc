@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include "ir_builder.h"
-#include "utils_llvm.h"
-
 #include "compiler.h"
 #include "intrinsic_helper.h"
+#include "ir_builder.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
 #include "oat_compilation_unit.h"
 #include "thread.h"
+#include "utils_llvm.h"
 #include "verifier/method_verifier.h"
 
 #include "compiler/dex/compiler_ir.h"
@@ -66,12 +65,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
  private:
   art::Compiler* compiler_;
 
-  const art::DexFile* dex_file_;
-  const art::DexFile::CodeItem* code_item_;
-
   art::OatCompilationUnit* oat_compilation_unit_;
-
-  uint32_t method_idx_;
 
   llvm::Function* func_;
 
@@ -302,7 +296,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
                                                 llvm::Value* index,
                                                 int opt_flags);
 
-  llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
+  llvm::FunctionType* GetFunctionType(llvm::Type* ret_type, uint32_t method_idx, bool is_static);
 
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
 
@@ -331,27 +325,14 @@ class GBCExpanderPass : public llvm::FunctionPass {
  public:
   static char ID;
 
-  GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb)
-      : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
-        context_(irb.getContext()), rtb_(irb.Runtime()),
-        shadow_frame_(NULL), old_shadow_frame_(NULL),
-        compiler_(NULL), dex_file_(NULL), code_item_(NULL),
-        oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL),
-        changed_(false)
-  { }
-
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                   art::Compiler* compiler, art::OatCompilationUnit* oat_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
         shadow_frame_(NULL), old_shadow_frame_(NULL),
         compiler_(compiler),
-        dex_file_(oat_compilation_unit->GetDexFile()),
-        code_item_(oat_compilation_unit->GetCodeItem()),
         oat_compilation_unit_(oat_compilation_unit),
-        method_idx_(oat_compilation_unit->GetDexMethodIndex()),
-        func_(NULL), changed_(false)
-  { }
+        func_(NULL), current_bb_(NULL), basic_block_unwind_(NULL), changed_(false) {}
 
   bool runOnFunction(llvm::Function& func);
 
@@ -366,6 +347,8 @@ class GBCExpanderPass : public llvm::FunctionPass {
 char GBCExpanderPass::ID = 0;
 
 bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
+  VLOG(compiler) << "GBC expansion on " << func.getName().str();
+
   // Runtime support or stub
   if (func.getName().startswith("art_") || func.getName().startswith("Art")) {
     return false;
@@ -377,8 +360,8 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   func_ = &func;
   changed_ = false; // Assume unchanged
 
-  basic_blocks_.resize(code_item_->insns_size_in_code_units_);
-  basic_block_landing_pads_.resize(code_item_->tries_size_, NULL);
+  basic_blocks_.resize(oat_compilation_unit_->code_item_->insns_size_in_code_units_);
+  basic_block_landing_pads_.resize(oat_compilation_unit_->code_item_->tries_size_, NULL);
   basic_block_unwind_ = NULL;
   for (llvm::Function::iterator bb_iter = func_->begin(), bb_end = func_->end();
        bb_iter != bb_end;
@@ -1526,7 +1509,8 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
 llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
                                                     uint32_t type_idx) {
-  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
+  if (!compiler_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+                                             *oat_compilation_unit_->dex_file_, type_idx)) {
     llvm::Value* type_idx_value = irb_.getInt32(type_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -1552,7 +1536,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
-    if (compiler_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
+    if (compiler_->CanAssumeTypeIsPresentInDexCache(*oat_compilation_unit_->dex_file_, type_idx)) {
       return type_object_addr;
     }
 
@@ -1830,7 +1814,8 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 
   llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
-  if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
+  if (!compiler_->CanAssumeStringIsPresentInDexCache(*oat_compilation_unit_->dex_file_,
+                                                     string_idx)) {
     llvm::BasicBlock* block_str_exist =
       CreateBasicBlockWithDexPC(dex_pc, "str_exist");
 
@@ -1939,9 +1924,7 @@ void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
   // Test: Is the reference equal to null?  Act as no-op when it is null.
   llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
 
-  irb_.CreateCondBr(equal_null,
-                    block_cont,
-                    block_test_class);
+  irb_.CreateCondBr(equal_null, block_cont, block_test_class, kUnlikely);
 
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
@@ -1959,9 +1942,7 @@ void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
 
-  irb_.CreateCondBr(equal_class,
-                    block_cont,
-                    block_test_sub_class);
+  irb_.CreateCondBr(equal_class, block_cont, block_test_sub_class, kLikely);
 
   // Test: Is the object instantiated from the subclass of the given class?
   irb_.SetInsertPoint(block_test_sub_class);
@@ -2007,7 +1988,7 @@ llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
   // Test: Is the reference equal to null?  Set 0 when it is null.
   llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
 
-  irb_.CreateCondBr(equal_null, block_nullp, block_test_class);
+  irb_.CreateCondBr(equal_null, block_nullp, block_test_class, kUnlikely);
 
   irb_.SetInsertPoint(block_nullp);
   irb_.CreateBr(block_cont);
@@ -2028,7 +2009,7 @@ llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
 
-  irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class);
+  irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class, kLikely);
 
   irb_.SetInsertPoint(block_class_equals);
   irb_.CreateBr(block_cont);
@@ -2056,7 +2037,9 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
   llvm::Function* runtime_func;
-  if (compiler_->CanAccessInstantiableTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
+  if (compiler_->CanAccessInstantiableTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+                                                        *oat_compilation_unit_->dex_file_,
+                                                        type_idx)) {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObjectWithAccessCheck);
@@ -2160,17 +2143,19 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
     args.push_back(call_inst.getArgOperand(i));
   }
 
+  // Generate the load of the Method*. We base the return type on that of the call as method's
+  // returning a value are void calls if the return value is unused.
   llvm::Value* code_addr;
   if (direct_code != 0u &&
       direct_code != static_cast<uintptr_t>(-1)) {
     code_addr =
       irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),
-                          GetFunctionType(callee_method_idx, is_static)->getPointerTo());
+                          GetFunctionType(call_inst.getType(), callee_method_idx, is_static)->getPointerTo());
   } else {
     code_addr =
       irb_.LoadFromObjectOffset(callee_method_object_addr,
                                 art::mirror::AbstractMethod::GetCodeOffset().Int32Value(),
-                                GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
+                                GetFunctionType(call_inst.getType(), callee_method_idx, is_static)->getPointerTo(),
                                 kTBAARuntimeInfo);
   }
 
@@ -2214,7 +2199,7 @@ llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst)
     // Check for the element type
     uint32_t type_desc_len = 0;
     const char* type_desc =
-      dex_file_->StringByTypeIdx(type_idx, &type_desc_len);
+        oat_compilation_unit_->dex_file_->StringByTypeIdx(type_idx, &type_desc_len);
 
     DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
     DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
@@ -2268,7 +2253,7 @@ void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
 
   const art::Instruction::ArrayDataPayload* payload =
     reinterpret_cast<const art::Instruction::ArrayDataPayload*>(
-        code_item_->insns_ + payload_offset);
+        oat_compilation_unit_->code_item_->insns_ + payload_offset);
 
   if (payload->element_count == 0) {
     // When the number of the elements in the payload is zero, we don't have
@@ -2304,7 +2289,8 @@ llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Function* runtime_func;
 
   bool skip_access_check =
-    compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx);
+    compiler_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
+                                          *oat_compilation_unit_->dex_file_, type_idx);
 
 
   if (is_filled_new_array) {
@@ -2448,7 +2434,7 @@ void GBCExpanderPass::EmitGuard_NullPointerException(uint32_t dex_pc,
       llvm::BasicBlock* block_continue =
           CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue);
+      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue, kUnlikely);
 
       irb_.SetInsertPoint(block_continue);
     }
@@ -2491,7 +2477,7 @@ GBCExpanderPass::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
       llvm::BasicBlock* block_continue =
           CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue);
+      irb_.CreateCondBr(irb_.getFalse(), lpad, block_continue, kUnlikely);
 
       irb_.SetInsertPoint(block_continue);
     }
@@ -2518,20 +2504,15 @@ GBCExpanderPass::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
   }
 }
 
-llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
+llvm::FunctionType* GBCExpanderPass::GetFunctionType(llvm::Type* ret_type, uint32_t method_idx,
                                                      bool is_static) {
   // Get method signature
-  art::DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
+  art::DexFile::MethodId const& method_id =
+      oat_compilation_unit_->dex_file_->GetMethodId(method_idx);
 
   uint32_t shorty_size;
-  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = oat_compilation_unit_->dex_file_->GetMethodShorty(method_id, &shorty_size);
   CHECK_GE(shorty_size, 1u);
-
-  // Get return type
-
-  char ret_shorty = shorty[0];
-  ret_shorty = art::RemapShorty(ret_shorty);
-  llvm::Type* ret_type = irb_.getJType(ret_shorty);
 
   // Get argument type
   std::vector<llvm::Type*> args_type;
@@ -2563,19 +2544,20 @@ CreateBasicBlockWithDexPC(uint32_t dex_pc, const char* postfix) {
 }
 
 llvm::BasicBlock* GBCExpanderPass::GetBasicBlock(uint32_t dex_pc) {
-  DCHECK(dex_pc < code_item_->insns_size_in_code_units_);
+  DCHECK(dex_pc < oat_compilation_unit_->code_item_->insns_size_in_code_units_);
   CHECK(basic_blocks_[dex_pc] != NULL);
   return basic_blocks_[dex_pc];
 }
 
 int32_t GBCExpanderPass::GetTryItemOffset(uint32_t dex_pc) {
   int32_t min = 0;
-  int32_t max = code_item_->tries_size_ - 1;
+  int32_t max = oat_compilation_unit_->code_item_->tries_size_ - 1;
 
   while (min <= max) {
     int32_t mid = min + (max - min) / 2;
 
-    const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*code_item_, mid);
+    const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*oat_compilation_unit_->code_item_,
+                                                                mid);
     uint32_t start = ti->start_addr_;
     uint32_t end = start + ti->insn_count_;
 
@@ -2610,7 +2592,8 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
   }
 
   // Get try item from code item
-  const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*code_item_, ti_offset);
+  const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*oat_compilation_unit_->code_item_,
+                                                              ti_offset);
 
   std::string lpadname;
 
@@ -2639,7 +2622,7 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
     irb_.CreateSwitch(catch_handler_index_value, GetUnwindBasicBlock());
 
   // Cases with matched catch block
-  art::CatchHandlerIterator iter(*code_item_, ti->start_addr_);
+  art::CatchHandlerIterator iter(*oat_compilation_unit_->code_item_, ti->start_addr_);
 
   for (uint32_t c = 0; iter.HasNext(); iter.Next(), ++c) {
     sw->addCase(irb_.getInt32(c), GetBasicBlock(iter.GetHandlerAddress()));
@@ -3647,23 +3630,12 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 } // anonymous namespace
 
 namespace art {
-
 namespace compiler_llvm {
-
-llvm::FunctionPass*
-CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb) {
-  return new GBCExpanderPass(intrinsic_helper, irb);
-}
 
 llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit) {
-  if (compiler != NULL) {
-    return new GBCExpanderPass(intrinsic_helper, irb,
-                               compiler, oat_compilation_unit);
-  } else {
-    return new GBCExpanderPass(intrinsic_helper, irb);
-  }
+  return new GBCExpanderPass(intrinsic_helper, irb, compiler, oat_compilation_unit);
 }
 
 } // namespace compiler_llvm
