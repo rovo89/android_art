@@ -23,7 +23,7 @@
 #include "compiler/driver/compiler_driver.h"
 #include "globals.h"
 #include "instruction_set.h"
-#include "oat_compilation_unit.h"
+#include "compiler/driver/dex_compilation_unit.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 #include "safe_map.h"
@@ -81,8 +81,8 @@ class LlvmCompilationUnit {
   void SetCompiler(CompilerDriver* driver) {
     driver_ = driver;
   }
-  void SetOatCompilationUnit(OatCompilationUnit* oat_compilation_unit) {
-    oat_compilation_unit_ = oat_compilation_unit;
+  void SetDexCompilationUnit(DexCompilationUnit* dex_compilation_unit) {
+    dex_compilation_unit_ = dex_compilation_unit;
   }
 
   bool Materialize();
@@ -110,7 +110,7 @@ class LlvmCompilationUnit {
   UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
   CompilerDriver* driver_;
-  OatCompilationUnit* oat_compilation_unit_;
+  DexCompilationUnit* dex_compilation_unit_;
 
   std::string bitcode_filename_;
 

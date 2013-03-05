@@ -54,7 +54,7 @@ void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
 bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
                   int& field_offset, bool& is_volatile, bool is_put)
 {
-  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
+  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker,
                             *cu->dex_file, cu->code_item,
                             cu->class_def_idx, cu->method_idx,
                             cu->access_flags);

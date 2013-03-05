@@ -24,8 +24,8 @@
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
+#include "dex_compilation_unit.h"
 #include "jni_internal.h"
-#include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "oat/runtime/stub.h"
 #include "object_utils.h"
@@ -671,37 +671,37 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 }
 
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
-                                                   OatCompilationUnit* mUnit)
+                                                   const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->class_loader_);
-  const DexFile::MethodId& referrer_method_id = mUnit->dex_file_->GetMethodId(mUnit->method_idx_);
-  return mUnit->class_linker_->ResolveType(*mUnit->dex_file_, referrer_method_id.class_idx_,
-                                           dex_cache, class_loader);
+  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  const DexFile::MethodId& referrer_method_id = mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
+  return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
+                                              dex_cache, class_loader);
 }
 
 static mirror::Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
-                                                                OatCompilationUnit* mUnit,
+                                                                const DexCompilationUnit* mUnit,
                                                                 uint32_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->class_loader_);
-  return mUnit->class_linker_->ResolveField(*mUnit->dex_file_, field_idx, dex_cache,
-                                            class_loader, false);
+  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  return mUnit->GetClassLinker()->ResolveField(*mUnit->GetDexFile(), field_idx, dex_cache,
+                                               class_loader, false);
 }
 
 static mirror::AbstractMethod* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
-                                                                          OatCompilationUnit* mUnit,
+                                                                          const DexCompilationUnit* mUnit,
                                                                           uint32_t method_idx,
                                                                           InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
-  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->class_loader_);
-  return mUnit->class_linker_->ResolveMethod(*mUnit->dex_file_, method_idx, dex_cache,
-                                             class_loader, NULL, type);
+  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  return mUnit->GetClassLinker()->ResolveMethod(*mUnit->GetDexFile(), method_idx, dex_cache,
+                                                class_loader, NULL, type);
 }
 
-bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                                               int& field_offset, bool& is_volatile, bool is_put) {
   ScopedObjectAccess soa(Thread::Current());
   // Conservative defaults.
@@ -721,7 +721,7 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilation
         // protected field being made public by a sub-class. Resort to the dex file to determine
         // the correct class for the access check.
         const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
-        mirror::Class* dex_fields_class = mUnit->class_linker_->ResolveType(dex_file,
+        mirror::Class* dex_fields_class = mUnit->GetClassLinker()->ResolveType(dex_file,
                                                          dex_file.GetFieldId(field_idx).class_idx_,
                                                          referrer_class);
         access_ok = referrer_class->CanAccess(dex_fields_class) &&
@@ -746,7 +746,7 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilation
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                                             int& field_offset, int& ssb_index,
                                             bool& is_referrers_class, bool& is_volatile,
                                             bool is_put) {
@@ -779,9 +779,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUn
           // used to identify the SSB.
           const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
           mirror::Class* dex_fields_class =
-              mUnit->class_linker_->ResolveType(dex_file,
-                                                dex_file.GetFieldId(field_idx).class_idx_,
-                                                referrer_class);
+              mUnit->GetClassLinker()->ResolveType(dex_file,
+                                                   dex_file.GetFieldId(field_idx).class_idx_,
+                                                   referrer_class);
           access_ok = referrer_class->CanAccess(dex_fields_class) &&
                       referrer_class->CanAccessMember(dex_fields_class,
                                                       resolved_field->GetAccessFlags());
@@ -792,7 +792,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUn
           // in its static storage base (which may fail if it doesn't have a slot for it)
           // TODO: for images we can elide the static storage base null check
           // if we know there's a non-null entry in the image
-          mirror::DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
+          mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
           if (fields_class->GetDexCache() == dex_cache) {
             // common case where the dex cache of both the referrer and the field are the same,
             // no need to search the dex file
@@ -806,13 +806,13 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUn
           // of the class mentioned in the dex file and there is no dex cache entry.
           std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
-          mUnit->dex_file_->FindStringId(descriptor);
+          mUnit->GetDexFile()->FindStringId(descriptor);
           if (string_id != NULL) {
             const DexFile::TypeId* type_id =
-               mUnit->dex_file_->FindTypeId(mUnit->dex_file_->GetIndexForStringId(*string_id));
+               mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
             if (type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              ssb_index = mUnit->dex_file_->GetIndexForTypeId(*type_id);
+              ssb_index = mUnit->GetDexFile()->GetIndexForTypeId(*type_id);
               field_offset = resolved_field->GetOffset().Int32Value();
               is_volatile = resolved_field->IsVolatile();
               stats_->ResolvedStaticField();
@@ -882,7 +882,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
   }
 }
 
-bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
+bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilationUnit* mUnit,
                                        InvokeType& type, int& vtable_idx, uintptr_t& direct_code,
                                        uintptr_t& direct_method) {
   ScopedObjectAccess soa(Thread::Current());
@@ -907,9 +907,9 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* 
         // check.
         const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
         methods_class =
-            mUnit->class_linker_->ResolveType(dex_file,
-                                              dex_file.GetMethodId(method_idx).class_idx_,
-                                              referrer_class);
+            mUnit->GetClassLinker()->ResolveType(dex_file,
+                                                 dex_file.GetMethodId(method_idx).class_idx_,
+                                                 referrer_class);
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {

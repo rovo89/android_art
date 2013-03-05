@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_JNI_COMPILER_H_
-#define ART_SRC_COMPILER_LLVM_JNI_COMPILER_H_
+#ifndef ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
+#define ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
 
 #include <stdint.h>
 
@@ -24,7 +24,7 @@ namespace art {
   class CompiledMethod;
   class CompilerDriver;
   class DexFile;
-  class OatCompilationUnit;
+  class DexCompilationUnit;
   namespace mirror {
     class AbstractMethod;
     class ClassLoader;
@@ -53,7 +53,7 @@ class JniCompiler {
  public:
   JniCompiler(LlvmCompilationUnit* cunit,
               const CompilerDriver& driver,
-              OatCompilationUnit* oat_compilation_unit);
+              const DexCompilationUnit* dex_compilation_unit);
 
   CompiledMethod* Compile();
 
@@ -71,19 +71,15 @@ class JniCompiler {
   llvm::LLVMContext* context_;
   IRBuilder& irb_;
 
-  OatCompilationUnit* oat_compilation_unit_;
-
-  uint32_t access_flags_;
-  uint32_t method_idx_;
-  const DexFile* dex_file_;
+  const DexCompilationUnit* const dex_compilation_unit_;
 
   llvm::Function* func_;
   uint16_t elf_func_idx_;
 };
 
 
-} // namespace compiler_llvm
-} // namespace art
+}  // namespace compiler_llvm
+}  // namespace art
 
 
-#endif // ART_SRC_COMPILER_LLVM_JNI_COMPILER_H_
+#endif  // ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_

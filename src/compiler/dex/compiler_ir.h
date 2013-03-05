@@ -20,8 +20,8 @@
 #include <vector>
 #include "dex_instruction.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/driver/dex_compilation_unit.h"
 #include "compiler_utility.h"
-#include "oat_compilation_unit.h"
 #include "safe_map.h"
 #include "compiler_llvm/ir_builder.h"
 #include "compiler_llvm/intrinsic_helper.h"

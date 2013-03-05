@@ -15,11 +15,11 @@
  */
 
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/driver/dex_compilation_unit.h"
 #include "intrinsic_helper.h"
 #include "ir_builder.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
-#include "oat_compilation_unit.h"
 #include "thread.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"
@@ -65,7 +65,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
  private:
   art::CompilerDriver* const driver_;
 
-  art::OatCompilationUnit* oat_compilation_unit_;
+  const art::DexCompilationUnit* const dex_compilation_unit_;
 
   llvm::Function* func_;
 
@@ -326,12 +326,12 @@ class GBCExpanderPass : public llvm::FunctionPass {
   static char ID;
 
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                  art::CompilerDriver* compiler, art::OatCompilationUnit* oat_compilation_unit)
+                  art::CompilerDriver* compiler, art::DexCompilationUnit* dex_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
         shadow_frame_(NULL), old_shadow_frame_(NULL),
         driver_(compiler),
-        oat_compilation_unit_(oat_compilation_unit),
+        dex_compilation_unit_(dex_compilation_unit),
         func_(NULL), current_bb_(NULL), basic_block_unwind_(NULL), changed_(false) {}
 
   bool runOnFunction(llvm::Function& func);
@@ -360,8 +360,8 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   func_ = &func;
   changed_ = false; // Assume unchanged
 
-  basic_blocks_.resize(oat_compilation_unit_->code_item_->insns_size_in_code_units_);
-  basic_block_landing_pads_.resize(oat_compilation_unit_->code_item_->tries_size_, NULL);
+  basic_blocks_.resize(dex_compilation_unit_->GetCodeItem()->insns_size_in_code_units_);
+  basic_block_landing_pads_.resize(dex_compilation_unit_->GetCodeItem()->tries_size_, NULL);
   basic_block_unwind_ = NULL;
   for (llvm::Function::iterator bb_iter = func_->begin(), bb_end = func_->end();
        bb_iter != bb_end;
@@ -1393,7 +1393,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
   int field_offset;
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
-    field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
+    field_idx, dex_compilation_unit_, field_offset, is_volatile, false);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
@@ -1453,7 +1453,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   int field_offset;
   bool is_volatile;
   bool is_fast_path = driver_->ComputeInstanceFieldInfo(
-    field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
+    field_idx, dex_compilation_unit_, field_offset, is_volatile, true);
 
   if (!is_fast_path) {
     llvm::Function* runtime_func;
@@ -1509,8 +1509,8 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
 llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
                                                     uint32_t type_idx) {
-  if (!driver_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
-                                             *oat_compilation_unit_->dex_file_, type_idx)) {
+  if (!driver_->CanAccessTypeWithoutChecks(dex_compilation_unit_->GetDexMethodIndex(),
+                                           *dex_compilation_unit_->GetDexFile(), type_idx)) {
     llvm::Value* type_idx_value = irb_.getInt32(type_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -1536,7 +1536,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
-    if (driver_->CanAssumeTypeIsPresentInDexCache(*oat_compilation_unit_->dex_file_, type_idx)) {
+    if (driver_->CanAssumeTypeIsPresentInDexCache(*dex_compilation_unit_->GetDexFile(), type_idx)) {
       return type_object_addr;
     }
 
@@ -1653,7 +1653,7 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
   bool is_volatile;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
-    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    field_idx, dex_compilation_unit_, field_offset, ssb_index,
     is_referrers_class, is_volatile, false);
 
   llvm::Value* static_field_value;
@@ -1735,7 +1735,7 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   bool is_volatile;
 
   bool is_fast_path = driver_->ComputeStaticFieldInfo(
-    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    field_idx, dex_compilation_unit_, field_offset, ssb_index,
     is_referrers_class, is_volatile, true);
 
   if (!is_fast_path) {
@@ -1814,8 +1814,8 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 
   llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
-  if (!driver_->CanAssumeStringIsPresentInDexCache(*oat_compilation_unit_->dex_file_,
-                                                     string_idx)) {
+  if (!driver_->CanAssumeStringIsPresentInDexCache(*dex_compilation_unit_->GetDexFile(),
+                                                   string_idx)) {
     llvm::BasicBlock* block_str_exist =
       CreateBasicBlockWithDexPC(dex_pc, "str_exist");
 
@@ -2037,9 +2037,9 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
   llvm::Function* runtime_func;
-  if (driver_->CanAccessInstantiableTypeWithoutChecks(oat_compilation_unit_->method_idx_,
-                                                        *oat_compilation_unit_->dex_file_,
-                                                        type_idx)) {
+  if (driver_->CanAccessInstantiableTypeWithoutChecks(dex_compilation_unit_->GetDexMethodIndex(),
+                                                      *dex_compilation_unit_->GetDexFile(),
+                                                      type_idx)) {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObjectWithAccessCheck);
@@ -2073,7 +2073,7 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
   uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
   bool is_fast_path = driver_->
-    ComputeInvokeInfo(callee_method_idx, oat_compilation_unit_,
+    ComputeInvokeInfo(callee_method_idx, dex_compilation_unit_,
                       invoke_type, vtable_idx, direct_code, direct_method);
 
   // Load *this* actual parameter
@@ -2199,7 +2199,7 @@ llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst)
     // Check for the element type
     uint32_t type_desc_len = 0;
     const char* type_desc =
-        oat_compilation_unit_->dex_file_->StringByTypeIdx(type_idx, &type_desc_len);
+        dex_compilation_unit_->GetDexFile()->StringByTypeIdx(type_idx, &type_desc_len);
 
     DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
     DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
@@ -2253,7 +2253,7 @@ void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
 
   const art::Instruction::ArrayDataPayload* payload =
     reinterpret_cast<const art::Instruction::ArrayDataPayload*>(
-        oat_compilation_unit_->code_item_->insns_ + payload_offset);
+        dex_compilation_unit_->GetCodeItem()->insns_ + payload_offset);
 
   if (payload->element_count == 0) {
     // When the number of the elements in the payload is zero, we don't have
@@ -2289,8 +2289,8 @@ llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Function* runtime_func;
 
   bool skip_access_check =
-    driver_->CanAccessTypeWithoutChecks(oat_compilation_unit_->method_idx_,
-                                          *oat_compilation_unit_->dex_file_, type_idx);
+    driver_->CanAccessTypeWithoutChecks(dex_compilation_unit_->GetDexMethodIndex(),
+                                        *dex_compilation_unit_->GetDexFile(), type_idx);
 
 
   if (is_filled_new_array) {
@@ -2508,10 +2508,10 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(llvm::Type* ret_type, uint3
                                                      bool is_static) {
   // Get method signature
   art::DexFile::MethodId const& method_id =
-      oat_compilation_unit_->dex_file_->GetMethodId(method_idx);
+      dex_compilation_unit_->GetDexFile()->GetMethodId(method_idx);
 
   uint32_t shorty_size;
-  const char* shorty = oat_compilation_unit_->dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = dex_compilation_unit_->GetDexFile()->GetMethodShorty(method_id, &shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Get argument type
@@ -2544,20 +2544,20 @@ CreateBasicBlockWithDexPC(uint32_t dex_pc, const char* postfix) {
 }
 
 llvm::BasicBlock* GBCExpanderPass::GetBasicBlock(uint32_t dex_pc) {
-  DCHECK(dex_pc < oat_compilation_unit_->code_item_->insns_size_in_code_units_);
+  DCHECK(dex_pc < dex_compilation_unit_->GetCodeItem()->insns_size_in_code_units_);
   CHECK(basic_blocks_[dex_pc] != NULL);
   return basic_blocks_[dex_pc];
 }
 
 int32_t GBCExpanderPass::GetTryItemOffset(uint32_t dex_pc) {
   int32_t min = 0;
-  int32_t max = oat_compilation_unit_->code_item_->tries_size_ - 1;
+  int32_t max = dex_compilation_unit_->GetCodeItem()->tries_size_ - 1;
 
   while (min <= max) {
     int32_t mid = min + (max - min) / 2;
 
-    const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*oat_compilation_unit_->code_item_,
-                                                                mid);
+    const art::DexFile::TryItem* ti =
+        art::DexFile::GetTryItems(*dex_compilation_unit_->GetCodeItem(), mid);
     uint32_t start = ti->start_addr_;
     uint32_t end = start + ti->insn_count_;
 
@@ -2592,7 +2592,7 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
   }
 
   // Get try item from code item
-  const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*oat_compilation_unit_->code_item_,
+  const art::DexFile::TryItem* ti = art::DexFile::GetTryItems(*dex_compilation_unit_->GetCodeItem(),
                                                               ti_offset);
 
   std::string lpadname;
@@ -2622,7 +2622,7 @@ llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
     irb_.CreateSwitch(catch_handler_index_value, GetUnwindBasicBlock());
 
   // Cases with matched catch block
-  art::CatchHandlerIterator iter(*oat_compilation_unit_->code_item_, ti->start_addr_);
+  art::CatchHandlerIterator iter(*dex_compilation_unit_->GetCodeItem(), ti->start_addr_);
 
   for (uint32_t c = 0; iter.HasNext(); iter.Next(), ++c) {
     sw->addCase(irb_.getInt32(c), GetBasicBlock(iter.GetHandlerAddress()));
@@ -2656,7 +2656,7 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
   Expand_PopShadowFrame();
 
   // Emit the code to return default value (zero) for the given return type.
-  char ret_shorty = oat_compilation_unit_->GetShorty()[0];
+  char ret_shorty = dex_compilation_unit_->GetShorty()[0];
   ret_shorty = art::RemapShorty(ret_shorty);
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();
@@ -3634,8 +3634,8 @@ namespace compiler_llvm {
 
 llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                      CompilerDriver* driver, OatCompilationUnit* oat_compilation_unit) {
-  return new GBCExpanderPass(intrinsic_helper, irb, driver, oat_compilation_unit);
+                      CompilerDriver* driver, DexCompilationUnit* dex_compilation_unit) {
+  return new GBCExpanderPass(intrinsic_helper, irb, driver, dex_compilation_unit);
 }
 
 } // namespace compiler_llvm

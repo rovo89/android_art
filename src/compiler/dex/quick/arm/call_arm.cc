@@ -21,7 +21,6 @@
 #include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/quick/ralloc_util.h"
 #include "oat/runtime/oat_support_entrypoints.h"
-#include "oat_compilation_unit.h"
 
 namespace art {
 

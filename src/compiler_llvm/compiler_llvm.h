@@ -34,7 +34,7 @@ namespace art {
   class CompiledInvokeStub;
   class CompiledMethod;
   class CompilerDriver;
-  class OatCompilationUnit;
+  class DexCompilationUnit;
   namespace mirror {
     class AbstractMethod;
     class ClassLoader;
@@ -76,12 +76,12 @@ class CompilerLLVM {
     bitcode_filename_ = filename;
   }
 
-  CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit,
+  CompiledMethod* CompileDexMethod(DexCompilationUnit* dex_compilation_unit,
                                    InvokeType invoke_type);
 
-  CompiledMethod* CompileGBCMethod(OatCompilationUnit* oat_compilation_unit, std::string* func);
+  CompiledMethod* CompileGBCMethod(DexCompilationUnit* dex_compilation_unit, std::string* func);
 
-  CompiledMethod* CompileNativeMethod(OatCompilationUnit* oat_compilation_unit);
+  CompiledMethod* CompileNativeMethod(DexCompilationUnit* dex_compilation_unit);
 
   CompiledInvokeStub* CreateInvokeStub(bool is_static, const char *shorty);
 

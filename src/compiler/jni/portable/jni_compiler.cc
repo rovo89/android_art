@@ -20,13 +20,13 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/driver/dex_compilation_unit.h"
 #include "compiler_llvm/compiler_llvm.h"
 #include "compiler_llvm/ir_builder.h"
 #include "compiler_llvm/llvm_compilation_unit.h"
 #include "compiler_llvm/runtime_support_func.h"
 #include "compiler_llvm/utils_llvm.h"
 #include "mirror/abstract_method.h"
-#include "oat_compilation_unit.h"
 #include "runtime.h"
 #include "stack.h"
 #include "thread.h"
@@ -44,25 +44,24 @@ using namespace runtime_support;
 
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
                          const CompilerDriver& driver,
-                         OatCompilationUnit* oat_compilation_unit)
+                         const DexCompilationUnit* dex_compilation_unit)
 : cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
   context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
-  oat_compilation_unit_(oat_compilation_unit),
-  access_flags_(oat_compilation_unit->access_flags_),
-  method_idx_(oat_compilation_unit->method_idx_),
-  dex_file_(oat_compilation_unit->dex_file_),
+  dex_compilation_unit_(dex_compilation_unit),
   func_(NULL), elf_func_idx_(0) {
 
   // Check: Ensure that JNI compiler will only get "native" method
-  CHECK((access_flags_ & kAccNative) != 0);
+  CHECK(dex_compilation_unit->IsNative());
 }
 
 
 CompiledMethod* JniCompiler::Compile() {
-  const bool is_static = (access_flags_ & kAccStatic) != 0;
-  const bool is_synchronized = (access_flags_ & kAccSynchronized) != 0;
-  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
-  char const return_shorty = dex_file_->GetMethodShorty(method_id)[0];
+  const bool is_static = dex_compilation_unit_->IsStatic();
+  const bool is_synchronized = dex_compilation_unit_->IsSynchronized();
+  const DexFile* dex_file = dex_compilation_unit_->GetDexFile();
+  DexFile::MethodId const& method_id =
+      dex_file->GetMethodId(dex_compilation_unit_->GetDexMethodIndex());
+  char const return_shorty = dex_file->GetMethodShorty(method_id)[0];
   llvm::Value* this_object_or_class_object;
 
   CreateFunction();
@@ -128,7 +127,8 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
                                 mirror::AbstractMethod::NativeMethodOffset().Int32Value(),
-                                GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
+                                GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(),
+                                                is_static, true)->getPointerTo(),
                                 kTBAARuntimeInfo);
 
   // Load actual parameters
@@ -241,11 +241,11 @@ void JniCompiler::CreateFunction() {
   // LLVM function name
   std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
-  const bool is_static = (access_flags_ & kAccStatic) != 0;
+  const bool is_static = dex_compilation_unit_->IsStatic();
 
   // Get function type
   llvm::FunctionType* func_type =
-    GetFunctionType(method_idx_, is_static, false);
+    GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(), is_static, false);
 
   // Create function
   func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
@@ -262,10 +262,8 @@ void JniCompiler::CreateFunction() {
 llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
                                                  bool is_static, bool is_native_function) {
   // Get method signature
-  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
-
   uint32_t shorty_size;
-  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = dex_compilation_unit_->GetShorty(&shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Get return type

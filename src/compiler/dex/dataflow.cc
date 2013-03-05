@@ -2491,7 +2491,7 @@ static bool InvokeUsesMethodStar(CompilationUnit* cu, MIR* mir)
       LOG(WARNING) << "Unexpected invoke op: " << opcode;
       return false;
   }
-  OatCompilationUnit m_unit(cu->class_loader, cu->class_linker,
+  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker,
                             *cu->dex_file, cu->code_item,
                             cu->class_def_idx, cu->method_idx,
                             cu->access_flags);

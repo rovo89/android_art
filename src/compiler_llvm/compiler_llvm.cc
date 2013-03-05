@@ -21,10 +21,10 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/driver/dex_compilation_unit.h"
 #include "ir_builder.h"
 #include "compiler/jni/portable/jni_compiler.h"
 #include "llvm_compilation_unit.h"
-#include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "stub_compiler.h"
 #include "utils_llvm.h"
@@ -133,31 +133,31 @@ LlvmCompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
 
 
 CompiledMethod* CompilerLLVM::
-CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_type) {
+CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_type) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
-  std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
-                                      *oat_compilation_unit->GetDexFile()));
+  std::string methodName(PrettyMethod(dex_compilation_unit->GetDexMethodIndex(),
+                                      *dex_compilation_unit->GetDexFile()));
   // TODO: consolidate ArtCompileMethods
   CompileOneMethod(*compiler_driver_,
                    kPortable,
-                   oat_compilation_unit->GetCodeItem(),
-                   oat_compilation_unit->access_flags_,
+                   dex_compilation_unit->GetCodeItem(),
+                   dex_compilation_unit->GetAccessFlags(),
                    invoke_type,
-                   oat_compilation_unit->GetClassDefIndex(),
-                   oat_compilation_unit->GetDexMethodIndex(),
-                   oat_compilation_unit->GetClassLoader(),
-                   *oat_compilation_unit->GetDexFile(),
+                   dex_compilation_unit->GetClassDefIndex(),
+                   dex_compilation_unit->GetDexMethodIndex(),
+                   dex_compilation_unit->GetClassLoader(),
+                   *dex_compilation_unit->GetDexFile(),
                    cunit->GetQuickContext()
   );
 
   cunit->SetCompiler(compiler_driver_);
-  cunit->SetOatCompilationUnit(oat_compilation_unit);
+  cunit->SetDexCompilationUnit(dex_compilation_unit);
 
   cunit->Materialize();
 
-  CompilerDriver::MethodReference mref(oat_compilation_unit->GetDexFile(),
-                                       oat_compilation_unit->GetDexMethodIndex());
+  CompilerDriver::MethodReference mref(dex_compilation_unit->GetDexFile(),
+                                       dex_compilation_unit->GetDexMethodIndex());
   return new CompiledMethod(compiler_driver_->GetInstructionSet(),
                             cunit->GetCompiledCode(),
                             *verifier::MethodVerifier::GetDexGcMap(mref));
@@ -165,11 +165,11 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
 
 
 CompiledMethod* CompilerLLVM::
-CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
+CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(cunit.get(), *compiler_driver_, oat_compilation_unit));
+      new JniCompiler(cunit.get(), *compiler_driver_, dex_compilation_unit));
 
   return jni_compiler->Compile();
 }
@@ -235,11 +235,11 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
   UNUSED(class_def_idx);  // TODO: this is used with Compiler::RequiresConstructorBarrier.
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
-  art::OatCompilationUnit oat_compilation_unit(
+  art::DexCompilationUnit dex_compilation_unit(
     class_loader, class_linker, dex_file, code_item,
     class_def_idx, method_idx, access_flags);
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit, invoke_type);
+  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&dex_compilation_unit, invoke_type);
   return result;
 }
 
@@ -248,12 +248,12 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
                                                         const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
 
-  art::OatCompilationUnit oat_compilation_unit(
+  art::DexCompilationUnit dex_compilation_unit(
     NULL, class_linker, dex_file, NULL,
     0, method_idx, access_flags);
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&oat_compilation_unit);
+  art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);
   return result;
 }
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_H_
-#define ART_SRC_COMPILER_H_
+#ifndef ART_SRC_COMPILER_DRIVER_COMPILER_DRIVER_H_
+#define ART_SRC_COMPILER_DRIVER_COMPILER_DRIVER_H_
 
 #include <set>
 #include <string>
@@ -36,7 +36,7 @@ namespace art {
 
 class AOTCompilationStats;
 class ParallelCompilationManager;
-class OatCompilationUnit;
+class DexCompilationUnit;
 class TimingLogger;
 
 enum CompilerBackend {
@@ -151,20 +151,20 @@ class CompilerDriver {
      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
-  bool ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+  bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                                 int& field_offset, bool& is_volatile, bool is_put)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
-  bool ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
+  bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                               int& field_offset, int& ssb_index,
                               bool& is_referrers_class, bool& is_volatile, bool is_put)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
-  bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
+  bool ComputeInvokeInfo(uint32_t method_idx, const DexCompilationUnit* mUnit, InvokeType& type,
                          int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
@@ -419,4 +419,4 @@ inline bool operator<(const CompilerDriver::ClassReference& lhs, const CompilerD
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_H_
+#endif  // ART_SRC_COMPILER_DRIVER_COMPILER_DRIVER_H_
