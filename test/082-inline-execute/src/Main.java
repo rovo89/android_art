@@ -26,6 +26,10 @@ public class Main {
     test_Math_abs_J();
     test_Math_min();
     test_Math_max();
+    test_StrictMath_abs_I();
+    test_StrictMath_abs_J();
+    test_StrictMath_min();
+    test_StrictMath_max();
     test_String_charAt();
     test_String_compareTo();
     test_String_indexOf();
@@ -223,6 +227,7 @@ public class Main {
     Assert.assertEquals(Math.abs(Integer.MAX_VALUE), Integer.MAX_VALUE);
     Assert.assertEquals(Math.abs(Integer.MIN_VALUE), Integer.MIN_VALUE);
     Assert.assertEquals(Math.abs(Integer.MIN_VALUE - 1), Integer.MAX_VALUE);
+    Assert.assertEquals(Math.abs(Integer.MIN_VALUE + 1), Integer.MAX_VALUE);
   }
 
   public static void test_Math_abs_J() {
@@ -250,6 +255,43 @@ public class Main {
     Assert.assertEquals(Math.max(0, Integer.MAX_VALUE), Integer.MAX_VALUE);
     Assert.assertEquals(Math.max(Integer.MIN_VALUE, 0), 0);
     Assert.assertEquals(Math.max(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MAX_VALUE);
+  }
+
+  public static void test_StrictMath_abs_I() {
+    Assert.assertEquals(StrictMath.abs(0), 0);
+    Assert.assertEquals(StrictMath.abs(123), 123);
+    Assert.assertEquals(StrictMath.abs(-123), 123);
+    Assert.assertEquals(StrictMath.abs(Integer.MAX_VALUE), Integer.MAX_VALUE);
+    Assert.assertEquals(StrictMath.abs(Integer.MIN_VALUE), Integer.MIN_VALUE);
+    Assert.assertEquals(StrictMath.abs(Integer.MIN_VALUE - 1), Integer.MAX_VALUE);
+    Assert.assertEquals(StrictMath.abs(Integer.MIN_VALUE + 1), Integer.MAX_VALUE);
+  }
+
+  public static void test_StrictMath_abs_J() {
+    Assert.assertEquals(StrictMath.abs(0L), 0L);
+    Assert.assertEquals(StrictMath.abs(123L), 123L);
+    Assert.assertEquals(StrictMath.abs(-123L), 123L);
+    Assert.assertEquals(StrictMath.abs(Long.MAX_VALUE), Long.MAX_VALUE);
+    Assert.assertEquals(StrictMath.abs(Long.MIN_VALUE), Long.MIN_VALUE);
+    Assert.assertEquals(StrictMath.abs(Long.MIN_VALUE - 1), Long.MAX_VALUE);
+  }
+
+  public static void test_StrictMath_min() {
+    Assert.assertEquals(StrictMath.min(0, 0), 0);
+    Assert.assertEquals(StrictMath.min(1, 0), 0);
+    Assert.assertEquals(StrictMath.min(0, 1), 0);
+    Assert.assertEquals(StrictMath.min(0, Integer.MAX_VALUE), 0);
+    Assert.assertEquals(StrictMath.min(Integer.MIN_VALUE, 0), Integer.MIN_VALUE);
+    Assert.assertEquals(StrictMath.min(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MIN_VALUE);
+  }
+
+  public static void test_StrictMath_max() {
+    Assert.assertEquals(StrictMath.max(0, 0), 0);
+    Assert.assertEquals(StrictMath.max(1, 0), 1);
+    Assert.assertEquals(StrictMath.max(0, 1), 1);
+    Assert.assertEquals(StrictMath.max(0, Integer.MAX_VALUE), Integer.MAX_VALUE);
+    Assert.assertEquals(StrictMath.max(Integer.MIN_VALUE, 0), 0);
+    Assert.assertEquals(StrictMath.max(Integer.MIN_VALUE, Integer.MAX_VALUE), Integer.MAX_VALUE);
   }
 
   public static void test_Float_floatToRawIntBits() {
