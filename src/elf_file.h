@@ -55,30 +55,30 @@ class ElfFile {
     return map_->Size();
   }
 
-  llvm::ELF::Elf32_Ehdr& GetHeader();
+  ::llvm::ELF::Elf32_Ehdr& GetHeader();
 
-  llvm::ELF::Elf32_Word GetProgramHeaderNum();
-  llvm::ELF::Elf32_Phdr& GetProgramHeader(llvm::ELF::Elf32_Word);
-  llvm::ELF::Elf32_Phdr* FindProgamHeaderByType(llvm::ELF::Elf32_Word type);
+  ::llvm::ELF::Elf32_Word GetProgramHeaderNum();
+  ::llvm::ELF::Elf32_Phdr& GetProgramHeader(::llvm::ELF::Elf32_Word);
+  ::llvm::ELF::Elf32_Phdr* FindProgamHeaderByType(::llvm::ELF::Elf32_Word type);
 
-  llvm::ELF::Elf32_Word GetSectionHeaderNum();
-  llvm::ELF::Elf32_Shdr& GetSectionHeader(llvm::ELF::Elf32_Word);
-  llvm::ELF::Elf32_Shdr* FindSectionByType(llvm::ELF::Elf32_Word type);
+  ::llvm::ELF::Elf32_Word GetSectionHeaderNum();
+  ::llvm::ELF::Elf32_Shdr& GetSectionHeader(::llvm::ELF::Elf32_Word);
+  ::llvm::ELF::Elf32_Shdr* FindSectionByType(::llvm::ELF::Elf32_Word type);
 
   byte* FindDynamicSymbolAddress(const std::string& symbol_name);
 
-  static bool IsSymbolSectionType(llvm::ELF::Elf32_Word section_type);
-  llvm::ELF::Elf32_Word GetSymbolNum(llvm::ELF::Elf32_Shdr&);
-  llvm::ELF::Elf32_Sym& GetSymbol(llvm::ELF::Elf32_Word section_type, llvm::ELF::Elf32_Word i);
-  llvm::ELF::Elf32_Sym* FindSymbolByName(llvm::ELF::Elf32_Word section_type,
+  static bool IsSymbolSectionType(::llvm::ELF::Elf32_Word section_type);
+  ::llvm::ELF::Elf32_Word GetSymbolNum(::llvm::ELF::Elf32_Shdr&);
+  ::llvm::ELF::Elf32_Sym& GetSymbol(::llvm::ELF::Elf32_Word section_type, ::llvm::ELF::Elf32_Word i);
+  ::llvm::ELF::Elf32_Sym* FindSymbolByName(::llvm::ELF::Elf32_Word section_type,
                                          const std::string& symbol_name);
-  llvm::ELF::Elf32_Addr FindSymbolAddress(llvm::ELF::Elf32_Word section_type,
+  ::llvm::ELF::Elf32_Addr FindSymbolAddress(::llvm::ELF::Elf32_Word section_type,
                                           const std::string& symbol_name);
 
-  char* GetString(llvm::ELF::Elf32_Shdr&, llvm::ELF::Elf32_Word);
+  char* GetString(::llvm::ELF::Elf32_Shdr&, ::llvm::ELF::Elf32_Word);
 
-  llvm::ELF::Elf32_Word GetDynamicNum();
-  llvm::ELF::Elf32_Dyn& GetDynamic(llvm::ELF::Elf32_Word);
+  ::llvm::ELF::Elf32_Word GetDynamicNum();
+  ::llvm::ELF::Elf32_Dyn& GetDynamic(::llvm::ELF::Elf32_Word);
 
   // Returns the expected size when the file is loaded at runtime
   size_t GetLoadedSize();
@@ -95,21 +95,21 @@ class ElfFile {
 
   byte* GetProgramHeadersStart();
   byte* GetSectionHeadersStart();
-  llvm::ELF::Elf32_Phdr& GetDynamicProgramHeader();
-  llvm::ELF::Elf32_Dyn* GetDynamicSectionStart();
-  llvm::ELF::Elf32_Sym* GetSymbolSectionStart(llvm::ELF::Elf32_Word section_type);
-  char* GetSymbolStringSectionStart(llvm::ELF::Elf32_Word section_type);
-  llvm::ELF::Elf32_Word* GetHashSectionStart();
-  llvm::ELF::Elf32_Word GetHashBucketNum();
-  llvm::ELF::Elf32_Word GetHashChainNum();
-  llvm::ELF::Elf32_Word GetHashBucket(size_t i);
-  llvm::ELF::Elf32_Word GetHashChain(size_t i);
+  ::llvm::ELF::Elf32_Phdr& GetDynamicProgramHeader();
+  ::llvm::ELF::Elf32_Dyn* GetDynamicSectionStart();
+  ::llvm::ELF::Elf32_Sym* GetSymbolSectionStart(::llvm::ELF::Elf32_Word section_type);
+  char* GetSymbolStringSectionStart(::llvm::ELF::Elf32_Word section_type);
+  ::llvm::ELF::Elf32_Word* GetHashSectionStart();
+  ::llvm::ELF::Elf32_Word GetHashBucketNum();
+  ::llvm::ELF::Elf32_Word GetHashChainNum();
+  ::llvm::ELF::Elf32_Word GetHashBucket(size_t i);
+  ::llvm::ELF::Elf32_Word GetHashChain(size_t i);
 
   File* file_;
   bool writable_;
   bool program_header_only_;
   UniquePtr<MemMap> map_;
-  llvm::ELF::Elf32_Ehdr* header_;
+  ::llvm::ELF::Elf32_Ehdr* header_;
   std::vector<MemMap*> segments_;
   byte* base_address_;
 
@@ -118,13 +118,13 @@ class ElfFile {
 
   // Conditionally available values. Use accessors to ensure they exist if they are required.
   byte* section_headers_start_;
-  llvm::ELF::Elf32_Phdr* dynamic_program_header_;
-  llvm::ELF::Elf32_Dyn* dynamic_section_start_;
-  llvm::ELF::Elf32_Sym* symtab_section_start_;
-  llvm::ELF::Elf32_Sym* dynsym_section_start_;
+  ::llvm::ELF::Elf32_Phdr* dynamic_program_header_;
+  ::llvm::ELF::Elf32_Dyn* dynamic_section_start_;
+  ::llvm::ELF::Elf32_Sym* symtab_section_start_;
+  ::llvm::ELF::Elf32_Sym* dynsym_section_start_;
   char* strtab_section_start_;
   char* dynstr_section_start_;
-  llvm::ELF::Elf32_Word* hash_section_start_;
+  ::llvm::ELF::Elf32_Word* hash_section_start_;
 
 };
 

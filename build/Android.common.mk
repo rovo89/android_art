@@ -141,8 +141,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/common_throws.cc \
 	src/compiled_method.cc \
 	src/compiler/driver/compiler_driver.cc \
-	src/compiler_llvm/procedure_linkage_table.cc \
-	src/compiler_llvm/runtime_support_llvm.cc \
+	src/compiler/llvm/procedure_linkage_table.cc \
+	src/compiler/llvm/runtime_support_llvm.cc \
 	src/debugger.cc \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \

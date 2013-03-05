@@ -23,8 +23,8 @@
 #include "compiler/driver/dex_compilation_unit.h"
 #include "compiler_utility.h"
 #include "safe_map.h"
-#include "compiler_llvm/ir_builder.h"
-#include "compiler_llvm/intrinsic_helper.h"
+#include "compiler/llvm/ir_builder.h"
+#include "compiler/llvm/intrinsic_helper.h"
 #include "llvm/Module.h"
 #include "compiler_enums.h"
 
@@ -508,21 +508,21 @@ struct CompilationUnit {
   Checkstats* checkstats;
   bool gen_bitcode;
   LLVMInfo* llvm_info;
-  llvm::LLVMContext* context;
-  llvm::Module* module;
-  llvm::Function* func;
-  compiler_llvm::IntrinsicHelper* intrinsic_helper;
-  compiler_llvm::IRBuilder* irb;
-  llvm::BasicBlock* placeholder_bb;
-  llvm::BasicBlock* entry_bb;
-  llvm::BasicBlock* entryTarget_bb;
+  ::llvm::LLVMContext* context;
+  ::llvm::Module* module;
+  ::llvm::Function* func;
+  art::llvm::IntrinsicHelper* intrinsic_helper;
+  art::llvm::IRBuilder* irb;
+  ::llvm::BasicBlock* placeholder_bb;
+  ::llvm::BasicBlock* entry_bb;
+  ::llvm::BasicBlock* entryTarget_bb;
   std::string bitcode_filename;
   GrowableList llvm_values;
   int32_t temp_name;
-  SafeMap<llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label.
-  SafeMap<int32_t, llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb.
-  SafeMap<llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec.
-  std::set<llvm::BasicBlock*> llvm_blocks;
+  SafeMap< ::llvm::BasicBlock*, LIR*> block_to_label_map; // llvm bb -> LIR label.
+  SafeMap<int32_t, ::llvm::BasicBlock*> id_to_block_map; // block id -> llvm bb.
+  SafeMap< ::llvm::Value*, RegLocation> loc_map; // llvm Value to loc rec.
+  std::set< ::llvm::BasicBlock*> llvm_blocks;
 #ifndef NDEBUG
   /*
    * Sanity checking for the register temp tracking.  The same ssa

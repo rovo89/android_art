@@ -26,7 +26,7 @@ namespace llvm {
 }
 
 namespace art {
-namespace compiler_llvm {
+namespace llvm {
   class IntrinsicHelper;
   class IRBuilder;
 }
@@ -110,27 +110,27 @@ class LLVMInfo {
     LLVMInfo();
     ~LLVMInfo();
 
-    llvm::LLVMContext* GetLLVMContext() {
+    ::llvm::LLVMContext* GetLLVMContext() {
       return llvm_context_.get();
     }
 
-    llvm::Module* GetLLVMModule() {
+    ::llvm::Module* GetLLVMModule() {
       return llvm_module_;
     }
 
-    art::compiler_llvm::IntrinsicHelper* GetIntrinsicHelper() {
+    art::llvm::IntrinsicHelper* GetIntrinsicHelper() {
       return intrinsic_helper_.get();
     }
 
-    art::compiler_llvm::IRBuilder* GetIRBuilder() {
+    art::llvm::IRBuilder* GetIRBuilder() {
       return ir_builder_.get();
     }
 
   private:
-    UniquePtr<llvm::LLVMContext> llvm_context_;
-    llvm::Module* llvm_module_; // Managed by context_.
-    UniquePtr<art::compiler_llvm::IntrinsicHelper> intrinsic_helper_;
-    UniquePtr<art::compiler_llvm::IRBuilder> ir_builder_;
+    UniquePtr< ::llvm::LLVMContext> llvm_context_;
+    ::llvm::Module* llvm_module_; // Managed by context_.
+    UniquePtr<art::llvm::IntrinsicHelper> intrinsic_helper_;
+    UniquePtr<art::llvm::IRBuilder> ir_builder_;
 };
 
 struct CompilationUnit;

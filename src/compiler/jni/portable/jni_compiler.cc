@@ -21,11 +21,11 @@
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "compiler/driver/dex_compilation_unit.h"
-#include "compiler_llvm/compiler_llvm.h"
-#include "compiler_llvm/ir_builder.h"
-#include "compiler_llvm/llvm_compilation_unit.h"
-#include "compiler_llvm/runtime_support_func.h"
-#include "compiler_llvm/utils_llvm.h"
+#include "compiler/llvm/compiler_llvm.h"
+#include "compiler/llvm/ir_builder.h"
+#include "compiler/llvm/llvm_compilation_unit.h"
+#include "compiler/llvm/runtime_support_func.h"
+#include "compiler/llvm/utils_llvm.h"
 #include "mirror/abstract_method.h"
 #include "runtime.h"
 #include "stack.h"
@@ -38,7 +38,7 @@
 #include <llvm/Type.h>
 
 namespace art {
-namespace compiler_llvm {
+namespace llvm {
 
 using namespace runtime_support;
 
@@ -62,18 +62,18 @@ CompiledMethod* JniCompiler::Compile() {
   DexFile::MethodId const& method_id =
       dex_file->GetMethodId(dex_compilation_unit_->GetDexMethodIndex());
   char const return_shorty = dex_file->GetMethodShorty(method_id)[0];
-  llvm::Value* this_object_or_class_object;
+  ::llvm::Value* this_object_or_class_object;
 
   CreateFunction();
 
   // Set argument name
-  llvm::Function::arg_iterator arg_begin(func_->arg_begin());
-  llvm::Function::arg_iterator arg_end(func_->arg_end());
-  llvm::Function::arg_iterator arg_iter(arg_begin);
+  ::llvm::Function::arg_iterator arg_begin(func_->arg_begin());
+  ::llvm::Function::arg_iterator arg_end(func_->arg_end());
+  ::llvm::Function::arg_iterator arg_iter(arg_begin);
 
   DCHECK_NE(arg_iter, arg_end);
   arg_iter->setName("method");
-  llvm::Value* method_object_addr = arg_iter++;
+  ::llvm::Value* method_object_addr = arg_iter++;
 
   if (!is_static) {
     // Non-static, the second argument is "this object"
@@ -103,8 +103,8 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Shadow stack
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
-  llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
+  ::llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
+  ::llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
@@ -113,18 +113,18 @@ CompiledMethod* JniCompiler::Compile() {
                            kTBAAShadowFrame);
 
   // Push the shadow frame
-  llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
-  llvm::Value* old_shadow_frame =
+  ::llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
+  ::llvm::Value* old_shadow_frame =
       irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size);
 
   // Get JNIEnv
-  llvm::Value* jni_env_object_addr =
+  ::llvm::Value* jni_env_object_addr =
       irb_.Runtime().EmitLoadFromThreadOffset(Thread::JniEnvOffset().Int32Value(),
                                               irb_.getJObjectTy(),
                                               kTBAARuntimeInfo);
 
   // Get callee code_addr
-  llvm::Value* code_addr =
+  ::llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
                                 mirror::AbstractMethod::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(),
@@ -132,13 +132,13 @@ CompiledMethod* JniCompiler::Compile() {
                                 kTBAARuntimeInfo);
 
   // Load actual parameters
-  std::vector<llvm::Value*> args;
+  std::vector< ::llvm::Value*> args;
 
   // The 1st parameter: JNIEnv*
   args.push_back(jni_env_object_addr);
 
   // Variables for GetElementPtr
-  llvm::Value* gep_index[] = {
+  ::llvm::Value* gep_index[] = {
     irb_.getInt32(0), // No displacement for shadow frame pointer
     irb_.getInt32(1), // SIRT
     NULL,
@@ -148,7 +148,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Store the "this object or class object" to SIRT
   gep_index[2] = irb_.getInt32(sirt_member_index++);
-  llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+  ::llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
                                                     irb_.getJObjectTy()->getPointerTo());
   irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAAShadowFrame);
   // Push the "this object or class object" to out args
@@ -159,13 +159,13 @@ CompiledMethod* JniCompiler::Compile() {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
       // Store the reference type arguments to SIRT
       gep_index[2] = irb_.getInt32(sirt_member_index++);
-      llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
+      ::llvm::Value* sirt_field_addr = irb_.CreateBitCast(irb_.CreateGEP(shadow_frame_, gep_index),
                                                         irb_.getJObjectTy()->getPointerTo());
       irb_.CreateStore(arg_iter, sirt_field_addr, kTBAAShadowFrame);
       // Note null is placed in the SIRT but the jobject passed to the native code must be null
       // (not a pointer into the SIRT as with regular references).
-      llvm::Value* equal_null = irb_.CreateICmpEQ(arg_iter, irb_.getJNull());
-      llvm::Value* arg =
+      ::llvm::Value* equal_null = irb_.CreateICmpEQ(arg_iter, irb_.getJNull());
+      ::llvm::Value* arg =
           irb_.CreateSelect(equal_null,
                             irb_.getJNull(),
                             irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
@@ -175,11 +175,11 @@ CompiledMethod* JniCompiler::Compile() {
     }
   }
 
-  llvm::Value* saved_local_ref_cookie;
+  ::llvm::Value* saved_local_ref_cookie;
   { // JniMethodStart
     RuntimeId func_id = is_synchronized ? JniMethodStartSynchronized
                                         : JniMethodStart;
-    llvm::SmallVector<llvm::Value*, 2> args;
+    ::llvm::SmallVector< ::llvm::Value*, 2> args;
     if (is_synchronized) {
       args.push_back(this_object_or_class_object);
     }
@@ -189,7 +189,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Call!!!
-  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  ::llvm::Value* retval = irb_.CreateCall(code_addr, args);
 
   { // JniMethodEnd
     bool is_return_ref = return_shorty == 'L';
@@ -198,7 +198,7 @@ CompiledMethod* JniCompiler::Compile() {
                                          : JniMethodEndWithReference)
                       : (is_synchronized ? JniMethodEndSynchronized
                                          : JniMethodEnd);
-    llvm::SmallVector<llvm::Value*, 4> args;
+    ::llvm::SmallVector< ::llvm::Value*, 4> args;
     if (is_return_ref) {
       args.push_back(retval);
     }
@@ -208,7 +208,7 @@ CompiledMethod* JniCompiler::Compile() {
     }
     args.push_back(irb_.Runtime().EmitGetCurrentThread());
 
-    llvm::Value* decoded_jobject =
+    ::llvm::Value* decoded_jobject =
         irb_.CreateCall(irb_.GetRuntime(func_id), args);
 
     // Return decoded jobject if return reference.
@@ -244,33 +244,33 @@ void JniCompiler::CreateFunction() {
   const bool is_static = dex_compilation_unit_->IsStatic();
 
   // Get function type
-  llvm::FunctionType* func_type =
+  ::llvm::FunctionType* func_type =
     GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(), is_static, false);
 
   // Create function
-  func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
+  func_ = ::llvm::Function::Create(func_type, ::llvm::Function::ExternalLinkage,
                                  func_name, module_);
 
   // Create basic block
-  llvm::BasicBlock* basic_block = llvm::BasicBlock::Create(*context_, "B0", func_);
+  ::llvm::BasicBlock* basic_block = ::llvm::BasicBlock::Create(*context_, "B0", func_);
 
   // Set insert point
   irb_.SetInsertPoint(basic_block);
 }
 
 
-llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
-                                                 bool is_static, bool is_native_function) {
+::llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
+                                                   bool is_static, bool is_native_function) {
   // Get method signature
   uint32_t shorty_size;
   const char* shorty = dex_compilation_unit_->GetShorty(&shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
-  llvm::Type* ret_type = irb_.getJType(shorty[0]);
+  ::llvm::Type* ret_type = irb_.getJType(shorty[0]);
 
   // Get argument type
-  std::vector<llvm::Type*> args_type;
+  std::vector< ::llvm::Type*> args_type;
 
   args_type.push_back(irb_.getJObjectTy()); // method object pointer
 
@@ -284,8 +284,8 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
     args_type.push_back(irb_.getJType(shorty[i]));
   }
 
-  return llvm::FunctionType::get(ret_type, args_type, false);
+  return ::llvm::FunctionType::get(ret_type, args_type, false);
 }
 
-} // namespace compiler_llvm
+} // namespace llvm
 } // namespace art

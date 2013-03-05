@@ -31,8 +31,8 @@ class ElfWriterTest : public CommonTest {
 };
 
 #define EXPECT_ELF_FILE_ADDRESS(ef, value, name) \
-  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(llvm::ELF::SHT_SYMTAB, name))); \
-  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(llvm::ELF::SHT_DYNSYM, name))); \
+  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_SYMTAB, name))); \
+  EXPECT_EQ(value, reinterpret_cast<void*>(ef->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM, name))); \
   EXPECT_EQ(value, ef->FindDynamicSymbolAddress(name)); \
 
 /*

@@ -47,11 +47,11 @@ ElfWriter::~ElfWriter() {}
 static void InitializeLLVM() {
   // TODO: this is lifted from art's compiler_llvm.cc, should be factored out
 #if defined(ART_TARGET)
-  llvm::InitializeNativeTarget();
+  ::llvm::InitializeNativeTarget();
   // TODO: odd that there is no InitializeNativeTargetMC?
 #else
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllTargetMCs();
+  ::llvm::InitializeAllTargets();
+  ::llvm::InitializeAllTargetMCs();
 #endif
 }
 
@@ -124,7 +124,7 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
     mcld::LDSection* null_section = ir_builder->CreateELFHeader(*input,
                                                                 "",
                                                                 mcld::LDFileFormat::Null,
-                                                                llvm::ELF::SHT_NULL,
+                                                                ::llvm::ELF::SHT_NULL,
                                                                 0);
     CHECK(null_section != NULL);
 
@@ -142,9 +142,9 @@ bool ElfWriter::Write(std::vector<uint8_t>& oat_contents, File* elf_file) {
     // TODO: ownership of text_section?
     mcld::LDSection* text_section = ir_builder->CreateELFHeader(*input,
                                                                 ".text",
-                                                                llvm::ELF::SHT_PROGBITS,
-                                                                llvm::ELF::SHF_EXECINSTR
-                                                                | llvm::ELF::SHF_ALLOC,
+                                                                ::llvm::ELF::SHT_PROGBITS,
+                                                                ::llvm::ELF::SHF_EXECINSTR
+                                                                | ::llvm::ELF::SHF_ALLOC,
                                                                 alignment);
     CHECK(text_section != NULL);
 
@@ -210,10 +210,10 @@ bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
   CHECK(elf_file.get() != NULL);
 
   // Lookup "oatdata" symbol address.
-  llvm::ELF::Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(llvm::ELF::SHT_DYNSYM,
-                                                                      "oatdata");
+  ::llvm::ELF::Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM,
+                                                                        "oatdata");
   CHECK_NE(0U, oatdata_address);
-  llvm::ELF::Elf32_Off base_address = oat_data_begin - oatdata_address;
+  ::llvm::ELF::Elf32_Off base_address = oat_data_begin - oatdata_address;
 
   if (!FixupDynamic(*elf_file.get(), base_address)) {
       LOG(WARNING) << "Failed fo fixup .dynamic in " << file->GetPath();
@@ -240,27 +240,27 @@ bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
 
 bool ElfWriter::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
   // TODO: C++0x auto.
-  for (llvm::ELF::Elf32_Word i = 0; i < elf_file.GetDynamicNum(); i++) {
-    llvm::ELF::Elf32_Dyn& elf_dyn = elf_file.GetDynamic(i);
+  for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetDynamicNum(); i++) {
+    ::llvm::ELF::Elf32_Dyn& elf_dyn = elf_file.GetDynamic(i);
     bool elf_dyn_needs_fixup = false;
     // case 1: if Elf32_Dyn.d_tag implies Elf32_Dyn.d_un contains an address in d_ptr
     switch (elf_dyn.d_tag) {
-      case llvm::ELF::DT_PLTGOT:
-      case llvm::ELF::DT_HASH:
-      case llvm::ELF::DT_STRTAB:
-      case llvm::ELF::DT_SYMTAB:
-      case llvm::ELF::DT_RELA:
-      case llvm::ELF::DT_INIT:
-      case llvm::ELF::DT_FINI:
-      case llvm::ELF::DT_REL:
-      case llvm::ELF::DT_DEBUG:
-      case llvm::ELF::DT_JMPREL: {
+      case ::llvm::ELF::DT_PLTGOT:
+      case ::llvm::ELF::DT_HASH:
+      case ::llvm::ELF::DT_STRTAB:
+      case ::llvm::ELF::DT_SYMTAB:
+      case ::llvm::ELF::DT_RELA:
+      case ::llvm::ELF::DT_INIT:
+      case ::llvm::ELF::DT_FINI:
+      case ::llvm::ELF::DT_REL:
+      case ::llvm::ELF::DT_DEBUG:
+      case ::llvm::ELF::DT_JMPREL: {
           elf_dyn_needs_fixup = true;
         break;
       }
       default: {
         // case 2: if d_tag is even and greater than  > DT_ENCODING
-        if ((elf_dyn.d_tag > llvm::ELF::DT_ENCODING) && ((elf_dyn.d_tag % 2) == 0)) {
+        if ((elf_dyn.d_tag > ::llvm::ELF::DT_ENCODING) && ((elf_dyn.d_tag % 2) == 0)) {
           elf_dyn_needs_fixup = true;
         }
         break;
@@ -276,8 +276,8 @@ bool ElfWriter::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
 }
 
 bool ElfWriter::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
-  for (llvm::ELF::Elf32_Word i = 0; i < elf_file.GetSectionHeaderNum(); i++) {
-    llvm::ELF::Elf32_Shdr& sh = elf_file.GetSectionHeader(i);
+  for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetSectionHeaderNum(); i++) {
+    ::llvm::ELF::Elf32_Shdr& sh = elf_file.GetSectionHeader(i);
     // 0 implies that the section will not exist in the memory of the process
     if (sh.sh_addr == 0) {
       continue;
@@ -289,8 +289,8 @@ bool ElfWriter::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
 
 bool ElfWriter::FixupProgramHeaders(ElfFile& elf_file, uintptr_t base_address) {
   // TODO: ELFObjectFile doesn't have give to Elf32_Phdr, so we do that ourselves for now.
-  for (llvm::ELF::Elf32_Word i = 0; i < elf_file.GetProgramHeaderNum(); i++) {
-    llvm::ELF::Elf32_Phdr& ph = elf_file.GetProgramHeader(i);
+  for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetProgramHeaderNum(); i++) {
+    ::llvm::ELF::Elf32_Phdr& ph = elf_file.GetProgramHeader(i);
     CHECK_EQ(ph.p_vaddr, ph.p_paddr) << elf_file.GetFile().GetPath() << " i=" << i;
     CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))));
     ph.p_vaddr += base_address;
@@ -301,12 +301,12 @@ bool ElfWriter::FixupProgramHeaders(ElfFile& elf_file, uintptr_t base_address) {
 }
 
 bool ElfWriter::FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dynamic) {
-  llvm::ELF::Elf32_Word section_type = dynamic ? llvm::ELF::SHT_DYNSYM : llvm::ELF::SHT_SYMTAB;
+  ::llvm::ELF::Elf32_Word section_type = dynamic ? ::llvm::ELF::SHT_DYNSYM : ::llvm::ELF::SHT_SYMTAB;
   // TODO: Unfortunate ELFObjectFile has protected symbol access, so use ElfFile
-  llvm::ELF::Elf32_Shdr* symbol_section = elf_file.FindSectionByType(section_type);
+  ::llvm::ELF::Elf32_Shdr* symbol_section = elf_file.FindSectionByType(section_type);
   CHECK(symbol_section != NULL) << elf_file.GetFile().GetPath();
   for (uint32_t i = 0; i < elf_file.GetSymbolNum(*symbol_section); i++) {
-    llvm::ELF::Elf32_Sym& symbol = elf_file.GetSymbol(section_type, i);
+    ::llvm::ELF::Elf32_Sym& symbol = elf_file.GetSymbol(section_type, i);
     if (symbol.st_value != 0) {
       symbol.st_value += base_address;
     }
@@ -322,7 +322,7 @@ void ElfWriter::GetOatElfInformation(File* file,
 
   oat_loaded_size = elf_file->GetLoadedSize();
   CHECK_NE(0U, oat_loaded_size);
-  oat_data_offset = elf_file->FindSymbolAddress(llvm::ELF::SHT_DYNSYM, "oatdata");
+  oat_data_offset = elf_file->FindSymbolAddress(::llvm::ELF::SHT_DYNSYM, "oatdata");
   CHECK_NE(0U, oat_data_offset);
 }
 

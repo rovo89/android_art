@@ -58,7 +58,7 @@
 #include "well_known_classes.h"
 
 #if defined(ART_USE_PORTABLE_COMPILER)
-#include "compiler_llvm/procedure_linkage_table.h"
+#include "compiler/llvm/procedure_linkage_table.h"
 #endif
 
 #include "JniConstants.h" // Last to avoid LOG redefinition in ics-mr1-plus-art.

@@ -44,7 +44,7 @@ namespace llvm {
 }  // namespace llvm
 
 namespace art {
-namespace compiler_llvm {
+namespace llvm {
 
 class LlvmCompilationUnit;
 class IRBuilder;
@@ -60,25 +60,25 @@ class JniCompiler {
  private:
   void CreateFunction();
 
-  llvm::FunctionType* GetFunctionType(uint32_t method_idx,
+  ::llvm::FunctionType* GetFunctionType(uint32_t method_idx,
                                       bool is_static, bool is_target_function);
 
  private:
   LlvmCompilationUnit* cunit_;
   const CompilerDriver* const driver_;
 
-  llvm::Module* module_;
-  llvm::LLVMContext* context_;
+  ::llvm::Module* module_;
+  ::llvm::LLVMContext* context_;
   IRBuilder& irb_;
 
   const DexCompilationUnit* const dex_compilation_unit_;
 
-  llvm::Function* func_;
+  ::llvm::Function* func_;
   uint16_t elf_func_idx_;
 };
 
 
-}  // namespace compiler_llvm
+}  // namespace llvm
 }  // namespace art
 
 

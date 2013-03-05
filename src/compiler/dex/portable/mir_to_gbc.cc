@@ -40,34 +40,33 @@ static const char kNormalBlock = 'L';
 static const char kCatchBlock = 'C';
 
 namespace art {
-static RegLocation GetLoc(CompilationUnit* cu, llvm::Value* val);
+static RegLocation GetLoc(CompilationUnit* cu, ::llvm::Value* val);
 
-static llvm::BasicBlock* GetLLVMBlock(CompilationUnit* cu, int id)
+static ::llvm::BasicBlock* GetLLVMBlock(CompilationUnit* cu, int id)
 {
   return cu->id_to_block_map.Get(id);
 }
 
-static llvm::Value* GetLLVMValue(CompilationUnit* cu, int s_reg)
+static ::llvm::Value* GetLLVMValue(CompilationUnit* cu, int s_reg)
 {
-  return reinterpret_cast<llvm::Value*>(GrowableListGetElement(&cu->llvm_values, s_reg));
+  return reinterpret_cast< ::llvm::Value*>(GrowableListGetElement(&cu->llvm_values, s_reg));
 }
 
-static void SetVregOnValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
+static void SetVregOnValue(CompilationUnit* cu, ::llvm::Value* val, int s_reg)
 {
   // Set vreg for debugging
-  compiler_llvm::IntrinsicHelper::IntrinsicId id =
-      compiler_llvm::IntrinsicHelper::SetVReg;
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  art::llvm::IntrinsicHelper::IntrinsicId id = art::llvm::IntrinsicHelper::SetVReg;
+  ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
   int v_reg = SRegToVReg(cu, s_reg);
-  llvm::Value* table_slot = cu->irb->getInt32(v_reg);
-  llvm::Value* args[] = { table_slot, val };
+  ::llvm::Value* table_slot = cu->irb->getInt32(v_reg);
+  ::llvm::Value* args[] = { table_slot, val };
   cu->irb->CreateCall(func, args);
 }
 
 // Replace the placeholder value with the real definition
-static void DefineValueOnly(CompilationUnit* cu, llvm::Value* val, int s_reg)
+static void DefineValueOnly(CompilationUnit* cu, ::llvm::Value* val, int s_reg)
 {
-  llvm::Value* placeholder = GetLLVMValue(cu, s_reg);
+  ::llvm::Value* placeholder = GetLLVMValue(cu, s_reg);
   if (placeholder == NULL) {
     // This can happen on instruction rewrite on verification failure
     LOG(WARNING) << "Null placeholder";
@@ -76,21 +75,21 @@ static void DefineValueOnly(CompilationUnit* cu, llvm::Value* val, int s_reg)
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
   cu->llvm_values.elem_list[s_reg] = reinterpret_cast<uintptr_t>(val);
-  llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(placeholder);
+  ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
 
 }
 
-static void DefineValue(CompilationUnit* cu, llvm::Value* val, int s_reg)
+static void DefineValue(CompilationUnit* cu, ::llvm::Value* val, int s_reg)
 {
   DefineValueOnly(cu, val, s_reg);
   SetVregOnValue(cu, val, s_reg);
 }
 
-static llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cu, RegLocation loc)
+static ::llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cu, RegLocation loc)
 {
-  llvm::Type* res = NULL;
+  ::llvm::Type* res = NULL;
   if (loc.wide) {
     if (loc.fp)
         res = cu->irb->getDoubleTy();
@@ -110,12 +109,12 @@ static llvm::Type* LlvmTypeFromLocRec(CompilationUnit* cu, RegLocation loc)
 }
 
 /* Create an in-memory RegLocation from an llvm Value. */
-static void CreateLocFromValue(CompilationUnit* cu, llvm::Value* val)
+static void CreateLocFromValue(CompilationUnit* cu, ::llvm::Value* val)
 {
   // NOTE: llvm takes shortcuts with c_str() - get to std::string firstt
   std::string s(val->getName().str());
   const char* val_name = s.c_str();
-  SafeMap<llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
+  SafeMap< ::llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
   DCHECK(it == cu->loc_map.end()) << " - already defined: " << val_name;
   int base_sreg = INVALID_SREG;
   int subscript = -1;
@@ -129,7 +128,7 @@ static void CreateLocFromValue(CompilationUnit* cu, llvm::Value* val)
   // TODO: redo during C++'ification
   RegLocation loc =  {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, INVALID_REG,
                       INVALID_REG, INVALID_SREG, INVALID_SREG};
-  llvm::Type* ty = val->getType();
+  ::llvm::Type* ty = val->getType();
   loc.wide = ((ty == cu->irb->getInt64Ty()) ||
               (ty == cu->irb->getDoubleTy()));
   loc.defined = true;
@@ -214,7 +213,7 @@ static const char* LlvmSSAName(CompilationUnit* cu, int ssa_reg) {
   return GET_ELEM_N(cu->ssa_strings, char*, ssa_reg);
 }
 
-llvm::BasicBlock* FindCaseTarget(CompilationUnit* cu, uint32_t vaddr)
+::llvm::BasicBlock* FindCaseTarget(CompilationUnit* cu, uint32_t vaddr)
 {
   BasicBlock* bb = FindBlock(cu, vaddr);
   DCHECK(bb != NULL);
@@ -228,19 +227,19 @@ static void ConvertPackedSwitch(CompilationUnit* cu, BasicBlock* bb,
       reinterpret_cast<const Instruction::PackedSwitchPayload*>(
       cu->insns + cu->current_dalvik_offset + table_offset);
 
-  llvm::Value* value = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* value = GetLLVMValue(cu, rl_src.orig_sreg);
 
-  llvm::SwitchInst* sw =
+  ::llvm::SwitchInst* sw =
     cu->irb->CreateSwitch(value, GetLLVMBlock(cu, bb->fall_through->id),
                              payload->case_count);
 
   for (uint16_t i = 0; i < payload->case_count; ++i) {
-    llvm::BasicBlock* llvm_bb =
+    ::llvm::BasicBlock* llvm_bb =
         FindCaseTarget(cu, cu->current_dalvik_offset + payload->targets[i]);
     sw->addCase(cu->irb->getInt32(payload->first_key + i), llvm_bb);
   }
-  llvm::MDNode* switch_node =
-      llvm::MDNode::get(*cu->context, cu->irb->getInt32(table_offset));
+  ::llvm::MDNode* switch_node =
+      ::llvm::MDNode::get(*cu->context, cu->irb->getInt32(table_offset));
   sw->setMetadata("SwitchTable", switch_node);
   bb->taken = NULL;
   bb->fall_through = NULL;
@@ -256,158 +255,158 @@ static void ConvertSparseSwitch(CompilationUnit* cu, BasicBlock* bb,
   const int32_t* keys = payload->GetKeys();
   const int32_t* targets = payload->GetTargets();
 
-  llvm::Value* value = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* value = GetLLVMValue(cu, rl_src.orig_sreg);
 
-  llvm::SwitchInst* sw =
+  ::llvm::SwitchInst* sw =
     cu->irb->CreateSwitch(value, GetLLVMBlock(cu, bb->fall_through->id),
                              payload->case_count);
 
   for (size_t i = 0; i < payload->case_count; ++i) {
-    llvm::BasicBlock* llvm_bb =
+    ::llvm::BasicBlock* llvm_bb =
         FindCaseTarget(cu, cu->current_dalvik_offset + targets[i]);
     sw->addCase(cu->irb->getInt32(keys[i]), llvm_bb);
   }
-  llvm::MDNode* switch_node =
-      llvm::MDNode::get(*cu->context, cu->irb->getInt32(table_offset));
+  ::llvm::MDNode* switch_node =
+      ::llvm::MDNode::get(*cu->context, cu->irb->getInt32(table_offset));
   sw->setMetadata("SwitchTable", switch_node);
   bb->taken = NULL;
   bb->fall_through = NULL;
 }
 
 static void ConvertSget(CompilationUnit* cu, int32_t field_index,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
+                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
 {
-  llvm::Constant* field_idx = cu->irb->getInt32(field_index);
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cu->irb->CreateCall(intr, field_idx);
+  ::llvm::Constant* field_idx = cu->irb->getInt32(field_index);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, field_idx);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertSput(CompilationUnit* cu, int32_t field_index,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_src)
+                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_src)
 {
-  llvm::SmallVector<llvm::Value*, 2> args;
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(field_index));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr, args);
 }
 
 static void ConvertFillArrayData(CompilationUnit* cu, int32_t offset, RegLocation rl_array)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::HLFillArrayData;
-  llvm::SmallVector<llvm::Value*, 2> args;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::HLFillArrayData;
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(offset));
   args.push_back(GetLLVMValue(cu, rl_array.orig_sreg));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr, args);
 }
 
-static llvm::Value* EmitConst(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> src,
+static ::llvm::Value* EmitConst(CompilationUnit* cu, ::llvm::ArrayRef< ::llvm::Value*> src,
                               RegLocation loc)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
-      id = compiler_llvm::IntrinsicHelper::ConstDouble;
+      id = art::llvm::IntrinsicHelper::ConstDouble;
     } else {
-      id = compiler_llvm::IntrinsicHelper::ConstLong;
+      id = art::llvm::IntrinsicHelper::ConstLong;
     }
   } else {
     if (loc.fp) {
-      id = compiler_llvm::IntrinsicHelper::ConstFloat;
+      id = art::llvm::IntrinsicHelper::ConstFloat;
     } else if (loc.ref) {
-      id = compiler_llvm::IntrinsicHelper::ConstObj;
+      id = art::llvm::IntrinsicHelper::ConstObj;
     } else {
-      id = compiler_llvm::IntrinsicHelper::ConstInt;
+      id = art::llvm::IntrinsicHelper::ConstInt;
     }
   }
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   return cu->irb->CreateCall(intr, src);
 }
 
 static void EmitPopShadowFrame(CompilationUnit* cu)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
-      compiler_llvm::IntrinsicHelper::PopShadowFrame);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
+      art::llvm::IntrinsicHelper::PopShadowFrame);
   cu->irb->CreateCall(intr);
 }
 
-static llvm::Value* EmitCopy(CompilationUnit* cu, llvm::ArrayRef<llvm::Value*> src,
+static ::llvm::Value* EmitCopy(CompilationUnit* cu, ::llvm::ArrayRef< ::llvm::Value*> src,
                              RegLocation loc)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
-      id = compiler_llvm::IntrinsicHelper::CopyDouble;
+      id = art::llvm::IntrinsicHelper::CopyDouble;
     } else {
-      id = compiler_llvm::IntrinsicHelper::CopyLong;
+      id = art::llvm::IntrinsicHelper::CopyLong;
     }
   } else {
     if (loc.fp) {
-      id = compiler_llvm::IntrinsicHelper::CopyFloat;
+      id = art::llvm::IntrinsicHelper::CopyFloat;
     } else if (loc.ref) {
-      id = compiler_llvm::IntrinsicHelper::CopyObj;
+      id = art::llvm::IntrinsicHelper::CopyObj;
     } else {
-      id = compiler_llvm::IntrinsicHelper::CopyInt;
+      id = art::llvm::IntrinsicHelper::CopyInt;
     }
   }
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   return cu->irb->CreateCall(intr, src);
 }
 
 static void ConvertMoveException(CompilationUnit* cu, RegLocation rl_dest)
 {
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      compiler_llvm::IntrinsicHelper::GetException);
-  llvm::Value* res = cu->irb->CreateCall(func);
+  ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
+      art::llvm::IntrinsicHelper::GetException);
+  ::llvm::Value* res = cu->irb->CreateCall(func);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertThrow(CompilationUnit* cu, RegLocation rl_src)
 {
-  llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      compiler_llvm::IntrinsicHelper::HLThrowException);
+  ::llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
+      art::llvm::IntrinsicHelper::HLThrowException);
   cu->irb->CreateCall(func, src);
 }
 
 static void ConvertMonitorEnterExit(CompilationUnit* cu, int opt_flags,
-                                    compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                                    art::llvm::IntrinsicHelper::IntrinsicId id,
                                     RegLocation rl_src)
 {
-  llvm::SmallVector<llvm::Value*, 2> args;
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(func, args);
 }
 
 static void ConvertArrayLength(CompilationUnit* cu, int opt_flags,
                                RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::SmallVector<llvm::Value*, 2> args;
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
-  llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
-      compiler_llvm::IntrinsicHelper::OptArrayLength);
-  llvm::Value* res = cu->irb->CreateCall(func, args);
+  ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(
+      art::llvm::IntrinsicHelper::OptArrayLength);
+  ::llvm::Value* res = cu->irb->CreateCall(func, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void EmitSuspendCheck(CompilationUnit* cu)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id =
-      compiler_llvm::IntrinsicHelper::CheckSuspend;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  art::llvm::IntrinsicHelper::IntrinsicId id =
+      art::llvm::IntrinsicHelper::CheckSuspend;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr);
 }
 
-static llvm::Value* ConvertCompare(CompilationUnit* cu, ConditionCode cc,
-                                   llvm::Value* src1, llvm::Value* src2)
+static ::llvm::Value* ConvertCompare(CompilationUnit* cu, ConditionCode cc,
+                                   ::llvm::Value* src1, ::llvm::Value* src2)
 {
-  llvm::Value* res = NULL;
+  ::llvm::Value* res = NULL;
   DCHECK_EQ(src1->getType(), src2->getType());
   switch(cc) {
     case kCondEq: res = cu->irb->CreateICmpEQ(src1, src2); break;
@@ -427,9 +426,9 @@ static void ConvertCompareAndBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mi
   if (bb->taken->start_offset <= mir->offset) {
     EmitSuspendCheck(cu);
   }
-  llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
-  llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
-  llvm::Value* cond_value = ConvertCompare(cu, cc, src1, src2);
+  ::llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
+  ::llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
+  ::llvm::Value* cond_value = ConvertCompare(cu, cc, src1, src2);
   cond_value->setName(StringPrintf("t%d", cu->temp_name++));
   cu->irb->CreateCondBr(cond_value, GetLLVMBlock(cu, bb->taken->id),
                            GetLLVMBlock(cu, bb->fall_through->id));
@@ -443,48 +442,48 @@ static void ConvertCompareZeroAndBranch(CompilationUnit* cu, BasicBlock* bb,
   if (bb->taken->start_offset <= mir->offset) {
     EmitSuspendCheck(cu);
   }
-  llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
-  llvm::Value* src2;
+  ::llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
+  ::llvm::Value* src2;
   if (rl_src1.ref) {
     src2 = cu->irb->getJNull();
   } else {
     src2 = cu->irb->getInt32(0);
   }
-  llvm::Value* cond_value = ConvertCompare(cu, cc, src1, src2);
+  ::llvm::Value* cond_value = ConvertCompare(cu, cc, src1, src2);
   cu->irb->CreateCondBr(cond_value, GetLLVMBlock(cu, bb->taken->id),
                            GetLLVMBlock(cu, bb->fall_through->id));
   // Don't redo the fallthrough branch in the BB driver
   bb->fall_through = NULL;
 }
 
-static llvm::Value* GenDivModOp(CompilationUnit* cu, bool is_div, bool is_long,
-                                llvm::Value* src1, llvm::Value* src2)
+static ::llvm::Value* GenDivModOp(CompilationUnit* cu, bool is_div, bool is_long,
+                                ::llvm::Value* src1, ::llvm::Value* src2)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
   if (is_long) {
     if (is_div) {
-      id = compiler_llvm::IntrinsicHelper::DivLong;
+      id = art::llvm::IntrinsicHelper::DivLong;
     } else {
-      id = compiler_llvm::IntrinsicHelper::RemLong;
+      id = art::llvm::IntrinsicHelper::RemLong;
     }
   } else {
     if (is_div) {
-      id = compiler_llvm::IntrinsicHelper::DivInt;
+      id = art::llvm::IntrinsicHelper::DivInt;
     } else {
-      id = compiler_llvm::IntrinsicHelper::RemInt;
+      id = art::llvm::IntrinsicHelper::RemInt;
     }
   }
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2>args;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2>args;
   args.push_back(src1);
   args.push_back(src2);
   return cu->irb->CreateCall(intr, args);
 }
 
-static llvm::Value* GenArithOp(CompilationUnit* cu, OpKind op, bool is_long,
-                               llvm::Value* src1, llvm::Value* src2)
+static ::llvm::Value* GenArithOp(CompilationUnit* cu, OpKind op, bool is_long,
+                               ::llvm::Value* src1, ::llvm::Value* src2)
 {
-  llvm::Value* res = NULL;
+  ::llvm::Value* res = NULL;
   switch(op) {
     case kOpAdd: res = cu->irb->CreateAdd(src1, src2); break;
     case kOpSub: res = cu->irb->CreateSub(src1, src2); break;
@@ -507,9 +506,9 @@ static llvm::Value* GenArithOp(CompilationUnit* cu, OpKind op, bool is_long,
 static void ConvertFPArithOp(CompilationUnit* cu, OpKind op, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_src2)
 {
-  llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
-  llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
-  llvm::Value* res = NULL;
+  ::llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
+  ::llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
+  ::llvm::Value* res = NULL;
   switch(op) {
     case kOpAdd: res = cu->irb->CreateFAdd(src1, src2); break;
     case kOpSub: res = cu->irb->CreateFSub(src1, src2); break;
@@ -522,44 +521,44 @@ static void ConvertFPArithOp(CompilationUnit* cu, OpKind op, RegLocation rl_dest
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertShift(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
+static void ConvertShift(CompilationUnit* cu, art::llvm::IntrinsicHelper::IntrinsicId id,
                          RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2>args;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2>args;
   args.push_back(GetLLVMValue(cu, rl_src1.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_src2.orig_sreg));
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertShiftLit(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
+static void ConvertShiftLit(CompilationUnit* cu, art::llvm::IntrinsicHelper::IntrinsicId id,
                             RegLocation rl_dest, RegLocation rl_src, int shift_amount)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2>args;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2>args;
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
   args.push_back(cu->irb->getInt32(shift_amount));
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertArithOp(CompilationUnit* cu, OpKind op, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2)
 {
-  llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
-  llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
+  ::llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
+  ::llvm::Value* src2 = GetLLVMValue(cu, rl_src2.orig_sreg);
   DCHECK_EQ(src1->getType(), src2->getType());
-  llvm::Value* res = GenArithOp(cu, op, rl_dest.wide, src1, src2);
+  ::llvm::Value* res = GenArithOp(cu, op, rl_dest.wide, src1, src2);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertArithOpLit(CompilationUnit* cu, OpKind op, RegLocation rl_dest,
                               RegLocation rl_src1, int32_t imm)
 {
-  llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
-  llvm::Value* src2 = cu->irb->getInt32(imm);
-  llvm::Value* res = GenArithOp(cu, op, rl_dest.wide, src1, src2);
+  ::llvm::Value* src1 = GetLLVMValue(cu, rl_src1.orig_sreg);
+  ::llvm::Value* src2 = cu->irb->getInt32(imm);
+  ::llvm::Value* res = GenArithOp(cu, op, rl_dest.wide, src1, src2);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
@@ -573,7 +572,7 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
 {
   Codegen* cg = cu->cg.get();
   CallInfo* info = cg->NewMemCallInfo(cu, bb, mir, invoke_type, is_range);
-  llvm::SmallVector<llvm::Value*, 10> args;
+  ::llvm::SmallVector< ::llvm::Value*, 10> args;
   // Insert the invoke_type
   args.push_back(cu->irb->getInt32(static_cast<int>(invoke_type)));
   // Insert the method_idx
@@ -582,7 +581,7 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
   args.push_back(cu->irb->getInt32(info->opt_flags));
   // Now, insert the actual arguments
   for (int i = 0; i < info->num_arg_words;) {
-    llvm::Value* val = GetLLVMValue(cu, info->args[i].orig_sreg);
+    ::llvm::Value* val = GetLLVMValue(cu, info->args[i].orig_sreg);
     args.push_back(val);
     i += info->args[i].wide ? 2 : 1;
   }
@@ -591,48 +590,48 @@ static void ConvertInvoke(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
    * be different than shorty.  For example, if a function return value
    * is not used, we'll treat this as a void invoke.
    */
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
   if (is_filled_new_array) {
-    id = compiler_llvm::IntrinsicHelper::HLFilledNewArray;
+    id = art::llvm::IntrinsicHelper::HLFilledNewArray;
   } else if (info->result.location == kLocInvalid) {
-    id = compiler_llvm::IntrinsicHelper::HLInvokeVoid;
+    id = art::llvm::IntrinsicHelper::HLInvokeVoid;
   } else {
     if (info->result.wide) {
       if (info->result.fp) {
-        id = compiler_llvm::IntrinsicHelper::HLInvokeDouble;
+        id = art::llvm::IntrinsicHelper::HLInvokeDouble;
       } else {
-        id = compiler_llvm::IntrinsicHelper::HLInvokeLong;
+        id = art::llvm::IntrinsicHelper::HLInvokeLong;
       }
     } else if (info->result.ref) {
-        id = compiler_llvm::IntrinsicHelper::HLInvokeObj;
+        id = art::llvm::IntrinsicHelper::HLInvokeObj;
     } else if (info->result.fp) {
-        id = compiler_llvm::IntrinsicHelper::HLInvokeFloat;
+        id = art::llvm::IntrinsicHelper::HLInvokeFloat;
     } else {
-        id = compiler_llvm::IntrinsicHelper::HLInvokeInt;
+        id = art::llvm::IntrinsicHelper::HLInvokeInt;
     }
   }
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   if (info->result.location != kLocInvalid) {
     DefineValue(cu, res, info->result.orig_sreg);
   }
 }
 
 static void ConvertConstObject(CompilationUnit* cu, uint32_t idx,
-                               compiler_llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
+                               art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* index = cu->irb->getInt32(idx);
-  llvm::Value* res = cu->irb->CreateCall(intr, index);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* index = cu->irb->getInt32(idx);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, index);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_src)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::HLCheckCast;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2> args;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::HLCheckCast;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
   cu->irb->CreateCall(intr, args);
@@ -640,185 +639,185 @@ static void ConvertCheckCast(CompilationUnit* cu, uint32_t type_idx, RegLocation
 
 static void ConvertNewInstance(CompilationUnit* cu, uint32_t type_idx, RegLocation rl_dest)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::NewInstance;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* index = cu->irb->getInt32(type_idx);
-  llvm::Value* res = cu->irb->CreateCall(intr, index);
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::NewInstance;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* index = cu->irb->getInt32(type_idx);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, index);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertNewArray(CompilationUnit* cu, uint32_t type_idx,
                             RegLocation rl_dest, RegLocation rl_src)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::NewArray;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2> args;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::NewArray;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertAget(CompilationUnit* cu, int opt_flags,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                        art::llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_dest, RegLocation rl_array, RegLocation rl_index)
 {
-  llvm::SmallVector<llvm::Value*, 3> args;
+  ::llvm::SmallVector< ::llvm::Value*, 3> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_array.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_index.orig_sreg));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertAput(CompilationUnit* cu, int opt_flags,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                        art::llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_src, RegLocation rl_array, RegLocation rl_index)
 {
-  llvm::SmallVector<llvm::Value*, 4> args;
+  ::llvm::SmallVector< ::llvm::Value*, 4> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_array.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_index.orig_sreg));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr, args);
 }
 
 static void ConvertIget(CompilationUnit* cu, int opt_flags,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                        art::llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_dest, RegLocation rl_obj, int field_index)
 {
-  llvm::SmallVector<llvm::Value*, 3> args;
+  ::llvm::SmallVector< ::llvm::Value*, 3> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_obj.orig_sreg));
   args.push_back(cu->irb->getInt32(field_index));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertIput(CompilationUnit* cu, int opt_flags,
-                        compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                        art::llvm::IntrinsicHelper::IntrinsicId id,
                         RegLocation rl_src, RegLocation rl_obj, int field_index)
 {
-  llvm::SmallVector<llvm::Value*, 4> args;
+  ::llvm::SmallVector< ::llvm::Value*, 4> args;
   args.push_back(cu->irb->getInt32(opt_flags));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_obj.orig_sreg));
   args.push_back(cu->irb->getInt32(field_index));
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
   cu->irb->CreateCall(intr, args);
 }
 
 static void ConvertInstanceOf(CompilationUnit* cu, uint32_t type_idx,
                               RegLocation rl_dest, RegLocation rl_src)
 {
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::InstanceOf;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2> args;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::InstanceOf;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(cu->irb->getInt32(type_idx));
   args.push_back(GetLLVMValue(cu, rl_src.orig_sreg));
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertIntToLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* res = cu->irb->CreateSExt(GetLLVMValue(cu, rl_src.orig_sreg),
+  ::llvm::Value* res = cu->irb->CreateSExt(GetLLVMValue(cu, rl_src.orig_sreg),
                                             cu->irb->getInt64Ty());
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertLongToInt(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
-  llvm::Value* res = cu->irb->CreateTrunc(src, cu->irb->getInt32Ty());
+  ::llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* res = cu->irb->CreateTrunc(src, cu->irb->getInt32Ty());
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertFloatToDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
-  llvm::Value* res = cu->irb->CreateFPExt(src, cu->irb->getDoubleTy());
+  ::llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* res = cu->irb->CreateFPExt(src, cu->irb->getDoubleTy());
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertDoubleToFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
-  llvm::Value* res = cu->irb->CreateFPTrunc(src, cu->irb->getFloatTy());
+  ::llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* res = cu->irb->CreateFPTrunc(src, cu->irb->getFloatTy());
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertWideComparison(CompilationUnit* cu,
-                                  compiler_llvm::IntrinsicHelper::IntrinsicId id,
+                                  art::llvm::IntrinsicHelper::IntrinsicId id,
                                   RegLocation rl_dest, RegLocation rl_src1,
                            RegLocation rl_src2)
 {
   DCHECK_EQ(rl_src1.fp, rl_src2.fp);
   DCHECK_EQ(rl_src1.wide, rl_src2.wide);
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::SmallVector<llvm::Value*, 2> args;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(GetLLVMValue(cu, rl_src1.orig_sreg));
   args.push_back(GetLLVMValue(cu, rl_src2.orig_sreg));
-  llvm::Value* res = cu->irb->CreateCall(intr, args);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, args);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertIntNarrowing(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src,
-                                compiler_llvm::IntrinsicHelper::IntrinsicId id)
+                                art::llvm::IntrinsicHelper::IntrinsicId id)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res =
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res =
       cu->irb->CreateCall(intr, GetLLVMValue(cu, rl_src.orig_sreg));
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertNeg(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* res = cu->irb->CreateNeg(GetLLVMValue(cu, rl_src.orig_sreg));
+  ::llvm::Value* res = cu->irb->CreateNeg(GetLLVMValue(cu, rl_src.orig_sreg));
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertIntToFP(CompilationUnit* cu, llvm::Type* ty, RegLocation rl_dest,
+static void ConvertIntToFP(CompilationUnit* cu, ::llvm::Type* ty, RegLocation rl_dest,
                            RegLocation rl_src)
 {
-  llvm::Value* res =
+  ::llvm::Value* res =
       cu->irb->CreateSIToFP(GetLLVMValue(cu, rl_src.orig_sreg), ty);
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
-static void ConvertFPToInt(CompilationUnit* cu, compiler_llvm::IntrinsicHelper::IntrinsicId id,
+static void ConvertFPToInt(CompilationUnit* cu, art::llvm::IntrinsicHelper::IntrinsicId id,
                            RegLocation rl_dest,
                     RegLocation rl_src)
 {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cu->irb->CreateCall(intr, GetLLVMValue(cu, rl_src.orig_sreg));
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Value* res = cu->irb->CreateCall(intr, GetLLVMValue(cu, rl_src.orig_sreg));
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 
 static void ConvertNegFP(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* res =
+  ::llvm::Value* res =
       cu->irb->CreateFNeg(GetLLVMValue(cu, rl_src.orig_sreg));
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void ConvertNot(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
 {
-  llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
-  llvm::Value* res = cu->irb->CreateXor(src, static_cast<uint64_t>(-1));
+  ::llvm::Value* src = GetLLVMValue(cu, rl_src.orig_sreg);
+  ::llvm::Value* res = cu->irb->CreateXor(src, static_cast<uint64_t>(-1));
   DefineValue(cu, res, rl_dest.orig_sreg);
 }
 
 static void EmitConstructorBarrier(CompilationUnit* cu) {
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
-      compiler_llvm::IntrinsicHelper::ConstructorBarrier);
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
+      art::llvm::IntrinsicHelper::ConstructorBarrier);
   cu->irb->CreateCall(intr);
 }
 
@@ -828,7 +827,7 @@ static void EmitConstructorBarrier(CompilationUnit* cu) {
  * when necessary.
  */
 static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
-                           llvm::BasicBlock* llvm_bb, LIR* label_list)
+                           ::llvm::BasicBlock* llvm_bb, LIR* label_list)
 {
   bool res = false;   // Assume success
   RegLocation rl_src[3];
@@ -905,8 +904,8 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
          * Insert a dummy intrinsic copy call, which will be recognized
          * by the quick path and removed by the portable path.
          */
-        llvm::Value* src = GetLLVMValue(cu, rl_src[0].orig_sreg);
-        llvm::Value* res = EmitCopy(cu, src, rl_dest);
+        ::llvm::Value* src = GetLLVMValue(cu, rl_src[0].orig_sreg);
+        ::llvm::Value* res = EmitCopy(cu, src, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
@@ -914,8 +913,8 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16: {
-        llvm::Constant* imm_value = cu->irb->getJInt(vB);
-        llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
+        ::llvm::Constant* imm_value = cu->irb->getJInt(vB);
+        ::llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
@@ -924,97 +923,97 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::CONST_WIDE_32: {
         // Sign extend to 64 bits
         int64_t imm = static_cast<int32_t>(vB);
-        llvm::Constant* imm_value = cu->irb->getJLong(imm);
-        llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
+        ::llvm::Constant* imm_value = cu->irb->getJLong(imm);
+        ::llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
 
     case Instruction::CONST_HIGH16: {
-        llvm::Constant* imm_value = cu->irb->getJInt(vB << 16);
-        llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
+        ::llvm::Constant* imm_value = cu->irb->getJInt(vB << 16);
+        ::llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
 
     case Instruction::CONST_WIDE: {
-        llvm::Constant* imm_value =
+        ::llvm::Constant* imm_value =
             cu->irb->getJLong(mir->dalvikInsn.vB_wide);
-        llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
+        ::llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
     case Instruction::CONST_WIDE_HIGH16: {
         int64_t imm = static_cast<int64_t>(vB) << 48;
-        llvm::Constant* imm_value = cu->irb->getJLong(imm);
-        llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
+        ::llvm::Constant* imm_value = cu->irb->getJLong(imm);
+        ::llvm::Value* res = EmitConst(cu, imm_value, rl_dest);
         DefineValue(cu, res, rl_dest.orig_sreg);
       }
       break;
 
     case Instruction::SPUT_OBJECT:
-      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputObject,
+      ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputObject,
                   rl_src[0]);
       break;
     case Instruction::SPUT:
       if (rl_src[0].fp) {
-        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputFloat,
+        ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputFloat,
                     rl_src[0]);
       } else {
-        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSput, rl_src[0]);
+        ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSput, rl_src[0]);
       }
       break;
     case Instruction::SPUT_BOOLEAN:
-      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputBoolean,
+      ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputBoolean,
                   rl_src[0]);
       break;
     case Instruction::SPUT_BYTE:
-      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputByte, rl_src[0]);
+      ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputByte, rl_src[0]);
       break;
     case Instruction::SPUT_CHAR:
-      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputChar, rl_src[0]);
+      ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputChar, rl_src[0]);
       break;
     case Instruction::SPUT_SHORT:
-      ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputShort, rl_src[0]);
+      ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputShort, rl_src[0]);
       break;
     case Instruction::SPUT_WIDE:
       if (rl_src[0].fp) {
-        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputDouble,
+        ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputDouble,
                     rl_src[0]);
       } else {
-        ConvertSput(cu, vB, compiler_llvm::IntrinsicHelper::HLSputWide,
+        ConvertSput(cu, vB, art::llvm::IntrinsicHelper::HLSputWide,
                     rl_src[0]);
       }
       break;
 
     case Instruction::SGET_OBJECT:
-      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetObject, rl_dest);
+      ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetObject, rl_dest);
       break;
     case Instruction::SGET:
       if (rl_dest.fp) {
-        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetFloat, rl_dest);
+        ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetFloat, rl_dest);
       } else {
-        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSget, rl_dest);
+        ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSget, rl_dest);
       }
       break;
     case Instruction::SGET_BOOLEAN:
-      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetBoolean, rl_dest);
+      ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetBoolean, rl_dest);
       break;
     case Instruction::SGET_BYTE:
-      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetByte, rl_dest);
+      ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetByte, rl_dest);
       break;
     case Instruction::SGET_CHAR:
-      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetChar, rl_dest);
+      ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetChar, rl_dest);
       break;
     case Instruction::SGET_SHORT:
-      ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetShort, rl_dest);
+      ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetShort, rl_dest);
       break;
     case Instruction::SGET_WIDE:
       if (rl_dest.fp) {
-        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetDouble,
+        ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetDouble,
                     rl_dest);
       } else {
-        ConvertSget(cu, vB, compiler_llvm::IntrinsicHelper::HLSgetWide, rl_dest);
+        ConvertSget(cu, vB, art::llvm::IntrinsicHelper::HLSgetWide, rl_dest);
       }
       break;
 
@@ -1143,32 +1142,32 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       break;
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHLLong,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::SHLLong,
                     rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHL_INT:
     case Instruction::SHL_INT_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHLInt,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::SHLInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHR_LONG:
     case Instruction::SHR_LONG_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHRLong,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::SHRLong,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::SHR_INT:
     case Instruction::SHR_INT_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::SHRInt,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::SHRInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::USHR_LONG:
     case Instruction::USHR_LONG_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::USHRLong,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::USHRLong,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
-      ConvertShift(cu, compiler_llvm::IntrinsicHelper::USHRInt,
+      ConvertShift(cu, art::llvm::IntrinsicHelper::USHRInt,
                    rl_dest, rl_src[0], rl_src[1]);
       break;
 
@@ -1205,15 +1204,15 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       ConvertArithOpLit(cu, kOpXor, rl_dest, rl_src[0], vC);
       break;
     case Instruction::SHL_INT_LIT8:
-      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::SHLInt,
+      ConvertShiftLit(cu, art::llvm::IntrinsicHelper::SHLInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
     case Instruction::SHR_INT_LIT8:
-      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::SHRInt,
+      ConvertShiftLit(cu, art::llvm::IntrinsicHelper::SHRInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
     case Instruction::USHR_INT_LIT8:
-      ConvertShiftLit(cu, compiler_llvm::IntrinsicHelper::USHRInt,
+      ConvertShiftLit(cu, art::llvm::IntrinsicHelper::USHRInt,
                       rl_dest, rl_src[0], vC & 0x1f);
       break;
 
@@ -1307,12 +1306,12 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      ConvertConstObject(cu, vB, compiler_llvm::IntrinsicHelper::ConstString,
+      ConvertConstObject(cu, vB, art::llvm::IntrinsicHelper::ConstString,
                          rl_dest);
       break;
 
     case Instruction::CONST_CLASS:
-      ConvertConstObject(cu, vB, compiler_llvm::IntrinsicHelper::ConstClass,
+      ConvertConstObject(cu, vB, art::llvm::IntrinsicHelper::ConstClass,
                          rl_dest);
       break;
 
@@ -1354,13 +1353,13 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::MONITOR_ENTER:
       ConvertMonitorEnterExit(cu, opt_flags,
-                              compiler_llvm::IntrinsicHelper::MonitorEnter,
+                              art::llvm::IntrinsicHelper::MonitorEnter,
                               rl_src[0]);
       break;
 
     case Instruction::MONITOR_EXIT:
       ConvertMonitorEnterExit(cu, opt_flags,
-                              compiler_llvm::IntrinsicHelper::MonitorExit,
+                              art::llvm::IntrinsicHelper::MonitorExit,
                               rl_src[0]);
       break;
 
@@ -1379,41 +1378,41 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::AGET:
       if (rl_dest.fp) {
         ConvertAget(cu, opt_flags,
-                    compiler_llvm::IntrinsicHelper::HLArrayGetFloat,
+                    art::llvm::IntrinsicHelper::HLArrayGetFloat,
                     rl_dest, rl_src[0], rl_src[1]);
       } else {
-        ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGet,
+        ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGet,
                     rl_dest, rl_src[0], rl_src[1]);
       }
       break;
     case Instruction::AGET_OBJECT:
-      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetObject,
+      ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGetObject,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_BOOLEAN:
       ConvertAget(cu, opt_flags,
-                  compiler_llvm::IntrinsicHelper::HLArrayGetBoolean,
+                  art::llvm::IntrinsicHelper::HLArrayGetBoolean,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_BYTE:
-      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetByte,
+      ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGetByte,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_CHAR:
-      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetChar,
+      ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGetChar,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_SHORT:
-      ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetShort,
+      ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGetShort,
                   rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::AGET_WIDE:
       if (rl_dest.fp) {
         ConvertAget(cu, opt_flags,
-                    compiler_llvm::IntrinsicHelper::HLArrayGetDouble,
+                    art::llvm::IntrinsicHelper::HLArrayGetDouble,
                     rl_dest, rl_src[0], rl_src[1]);
       } else {
-        ConvertAget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayGetWide,
+        ConvertAget(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayGetWide,
                     rl_dest, rl_src[0], rl_src[1]);
       }
       break;
@@ -1421,118 +1420,118 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
     case Instruction::APUT:
       if (rl_src[0].fp) {
         ConvertAput(cu, opt_flags,
-                    compiler_llvm::IntrinsicHelper::HLArrayPutFloat,
+                    art::llvm::IntrinsicHelper::HLArrayPutFloat,
                     rl_src[0], rl_src[1], rl_src[2]);
       } else {
-        ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPut,
+        ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPut,
                     rl_src[0], rl_src[1], rl_src[2]);
       }
       break;
     case Instruction::APUT_OBJECT:
-      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutObject,
+      ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPutObject,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_BOOLEAN:
       ConvertAput(cu, opt_flags,
-                  compiler_llvm::IntrinsicHelper::HLArrayPutBoolean,
+                  art::llvm::IntrinsicHelper::HLArrayPutBoolean,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_BYTE:
-      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutByte,
+      ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPutByte,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_CHAR:
-      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutChar,
+      ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPutChar,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_SHORT:
-      ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutShort,
+      ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPutShort,
                     rl_src[0], rl_src[1], rl_src[2]);
       break;
     case Instruction::APUT_WIDE:
       if (rl_src[0].fp) {
         ConvertAput(cu, opt_flags,
-                    compiler_llvm::IntrinsicHelper::HLArrayPutDouble,
+                    art::llvm::IntrinsicHelper::HLArrayPutDouble,
                     rl_src[0], rl_src[1], rl_src[2]);
       } else {
-        ConvertAput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLArrayPutWide,
+        ConvertAput(cu, opt_flags, art::llvm::IntrinsicHelper::HLArrayPutWide,
                     rl_src[0], rl_src[1], rl_src[2]);
       }
       break;
 
     case Instruction::IGET:
       if (rl_dest.fp) {
-        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetFloat,
+        ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetFloat,
                     rl_dest, rl_src[0], vC);
       } else {
-        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGet,
+        ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGet,
                     rl_dest, rl_src[0], vC);
       }
       break;
     case Instruction::IGET_OBJECT:
-      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetObject,
+      ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetObject,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_BOOLEAN:
-      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetBoolean,
+      ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetBoolean,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_BYTE:
-      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetByte,
+      ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetByte,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_CHAR:
-      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetChar,
+      ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetChar,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_SHORT:
-      ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetShort,
+      ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetShort,
                   rl_dest, rl_src[0], vC);
       break;
     case Instruction::IGET_WIDE:
       if (rl_dest.fp) {
-        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetDouble,
+        ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetDouble,
                     rl_dest, rl_src[0], vC);
       } else {
-        ConvertIget(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIGetWide,
+        ConvertIget(cu, opt_flags, art::llvm::IntrinsicHelper::HLIGetWide,
                     rl_dest, rl_src[0], vC);
       }
       break;
     case Instruction::IPUT:
       if (rl_src[0].fp) {
-        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutFloat,
+        ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutFloat,
                     rl_src[0], rl_src[1], vC);
       } else {
-        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPut,
+        ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPut,
                     rl_src[0], rl_src[1], vC);
       }
       break;
     case Instruction::IPUT_OBJECT:
-      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutObject,
+      ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutObject,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_BOOLEAN:
-      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutBoolean,
+      ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutBoolean,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_BYTE:
-      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutByte,
+      ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutByte,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_CHAR:
-      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutChar,
+      ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutChar,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_SHORT:
-      ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutShort,
+      ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutShort,
                   rl_src[0], rl_src[1], vC);
       break;
     case Instruction::IPUT_WIDE:
       if (rl_src[0].fp) {
-        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutDouble,
+        ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutDouble,
                     rl_src[0], rl_src[1], vC);
       } else {
-        ConvertIput(cu, opt_flags, compiler_llvm::IntrinsicHelper::HLIPutWide,
+        ConvertIput(cu, opt_flags, art::llvm::IntrinsicHelper::HLIPutWide,
                     rl_src[0], rl_src[1], vC);
       }
       break;
@@ -1551,15 +1550,15 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 
     case Instruction::INT_TO_CHAR:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          compiler_llvm::IntrinsicHelper::IntToChar);
+                          art::llvm::IntrinsicHelper::IntToChar);
       break;
     case Instruction::INT_TO_BYTE:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          compiler_llvm::IntrinsicHelper::IntToByte);
+                          art::llvm::IntrinsicHelper::IntToByte);
       break;
     case Instruction::INT_TO_SHORT:
       ConvertIntNarrowing(cu, rl_dest, rl_src[0],
-                          compiler_llvm::IntrinsicHelper::IntToShort);
+                          art::llvm::IntrinsicHelper::IntToShort);
       break;
 
     case Instruction::INT_TO_FLOAT:
@@ -1596,39 +1595,39 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::FLOAT_TO_INT:
-      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::F2I, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, art::llvm::IntrinsicHelper::F2I, rl_dest, rl_src[0]);
       break;
 
     case Instruction::DOUBLE_TO_INT:
-      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::D2I, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, art::llvm::IntrinsicHelper::D2I, rl_dest, rl_src[0]);
       break;
 
     case Instruction::FLOAT_TO_LONG:
-      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::F2L, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, art::llvm::IntrinsicHelper::F2L, rl_dest, rl_src[0]);
       break;
 
     case Instruction::DOUBLE_TO_LONG:
-      ConvertFPToInt(cu, compiler_llvm::IntrinsicHelper::D2L, rl_dest, rl_src[0]);
+      ConvertFPToInt(cu, art::llvm::IntrinsicHelper::D2L, rl_dest, rl_src[0]);
       break;
 
     case Instruction::CMPL_FLOAT:
-      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmplFloat,
+      ConvertWideComparison(cu, art::llvm::IntrinsicHelper::CmplFloat,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPG_FLOAT:
-      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpgFloat,
+      ConvertWideComparison(cu, art::llvm::IntrinsicHelper::CmpgFloat,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPL_DOUBLE:
-      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmplDouble,
+      ConvertWideComparison(cu, art::llvm::IntrinsicHelper::CmplDouble,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMPG_DOUBLE:
-      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpgDouble,
+      ConvertWideComparison(cu, art::llvm::IntrinsicHelper::CmpgDouble,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
     case Instruction::CMP_LONG:
-      ConvertWideComparison(cu, compiler_llvm::IntrinsicHelper::CmpLong,
+      ConvertWideComparison(cu, art::llvm::IntrinsicHelper::CmpLong,
                             rl_dest, rl_src[0], rl_src[1]);
       break;
 
@@ -1650,9 +1649,9 @@ static bool ConvertMIRNode(CompilationUnit* cu, MIR* mir, BasicBlock* bb,
 static void SetDexOffset(CompilationUnit* cu, int32_t offset)
 {
   cu->current_dalvik_offset = offset;
-  llvm::SmallVector<llvm::Value*, 1> array_ref;
+  ::llvm::SmallVector< ::llvm::Value*, 1> array_ref;
   array_ref.push_back(cu->irb->getInt32(offset));
-  llvm::MDNode* node = llvm::MDNode::get(*cu->context, array_ref);
+  ::llvm::MDNode* node = ::llvm::MDNode::get(*cu->context, array_ref);
   cu->irb->SetDexOffset(node);
 }
 
@@ -1661,20 +1660,20 @@ static void SetMethodInfo(CompilationUnit* cu)
 {
   // We don't want dex offset on this
   cu->irb->SetDexOffset(NULL);
-  compiler_llvm::IntrinsicHelper::IntrinsicId id;
-  id = compiler_llvm::IntrinsicHelper::MethodInfo;
-  llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Instruction* inst = cu->irb->CreateCall(intr);
-  llvm::SmallVector<llvm::Value*, 2> reg_info;
+  art::llvm::IntrinsicHelper::IntrinsicId id;
+  id = art::llvm::IntrinsicHelper::MethodInfo;
+  ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(id);
+  ::llvm::Instruction* inst = cu->irb->CreateCall(intr);
+  ::llvm::SmallVector< ::llvm::Value*, 2> reg_info;
   reg_info.push_back(cu->irb->getInt32(cu->num_ins));
   reg_info.push_back(cu->irb->getInt32(cu->num_regs));
   reg_info.push_back(cu->irb->getInt32(cu->num_outs));
   reg_info.push_back(cu->irb->getInt32(cu->num_compiler_temps));
   reg_info.push_back(cu->irb->getInt32(cu->num_ssa_regs));
-  llvm::MDNode* reg_info_node = llvm::MDNode::get(*cu->context, reg_info);
+  ::llvm::MDNode* reg_info_node = ::llvm::MDNode::get(*cu->context, reg_info);
   inst->setMetadata("RegInfo", reg_info_node);
   int promo_size = cu->num_dalvik_registers + cu->num_compiler_temps + 1;
-  llvm::SmallVector<llvm::Value*, 50> pmap;
+  ::llvm::SmallVector< ::llvm::Value*, 50> pmap;
   for (int i = 0; i < promo_size; i++) {
     PromotionMap* p = &cu->promotion_map[i];
     int32_t map_data = ((p->first_in_pair & 0xff) << 24) |
@@ -1684,12 +1683,12 @@ static void SetMethodInfo(CompilationUnit* cu)
                       (p->core_location & 0xf);
     pmap.push_back(cu->irb->getInt32(map_data));
   }
-  llvm::MDNode* map_node = llvm::MDNode::get(*cu->context, pmap);
+  ::llvm::MDNode* map_node = ::llvm::MDNode::get(*cu->context, pmap);
   inst->setMetadata("PromotionMap", map_node);
   SetDexOffset(cu, cu->current_dalvik_offset);
 }
 
-static void HandlePhiNodes(CompilationUnit* cu, BasicBlock* bb, llvm::BasicBlock* llvm_bb)
+static void HandlePhiNodes(CompilationUnit* cu, BasicBlock* bb, ::llvm::BasicBlock* llvm_bb)
 {
   SetDexOffset(cu, bb->start_offset);
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -1714,9 +1713,9 @@ static void HandlePhiNodes(CompilationUnit* cu, BasicBlock* bb, llvm::BasicBlock
       continue;  // No Phi node - handled via low word
     }
     int* incoming = reinterpret_cast<int*>(mir->dalvikInsn.vB);
-    llvm::Type* phi_type =
+    ::llvm::Type* phi_type =
         LlvmTypeFromLocRec(cu, rl_dest);
-    llvm::PHINode* phi = cu->irb->CreatePHI(phi_type, mir->ssa_rep->num_uses);
+    ::llvm::PHINode* phi = cu->irb->CreatePHI(phi_type, mir->ssa_rep->num_uses);
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       RegLocation loc;
       // Don't check width here.
@@ -1740,7 +1739,7 @@ static void HandlePhiNodes(CompilationUnit* cu, BasicBlock* bb, llvm::BasicBlock
 
 /* Extended MIR instructions like PHI */
 static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                               llvm::BasicBlock* llvm_bb)
+                               ::llvm::BasicBlock* llvm_bb)
 {
 
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
@@ -1750,7 +1749,7 @@ static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
       if (!rl_dest.high_word) {
         // Only consider low word of pairs.
         DCHECK(GetLLVMValue(cu, rl_dest.orig_sreg) != NULL);
-        llvm::Value* phi = GetLLVMValue(cu, rl_dest.orig_sreg);
+        ::llvm::Value* phi = GetLLVMValue(cu, rl_dest.orig_sreg);
         if (1) SetVregOnValue(cu, phi, rl_dest.orig_sreg);
       }
       break;
@@ -1791,7 +1790,7 @@ static void ConvertExtendedMIR(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
 static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
 {
   if (bb->block_type == kDead) return false;
-  llvm::BasicBlock* llvm_bb = GetLLVMBlock(cu, bb->id);
+  ::llvm::BasicBlock* llvm_bb = GetLLVMBlock(cu, bb->id);
   if (llvm_bb == NULL) {
     CHECK(bb->block_type == kExitBlock);
   } else {
@@ -1813,18 +1812,18 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
     SetMethodInfo(cu);
 
     { // Allocate shadowframe.
-      compiler_llvm::IntrinsicHelper::IntrinsicId id =
-              compiler_llvm::IntrinsicHelper::AllocaShadowFrame;
-      llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
-      llvm::Value* entries = cu->irb->getInt32(cu->num_dalvik_registers);
+      art::llvm::IntrinsicHelper::IntrinsicId id =
+              art::llvm::IntrinsicHelper::AllocaShadowFrame;
+      ::llvm::Function* func = cu->intrinsic_helper->GetIntrinsicFunction(id);
+      ::llvm::Value* entries = cu->irb->getInt32(cu->num_dalvik_registers);
       cu->irb->CreateCall(func, entries);
     }
 
     { // Store arguments to vregs.
       uint16_t arg_reg = cu->num_regs;
 
-      llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
-      llvm::Function::arg_iterator arg_end(cu->func->arg_end());
+      ::llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
+      ::llvm::Function::arg_iterator arg_end(cu->func->arg_end());
 
       const char* shorty = cu->shorty;
       uint32_t shorty_size = strlen(shorty);
@@ -1886,23 +1885,23 @@ static bool BlockBitcodeConversion(CompilationUnit* cu, BasicBlock* bb)
       work_half->meta.original_opcode = work_half->dalvikInsn.opcode;
       work_half->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
       if (bb->successor_block_list.block_list_type == kCatch) {
-        llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
-            compiler_llvm::IntrinsicHelper::CatchTargets);
-        llvm::Value* switch_key =
+        ::llvm::Function* intr = cu->intrinsic_helper->GetIntrinsicFunction(
+            art::llvm::IntrinsicHelper::CatchTargets);
+        ::llvm::Value* switch_key =
             cu->irb->CreateCall(intr, cu->irb->getInt32(mir->offset));
         GrowableListIterator iter;
         GrowableListIteratorInit(&bb->successor_block_list.blocks, &iter);
         // New basic block to use for work half
-        llvm::BasicBlock* work_bb =
-            llvm::BasicBlock::Create(*cu->context, "", cu->func);
-        llvm::SwitchInst* sw =
+        ::llvm::BasicBlock* work_bb =
+            ::llvm::BasicBlock::Create(*cu->context, "", cu->func);
+        ::llvm::SwitchInst* sw =
             cu->irb->CreateSwitch(switch_key, work_bb,
                                      bb->successor_block_list.blocks.num_used);
         while (true) {
           SuccessorBlockInfo *successor_block_info =
               reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iter));
           if (successor_block_info == NULL) break;
-          llvm::BasicBlock *target =
+          ::llvm::BasicBlock *target =
               GetLLVMBlock(cu, successor_block_info->block->id);
           int type_index = successor_block_info->key;
           sw->addCase(cu->irb->getInt32(type_index), target);
@@ -1959,13 +1958,13 @@ char RemapShorty(char shorty_type) {
   return shorty_type;
 }
 
-static llvm::FunctionType* GetFunctionType(CompilationUnit* cu) {
+static ::llvm::FunctionType* GetFunctionType(CompilationUnit* cu) {
 
   // Get return type
-  llvm::Type* ret_type = cu->irb->getJType(RemapShorty(cu->shorty[0]));
+  ::llvm::Type* ret_type = cu->irb->getJType(RemapShorty(cu->shorty[0]));
 
   // Get argument type
-  std::vector<llvm::Type*> args_type;
+  std::vector< ::llvm::Type*> args_type;
 
   // method object
   args_type.push_back(cu->irb->getJMethodTy());
@@ -1979,24 +1978,24 @@ static llvm::FunctionType* GetFunctionType(CompilationUnit* cu) {
     args_type.push_back(cu->irb->getJType(RemapShorty(cu->shorty[i])));
   }
 
-  return llvm::FunctionType::get(ret_type, args_type, false);
+  return ::llvm::FunctionType::get(ret_type, args_type, false);
 }
 
 static bool CreateFunction(CompilationUnit* cu) {
   std::string func_name(PrettyMethod(cu->method_idx, *cu->dex_file,
                                      /* with_signature */ false));
-  llvm::FunctionType* func_type = GetFunctionType(cu);
+  ::llvm::FunctionType* func_type = GetFunctionType(cu);
 
   if (func_type == NULL) {
     return false;
   }
 
-  cu->func = llvm::Function::Create(func_type,
-                                       llvm::Function::ExternalLinkage,
+  cu->func = ::llvm::Function::Create(func_type,
+                                       ::llvm::Function::ExternalLinkage,
                                        func_name, cu->module);
 
-  llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
-  llvm::Function::arg_iterator arg_end(cu->func->arg_end());
+  ::llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
+  ::llvm::Function::arg_iterator arg_end(cu->func->arg_end());
 
   arg_iter->setName("method");
   ++arg_iter;
@@ -2019,14 +2018,14 @@ static bool CreateLLVMBasicBlock(CompilationUnit* cu, BasicBlock* bb)
   } else {
     int offset = bb->start_offset;
     bool entry_block = (bb->block_type == kEntryBlock);
-    llvm::BasicBlock* llvm_bb =
-        llvm::BasicBlock::Create(*cu->context, entry_block ? "entry" :
+    ::llvm::BasicBlock* llvm_bb =
+        ::llvm::BasicBlock::Create(*cu->context, entry_block ? "entry" :
                                  StringPrintf(kLabelFormat, bb->catch_entry ? kCatchBlock :
                                               kNormalBlock, offset, bb->id), cu->func);
     if (entry_block) {
         cu->entry_bb = llvm_bb;
         cu->placeholder_bb =
-            llvm::BasicBlock::Create(*cu->context, "placeholder",
+            ::llvm::BasicBlock::Create(*cu->context, "placeholder",
                                      cu->func);
     }
     cu->id_to_block_map.Put(bb->id, llvm_bb);
@@ -2060,23 +2059,23 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
    * the definition yet).
    */
   cu->irb->SetInsertPoint(cu->placeholder_bb);
-  llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
+  ::llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
   arg_iter++;  /* Skip path method */
   for (int i = 0; i < cu->num_ssa_regs; i++) {
-    llvm::Value* val;
+    ::llvm::Value* val;
     RegLocation rl_temp = cu->reg_location[i];
     if ((SRegToVReg(cu, i) < 0) || rl_temp.high_word) {
       InsertGrowableList(cu, &cu->llvm_values, 0);
     } else if ((i < cu->num_regs) ||
                (i >= (cu->num_regs + cu->num_ins))) {
-      llvm::Constant* imm_value = cu->reg_location[i].wide ?
+      ::llvm::Constant* imm_value = cu->reg_location[i].wide ?
          cu->irb->getJLong(0) : cu->irb->getJInt(0);
       val = EmitConst(cu, imm_value, cu->reg_location[i]);
       val->setName(LlvmSSAName(cu, i));
       InsertGrowableList(cu, &cu->llvm_values, reinterpret_cast<uintptr_t>(val));
     } else {
       // Recover previously-created argument values
-      llvm::Value* arg_val = arg_iter++;
+      ::llvm::Value* arg_val = arg_iter++;
       InsertGrowableList(cu, &cu->llvm_values, reinterpret_cast<uintptr_t>(arg_val));
     }
   }
@@ -2097,11 +2096,11 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
    * If any definitions remain, we link the placeholder block into the
    * CFG.  Otherwise, it is deleted.
    */
-  for (llvm::BasicBlock::iterator it = cu->placeholder_bb->begin(),
+  for (::llvm::BasicBlock::iterator it = cu->placeholder_bb->begin(),
        it_end = cu->placeholder_bb->end(); it != it_end;) {
-    llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(it++);
+    ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(it++);
     DCHECK(inst != NULL);
-    llvm::Value* val = llvm::dyn_cast<llvm::Value>(inst);
+    ::llvm::Value* val = ::llvm::dyn_cast< ::llvm::Value>(inst);
     DCHECK(val != NULL);
     if (val->getNumUses() == 0) {
       inst->eraseFromParent();
@@ -2119,7 +2118,7 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
   cu->irb->CreateBr(cu->entryTarget_bb);
 
   if (cu->enable_debug & (1 << kDebugVerifyBitcode)) {
-     if (llvm::verifyFunction(*cu->func, llvm::PrintMessageAction)) {
+     if (::llvm::verifyFunction(*cu->func, ::llvm::PrintMessageAction)) {
        LOG(INFO) << "Bitcode verification FAILED for "
                  << PrettyMethod(cu->method_idx, *cu->dex_file)
                  << " of size " << cu->insns_size;
@@ -2140,23 +2139,23 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
       fname.resize(240);
     }
 
-    llvm::OwningPtr<llvm::tool_output_file> out_file(
-        new llvm::tool_output_file(fname.c_str(), errmsg,
-                                   llvm::raw_fd_ostream::F_Binary));
+    ::llvm::OwningPtr< ::llvm::tool_output_file> out_file(
+        new ::llvm::tool_output_file(fname.c_str(), errmsg,
+                                   ::llvm::raw_fd_ostream::F_Binary));
 
     if (!errmsg.empty()) {
       LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;
     }
 
-    llvm::WriteBitcodeToFile(cu->module, out_file->os());
+    ::llvm::WriteBitcodeToFile(cu->module, out_file->os());
     out_file->keep();
   }
 }
 
-static RegLocation GetLoc(CompilationUnit* cu, llvm::Value* val) {
+static RegLocation GetLoc(CompilationUnit* cu, ::llvm::Value* val) {
   RegLocation res;
   DCHECK(val != NULL);
-  SafeMap<llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
+  SafeMap< ::llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
   if (it == cu->loc_map.end()) {
     std::string val_name = val->getName().str();
     if (val_name.empty()) {
@@ -2169,7 +2168,7 @@ static RegLocation GetLoc(CompilationUnit* cu, llvm::Value* val) {
       res.home = true;
       res.s_reg_low = INVALID_SREG;
       res.orig_sreg = INVALID_SREG;
-      llvm::Type* ty = val->getType();
+      ::llvm::Type* ty = val->getType();
       res.wide = ((ty == cu->irb->getInt64Ty()) ||
                   (ty == cu->irb->getDoubleTy()));
       if (res.wide) {
@@ -2266,7 +2265,7 @@ static Instruction::Code GetDalvikFPOpcode(OpKind op, bool is_const, bool is_wid
   return res;
 }
 
-static void CvtBinFPOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
+static void CvtBinFPOp(CompilationUnit* cu, OpKind op, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
@@ -2276,8 +2275,8 @@ static void CvtBinFPOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
    * may insert them - in particular for create_neg_fp.  Recognize this case
    * and deal with it.
    */
-  llvm::ConstantFP* op1C = llvm::dyn_cast<llvm::ConstantFP>(inst->getOperand(0));
-  llvm::ConstantFP* op2C = llvm::dyn_cast<llvm::ConstantFP>(inst->getOperand(1));
+  ::llvm::ConstantFP* op1C = ::llvm::dyn_cast< ::llvm::ConstantFP>(inst->getOperand(0));
+  ::llvm::ConstantFP* op2C = ::llvm::dyn_cast< ::llvm::ConstantFP>(inst->getOperand(1));
   DCHECK(op2C == NULL);
   if ((op1C != NULL) && (op == kOpSub)) {
     RegLocation rl_src = GetLoc(cu, inst->getOperand(1));
@@ -2299,7 +2298,7 @@ static void CvtBinFPOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
   }
 }
 
-static void CvtIntNarrowing(CompilationUnit* cu, llvm::Instruction* inst,
+static void CvtIntNarrowing(CompilationUnit* cu, ::llvm::Instruction* inst,
                      Instruction::Code opcode)
 {
   Codegen* cg = cu->cg.get();
@@ -2308,7 +2307,7 @@ static void CvtIntNarrowing(CompilationUnit* cu, llvm::Instruction* inst,
   cg->GenIntNarrowing(cu, opcode, rl_dest, rl_src);
 }
 
-static void CvtIntToFP(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtIntToFP(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
@@ -2330,7 +2329,7 @@ static void CvtIntToFP(CompilationUnit* cu, llvm::Instruction* inst)
   cg->GenConversion(cu, opcode, rl_dest, rl_src);
 }
 
-static void CvtFPToInt(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtFPToInt(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, call_inst);
@@ -2352,7 +2351,7 @@ static void CvtFPToInt(CompilationUnit* cu, llvm::CallInst* call_inst)
   cg->GenConversion(cu, opcode, rl_dest, rl_src);
 }
 
-static void CvtFloatToDouble(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtFloatToDouble(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
@@ -2360,7 +2359,7 @@ static void CvtFloatToDouble(CompilationUnit* cu, llvm::Instruction* inst)
   cg->GenConversion(cu, Instruction::FLOAT_TO_DOUBLE, rl_dest, rl_src);
 }
 
-static void CvtTrunc(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtTrunc(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
@@ -2370,7 +2369,7 @@ static void CvtTrunc(CompilationUnit* cu, llvm::Instruction* inst)
   cg->StoreValue(cu, rl_dest, rl_src);
 }
 
-static void CvtDoubleToFloat(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtDoubleToFloat(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
@@ -2379,7 +2378,7 @@ static void CvtDoubleToFloat(CompilationUnit* cu, llvm::Instruction* inst)
 }
 
 
-static void CvtIntExt(CompilationUnit* cu, llvm::Instruction* inst, bool is_signed)
+static void CvtIntExt(CompilationUnit* cu, ::llvm::Instruction* inst, bool is_signed)
 {
   Codegen* cg = cu->cg.get();
   // TODO: evaluate src/tgt types and add general support for more than int to long
@@ -2403,13 +2402,13 @@ static void CvtIntExt(CompilationUnit* cu, llvm::Instruction* inst, bool is_sign
   cg->StoreValueWide(cu, rl_dest, rl_result);
 }
 
-static void CvtBinOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
+static void CvtBinOp(CompilationUnit* cu, OpKind op, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, inst);
-  llvm::Value* lhs = inst->getOperand(0);
+  ::llvm::Value* lhs = inst->getOperand(0);
   // Special-case RSUB/NEG
-  llvm::ConstantInt* lhs_imm = llvm::dyn_cast<llvm::ConstantInt>(lhs);
+  ::llvm::ConstantInt* lhs_imm = ::llvm::dyn_cast< ::llvm::ConstantInt>(lhs);
   if ((op == kOpSub) && (lhs_imm != NULL)) {
     RegLocation rl_src1 = GetLoc(cu, inst->getOperand(1));
     if (rl_src1.wide) {
@@ -2423,8 +2422,8 @@ static void CvtBinOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
   }
   DCHECK(lhs_imm == NULL);
   RegLocation rl_src1 = GetLoc(cu, inst->getOperand(0));
-  llvm::Value* rhs = inst->getOperand(1);
-  llvm::ConstantInt* const_rhs = llvm::dyn_cast<llvm::ConstantInt>(rhs);
+  ::llvm::Value* rhs = inst->getOperand(1);
+  ::llvm::ConstantInt* const_rhs = ::llvm::dyn_cast< ::llvm::ConstantInt>(rhs);
   if (!rl_dest.wide && (const_rhs != NULL)) {
     Instruction::Code dalvik_op = GetDalvikOpcode(op, true, false);
     cg->GenArithOpIntLit(cu, dalvik_op, rl_dest, rl_src1, const_rhs->getSExtValue());
@@ -2448,14 +2447,14 @@ static void CvtBinOp(CompilationUnit* cu, OpKind op, llvm::Instruction* inst)
   }
 }
 
-static void CvtShiftOp(CompilationUnit* cu, Instruction::Code opcode, llvm::CallInst* call_inst)
+static void CvtShiftOp(CompilationUnit* cu, Instruction::Code opcode, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
   RegLocation rl_dest = GetLoc(cu, call_inst);
   RegLocation rl_src = GetLoc(cu, call_inst->getArgOperand(0));
-  llvm::Value* rhs = call_inst->getArgOperand(1);
-  if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
+  ::llvm::Value* rhs = call_inst->getArgOperand(1);
+  if (::llvm::ConstantInt* src2 = ::llvm::dyn_cast< ::llvm::ConstantInt>(rhs)) {
     DCHECK(!rl_dest.wide);
     cg->GenArithOpIntLit(cu, opcode, rl_dest, rl_src, src2->getSExtValue());
   } else {
@@ -2468,26 +2467,26 @@ static void CvtShiftOp(CompilationUnit* cu, Instruction::Code opcode, llvm::Call
   }
 }
 
-static void CvtBr(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtBr(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
-  llvm::BranchInst* br_inst = llvm::dyn_cast<llvm::BranchInst>(inst);
+  ::llvm::BranchInst* br_inst = ::llvm::dyn_cast< ::llvm::BranchInst>(inst);
   DCHECK(br_inst != NULL);
   DCHECK(br_inst->isUnconditional());  // May change - but this is all we use now
-  llvm::BasicBlock* target_bb = br_inst->getSuccessor(0);
+  ::llvm::BasicBlock* target_bb = br_inst->getSuccessor(0);
   cg->OpUnconditionalBranch(cu, cu->block_to_label_map.Get(target_bb));
 }
 
-static void CvtPhi(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtPhi(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   // Nop - these have already been processed
 }
 
-static void CvtRet(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtRet(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
-  llvm::ReturnInst* ret_inst = llvm::dyn_cast<llvm::ReturnInst>(inst);
-  llvm::Value* ret_val = ret_inst->getReturnValue();
+  ::llvm::ReturnInst* ret_inst = ::llvm::dyn_cast< ::llvm::ReturnInst>(inst);
+  ::llvm::Value* ret_val = ret_inst->getReturnValue();
   if (ret_val != NULL) {
     RegLocation rl_src = GetLoc(cu, ret_val);
     if (rl_src.wide) {
@@ -2499,54 +2498,54 @@ static void CvtRet(CompilationUnit* cu, llvm::Instruction* inst)
   cg->GenExitSequence(cu);
 }
 
-static ConditionCode GetCond(llvm::ICmpInst::Predicate llvm_cond)
+static ConditionCode GetCond(::llvm::ICmpInst::Predicate llvm_cond)
 {
   ConditionCode res = kCondAl;
   switch(llvm_cond) {
-    case llvm::ICmpInst::ICMP_EQ: res = kCondEq; break;
-    case llvm::ICmpInst::ICMP_NE: res = kCondNe; break;
-    case llvm::ICmpInst::ICMP_SLT: res = kCondLt; break;
-    case llvm::ICmpInst::ICMP_SGE: res = kCondGe; break;
-    case llvm::ICmpInst::ICMP_SGT: res = kCondGt; break;
-    case llvm::ICmpInst::ICMP_SLE: res = kCondLe; break;
+    case ::llvm::ICmpInst::ICMP_EQ: res = kCondEq; break;
+    case ::llvm::ICmpInst::ICMP_NE: res = kCondNe; break;
+    case ::llvm::ICmpInst::ICMP_SLT: res = kCondLt; break;
+    case ::llvm::ICmpInst::ICMP_SGE: res = kCondGe; break;
+    case ::llvm::ICmpInst::ICMP_SGT: res = kCondGt; break;
+    case ::llvm::ICmpInst::ICMP_SLE: res = kCondLe; break;
     default: LOG(FATAL) << "Unexpected llvm condition";
   }
   return res;
 }
 
-static void CvtICmp(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtICmp(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   // cg->GenCmpLong(cu, rl_dest, rl_src1, rl_src2)
   UNIMPLEMENTED(FATAL);
 }
 
-static void CvtICmpBr(CompilationUnit* cu, llvm::Instruction* inst,
-               llvm::BranchInst* br_inst)
+static void CvtICmpBr(CompilationUnit* cu, ::llvm::Instruction* inst,
+               ::llvm::BranchInst* br_inst)
 {
   Codegen* cg = cu->cg.get();
   // Get targets
-  llvm::BasicBlock* taken_bb = br_inst->getSuccessor(0);
+  ::llvm::BasicBlock* taken_bb = br_inst->getSuccessor(0);
   LIR* taken = cu->block_to_label_map.Get(taken_bb);
-  llvm::BasicBlock* fallthrough_bb = br_inst->getSuccessor(1);
+  ::llvm::BasicBlock* fallthrough_bb = br_inst->getSuccessor(1);
   LIR* fall_through = cu->block_to_label_map.Get(fallthrough_bb);
   // Get comparison operands
-  llvm::ICmpInst* i_cmp_inst = llvm::dyn_cast<llvm::ICmpInst>(inst);
+  ::llvm::ICmpInst* i_cmp_inst = ::llvm::dyn_cast< ::llvm::ICmpInst>(inst);
   ConditionCode cond = GetCond(i_cmp_inst->getPredicate());
-  llvm::Value* lhs = i_cmp_inst->getOperand(0);
+  ::llvm::Value* lhs = i_cmp_inst->getOperand(0);
   // Not expecting a constant as 1st operand
-  DCHECK(llvm::dyn_cast<llvm::ConstantInt>(lhs) == NULL);
+  DCHECK(::llvm::dyn_cast< ::llvm::ConstantInt>(lhs) == NULL);
   RegLocation rl_src1 = GetLoc(cu, inst->getOperand(0));
   rl_src1 = cg->LoadValue(cu, rl_src1, kCoreReg);
-  llvm::Value* rhs = inst->getOperand(1);
+  ::llvm::Value* rhs = inst->getOperand(1);
   if (cu->instruction_set == kMips) {
     // Compare and branch in one shot
     UNIMPLEMENTED(FATAL);
   }
   //Compare, then branch
   // TODO: handle fused CMP_LONG/IF_xxZ case
-  if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
+  if (::llvm::ConstantInt* src2 = ::llvm::dyn_cast< ::llvm::ConstantInt>(rhs)) {
     cg->OpRegImm(cu, kOpCmp, rl_src1.low_reg, src2->getSExtValue());
-  } else if (llvm::dyn_cast<llvm::ConstantPointerNull>(rhs) != NULL) {
+  } else if (::llvm::dyn_cast< ::llvm::ConstantPointerNull>(rhs) != NULL) {
     cg->OpRegImm(cu, kOpCmp, rl_src1.low_reg, 0);
   } else {
     RegLocation rl_src2 = GetLoc(cu, rhs);
@@ -2558,7 +2557,7 @@ static void CvtICmpBr(CompilationUnit* cu, llvm::Instruction* inst,
   cg->OpUnconditionalBranch(cu, fall_through);
 }
 
-static void CvtCopy(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtCopy(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
@@ -2574,12 +2573,12 @@ static void CvtCopy(CompilationUnit* cu, llvm::CallInst* call_inst)
 }
 
 // Note: Immediate arg is a ConstantInt regardless of result type
-static void CvtConst(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtConst(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
-  llvm::ConstantInt* src =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* src =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint64_t immval = src->getZExtValue();
   RegLocation rl_dest = GetLoc(cu, call_inst);
   RegLocation rl_result = EvalLoc(cu, rl_dest, kAnyReg, true);
@@ -2596,12 +2595,12 @@ static void CvtConst(CompilationUnit* cu, llvm::CallInst* call_inst)
   }
 }
 
-static void CvtConstObject(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_string)
+static void CvtConstObject(CompilationUnit* cu, ::llvm::CallInst* call_inst, bool is_string)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
-  llvm::ConstantInt* idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t index = idx_val->getZExtValue();
   RegLocation rl_dest = GetLoc(cu, call_inst);
   if (is_string) {
@@ -2611,70 +2610,70 @@ static void CvtConstObject(CompilationUnit* cu, llvm::CallInst* call_inst, bool 
   }
 }
 
-static void CvtFillArrayData(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtFillArrayData(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* offset_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* offset_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_src = GetLoc(cu, call_inst->getArgOperand(1));
   cg->GenFillArrayData(cu, offset_val->getSExtValue(), rl_src);
 }
 
-static void CvtNewInstance(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtNewInstance(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
-  llvm::ConstantInt* type_idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t type_idx = type_idx_val->getZExtValue();
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenNewInstance(cu, type_idx, rl_dest);
 }
 
-static void CvtNewArray(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtNewArray(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* type_idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t type_idx = type_idx_val->getZExtValue();
-  llvm::Value* len = call_inst->getArgOperand(1);
+  ::llvm::Value* len = call_inst->getArgOperand(1);
   RegLocation rl_len = GetLoc(cu, len);
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenNewArray(cu, type_idx, rl_dest, rl_len);
 }
 
-static void CvtInstanceOf(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtInstanceOf(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* type_idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t type_idx = type_idx_val->getZExtValue();
-  llvm::Value* src = call_inst->getArgOperand(1);
+  ::llvm::Value* src = call_inst->getArgOperand(1);
   RegLocation rl_src = GetLoc(cu, src);
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenInstanceof(cu, type_idx, rl_dest, rl_src);
 }
 
-static void CvtThrow(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtThrow(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
-  llvm::Value* src = call_inst->getArgOperand(0);
+  ::llvm::Value* src = call_inst->getArgOperand(0);
   RegLocation rl_src = GetLoc(cu, src);
   cg->GenThrow(cu, rl_src);
 }
 
 static void CvtMonitorEnterExit(CompilationUnit* cu, bool is_enter,
-                         llvm::CallInst* call_inst)
+                         ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
-  llvm::Value* src = call_inst->getArgOperand(1);
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::Value* src = call_inst->getArgOperand(1);
   RegLocation rl_src = GetLoc(cu, src);
   if (is_enter) {
     cg->GenMonitorEnter(cu, opt_flags->getZExtValue(), rl_src);
@@ -2683,13 +2682,13 @@ static void CvtMonitorEnterExit(CompilationUnit* cu, bool is_enter,
   }
 }
 
-static void CvtArrayLength(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtArrayLength(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
-  llvm::Value* src = call_inst->getArgOperand(1);
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::Value* src = call_inst->getArgOperand(1);
   RegLocation rl_src = GetLoc(cu, src);
   rl_src = cg->LoadValue(cu, rl_src, kCoreReg);
   cg->GenNullCheck(cu, rl_src.s_reg_low, rl_src.low_reg, opt_flags->getZExtValue());
@@ -2700,42 +2699,42 @@ static void CvtArrayLength(CompilationUnit* cu, llvm::CallInst* call_inst)
   cg->StoreValue(cu, rl_dest, rl_result);
 }
 
-static void CvtMoveException(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtMoveException(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenMoveException(cu, rl_dest);
 }
 
-static void CvtSget(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_wide, bool is_object)
+static void CvtSget(CompilationUnit* cu, ::llvm::CallInst* call_inst, bool is_wide, bool is_object)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 1U);
-  llvm::ConstantInt* type_idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t type_idx = type_idx_val->getZExtValue();
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenSget(cu, type_idx, rl_dest, is_wide, is_object);
 }
 
-static void CvtSput(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_wide, bool is_object)
+static void CvtSput(CompilationUnit* cu, ::llvm::CallInst* call_inst, bool is_wide, bool is_object)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* type_idx_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   uint32_t type_idx = type_idx_val->getZExtValue();
-  llvm::Value* src = call_inst->getArgOperand(1);
+  ::llvm::Value* src = call_inst->getArgOperand(1);
   RegLocation rl_src = GetLoc(cu, src);
   cg->GenSput(cu, type_idx, rl_src, is_wide, is_object);
 }
 
-static void CvtAget(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size, int scale)
+static void CvtAget(CompilationUnit* cu, ::llvm::CallInst* call_inst, OpSize size, int scale)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 3U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_array = GetLoc(cu, call_inst->getArgOperand(1));
   RegLocation rl_index = GetLoc(cu, call_inst->getArgOperand(2));
   RegLocation rl_dest = GetLoc(cu, call_inst);
@@ -2743,13 +2742,13 @@ static void CvtAget(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size,
               rl_dest, scale);
 }
 
-static void CvtAput(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size,
+static void CvtAput(CompilationUnit* cu, ::llvm::CallInst* call_inst, OpSize size,
                     int scale, bool is_object)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 4U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_src = GetLoc(cu, call_inst->getArgOperand(1));
   RegLocation rl_array = GetLoc(cu, call_inst->getArgOperand(2));
   RegLocation rl_index = GetLoc(cu, call_inst->getArgOperand(3));
@@ -2762,58 +2761,58 @@ static void CvtAput(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size,
   }
 }
 
-static void CvtAputObj(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtAputObj(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   CvtAput(cu, call_inst, kWord, 2, true /* is_object */);
 }
 
-static void CvtAputPrimitive(CompilationUnit* cu, llvm::CallInst* call_inst,
+static void CvtAputPrimitive(CompilationUnit* cu, ::llvm::CallInst* call_inst,
                       OpSize size, int scale)
 {
   CvtAput(cu, call_inst, size, scale, false /* is_object */);
 }
 
-static void CvtIget(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size,
+static void CvtIget(CompilationUnit* cu, ::llvm::CallInst* call_inst, OpSize size,
                     bool is_wide, bool is_obj)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 3U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_obj = GetLoc(cu, call_inst->getArgOperand(1));
-  llvm::ConstantInt* field_idx =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(2));
+  ::llvm::ConstantInt* field_idx =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(2));
   RegLocation rl_dest = GetLoc(cu, call_inst);
   cg->GenIGet(cu, field_idx->getZExtValue(), opt_flags->getZExtValue(),
           size, rl_dest, rl_obj, is_wide, is_obj);
 }
 
-static void CvtIput(CompilationUnit* cu, llvm::CallInst* call_inst, OpSize size,
+static void CvtIput(CompilationUnit* cu, ::llvm::CallInst* call_inst, OpSize size,
                     bool is_wide, bool is_obj)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 4U);
-  llvm::ConstantInt* opt_flags =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* opt_flags =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_src = GetLoc(cu, call_inst->getArgOperand(1));
   RegLocation rl_obj = GetLoc(cu, call_inst->getArgOperand(2));
-  llvm::ConstantInt* field_idx =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(3));
+  ::llvm::ConstantInt* field_idx =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(3));
   cg->GenIPut(cu, field_idx->getZExtValue(), opt_flags->getZExtValue(),
           size, rl_src, rl_obj, is_wide, is_obj);
 }
 
-static void CvtCheckCast(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtCheckCast(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   DCHECK_EQ(call_inst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* type_idx =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* type_idx =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
   RegLocation rl_src = GetLoc(cu, call_inst->getArgOperand(1));
   cg->GenCheckCast(cu, type_idx->getZExtValue(), rl_src);
 }
 
-static void CvtFPCompare(CompilationUnit* cu, llvm::CallInst* call_inst,
+static void CvtFPCompare(CompilationUnit* cu, ::llvm::CallInst* call_inst,
                          Instruction::Code opcode)
 {
   Codegen* cg = cu->cg.get();
@@ -2823,7 +2822,7 @@ static void CvtFPCompare(CompilationUnit* cu, llvm::CallInst* call_inst,
   cg->GenCmpFP(cu, opcode, rl_dest, rl_src1, rl_src2);
 }
 
-static void CvtLongCompare(CompilationUnit* cu, llvm::CallInst* call_inst)
+static void CvtLongCompare(CompilationUnit* cu, ::llvm::CallInst* call_inst)
 {
   Codegen* cg = cu->cg.get();
   RegLocation rl_src1 = GetLoc(cu, call_inst->getArgOperand(0));
@@ -2832,16 +2831,16 @@ static void CvtLongCompare(CompilationUnit* cu, llvm::CallInst* call_inst)
   cg->GenCmpLong(cu, rl_dest, rl_src1, rl_src2);
 }
 
-static void CvtSwitch(CompilationUnit* cu, llvm::Instruction* inst)
+static void CvtSwitch(CompilationUnit* cu, ::llvm::Instruction* inst)
 {
   Codegen* cg = cu->cg.get();
-  llvm::SwitchInst* sw_inst = llvm::dyn_cast<llvm::SwitchInst>(inst);
+  ::llvm::SwitchInst* sw_inst = ::llvm::dyn_cast< ::llvm::SwitchInst>(inst);
   DCHECK(sw_inst != NULL);
-  llvm::Value* test_val = sw_inst->getCondition();
-  llvm::MDNode* table_offset_node = sw_inst->getMetadata("SwitchTable");
+  ::llvm::Value* test_val = sw_inst->getCondition();
+  ::llvm::MDNode* table_offset_node = sw_inst->getMetadata("SwitchTable");
   DCHECK(table_offset_node != NULL);
-  llvm::ConstantInt* table_offset_value =
-          static_cast<llvm::ConstantInt*>(table_offset_node->getOperand(0));
+  ::llvm::ConstantInt* table_offset_value =
+          static_cast< ::llvm::ConstantInt*>(table_offset_node->getOperand(0));
   int32_t table_offset = table_offset_value->getSExtValue();
   RegLocation rl_src = GetLoc(cu, test_val);
   const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
@@ -2854,7 +2853,7 @@ static void CvtSwitch(CompilationUnit* cu, llvm::Instruction* inst)
   }
 }
 
-static void CvtInvoke(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_void,
+static void CvtInvoke(CompilationUnit* cu, ::llvm::CallInst* call_inst, bool is_void,
                       bool is_filled_new_array)
 {
   Codegen* cg = cu->cg.get();
@@ -2864,12 +2863,12 @@ static void CvtInvoke(CompilationUnit* cu, llvm::CallInst* call_inst, bool is_vo
   } else {
     info->result = GetLoc(cu, call_inst);
   }
-  llvm::ConstantInt* invoke_type_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(0));
-  llvm::ConstantInt* method_index_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(1));
-  llvm::ConstantInt* opt_flags_val =
-      llvm::dyn_cast<llvm::ConstantInt>(call_inst->getArgOperand(2));
+  ::llvm::ConstantInt* invoke_type_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(0));
+  ::llvm::ConstantInt* method_index_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(1));
+  ::llvm::ConstantInt* opt_flags_val =
+      ::llvm::dyn_cast< ::llvm::ConstantInt>(call_inst->getArgOperand(2));
   info->type = static_cast<InvokeType>(invoke_type_val->getZExtValue());
   info->index = method_index_val->getZExtValue();
   info->opt_flags = opt_flags_val->getZExtValue();
@@ -2910,18 +2909,18 @@ static void CvtConstructorBarrier(CompilationUnit* cu) {
 }
 
 /* Look up the RegLocation associated with a Value.  Must already be defined */
-static RegLocation ValToLoc(CompilationUnit* cu, llvm::Value* val)
+static RegLocation ValToLoc(CompilationUnit* cu, ::llvm::Value* val)
 {
-  SafeMap<llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
+  SafeMap< ::llvm::Value*, RegLocation>::iterator it = cu->loc_map.find(val);
   DCHECK(it != cu->loc_map.end()) << "Missing definition";
   return it->second;
 }
 
-static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
+static bool BitcodeBlockCodeGen(CompilationUnit* cu, ::llvm::BasicBlock* bb)
 {
   Codegen* cg = cu->cg.get();
   while (cu->llvm_blocks.find(bb) == cu->llvm_blocks.end()) {
-    llvm::BasicBlock* next_bb = NULL;
+    ::llvm::BasicBlock* next_bb = NULL;
     cu->llvm_blocks.insert(bb);
     bool is_entry = (bb == &cu->func->getEntryBlock());
     // Define the starting label
@@ -2963,14 +2962,14 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
     if (is_entry) {
       RegLocation* ArgLocs = static_cast<RegLocation*>
           (NewMem(cu, sizeof(RegLocation) * cu->num_ins, true, kAllocMisc));
-      llvm::Function::arg_iterator it(cu->func->arg_begin());
-      llvm::Function::arg_iterator it_end(cu->func->arg_end());
+      ::llvm::Function::arg_iterator it(cu->func->arg_begin());
+      ::llvm::Function::arg_iterator it_end(cu->func->arg_end());
       // Skip past Method*
       it++;
       for (unsigned i = 0; it != it_end; ++it) {
-        llvm::Value* val = it;
+        ::llvm::Value* val = it;
         ArgLocs[i++] = ValToLoc(cu, val);
-        llvm::Type* ty = val->getType();
+        ::llvm::Type* ty = val->getType();
         if ((ty == cu->irb->getInt64Ty()) || (ty == cu->irb->getDoubleTy())) {
           ArgLocs[i] = ArgLocs[i-1];
           ArgLocs[i].low_reg = ArgLocs[i].high_reg;
@@ -2984,15 +2983,15 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
     }
 
     // Visit all of the instructions in the block
-    for (llvm::BasicBlock::iterator it = bb->begin(), e = bb->end(); it != e;) {
-      llvm::Instruction* inst = it;
-      llvm::BasicBlock::iterator next_it = ++it;
+    for (::llvm::BasicBlock::iterator it = bb->begin(), e = bb->end(); it != e;) {
+      ::llvm::Instruction* inst = it;
+      ::llvm::BasicBlock::iterator next_it = ++it;
       // Extract the Dalvik offset from the instruction
       uint32_t opcode = inst->getOpcode();
-      llvm::MDNode* dex_offset_node = inst->getMetadata("DexOff");
+      ::llvm::MDNode* dex_offset_node = inst->getMetadata("DexOff");
       if (dex_offset_node != NULL) {
-        llvm::ConstantInt* dex_offset_value =
-            static_cast<llvm::ConstantInt*>(dex_offset_node->getOperand(0));
+        ::llvm::ConstantInt* dex_offset_value =
+            static_cast< ::llvm::ConstantInt*>(dex_offset_node->getOperand(0));
         cu->current_dalvik_offset = dex_offset_value->getZExtValue();
       }
 
@@ -3021,9 +3020,9 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
 
       switch(opcode) {
 
-        case llvm::Instruction::ICmp: {
-            llvm::Instruction* next_inst = next_it;
-            llvm::BranchInst* br_inst = llvm::dyn_cast<llvm::BranchInst>(next_inst);
+        case ::llvm::Instruction::ICmp: {
+            ::llvm::Instruction* next_inst = next_it;
+            ::llvm::BranchInst* br_inst = ::llvm::dyn_cast< ::llvm::BranchInst>(next_inst);
             if (br_inst != NULL /* and... */) {
               CvtICmpBr(cu, inst, br_inst);
               ++it;
@@ -3033,283 +3032,283 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
           }
           break;
 
-        case llvm::Instruction::Call: {
-            llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(inst);
-            llvm::Function* callee = call_inst->getCalledFunction();
-            compiler_llvm::IntrinsicHelper::IntrinsicId id =
+        case ::llvm::Instruction::Call: {
+            ::llvm::CallInst* call_inst = ::llvm::dyn_cast< ::llvm::CallInst>(inst);
+            ::llvm::Function* callee = call_inst->getCalledFunction();
+            art::llvm::IntrinsicHelper::IntrinsicId id =
                 cu->intrinsic_helper->GetIntrinsicId(callee);
             switch (id) {
-              case compiler_llvm::IntrinsicHelper::AllocaShadowFrame:
-              case compiler_llvm::IntrinsicHelper::PopShadowFrame:
-              case compiler_llvm::IntrinsicHelper::SetVReg:
+              case art::llvm::IntrinsicHelper::AllocaShadowFrame:
+              case art::llvm::IntrinsicHelper::PopShadowFrame:
+              case art::llvm::IntrinsicHelper::SetVReg:
                 // Ignore shadow frame stuff for quick compiler
                 break;
-              case compiler_llvm::IntrinsicHelper::CopyInt:
-              case compiler_llvm::IntrinsicHelper::CopyObj:
-              case compiler_llvm::IntrinsicHelper::CopyFloat:
-              case compiler_llvm::IntrinsicHelper::CopyLong:
-              case compiler_llvm::IntrinsicHelper::CopyDouble:
+              case art::llvm::IntrinsicHelper::CopyInt:
+              case art::llvm::IntrinsicHelper::CopyObj:
+              case art::llvm::IntrinsicHelper::CopyFloat:
+              case art::llvm::IntrinsicHelper::CopyLong:
+              case art::llvm::IntrinsicHelper::CopyDouble:
                 CvtCopy(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::ConstInt:
-              case compiler_llvm::IntrinsicHelper::ConstObj:
-              case compiler_llvm::IntrinsicHelper::ConstLong:
-              case compiler_llvm::IntrinsicHelper::ConstFloat:
-              case compiler_llvm::IntrinsicHelper::ConstDouble:
+              case art::llvm::IntrinsicHelper::ConstInt:
+              case art::llvm::IntrinsicHelper::ConstObj:
+              case art::llvm::IntrinsicHelper::ConstLong:
+              case art::llvm::IntrinsicHelper::ConstFloat:
+              case art::llvm::IntrinsicHelper::ConstDouble:
                 CvtConst(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::DivInt:
-              case compiler_llvm::IntrinsicHelper::DivLong:
+              case art::llvm::IntrinsicHelper::DivInt:
+              case art::llvm::IntrinsicHelper::DivLong:
                 CvtBinOp(cu, kOpDiv, inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::RemInt:
-              case compiler_llvm::IntrinsicHelper::RemLong:
+              case art::llvm::IntrinsicHelper::RemInt:
+              case art::llvm::IntrinsicHelper::RemLong:
                 CvtBinOp(cu, kOpRem, inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::MethodInfo:
+              case art::llvm::IntrinsicHelper::MethodInfo:
                 // Already dealt with - just ignore it here.
                 break;
-              case compiler_llvm::IntrinsicHelper::CheckSuspend:
+              case art::llvm::IntrinsicHelper::CheckSuspend:
                 cg->GenSuspendTest(cu, 0 /* opt_flags already applied */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLInvokeObj:
-              case compiler_llvm::IntrinsicHelper::HLInvokeFloat:
-              case compiler_llvm::IntrinsicHelper::HLInvokeDouble:
-              case compiler_llvm::IntrinsicHelper::HLInvokeLong:
-              case compiler_llvm::IntrinsicHelper::HLInvokeInt:
+              case art::llvm::IntrinsicHelper::HLInvokeObj:
+              case art::llvm::IntrinsicHelper::HLInvokeFloat:
+              case art::llvm::IntrinsicHelper::HLInvokeDouble:
+              case art::llvm::IntrinsicHelper::HLInvokeLong:
+              case art::llvm::IntrinsicHelper::HLInvokeInt:
                 CvtInvoke(cu, call_inst, false /* is_void */, false /* new_array */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLInvokeVoid:
+              case art::llvm::IntrinsicHelper::HLInvokeVoid:
                 CvtInvoke(cu, call_inst, true /* is_void */, false /* new_array */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLFilledNewArray:
+              case art::llvm::IntrinsicHelper::HLFilledNewArray:
                 CvtInvoke(cu, call_inst, false /* is_void */, true /* new_array */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLFillArrayData:
+              case art::llvm::IntrinsicHelper::HLFillArrayData:
                 CvtFillArrayData(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::ConstString:
+              case art::llvm::IntrinsicHelper::ConstString:
                 CvtConstObject(cu, call_inst, true /* is_string */);
                 break;
-              case compiler_llvm::IntrinsicHelper::ConstClass:
+              case art::llvm::IntrinsicHelper::ConstClass:
                 CvtConstObject(cu, call_inst, false /* is_string */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLCheckCast:
+              case art::llvm::IntrinsicHelper::HLCheckCast:
                 CvtCheckCast(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::NewInstance:
+              case art::llvm::IntrinsicHelper::NewInstance:
                 CvtNewInstance(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSgetObject:
+              case art::llvm::IntrinsicHelper::HLSgetObject:
                 CvtSget(cu, call_inst, false /* wide */, true /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSget:
-              case compiler_llvm::IntrinsicHelper::HLSgetFloat:
-              case compiler_llvm::IntrinsicHelper::HLSgetBoolean:
-              case compiler_llvm::IntrinsicHelper::HLSgetByte:
-              case compiler_llvm::IntrinsicHelper::HLSgetChar:
-              case compiler_llvm::IntrinsicHelper::HLSgetShort:
+              case art::llvm::IntrinsicHelper::HLSget:
+              case art::llvm::IntrinsicHelper::HLSgetFloat:
+              case art::llvm::IntrinsicHelper::HLSgetBoolean:
+              case art::llvm::IntrinsicHelper::HLSgetByte:
+              case art::llvm::IntrinsicHelper::HLSgetChar:
+              case art::llvm::IntrinsicHelper::HLSgetShort:
                 CvtSget(cu, call_inst, false /* wide */, false /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSgetWide:
-              case compiler_llvm::IntrinsicHelper::HLSgetDouble:
+              case art::llvm::IntrinsicHelper::HLSgetWide:
+              case art::llvm::IntrinsicHelper::HLSgetDouble:
                 CvtSget(cu, call_inst, true /* wide */, false /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSput:
-              case compiler_llvm::IntrinsicHelper::HLSputFloat:
-              case compiler_llvm::IntrinsicHelper::HLSputBoolean:
-              case compiler_llvm::IntrinsicHelper::HLSputByte:
-              case compiler_llvm::IntrinsicHelper::HLSputChar:
-              case compiler_llvm::IntrinsicHelper::HLSputShort:
+              case art::llvm::IntrinsicHelper::HLSput:
+              case art::llvm::IntrinsicHelper::HLSputFloat:
+              case art::llvm::IntrinsicHelper::HLSputBoolean:
+              case art::llvm::IntrinsicHelper::HLSputByte:
+              case art::llvm::IntrinsicHelper::HLSputChar:
+              case art::llvm::IntrinsicHelper::HLSputShort:
                 CvtSput(cu, call_inst, false /* wide */, false /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSputWide:
-              case compiler_llvm::IntrinsicHelper::HLSputDouble:
+              case art::llvm::IntrinsicHelper::HLSputWide:
+              case art::llvm::IntrinsicHelper::HLSputDouble:
                 CvtSput(cu, call_inst, true /* wide */, false /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLSputObject:
+              case art::llvm::IntrinsicHelper::HLSputObject:
                 CvtSput(cu, call_inst, false /* wide */, true /* Object */);
                 break;
-              case compiler_llvm::IntrinsicHelper::GetException:
+              case art::llvm::IntrinsicHelper::GetException:
                 CvtMoveException(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLThrowException:
+              case art::llvm::IntrinsicHelper::HLThrowException:
                 CvtThrow(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::MonitorEnter:
+              case art::llvm::IntrinsicHelper::MonitorEnter:
                 CvtMonitorEnterExit(cu, true /* is_enter */, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::MonitorExit:
+              case art::llvm::IntrinsicHelper::MonitorExit:
                 CvtMonitorEnterExit(cu, false /* is_enter */, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::OptArrayLength:
+              case art::llvm::IntrinsicHelper::OptArrayLength:
                 CvtArrayLength(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::NewArray:
+              case art::llvm::IntrinsicHelper::NewArray:
                 CvtNewArray(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::InstanceOf:
+              case art::llvm::IntrinsicHelper::InstanceOf:
                 CvtInstanceOf(cu, call_inst);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::HLArrayGet:
-              case compiler_llvm::IntrinsicHelper::HLArrayGetObject:
-              case compiler_llvm::IntrinsicHelper::HLArrayGetFloat:
+              case art::llvm::IntrinsicHelper::HLArrayGet:
+              case art::llvm::IntrinsicHelper::HLArrayGetObject:
+              case art::llvm::IntrinsicHelper::HLArrayGetFloat:
                 CvtAget(cu, call_inst, kWord, 2);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayGetWide:
-              case compiler_llvm::IntrinsicHelper::HLArrayGetDouble:
+              case art::llvm::IntrinsicHelper::HLArrayGetWide:
+              case art::llvm::IntrinsicHelper::HLArrayGetDouble:
                 CvtAget(cu, call_inst, kLong, 3);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayGetBoolean:
+              case art::llvm::IntrinsicHelper::HLArrayGetBoolean:
                 CvtAget(cu, call_inst, kUnsignedByte, 0);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayGetByte:
+              case art::llvm::IntrinsicHelper::HLArrayGetByte:
                 CvtAget(cu, call_inst, kSignedByte, 0);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayGetChar:
+              case art::llvm::IntrinsicHelper::HLArrayGetChar:
                 CvtAget(cu, call_inst, kUnsignedHalf, 1);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayGetShort:
+              case art::llvm::IntrinsicHelper::HLArrayGetShort:
                 CvtAget(cu, call_inst, kSignedHalf, 1);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::HLArrayPut:
-              case compiler_llvm::IntrinsicHelper::HLArrayPutFloat:
+              case art::llvm::IntrinsicHelper::HLArrayPut:
+              case art::llvm::IntrinsicHelper::HLArrayPutFloat:
                 CvtAputPrimitive(cu, call_inst, kWord, 2);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutObject:
+              case art::llvm::IntrinsicHelper::HLArrayPutObject:
                 CvtAputObj(cu, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutWide:
-              case compiler_llvm::IntrinsicHelper::HLArrayPutDouble:
+              case art::llvm::IntrinsicHelper::HLArrayPutWide:
+              case art::llvm::IntrinsicHelper::HLArrayPutDouble:
                 CvtAputPrimitive(cu, call_inst, kLong, 3);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutBoolean:
+              case art::llvm::IntrinsicHelper::HLArrayPutBoolean:
                 CvtAputPrimitive(cu, call_inst, kUnsignedByte, 0);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutByte:
+              case art::llvm::IntrinsicHelper::HLArrayPutByte:
                 CvtAputPrimitive(cu, call_inst, kSignedByte, 0);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutChar:
+              case art::llvm::IntrinsicHelper::HLArrayPutChar:
                 CvtAputPrimitive(cu, call_inst, kUnsignedHalf, 1);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLArrayPutShort:
+              case art::llvm::IntrinsicHelper::HLArrayPutShort:
                 CvtAputPrimitive(cu, call_inst, kSignedHalf, 1);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::HLIGet:
-              case compiler_llvm::IntrinsicHelper::HLIGetFloat:
+              case art::llvm::IntrinsicHelper::HLIGet:
+              case art::llvm::IntrinsicHelper::HLIGetFloat:
                 CvtIget(cu, call_inst, kWord, false /* is_wide */, false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetObject:
+              case art::llvm::IntrinsicHelper::HLIGetObject:
                 CvtIget(cu, call_inst, kWord, false /* is_wide */, true /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetWide:
-              case compiler_llvm::IntrinsicHelper::HLIGetDouble:
+              case art::llvm::IntrinsicHelper::HLIGetWide:
+              case art::llvm::IntrinsicHelper::HLIGetDouble:
                 CvtIget(cu, call_inst, kLong, true /* is_wide */, false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetBoolean:
+              case art::llvm::IntrinsicHelper::HLIGetBoolean:
                 CvtIget(cu, call_inst, kUnsignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetByte:
+              case art::llvm::IntrinsicHelper::HLIGetByte:
                 CvtIget(cu, call_inst, kSignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetChar:
+              case art::llvm::IntrinsicHelper::HLIGetChar:
                 CvtIget(cu, call_inst, kUnsignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIGetShort:
+              case art::llvm::IntrinsicHelper::HLIGetShort:
                 CvtIget(cu, call_inst, kSignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::HLIPut:
-              case compiler_llvm::IntrinsicHelper::HLIPutFloat:
+              case art::llvm::IntrinsicHelper::HLIPut:
+              case art::llvm::IntrinsicHelper::HLIPutFloat:
                 CvtIput(cu, call_inst, kWord, false /* is_wide */, false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutObject:
+              case art::llvm::IntrinsicHelper::HLIPutObject:
                 CvtIput(cu, call_inst, kWord, false /* is_wide */, true /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutWide:
-              case compiler_llvm::IntrinsicHelper::HLIPutDouble:
+              case art::llvm::IntrinsicHelper::HLIPutWide:
+              case art::llvm::IntrinsicHelper::HLIPutDouble:
                 CvtIput(cu, call_inst, kLong, true /* is_wide */, false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutBoolean:
+              case art::llvm::IntrinsicHelper::HLIPutBoolean:
                 CvtIput(cu, call_inst, kUnsignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutByte:
+              case art::llvm::IntrinsicHelper::HLIPutByte:
                 CvtIput(cu, call_inst, kSignedByte, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutChar:
+              case art::llvm::IntrinsicHelper::HLIPutChar:
                 CvtIput(cu, call_inst, kUnsignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
-              case compiler_llvm::IntrinsicHelper::HLIPutShort:
+              case art::llvm::IntrinsicHelper::HLIPutShort:
                 CvtIput(cu, call_inst, kSignedHalf, false /* is_wide */,
                         false /* obj */);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::IntToChar:
+              case art::llvm::IntrinsicHelper::IntToChar:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_CHAR);
                 break;
-              case compiler_llvm::IntrinsicHelper::IntToShort:
+              case art::llvm::IntrinsicHelper::IntToShort:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_SHORT);
                 break;
-              case compiler_llvm::IntrinsicHelper::IntToByte:
+              case art::llvm::IntrinsicHelper::IntToByte:
                 CvtIntNarrowing(cu, call_inst, Instruction::INT_TO_BYTE);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::F2I:
-              case compiler_llvm::IntrinsicHelper::D2I:
-              case compiler_llvm::IntrinsicHelper::F2L:
-              case compiler_llvm::IntrinsicHelper::D2L:
+              case art::llvm::IntrinsicHelper::F2I:
+              case art::llvm::IntrinsicHelper::D2I:
+              case art::llvm::IntrinsicHelper::F2L:
+              case art::llvm::IntrinsicHelper::D2L:
                 CvtFPToInt(cu, call_inst);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::CmplFloat:
+              case art::llvm::IntrinsicHelper::CmplFloat:
                 CvtFPCompare(cu, call_inst, Instruction::CMPL_FLOAT);
                 break;
-              case compiler_llvm::IntrinsicHelper::CmpgFloat:
+              case art::llvm::IntrinsicHelper::CmpgFloat:
                 CvtFPCompare(cu, call_inst, Instruction::CMPG_FLOAT);
                 break;
-              case compiler_llvm::IntrinsicHelper::CmplDouble:
+              case art::llvm::IntrinsicHelper::CmplDouble:
                 CvtFPCompare(cu, call_inst, Instruction::CMPL_DOUBLE);
                 break;
-              case compiler_llvm::IntrinsicHelper::CmpgDouble:
+              case art::llvm::IntrinsicHelper::CmpgDouble:
                 CvtFPCompare(cu, call_inst, Instruction::CMPG_DOUBLE);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::CmpLong:
+              case art::llvm::IntrinsicHelper::CmpLong:
                 CvtLongCompare(cu, call_inst);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::SHLLong:
+              case art::llvm::IntrinsicHelper::SHLLong:
                 CvtShiftOp(cu, Instruction::SHL_LONG, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::SHRLong:
+              case art::llvm::IntrinsicHelper::SHRLong:
                 CvtShiftOp(cu, Instruction::SHR_LONG, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::USHRLong:
+              case art::llvm::IntrinsicHelper::USHRLong:
                 CvtShiftOp(cu, Instruction::USHR_LONG, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::SHLInt:
+              case art::llvm::IntrinsicHelper::SHLInt:
                 CvtShiftOp(cu, Instruction::SHL_INT, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::SHRInt:
+              case art::llvm::IntrinsicHelper::SHRInt:
                 CvtShiftOp(cu, Instruction::SHR_INT, call_inst);
                 break;
-              case compiler_llvm::IntrinsicHelper::USHRInt:
+              case art::llvm::IntrinsicHelper::USHRInt:
                 CvtShiftOp(cu, Instruction::USHR_INT, call_inst);
                 break;
 
-              case compiler_llvm::IntrinsicHelper::CatchTargets: {
-                  llvm::SwitchInst* sw_inst =
-                      llvm::dyn_cast<llvm::SwitchInst>(next_it);
+              case art::llvm::IntrinsicHelper::CatchTargets: {
+                  ::llvm::SwitchInst* sw_inst =
+                      ::llvm::dyn_cast< ::llvm::SwitchInst>(next_it);
                   DCHECK(sw_inst != NULL);
                   /*
                    * Discard the edges and the following conditional branch.
@@ -3317,7 +3316,7 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
                    * "work" portion of the pair.
                    * TODO: awful code layout - rework
                    */
-                   llvm::BasicBlock* target_bb = sw_inst->getDefaultDest();
+                   ::llvm::BasicBlock* target_bb = sw_inst->getDefaultDest();
                    DCHECK(target_bb != NULL);
                    cg->OpUnconditionalBranch(cu, cu->block_to_label_map.Get(target_bb));
                    ++it;
@@ -3325,7 +3324,7 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
                    next_bb = target_bb;
                 }
                 break;
-              case compiler_llvm::IntrinsicHelper::ConstructorBarrier: {
+              case art::llvm::IntrinsicHelper::ConstructorBarrier: {
                 CvtConstructorBarrier(cu);
                 break;
               }
@@ -3336,69 +3335,69 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
           }
           break;
 
-        case llvm::Instruction::Br: CvtBr(cu, inst); break;
-        case llvm::Instruction::Add: CvtBinOp(cu, kOpAdd, inst); break;
-        case llvm::Instruction::Sub: CvtBinOp(cu, kOpSub, inst); break;
-        case llvm::Instruction::Mul: CvtBinOp(cu, kOpMul, inst); break;
-        case llvm::Instruction::SDiv: CvtBinOp(cu, kOpDiv, inst); break;
-        case llvm::Instruction::SRem: CvtBinOp(cu, kOpRem, inst); break;
-        case llvm::Instruction::And: CvtBinOp(cu, kOpAnd, inst); break;
-        case llvm::Instruction::Or: CvtBinOp(cu, kOpOr, inst); break;
-        case llvm::Instruction::Xor: CvtBinOp(cu, kOpXor, inst); break;
-        case llvm::Instruction::PHI: CvtPhi(cu, inst); break;
-        case llvm::Instruction::Ret: CvtRet(cu, inst); break;
-        case llvm::Instruction::FAdd: CvtBinFPOp(cu, kOpAdd, inst); break;
-        case llvm::Instruction::FSub: CvtBinFPOp(cu, kOpSub, inst); break;
-        case llvm::Instruction::FMul: CvtBinFPOp(cu, kOpMul, inst); break;
-        case llvm::Instruction::FDiv: CvtBinFPOp(cu, kOpDiv, inst); break;
-        case llvm::Instruction::FRem: CvtBinFPOp(cu, kOpRem, inst); break;
-        case llvm::Instruction::SIToFP: CvtIntToFP(cu, inst); break;
-        case llvm::Instruction::FPTrunc: CvtDoubleToFloat(cu, inst); break;
-        case llvm::Instruction::FPExt: CvtFloatToDouble(cu, inst); break;
-        case llvm::Instruction::Trunc: CvtTrunc(cu, inst); break;
+        case ::llvm::Instruction::Br: CvtBr(cu, inst); break;
+        case ::llvm::Instruction::Add: CvtBinOp(cu, kOpAdd, inst); break;
+        case ::llvm::Instruction::Sub: CvtBinOp(cu, kOpSub, inst); break;
+        case ::llvm::Instruction::Mul: CvtBinOp(cu, kOpMul, inst); break;
+        case ::llvm::Instruction::SDiv: CvtBinOp(cu, kOpDiv, inst); break;
+        case ::llvm::Instruction::SRem: CvtBinOp(cu, kOpRem, inst); break;
+        case ::llvm::Instruction::And: CvtBinOp(cu, kOpAnd, inst); break;
+        case ::llvm::Instruction::Or: CvtBinOp(cu, kOpOr, inst); break;
+        case ::llvm::Instruction::Xor: CvtBinOp(cu, kOpXor, inst); break;
+        case ::llvm::Instruction::PHI: CvtPhi(cu, inst); break;
+        case ::llvm::Instruction::Ret: CvtRet(cu, inst); break;
+        case ::llvm::Instruction::FAdd: CvtBinFPOp(cu, kOpAdd, inst); break;
+        case ::llvm::Instruction::FSub: CvtBinFPOp(cu, kOpSub, inst); break;
+        case ::llvm::Instruction::FMul: CvtBinFPOp(cu, kOpMul, inst); break;
+        case ::llvm::Instruction::FDiv: CvtBinFPOp(cu, kOpDiv, inst); break;
+        case ::llvm::Instruction::FRem: CvtBinFPOp(cu, kOpRem, inst); break;
+        case ::llvm::Instruction::SIToFP: CvtIntToFP(cu, inst); break;
+        case ::llvm::Instruction::FPTrunc: CvtDoubleToFloat(cu, inst); break;
+        case ::llvm::Instruction::FPExt: CvtFloatToDouble(cu, inst); break;
+        case ::llvm::Instruction::Trunc: CvtTrunc(cu, inst); break;
 
-        case llvm::Instruction::ZExt: CvtIntExt(cu, inst, false /* signed */);
+        case ::llvm::Instruction::ZExt: CvtIntExt(cu, inst, false /* signed */);
           break;
-        case llvm::Instruction::SExt: CvtIntExt(cu, inst, true /* signed */);
+        case ::llvm::Instruction::SExt: CvtIntExt(cu, inst, true /* signed */);
           break;
 
-        case llvm::Instruction::Switch: CvtSwitch(cu, inst); break;
+        case ::llvm::Instruction::Switch: CvtSwitch(cu, inst); break;
 
-        case llvm::Instruction::Unreachable:
+        case ::llvm::Instruction::Unreachable:
           break;  // FIXME: can we really ignore these?
 
-        case llvm::Instruction::Shl:
-        case llvm::Instruction::LShr:
-        case llvm::Instruction::AShr:
-        case llvm::Instruction::Invoke:
-        case llvm::Instruction::FPToUI:
-        case llvm::Instruction::FPToSI:
-        case llvm::Instruction::UIToFP:
-        case llvm::Instruction::PtrToInt:
-        case llvm::Instruction::IntToPtr:
-        case llvm::Instruction::FCmp:
-        case llvm::Instruction::URem:
-        case llvm::Instruction::UDiv:
-        case llvm::Instruction::Resume:
-        case llvm::Instruction::Alloca:
-        case llvm::Instruction::GetElementPtr:
-        case llvm::Instruction::Fence:
-        case llvm::Instruction::AtomicCmpXchg:
-        case llvm::Instruction::AtomicRMW:
-        case llvm::Instruction::BitCast:
-        case llvm::Instruction::VAArg:
-        case llvm::Instruction::Select:
-        case llvm::Instruction::UserOp1:
-        case llvm::Instruction::UserOp2:
-        case llvm::Instruction::ExtractElement:
-        case llvm::Instruction::InsertElement:
-        case llvm::Instruction::ShuffleVector:
-        case llvm::Instruction::ExtractValue:
-        case llvm::Instruction::InsertValue:
-        case llvm::Instruction::LandingPad:
-        case llvm::Instruction::IndirectBr:
-        case llvm::Instruction::Load:
-        case llvm::Instruction::Store:
+        case ::llvm::Instruction::Shl:
+        case ::llvm::Instruction::LShr:
+        case ::llvm::Instruction::AShr:
+        case ::llvm::Instruction::Invoke:
+        case ::llvm::Instruction::FPToUI:
+        case ::llvm::Instruction::FPToSI:
+        case ::llvm::Instruction::UIToFP:
+        case ::llvm::Instruction::PtrToInt:
+        case ::llvm::Instruction::IntToPtr:
+        case ::llvm::Instruction::FCmp:
+        case ::llvm::Instruction::URem:
+        case ::llvm::Instruction::UDiv:
+        case ::llvm::Instruction::Resume:
+        case ::llvm::Instruction::Alloca:
+        case ::llvm::Instruction::GetElementPtr:
+        case ::llvm::Instruction::Fence:
+        case ::llvm::Instruction::AtomicCmpXchg:
+        case ::llvm::Instruction::AtomicRMW:
+        case ::llvm::Instruction::BitCast:
+        case ::llvm::Instruction::VAArg:
+        case ::llvm::Instruction::Select:
+        case ::llvm::Instruction::UserOp1:
+        case ::llvm::Instruction::UserOp2:
+        case ::llvm::Instruction::ExtractElement:
+        case ::llvm::Instruction::InsertElement:
+        case ::llvm::Instruction::ShuffleVector:
+        case ::llvm::Instruction::ExtractValue:
+        case ::llvm::Instruction::InsertValue:
+        case ::llvm::Instruction::LandingPad:
+        case ::llvm::Instruction::IndirectBr:
+        case ::llvm::Instruction::Load:
+        case ::llvm::Instruction::Store:
           LOG(FATAL) << "Unexpected llvm opcode: " << opcode; break;
 
         default:
@@ -3435,15 +3434,15 @@ static bool BitcodeBlockCodeGen(CompilationUnit* cu, llvm::BasicBlock* bb)
 void MethodBitcode2LIR(CompilationUnit* cu)
 {
   Codegen* cg = cu->cg.get();
-  llvm::Function* func = cu->func;
+  ::llvm::Function* func = cu->func;
   int num_basic_blocks = func->getBasicBlockList().size();
   // Allocate a list for LIR basic block labels
   cu->block_label_list =
     static_cast<LIR*>(NewMem(cu, sizeof(LIR) * num_basic_blocks, true, kAllocLIR));
   LIR* label_list = cu->block_label_list;
   int next_label = 0;
-  for (llvm::Function::iterator i = func->begin(), e = func->end(); i != e; ++i) {
-    cu->block_to_label_map.Put(static_cast<llvm::BasicBlock*>(i),
+  for (::llvm::Function::iterator i = func->begin(), e = func->end(); i != e; ++i) {
+    cu->block_to_label_map.Put(static_cast< ::llvm::BasicBlock*>(i),
                                &label_list[next_label++]);
   }
 
@@ -3471,28 +3470,28 @@ void MethodBitcode2LIR(CompilationUnit* cu)
    * be the first instruction we encounter, so we won't have to iterate
    * through everything.
    */
-  for (llvm::inst_iterator i = llvm::inst_begin(func), e = llvm::inst_end(func); i != e; ++i) {
-    llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(&*i);
+  for (::llvm::inst_iterator i = ::llvm::inst_begin(func), e = ::llvm::inst_end(func); i != e; ++i) {
+    ::llvm::CallInst* call_inst = ::llvm::dyn_cast< ::llvm::CallInst>(&*i);
     if (call_inst != NULL) {
-      llvm::Function* callee = call_inst->getCalledFunction();
-      compiler_llvm::IntrinsicHelper::IntrinsicId id =
+      ::llvm::Function* callee = call_inst->getCalledFunction();
+      llvm::IntrinsicHelper::IntrinsicId id =
           cu->intrinsic_helper->GetIntrinsicId(callee);
-      if (id == compiler_llvm::IntrinsicHelper::MethodInfo) {
+      if (id == art::llvm::IntrinsicHelper::MethodInfo) {
         if (cu->verbose) {
           LOG(INFO) << "Found MethodInfo";
         }
-        llvm::MDNode* reg_info_node = call_inst->getMetadata("RegInfo");
+        ::llvm::MDNode* reg_info_node = call_inst->getMetadata("RegInfo");
         if (reg_info_node != NULL) {
-          llvm::ConstantInt* num_ins_value =
-            static_cast<llvm::ConstantInt*>(reg_info_node->getOperand(0));
-          llvm::ConstantInt* num_regs_value =
-            static_cast<llvm::ConstantInt*>(reg_info_node->getOperand(1));
-          llvm::ConstantInt* num_outs_value =
-            static_cast<llvm::ConstantInt*>(reg_info_node->getOperand(2));
-          llvm::ConstantInt* num_compiler_temps_value =
-            static_cast<llvm::ConstantInt*>(reg_info_node->getOperand(3));
-          llvm::ConstantInt* num_ssa_regs_value =
-            static_cast<llvm::ConstantInt*>(reg_info_node->getOperand(4));
+          ::llvm::ConstantInt* num_ins_value =
+            static_cast< ::llvm::ConstantInt*>(reg_info_node->getOperand(0));
+          ::llvm::ConstantInt* num_regs_value =
+            static_cast< ::llvm::ConstantInt*>(reg_info_node->getOperand(1));
+          ::llvm::ConstantInt* num_outs_value =
+            static_cast< ::llvm::ConstantInt*>(reg_info_node->getOperand(2));
+          ::llvm::ConstantInt* num_compiler_temps_value =
+            static_cast< ::llvm::ConstantInt*>(reg_info_node->getOperand(3));
+          ::llvm::ConstantInt* num_ssa_regs_value =
+            static_cast< ::llvm::ConstantInt*>(reg_info_node->getOperand(4));
           if (cu->verbose) {
              LOG(INFO) << "RegInfo - Ins:" << num_ins_value->getZExtValue()
                        << ", Regs:" << num_regs_value->getZExtValue()
@@ -3501,15 +3500,15 @@ void MethodBitcode2LIR(CompilationUnit* cu)
                        << ", SSARegs:" << num_ssa_regs_value->getZExtValue();
             }
           }
-        llvm::MDNode* pmap_info_node = call_inst->getMetadata("PromotionMap");
+        ::llvm::MDNode* pmap_info_node = call_inst->getMetadata("PromotionMap");
         if (pmap_info_node != NULL) {
           int elems = pmap_info_node->getNumOperands();
           if (cu->verbose) {
             LOG(INFO) << "PMap size: " << elems;
           }
           for (int i = 0; i < elems; i++) {
-            llvm::ConstantInt* raw_map_data =
-                static_cast<llvm::ConstantInt*>(pmap_info_node->getOperand(i));
+            ::llvm::ConstantInt* raw_map_data =
+                static_cast< ::llvm::ConstantInt*>(pmap_info_node->getOperand(i));
             uint32_t map_data = raw_map_data->getZExtValue();
             PromotionMap* p = &cu->promotion_map[i];
             p->first_in_pair = (map_data >> 24) & 0xff;
@@ -3536,23 +3535,23 @@ void MethodBitcode2LIR(CompilationUnit* cu)
   cu->frame_size = ComputeFrameSize(cu);
 
   // Create RegLocations for arguments
-  llvm::Function::arg_iterator it(cu->func->arg_begin());
-  llvm::Function::arg_iterator it_end(cu->func->arg_end());
+  ::llvm::Function::arg_iterator it(cu->func->arg_begin());
+  ::llvm::Function::arg_iterator it_end(cu->func->arg_end());
   for (; it != it_end; ++it) {
-    llvm::Value* val = it;
+    ::llvm::Value* val = it;
     CreateLocFromValue(cu, val);
   }
   // Create RegLocations for all non-argument defintions
-  for (llvm::inst_iterator i = llvm::inst_begin(func), e = llvm::inst_end(func); i != e; ++i) {
-    llvm::Value* val = &*i;
+  for (::llvm::inst_iterator i = ::llvm::inst_begin(func), e = ::llvm::inst_end(func); i != e; ++i) {
+    ::llvm::Value* val = &*i;
     if (val->hasName() && (val->getName().str().c_str()[0] == 'v')) {
       CreateLocFromValue(cu, val);
     }
   }
 
   // Walk the blocks, generating code.
-  for (llvm::Function::iterator i = cu->func->begin(), e = cu->func->end(); i != e; ++i) {
-    BitcodeBlockCodeGen(cu, static_cast<llvm::BasicBlock*>(i));
+  for (::llvm::Function::iterator i = cu->func->begin(), e = cu->func->end(); i != e; ++i) {
+    BitcodeBlockCodeGen(cu, static_cast< ::llvm::BasicBlock*>(i));
   }
 
   cg->HandleSuspendLaunchPads(cu);
