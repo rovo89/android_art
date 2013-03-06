@@ -81,7 +81,7 @@ class CompiledCode {
 
  private:
   const InstructionSet instruction_set_;
-  
+
   // Used to store the PIC code for Quick and an ELF image for portable.
   std::vector<uint8_t> code_;
 
