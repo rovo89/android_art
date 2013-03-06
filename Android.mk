@@ -79,6 +79,7 @@ clean-oat-host:
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
 	rm -f $(TARGET_OUT_APPS)/*.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/package.apk.oat
