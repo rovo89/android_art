@@ -1585,10 +1585,12 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
     llvm::Value* field_addr =
       irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
 
-    // TODO: Check is_volatile.  We need to generate atomic load instruction
-    // when is_volatile is true.
     field_value = irb_.CreateLoad(field_addr, kTBAAHeapInstance, field_jty);
     field_value = SignOrZeroExtendCat1Types(field_value, field_jty);
+
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kLoadLoad);
+    }
   }
 
   return field_value;
@@ -1640,6 +1642,10 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   } else {
     DCHECK_GE(field_offset, 0);
 
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kStoreStore);
+    }
+
     llvm::PointerType* field_type =
       irb_.getJType(field_jty)->getPointerTo();
 
@@ -1648,10 +1654,12 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
     llvm::Value* field_addr =
       irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
 
-    // TODO: Check is_volatile.  We need to generate atomic store instruction
-    // when is_volatile is true.
     new_value = TruncateCat1Types(new_value, field_jty);
     irb_.CreateStore(new_value, field_addr, kTBAAHeapInstance, field_jty);
+
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kLoadLoad);
+    }
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, object_addr);
@@ -1864,10 +1872,12 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
                          irb_.getJType(field_jty)->getPointerTo());
 
-    // TODO: Check is_volatile.  We need to generate atomic load instruction
-    // when is_volatile is true.
     static_field_value = irb_.CreateLoad(static_field_addr, kTBAAHeapStatic, field_jty);
     static_field_value = SignOrZeroExtendCat1Types(static_field_value, field_jty);
+
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kLoadLoad);
+    }
   }
 
   return static_field_value;
@@ -1941,16 +1951,22 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
       static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
     }
 
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kStoreStore);
+    }
+
     llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
                          irb_.getJType(field_jty)->getPointerTo());
 
-    // TODO: Check is_volatile.  We need to generate atomic store instruction
-    // when is_volatile is true.
     new_value = TruncateCat1Types(new_value, field_jty);
     irb_.CreateStore(new_value, static_field_addr, kTBAAHeapStatic, field_jty);
+
+    if (is_volatile) {
+      irb_.CreateMemoryBarrier(art::kStoreLoad);
+    }
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, static_storage_addr);
