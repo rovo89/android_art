@@ -88,7 +88,9 @@ fi
 
 if [ "$GDB" = "y" ]; then
     gdb=gdb
-    gdbargs="--annotate=3 --args $exe"
+    gdbargs="--args $exe"
+    # Enable for Emacs "M-x gdb" support. TODO: allow extra gdb arguments on command line.
+    # gdbargs="--annotate=3 $gdbargs"
 fi
 
 if [ "$INTERPRETER" = "y" ]; then
