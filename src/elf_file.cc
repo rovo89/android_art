@@ -36,7 +36,9 @@ ElfFile::ElfFile() :
   dynsym_section_start_(NULL),
   strtab_section_start_(NULL),
   dynstr_section_start_(NULL),
-  hash_section_start_(NULL) {}
+  hash_section_start_(NULL),
+  symtab_symbol_table_(NULL),
+  dynsym_symbol_table_(NULL) {}
 
 ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only) {
   UniquePtr<ElfFile> elf_file(new ElfFile());
@@ -61,28 +63,34 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     prot = PROT_READ;
     flags = MAP_PRIVATE;
   }
-  if (file->GetLength() < sizeof(llvm::ELF::Elf32_Ehdr)) {
-    LOG(WARNING) << "File not large enough to contain ELF header: " << file->GetPath();
+  int64_t file_length = file_->GetLength();
+  if (file_length < 0) {
+    errno = -file_length;
+    PLOG(WARNING) << "Failed to get length of file: " << file_->GetPath() << " fd=" << file_->Fd();
+    return false;
+  }
+  if (file_length < sizeof(llvm::ELF::Elf32_Ehdr)) {
+    LOG(WARNING) << "File not large enough to contain ELF header: " << file_->GetPath();
     return false;
   }
 
   if (program_header_only) {
     // first just map ELF header to get program header size information
     size_t elf_header_size = sizeof(llvm::ELF::Elf32_Ehdr);
-    if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF header: " << file->GetPath();
+    if (!SetMap(MemMap::MapFile(elf_header_size, prot, flags, file_->Fd(), 0))) {
+      LOG(WARNING) << "Failed to map ELF header: " << file_->GetPath();
       return false;
     }
     // then remap to cover program header
     size_t program_header_size = header_->e_phoff + (header_->e_phentsize * header_->e_phnum);
-    if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF program headers: " << file->GetPath();
+    if (!SetMap(MemMap::MapFile(program_header_size, prot, flags, file_->Fd(), 0))) {
+      LOG(WARNING) << "Failed to map ELF program headers: " << file_->GetPath();
       return false;
     }
   } else {
     // otherwise map entire file
-    if (!SetMap(MemMap::MapFile(file->GetLength(), prot, flags, file->Fd(), 0))) {
-      LOG(WARNING) << "Failed to map ELF file: " << file->GetPath();
+    if (!SetMap(MemMap::MapFile(file_->GetLength(), prot, flags, file_->Fd(), 0))) {
+      LOG(WARNING) << "Failed to map ELF file: " << file_->GetPath();
       return false;
     }
   }
@@ -97,7 +105,7 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
     // Find .dynamic section info from program header
     dynamic_program_header_ = FindProgamHeaderByType(llvm::ELF::PT_DYNAMIC);
     if (dynamic_program_header_ == NULL) {
-      LOG(WARNING) << "Failed to find PT_DYNAMIC program header in ELF file: " << file->GetPath();
+      LOG(WARNING) << "Failed to find PT_DYNAMIC program header in ELF file: " << file_->GetPath();
       return false;
     }
 
@@ -129,7 +137,7 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
         case llvm::ELF::SHT_DYNAMIC: {
           if (reinterpret_cast<byte*>(dynamic_section_start_) != section_addr) {
             LOG(WARNING) << "Failed to find matching SHT_DYNAMIC for PT_DYNAMIC in "
-                         << file->GetPath() << ": " << std::hex
+                         << file_->GetPath() << ": " << std::hex
                          << reinterpret_cast<void*>(dynamic_section_start_)
                          << " != " << reinterpret_cast<void*>(section_addr);
             return false;
@@ -148,6 +156,8 @@ bool ElfFile::Setup(File* file, bool writable, bool program_header_only) {
 
 ElfFile::~ElfFile() {
   STLDeleteElements(&segments_);
+  delete symtab_symbol_table_;
+  delete dynsym_symbol_table_;
 }
 
 bool ElfFile::SetMap(MemMap* map) {
@@ -247,9 +257,9 @@ llvm::ELF::Elf32_Sym* ElfFile::GetSymbolSectionStart(llvm::ELF::Elf32_Word secti
   return symbol_section_start;
 }
 
-char* ElfFile::GetSymbolStringSectionStart(llvm::ELF::Elf32_Word section_type) {
+const char* ElfFile::GetStringSectionStart(llvm::ELF::Elf32_Word section_type) {
   CHECK(IsSymbolSectionType(section_type)) << file_->GetPath() << " " << section_type;
-  char* string_section_start;
+  const char* string_section_start;
   switch (section_type) {
     case llvm::ELF::SHT_SYMTAB: {
       string_section_start = strtab_section_start_;
@@ -266,6 +276,16 @@ char* ElfFile::GetSymbolStringSectionStart(llvm::ELF::Elf32_Word section_type) {
   }
   CHECK(string_section_start != NULL);
   return string_section_start;
+}
+
+const char* ElfFile::GetString(llvm::ELF::Elf32_Word section_type, llvm::ELF::Elf32_Word i) {
+  CHECK(IsSymbolSectionType(section_type)) << file_->GetPath() << " " << section_type;
+  if (i == 0) {
+    return NULL;
+  }
+  const char* string_section_start = GetStringSectionStart(section_type);
+  const char* string = string_section_start + i;
+  return string;
 }
 
 llvm::ELF::Elf32_Word* ElfFile::GetHashSectionStart() {
@@ -342,28 +362,30 @@ llvm::ELF::Elf32_Shdr* ElfFile::FindSectionByType(llvm::ELF::Elf32_Word type) {
 }
 
 // from bionic
-static unsigned elfhash(const char *_name)
-{
-    const unsigned char *name = (const unsigned char *) _name;
-    unsigned h = 0, g;
+static unsigned elfhash(const char *_name) {
+  const unsigned char *name = (const unsigned char *) _name;
+  unsigned h = 0, g;
 
-    while(*name) {
-        h = (h << 4) + *name++;
-        g = h & 0xf0000000;
-        h ^= g;
-        h ^= g >> 24;
-    }
-    return h;
+  while(*name) {
+    h = (h << 4) + *name++;
+    g = h & 0xf0000000;
+    h ^= g;
+    h ^= g >> 24;
+  }
+  return h;
+}
+
+llvm::ELF::Elf32_Shdr& ElfFile::GetSectionNameStringSection() {
+  return GetSectionHeader(GetHeader().e_shstrndx);
 }
 
 byte* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) {
   llvm::ELF::Elf32_Word hash = elfhash(symbol_name.c_str());
   llvm::ELF::Elf32_Word bucket_index = hash % GetHashBucketNum();
   llvm::ELF::Elf32_Word symbol_and_chain_index = GetHashBucket(bucket_index);
-  char* symbol_string_section_start = GetSymbolStringSectionStart(llvm::ELF::SHT_DYNSYM);
   while (symbol_and_chain_index != 0 /* STN_UNDEF */) {
     llvm::ELF::Elf32_Sym& symbol = GetSymbol(llvm::ELF::SHT_DYNSYM, symbol_and_chain_index);
-    char* name = symbol_string_section_start + symbol.st_name;
+    const char* name = GetString(llvm::ELF::SHT_DYNSYM, symbol.st_name);
     if (symbol_name == name) {
       return base_address_ + symbol.st_value;
     }
@@ -387,10 +409,66 @@ llvm::ELF::Elf32_Sym& ElfFile::GetSymbol(llvm::ELF::Elf32_Word section_type,
   return *(GetSymbolSectionStart(section_type) + i);
 }
 
+ElfFile::SymbolTable** ElfFile::GetSymbolTable(llvm::ELF::Elf32_Word section_type) {
+  CHECK(IsSymbolSectionType(section_type)) << file_->GetPath() << " " << section_type;
+  switch (section_type) {
+    case llvm::ELF::SHT_SYMTAB: {
+      return &symtab_symbol_table_;
+    }
+    case llvm::ELF::SHT_DYNSYM: {
+      return &dynsym_symbol_table_;
+    }
+    default: {
+      LOG(FATAL) << section_type;
+      return NULL;
+    }
+  }
+}
+
 llvm::ELF::Elf32_Sym* ElfFile::FindSymbolByName(llvm::ELF::Elf32_Word section_type,
-                                                const std::string& symbol_name) {
+                                                const std::string& symbol_name,
+                                                bool build_map) {
   CHECK(!program_header_only_) << file_->GetPath();
   CHECK(IsSymbolSectionType(section_type)) << file_->GetPath() << " " << section_type;
+
+  SymbolTable** symbol_table = GetSymbolTable(section_type);
+  if (*symbol_table != NULL || build_map) {
+    if (*symbol_table == NULL) {
+      DCHECK(build_map);
+      *symbol_table = new SymbolTable;
+      llvm::ELF::Elf32_Shdr* symbol_section = FindSectionByType(section_type);
+      CHECK(symbol_section != NULL) << file_->GetPath();
+      llvm::ELF::Elf32_Shdr& string_section = GetSectionHeader(symbol_section->sh_link);
+      for (uint32_t i = 0; i < GetSymbolNum(*symbol_section); i++) {
+        llvm::ELF::Elf32_Sym& symbol = GetSymbol(section_type, i);
+        unsigned char type = symbol.getType();
+        if (type == llvm::ELF::STT_NOTYPE) {
+          continue;
+        }
+        const char* name = GetString(string_section, symbol.st_name);
+        if (name == NULL) {
+          continue;
+        }
+        std::pair<SymbolTable::iterator, bool> result = (*symbol_table)->insert(std::make_pair(name, &symbol));
+        if (!result.second) {
+          // If a duplicate, make sure it has the same logical value. Seen on x86.
+          CHECK_EQ(symbol.st_value, result.first->second->st_value);
+          CHECK_EQ(symbol.st_size, result.first->second->st_size);
+          CHECK_EQ(symbol.st_info, result.first->second->st_info);
+          CHECK_EQ(symbol.st_other, result.first->second->st_other);
+          CHECK_EQ(symbol.st_shndx, result.first->second->st_shndx);
+        }
+      }
+    }
+    CHECK(*symbol_table != NULL);
+    SymbolTable::const_iterator it = (*symbol_table)->find(symbol_name);
+    if (it == (*symbol_table)->end()) {
+      return NULL;
+    }
+    return it->second;
+  }
+
+  // Fall back to linear search
   llvm::ELF::Elf32_Shdr* symbol_section = FindSectionByType(section_type);
   CHECK(symbol_section != NULL) << file_->GetPath();
   llvm::ELF::Elf32_Shdr& string_section = GetSectionHeader(symbol_section->sh_link);
@@ -408,15 +486,16 @@ llvm::ELF::Elf32_Sym* ElfFile::FindSymbolByName(llvm::ELF::Elf32_Word section_ty
 }
 
 llvm::ELF::Elf32_Addr ElfFile::FindSymbolAddress(llvm::ELF::Elf32_Word section_type,
-                                                 const std::string& symbol_name) {
-  llvm::ELF::Elf32_Sym* symbol = FindSymbolByName(section_type, symbol_name);
+                                                 const std::string& symbol_name,
+                                                 bool build_map) {
+  llvm::ELF::Elf32_Sym* symbol = FindSymbolByName(section_type, symbol_name, build_map);
   if (symbol == NULL) {
     return 0;
   }
   return symbol->st_value;
 }
 
-char* ElfFile::GetString(llvm::ELF::Elf32_Shdr& string_section, llvm::ELF::Elf32_Word i) {
+const char* ElfFile::GetString(llvm::ELF::Elf32_Shdr& string_section, llvm::ELF::Elf32_Word i) {
   CHECK(!program_header_only_) << file_->GetPath();
   // TODO: remove this static_cast from enum when using -std=gnu++0x
   CHECK_EQ(static_cast<llvm::ELF::Elf32_Word>(llvm::ELF::SHT_STRTAB), string_section.sh_type) << file_->GetPath();
@@ -427,7 +506,7 @@ char* ElfFile::GetString(llvm::ELF::Elf32_Shdr& string_section, llvm::ELF::Elf32
   byte* strings = Begin() + string_section.sh_offset;
   byte* string = strings + i;
   CHECK_LT(string, End()) << file_->GetPath();
-  return reinterpret_cast<char*>(string);
+  return reinterpret_cast<const char*>(string);
 }
 
 llvm::ELF::Elf32_Word ElfFile::GetDynamicNum() {
@@ -437,6 +516,50 @@ llvm::ELF::Elf32_Word ElfFile::GetDynamicNum() {
 llvm::ELF::Elf32_Dyn& ElfFile::GetDynamic(llvm::ELF::Elf32_Word i) {
   CHECK_LT(i, GetDynamicNum()) << file_->GetPath();
   return *(GetDynamicSectionStart() + i);
+}
+
+llvm::ELF::Elf32_Word ElfFile::FindDynamicValueByType(llvm::ELF::Elf32_Sword type) {
+  for (llvm::ELF::Elf32_Word i = 0; i < GetDynamicNum(); i++) {
+    llvm::ELF::Elf32_Dyn& elf_dyn = GetDynamic(i);
+    if (elf_dyn.d_tag == type) {
+      return elf_dyn.d_un.d_val;
+    }
+  }
+  return 0;
+}
+
+llvm::ELF::Elf32_Rel* ElfFile::GetRelSectionStart(llvm::ELF::Elf32_Shdr& section_header) {
+  CHECK(llvm::ELF::SHT_REL == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  return reinterpret_cast<llvm::ELF::Elf32_Rel*>(Begin() + section_header.sh_offset);
+}
+
+llvm::ELF::Elf32_Word ElfFile::GetRelNum(llvm::ELF::Elf32_Shdr& section_header) {
+  CHECK(llvm::ELF::SHT_REL == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  CHECK_NE(0U, section_header.sh_entsize) << file_->GetPath();
+  return section_header.sh_size / section_header.sh_entsize;
+}
+
+llvm::ELF::Elf32_Rel& ElfFile::GetRel(llvm::ELF::Elf32_Shdr& section_header, llvm::ELF::Elf32_Word i) {
+  CHECK(llvm::ELF::SHT_REL == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  CHECK_LT(i, GetRelNum(section_header)) << file_->GetPath();
+  return *(GetRelSectionStart(section_header) + i);
+}
+
+llvm::ELF::Elf32_Rela* ElfFile::GetRelaSectionStart(llvm::ELF::Elf32_Shdr& section_header) {
+  CHECK(llvm::ELF::SHT_RELA == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  return reinterpret_cast<llvm::ELF::Elf32_Rela*>(Begin() + section_header.sh_offset);
+}
+
+llvm::ELF::Elf32_Word ElfFile::GetRelaNum(llvm::ELF::Elf32_Shdr& section_header) {
+  CHECK(llvm::ELF::SHT_RELA == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  return section_header.sh_size / section_header.sh_entsize;
+}
+
+llvm::ELF::Elf32_Rela& ElfFile::GetRela(llvm::ELF::Elf32_Shdr& section_header,
+                                        llvm::ELF::Elf32_Word i) {
+  CHECK(llvm::ELF::SHT_RELA == section_header.sh_type) << file_->GetPath() << " " << section_header.sh_type;
+  CHECK_LT(i, GetRelaNum(section_header)) << file_->GetPath();
+  return *(GetRelaSectionStart(section_header) + i);
 }
 
 // Base on bionic phdr_table_get_load_size
@@ -528,6 +651,7 @@ bool ElfFile::Load() {
     CHECK_EQ(segment->Begin(), p_vaddr) << file_->GetPath();
     segments_.push_back(segment.release());
   }
+
   // Now that we are done loading, .dynamic should be in memory to find .dynstr, .dynsym, .hash
   dynamic_section_start_
       = reinterpret_cast<llvm::ELF::Elf32_Dyn*>(base_address_ + GetDynamicProgramHeader().p_vaddr);
@@ -549,6 +673,7 @@ bool ElfFile::Load() {
       }
       case llvm::ELF::DT_NULL: {
         CHECK_EQ(GetDynamicNum(), i+1);
+        break;
       }
     }
   }

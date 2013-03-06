@@ -141,7 +141,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/common_throws.cc \
 	src/compiled_method.cc \
 	src/compiler/driver/compiler_driver.cc \
-	src/compiler/llvm/procedure_linkage_table.cc \
 	src/compiler/llvm/runtime_support_llvm.cc \
 	src/debugger.cc \
 	src/dex_file.cc \
@@ -379,6 +378,7 @@ TEST_COMMON_SRC_FILES := \
 	src/compiler/jni/jni_compiler_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
+	src/dex_method_iterator_test.cc \
 	src/elf_writer_test.cc \
 	src/exception_test.cc \
 	src/gc/space_bitmap_test.cc \
@@ -447,15 +447,21 @@ TEST_OAT_DIRECTORIES := \
 
 ART_BUILD_TARGET := false
 ART_BUILD_HOST := false
+ART_BUILD_NDEBUG := false
+ART_BUILD_DEBUG := false
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   ART_BUILD_TARGET := true
+  ART_BUILD_NDEBUG := true
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   ART_BUILD_TARGET := true
+  ART_BUILD_DEBUG := true
 endif
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   ART_BUILD_HOST := true
+  ART_BUILD_NDEBUG := true
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   ART_BUILD_HOST := true
+  ART_BUILD_DEBUG := true
 endif

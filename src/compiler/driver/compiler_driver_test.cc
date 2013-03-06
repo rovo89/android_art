@@ -132,6 +132,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
+  TEST_DISABLED_FOR_PORTABLE();
   jobject class_loader;
   {
     ScopedObjectAccess soa(Thread::Current());

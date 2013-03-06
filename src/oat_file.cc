@@ -44,8 +44,8 @@ void OatFile::CheckLocation(const std::string& location) {
   }
 }
 
-OatFile* OatFile::Open(std::vector<uint8_t>& oat_contents,
-                       const std::string& location) {
+OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
+                             const std::string& location) {
   CHECK(!oat_contents.empty()) << location;
   CheckLocation(location);
   UniquePtr<OatFile> oat_file(new OatFile(location));
@@ -69,11 +69,17 @@ OatFile* OatFile::Open(const std::string& filename,
    *    Fix MIPS to use standard kPageSize=0x1000 section alignment for ELF sections
    *
    *    Change-Id: I905f0c5f75921a65bd7426a54d6258c780d85d0e
+   */
   OatFile* result = OpenDlopen(filename, location, requested_base);
   if (result != NULL) {
     return result;
   }
-  */
+  // On target, only used dlopen to load.
+  if (kIsTargetBuild) {
+    return NULL;
+  }
+  // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
+  // This won't work for portable runtime execution because it doesn't process relocations.
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false, false));
   if (file.get() == NULL) {
     return NULL;
@@ -81,12 +87,9 @@ OatFile* OatFile::Open(const std::string& filename,
   return OpenElfFile(file.get(), location, requested_base, false);
 }
 
-OatFile* OatFile::Open(File* file,
-                       const std::string& location,
-                       byte* requested_base,
-                       bool writable) {
+OatFile* OatFile::OpenWritable(File* file, const std::string& location) {
   CheckLocation(location);
-  return OpenElfFile(file, location, requested_base, writable);
+  return OpenElfFile(file, location, NULL, true);
 }
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
@@ -396,6 +399,13 @@ const void* OatFile::OatMethod::GetCode() const {
 }
 
 uint32_t OatFile::OatMethod::GetCodeSize() const {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  // TODO: With Quick, we store the size before the code. With
+  // Portable, the code is in a .o file we don't manage ourselves. ELF
+  // symbols do have a concept of size, so we could capture that and
+  // store it somewhere, such as the OatMethod.
+  return 0;
+#else
   uintptr_t code = reinterpret_cast<uint32_t>(GetCode());
 
   if (code == 0) {
@@ -404,6 +414,7 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
   // TODO: make this Thumb2 specific
   code &= ~0x1;
   return reinterpret_cast<uint32_t*>(code)[-1];
+#endif
 }
 
 mirror::AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
@@ -412,6 +423,9 @@ mirror::AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
 }
 
 uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return 0;
+#else
   uintptr_t code = reinterpret_cast<uint32_t>(GetInvokeStub());
   if (code == 0) {
     return 0;
@@ -419,6 +433,7 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
   // TODO: make this Thumb2 specific
   code &= ~0x1;
   return reinterpret_cast<uint32_t*>(code)[-1];
+#endif
 }
 
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -427,7 +442,7 @@ const void* OatFile::OatMethod::GetProxyStub() const {
 }
 #endif
 
-void OatFile::OatMethod::LinkMethodPointers(mirror::AbstractMethod* method) const {
+void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
   CHECK(method != NULL);
   method->SetCode(GetCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
@@ -437,18 +452,6 @@ void OatFile::OatMethod::LinkMethodPointers(mirror::AbstractMethod* method) cons
   method->SetVmapTable(GetVmapTable());
   method->SetNativeGcMap(GetNativeGcMap());  // Note, used by native methods in work around JNI mode.
   method->SetInvokeStub(GetInvokeStub());
-}
-
-void OatFile::OatMethod::LinkMethodOffsets(mirror::AbstractMethod* method) const {
-  CHECK(method != NULL);
-  method->SetOatCodeOffset(GetCodeOffset());
-  method->SetFrameSizeInBytes(GetFrameSizeInBytes());
-  method->SetCoreSpillMask(GetCoreSpillMask());
-  method->SetFpSpillMask(GetFpSpillMask());
-  method->SetOatMappingTableOffset(GetMappingTableOffset());
-  method->SetOatVmapTableOffset(GetVmapTableOffset());
-  method->SetOatNativeGcMapOffset(GetNativeGcMapOffset());
-  method->SetOatInvokeStubOffset(GetInvokeStubOffset());
 }
 
 }  // namespace art

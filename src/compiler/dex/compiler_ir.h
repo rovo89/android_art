@@ -18,15 +18,18 @@
 #define ART_SRC_COMPILER_DEX_COMPILER_IR_H_
 
 #include <vector>
-#include "dex_instruction.h"
+
+#include <llvm/Module.h>
+
+#include "compiler/dex/quick/codegen.h"
 #include "compiler/driver/compiler_driver.h"
 #include "compiler/driver/dex_compilation_unit.h"
-#include "compiler_utility.h"
-#include "safe_map.h"
-#include "compiler/llvm/ir_builder.h"
 #include "compiler/llvm/intrinsic_helper.h"
-#include "llvm/Module.h"
+#include "compiler/llvm/ir_builder.h"
 #include "compiler_enums.h"
+#include "compiler_utility.h"
+#include "dex_instruction.h"
+#include "safe_map.h"
 
 namespace art {
 
@@ -43,6 +46,9 @@ namespace art {
 struct ArenaBitVector;
 struct LIR;
 class LLVMInfo;
+namespace llvm {
+class LlvmCompilationUnit;
+}  // namespace llvm
 
 struct PromotionMap {
   RegLocationType core_location:3;
@@ -348,6 +354,7 @@ struct CompilationUnit {
       mstats(NULL),
       checkstats(NULL),
       gen_bitcode(false),
+      llvm_compilation_unit(NULL),
       llvm_info(NULL),
       context(NULL),
       module(NULL),
@@ -507,7 +514,11 @@ struct CompilationUnit {
   Memstats* mstats;
   Checkstats* checkstats;
   bool gen_bitcode;
+
+  // Fields for Portable
+  llvm::LlvmCompilationUnit* llvm_compilation_unit;
   LLVMInfo* llvm_info;
+  std::string symbol;
   ::llvm::LLVMContext* context;
   ::llvm::Module* module;
   ::llvm::Function* func;
@@ -516,6 +527,7 @@ struct CompilationUnit {
   ::llvm::BasicBlock* placeholder_bb;
   ::llvm::BasicBlock* entry_bb;
   ::llvm::BasicBlock* entryTarget_bb;
+
   std::string bitcode_filename;
   GrowableList llvm_values;
   int32_t temp_name;

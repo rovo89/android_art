@@ -659,6 +659,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                        << " --runtime-arg -Xmx64m"
                        << " --runtime-arg -classpath"
                        << " --runtime-arg " << class_path
+#if !defined(ART_TARGET)
+                       << " --host"
+#endif
                        << " " << boot_image_option
                        << " " << dex_file_option
                        << " " << oat_fd_option
@@ -669,6 +672,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
           "--runtime-arg", "-Xmx64m",
           "--runtime-arg", "-classpath",
           "--runtime-arg", class_path,
+#if !defined(ART_TARGET)
+          "--host",
+#endif
           boot_image_option,
           dex_file_option,
           oat_fd_option,
@@ -815,12 +821,7 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::s
     LOG(ERROR) << "Failed to generate oat file: " << oat_location;
     return NULL;
   }
-  // Open the oat from file descriptor we passed to GenerateOatFile
-  if (lseek(file->Fd(), 0, SEEK_SET) != 0) {
-    LOG(ERROR) << "Failed to seek to start of generated oat file: " << oat_location;
-    return NULL;
-  }
-  const OatFile* oat_file = OatFile::Open(file.get(), oat_location, NULL, false);
+  const OatFile* oat_file = OatFile::Open(oat_location, oat_location, NULL);
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open generated oat file: " << oat_location;
     return NULL;
@@ -1624,7 +1625,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
-  oat_method.LinkMethodPointers(method.get());
+  oat_method.LinkMethod(method.get());
 
   Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {

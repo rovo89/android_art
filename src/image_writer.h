@@ -98,7 +98,12 @@ class ImageWriter {
   }
 
   const byte* GetOatAddress(uint32_t offset) const {
+#if !defined(ART_USE_PORTABLE_COMPILER)
+    // With Quick, code is within the OatFile, as there are all in one
+    // .o ELF object. However with Portable, the code is always in
+    // different .o ELF objects.
     DCHECK_LT(offset, oat_file_->Size());
+#endif
     if (offset == 0) {
       return NULL;
     }

@@ -33,6 +33,8 @@
 #include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/quick/local_optimizations.h"
 #include "compiler/dex/quick/ralloc_util.h"
+#include "compiler/llvm/llvm_compilation_unit.h"
+#include "compiler/llvm/utils_llvm.h"
 
 static const char* kLabelFormat = "%c0x%x_%d";
 static const char kInvalidBlock = 0xff;
@@ -1982,17 +1984,14 @@ static ::llvm::FunctionType* GetFunctionType(CompilationUnit* cu) {
 }
 
 static bool CreateFunction(CompilationUnit* cu) {
-  std::string func_name(PrettyMethod(cu->method_idx, *cu->dex_file,
-                                     /* with_signature */ false));
   ::llvm::FunctionType* func_type = GetFunctionType(cu);
-
   if (func_type == NULL) {
     return false;
   }
 
   cu->func = ::llvm::Function::Create(func_type,
-                                       ::llvm::Function::ExternalLinkage,
-                                       func_name, cu->module);
+                                      ::llvm::Function::InternalLinkage,
+                                      cu->symbol, cu->module);
 
   ::llvm::Function::arg_iterator arg_iter(cu->func->arg_begin());
   ::llvm::Function::arg_iterator arg_end(cu->func->arg_end());

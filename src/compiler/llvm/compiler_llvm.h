@@ -22,7 +22,6 @@
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "mirror/object.h"
-#include "procedure_linkage_table.h"
 
 #include <UniquePtr.h>
 
@@ -87,10 +86,6 @@ class CompilerLLVM {
 
   CompiledInvokeStub* CreateProxyStub(const char *shorty);
 
-  const ProcedureLinkageTable& GetProcedureLinkageTable() const {
-    return plt_;
-  }
-
  private:
   LlvmCompilationUnit* AllocateCompilationUnit();
 
@@ -98,12 +93,10 @@ class CompilerLLVM {
 
   InstructionSet insn_set_;
 
-  Mutex num_cunits_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  size_t num_cunits_ GUARDED_BY(num_cunits_lock_);
+  Mutex next_cunit_id_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  size_t next_cunit_id_ GUARDED_BY(next_cunit_id_lock_);
 
   std::string bitcode_filename_;
-
-  ProcedureLinkageTable plt_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };

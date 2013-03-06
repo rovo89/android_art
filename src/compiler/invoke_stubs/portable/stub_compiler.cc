@@ -52,7 +52,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   size_t shorty_size = strlen(shorty);
 
   // Function name
-  std::string func_name(ElfFuncName(cunit_->GetIndex()));
+  std::string func_name(StringPrintf("invoke_stub_%s%s", shorty, is_static ? "_static" : ""));
 
   // Get argument types
   ::llvm::Type* arg_types[] = {
@@ -69,8 +69,8 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
 
   // Create function
   ::llvm::Function* func =
-    ::llvm::Function::Create(func_type, ::llvm::Function::ExternalLinkage,
-                           func_name, module_);
+    ::llvm::Function::Create(func_type, ::llvm::Function::InternalLinkage,
+                             func_name, module_);
 
 
   // Create basic block for the body of this function
@@ -185,7 +185,8 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   cunit_->Materialize();
 
   return new CompiledInvokeStub(cunit_->GetInstructionSet(),
-                                cunit_->GetCompiledCode());
+                                cunit_->GetElfObject(),
+                                func_name);
 }
 
 
@@ -194,7 +195,7 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   size_t shorty_size = strlen(shorty);
 
   // Function name
-  std::string func_name(ElfFuncName(cunit_->GetIndex()));
+  std::string func_name(StringPrintf("proxy_stub_%s", shorty));
 
   // Accurate function type
   ::llvm::Type* accurate_ret_type = irb_.getJType(shorty[0]);
@@ -212,7 +213,7 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
 
   // Create function
   ::llvm::Function* func =
-    ::llvm::Function::Create(accurate_func_type, ::llvm::Function::ExternalLinkage,
+    ::llvm::Function::Create(accurate_func_type, ::llvm::Function::InternalLinkage,
                              func_name, module_);
   switch(shorty[0]) {
     case 'Z':
@@ -271,7 +272,8 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   cunit_->Materialize();
 
   return new CompiledInvokeStub(cunit_->GetInstructionSet(),
-                                cunit_->GetCompiledCode());
+                                cunit_->GetElfObject(),
+                                func_name);
 }
 
 

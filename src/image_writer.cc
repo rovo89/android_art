@@ -78,7 +78,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
     return false;
   }
-  oat_file_ = OatFile::Open(oat_file.get(), oat_location, NULL, true);
+  oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
   class_linker->RegisterOatFile(*oat_file_);
 
   {

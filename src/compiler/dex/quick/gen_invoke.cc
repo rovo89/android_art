@@ -16,6 +16,7 @@
 
 #include "codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
+#include "invoke_type.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "ralloc_util.h"
 #include "x86/codegen_x86.h"
@@ -1335,10 +1336,7 @@ void Codegen::GenInvoke(CompilationUnit* cu, CallInfo* info)
   // Explicit register usage
   LockCallTemps(cu);
 
-  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-                            *cu->dex_file, cu->code_item,
-                            cu->class_def_idx, cu->method_idx,
-                            cu->access_flags);
+  DexCompilationUnit m_unit(cu);
 
   uint32_t dex_method_idx = info->index;
   int vtable_idx;

@@ -1406,6 +1406,7 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 }
 
 TEST_F(JniInternalTest, StaticMainMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
   SirtRef<mirror::ClassLoader>
@@ -1427,121 +1428,145 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeNopMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticNopMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeNopMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityByteMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityByteMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityByteMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntIntIntMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
+  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(false);
 }

@@ -36,10 +36,6 @@
 #include "runtime_stats.h"
 #include "safe_map.h"
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-#include "compiler/llvm/procedure_linkage_table.h"
-#endif
-
 namespace art {
 
 namespace mirror {
@@ -477,9 +473,6 @@ class Runtime {
 
   jobject main_thread_group_;
   jobject system_thread_group_;
-#if defined(ART_USE_PORTABLE_COMPILER)
-  art::llvm::ProcedureLinkageTable plt_;
-#endif
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

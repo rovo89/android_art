@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 namespace art {
   class ClassLinker;
   class CompiledMethod;
@@ -58,10 +60,10 @@ class JniCompiler {
   CompiledMethod* Compile();
 
  private:
-  void CreateFunction();
+  void CreateFunction(const std::string& symbol);
 
   ::llvm::FunctionType* GetFunctionType(uint32_t method_idx,
-                                      bool is_static, bool is_target_function);
+                                        bool is_static, bool is_target_function);
 
  private:
   LlvmCompilationUnit* cunit_;

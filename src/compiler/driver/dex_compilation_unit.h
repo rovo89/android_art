@@ -17,9 +17,10 @@
 #ifndef ART_SRC_COMPILER_DEX_DEX_COMPILATION_UNIT_H_
 #define ART_SRC_COMPILER_DEX_DEX_COMPILATION_UNIT_H_
 
-#include "dex_file.h"
-
 #include <stdint.h>
+
+#include "dex_file.h"
+#include "jni.h"
 
 namespace art {
 namespace mirror {
@@ -27,16 +28,18 @@ class ClassLoader;
 class DexCache;
 }  // namespace mirror
 class ClassLinker;
-class DexFile;
+class CompilationUnit;
 
 class DexCompilationUnit {
  public:
-  DexCompilationUnit(jobject class_loader, ClassLinker* class_linker, const DexFile& dex_file,
-                     const DexFile::CodeItem* code_item, uint32_t class_def_idx,
-                     uint32_t method_idx, uint32_t access_flags)
-      : class_loader_(class_loader), class_linker_(class_linker), dex_file_(&dex_file),
-        code_item_(code_item), class_def_idx_(class_def_idx), dex_method_idx_(method_idx),
-        access_flags_(access_flags) {
+  DexCompilationUnit(CompilationUnit* cu);
+
+  DexCompilationUnit(CompilationUnit* cu, jobject class_loader, ClassLinker* class_linker,
+                     const DexFile& dex_file, const DexFile::CodeItem* code_item,
+                     uint32_t class_def_idx, uint32_t method_idx, uint32_t access_flags);
+
+  CompilationUnit* GetCompilationUnit() const {
+    return cu_;
   }
 
   jobject GetClassLoader() const {
@@ -89,8 +92,15 @@ class DexCompilationUnit {
     return ((access_flags_ & kAccSynchronized) != 0);
   }
 
+  const std::string& GetSymbol() const {
+    return symbol_;
+  }
+
  private:
+  CompilationUnit* cu_;
+
   const jobject class_loader_;
+
   ClassLinker* const class_linker_;
 
   const DexFile* const dex_file_;
@@ -99,6 +109,8 @@ class DexCompilationUnit {
   const uint32_t class_def_idx_;
   const uint32_t dex_method_idx_;
   const uint32_t access_flags_;
+
+  const std::string symbol_;
 };
 
 } // namespace art

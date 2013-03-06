@@ -46,14 +46,15 @@ class OatFile {
                        byte* requested_base);
 
   // Open an oat file from an already opened File.
-  static OatFile* Open(File* file,
-                       const std::string& location,
-                       byte* requested_base,
-                       bool writable);
+  // Does not use dlopen underneath so cannot be used for runtime use
+  // where relocations may be required. Currently used from
+  // ImageWriter which wants to open a writable version from an existing
+  // file descriptor for patching.
+  static OatFile* OpenWritable(File* file, const std::string& location);
 
   // Open an oat file backed by a std::vector with the given location.
-  static OatFile* Open(std::vector<uint8_t>& oat_contents,
-                       const std::string& location);
+  static OatFile* OpenMemory(std::vector<uint8_t>& oat_contents,
+                             const std::string& location);
 
   ~OatFile();
 
@@ -67,11 +68,7 @@ class OatFile {
 
   class OatMethod {
    public:
-    // Link Method for execution using the contents of this OatMethod
-    void LinkMethodPointers(mirror::AbstractMethod* method) const;
-
-    // Link Method for image writing using the contents of this OatMethod
-    void LinkMethodOffsets(mirror::AbstractMethod* method) const;
+    void LinkMethod(mirror::AbstractMethod* method) const;
 
     uint32_t GetCodeOffset() const {
       return code_offset_;

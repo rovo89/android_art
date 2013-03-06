@@ -16,10 +16,10 @@
 
 /* This file contains register alloction support. */
 
-#include "codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_utility.h"
 #include "compiler/dex/dataflow.h"
+#include "compiler/dex/quick/codegen_util.h"
 #include "ralloc_util.h"
 
 namespace art {

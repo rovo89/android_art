@@ -19,12 +19,17 @@
 
 namespace art {
 class CompilerDriver;
+class DexFile;
 }  // namespace art
 
 extern "C" bool WriteElf(art::CompilerDriver& driver,
+                         const std::string* host_prefix,
+                         bool is_host,
+                         const std::vector<const art::DexFile*>& dex_files,
                          std::vector<uint8_t>& oat_contents,
-                         art::File* file) {
-  return art::ElfWriter::Create(file, oat_contents, driver);
+                         art::File* file)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return art::ElfWriter::Create(file, oat_contents, dex_files, host_prefix, is_host, driver);
 }
 extern "C" bool FixupElf(art::File* file, uintptr_t oat_data_begin) {
   return art::ElfWriter::Fixup(file, oat_data_begin);
@@ -33,4 +38,7 @@ extern "C" void GetOatElfInformation(art::File* file,
                                      size_t& oat_loaded_size,
                                      size_t& oat_data_offset) {
   art::ElfWriter::GetOatElfInformation(file, oat_loaded_size, oat_data_offset);
+}
+extern "C" bool StripElf(art::File* file) {
+  return art::ElfWriter::Strip(file);
 }

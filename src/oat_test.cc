@@ -90,7 +90,11 @@ TEST_F(OatTest, WriteRead) {
                                        "lue.art",
                                        *compiler_driver_.get());
   ASSERT_TRUE(success_oat);
-  bool success_elf = compiler_driver_->WriteElf(oat_contents, tmp.GetFile());
+  bool success_elf = compiler_driver_->WriteElf(NULL,
+                                                !kIsTargetBuild,
+                                                class_linker->GetBootClassPath(),
+                                                oat_contents,
+                                                tmp.GetFile());
   ASSERT_TRUE(success_elf);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare

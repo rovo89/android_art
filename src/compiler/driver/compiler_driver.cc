@@ -1678,7 +1678,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &shorty_len);
   bool is_static = (access_flags & kAccStatic) != 0;
   std::string key(MakeInvokeStubKey(is_static, shorty));
-  const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(key);
+  CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(key);
   if (compiled_invoke_stub == NULL) {
     compiled_invoke_stub = (*create_invoke_stub_)(*this, is_static, shorty, shorty_len);
     CHECK(compiled_invoke_stub != NULL);
@@ -1686,7 +1686,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   }
 
   if ((compiler_backend_ == kPortable) && !is_static) {
-    const CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
+    CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
     if (compiled_proxy_stub == NULL) {
       compiled_proxy_stub = (*create_proxy_stub_)(*this, shorty, shorty_len);
       CHECK(compiled_proxy_stub != NULL);
@@ -1701,12 +1701,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   }
 }
 
-const CompiledInvokeStub* CompilerDriver::FindInvokeStub(bool is_static, const char* shorty) const {
+CompiledInvokeStub* CompilerDriver::FindInvokeStub(bool is_static, const char* shorty) const {
   const std::string key(MakeInvokeStubKey(is_static, shorty));
   return FindInvokeStub(key);
 }
 
-const CompiledInvokeStub* CompilerDriver::FindInvokeStub(const std::string& key) const {
+CompiledInvokeStub* CompilerDriver::FindInvokeStub(const std::string& key) const {
   MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
@@ -1717,8 +1717,7 @@ const CompiledInvokeStub* CompilerDriver::FindInvokeStub(const std::string& key)
   }
 }
 
-void CompilerDriver::InsertInvokeStub(const std::string& key,
-                                      const CompiledInvokeStub* compiled_invoke_stub) {
+void CompilerDriver::InsertInvokeStub(const std::string& key, CompiledInvokeStub* compiled_invoke_stub) {
   MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
   InvokeStubTable::iterator it = compiled_invoke_stubs_.find(key);
   if (it != compiled_invoke_stubs_.end()) {
@@ -1729,7 +1728,7 @@ void CompilerDriver::InsertInvokeStub(const std::string& key,
   }
 }
 
-const CompiledInvokeStub* CompilerDriver::FindProxyStub(const char* shorty) const {
+CompiledInvokeStub* CompilerDriver::FindProxyStub(const char* shorty) const {
   MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
   if (it == compiled_proxy_stubs_.end()) {
@@ -1740,8 +1739,7 @@ const CompiledInvokeStub* CompilerDriver::FindProxyStub(const char* shorty) cons
   }
 }
 
-void CompilerDriver::InsertProxyStub(const char* shorty,
-                                     const CompiledInvokeStub* compiled_proxy_stub) {
+void CompilerDriver::InsertProxyStub(const char* shorty, CompiledInvokeStub* compiled_proxy_stub) {
   MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
   InvokeStubTable::iterator it = compiled_proxy_stubs_.find(shorty);
   if (it != compiled_proxy_stubs_.end()) {
@@ -1795,11 +1793,21 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
-bool CompilerDriver::WriteElf(std::vector<uint8_t>& oat_contents, File* file) {
-  typedef bool (*WriteElfFn)(CompilerDriver&, std::vector<uint8_t>&, File*);
+bool CompilerDriver::WriteElf(const std::string* host_prefix,
+                              bool is_host,
+                              const std::vector<const DexFile*>& dex_files,
+                              std::vector<uint8_t>& oat_contents,
+                              File* file) {
+  typedef bool (*WriteElfFn)(CompilerDriver&,
+                             const std::string* host_prefix,
+                             bool is_host,
+                             const std::vector<const DexFile*>& dex_files,
+                             std::vector<uint8_t>&,
+                             File*);
   WriteElfFn WriteElf =
     FindFunction<WriteElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "WriteElf");
-  return WriteElf(*this, oat_contents, file);
+  Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+  return WriteElf(*this, host_prefix, is_host, dex_files, oat_contents, file);
 }
 
 bool CompilerDriver::FixupElf(File* file, uintptr_t oat_data_begin) const {
@@ -1819,11 +1827,18 @@ void CompilerDriver::GetOatElfInformation(File* file,
   GetOatElfInformation(file, oat_loaded_size, oat_data_offset);
 }
 
+bool CompilerDriver::StripElf(File* file) const {
+  typedef bool (*StripElfFn)(File*);
+  StripElfFn StripElf =
+    FindFunction<StripElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "StripElf");
+  return StripElf(file);
+}
+
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
                                                 std::string& target_triple,
                                                 std::string& target_cpu,
                                                 std::string& target_attr) {
-    switch (instruction_set) {
+  switch (instruction_set) {
     case kThumb2:
       target_triple = "thumb-none-linux-gnueabi";
       target_cpu = "cortex-a9";

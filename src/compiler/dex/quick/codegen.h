@@ -17,6 +17,8 @@
 #ifndef ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
 #define ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
 
+#include "invoke_type.h"
+#include "compiler/dex/compiler_enums.h"
 #include "compiler/dex/compiler_ir.h"
 
 namespace art {
@@ -81,6 +83,14 @@ namespace art {
 #define REG_USE02            (REG_USE0 | REG_USE2)
 #define REG_USE12            (REG_USE1 | REG_USE2)
 #define REG_USE23            (REG_USE2 | REG_USE3)
+
+struct BasicBlock;
+struct CallInfo;
+struct CompilationUnit;
+struct LIR;
+struct MIR;
+struct RegLocation;
+struct RegisterInfo;
 
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dex_idx,
                             uint32_t method_idx, uintptr_t direct_code,

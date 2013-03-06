@@ -64,7 +64,10 @@ CompiledMethod* JniCompiler::Compile() {
   char const return_shorty = dex_file->GetMethodShorty(method_id)[0];
   ::llvm::Value* this_object_or_class_object;
 
-  CreateFunction();
+  uint32_t method_idx = dex_compilation_unit_->GetDexMethodIndex();
+  std::string func_name(StringPrintf("jni_%s",
+                                     MangleForJni(PrettyMethod(method_idx, *dex_file)).c_str()));
+  CreateFunction(func_name);
 
   // Set argument name
   ::llvm::Function::arg_iterator arg_begin(func_->arg_begin());
@@ -233,13 +236,13 @@ CompiledMethod* JniCompiler::Compile() {
   cunit_->Materialize();
 
   return new CompiledMethod(cunit_->GetInstructionSet(),
-                            cunit_->GetCompiledCode());
+                            cunit_->GetElfObject(),
+                            func_name);
 }
 
 
-void JniCompiler::CreateFunction() {
-  // LLVM function name
-  std::string func_name(ElfFuncName(cunit_->GetIndex()));
+void JniCompiler::CreateFunction(const std::string& func_name) {
+  CHECK_NE(0U, func_name.size());
 
   const bool is_static = dex_compilation_unit_->IsStatic();
 
@@ -248,8 +251,8 @@ void JniCompiler::CreateFunction() {
     GetFunctionType(dex_compilation_unit_->GetDexMethodIndex(), is_static, false);
 
   // Create function
-  func_ = ::llvm::Function::Create(func_type, ::llvm::Function::ExternalLinkage,
-                                 func_name, module_);
+  func_ = ::llvm::Function::Create(func_type, ::llvm::Function::InternalLinkage,
+                                   func_name, module_);
 
   // Create basic block
   ::llvm::BasicBlock* basic_block = ::llvm::BasicBlock::Create(*context_, "B0", func_);

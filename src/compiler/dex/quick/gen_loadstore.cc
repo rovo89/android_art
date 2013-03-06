@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "codegen_util.h"
+#include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
+#include "invoke_type.h"
 #include "ralloc_util.h"
 
 namespace art {

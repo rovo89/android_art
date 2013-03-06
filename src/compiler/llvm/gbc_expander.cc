@@ -340,7 +340,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
   static char ID;
 
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                  art::CompilerDriver* compiler, art::DexCompilationUnit* dex_compilation_unit)
+                  art::CompilerDriver* compiler, const art::DexCompilationUnit* dex_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
         shadow_frame_(NULL), old_shadow_frame_(NULL),
@@ -364,7 +364,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   VLOG(compiler) << "GBC expansion on " << func.getName().str();
 
   // Runtime support or stub
-  if (func.getName().startswith("art_") || func.getName().startswith("Art")) {
+  if (dex_compilation_unit_ == NULL) {
     return false;
   }
 
@@ -3719,7 +3719,7 @@ namespace llvm {
 
 ::llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                      CompilerDriver* driver, DexCompilationUnit* dex_compilation_unit) {
+                      CompilerDriver* driver, const DexCompilationUnit* dex_compilation_unit) {
   return new GBCExpanderPass(intrinsic_helper, irb, driver, dex_compilation_unit);
 }
 

@@ -23,27 +23,31 @@ ART_TEST_HOST_DEX_FILES :=
 # $(2): input test directory
 # $(3): target output module path (default module path is used on host)
 define build-art-test-dex
-  include $(CLEAR_VARS)
-  LOCAL_MODULE := $(1)-$(2)
-  LOCAL_MODULE_TAGS := tests
-  LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
-  LOCAL_JAVA_LIBRARIES := $(TARGET_CORE_JARS)
-  LOCAL_NO_STANDARD_LIBRARIES := true
-  LOCAL_MODULE_PATH := $(3)
-  LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
-  LOCAL_DEX_PREOPT := false
-  include $(BUILD_JAVA_LIBRARY)
-  ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
+  ifeq ($(ART_BUILD_TARGET),true)
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := $(1)-$(2)
+    LOCAL_MODULE_TAGS := tests
+    LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
+    LOCAL_JAVA_LIBRARIES := $(TARGET_CORE_JARS)
+    LOCAL_NO_STANDARD_LIBRARIES := true
+    LOCAL_MODULE_PATH := $(3)
+    LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
+    LOCAL_DEX_PREOPT := false
+    include $(BUILD_JAVA_LIBRARY)
+    ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
+  endif
 
-  include $(CLEAR_VARS)
-  LOCAL_MODULE := $(1)-$(2)
-  LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
-  LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
-  LOCAL_NO_STANDARD_LIBRARIES := true
-  LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_OUT)
-  LOCAL_BUILD_HOST_DEX := true
-  include $(BUILD_HOST_JAVA_LIBRARY)
-  ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
+  ifeq ($(ART_BUILD_HOST),true)
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := $(1)-$(2)
+    LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
+    LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
+    LOCAL_NO_STANDARD_LIBRARIES := true
+    LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_OUT)
+    LOCAL_BUILD_HOST_DEX := true
+    include $(BUILD_HOST_JAVA_LIBRARY)
+    ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
+  endif
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
 $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
@@ -66,7 +70,7 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
 $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat: $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT) | $(DEX2OAT)
-	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$$< --oat-file=$$@ --instruction-set=$(HOST_ARCH) --host-prefix=""
+	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$$< --oat-file=$$@ --instruction-set=$(HOST_ARCH) --host --host-prefix=""
 
 .PHONY: test-art-host-oat-$(1)
 test-art-host-oat-$(1): $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat test-art-host-dependencies

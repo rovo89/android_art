@@ -57,9 +57,13 @@ TEST_F(ImageTest, WriteRead) {
         mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
         EXPECT_TRUE(klass != NULL) << descriptor;
       }
+      bool success_elf = compiler_driver_->WriteElf(NULL,
+                                                    !kIsTargetBuild,
+                                                    dex_files,
+                                                    oat_contents,
+                                                    tmp_elf.GetFile());
+      ASSERT_TRUE(success_elf);
     }
-    bool success_elf = compiler_driver_->WriteElf(oat_contents, tmp_elf.GetFile());
-    ASSERT_TRUE(success_elf);
   }
   // Workound bug that mcld::Linker::emit closes tmp_elf by reopening as tmp_oat.
   UniquePtr<File> tmp_oat(OS::OpenFile(tmp_elf.GetFilename().c_str(), true, false));

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "codegen_util.h"
+#include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "ralloc_util.h"
@@ -354,8 +354,7 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
   bool is_volatile;
   bool is_referrers_class;
 
-  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker, *cu->dex_file, cu->code_item,
-                            cu->class_def_idx, cu->method_idx, cu->access_flags);
+  DexCompilationUnit m_unit(cu);
 
   bool fast_path =
       cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,
@@ -446,10 +445,7 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
   bool is_volatile;
   bool is_referrers_class;
 
-  DexCompilationUnit m_unit(cu->class_loader, cu->class_linker,
-                            *cu->dex_file, cu->code_item,
-                            cu->class_def_idx, cu->method_idx,
-                            cu->access_flags);
+  DexCompilationUnit m_unit(cu);
 
   bool fast_path =
       cu->compiler_driver->ComputeStaticFieldInfo(field_idx, &m_unit,

@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
+#include <llvm/Support/Threading.h>
+
 #include "compiler/driver/compiler_driver.h"
 #include "compiler_internals.h"
+#if defined(ART_USE_PORTABLE_COMPILER)
+#include "compiler/llvm/llvm_compilation_unit.h"
+#endif
 #include "dataflow.h"
 #include "ssa_transformation.h"
 #include "leb128.h"
@@ -24,8 +29,6 @@
 #include "quick/codegen_util.h"
 #include "portable/mir_to_gbc.h"
 #include "quick/mir_to_lir.h"
-
-#include <llvm/Support/Threading.h>
 
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -782,8 +785,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const DexFile::CodeItem* code_item,
                                      uint32_t access_flags, InvokeType invoke_type,
                                      uint32_t class_def_idx, uint32_t method_idx,
-                                     jobject class_loader, const DexFile& dex_file,
-                                     LLVMInfo* llvm_info)
+                                     jobject class_loader, const DexFile& dex_file
+#if defined(ART_USE_PORTABLE_COMPILER)
+                                     , llvm::LlvmCompilationUnit* llvm_compilation_unit
+#endif
+)
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
@@ -818,7 +824,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   if ((compiler_backend == kQuickGBC) || (compiler_backend == kPortable)) {
     cu->gen_bitcode = true;
   }
-  cu->llvm_info = llvm_info;
+#if defined(ART_USE_PORTABLE_COMPILER)
+  cu->llvm_compilation_unit = llvm_compilation_unit;
+  cu->llvm_info = llvm_compilation_unit->GetQuickContext();
+  cu->symbol = llvm_compilation_unit->GetDexCompilationUnit()->GetSymbol();
+#endif
   /* Adjust this value accordingly once inlining is performed */
   cu->num_dalvik_registers = code_item->registers_size_;
   // TODO: set this from command line
@@ -1137,6 +1147,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   }
 
 
+#if defined(ART_USE_PORTABLE_COMPILER)
   /* Go the LLVM path? */
   if (cu->gen_bitcode) {
     // MIR->Bitcode
@@ -1148,7 +1159,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     }
     // Bitcode->LIR
     MethodBitcode2LIR(cu.get());
-  } else {
+  } else
+#endif
+  {
     if (special_case != kNoHandler) {
       /*
        * Custom codegen for special cases.  If for any reason the
@@ -1231,13 +1244,20 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
                                  const CompilerBackend backend,
                                  const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, InvokeType invoke_type,
-                                 uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                                 uint32_t access_flags,
+                                 InvokeType invoke_type,
+                                 uint32_t class_def_idx,
+                                 uint32_t method_idx,
+                                 jobject class_loader,
                                  const DexFile& dex_file,
-                                 LLVMInfo* llvm_info)
+                                 llvm::LlvmCompilationUnit* llvm_compilation_unit)
 {
   return CompileMethod(compiler, backend, code_item, access_flags, invoke_type, class_def_idx,
-                       method_idx, class_loader, dex_file, llvm_info);
+                       method_idx, class_loader, dex_file
+#if defined(ART_USE_PORTABLE_COMPILER)
+                       , llvm_compilation_unit
+#endif
+                       );
 }
 
 }  // namespace art
