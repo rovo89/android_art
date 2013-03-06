@@ -20,6 +20,7 @@
 #include "ir_builder.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
+#include "mirror/string.h"
 #include "thread.h"
 #include "utils_llvm.h"
 #include "verifier/method_verifier.h"
@@ -153,6 +154,19 @@ class GBCExpanderPass : public llvm::FunctionPass {
   llvm::Value* EmitArrayGEP(llvm::Value* array_addr,
                             llvm::Value* index_value,
                             JType elem_jty);
+
+  //----------------------------------------------------------------------------
+  // Invoke helper function
+  //----------------------------------------------------------------------------
+  llvm::Value* EmitInvoke(llvm::CallInst& call_inst);
+
+  //----------------------------------------------------------------------------
+  // Inlining helper functions
+  //----------------------------------------------------------------------------
+  bool EmitIntrinsic(llvm::CallInst& call_inst, llvm::Value** result);
+
+  bool EmitIntrinsicStringLengthOrIsEmpty(llvm::CallInst& call_inst,
+                                          llvm::Value** result, bool is_empty);
 
  private:
   //----------------------------------------------------------------------------
@@ -749,6 +763,146 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
                        elem_type->getPointerTo());
 
   return irb_.CreateGEP(array_data_addr, index_value);
+}
+
+llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  art::InvokeType invoke_type =
+      static_cast<art::InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
+  bool is_static = (invoke_type == art::kStatic);
+  uint32_t callee_method_idx = LV2UInt(call_inst.getArgOperand(1));
+
+  // Load *this* actual parameter
+  llvm::Value* this_addr = (!is_static) ? call_inst.getArgOperand(3) : NULL;
+
+  // Compute invoke related information for compiler decision
+  int vtable_idx = -1;
+  uintptr_t direct_code = 0;
+  uintptr_t direct_method = 0;
+  bool is_fast_path = driver_->
+      ComputeInvokeInfo(callee_method_idx, dex_compilation_unit_,
+                        invoke_type, vtable_idx, direct_code, direct_method);
+
+  // Load the method object
+  llvm::Value* callee_method_object_addr = NULL;
+
+  if (!is_fast_path) {
+    callee_method_object_addr =
+        EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
+                                                 this_addr, dex_pc, is_fast_path);
+  } else {
+    switch (invoke_type) {
+      case art::kStatic:
+      case art::kDirect:
+        if (direct_method != 0u &&
+            direct_method != static_cast<uintptr_t>(-1)) {
+          callee_method_object_addr =
+              irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_method),
+                                  irb_.getJObjectTy());
+        } else {
+          callee_method_object_addr =
+              EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
+        }
+        break;
+
+      case art::kVirtual:
+        DCHECK(vtable_idx != -1);
+        callee_method_object_addr =
+            EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
+        break;
+
+      case art::kSuper:
+        LOG(FATAL) << "invoke-super should be promoted to invoke-direct in "
+        "the fast path.";
+        break;
+
+      case art::kInterface:
+        callee_method_object_addr =
+            EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
+                                                     invoke_type, this_addr,
+                                                     dex_pc, is_fast_path);
+        break;
+    }
+  }
+
+  // Load the actual parameter
+  std::vector<llvm::Value*> args;
+
+  args.push_back(callee_method_object_addr); // method object for callee
+
+  for (uint32_t i = 3; i < call_inst.getNumArgOperands(); ++i) {
+    args.push_back(call_inst.getArgOperand(i));
+  }
+
+  llvm::Value* code_addr;
+  llvm::Type* func_type = GetFunctionType(call_inst.getType(),
+                                          callee_method_idx, is_static);
+  if (direct_code != 0u && direct_code != static_cast<uintptr_t>(-1)) {
+    code_addr =
+        irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),
+                            func_type->getPointerTo());
+  } else {
+    code_addr =
+        irb_.LoadFromObjectOffset(callee_method_object_addr,
+                                  art::mirror::AbstractMethod::GetCodeOffset().Int32Value(),
+                                  func_type->getPointerTo(), kTBAARuntimeInfo);
+  }
+
+  // Invoke callee
+  EmitUpdateDexPC(dex_pc);
+  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return retval;
+}
+
+bool GBCExpanderPass::EmitIntrinsic(llvm::CallInst& call_inst,
+                                    llvm::Value** result) {
+  DCHECK(result != NULL);
+
+  uint32_t callee_method_idx = LV2UInt(call_inst.getArgOperand(1));
+  std::string callee_method_name(
+      PrettyMethod(callee_method_idx, *dex_compilation_unit_->GetDexFile()));
+
+  if (callee_method_name == "int java.lang.String.length()") {
+    return EmitIntrinsicStringLengthOrIsEmpty(call_inst, result,
+                                              false /* is_empty */);
+  }
+  if (callee_method_name == "boolean java.lang.String.isEmpty()") {
+    return EmitIntrinsicStringLengthOrIsEmpty(call_inst, result,
+                                              true /* is_empty */);
+  }
+
+  *result = NULL;
+  return false;
+}
+
+bool GBCExpanderPass::EmitIntrinsicStringLengthOrIsEmpty(llvm::CallInst& call_inst,
+                                                         llvm::Value** result,
+                                                         bool is_empty) {
+  art::InvokeType invoke_type =
+        static_cast<art::InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
+  DCHECK_NE(invoke_type, art::kStatic);
+  DCHECK_EQ(call_inst.getNumArgOperands(), 4U);
+
+  llvm::Value* this_object = call_inst.getArgOperand(3);
+  llvm::Value* string_count =
+      irb_.LoadFromObjectOffset(this_object,
+                                art::mirror::String::CountOffset().Int32Value(),
+                                irb_.getJIntTy(),
+                                kTBAAConstJObject);
+  if (is_empty) {
+    llvm::Value* count_equals_zero = irb_.CreateICmpEQ(string_count,
+                                                       irb_.getJInt(0));
+    llvm::Value* is_empty = irb_.CreateSelect(count_equals_zero,
+                                              irb_.getJBoolean(true),
+                                              irb_.getJBoolean(false));
+    is_empty = SignOrZeroExtendCat1Types(is_empty, kBoolean);
+    *result = is_empty;
+  } else {
+    *result = string_count;
+  }
+  return true;
 }
 
 void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
@@ -2062,109 +2216,24 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
-  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   art::InvokeType invoke_type = static_cast<art::InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
   bool is_static = (invoke_type == art::kStatic);
-  uint32_t callee_method_idx = LV2UInt(call_inst.getArgOperand(1));
-  int opt_flags = LV2UInt(call_inst.getArgOperand(2));
-
-  // Compute invoke related information for compiler decision
-  int vtable_idx = -1;
-  uintptr_t direct_code = 0;
-  uintptr_t direct_method = 0;
-  bool is_fast_path = driver_->
-    ComputeInvokeInfo(callee_method_idx, dex_compilation_unit_,
-                      invoke_type, vtable_idx, direct_code, direct_method);
-
-  // Load *this* actual parameter
-  llvm::Value* this_addr = NULL;
 
   if (!is_static) {
     // Test: Is *this* parameter equal to null?
-    this_addr = call_inst.getArgOperand(3);
+    uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+    llvm::Value* this_addr = call_inst.getArgOperand(3);
+    int opt_flags = LV2UInt(call_inst.getArgOperand(2));
+
+    EmitGuard_NullPointerException(dex_pc, this_addr, opt_flags);
   }
 
-  // Load the method object
-  llvm::Value* callee_method_object_addr = NULL;
-
-  if (!is_fast_path) {
-    callee_method_object_addr =
-      EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
-                                               this_addr, dex_pc, is_fast_path);
-
-    if (!is_static) {
-      EmitGuard_NullPointerException(dex_pc, this_addr, opt_flags);
-    }
-  } else {
-    if (!is_static) {
-      EmitGuard_NullPointerException(dex_pc, this_addr, opt_flags);
-    }
-
-    switch (invoke_type) {
-    case art::kStatic:
-    case art::kDirect:
-      if (direct_method != 0u &&
-          direct_method != static_cast<uintptr_t>(-1)) {
-        callee_method_object_addr =
-          irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_method),
-                              irb_.getJObjectTy());
-      } else {
-        callee_method_object_addr =
-          EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
-      }
-      break;
-
-    case art::kVirtual:
-      DCHECK(vtable_idx != -1);
-      callee_method_object_addr =
-        EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
-      break;
-
-    case art::kSuper:
-      LOG(FATAL) << "invoke-super should be promoted to invoke-direct in "
-                    "the fast path.";
-      break;
-
-    case art::kInterface:
-      callee_method_object_addr =
-        EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
-                                                 invoke_type, this_addr,
-                                                 dex_pc, is_fast_path);
-      break;
-    }
+  llvm::Value* result = NULL;
+  if (EmitIntrinsic(call_inst, &result)) {
+    return result;
   }
 
-  // Load the actual parameter
-  std::vector<llvm::Value*> args;
-
-  args.push_back(callee_method_object_addr); // method object for callee
-
-  for (uint32_t i = 3; i < call_inst.getNumArgOperands(); ++i) {
-    args.push_back(call_inst.getArgOperand(i));
-  }
-
-  // Generate the load of the Method*. We base the return type on that of the call as method's
-  // returning a value are void calls if the return value is unused.
-  llvm::Value* code_addr;
-  if (direct_code != 0u &&
-      direct_code != static_cast<uintptr_t>(-1)) {
-    code_addr =
-      irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),
-                          GetFunctionType(call_inst.getType(), callee_method_idx, is_static)->getPointerTo());
-  } else {
-    code_addr =
-      irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                art::mirror::AbstractMethod::GetCodeOffset().Int32Value(),
-                                GetFunctionType(call_inst.getType(), callee_method_idx, is_static)->getPointerTo(),
-                                kTBAARuntimeInfo);
-  }
-
-  // Invoke callee
-  EmitUpdateDexPC(dex_pc);
-  llvm::Value* retval = irb_.CreateCall(code_addr, args);
-  EmitGuard_ExceptionLandingPad(dex_pc);
-
-  return retval;
+  return EmitInvoke(call_inst);
 }
 
 llvm::Value* GBCExpanderPass::Expand_OptArrayLength(llvm::CallInst& call_inst) {
