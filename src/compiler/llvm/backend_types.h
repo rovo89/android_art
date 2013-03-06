@@ -38,15 +38,6 @@ enum JType {
   MAX_JTYPE
 };
 
-enum RegCategory {
-  kRegUnknown,
-  kRegZero,
-  kRegCat1nr,
-  kRegCat2,
-  kRegObject,
-};
-
-
 enum TBAASpecialType {
   kTBAARegister,
   kTBAAStackTemp,
@@ -105,39 +96,6 @@ inline JType GetJTypeFromShorty(char shorty_jty) {
     return kVoid;
   }
 }
-
-
-inline RegCategory GetRegCategoryFromJType(JType jty) {
-  switch (jty) {
-  case kVoid:
-    return kRegUnknown;
-
-  case kBoolean:
-  case kByte:
-  case kChar:
-  case kShort:
-  case kInt:
-  case kFloat:
-    return kRegCat1nr;
-
-  case kLong:
-  case kDouble:
-    return kRegCat2;
-
-  case kObject:
-    return kRegObject;
-
-  default:
-    LOG(FATAL) << "Unknown java type: " << jty;
-    return kRegUnknown;
-  }
-}
-
-
-inline RegCategory GetRegCategoryFromShorty(char shorty) {
-  return GetRegCategoryFromJType(GetJTypeFromShorty(shorty));
-}
-
 
 } // namespace llvm
 } // namespace art

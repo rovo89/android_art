@@ -78,7 +78,7 @@ class LlvmCompilationUnit {
   LLVMInfo* GetQuickContext() const {
     return llvm_info_.get();
   }
-  void SetCompiler(CompilerDriver* driver) {
+  void SetCompilerDriver(CompilerDriver* driver) {
     driver_ = driver;
   }
   const DexCompilationUnit* GetDexCompilationUnit() {

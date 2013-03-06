@@ -139,7 +139,7 @@ CompileDexMethod(DexCompilationUnit* dex_compilation_unit, InvokeType invoke_typ
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
   cunit->SetDexCompilationUnit(dex_compilation_unit);
-  cunit->SetCompiler(compiler_driver_);
+  cunit->SetCompilerDriver(compiler_driver_);
   // TODO: consolidate ArtCompileMethods
   CompileOneMethod(*compiler_driver_,
                    kPortable,

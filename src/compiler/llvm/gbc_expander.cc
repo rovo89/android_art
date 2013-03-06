@@ -340,11 +340,11 @@ class GBCExpanderPass : public llvm::FunctionPass {
   static char ID;
 
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
-                  art::CompilerDriver* compiler, const art::DexCompilationUnit* dex_compilation_unit)
+                  art::CompilerDriver* driver, const art::DexCompilationUnit* dex_compilation_unit)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
         shadow_frame_(NULL), old_shadow_frame_(NULL),
-        driver_(compiler),
+        driver_(driver),
         dex_compilation_unit_(dex_compilation_unit),
         func_(NULL), current_bb_(NULL), basic_block_unwind_(NULL), changed_(false) {}
 
