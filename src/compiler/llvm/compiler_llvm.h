@@ -89,9 +89,9 @@ class CompilerLLVM {
  private:
   LlvmCompilationUnit* AllocateCompilationUnit();
 
-  CompilerDriver* compiler_driver_;
+  CompilerDriver* const compiler_driver_;
 
-  InstructionSet insn_set_;
+  const InstructionSet insn_set_;
 
   Mutex next_cunit_id_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   size_t next_cunit_id_ GUARDED_BY(next_cunit_id_lock_);
