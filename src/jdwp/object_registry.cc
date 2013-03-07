@@ -50,6 +50,10 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   MutexLock mu(soa.Self(), lock_);
   ObjectRegistryEntry dummy;
+  dummy.jni_reference_type = JNIWeakGlobalRefType;
+  dummy.jni_reference = NULL;
+  dummy.reference_count = 0;
+  dummy.id = 0;
   std::pair<object_iterator, bool> result = object_to_entry_.insert(std::make_pair(o, dummy));
   ObjectRegistryEntry& entry = result.first->second;
   if (!result.second) {
