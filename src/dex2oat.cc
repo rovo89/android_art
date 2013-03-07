@@ -115,6 +115,10 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --host-prefix=out/target/product/crespo");
   UsageError("      Default: $ANDROID_PRODUCT_OUT");
   UsageError("");
+  UsageError("  --android-root=<path>: used to locate libraries for portable linking.");
+  UsageError("      Example: --android-root=out/host/linux-x86");
+  UsageError("      Default: $ANDROID_ROOT");
+  UsageError("");
   UsageError("  --instruction-set=(arm|mips|x86): compile for a particular instruction");
   UsageError("      set.");
   UsageError("      Example: --instruction-set=x86");
@@ -223,15 +227,16 @@ class Dex2Oat {
   }
 
   const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
-                                const std::string* host_prefix,
-                                bool is_host,
-                                const std::vector<const DexFile*>& dex_files,
-                                File* oat_file,
-                                const std::string& bitcode_filename,
-                                bool image,
-                                const std::set<std::string>* image_classes,
-                                bool dump_stats,
-                                bool dump_timings)
+                                      const std::string* host_prefix,
+                                      const std::string& android_root,
+                                      bool is_host,
+                                      const std::vector<const DexFile*>& dex_files,
+                                      File* oat_file,
+                                      const std::string& bitcode_filename,
+                                      bool image,
+                                      const std::set<std::string>* image_classes,
+                                      bool dump_stats,
+                                      bool dump_timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
@@ -295,7 +300,7 @@ class Dex2Oat {
       return NULL;
     }
 
-    if (!driver->WriteElf(host_prefix, is_host, dex_files, oat_contents, oat_file)) {
+    if (!driver->WriteElf(android_root, is_host, dex_files, oat_contents, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return NULL;
     }
@@ -650,6 +655,7 @@ static int dex2oat(int argc, char** argv) {
   std::string boot_image_filename;
   uintptr_t image_base = 0;
   UniquePtr<std::string> host_prefix;
+  std::string android_root;
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
   bool support_debugging = false;
@@ -728,6 +734,8 @@ static int dex2oat(int argc, char** argv) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
+    } else if (option.starts_with("--android-root=")) {
+      android_root = option.substr(strlen("--android-root=")).data();
     } else if (option.starts_with("--instruction-set=")) {
       StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
       if (instruction_set_str == "arm") {
@@ -786,6 +794,14 @@ static int dex2oat(int argc, char** argv) {
     if (android_product_out != NULL) {
         host_prefix.reset(new std::string(android_product_out));
     }
+  }
+
+  if (android_root.empty()) {
+    const char* android_root_env_var = getenv("ANDROID_ROOT");
+    if (android_root_env_var == NULL) {
+      Usage("--android_root unspecified and ANDROID_ROOT not set");
+    }
+    android_root += android_root_env_var;
   }
 
   bool image = (!image_filename.empty());
@@ -946,6 +962,7 @@ static int dex2oat(int argc, char** argv) {
 
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),
+                                                                  android_root,
                                                                   is_host,
                                                                   dex_files,
                                                                   oat_file.get(),

@@ -50,7 +50,7 @@ class ElfWriter {
   static bool Create(File* file,
                      std::vector<uint8_t>& oat_contents,
                      const std::vector<const DexFile*>& dex_files,
-                     const std::string* host_prefix,
+                     const std::string& android_root,
                      bool is_host,
                      const CompilerDriver& driver)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -75,7 +75,7 @@ class ElfWriter {
 
   bool Write(std::vector<uint8_t>& oat_contents,
              const std::vector<const DexFile*>& dex_files,
-             const std::string* host_prefix,
+             const std::string& android_root,
              bool is_host)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -83,7 +83,7 @@ class ElfWriter {
   void AddOatInput(std::vector<uint8_t>& oat_contents);
   void AddMethodInputs(const std::vector<const DexFile*>& dex_files);
   void AddCompiledCodeInput(const CompiledCode& compiled_code);
-  void AddRuntimeInputs(const std::string* host_prefix, bool is_host);
+  void AddRuntimeInputs(const std::string& android_root, bool is_host);
   bool Link();
 #if defined(ART_USE_PORTABLE_COMPILER)
   void FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files)

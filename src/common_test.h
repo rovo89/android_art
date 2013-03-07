@@ -446,6 +446,15 @@ class CommonTest : public testing::Test {
     return StringPrintf("%s/framework/%s.jar", GetAndroidRoot(), jar_prefix.c_str());
   }
 
+  std::string GetTestAndroidRoot() {
+    if (IsHost()) {
+      const char* host_dir = getenv("ANDROID_HOST_OUT");
+      CHECK(host_dir != NULL);
+      return host_dir;
+    }
+    return GetAndroidRoot();
+  }
+
   const DexFile* OpenTestDexFile(const char* name) {
     CHECK(name != NULL);
     std::string filename;

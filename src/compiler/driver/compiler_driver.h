@@ -187,7 +187,7 @@ class CompilerDriver {
   void SetBitcodeFileName(std::string const& filename);
 
   // TODO: remove these Elf wrappers when libart links against LLVM (when separate compiler library is gone)
-  bool WriteElf(const std::string* host_prefix,
+  bool WriteElf(const std::string& android_root,
                 bool is_host,
                 const std::vector<const DexFile*>& dex_files,
                 std::vector<uint8_t>& oat_contents,

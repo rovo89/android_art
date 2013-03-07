@@ -44,11 +44,11 @@ namespace art {
 bool ElfWriter::Create(File* elf_file,
                        std::vector<uint8_t>& oat_contents,
                        const std::vector<const DexFile*>& dex_files,
-                       const std::string* host_prefix,
+                       const std::string& android_root,
                        bool is_host,
                        const CompilerDriver& driver) {
   ElfWriter elf_writer(driver, elf_file);
-  return elf_writer.Write(oat_contents, dex_files, host_prefix, is_host);
+  return elf_writer.Write(oat_contents, dex_files, android_root, is_host);
 }
 
 ElfWriter::ElfWriter(const CompilerDriver& driver, File* elf_file)
@@ -58,13 +58,13 @@ ElfWriter::~ElfWriter() {}
 
 bool ElfWriter::Write(std::vector<uint8_t>& oat_contents,
                       const std::vector<const DexFile*>& dex_files,
-                      const std::string* host_prefix,
+                      const std::string& android_root,
                       bool is_host) {
   Init();
   AddOatInput(oat_contents);
 #if defined(ART_USE_PORTABLE_COMPILER)
   AddMethodInputs(dex_files);
-  AddRuntimeInputs(host_prefix, is_host);
+  AddRuntimeInputs(android_root, is_host);
 #endif
   if (!Link()) {
     return false;
@@ -267,21 +267,7 @@ void ElfWriter::AddCompiledCodeInput(const CompiledCode& compiled_code) {
   CHECK(code_input != NULL);
 }
 
-void ElfWriter::AddRuntimeInputs(const std::string* host_prefix, bool is_host) {
-  std::string android_root;
-  if (is_host) {
-    const char* android_host_out = getenv("ANDROID_HOST_OUT");
-    CHECK(android_host_out != NULL) << "ANDROID_HOST_OUT environment variable not set";
-    android_root += android_host_out;
-  } else {
-    if (host_prefix != NULL) {
-      android_root += *host_prefix;
-      android_root += "/system";
-    } else {
-      android_root += GetAndroidRoot();
-    }
-  }
-
+void ElfWriter::AddRuntimeInputs(const std::string& android_root, bool is_host) {
   std::string libart_so(android_root);
   libart_so += kIsDebugBuild ? "/lib/libartd.so" : "/lib/libart.so";
   // TODO: ownership of libart_so_input?

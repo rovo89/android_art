@@ -90,7 +90,7 @@ TEST_F(OatTest, WriteRead) {
                                        "lue.art",
                                        *compiler_driver_.get());
   ASSERT_TRUE(success_oat);
-  bool success_elf = compiler_driver_->WriteElf(NULL,
+  bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                 !kIsTargetBuild,
                                                 class_linker->GetBootClassPath(),
                                                 oat_contents,

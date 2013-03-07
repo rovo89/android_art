@@ -1793,13 +1793,13 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
   return freezing_constructor_classes_.count(ClassReference(dex_file, class_def_index)) != 0;
 }
 
-bool CompilerDriver::WriteElf(const std::string* host_prefix,
+bool CompilerDriver::WriteElf(const std::string& android_root,
                               bool is_host,
                               const std::vector<const DexFile*>& dex_files,
                               std::vector<uint8_t>& oat_contents,
                               File* file) {
   typedef bool (*WriteElfFn)(CompilerDriver&,
-                             const std::string* host_prefix,
+                             const std::string& android_root,
                              bool is_host,
                              const std::vector<const DexFile*>& dex_files,
                              std::vector<uint8_t>&,
@@ -1807,7 +1807,7 @@ bool CompilerDriver::WriteElf(const std::string* host_prefix,
   WriteElfFn WriteElf =
     FindFunction<WriteElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "WriteElf");
   Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-  return WriteElf(*this, host_prefix, is_host, dex_files, oat_contents, file);
+  return WriteElf(*this, android_root, is_host, dex_files, oat_contents, file);
 }
 
 bool CompilerDriver::FixupElf(File* file, uintptr_t oat_data_begin) const {

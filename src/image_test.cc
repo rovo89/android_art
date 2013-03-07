@@ -57,7 +57,7 @@ TEST_F(ImageTest, WriteRead) {
         mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
         EXPECT_TRUE(klass != NULL) << descriptor;
       }
-      bool success_elf = compiler_driver_->WriteElf(NULL,
+      bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                     !kIsTargetBuild,
                                                     dex_files,
                                                     oat_contents,

@@ -23,13 +23,13 @@ class DexFile;
 }  // namespace art
 
 extern "C" bool WriteElf(art::CompilerDriver& driver,
-                         const std::string* host_prefix,
+                         const std::string& android_root,
                          bool is_host,
                          const std::vector<const art::DexFile*>& dex_files,
                          std::vector<uint8_t>& oat_contents,
                          art::File* file)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return art::ElfWriter::Create(file, oat_contents, dex_files, host_prefix, is_host, driver);
+  return art::ElfWriter::Create(file, oat_contents, dex_files, android_root, is_host, driver);
 }
 extern "C" bool FixupElf(art::File* file, uintptr_t oat_data_begin) {
   return art::ElfWriter::Fixup(file, oat_data_begin);
