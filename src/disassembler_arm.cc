@@ -382,8 +382,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rd.r != 0xF) {
               opcode << "and";
             } else {
+              if (S != 1U) {
+                opcode << "UNKNOWN TST-" << S;
+                break;
+              }
               opcode << "tst";
-              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
@@ -407,8 +410,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rd.r != 0xF) {
               opcode << "eor";
             } else {
+              if (S != 1U) {
+                opcode << "UNKNOWN TEQ-" << S;
+                break;
+              }
               opcode << "teq";
-              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
@@ -417,8 +423,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rd.r != 0xF) {
               opcode << "add";
             } else {
+              if (S != 1U) {
+                opcode << "UNKNOWN CMN-" << S;
+                break;
+              }
               opcode << "cmn";
-              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
@@ -428,8 +437,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rd.r != 0xF) {
               opcode << "sub";
             } else {
+              if (S != 1U) {
+                opcode << "UNKNOWN CMP-" << S;
+                break;
+              }
               opcode << "cmp";
-              DCHECK_EQ(S, 1U);
               S = 0;  // don't print 's'
             }
             break;
