@@ -14,15 +14,20 @@
  * limitations under the License.
  */
 
+// sys/mount.h has to come before linux/fs.h due to redefinition of MS_RDONLY, MS_BIND, etc
+#include <sys/mount.h>
+#include <linux/fs.h>
+
 #include <grp.h>
 #include <paths.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "cutils/fs.h"
+#include "cutils/multiuser.h"
 #include "cutils/sched_policy.h"
 #include "debugger.h"
 #include "jni_internal.h"
@@ -53,6 +58,7 @@ enum MountExternalKind {
   MOUNT_EXTERNAL_NONE = 0,
   MOUNT_EXTERNAL_SINGLEUSER = 1,
   MOUNT_EXTERNAL_MULTIUSER = 2,
+  MOUNT_EXTERNAL_MULTIUSER_ALL = 3,
 };
 
 // This signal handler is for zygote mode, since the zygote must reap its children
@@ -303,45 +309,91 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   }
 }
 
-// Create private mount space for this process and mount SD card
-// into it, based on the active user.
-static void MountExternalStorage(uid_t uid, jint mount_external) {
-  if (mount_external == MOUNT_EXTERNAL_NONE) {
-    return;
+// Create a private mount namespace and bind mount appropriate emulated
+// storage for the given user.
+static bool MountEmulatedStorage(uid_t uid, jint mount_mode) {
+  if (mount_mode == MOUNT_EXTERNAL_NONE) {
+    return true;
   }
 
-#if 0
-  userid_t user_id = multiuser_getUserId(uid);
+  // See storage config details at http://source.android.com/tech/storage/
+  userid_t user_id = multiuser_get_user_id(uid);
 
-  // Create private mount namespace for our process.
+  // Create a second private mount namespace for our process
   if (unshare(CLONE_NEWNS) == -1) {
-    PLOG(FATAL) << "unshare(CLONE_NEWNS) failed";
+      PLOG(WARNING) << "Failed to unshare()";
+      return false;
   }
 
-  // Mark rootfs as being a slave in our process so that changes
-  // from parent namespace flow into our process.
-  if (mount("rootfs", "/", NULL, (MS_SLAVE | MS_REC), NULL) == -1) {
-    PLOG(FATAL) << "mount(\"rootfs\", \"/\", NULL, (MS_SLAVE | MS_REC), NULL) failed";
-  }
-
-  // Create bind mount from specific path.
-  if (mount_external == MOUNT_EXTERNAL_SINGLEUSER) {
-    if (mount(EXTERNAL_STORAGE_SYSTEM, EXTERNAL_STORAGE_APP, "none", MS_BIND, NULL) == -1) {
-      PLOG(FATAL) << "mount(\"" << EXTERNAL_STORAGE_SYSTEM << "\", \"" << EXTERNAL_STORAGE_APP << "\", \"none\", MS_BIND, NULL) failed";
+  // Create bind mounts to expose external storage
+  if (mount_mode == MOUNT_EXTERNAL_MULTIUSER || mount_mode == MOUNT_EXTERNAL_MULTIUSER_ALL) {
+    // These paths must already be created by init.rc
+    const char* source = getenv("EMULATED_STORAGE_SOURCE");
+    const char* target = getenv("EMULATED_STORAGE_TARGET");
+    const char* legacy = getenv("EXTERNAL_STORAGE");
+    if (source == NULL || target == NULL || legacy == NULL) {
+      LOG(WARNING) << "Storage environment undefined; unable to provide external storage";
+      return false;
     }
-  } else if (mount_external == MOUNT_EXTERNAL_MULTIUSER) {
-    // Assume path has already been created by installd.
-    std::string source_path(StringPrintf("%s/%d", EXTERNAL_STORAGE_SYSTEM, user_id));
-    if (mount(source_path.c_str(), EXTERNAL_STORAGE_APP, "none", MS_BIND, NULL) == -1) {
-      PLOG(FATAL) << "mount(\"" << source_path.c_str() << "\", \"" << EXTERNAL_STORAGE_APP << "\", \"none\", MS_BIND, NULL) failed";
+
+    // Prepare source paths
+
+    // /mnt/shell/emulated/0
+    std::string source_user(StringPrintf("%s/%d", source, user_id));
+    // /mnt/shell/emulated/obb
+    std::string source_obb(StringPrintf("%s/obb", source));
+    // /storage/emulated/0
+    std::string target_user(StringPrintf("%s/%d", target, user_id));
+
+    if (fs_prepare_dir(source_user.c_str(), 0000, 0, 0) == -1
+        || fs_prepare_dir(source_obb.c_str(), 0000, 0, 0) == -1
+        || fs_prepare_dir(target_user.c_str(), 0000, 0, 0) == -1) {
+      return false;
+    }
+
+    if (mount_mode == MOUNT_EXTERNAL_MULTIUSER_ALL) {
+      // Mount entire external storage tree for all users
+      if (mount(source, target, NULL, MS_BIND, NULL) == -1) {
+        PLOG(WARNING) << "Failed to mount " << source << " to " << target;
+        return false;
+      }
+    } else {
+      // Only mount user-specific external storage
+      if (mount(source_user.c_str(), target_user.c_str(), NULL, MS_BIND, NULL) == -1) {
+        PLOG(WARNING) << "Failed to mount " << source_user << " to " << target_user;
+        return false;
+      }
+    }
+
+    // Now that user is mounted, prepare and mount OBB storage
+    // into place for current user
+
+    // /storage/emulated/0/Android
+    std::string target_android(StringPrintf("%s/%d/Android", target, user_id));
+    // /storage/emulated/0/Android/obb
+    std::string target_obb(StringPrintf("%s/%d/Android/obb", target, user_id));
+
+    if (fs_prepare_dir(target_android.c_str(), 0000, 0, 0) == -1
+        || fs_prepare_dir(target_obb.c_str(), 0000, 0, 0) == -1
+        || fs_prepare_dir(legacy, 0000, 0, 0) == -1) {
+        return false;
+    }
+    if (mount(source_obb.c_str(), target_obb.c_str(), NULL, MS_BIND, NULL) == -1) {
+      PLOG(WARNING) << "Failed to mount " << source_obb << " to " << target_obb;
+      return false;
+    }
+
+    // Finally, mount user-specific path into place for legacy users
+    if (mount(target_user.c_str(), legacy, NULL, MS_BIND | MS_REC, NULL) == -1) {
+      PLOG(WARNING) << "Failed to mount " << target_user << " to " << legacy;
+      return false;
     }
   } else {
-    LOG(FATAL) << "Mount mode unsupported: " << mount_external;
+    LOG(WARNING) << "Mount mode " << mount_mode << " unsupported";
+    return false;
   }
-#else
-  UNUSED(uid);
-  UNIMPLEMENTED(FATAL);
-#endif
+
+  return true;
 }
 
 #if defined(__linux__)
@@ -397,7 +449,18 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 
     DropCapabilitiesBoundingSet();
 
-    MountExternalStorage(uid, mount_external);
+    if (!MountEmulatedStorage(uid, mount_external)) {
+      PLOG(WARNING) << "Failed to mount emulated storage";
+      if (errno == ENOTCONN || errno == EROFS) {
+        // When device is actively encrypting, we get ENOTCONN here
+        // since FUSE was mounted before the framework restarted.
+        // When encrypted device is booting, we get EROFS since
+        // FUSE hasn't been created yet by init.
+        // In either case, continue without external storage.
+      } else {
+        LOG(FATAL) << "Cannot continue without emulated storage";
+      }
+    }
 
     SetGids(env, javaGids);
 

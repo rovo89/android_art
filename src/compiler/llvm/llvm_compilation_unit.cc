@@ -26,7 +26,6 @@
 #include <llvm/ADT/StringSet.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/CallGraph.h>
-#include <llvm/Analysis/DebugInfo.h>
 #include <llvm/Analysis/Dominators.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/LoopPass.h>
@@ -39,6 +38,7 @@
 #include <llvm/CodeGen/MachineFrameInfo.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
+#include <llvm/DebugInfo.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>

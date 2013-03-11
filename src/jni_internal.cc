@@ -2564,7 +2564,13 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
     return JNI_ERR;
   }
   Runtime* runtime = Runtime::Current();
-  runtime->Start();
+  bool started = runtime->Start();
+  if (!started) {
+    delete Thread::Current()->GetJniEnv();
+    delete runtime->GetJavaVM();
+    LOG(WARNING) << "CreateJavaVM failed";
+    return JNI_ERR;
+  }
   *p_env = Thread::Current()->GetJniEnv();
   *p_vm = runtime->GetJavaVM();
   return JNI_OK;

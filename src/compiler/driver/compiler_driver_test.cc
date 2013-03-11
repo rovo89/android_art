@@ -44,7 +44,8 @@ class CompilerDriverTest : public CommonTest {
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
     CompileAll(class_loader);
     Thread::Current()->TransitionFromSuspendedToRunnable();
-    runtime_->Start();
+    bool started = runtime_->Start();
+    CHECK(started);
     env_ = Thread::Current()->GetJniEnv();
     class_ = env_->FindClass(class_name);
     CHECK(class_ != NULL) << "Class not found: " << class_name;

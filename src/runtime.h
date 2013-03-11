@@ -126,7 +126,7 @@ class Runtime {
   }
 
   // Starts a runtime, which may cause threads to be started and code to run.
-  void Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
+  bool Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
   bool IsShuttingDown() const EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
     return shutting_down_;
@@ -346,8 +346,9 @@ class Runtime {
 
   void SetStatsEnabled(bool new_state);
 
-  void DidForkFromZygote();
   bool PreZygoteFork();
+  bool InitZygote();
+  void DidForkFromZygote();
 
   void EnableMethodTracing(Trace* trace);
   void DisableMethodTracing();

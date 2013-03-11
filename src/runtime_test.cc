@@ -46,6 +46,7 @@ TEST_F(RuntimeTest, ParsedOptions) {
   options.push_back(std::make_pair("-Xms2048", null));
   options.push_back(std::make_pair("-Xmx4k", null));
   options.push_back(std::make_pair("-Xss1m", null));
+  options.push_back(std::make_pair("-XX:HeapTargetUtilization=0.75", null));
   options.push_back(std::make_pair("-Dfoo=bar", null));
   options.push_back(std::make_pair("-Dbaz=qux", null));
   options.push_back(std::make_pair("-verbose:gc,class,jni", null));
@@ -63,6 +64,7 @@ TEST_F(RuntimeTest, ParsedOptions) {
   EXPECT_EQ(2048U, parsed->heap_initial_size_);
   EXPECT_EQ(4 * KB, parsed->heap_maximum_size_);
   EXPECT_EQ(1 * MB, parsed->stack_size_);
+  EXPECT_EQ(0.75, parsed->heap_target_utilization_);
   EXPECT_EQ("host_prefix", parsed->host_prefix_);
   EXPECT_TRUE(test_vfprintf == parsed->hook_vfprintf_);
   EXPECT_TRUE(test_exit == parsed->hook_exit_);

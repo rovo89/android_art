@@ -75,7 +75,8 @@ class JniCompilerTest : public CommonTest {
       CompileForTest(class_loader_, direct, method_name, method_sig);
       // Start runtime.
       Thread::Current()->TransitionFromSuspendedToRunnable();
-      runtime_->Start();
+      bool started = runtime_->Start();
+      CHECK(started);
     }
     // JNI operations after runtime start.
     env_ = Thread::Current()->GetJniEnv();
@@ -532,7 +533,8 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
   }
   // Start runtime to avoid re-initialization in SetupForTest.
   Thread::Current()->TransitionFromSuspendedToRunnable();
-  runtime_->Start();
+  bool started = runtime_->Start();
+  CHECK(started);
 
   gJava_MyClassNatives_foo_calls = 0;
 

@@ -1329,6 +1329,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/net/Uri$StringUri;", // Requires Uri.
   "Landroid/net/WebAddress;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/nfc/NdefRecord;", // Calls String.getBytes -> java.nio.charset.Charset.
+  "Landroid/opengl/EGL14;", // Calls android.opengl.EGL14._nativeClassInit.
   "Landroid/opengl/GLES10;", // Calls android.opengl.GLES10._nativeClassInit.
   "Landroid/opengl/GLES10Ext;", // Calls android.opengl.GLES10Ext._nativeClassInit.
   "Landroid/opengl/GLES11;", // Requires GLES10.
@@ -1350,6 +1351,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/server/BluetoothService;", // Calls android.server.BluetoothService.classInitNative.
   "Landroid/server/BluetoothEventLoop;", // Calls android.server.BluetoothEventLoop.classInitNative.
   "Landroid/telephony/PhoneNumberUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/telephony/TelephonyManager;", // Calls OsConstants.initConstants.
   "Landroid/text/AutoText;", // Requires android.util.DisplayMetrics -..-> android.os.SystemProperties.native_get_int.
   "Landroid/text/Layout;", // Calls com.android.internal.util.ArrayUtils.emptyArray -> System.identityHashCode.
   "Landroid/text/BoringLayout;", // Requires Layout.

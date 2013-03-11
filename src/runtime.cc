@@ -16,6 +16,10 @@
 
 #include "runtime.h"
 
+// sys/mount.h has to come before linux/fs.h due to redefinition of MS_RDONLY, MS_BIND, etc
+#include <sys/mount.h>
+#include <linux/fs.h>
+
 #include <signal.h>
 #include <sys/syscall.h>
 
@@ -472,7 +476,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       double value;
       iss >> value;
       // Ensure that we have a value, there was no cruft after it and it satisfies a sensible range.
-      const bool sane_val = iss.good() && (value >= 0.1) && (value <= 0.9);
+      const bool sane_val = iss.eof() && (value >= 0.1) && (value <= 0.9);
       if (!sane_val) {
         if (ignore_unrecognized) {
           continue;
@@ -640,7 +644,7 @@ static void CreateSystemClassLoader() {
   contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
 }
 
-void Runtime::Start() {
+bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start entering";
 
   CHECK(host_prefix_.empty()) << host_prefix_;
@@ -666,7 +670,11 @@ void Runtime::Start() {
 
   Thread::FinishStartup();
 
-  if (!is_zygote_) {
+  if (is_zygote_) {
+    if (!InitZygote()) {
+      return false;
+    }
+  } else {
     DidForkFromZygote();
   }
 
@@ -679,6 +687,8 @@ void Runtime::Start() {
   VLOG(startup) << "Runtime::Start exiting";
 
   finished_starting_ = true;
+
+  return true;
 }
 
 void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_) {
@@ -687,6 +697,40 @@ void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_
   if (shutting_down_started_ && threads_being_born_ == 0) {
     shutdown_cond_->Broadcast(Thread::Current());
   }
+}
+
+// Do zygote-mode-only initialization.
+bool Runtime::InitZygote() {
+  // zygote goes into its own process group
+  setpgid(0,0);
+
+  // See storage config details at http://source.android.com/tech/storage/
+  // Create private mount namespace shared by all children
+  if (unshare(CLONE_NEWNS) == -1) {
+    PLOG(WARNING) << "Failed to unshare()";
+    return false;
+  }
+
+  // Mark rootfs as being a slave so that changes from default
+  // namespace only flow into our children.
+  if (mount("rootfs", "/", NULL, (MS_SLAVE | MS_REC), NULL) == -1) {
+    PLOG(WARNING) << "Failed to mount() rootfs as MS_SLAVE";
+    return false;
+  }
+
+  // Create a staging tmpfs that is shared by our children; they will
+  // bind mount storage into their respective private namespaces, which
+  // are isolated from each other.
+  const char* target_base = getenv("EMULATED_STORAGE_TARGET");
+  if (target_base != NULL) {
+    if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
+              "uid=0,gid=1028,mode=0050") == -1) {
+      LOG(WARNING) << "Failed to mount tmpfs to " << target_base;
+      return false;
+    }
+  }
+
+  return true;
 }
 
 void Runtime::DidForkFromZygote() {

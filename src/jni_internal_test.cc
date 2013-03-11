@@ -1179,7 +1179,8 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
-  runtime_->Start();
+  bool started = runtime_->Start();
+  CHECK(started);
 
   jclass c = env_->FindClass("AllFields");
   ASSERT_TRUE(c != NULL);

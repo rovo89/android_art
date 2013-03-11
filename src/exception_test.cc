@@ -137,7 +137,8 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 TEST_F(ExceptionTest, StackTraceElement) {
   Thread* thread = Thread::Current();
   thread->TransitionFromSuspendedToRunnable();
-  runtime_->Start();
+  bool started = runtime_->Start();
+  CHECK(started);
   JNIEnv* env = thread->GetJniEnv();
   ScopedObjectAccess soa(env);
 

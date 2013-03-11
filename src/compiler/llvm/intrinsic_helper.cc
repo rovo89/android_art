@@ -20,8 +20,8 @@
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
+#include <llvm/IRBuilder.h>
 #include <llvm/Intrinsics.h>
-#include <llvm/Support/IRBuilder.h>
 
 namespace art {
 namespace llvm {
