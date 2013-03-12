@@ -377,7 +377,11 @@ static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, 
   const char* thread_name = NULL;
   jobject thread_group = NULL;
   if (args != NULL) {
-    CHECK_GE(args->version, JNI_VERSION_1_2);
+    if (args->version < JNI_VERSION_1_2) {
+      LOG(WARNING) << "Failed to AttachCurrentThread due to insufficent version "
+                   << std::hex << args->version << " < JNI_VERSION_1_2(" << JNI_VERSION_1_2 << ")";
+      return JNI_ERR;
+    }
     thread_name = args->name;
     thread_group = args->group;
   }
