@@ -21,12 +21,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "UniquePtr.h"
 
 namespace art {
 
 File* OS::OpenFile(const char* name, bool writable, bool create) {
+  CHECK(name != NULL);
   int flags = 0;
   if (writable) {
     flags |= O_RDWR;

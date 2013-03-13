@@ -30,6 +30,7 @@ FdFile::FdFile(int fd) : fd_(fd), auto_close_(true) {
 }
 
 FdFile::FdFile(int fd, const std::string& path) : fd_(fd), file_path_(path), auto_close_(true) {
+  CHECK_NE(0U, path.size());
 }
 
 FdFile::~FdFile() {
