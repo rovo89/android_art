@@ -123,6 +123,9 @@ class LlvmCompilationUnit {
 
   void CheckCodeAlign(uint32_t offset) const;
 
+  void DumpBitcodeToFile();
+  void DumpBitcodeToString(std::string& str_buffer);
+
   bool MaterializeToString(std::string& str_buffer);
   bool MaterializeToRawOStream(::llvm::raw_ostream& out_stream);
 

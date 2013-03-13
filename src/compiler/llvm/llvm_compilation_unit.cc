@@ -136,22 +136,45 @@ InstructionSet LlvmCompilationUnit::GetInstructionSet() const {
 }
 
 
+static std::string DumpDirectory() {
+  if (kIsTargetBuild) {
+    return GetArtCacheOrDie(GetAndroidData());
+  }
+  return "/tmp";
+}
+
+void LlvmCompilationUnit::DumpBitcodeToFile() {
+  std::string bitcode;
+  DumpBitcodeToString(bitcode);
+  std::string filename(StringPrintf("%s/Art%u.bc", DumpDirectory().c_str(), cunit_id_));
+  UniquePtr<File> output(OS::OpenFile(filename.c_str(), true));
+  output->WriteFully(bitcode.data(), bitcode.size());
+  LOG(INFO) << ".bc file written successfully: " << filename;
+}
+
+void LlvmCompilationUnit::DumpBitcodeToString(std::string& str_buffer) {
+  ::llvm::raw_string_ostream str_os(str_buffer);
+  ::llvm::WriteBitcodeToFile(module_, str_os);
+}
+
 bool LlvmCompilationUnit::Materialize() {
+
+  const bool kDumpBitcode = false;
+  if (kDumpBitcode) {
+    // Dump the bitcode for debugging
+    DumpBitcodeToFile();
+  }
+
   // Compile and prelink ::llvm::Module
   if (!MaterializeToString(elf_object_)) {
     LOG(ERROR) << "Failed to materialize compilation unit " << cunit_id_;
     return false;
   }
 
-  if (false) {
+  const bool kDumpELF = false;
+  if (kDumpELF) {
     // Dump the ELF image for debugging
-    std::string directory;
-    if (kIsTargetBuild) {
-      directory += GetArtCacheOrDie(GetAndroidData());
-    } else {
-      directory += "/tmp";
-    }
-    std::string filename(StringPrintf("%s/Art%u.o", directory.c_str(), cunit_id_));
+    std::string filename(StringPrintf("%s/Art%u.o", DumpDirectory().c_str(), cunit_id_));
     UniquePtr<File> output(OS::OpenFile(filename.c_str(), true));
     output->WriteFully(elf_object_.data(), elf_object_.size());
     LOG(INFO) << ".o file written successfully: " << filename;
