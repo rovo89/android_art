@@ -799,7 +799,7 @@ static int dex2oat(int argc, char** argv) {
   if (android_root.empty()) {
     const char* android_root_env_var = getenv("ANDROID_ROOT");
     if (android_root_env_var == NULL) {
-      Usage("--android_root unspecified and ANDROID_ROOT not set");
+      Usage("--android-root unspecified and ANDROID_ROOT not set");
     }
     android_root += android_root_env_var;
   }
@@ -1074,7 +1074,7 @@ static int dex2oat(int argc, char** argv) {
   compiler->StripElf(oat_file.get());
 
   // We wrote the oat file successfully, and want to keep it.
-  LOG(INFO) << "Oat file written successfully (stripped): " << oat_stripped;
+  LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;
   return EXIT_SUCCESS;
 }
 
