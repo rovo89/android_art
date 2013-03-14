@@ -1230,6 +1230,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
           lir->operands[1] = disp;
         } else {
           // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
+          // TUNING: if this case fires often, it can be improved.  Not expected to be common.
           LIR *new_mov16L =
               RawLIR(cu, lir->dalvik_offset, kThumb2MovImm16LST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
@@ -1240,9 +1241,12 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
                      reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
           InsertLIRBefore(lir, new_mov16H);
-          lir->opcode = kThumb2AddRRR;
+          if (ARM_LOWREG(lir->operands[0])) {
+            lir->opcode = kThumbAddRRLH;
+          } else {
+            lir->opcode = kThumbAddRRHH;
+          }
           lir->operands[1] = rARM_PC;
-          lir->operands[2] = lir->operands[0];
           SetupResourceMasks(cu, lir);
           res = kRetryAll;
         }
