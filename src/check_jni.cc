@@ -2062,7 +2062,7 @@ class CheckJII {
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
     ScopedCheck sc(vm, true, __FUNCTION__);
-    sc.Check(true, "v", vm);
+    sc.Check(true, "vpI", vm);
     return CHECK_JNI_EXIT("I", BaseVm(vm)->GetEnv(vm, env, version));
   }
 

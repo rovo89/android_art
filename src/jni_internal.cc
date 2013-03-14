@@ -85,6 +85,11 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   return reinterpret_cast<jweak>(ref);
 }
 
+static bool IsBadJniVersion(int version) {
+  // We don't support JNI_VERSION_1_1. These are the only other valid versions.
+  return version != JNI_VERSION_1_2 && version != JNI_VERSION_1_4 && version != JNI_VERSION_1_6;
+}
+
 static void CheckMethodArguments(AbstractMethod* m, JValue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
@@ -377,10 +382,11 @@ static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, 
   const char* thread_name = NULL;
   jobject thread_group = NULL;
   if (args != NULL) {
-    if (args->version < JNI_VERSION_1_2) {
-      LOG(WARNING) << "Failed to AttachCurrentThread due to insufficent version "
-                   << std::hex << args->version << " < JNI_VERSION_1_2(" << JNI_VERSION_1_2 << ")";
-      return JNI_ERR;
+    if (IsBadJniVersion(args->version)) {
+      LOG(ERROR) << "Bad JNI version passed to "
+                 << (as_daemon ? "AttachCurrentThreadAsDaemon" : "AttachCurrentThread") << ": "
+                 << args->version;
+      return JNI_EVERSION;
     }
     thread_name = args->name;
     thread_group = args->group;
@@ -2555,7 +2561,8 @@ Offset JNIEnvExt::SegmentStateOffset() {
 
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
   const JavaVMInitArgs* args = static_cast<JavaVMInitArgs*>(vm_args);
-  if (args->version < JNI_VERSION_1_2) {
+  if (IsBadJniVersion(args->version)) {
+    LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
     return JNI_EVERSION;
   }
   Runtime::Options options;
@@ -2626,7 +2633,8 @@ class JII {
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
-    if (version < JNI_VERSION_1_1 || version > JNI_VERSION_1_6) {
+    if (IsBadJniVersion(version)) {
+      LOG(ERROR) << "Bad JNI version passed to GetEnv: " << version;
       return JNI_EVERSION;
     }
     if (vm == NULL || env == NULL) {
@@ -2833,11 +2841,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
     self->SetClassLoaderOverride(old_class_loader);
 
-    if (version != JNI_VERSION_1_2 &&
-    version != JNI_VERSION_1_4 &&
-    version != JNI_VERSION_1_6) {
-      LOG(WARNING) << "JNI_OnLoad in \"" << path << "\" returned "
-                   << "bad version: " << version;
+    if (IsBadJniVersion(version)) {
+      LOG(ERROR) << "Bad JNI version returned from JNI_OnLoad in \"" << path << "\": " << version;
       // It's unwise to call dlclose() here, but we can mark it
       // as bad and ensure that future load attempts will fail.
       // We don't know how far JNI_OnLoad got, so there could
