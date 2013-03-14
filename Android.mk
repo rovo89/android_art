@@ -274,15 +274,18 @@ OUT_OAT_FILE := $(PRODUCT_OUT)/$(1).oat
 endif
 
 ifeq ($(ONE_SHOT_MAKEFILE),)
+# ONE_SHOT_MAKEFILE is empty for a top level build and we don't want
+# to define the oat-target-* rules there because they will conflict
+# with the build/core/dex_preopt.mk defined rules.
 .PHONY: oat-target-$(1)
-oat-target-$(1): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
-	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$(OUT_OAT_FILE) --host-prefix=$(PRODUCT_OUT) --instruction-set=$(TARGET_ARCH) --android-root=$(PRODUCT_OUT)/system
+oat-target-$(1):
 
 else
 .PHONY: oat-target-$(1)
 oat-target-$(1): $$(OUT_OAT_FILE)
 
 $$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
+	@mkdir -p $$(dir $$@)
 	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT) --instruction-set=$(TARGET_ARCH) --android-root=$(PRODUCT_OUT)/system
 
 endif
