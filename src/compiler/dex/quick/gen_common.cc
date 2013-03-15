@@ -374,13 +374,13 @@ void Codegen::GenSput(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_sr
         FreeTemp(cu, rl_method.low_reg);
       }
     } else {
-      // Medium path, static storage base in a different class which
-      // requires checks that the other class is initialized.
+      // Medium path, static storage base in a different class which requires checks that the other
+      // class is initialized.
+      // TODO: remove initialized check now that we are initializing classes in the compiler driver.
       DCHECK_GE(ssb_index, 0);
       // May do runtime call so everything to home locations.
       FlushAllRegs(cu);
-      // Using fixed register to sync with possible call to runtime
-      // support.
+      // Using fixed register to sync with possible call to runtime support.
       int r_method = TargetReg(kArg1);
       LockTemp(cu, r_method);
       LoadCurrMethodDirect(cu, r_method);
@@ -462,13 +462,13 @@ void Codegen::GenSget(CompilationUnit* cu, uint32_t field_idx, RegLocation rl_de
       LoadWordDisp(cu, rl_method.low_reg,
                    mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), rBase);
     } else {
-      // Medium path, static storage base in a different class which
-      // requires checks that the other class is initialized
+      // Medium path, static storage base in a different class which requires checks that the other
+      // class is initialized
+      // TODO: remove initialized check now that we are initializing classes in the compiler driver.
       DCHECK_GE(ssb_index, 0);
       // May do runtime call so everything to home locations.
       FlushAllRegs(cu);
-      // Using fixed register to sync with possible call to runtime
-      // support
+      // Using fixed register to sync with possible call to runtime support.
       int r_method = TargetReg(kArg1);
       LockTemp(cu, r_method);
       LoadCurrMethodDirect(cu, r_method);
