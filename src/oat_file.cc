@@ -131,7 +131,6 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
 
   char* absolute_path = realpath(elf_filename.c_str(), NULL);
   if (absolute_path == NULL) {
-    PLOG(WARNING) << "Failed to create absolute path for " << elf_filename;
     return false;
   }
   dlopen_handle_ = dlopen(absolute_path, RTLD_NOW);
