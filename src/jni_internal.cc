@@ -85,6 +85,11 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
   return reinterpret_cast<jweak>(ref);
 }
 
+static bool IsBadJniVersion(int version) {
+  // We don't support JNI_VERSION_1_1. These are the only other valid versions.
+  return version != JNI_VERSION_1_2 && version != JNI_VERSION_1_4 && version != JNI_VERSION_1_6;
+}
+
 static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
