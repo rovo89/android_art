@@ -494,7 +494,11 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   // Zygote resulting in it being prematurely freed.
   // We can only do this for primive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
-  if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
+  //
+  // TODO: note "false && " to temporarily disable large object space
+  // due to issues on occam and mantaray.  We were seeing objects in
+  // the large object space with NULL klass_ fields.
+  if (false && byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
     size = RoundUp(byte_count, kPageSize);
     obj = Allocate(self, large_object_space_.get(), size);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
