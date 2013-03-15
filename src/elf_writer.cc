@@ -116,6 +116,16 @@ void ElfWriter::Init() {
   // TODO: should this just be set if kIsDebugBuild?
   linker_config_->options().setNoUndefined(true);
 
+  if (compiler_driver_->GetInstructionSet() == kMips) {
+     // MCLinker defaults MIPS section alignment to 0x10000, not
+     // 0x1000.  The ABI says this is because the max page size is
+     // general is 64k but that isn't true on Android.
+     mcld::ZOption z_option;
+     z_option.setKind(mcld::ZOption::MaxPageSize);
+     z_option.setPageSize(kPageSize);
+     linker_config_->options().addZOption(z_option);
+  }
+
   // TODO: Wire up mcld DiagnosticEngine to LOG?
   linker_config_->options().setColor(false);
   if (false) {
@@ -462,13 +472,32 @@ bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
   return true;
 }
 
+// MIPS seems to break the rules d_val vs d_ptr even though their values are between DT_LOPROC and DT_HIPROC
+#define DT_MIPS_RLD_VERSION  0x70000001 // d_val
+#define DT_MIPS_TIME_STAMP   0x70000002 // d_val
+#define DT_MIPS_ICHECKSUM    0x70000003 // d_val
+#define DT_MIPS_IVERSION     0x70000004 // d_val
+#define DT_MIPS_FLAGS        0x70000005 // d_val
+#define DT_MIPS_BASE_ADDRESS 0x70000006 // d_ptr
+#define DT_MIPS_CONFLICT     0x70000008 // d_ptr
+#define DT_MIPS_LIBLIST      0x70000009 // d_ptr
+#define DT_MIPS_LOCAL_GOTNO  0x7000000A // d_val
+#define DT_MIPS_CONFLICTNO   0x7000000B // d_val
+#define DT_MIPS_LIBLISTNO    0x70000010 // d_val
+#define DT_MIPS_SYMTABNO     0x70000011 // d_val
+#define DT_MIPS_UNREFEXTNO   0x70000012 // d_val
+#define DT_MIPS_GOTSYM       0x70000013 // d_val
+#define DT_MIPS_HIPAGENO     0x70000014 // d_val
+#define DT_MIPS_RLD_MAP      0x70000016 // d_ptr
+
 bool ElfWriter::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
   // TODO: C++0x auto.
   for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetDynamicNum(); i++) {
     ::llvm::ELF::Elf32_Dyn& elf_dyn = elf_file.GetDynamic(i);
+    ::llvm::ELF::Elf32_Word d_tag = elf_dyn.d_tag;
     bool elf_dyn_needs_fixup = false;
-    // case 1: if Elf32_Dyn.d_tag implies Elf32_Dyn.d_un contains an address in d_ptr
-    switch (elf_dyn.d_tag) {
+    switch (d_tag) {
+      // case 1: well known d_tag values that imply Elf32_Dyn.d_un contains an address in d_ptr
       case ::llvm::ELF::DT_PLTGOT:
       case ::llvm::ELF::DT_HASH:
       case ::llvm::ELF::DT_STRTAB:
@@ -479,13 +508,79 @@ bool ElfWriter::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
       case ::llvm::ELF::DT_REL:
       case ::llvm::ELF::DT_DEBUG:
       case ::llvm::ELF::DT_JMPREL: {
-          elf_dyn_needs_fixup = true;
+        elf_dyn_needs_fixup = true;
+        break;
+      }
+      // d_val or ignored values
+      case ::llvm::ELF::DT_NULL:
+      case ::llvm::ELF::DT_NEEDED:
+      case ::llvm::ELF::DT_PLTRELSZ:
+      case ::llvm::ELF::DT_RELASZ:
+      case ::llvm::ELF::DT_RELAENT:
+      case ::llvm::ELF::DT_STRSZ:
+      case ::llvm::ELF::DT_SYMENT:
+      case ::llvm::ELF::DT_SONAME:
+      case ::llvm::ELF::DT_RPATH:
+      case ::llvm::ELF::DT_SYMBOLIC:
+      case ::llvm::ELF::DT_RELSZ:
+      case ::llvm::ELF::DT_RELENT:
+      case ::llvm::ELF::DT_PLTREL:
+      case ::llvm::ELF::DT_TEXTREL:
+      case ::llvm::ELF::DT_BIND_NOW:
+      case ::llvm::ELF::DT_INIT_ARRAYSZ:
+      case ::llvm::ELF::DT_FINI_ARRAYSZ:
+      case ::llvm::ELF::DT_RUNPATH:
+      case ::llvm::ELF::DT_FLAGS: {
+        break;
+      }
+      // boundary values that should not be used
+      case ::llvm::ELF::DT_ENCODING:
+      case ::llvm::ELF::DT_LOOS:
+      case ::llvm::ELF::DT_HIOS:
+      case ::llvm::ELF::DT_LOPROC:
+      case ::llvm::ELF::DT_HIPROC: {
+        LOG(FATAL) << "Illegal d_tag value 0x" << std::hex << d_tag;
         break;
       }
       default: {
-        // case 2: if d_tag is even and greater than  > DT_ENCODING
-        if ((elf_dyn.d_tag > ::llvm::ELF::DT_ENCODING) && ((elf_dyn.d_tag % 2) == 0)) {
-          elf_dyn_needs_fixup = true;
+        // case 2: "regular" DT_* ranges where even d_tag values imply an address in d_ptr
+        if ((::llvm::ELF::DT_ENCODING  < d_tag && d_tag < ::llvm::ELF::DT_LOOS)
+            || (::llvm::ELF::DT_LOOS   < d_tag && d_tag < ::llvm::ELF::DT_HIOS)
+            || (::llvm::ELF::DT_LOPROC < d_tag && d_tag < ::llvm::ELF::DT_HIPROC)) {
+          // Special case for MIPS which breaks the regular rules between DT_LOPROC and DT_HIPROC
+          if (elf_file.GetHeader().e_machine == ::llvm::ELF::EM_MIPS) {
+            switch (d_tag) {
+              case DT_MIPS_RLD_VERSION:
+              case DT_MIPS_TIME_STAMP:
+              case DT_MIPS_ICHECKSUM:
+              case DT_MIPS_IVERSION:
+              case DT_MIPS_FLAGS:
+              case DT_MIPS_LOCAL_GOTNO:
+              case DT_MIPS_CONFLICTNO:
+              case DT_MIPS_LIBLISTNO:
+              case DT_MIPS_SYMTABNO:
+              case DT_MIPS_UNREFEXTNO:
+              case DT_MIPS_GOTSYM:
+              case DT_MIPS_HIPAGENO: {
+                break;
+              }
+              case DT_MIPS_BASE_ADDRESS:
+              case DT_MIPS_CONFLICT:
+              case DT_MIPS_LIBLIST:
+              case DT_MIPS_RLD_MAP: {
+                elf_dyn_needs_fixup = true;
+                break;
+              }
+              default: {
+                LOG(FATAL) << "Unknown MIPS d_tag value 0x" << std::hex << d_tag;
+                break;
+              }
+            }
+          } else if ((elf_dyn.d_tag % 2) == 0) {
+            elf_dyn_needs_fixup = true;
+          }
+        } else {
+          LOG(FATAL) << "Unknown d_tag value 0x" << std::hex << d_tag;
         }
         break;
       }
