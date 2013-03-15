@@ -531,7 +531,7 @@ class WatchDog {
       std::string message(# call); \
       message += " failed for "; \
       message += reason; \
-      Die(message); \
+      Fatal(message); \
     } \
   } while (false)
 
@@ -572,22 +572,31 @@ class WatchDog {
     return NULL;
   }
 
-  static void Warn(const std::string& message) {
-    // TODO: Switch to LOG(WARNING) when we can guarantee it won't prevent shutdown in error cases.
-    fprintf(stderr, "%s\n", message.c_str());
+  static void Message(char severity, const std::string& message) {
+    // TODO: Remove when we switch to LOG when we can guarantee it won't prevent shutdown in error cases.
+    fprintf(stderr, "dex2oat%s %c %d %d %s\n",
+            kIsDebugBuild ? "d" : "",
+            severity,
+            getpid(),
+            GetTid(),
+            message.c_str());
   }
 
-  static void Die(const std::string& message) {
-    // TODO: Switch to LOG(FATAL) when we can guarantee it won't prevent shutdown in error cases.
-    fprintf(stderr, "%s\n", message.c_str());
+  static void Warn(const std::string& message) {
+    Message('W', message);
+  }
+
+  static void Fatal(const std::string& message) {
+    Message('F', message);
     exit(1);
   }
 
   void Wait() {
     bool warning = true;
-    timespec warning_ts, timeout_ts;
     CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
+    timespec warning_ts;
     InitTimeSpec(true, CLOCK_REALTIME, kWatchDogWarningSeconds * 1000, 0, &warning_ts);
+    timespec timeout_ts;
     InitTimeSpec(true, CLOCK_REALTIME, kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
@@ -603,22 +612,24 @@ class WatchDog {
           Warn(message.c_str());
           warning = false;
         } else {
-          Die(message.c_str());
+          Fatal(message.c_str());
         }
       } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
                                          strerror(errno)));
-        Die(message.c_str());
+        Fatal(message.c_str());
       }
     }
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_unlock, (&mutex_), reason);
   }
 
-  static const unsigned int kWatchDogWarningSeconds = 1 * 60;  // 1 minute.
-#ifdef ART_USE_PORTABLE_COMPILER
+  // When setting timeouts, keep in mind that the build server may not be as fast as your desktop.
+#if ART_USE_PORTABLE_COMPILER
+  static const unsigned int kWatchDogWarningSeconds =  2 * 60;  // 2 minutes.
   static const unsigned int kWatchDogTimeoutSeconds = 30 * 60;  // 25 minutes + buffer.
 #else
-  static const unsigned int kWatchDogTimeoutSeconds = 3 * 60;  // 2 minutes + buffer.
+  static const unsigned int kWatchDogWarningSeconds =  1 * 60;  // 1 minute.
+  static const unsigned int kWatchDogTimeoutSeconds =  6 * 60;  // 5 minutes + buffer.
 #endif
 
   bool is_watch_dog_enabled_;
