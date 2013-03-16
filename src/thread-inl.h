@@ -124,6 +124,13 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
   return static_cast<ThreadState>(old_state);
 }
 
+inline void Thread::VerifyStack() {
+  Heap* heap = Runtime::Current()->GetHeap();
+  if (heap->IsObjectValidationEnabled()) {
+    VerifyStackImpl();
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_SRC_THREAD_INL_H_

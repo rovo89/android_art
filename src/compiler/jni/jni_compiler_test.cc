@@ -25,6 +25,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"

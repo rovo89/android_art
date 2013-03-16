@@ -34,11 +34,6 @@
 #include "safe_map.h"
 #include "thread_pool.h"
 
-#define VERIFY_OBJECT_ENABLED 0
-
-// Fast verification means we do not verify the classes of objects.
-#define VERIFY_OBJECT_FAST 1
-
 namespace art {
 namespace mirror {
 class Class;
@@ -80,6 +75,15 @@ enum GcCause {
 };
 std::ostream& operator<<(std::ostream& os, const GcCause& policy);
 
+// How we want to sanity check the heap's correctness.
+enum HeapVerificationMode {
+  kHeapVerificationNotPermitted,  // Too early in runtime start-up for heap to be verified.
+  kNoHeapVerification,  // Production default.
+  kVerifyAllFast,  // Sanity check all heap accesses with quick(er) tests.
+  kVerifyAll  // Sanity check all heap accesses.
+};
+const HeapVerificationMode kDesiredHeapVerification = kNoHeapVerification;
+
 class Heap {
  public:
   static const size_t kDefaultInitialSize = 2 * MB;
@@ -106,14 +110,15 @@ class Heap {
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Check sanity of given reference. Requires the heap lock.
-#if VERIFY_OBJECT_ENABLED
-  void VerifyObject(const mirror::Object* o);
-#else
-  void VerifyObject(const mirror::Object*) {}
-#endif
+  // The given reference is believed to be to an object in the Java heap, check the soundness of it.
+  void VerifyObjectImpl(const mirror::Object* o);
+  void VerifyObject(const mirror::Object* o) {
+    if (o != NULL && this != NULL && verify_object_mode_ > kNoHeapVerification) {
+      VerifyObjectImpl(o);
+    }
+  }
 
-  // Check sanity of all live references. Requires the heap lock.
+  // Check sanity of all live references.
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   static void RootMatchesObjectVisitor(const mirror::Object* root, void* arg);
   bool VerifyHeapReferences()
@@ -219,19 +224,23 @@ class Heap {
     return finalizer_reference_zombie_offset_;
   }
 
+  // Enable verification of object references when the runtime is sufficiently initialized.
   void EnableObjectValidation() {
-#if VERIFY_OBJECT_ENABLED
-    VerifyHeap();
-#endif
-    verify_objects_ = true;
+    verify_object_mode_ = kDesiredHeapVerification;
+    if (verify_object_mode_ > kNoHeapVerification) {
+      VerifyHeap();
+    }
   }
 
+  // Disable object reference verification for image writing.
   void DisableObjectValidation() {
-    verify_objects_ = false;
+    verify_object_mode_ = kHeapVerificationNotPermitted;
   }
 
+  // Other checks may be performed if we know the heap should be in a sane state.
   bool IsObjectValidationEnabled() const {
-    return verify_objects_;
+    return kDesiredHeapVerification > kNoHeapVerification &&
+        verify_object_mode_ > kHeapVerificationNotPermitted;
   }
 
   void RecordFree(size_t freed_objects, size_t freed_bytes);
@@ -532,7 +541,9 @@ class Heap {
   const bool measure_allocation_time_;
   AtomicInteger total_allocation_time_;
 
-  bool verify_objects_;
+  // The current state of heap verification, may be enabled or disabled.
+  HeapVerificationMode verify_object_mode_;
+
   typedef std::vector<MarkSweep*> Collectors;
   Collectors mark_sweep_collectors_;
 

@@ -193,7 +193,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_wait_time_(0),
       measure_allocation_time_(false),
       total_allocation_time_(0),
-      verify_objects_(false) {
+      verify_object_mode_(kHeapVerificationNotPermitted) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
@@ -588,15 +588,13 @@ bool Heap::IsLiveObjectLocked(const mirror::Object* obj) {
   return IsHeapAddress(obj) && GetLiveBitmap()->Test(obj);
 }
 
-#if VERIFY_OBJECT_ENABLED
-void Heap::VerifyObject(const Object* obj) {
-  if (obj == NULL || this == NULL || !verify_objects_ || Thread::Current() == NULL ||
+void Heap::VerifyObjectImpl(const mirror::Object* obj) {
+  if (Thread::Current() == NULL ||
       Runtime::Current()->GetThreadList()->GetLockOwner() == Thread::Current()->GetTid()) {
     return;
   }
   VerifyObjectBody(obj);
 }
-#endif
 
 void Heap::DumpSpaces() {
   // TODO: C++0x auto
@@ -633,7 +631,7 @@ void Heap::VerifyObjectBody(const mirror::Object* obj) {
   }
 
   // Ignore early dawn of the universe verifications
-  if (!VERIFY_OBJECT_FAST && GetObjectsAllocated() > 10) {
+  if (verify_object_mode_ != kVerifyAllFast && GetObjectsAllocated() > 10) {
     const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
         mirror::Object::ClassOffset().Int32Value();
     const mirror::Class* c = *reinterpret_cast<mirror::Class* const *>(raw_addr);
@@ -1459,7 +1457,7 @@ void Heap::SwapStacks() {
   allocation_stack_.swap(live_stack_);
 
   // Sort the live stack so that we can quickly binary search it later.
-  if (VERIFY_OBJECT_ENABLED) {
+  if (verify_object_mode_ > kNoHeapVerification) {
     std::sort(live_stack_->Begin(), live_stack_->End());
   }
 }

@@ -19,6 +19,7 @@
 #include "dex_cache.h"
 #include "heap.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "sirt_ref.h"
 
 #include <stdio.h>

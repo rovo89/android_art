@@ -17,7 +17,7 @@
 #include "base/logging.h"
 #include "instrumentation.h"
 #include "runtime.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "trace.h"
 
 namespace art {

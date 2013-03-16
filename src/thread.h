@@ -401,11 +401,7 @@ class PACKED(4) Thread {
   void VerifyRoots(VerifyRootVisitor* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-#if VERIFY_OBJECT_ENABLED
   void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-#else
-  void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){}
-#endif
 
   //
   // Offsets of various members of native Thread class, used by compiled code.
@@ -609,6 +605,8 @@ class PACKED(4) Thread {
     return old_state;
   }
   friend class SignalCatcher;  // For SetStateUnsafe.
+
+  void VerifyStackImpl() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpState(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpStack(std::ostream& os) const

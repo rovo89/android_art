@@ -18,7 +18,7 @@
 #define ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
 
 #include "base/mutex.h"
-#include "thread.h"
+#include "thread-inl.h"
 
 namespace art {
 namespace mirror {

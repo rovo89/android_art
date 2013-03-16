@@ -2009,20 +2009,17 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
   ReleaseLongJumpContext(context);
 }
 
-#if VERIFY_OBJECT_ENABLED
-static void VerifyObject(const Object* obj, void* arg) {
+static void VerifyObject(const mirror::Object* root, void* arg) {
   Heap* heap = reinterpret_cast<Heap*>(arg);
-  heap->VerifyObject(obj);
+  heap->VerifyObject(root);
 }
 
-void Thread::VerifyStack() {
+void Thread::VerifyStackImpl() {
   UniquePtr<Context> context(Context::Create());
   RootCallbackVisitor visitorToCallback(VerifyObject, Runtime::Current()->GetHeap());
-  ReferenceMapVisitor<RootCallbackVisitor> mapper(GetManagedStack(), GetInstrumentationStack(),
-                                                  context.get(), visitorToCallback);
+  ReferenceMapVisitor<RootCallbackVisitor> mapper(this, context.get(), visitorToCallback);
   mapper.WalkStack();
 }
-#endif
 
 // Set the stack end to that to be used during a stack overflow
 void Thread::SetStackEndForStackOverflow() {
