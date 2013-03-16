@@ -479,8 +479,9 @@ ENTRY art_quick_invoke_stub
     sw    $v0, 0($t0)           # store the result
     sw    $v1, 4($t0)           # store the other half of the result
     lw    $t0, 20($sp)          # get floating point result pointer
+    s.s   $f0, 0($t0)           # store floating point result
     jr    $ra
-    s.d   $f0, 0($t0)           # store floating point result
+    s.s   $f1, 4($t0)           # store other half of floating point result
 END art_quick_invoke_stub
 
     /*
