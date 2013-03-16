@@ -17,6 +17,7 @@
 #include "context_arm.h"
 
 #include "mirror/abstract_method.h"
+#include "mirror/object-inl.h"
 #include "stack.h"
 #include "thread.h"
 

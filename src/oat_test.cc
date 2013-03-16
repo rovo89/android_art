@@ -17,6 +17,7 @@
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "oat_file.h"
 #include "oat_writer.h"
 #include "vector_output_stream.h"

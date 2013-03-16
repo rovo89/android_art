@@ -58,6 +58,8 @@ class Throwable;
 #define OFFSET_OF_OBJECT_MEMBER(type, field) \
     MemberOffset(OFFSETOF_MEMBER(type, field))
 
+const bool kCheckFieldAssignments = false;
+
 // C++ mirror of java.lang.Object
 class MANAGED Object {
  public:
@@ -231,15 +233,17 @@ class MANAGED Object {
   }
 
  private:
-#if VERIFY_OBJECT_ENABLED
   static void VerifyObject(const Object* obj);
-  void CheckFieldAssignment(MemberOffset field_offset, const Object* new_value)
+
+  // Verify the type correctness of stores to fields.
+  void CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-#else
-  static void VerifyObject(const Object*) {}
-  void CheckFieldAssignment(MemberOffset, const Object*)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {}
-#endif
+  void CheckFieldAssignment(MemberOffset field_offset, const Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (kCheckFieldAssignments) {
+      CheckFieldAssignmentImpl(field_offset, new_value);
+    }
+  }
 
   // Write barrier called post update to a reference bearing field.
   static void WriteBarrierField(const Object* dst, MemberOffset offset, const Object* new_value);

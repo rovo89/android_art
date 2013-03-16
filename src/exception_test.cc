@@ -19,6 +19,7 @@
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"

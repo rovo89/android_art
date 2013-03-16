@@ -19,13 +19,15 @@
 #include "array-inl.h"
 #include "class.h"
 #include "class-inl.h"
+#include "class_linker-inl.h"
 #include "field.h"
 #include "field-inl.h"
 #include "gc/card_table-inl.h"
 #include "heap.h"
+#include "iftable-inl.h"
 #include "monitor.h"
 #include "object-inl.h"
-#include "object_array.h"
+#include "object_array-inl.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "sirt_ref.h"
@@ -80,8 +82,7 @@ Object* Object::Clone(Thread* self) {
   return copy.get();
 }
 
-#if VERIFY_OBJECT_ENABLED
-void Object::CheckFieldAssignment(MemberOffset field_offset, const Object* new_value) {
+void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value) {
   const Class* c = GetClass();
   if (Runtime::Current()->GetClassLinker() == NULL ||
       !Runtime::Current()->GetHeap()->IsObjectValidationEnabled() ||
@@ -123,7 +124,6 @@ void Object::CheckFieldAssignment(MemberOffset field_offset, const Object* new_v
   LOG(FATAL) << "Failed to find field for assignment to " << reinterpret_cast<void*>(this)
       << " of type " << PrettyDescriptor(c) << " at offset " << field_offset;
 }
-#endif
 
 }  // namespace mirror
 }  // namespace art

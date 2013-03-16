@@ -263,6 +263,10 @@ inline void Object::WriteBarrierField(const Object* dst, MemberOffset field_offs
   Runtime::Current()->GetHeap()->WriteBarrierField(dst, field_offset, new_value);
 }
 
+inline void Object::VerifyObject(const Object* obj) {
+  Runtime::Current()->GetHeap()->VerifyObject(obj);
+}
+
 }  // namespace mirror
 }  // namespace art
 
