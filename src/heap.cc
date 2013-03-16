@@ -244,7 +244,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
 
   // Allocate the large object space.
-  large_object_space_.reset(FreeListSpace::Create("large object space", NULL, capacity));
+  const bool kUseFreeListSpaceForLOS  = false;
+  if (kUseFreeListSpaceForLOS) {
+    large_object_space_.reset(FreeListSpace::Create("large object space", NULL, capacity));
+  } else {
+    large_object_space_.reset(LargeObjectMapSpace::Create("large object space"));
+  }
   live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
   mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
@@ -494,11 +499,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   // Zygote resulting in it being prematurely freed.
   // We can only do this for primive objects since large objects will not be within the card table
   // range. This also means that we rely on SetClass not dirtying the object's card.
-  //
-  // TODO: note "false && " to temporarily disable large object space
-  // due to issues on occam and mantaray.  We were seeing objects in
-  // the large object space with NULL klass_ fields.
-  if (false && byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
+  if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
     size = RoundUp(byte_count, kPageSize);
     obj = Allocate(self, large_object_space_.get(), size);
     // Make sure that our large object didn't get placed anywhere within the space interval or else
