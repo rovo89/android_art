@@ -201,6 +201,9 @@ size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
   CHECK(!chunk->IsFree());
 
   size_t allocation_size = chunk->GetSize();
+  if (kIsDebugBuild) {
+    memset(obj, 0xEB, allocation_size);
+  }
   madvise(obj, allocation_size, MADV_DONTNEED);
   num_objects_allocated_--;
   num_bytes_allocated_ -= allocation_size;

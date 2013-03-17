@@ -26,6 +26,7 @@
 namespace art {
 class SpaceSetMap;
 
+// Abstraction implemented by all large object spaces.
 class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
  public:
   virtual bool CanAllocateInto() const {
@@ -87,9 +88,9 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   friend class Space;
 };
 
+// A discontinuous large object space implemented by individual mmap/munmap calls.
 class LargeObjectMapSpace : public LargeObjectSpace {
  public:
-
   // Creates a large object space. Allocations into the large object space use memory maps instead
   // of malloc.
   static LargeObjectMapSpace* Create(const std::string& name);
@@ -105,24 +106,25 @@ private:
   virtual ~LargeObjectMapSpace() {}
 
   // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
-  mutable Mutex lock_;
-  std::vector<mirror::Object*> large_objects_;
+  mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::vector<mirror::Object*> large_objects_ GUARDED_BY(lock_);
   typedef SafeMap<mirror::Object*, MemMap*> MemMaps;
-  MemMaps mem_maps_;
+  MemMaps mem_maps_ GUARDED_BY(lock_);
 };
 
+// A continuous large object space with a free-list to handle holes.
 class FreeListSpace : public LargeObjectSpace {
  public:
   virtual ~FreeListSpace();
   static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
 
-  size_t AllocationSize(const mirror::Object* obj);
+  size_t AllocationSize(const mirror::Object* obj) EXCLUSIVE_LOCKS_REQUIRED(lock_);
   mirror::Object* Alloc(Thread* self, size_t num_bytes);
   size_t Free(Thread* self, mirror::Object* obj);
   bool Contains(const mirror::Object* obj) const;
   void Walk(DlMallocSpace::WalkCallback callback, void* arg);
 
-  // Address at which the space begins
+  // Address at which the space begins.
   byte* Begin() const {
     return begin_;
   }
@@ -179,19 +181,19 @@ class FreeListSpace : public LargeObjectSpace {
   };
 
   FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end);
-  void AddFreeChunk(void* address, size_t size, Chunk* previous);
-  Chunk* ChunkFromAddr(void* address);
-  void* AddrFromChunk(Chunk* chunk);
-  void RemoveFreeChunk(Chunk* chunk);
+  void AddFreeChunk(void* address, size_t size, Chunk* previous) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  Chunk* ChunkFromAddr(void* address) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void* AddrFromChunk(Chunk* chunk) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void RemoveFreeChunk(Chunk* chunk) EXCLUSIVE_LOCKS_REQUIRED(lock_);
   Chunk* GetNextChunk(Chunk* chunk);
 
   typedef std::multiset<Chunk*, Chunk::SortBySize> FreeChunks;
-  byte* begin_;
-  byte* end_;
+  byte* const begin_;
+  byte* const end_;
   UniquePtr<MemMap> mem_map_;
-  Mutex lock_;
-  std::vector<Chunk> chunks_;
-  FreeChunks free_chunks_;
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::vector<Chunk> chunks_ GUARDED_BY(lock_);
+  FreeChunks free_chunks_ GUARDED_BY(lock_);
 };
 
 }
