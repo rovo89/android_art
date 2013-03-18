@@ -75,197 +75,130 @@ class ArgArray {
   void BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    size_t offset = 0;
     if (receiver != NULL) {
-      arg_array_[0] = reinterpret_cast<int32_t>(receiver);
-      offset++;
+      Append(reinterpret_cast<int32_t>(receiver));
     }
-    for (size_t i = 1; i < shorty_len_; ++i, ++offset) {
+    for (size_t i = 1; i < shorty_len_; ++i) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset] = va_arg(ap, jint);
-          break;
         case 'B':
-          arg_array_[offset] = va_arg(ap, jint);
-          break;
         case 'C':
-          arg_array_[offset] = va_arg(ap, jint);
-          break;
         case 'S':
-          arg_array_[offset] = va_arg(ap, jint);
-          break;
         case 'I':
-          arg_array_[offset] = va_arg(ap, jint);
+          Append(va_arg(ap, jint));
           break;
         case 'F': {
           JValue value;
           value.SetF(va_arg(ap, jdouble));
-          arg_array_[offset] = value.GetI();
+          Append(value.GetI());
           break;
         }
         case 'L':
-          arg_array_[offset] = reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(va_arg(ap, jobject)));
+          Append(reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(va_arg(ap, jobject))));
           break;
         case 'D': {
           JValue value;
           value.SetD(va_arg(ap, jdouble));
-          arg_array_[offset] = value.GetJ();
-          arg_array_[offset + 1] = value.GetJ() >> 32;
-          offset++;
+          AppendWide(value.GetJ());
           break;
         }
         case 'J': {
-          long long l = va_arg(ap, jlong);
-          arg_array_[offset] = l;
-          arg_array_[offset + 1] = l >> 32;
-          offset++;
+          AppendWide(va_arg(ap, jlong));
           break;
         }
       }
     }
-    num_bytes_ += 4 * offset;
   }
 
   void BuildArgArray(const ScopedObjectAccess& soa, mirror::Object* receiver, jvalue* args)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    size_t offset = 0;
     if (receiver != NULL) {
-      arg_array_[0] = reinterpret_cast<int32_t>(receiver);
-      offset++;
+      Append(reinterpret_cast<int32_t>(receiver));
     }
-    for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++offset, ++args_offset) {
+    for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++args_offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset] = args[args_offset].z;
+          Append(args[args_offset].z);
           break;
         case 'B':
-          arg_array_[offset] = args[args_offset].b;
+          Append(args[args_offset].b);
           break;
         case 'C':
-          arg_array_[offset] = args[args_offset].c;
+          Append(args[args_offset].c);
           break;
         case 'S':
-          arg_array_[offset] = args[args_offset].s;
+          Append(args[args_offset].s);
           break;
         case 'I':
-          arg_array_[offset] = args[args_offset].i;
-          break;
         case 'F':
-          arg_array_[offset] = args[args_offset].i;
+          Append(args[args_offset].i);
           break;
         case 'L':
-          arg_array_[offset] = reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(args[args_offset].l));
+          Append(reinterpret_cast<int32_t>(soa.Decode<mirror::Object*>(args[args_offset].l)));
           break;
         case 'D':
-          arg_array_[offset] = args[args_offset].j;
-          arg_array_[offset + 1] = args[args_offset].j >> 32;
-          offset++;
-          break;
         case 'J':
-          arg_array_[offset] = args[args_offset].j;
-          arg_array_[offset + 1] = args[args_offset].j >> 32;
-          offset++;
+          AppendWide(args[args_offset].j);
           break;
       }
     }
-    num_bytes_ += 4 * offset;
   }
 
   void BuildArgArray(const ShadowFrame& shadow_frame, mirror::Object* receiver, uint32_t range_start)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    size_t offset = 0;
     if (receiver != NULL) {
-      arg_array_[0] = reinterpret_cast<int32_t>(receiver);
-      offset++;
+      Append(reinterpret_cast<int32_t>(receiver));
     }
-    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++offset, ++reg_offset) {
+    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++reg_offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
-          break;
         case 'B':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
-          break;
         case 'C':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
-          break;
         case 'S':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
-          break;
         case 'I':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
-          break;
         case 'F':
-          arg_array_[offset] = shadow_frame.GetVReg(range_start + reg_offset);
+          Append(shadow_frame.GetVReg(range_start + reg_offset));
           break;
         case 'L':
-          arg_array_[offset] = reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(range_start + reg_offset));
+          Append(reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(range_start + reg_offset)));
           break;
         case 'D':
-          arg_array_[offset] = shadow_frame.GetVRegLong(range_start + reg_offset);
-          arg_array_[offset + 1] = shadow_frame.GetVRegLong(range_start + reg_offset) >> 32;
-          reg_offset++;
-          offset++;
-          break;
         case 'J':
-          arg_array_[offset] = shadow_frame.GetVRegLong(range_start + reg_offset);
-          arg_array_[offset + 1] = shadow_frame.GetVRegLong(range_start + reg_offset) >> 32;
+          AppendWide(shadow_frame.GetVRegLong(range_start + reg_offset));
           reg_offset++;
-          offset++;
           break;
       }
     }
-    num_bytes_ += 4 * offset;
   }
 
   void BuildArgArray(const ShadowFrame& shadow_frame, mirror::Object* receiver, const uint32_t* arg_regs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Set receiver if non-null (method is not static)
-    size_t offset = 0;
     if (receiver != NULL) {
-      arg_array_[0] = reinterpret_cast<int32_t>(receiver);
-      offset++;
+      Append(reinterpret_cast<int32_t>(receiver));
     }
-    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++offset, ++reg_offset) {
+    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++reg_offset) {
       switch (shorty_[i]) {
         case 'Z':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
-          break;
         case 'B':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
-          break;
         case 'C':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
-          break;
         case 'S':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
-          break;
         case 'I':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
-          break;
         case 'F':
-          arg_array_[offset] = shadow_frame.GetVReg(arg_regs[reg_offset]);
+          Append(shadow_frame.GetVReg(arg_regs[reg_offset]));
           break;
         case 'L':
-          arg_array_[offset] = reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(arg_regs[reg_offset]));
+          Append(reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(arg_regs[reg_offset])));
           break;
         case 'D':
-          arg_array_[offset] = shadow_frame.GetVRegLong(arg_regs[reg_offset]);
-          arg_array_[offset + 1] = shadow_frame.GetVRegLong(arg_regs[reg_offset]) >> 32;
-          offset++;
-          reg_offset++;
-          break;
         case 'J':
-          arg_array_[offset] = shadow_frame.GetVRegLong(arg_regs[reg_offset]);
-          arg_array_[offset + 1] = shadow_frame.GetVRegLong(arg_regs[reg_offset]) >> 32;
-          offset++;
+          AppendWide(shadow_frame.GetVRegLong(arg_regs[reg_offset]));
           reg_offset++;
           break;
       }
     }
-    num_bytes_ += 4 * offset;
   }
 
  private:
