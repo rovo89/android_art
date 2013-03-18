@@ -15,6 +15,7 @@
  */
 
 #include "compiler_internals.h"
+#include "dex_file-inl.h"
 
 namespace art {
 

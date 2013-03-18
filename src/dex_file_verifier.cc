@@ -17,6 +17,7 @@
 #include "dex_file_verifier.h"
 
 #include "base/stringprintf.h"
+#include "dex_file-inl.h"
 #include "leb128.h"
 #include "safe_map.h"
 #include "UniquePtr.h"

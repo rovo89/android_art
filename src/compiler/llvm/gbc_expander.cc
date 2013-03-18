@@ -16,6 +16,7 @@
 
 #include "compiler/driver/compiler_driver.h"
 #include "compiler/driver/dex_compilation_unit.h"
+#include "dex_file-inl.h"
 #include "intrinsic_helper.h"
 #include "ir_builder.h"
 #include "mirror/abstract_method.h"

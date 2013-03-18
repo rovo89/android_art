@@ -20,7 +20,7 @@
 #include "asm_support.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"

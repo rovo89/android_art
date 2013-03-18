@@ -22,6 +22,7 @@
 
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"

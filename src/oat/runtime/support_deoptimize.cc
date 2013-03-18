@@ -15,9 +15,12 @@
  */
 
 #include "callee_save_frame.h"
+#include "dex_file-inl.h"
 #include "interpreter/interpreter.h"
 #include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "stack.h"
 #include "thread.h"

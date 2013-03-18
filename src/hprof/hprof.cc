@@ -42,6 +42,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "globals.h"
 #include "heap.h"
 #include "mirror/class.h"

@@ -25,6 +25,7 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
+#include "dex_file-inl.h"
 #include "gc/card_table-inl.h"
 #include "gc/large_object_space.h"
 #include "gc/space.h"

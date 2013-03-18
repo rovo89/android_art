@@ -17,8 +17,9 @@
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "mirror/abstract_method-inl.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread_list.h"
 

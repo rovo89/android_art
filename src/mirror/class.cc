@@ -21,6 +21,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
+#include "dex_file-inl.h"
 #include "field-inl.h"
 #include "gc/card_table-inl.h"
 #include "object-inl.h"
@@ -81,10 +82,6 @@ void Class::SetStatus(Status new_status) {
     self->SetException(exception.get());
   }
   return SetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status, false);
-}
-
-DexCache* Class::GetDexCache() const {
-  return GetFieldObject<DexCache*>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
 }
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
@@ -300,10 +297,6 @@ bool Class::IsMethodClass() const {
   return (this == AbstractMethod::GetMethodClass()) ||
       (this == AbstractMethod::GetConstructorClass());
 
-}
-
-ClassLoader* Class::GetClassLoader() const {
-  return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
 
 void Class::SetClassLoader(ClassLoader* new_class_loader) {

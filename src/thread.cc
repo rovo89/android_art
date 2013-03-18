@@ -34,6 +34,7 @@
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "gc_map.h"
 #include "gc/card_table-inl.h"
 #include "heap.h"
@@ -1113,38 +1114,14 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
   mirror::Object* result;
-  switch (kind) {
-  case kLocal:
-    {
-      IndirectReferenceTable& locals = jni_env_->locals;
-      result = const_cast<mirror::Object*>(locals.Get(ref));
-      break;
-    }
-  case kGlobal:
-    {
-      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-      IndirectReferenceTable& globals = vm->globals;
-      MutexLock mu(const_cast<Thread*>(this), vm->globals_lock);
-      result = const_cast<mirror::Object*>(globals.Get(ref));
-      break;
-    }
-  case kWeakGlobal:
-    {
-      JavaVMExt* vm = Runtime::Current()->GetJavaVM();
-      IndirectReferenceTable& weak_globals = vm->weak_globals;
-      MutexLock mu(const_cast<Thread*>(this), vm->weak_globals_lock);
-      result = const_cast<mirror::Object*>(weak_globals.Get(ref));
-      if (result == kClearedJniWeakGlobal) {
-        // This is a special case where it's okay to return NULL.
-        return NULL;
-      }
-      break;
-    }
-  case kSirtOrInvalid:
-  default:
+  // The "kinds" below are sorted by the frequency we expect to encounter them.
+  if (kind == kLocal) {
+    IndirectReferenceTable& locals = jni_env_->locals;
+    result = const_cast<mirror::Object*>(locals.Get(ref));
+  } else if (kind == kSirtOrInvalid) {
     // TODO: make stack indirect reference table lookup more efficient
     // Check if this is a local reference in the SIRT
-    if (SirtContains(obj)) {
+    if (LIKELY(SirtContains(obj))) {
       result = *reinterpret_cast<mirror::Object**>(obj);  // Read from SIRT
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
@@ -1152,12 +1129,27 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     } else {
       result = kInvalidIndirectRefObject;
     }
+  } else if (kind == kGlobal) {
+    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    IndirectReferenceTable& globals = vm->globals;
+    MutexLock mu(const_cast<Thread*>(this), vm->globals_lock);
+    result = const_cast<mirror::Object*>(globals.Get(ref));
+  } else {
+    DCHECK_EQ(kind, kWeakGlobal);
+    JavaVMExt* vm = Runtime::Current()->GetJavaVM();
+    IndirectReferenceTable& weak_globals = vm->weak_globals;
+    MutexLock mu(const_cast<Thread*>(this), vm->weak_globals_lock);
+    result = const_cast<mirror::Object*>(weak_globals.Get(ref));
+    if (result == kClearedJniWeakGlobal) {
+      // This is a special case where it's okay to return NULL.
+      return NULL;
+    }
   }
 
-  if (result == NULL) {
+  if (UNLIKELY(result == NULL)) {
     JniAbortF(NULL, "use of deleted %s %p", ToStr<IndirectRefKind>(kind).c_str(), obj);
   } else {
-    if (result != kInvalidIndirectRefObject) {
+    if (kIsDebugBuild && (result != kInvalidIndirectRefObject)) {
       Runtime::Current()->GetHeap()->VerifyObject(result);
     }
   }

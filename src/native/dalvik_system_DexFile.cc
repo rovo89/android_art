@@ -18,7 +18,7 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gc/space.h"
 #include "image.h"
 #include "jni_internal.h"

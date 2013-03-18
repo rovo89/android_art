@@ -65,7 +65,7 @@ IndirectReferenceTable::~IndirectReferenceTable() {
 bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
   const mirror::Object* obj = table_[idx];
   IndirectRef checkRef = ToIndirectRef(obj, idx);
-  if (checkRef != iref) {
+  if (UNLIKELY(checkRef != iref)) {
     LOG(ERROR) << "JNI ERROR (app bug): attempt to " << what
                << " stale " << kind_ << " " << iref
                << " (should be " << checkRef << ")";
@@ -162,11 +162,11 @@ void IndirectReferenceTable::AssertEmpty() {
 // Verifies that the indirect table lookup is valid.
 // Returns "false" if something looks bad.
 bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
-  if (iref == NULL) {
+  if (UNLIKELY(iref == NULL)) {
     LOG(WARNING) << "Attempt to look up NULL " << kind_;
     return false;
   }
-  if (GetIndirectRefKind(iref) == kSirtOrInvalid) {
+  if (UNLIKELY(GetIndirectRefKind(iref) == kSirtOrInvalid)) {
     LOG(ERROR) << "JNI ERROR (app bug): invalid " << kind_ << " " << iref;
     AbortMaybe();
     return false;
@@ -174,20 +174,20 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
 
   int topIndex = segment_state_.parts.topIndex;
   int idx = ExtractIndex(iref);
-  if (idx >= topIndex) {
+  if (UNLIKELY(idx >= topIndex)) {
     LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " "
                << iref << " (index " << idx << " in a table of size " << topIndex << ")";
     AbortMaybe();
     return false;
   }
 
-  if (table_[idx] == NULL) {
+  if (UNLIKELY(table_[idx] == NULL)) {
     LOG(ERROR) << "JNI ERROR (app bug): accessed deleted " << kind_ << " " << iref;
     AbortMaybe();
     return false;
   }
 
-  if (!CheckEntry("use", iref, idx)) {
+  if (UNLIKELY(!CheckEntry("use", iref, idx))) {
     return false;
   }
 

@@ -27,6 +27,7 @@
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "leb128.h"
@@ -337,19 +338,6 @@ uint32_t DexFile::GetVersion() const {
   return atoi(version);
 }
 
-int32_t DexFile::GetStringLength(const StringId& string_id) const {
-  const byte* ptr = begin_ + string_id.string_data_off_;
-  return DecodeUnsignedLeb128(&ptr);
-}
-
-// Returns a pointer to the UTF-8 string data referred to by the given string_id.
-const char* DexFile::GetStringDataAndLength(const StringId& string_id, uint32_t* length) const {
-  DCHECK(length != NULL) << GetLocation();
-  const byte* ptr = begin_ + string_id.string_data_off_;
-  *length = DecodeUnsignedLeb128(&ptr);
-  return reinterpret_cast<const char*>(ptr);
-}
-
 void DexFile::InitIndex() {
   CHECK_EQ(index_.size(), 0U) << GetLocation();
   for (size_t i = 0; i < NumClassDefs(); ++i) {
@@ -619,12 +607,6 @@ int32_t DexFile::GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t
   DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
                   NULL, &context);
   return context.line_num_;
-}
-
-const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {
-  const uint16_t* insns_end_ = &code_item.insns_[code_item.insns_size_in_code_units_];
-  return reinterpret_cast<const TryItem*>
-      (RoundUp(reinterpret_cast<uint32_t>(insns_end_), 4)) + offset;
 }
 
 int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,

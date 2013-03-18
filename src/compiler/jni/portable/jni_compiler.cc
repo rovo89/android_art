@@ -26,6 +26,7 @@
 #include "compiler/llvm/llvm_compilation_unit.h"
 #include "compiler/llvm/runtime_support_func.h"
 #include "compiler/llvm/utils_llvm.h"
+#include "dex_file-inl.h"
 #include "mirror/abstract_method.h"
 #include "runtime.h"
 #include "stack.h"

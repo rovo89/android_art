@@ -33,7 +33,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "debugger.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gc/card_table-inl.h"
 #include "heap.h"
 #include "intern_table.h"

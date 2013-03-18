@@ -22,6 +22,7 @@
 #include "common_test.h"
 #include "invoke_arg_array_builder.h"
 #include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "ScopedLocalRef.h"

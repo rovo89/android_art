@@ -15,9 +15,10 @@
  */
 
 #include "argument_visitor.h"
+#include "dex_file-inl.h"
 #include "mirror/abstract_method-inl.h"
-#include "mirror/object.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime_support.h"

@@ -16,7 +16,9 @@
 
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "dex_file-inl.h"
 #include "jni_internal.h"
+#include "mirror/class-inl.h"
 #include "mirror/field.h"
 #include "mirror/field-inl.h"
 #include "object_utils.h"

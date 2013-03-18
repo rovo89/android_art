@@ -18,9 +18,11 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "gc_map.h"
 #include "mirror/abstract_method.h"
 #include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"

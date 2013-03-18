@@ -25,6 +25,7 @@
 #include "base/timing_logger.h"
 #include "class_linker.h"
 #include "dex_compilation_unit.h"
+#include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "oat_file.h"
 #include "oat/runtime/stub.h"
@@ -832,6 +833,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
 }
 
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+                                                   mirror::Class* referrer_class,
                                                    mirror::AbstractMethod* method,
                                                    uintptr_t& direct_code,
                                                    uintptr_t& direct_method) {
@@ -855,7 +857,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
     return;
   }
   bool has_clinit_trampoline = method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
-  if (has_clinit_trampoline) {
+  if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
+    // Ensure we run the clinit trampoline unless we are invoking a static method in the same class.
     return;
   }
   if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
@@ -930,14 +933,16 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilation
           CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
               << PrettyMethod(resolved_method);
           stats_->VirtualMadeDirect(type);
-          GetCodeAndMethodForDirectCall(type, kDirect, resolved_method, direct_code, direct_method);
+          GetCodeAndMethodForDirectCall(type, kDirect, referrer_class, resolved_method,
+                                        direct_code, direct_method);
           type = kDirect;
           return true;
         } else if (type == kSuper) {
           // Unsharpened super calls are suspicious so go slow-path.
         } else {
           stats_->ResolvedMethod(type);
-          GetCodeAndMethodForDirectCall(type, type, resolved_method, direct_code, direct_method);
+          GetCodeAndMethodForDirectCall(type, type, referrer_class, resolved_method,
+                                        direct_code, direct_method);
           return true;
         }
       }

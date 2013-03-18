@@ -19,8 +19,8 @@
 
 #include "abstract_method.h"
 
-#include "array.h"
 #include "dex_file.h"
+#include "object_array.h"
 #include "runtime.h"
 
 namespace art {
@@ -50,6 +50,27 @@ inline uint16_t AbstractMethod::GetMethodIndex() const {
 inline uint32_t AbstractMethod::GetDexMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_dex_index_), false);
+}
+
+inline ObjectArray<String>* AbstractMethod::GetDexCacheStrings() const {
+  return GetFieldObject<ObjectArray<String>*>(
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_), false);
+}
+
+inline ObjectArray<AbstractMethod>* AbstractMethod::GetDexCacheResolvedMethods() const {
+  return GetFieldObject<ObjectArray<AbstractMethod>*>(
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_), false);
+}
+
+inline ObjectArray<Class>* AbstractMethod::GetDexCacheResolvedTypes() const {
+  return GetFieldObject<ObjectArray<Class>*>(
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_), false);
+}
+
+inline ObjectArray<StaticStorageBase>* AbstractMethod::GetDexCacheInitializedStaticStorage() const {
+  return GetFieldObject<ObjectArray<StaticStorageBase>*>(
+      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
+      false);
 }
 
 inline uint32_t AbstractMethod::GetCodeSize() const {

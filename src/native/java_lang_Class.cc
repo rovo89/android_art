@@ -15,9 +15,10 @@
  */
 
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/proxy.h"

@@ -17,7 +17,7 @@
 #include "jobject_comparator.h"
 
 #include "mirror/array-inl.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 

@@ -15,8 +15,9 @@
  */
 
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "jni_internal.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"

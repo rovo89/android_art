@@ -26,6 +26,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "gc_map.h"

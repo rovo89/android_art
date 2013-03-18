@@ -16,6 +16,7 @@
 
 #include "jni_internal.h"
 #include "mirror/array.h"
+#include "mirror/object-inl.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "oat/runtime/stub.h"
 #include "oat/utils/x86/assembler_x86.h"

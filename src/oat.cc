@@ -74,11 +74,6 @@ const char* OatHeader::GetMagic() const {
   return reinterpret_cast<const char*>(magic_);
 }
 
-uint32_t OatHeader::GetDexFileCount() const {
-  DCHECK(IsValid());
-  return dex_file_count_;
-}
-
 uint32_t OatHeader::GetChecksum() const {
   CHECK(IsValid());
   return adler32_checksum_;

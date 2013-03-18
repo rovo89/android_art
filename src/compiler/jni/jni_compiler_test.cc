@@ -21,7 +21,7 @@
 #include "indirect_reference_table.h"
 #include "jni_internal.h"
 #include "mem_map.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"

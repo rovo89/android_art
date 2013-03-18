@@ -277,6 +277,7 @@ class CompilerDriver {
  private:
   // Compute constant code and method pointers when possible
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
+                                     mirror::Class* referrer_class,
                                      mirror::AbstractMethod* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

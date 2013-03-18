@@ -15,6 +15,7 @@
  */
 
 #include "compiler/dex/compiler_internals.h"
+#include "dex_file-inl.h"
 #include "gc_map.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"

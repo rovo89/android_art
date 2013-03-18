@@ -38,7 +38,10 @@ class PACKED(4) OatHeader {
   const char* GetMagic() const;
   uint32_t GetChecksum() const;
   void UpdateChecksum(const void* data, size_t length);
-  uint32_t GetDexFileCount() const;
+  uint32_t GetDexFileCount() const {
+    DCHECK(IsValid());
+    return dex_file_count_;
+  }
   uint32_t GetExecutableOffset() const;
   InstructionSet GetInstructionSet() const;
   void SetExecutableOffset(uint32_t executable_offset);

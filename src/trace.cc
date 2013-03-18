@@ -21,10 +21,13 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "instrumentation.h"
 #include "mirror/abstract_method-inl.h"
+#include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
+#include "mirror/object-inl.h"
 #if !defined(ART_USE_PORTABLE_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
 #endif

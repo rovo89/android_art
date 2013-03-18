@@ -22,6 +22,7 @@
 #include "compiler/llvm/llvm_compilation_unit.h"
 #endif
 #include "dataflow.h"
+#include "dex_file-inl.h"
 #include "ssa_transformation.h"
 #include "leb128.h"
 #include "mirror/object.h"

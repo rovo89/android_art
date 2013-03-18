@@ -17,6 +17,7 @@
 #include "context_x86.h"
 
 #include "mirror/abstract_method.h"
+#include "mirror/object-inl.h"
 #include "stack.h"
 
 namespace art {

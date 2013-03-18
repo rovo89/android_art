@@ -233,7 +233,7 @@ class MANAGED Object {
   }
 
  private:
-  static void VerifyObject(const Object* obj);
+  static void VerifyObject(const Object* obj) ALWAYS_INLINE;
 
   // Verify the type correctness of stores to fields.
   void CheckFieldAssignmentImpl(MemberOffset field_offset, const Object* new_value)

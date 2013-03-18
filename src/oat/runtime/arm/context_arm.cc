@@ -70,9 +70,9 @@ void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
 }
 
 void ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
-  CHECK_LT(reg, kNumberOfCoreRegisters);
-  CHECK_NE(gprs_[reg], &gZero); // Can't overwrite this static value since they are never reset.
-  CHECK(gprs_[reg] != NULL);
+  DCHECK_LT(reg, kNumberOfCoreRegisters);
+  DCHECK_NE(gprs_[reg], &gZero); // Can't overwrite this static value since they are never reset.
+  DCHECK(gprs_[reg] != NULL);
   *gprs_[reg] = value;
 }
 

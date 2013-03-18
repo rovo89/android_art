@@ -29,6 +29,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
+#include "dex_file-inl.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "mirror/abstract_method-inl.h"

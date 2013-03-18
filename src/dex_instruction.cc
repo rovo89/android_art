@@ -16,7 +16,7 @@
 
 #include "dex_instruction.h"
 
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "utils.h"
 #include <iomanip>
 

@@ -20,6 +20,8 @@
 #include "class.h"
 
 #include "abstract_method.h"
+#include "class_loader.h"
+#include "dex_cache.h"
 #include "field.h"
 #include "iftable.h"
 #include "object_array.h"
@@ -30,10 +32,10 @@ namespace art {
 namespace mirror {
 
 inline size_t Class::GetObjectSize() const {
-  CHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
+  DCHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
   DCHECK_EQ(sizeof(size_t), sizeof(int32_t));
   size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
-  CHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(this);
+  DCHECK_GE(result, sizeof(Object)) << " class=" << PrettyTypeOf(this);
   return result;
 }
 
@@ -42,6 +44,14 @@ inline Class* Class::GetSuperClass() const {
   // initializing)
   DCHECK(IsLoaded() || !Runtime::Current()->IsStarted()) << IsLoaded();
   return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), false);
+}
+
+inline ClassLoader* Class::GetClassLoader() const {
+  return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
+}
+
+inline DexCache* Class::GetDexCache() const {
+  return GetFieldObject<DexCache*>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), false);
 }
 
 inline ObjectArray<AbstractMethod>* Class::GetDirectMethods() const {

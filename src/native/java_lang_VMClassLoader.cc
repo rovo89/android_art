@@ -17,6 +17,7 @@
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
+#include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"

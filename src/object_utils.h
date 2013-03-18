@@ -597,7 +597,7 @@ class MethodHelper {
   }
 
   bool IsReturnFloatOrDouble() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const char ret_shorty = GetReturnTypeDescriptor()[0];
+    const char ret_shorty = GetShorty()[0];
     return (ret_shorty == 'F') || (ret_shorty == 'D');
   }
 
@@ -679,11 +679,11 @@ class MethodHelper {
   void SetMethod(const mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
       mirror::Class* klass = method->GetDeclaringClass();
-      if (klass->IsProxyClass()) {
+      if (UNLIKELY(klass->IsProxyClass())) {
         mirror::AbstractMethod* interface_method =
             method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
-        CHECK(interface_method != NULL);
-        CHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
+        DCHECK(interface_method != NULL);
+        DCHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
         method = interface_method;
       }
     }

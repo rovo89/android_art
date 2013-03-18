@@ -16,6 +16,7 @@
 
 #include "reg_type.h"
 
+#include "dex_file-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"

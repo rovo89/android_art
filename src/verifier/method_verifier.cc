@@ -22,7 +22,7 @@
 #include "base/stringpiece.h"
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
 #include "gc/card_table-inl.h"

@@ -25,8 +25,9 @@
 
 #include "UniquePtr.h"
 #include "base/unix_file/fd_file.h"
+#include "dex_file-inl.h"
 #include "mirror/abstract_method-inl.h"
-#include "mirror/class.h"
+#include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
 #include "mirror/field-inl.h"

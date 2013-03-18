@@ -21,7 +21,7 @@
 
 #include "abstract_method.h"
 #include "atomic.h"
-#include "array.h"
+#include "array-inl.h"
 #include "field.h"
 #include "class.h"
 #include "monitor.h"
@@ -264,7 +264,9 @@ inline void Object::WriteBarrierField(const Object* dst, MemberOffset field_offs
 }
 
 inline void Object::VerifyObject(const Object* obj) {
-  Runtime::Current()->GetHeap()->VerifyObject(obj);
+  if (kIsDebugBuild) {
+    Runtime::Current()->GetHeap()->VerifyObject(obj);
+  }
 }
 
 }  // namespace mirror

@@ -22,6 +22,7 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "gc/card_table-inl.h"
 #include "invoke_arg_array_builder.h"

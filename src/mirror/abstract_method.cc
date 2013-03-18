@@ -17,8 +17,9 @@
 #include "abstract_method.h"
 
 #include "abstract_method-inl.h"
-#include "class-inl.h"
 #include "base/stringpiece.h"
+#include "class-inl.h"
+#include "dex_file-inl.h"
 #include "gc/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
@@ -69,19 +70,9 @@ void AbstractMethod::ResetClasses() {
   java_lang_reflect_Method_ = NULL;
 }
 
-ObjectArray<String>* AbstractMethod::GetDexCacheStrings() const {
-  return GetFieldObject<ObjectArray<String>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_), false);
-}
-
 void AbstractMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_strings_),
                  new_dex_cache_strings, false);
-}
-
-ObjectArray<AbstractMethod>* AbstractMethod::GetDexCacheResolvedMethods() const {
-  return GetFieldObject<ObjectArray<AbstractMethod>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_methods_), false);
 }
 
 void AbstractMethod::SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new_dex_cache_methods) {
@@ -89,20 +80,9 @@ void AbstractMethod::SetDexCacheResolvedMethods(ObjectArray<AbstractMethod>* new
                  new_dex_cache_methods, false);
 }
 
-ObjectArray<Class>* AbstractMethod::GetDexCacheResolvedTypes() const {
-  return GetFieldObject<ObjectArray<Class>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_), false);
-}
-
 void AbstractMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_resolved_types_),
                  new_dex_cache_classes, false);
-}
-
-ObjectArray<StaticStorageBase>* AbstractMethod::GetDexCacheInitializedStaticStorage() const {
-  return GetFieldObject<ObjectArray<StaticStorageBase>*>(
-      OFFSET_OF_OBJECT_MEMBER(AbstractMethod, dex_cache_initialized_static_storage_),
-      false);
 }
 
 void AbstractMethod::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value) {

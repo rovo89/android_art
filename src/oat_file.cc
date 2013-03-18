@@ -25,6 +25,7 @@
 #include "mirror/class.h"
 #include "mirror/abstract_method.h"
 #include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
 #include "os.h"
 #include "utils.h"
 

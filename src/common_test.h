@@ -27,7 +27,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
-#include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gtest/gtest.h"
 #include "heap.h"
 #include "instruction_set.h"

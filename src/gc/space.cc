@@ -24,6 +24,8 @@
 #include "image.h"
 #include "mirror/array.h"
 #include "mirror/abstract_method.h"
+#include "mirror/class-inl.h"
+#include "mirror/object-inl.h"
 #include "os.h"
 #include "runtime.h"
 #include "space_bitmap.h"

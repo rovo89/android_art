@@ -23,6 +23,7 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
+#include "dex_file-inl.h"
 #include "disassembler.h"
 #include "jni_internal.h"
 #include "oat/runtime/oat_support_entrypoints.h"

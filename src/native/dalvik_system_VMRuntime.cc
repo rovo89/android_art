@@ -18,7 +18,9 @@
 
 #include "class_linker.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "jni_internal.h"
+#include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
