@@ -17,7 +17,7 @@
 #include "context_mips.h"
 
 #include "mirror/abstract_method.h"
-#include "mirror/object.h"
+#include "mirror/object-inl.h"
 #include "stack.h"
 
 namespace art {
