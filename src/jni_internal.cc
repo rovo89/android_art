@@ -146,8 +146,8 @@ void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
                                 jmethodID mid, va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
+  Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
   JValue float_result;
@@ -593,8 +593,8 @@ class Libraries {
 
 JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID mid,
                          jvalue* args) {
-  Object* receiver = soa.Decode<Object*>(obj);
   AbstractMethod* method = soa.DecodeMethod(mid);
+  Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
   JValue float_result;
