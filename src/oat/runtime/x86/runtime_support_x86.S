@@ -333,7 +333,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     mov 4(%esp), %ecx             // copy arg1 into ecx
     mov 8(%esp), %edx             // copy arg2 into edx
     mov 12(%esp), %ebx            // copy arg3 into ebx
-    call METHOD_CODE_OFFSET(%eax) // call the method
+    call *METHOD_CODE_OFFSET(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     POP ebx                       // pop ebx
     POP ebp                       // pop ebp
