@@ -100,7 +100,8 @@ class LargeObjectMapSpace : public LargeObjectSpace {
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes);
   size_t Free(Thread* self, mirror::Object* ptr);
   virtual void Walk(DlMallocSpace::WalkCallback, void* arg);
-  virtual bool Contains(const mirror::Object* obj) const;
+  // TODO: disabling thread safety analysis as this may be called when we already hold lock_.
+  virtual bool Contains(const mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS;
 private:
   LargeObjectMapSpace(const std::string& name);
   virtual ~LargeObjectMapSpace() {}
