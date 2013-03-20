@@ -80,6 +80,9 @@ class GBCExpanderPass : public llvm::FunctionPass {
       landing_pad_phi_mapping_;
   llvm::BasicBlock* basic_block_unwind_;
 
+  // Maps each vreg to its shadow frame address.
+  std::vector<llvm::Value*> shadow_frame_vreg_addresses_;
+
   bool changed_;
 
  private:
@@ -376,6 +379,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   func_ = &func;
   changed_ = false; // Assume unchanged
 
+  shadow_frame_vreg_addresses_.resize(dex_compilation_unit_->GetCodeItem()->registers_size_, NULL);
   basic_blocks_.resize(dex_compilation_unit_->GetCodeItem()->insns_size_in_code_units_);
   basic_block_landing_pads_.resize(dex_compilation_unit_->GetCodeItem()->tries_size_, NULL);
   basic_block_unwind_ = NULL;
@@ -1305,15 +1309,32 @@ void GBCExpanderPass::Expand_AllocaShadowFrame(llvm::Value* num_vregs_value) {
 
 void GBCExpanderPass::Expand_SetVReg(llvm::Value* entry_idx,
                                      llvm::Value* value) {
-  DCHECK(shadow_frame_ != NULL);
+  unsigned vreg_idx = LV2UInt(entry_idx);
+  DCHECK_LT(vreg_idx, dex_compilation_unit_->GetCodeItem()->registers_size_);
 
-  llvm::Value* gep_index[] = {
-    irb_.getInt32(0), // No pointer displacement
-    irb_.getInt32(1), // VRegs
-    entry_idx // Pointer field
-  };
+  llvm::Value* vreg_addr = shadow_frame_vreg_addresses_[vreg_idx];
+  if (UNLIKELY(vreg_addr == NULL)) {
+    DCHECK(shadow_frame_ != NULL);
 
-  llvm::Value* vreg_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+    llvm::Value* gep_index[] = {
+      irb_.getInt32(0), // No pointer displacement
+      irb_.getInt32(1), // VRegs
+      entry_idx // Pointer field
+    };
+
+    // A shadow frame address must dominate every use in the function so we
+    // place it in the entry block right after the allocas.
+    llvm::BasicBlock::iterator first_non_alloca = func_->getEntryBlock().begin();
+    while (llvm::isa<llvm::AllocaInst>(first_non_alloca)) {
+      ++first_non_alloca;
+    }
+
+    llvm::IRBuilderBase::InsertPoint ip = irb_.saveIP();
+    irb_.SetInsertPoint(static_cast<llvm::Instruction*>(first_non_alloca));
+    vreg_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+    shadow_frame_vreg_addresses_[vreg_idx] = vreg_addr;
+    irb_.restoreIP(ip);
+  }
 
   irb_.CreateStore(value,
                    irb_.CreateBitCast(vreg_addr, value->getType()->getPointerTo()),
