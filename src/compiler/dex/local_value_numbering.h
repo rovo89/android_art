@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_BBOPT_H_
-#define ART_SRC_COMPILER_DEX_BBOPT_H_
+#ifndef ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
+#define ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 
 #include "compiler_internals.h"
 
@@ -35,14 +35,12 @@ class LocalValueNumbering {
  public:
   LocalValueNumbering(CompilationUnit* cu) : cu_(cu) {};
 
-  uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier)
-  {
+  static uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     return (static_cast<uint64_t>(op) << 48 | static_cast<uint64_t>(operand1) << 32 |
             static_cast<uint64_t>(operand2) << 16 | static_cast<uint64_t>(modifier));
   };
 
-  uint16_t LookupValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier)
-  {
+  uint16_t LookupValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     uint16_t res;
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
     ValueMap::iterator it = value_map_.find(key);
@@ -55,15 +53,13 @@ class LocalValueNumbering {
     return res;
   };
 
-  bool ValueExists(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier)
-  {
+  bool ValueExists(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) const {
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::iterator it = value_map_.find(key);
+    ValueMap::const_iterator it = value_map_.find(key);
     return (it != value_map_.end());
   };
 
-  uint16_t GetMemoryVersion(uint16_t base, uint16_t field)
-  {
+  uint16_t GetMemoryVersion(uint16_t base, uint16_t field) {
     uint32_t key = (base << 16) | field;
     uint16_t res;
     MemoryVersionMap::iterator it = memory_version_map_.find(key);
@@ -76,8 +72,7 @@ class LocalValueNumbering {
     return res;
   };
 
-  void AdvanceMemoryVersion(uint16_t base, uint16_t field)
-  {
+  void AdvanceMemoryVersion(uint16_t base, uint16_t field) {
     uint32_t key = (base << 16) | field;
     MemoryVersionMap::iterator it = memory_version_map_.find(key);
     if (it == memory_version_map_.end()) {
@@ -87,8 +82,7 @@ class LocalValueNumbering {
     }
   };
 
-  void SetOperandValue(uint16_t s_reg, uint16_t value)
-  {
+  void SetOperandValue(uint16_t s_reg, uint16_t value) {
     SregValueMap::iterator it = sreg_value_map_.find(s_reg);
     if (it != sreg_value_map_.end()) {
       DCHECK_EQ(it->second, value);
@@ -97,8 +91,7 @@ class LocalValueNumbering {
     }
   };
 
-  uint16_t GetOperandValue(int s_reg)
-  {
+  uint16_t GetOperandValue(int s_reg) {
     uint16_t res = NO_VALUE;
     SregValueMap::iterator it = sreg_value_map_.find(s_reg);
     if (it != sreg_value_map_.end()) {
@@ -111,8 +104,7 @@ class LocalValueNumbering {
     return res;
   };
 
-  void SetOperandValueWide(uint16_t s_reg, uint16_t value)
-  {
+  void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
     SregValueMap::iterator it = sreg_wide_value_map_.find(s_reg);
     if (it != sreg_wide_value_map_.end()) {
       DCHECK_EQ(it->second, value);
@@ -121,8 +113,7 @@ class LocalValueNumbering {
     }
   };
 
-  uint16_t GetOperandValueWide(int s_reg)
-  {
+  uint16_t GetOperandValueWide(int s_reg) {
     uint16_t res = NO_VALUE;
     SregValueMap::iterator it = sreg_wide_value_map_.find(s_reg);
     if (it != sreg_wide_value_map_.end()) {
@@ -138,7 +129,7 @@ class LocalValueNumbering {
   uint16_t GetValueNumber(MIR* mir);
 
  private:
-  CompilationUnit* cu_;
+  CompilationUnit* const cu_;
   SregValueMap sreg_value_map_;
   SregValueMap sreg_wide_value_map_;
   ValueMap value_map_;
@@ -149,4 +140,4 @@ class LocalValueNumbering {
 
 } // namespace art
 
-#endif   // ART_SRC_COMPILER_DEX_BBOPT_H_
+#endif   // ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_

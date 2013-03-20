@@ -843,8 +843,7 @@ const int oat_data_flow_attributes[kMirOpLast] = {
 };
 
 /* Return the base virtual register for a SSA name */
-int MIRGraph::SRegToVReg(int ssa_reg)
-{
+int MIRGraph::SRegToVReg(int ssa_reg) const {
   DCHECK_LT(ssa_reg, static_cast<int>(ssa_base_vregs_->num_used));
   return GET_ELEM_N(ssa_base_vregs_, int, ssa_reg);
 }
