@@ -20,8 +20,8 @@
 #include "interpreter/interpreter.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "object_utils.h"
 
 namespace art {
@@ -43,6 +43,7 @@ class BuildShadowFrameVisitor : public ArgumentVisitor {
         } else {
           sf_.SetVRegLong(cur_reg_, *reinterpret_cast<jlong*>(GetParamAddress()));
         }
+        ++cur_reg_;
         break;
       case Primitive::kPrimNot:
         sf_.SetVRegReference(cur_reg_, *reinterpret_cast<mirror::Object**>(GetParamAddress()));
@@ -90,6 +91,16 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   self->PushManagedStackFragment(&fragment);
   self->PushShadowFrame(shadow_frame.get());
   self->EndAssertNoThreadSuspension(old_cause);
+
+  if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
+    // Ensure static method's class is initialized.
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
+                                                                 true, true)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return 0;
+    }
+  }
+
   JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame.get());
   // Pop transition.
   self->PopManagedStackFragment(fragment);

@@ -223,21 +223,24 @@ class CommonTest : public testing::Test {
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method)
               << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
 
+    const CompiledMethod* compiled_method = NULL;
     if (!method->IsAbstract()) {
       const mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
       const DexFile& dex_file = *dex_cache->GetDexFile();
-      const CompiledMethod* compiled_method =
+      compiled_method =
           compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file,
                                                                               method->GetDexMethodIndex()));
-      CHECK(compiled_method != NULL) << PrettyMethod(method);
 
+#ifndef ART_SLOW_MODE
+      CHECK(compiled_method != NULL) << PrettyMethod(method);
+#endif
+    }
+    if (compiled_method != NULL) {
       const std::vector<uint8_t>& code = compiled_method->GetCode();
       MakeExecutable(code);
       const void* method_code = CompiledMethod::CodePointer(&code[0],
                                                             compiled_method->GetInstructionSet());
-
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       compiled_method->GetFrameSizeInBytes(),
                                                       compiled_method->GetCoreSpillMask(),
@@ -248,8 +251,14 @@ class CommonTest : public testing::Test {
                                                       method_invoke_stub);
       oat_method.LinkMethod(method);
     } else {
-      MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
-      const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
+      const void* method_code;
+      if (method->IsAbstract()) {
+        MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
+        method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
+      } else {
+        // No code? You must mean to go into the interpreter.
+        method_code = GetInterpreterEntryPoint();
+      }
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       kStackAlignment,

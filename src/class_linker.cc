@@ -1561,7 +1561,12 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const mirror::AbstractMeth
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetOatCodeFor(const mirror::AbstractMethod* method) {
   CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
-  return GetOatMethodFor(method).GetCode();
+  const void* result = GetOatMethodFor(method).GetCode();
+  if (result == NULL) {
+    // No code? You must mean to go into the interpreter.
+    result = GetInterpreterEntryPoint();
+  }
+  return result;
 }
 
 const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx) {
@@ -1611,8 +1616,10 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       }
     } else if (method->GetCode() == trampoline) {
       const void* code = oat_class->GetOatMethod(method_index).GetCode();
-      CHECK(code != NULL)
-          << "Resolving a static trampoline but found no code for: " << PrettyMethod(method);
+      if (code == NULL) {
+        // No code? You must mean to go into the interpreter.
+        code = GetInterpreterEntryPoint();
+      }
       method->SetCode(code);
     }
     method_index++;
@@ -1645,6 +1652,11 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   if (Runtime::Current()->IsMethodTracingActive()) {
     Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     instrumentation->SaveAndUpdateCode(method.get());
+  }
+
+  if (method->GetCode() == NULL) {
+    // No code? You must mean to go into the interpreter.
+    method->SetCode(GetInterpreterEntryPoint());
   }
 }
 

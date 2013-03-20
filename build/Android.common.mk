@@ -14,6 +14,12 @@
 # limitations under the License.
 #
 
+ART_SLOW_MODE := false
+ifneq ($(wildcard art/SLOW_ART),)
+$(info Enabling ART_SLOW_MODE because of existence of art/SLOW_ART)
+ART_SLOW_MODE := true
+endif
+
 ART_USE_PORTABLE_COMPILER := false
 ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
 $(info Enabling ART_USE_PORTABLE_COMPILER because of existence of art/USE_PORTABLE_COMPILER)
@@ -53,6 +59,10 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-Wthread-safety \
 	-fstrict-aliasing
+
+ifeq ($(ART_SLOW_MODE),true)
+  art_cflags += -DART_SLOW_MODE=1
+endif
 
 # TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
 # On 10.04 LTS (Lucid Lynx), it can cause dependencies on GLIBCXX_3.4.14 version symbols.

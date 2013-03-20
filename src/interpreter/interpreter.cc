@@ -1927,6 +1927,12 @@ void EnterInterpreterFromLLVM(Thread* self, ShadowFrame* shadow_frame, JValue* r
 JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK_EQ(self, Thread::Current());
+  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+    ThrowStackOverflowError(self);
+    return JValue();
+  }
+
   return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 

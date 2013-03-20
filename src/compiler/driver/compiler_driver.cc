@@ -1655,9 +1655,18 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
-                                   method_idx, class_loader, dex_file);
-    CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
+    bool dont_compile = false;
+#if ART_SLOW_MODE
+    dont_compile = (image_classes_ == NULL) || (image_classes_->size() == 0);
+    if (dont_compile) {
+      LOG(INFO) << "Not compiling code as ART_SLOW_MODE is enabled";
+    }
+#endif // ART_SLOW_MODE
+    if (!dont_compile) {
+      compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+          method_idx, class_loader, dex_file);
+      CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
+    }
   }
   uint64_t duration_ns = NanoTime() - start_ns;
 #ifdef ART_USE_PORTABLE_COMPILER

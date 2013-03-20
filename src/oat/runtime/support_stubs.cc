@@ -240,6 +240,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   if (UNLIKELY(code == NULL)) {
     // Something went wrong in ResolveMethod or EnsureInitialized,
     // go into deliver exception with the pending exception in r0
+    CHECK(thread->IsExceptionPending());
     code = reinterpret_cast<void*>(art_quick_deliver_exception_from_code);
     regs[0] = reinterpret_cast<uintptr_t>(thread->GetException());
     thread->ClearException();
