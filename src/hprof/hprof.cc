@@ -930,13 +930,13 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
           rec->AddId(LookupStringId(fh.GetName()));
           rec->AddU1(t);
           if (size == 1) {
-            rec->AddU1(static_cast<uint8_t>(f->Get32(NULL)));
+            rec->AddU1(static_cast<uint8_t>(f->Get32(thisClass)));
           } else if (size == 2) {
-            rec->AddU2(static_cast<uint16_t>(f->Get32(NULL)));
+            rec->AddU2(static_cast<uint16_t>(f->Get32(thisClass)));
           } else if (size == 4) {
-            rec->AddU4(f->Get32(NULL));
+            rec->AddU4(f->Get32(thisClass));
           } else if (size == 8) {
-            rec->AddU8(f->Get64(NULL));
+            rec->AddU8(f->Get64(thisClass));
           } else {
             CHECK(false);
           }
