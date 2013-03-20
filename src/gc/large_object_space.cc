@@ -118,8 +118,14 @@ void LargeObjectMapSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) 
 }
 
 bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
-  MutexLock mu(Thread::Current(), lock_);
-  return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
+  Thread* self = Thread::Current();
+  if (lock_.IsExclusiveHeld(self)) {
+    // We hold lock_ so do the check.
+    return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
+  } else {
+    MutexLock mu(self, lock_);
+    return mem_maps_.find(const_cast<mirror::Object*>(obj)) != mem_maps_.end();
+  }
 }
 
 FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
