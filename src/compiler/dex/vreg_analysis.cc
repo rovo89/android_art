@@ -473,7 +473,7 @@ void MIRGraph::BuildRegLocations()
   }
 
   /* Do type & size inference pass */
-  DataflowIterator iter(this, kPreOrderDFSTraversal, true /* iterative */);
+  PreOrderDfsIterator iter(this, true /* iterative */);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = InferTypeAndSize(bb);

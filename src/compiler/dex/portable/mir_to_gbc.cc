@@ -1962,7 +1962,7 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
   CreateFunction(cu);
 
   // Create an LLVM basic block for each MIR block in dfs preorder
-  DataflowIterator iter(cu->mir_graph.get(), kPreOrderDFSTraversal, false /* not iterative */);
+  PreOrderDfsIterator iter(cu->mir_graph.get(), false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CreateLLVMBasicBlock(cu, bb);
   }
@@ -1994,7 +1994,7 @@ void MethodMIR2Bitcode(CompilationUnit* cu)
     }
   }
 
-  DataflowIterator iter2(cu->mir_graph.get(), kPreOrderDFSTraversal, false /* not iterative */);
+  PreOrderDfsIterator iter2(cu->mir_graph.get(), false /* not iterative */);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     BlockBitcodeConversion(cu, bb);
   }

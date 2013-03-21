@@ -327,18 +327,6 @@ enum DividePattern {
 
 std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
 
-/* Customized node traversal orders for different needs */
-enum DataFlowAnalysisMode {
-  kAllNodes = 0,              // All nodes.
-  kReachableNodes,            // All reachable nodes.
-  kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order.
-  kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order.
-  kPostOrderDOMTraversal,     // Dominator tree / Post-Order.
-  kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order.
-};
-
-std::ostream& operator<<(std::ostream& os, const DataFlowAnalysisMode& mode);
-
 // Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers").
 enum MemBarrierKind {
   kLoadStore,

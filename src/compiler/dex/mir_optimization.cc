@@ -103,7 +103,7 @@ void MIRGraph::PropagateConstants()
   is_constant_v_ = AllocBitVector(cu_, GetNumSSARegs(), false);
   constant_values_ = static_cast<int*>(NewMem(cu_, sizeof(int) * GetNumSSARegs(), true,
                                        kAllocDFInfo));
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
   }
@@ -754,11 +754,11 @@ void MIRGraph::NullCheckElimination()
 {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination))) {
     DCHECK(temp_ssa_register_v_ != NULL);
-    DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+    AllNodesIterator iter(this, false /* not iterative */);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       NullCheckEliminationInit(bb);
     }
-    DataflowIterator iter2(this, kPreOrderDFSTraversal, true /* iterative */);
+    PreOrderDfsIterator iter2(this, true /* iterative */);
     bool change = false;
     for (BasicBlock* bb = iter2.Next(change); bb != NULL; bb = iter2.Next(change)) {
       change = EliminateNullChecks(bb);
@@ -771,7 +771,7 @@ void MIRGraph::NullCheckElimination()
 
 void MIRGraph::BasicBlockCombine()
 {
-  DataflowIterator iter(this, kPreOrderDFSTraversal, false /* not iterative */);
+  PreOrderDfsIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CombineBlocks(bb);
   }
@@ -782,7 +782,7 @@ void MIRGraph::BasicBlockCombine()
 
 void MIRGraph::CodeLayout()
 {
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     LayoutBlocks(bb);
   }
@@ -796,7 +796,7 @@ void MIRGraph::DumpCheckStats()
   Checkstats* stats =
       static_cast<Checkstats*>(NewMem(cu_, sizeof(Checkstats), true, kAllocDFInfo));
   cu_->checkstats = stats;
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountChecks(bb);
   }
@@ -853,11 +853,11 @@ void MIRGraph::BasicBlockOptimization()
     CompilerInitGrowableList(cu_, &cu_->compiler_temps, 6, kListMisc);
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     // Mark all blocks as not visited
-    DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+    AllNodesIterator iter(this, false /* not iterative */);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       ClearVisitedFlag(bb);
     }
-    DataflowIterator iter2(this, kPreOrderDFSTraversal, false /* not iterative */);
+    PreOrderDfsIterator iter2(this, false /* not iterative */);
     for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
       BuildExtendedBBList(bb);
     }
