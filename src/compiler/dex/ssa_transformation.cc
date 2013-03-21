@@ -97,7 +97,7 @@ void MIRGraph::ComputeDFSOrders()
   }
 
   // Reset visited flags from all nodes
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     ClearVisitedFlag(bb);
   }
@@ -139,11 +139,11 @@ void MIRGraph::ComputeDefBlockMatrix()
   for (i = 0; i < num_registers; i++) {
     def_block_matrix_[i] = AllocBitVector(cu_, GetNumBlocks(), false, kBitMapBMatrix);
   }
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     FindLocalLiveIn(bb);
   }
-  DataflowIterator iter2(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter2(this, false /* not iterative */);
   for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
     FillDefBlockMatrix(bb);
   }
@@ -369,7 +369,7 @@ void MIRGraph::ComputeDominators()
   int num_total_blocks = GetBasicBlockListCount();
 
   /* Initialize domination-related data structures */
-  DataflowIterator iter(this, kReachableNodes, false /* not iterative */);
+  ReachableNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     InitializeDominationInfo(bb);
   }
@@ -388,7 +388,7 @@ void MIRGraph::ComputeDominators()
   i_dom_list_[GetEntryBlock()->dfs_id] = GetEntryBlock()->dfs_id;
 
   /* Compute the immediate dominators */
-  DataflowIterator iter2(this, kReversePostOrderTraversal, true /* iterative */);
+  ReversePostOrderDfsIterator iter2(this, true /* iterative */);
   bool change = false;
   for (BasicBlock* bb = iter2.Next(false); bb != NULL; bb = iter2.Next(change)) {
     change = ComputeblockIDom(bb);
@@ -405,12 +405,12 @@ void MIRGraph::ComputeDominators()
   }
   GetEntryBlock()->i_dom = NULL;
 
-  DataflowIterator iter3(this, kReachableNodes, false /* not iterative */);
+  ReachableNodesIterator iter3(this, false /* not iterative */);
   for (BasicBlock* bb = iter3.Next(); bb != NULL; bb = iter3.Next()) {
     SetDominators(bb);
   }
 
-  DataflowIterator iter4(this, kReversePostOrderTraversal, false /* not iterative */);
+  ReversePostOrderDfsIterator iter4(this, false /* not iterative */);
   for (BasicBlock* bb = iter4.Next(); bb != NULL; bb = iter4.Next()) {
     ComputeBlockDominators(bb);
   }
@@ -430,7 +430,7 @@ void MIRGraph::ComputeDominators()
   DCHECK_EQ(dom_post_order_traversal_.num_used, static_cast<unsigned>(num_reachable_blocks_));
 
   /* Now compute the dominance frontier for each block */
-  DataflowIterator iter5(this, kPostOrderDOMTraversal, false /* not iterative */);
+  PostOrderDOMIterator iter5(this, false /* not iterative */);
   for (BasicBlock* bb = iter5.Next(); bb != NULL; bb = iter5.Next()) {
     ComputeDominanceFrontier(bb);
   }
@@ -506,7 +506,7 @@ void MIRGraph::InsertPhiNodes()
   temp_dalvik_register_v_ =
       AllocBitVector(cu_, cu_->num_dalvik_registers, false, kBitMapRegisterV);
 
-  DataflowIterator iter(this, kPostOrderDFSTraversal, true /* iterative */);
+  PostOrderDfsIterator iter(this, true /* iterative */);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = ComputeBlockLiveIns(bb);
@@ -691,7 +691,7 @@ void MIRGraph::SSATransformation()
   }
 
   /* Rename register names by local defs and phi nodes */
-  DataflowIterator iter(this, kAllNodes, false /* not iterative */);
+  AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     ClearVisitedFlag(bb);
   }
@@ -705,7 +705,7 @@ void MIRGraph::SSATransformation()
     temp_ssa_register_v_ = AllocBitVector(cu_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
 
     /* Insert phi-operands with latest SSA names from predecessor blocks */
-    DataflowIterator iter(this, kReachableNodes, false /* not iterative */);
+    ReachableNodesIterator iter(this, false /* not iterative */);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       InsertPhiNodeOperands(bb);
     }

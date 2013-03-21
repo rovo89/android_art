@@ -834,7 +834,7 @@ void MethodMIR2LIR(CompilationUnit* cu)
   cu->block_label_list =
       static_cast<LIR*>(NewMem(cu, sizeof(LIR) * cu->mir_graph->GetNumBlocks(), true, kAllocLIR));
 
-  DataflowIterator iter(cu->mir_graph.get(), kPreOrderDFSTraversal, false /* not iterative */);
+  PreOrderDfsIterator iter(cu->mir_graph.get(), false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     MethodBlockCodeGen(cu, bb);
   }
