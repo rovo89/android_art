@@ -45,7 +45,6 @@ ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \
 	external/gtest/include \
-	external/valgrind/dynamic_annotations \
 	external/zlib \
 	frameworks/compile/mclinker/include \
 	art/src

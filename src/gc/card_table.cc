@@ -16,8 +16,6 @@
 
 #include "card_table.h"
 
-#include <dynamic_annotations.h>
-
 #include "base/logging.h"
 #include "gc/card_table-inl.h"
 #include "heap.h"
@@ -82,7 +80,6 @@ CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
     : mem_map_(mem_map), biased_begin_(biased_begin), offset_(offset) {
   byte* __attribute__((unused)) begin = mem_map_->Begin() + offset_;
   byte* __attribute__((unused)) end = mem_map_->End();
-  ANNOTATE_BENIGN_RACE_SIZED(begin, (end - begin), "writes to GC card table");
 }
 
 void CardTable::ClearSpaceCards(ContinuousSpace* space) {

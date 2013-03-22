@@ -16,7 +16,6 @@
 
 #include "thread.h"
 
-#include <dynamic_annotations.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/resource.h>

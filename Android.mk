@@ -181,12 +181,6 @@ valgrind-test-art-host-gtest: test-art-host-dependencies
 	$(call run-host-gtests-with,valgrind --leak-check=full)
 	@echo valgrind-test-art-host-gtest PASSED
 
-# "mm tsan-test-art-host-gtest" to build and run the host gtests under tsan.
-.PHONY: tsan-test-art-host-gtest
-tsan-test-art-host-gtest: test-art-host-dependencies
-	$(call run-host-gtests-with,"tsan")
-	@echo tsan-test-art-host-gtest PASSED
-
 .PHONY: test-art-host-oat
 test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
 	@echo test-art-host-oat PASSED

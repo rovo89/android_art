@@ -81,11 +81,6 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libart
   else # debug
     LOCAL_SHARED_LIBRARIES += libartd
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_SHARED_LIBRARIES += libdynamic_annotations
-    else
-      LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host
-    endif
   endif
 
   ifeq ($$(art_target_or_host),target)

@@ -16,7 +16,6 @@
 
 #include "utils.h"
 
-#include <dynamic_annotations.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -933,8 +932,6 @@ bool EndsWith(const std::string& s, const char* suffix) {
 }
 
 void SetThreadName(const char* thread_name) {
-  ANNOTATE_THREAD_NAME(thread_name); // For tsan.
-
   int hasAt = 0;
   int hasDot = 0;
   const char* s = thread_name;
