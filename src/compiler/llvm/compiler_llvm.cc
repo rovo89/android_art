@@ -32,7 +32,6 @@
 #include "verifier/method_verifier.h"
 
 #include <llvm/LinkAllPasses.h>
-#include <llvm/LinkAllVMCore.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>

@@ -24,12 +24,12 @@
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 
-#include <llvm/Constants.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/IRBuilder.h>
-#include <llvm/LLVMContext.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Type.h>
 #include <llvm/Support/NoFolder.h>
-#include <llvm/Type.h>
 
 #include <stdint.h>
 

@@ -19,7 +19,7 @@
 
 #include "backend_types.h"
 
-#include "llvm/MDBuilder.h"
+#include "llvm/IR/MDBuilder.h"
 
 #include <cstring>
 

@@ -22,11 +22,11 @@
 #include "thread.h"
 #include "utils_llvm.h"
 
-#include <llvm/DerivedTypes.h>
-#include <llvm/Function.h>
-#include <llvm/InlineAsm.h>
-#include <llvm/Module.h>
-#include <llvm/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/InlineAsm.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
 
 #include <inttypes.h>
 #include <vector>

@@ -32,11 +32,11 @@
 #include "stack.h"
 #include "thread.h"
 
-#include <llvm/BasicBlock.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/Function.h>
 #include <llvm/ADT/SmallVector.h>
-#include <llvm/Type.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Type.h>
 
 namespace art {
 namespace llvm {

@@ -140,7 +140,7 @@ define build-libart-compiler
     endif
     LOCAL_SHARED_LIBRARIES += libart
   endif
-  LOCAL_SHARED_LIBRARIES += libbcc
+  LOCAL_SHARED_LIBRARIES += libbcc libLLVM
 
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1

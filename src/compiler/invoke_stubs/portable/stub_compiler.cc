@@ -26,10 +26,10 @@
 #include "compiler/llvm/utils_llvm.h"
 #include "mirror/abstract_method.h"
 
-#include <llvm/BasicBlock.h>
-#include <llvm/Function.h>
-#include <llvm/GlobalVariable.h>
-#include <llvm/Intrinsics.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Intrinsics.h>
 
 #include <string>
 #include <string.h>

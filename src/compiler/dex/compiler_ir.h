@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include <llvm/Module.h>
+#include <llvm/IR/Module.h>
 
 #include "compiler/dex/quick/codegen.h"
 #include "compiler/driver/compiler_driver.h"

@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+// TODO: TargetLibraryInfo is included before sys/... because on Android bionic does #define tricks like:
+//
+// #define  stat64    stat
+// #define  fstat64   fstat
+// #define  lstat64   lstat
+// 
+// which causes grief. bionic probably should not do that.
+#include <llvm/Target/TargetLibraryInfo.h>
+
 #include "llvm_compilation_unit.h"
 
 #include <sys/types.h>
@@ -26,6 +35,7 @@
 #include <llvm/ADT/StringSet.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/CallGraph.h>
+#include <llvm/Analysis/CallGraphSCCPass.h>
 #include <llvm/Analysis/Dominators.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/LoopPass.h>
@@ -34,14 +44,14 @@
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Assembly/PrintModulePass.h>
 #include <llvm/Bitcode/ReaderWriter.h>
-#include <llvm/CallGraphSCCPass.h>
 #include <llvm/CodeGen/MachineFrameInfo.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
 #include <llvm/DebugInfo.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/LLVMContext.h>
-#include <llvm/Module.h>
+#include <llvm/IR/DataLayout.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Object/ObjectFile.h>
 #include <llvm/PassManager.h>
 #include <llvm/Support/Debug.h>
@@ -59,8 +69,6 @@
 #include <llvm/Support/ToolOutputFile.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/system_error.h>
-#include <llvm/Target/TargetData.h>
-#include <llvm/Target/TargetLibraryInfo.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
@@ -220,15 +228,15 @@ bool LlvmCompilationUnit::MaterializeToRawOStream(::llvm::raw_ostream& out_strea
   CHECK(target_machine.get() != NULL) << "Failed to create target machine";
 
   // Add target data
-  const ::llvm::TargetData* target_data = target_machine->getTargetData();
+  const ::llvm::DataLayout* data_layout = target_machine->getDataLayout();
 
   // PassManager for code generation passes
   ::llvm::PassManager pm;
-  pm.add(new ::llvm::TargetData(*target_data));
+  pm.add(new ::llvm::DataLayout(*data_layout));
 
   // FunctionPassManager for optimization pass
   ::llvm::FunctionPassManager fpm(module_);
-  fpm.add(new ::llvm::TargetData(*target_data));
+  fpm.add(new ::llvm::DataLayout(*data_layout));
 
   if (bitcode_filename_.empty()) {
     // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the

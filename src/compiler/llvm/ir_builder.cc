@@ -18,7 +18,7 @@
 
 #include "base/stringprintf.h"
 
-#include <llvm/Module.h>
+#include <llvm/IR/Module.h>
 
 namespace art {
 namespace llvm {

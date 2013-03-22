@@ -18,10 +18,11 @@
 
 #include "ir_builder.h"
 
-#include <llvm/DerivedTypes.h>
-#include <llvm/Function.h>
-#include <llvm/IRBuilder.h>
-#include <llvm/Intrinsics.h>
+#include <llvm/IR/Attributes.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Intrinsics.h>
 
 namespace art {
 namespace llvm {
@@ -136,10 +137,14 @@ IntrinsicHelper::IntrinsicHelper(::llvm::LLVMContext& context,
                                                     ::llvm::Function::ExternalLinkage,
                                                      info.name_, &module);
 
-    fn->setOnlyReadsMemory(info.attr_ & kAttrReadOnly);
-    fn->setDoesNotAccessMemory(info.attr_ & kAttrReadNone);
+    if (info.attr_ & kAttrReadOnly) {
+        fn->setOnlyReadsMemory();
+    }
+    if (info.attr_ & kAttrReadNone) {
+        fn->setDoesNotAccessMemory();
+    }
     // None of the intrinsics throws exception
-    fn->setDoesNotThrow(true);
+    fn->setDoesNotThrow();
 
     intrinsic_funcs_[id] = fn;
 
@@ -150,8 +155,13 @@ IntrinsicHelper::IntrinsicHelper(::llvm::LLVMContext& context,
     for (::llvm::Function::arg_iterator arg_iter = fn->arg_begin(),
             arg_end = fn->arg_end(); arg_iter != arg_end; arg_iter++) {
       if (arg_iter->getType()->isPointerTy()) {
-        arg_iter->addAttr(::llvm::Attribute::NoCapture);
-        arg_iter->addAttr(::llvm::Attribute::NoAlias);
+        std::vector< ::llvm::Attribute::AttrKind> attributes;
+        attributes.push_back(::llvm::Attribute::NoCapture);
+        attributes.push_back(::llvm::Attribute::NoAlias);
+        ::llvm::AttributeSet attribute_set = ::llvm::AttributeSet::get(fn->getContext(),
+                                                                       arg_iter->getArgNo(),
+                                                                       attributes);
+        arg_iter->addAttr(attribute_set);
       }
     }
 

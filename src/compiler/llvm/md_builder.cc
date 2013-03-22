@@ -17,7 +17,7 @@
 
 #include "md_builder.h"
 
-#include "llvm/MDBuilder.h"
+#include "llvm/IR/MDBuilder.h"
 
 #include <string>
 

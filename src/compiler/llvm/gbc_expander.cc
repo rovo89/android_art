@@ -33,8 +33,8 @@ using art::kMIRIgnoreNullCheck;
 using art::kMIRIgnoreRangeCheck;
 
 #include <llvm/ADT/STLExtras.h>
-#include <llvm/Intrinsics.h>
-#include <llvm/Metadata.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Metadata.h>
 #include <llvm/Pass.h>
 #include <llvm/Support/CFG.h>
 #include <llvm/Support/InstIterator.h>

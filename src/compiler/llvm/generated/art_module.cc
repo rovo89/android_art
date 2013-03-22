@@ -1,14 +1,14 @@
-// Generated with ../tools/gen_art_module_cc.sh
+// Generated with ./gen_art_module_cc.sh
 
 
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
 // TODO: Remove this pragma after llc can generate makeLLVMModuleContents()
 // with smaller frame size.
 
-#include <llvm/DerivedTypes.h>
-#include <llvm/Function.h>
-#include <llvm/Module.h>
-#include <llvm/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
 
 #include <vector>
 
@@ -383,7 +383,7 @@ func___art_type_list = Function::Create(
  /*Name=*/"__art_type_list", mod); // (external, no body)
 func___art_type_list->setCallingConv(CallingConv::C);
 }
-AttrListPtr func___art_type_list_PAL;
+AttributeSet func___art_type_list_PAL;
 func___art_type_list->setAttributes(func___art_type_list_PAL);
 
 Function* func_art_portable_get_current_thread_from_code = mod->getFunction("art_portable_get_current_thread_from_code");
@@ -394,7 +394,7 @@ func_art_portable_get_current_thread_from_code = Function::Create(
  /*Name=*/"art_portable_get_current_thread_from_code", mod); // (external, no body)
 func_art_portable_get_current_thread_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get_current_thread_from_code_PAL;
+AttributeSet func_art_portable_get_current_thread_from_code_PAL;
 func_art_portable_get_current_thread_from_code->setAttributes(func_art_portable_get_current_thread_from_code_PAL);
 
 Function* func_art_portable_set_current_thread_from_code = mod->getFunction("art_portable_set_current_thread_from_code");
@@ -405,7 +405,7 @@ func_art_portable_set_current_thread_from_code = Function::Create(
  /*Name=*/"art_portable_set_current_thread_from_code", mod); // (external, no body)
 func_art_portable_set_current_thread_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set_current_thread_from_code_PAL;
+AttributeSet func_art_portable_set_current_thread_from_code_PAL;
 func_art_portable_set_current_thread_from_code->setAttributes(func_art_portable_set_current_thread_from_code_PAL);
 
 Function* func_art_portable_lock_object_from_code = mod->getFunction("art_portable_lock_object_from_code");
@@ -416,7 +416,7 @@ func_art_portable_lock_object_from_code = Function::Create(
  /*Name=*/"art_portable_lock_object_from_code", mod); // (external, no body)
 func_art_portable_lock_object_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_lock_object_from_code_PAL;
+AttributeSet func_art_portable_lock_object_from_code_PAL;
 func_art_portable_lock_object_from_code->setAttributes(func_art_portable_lock_object_from_code_PAL);
 
 Function* func_art_portable_unlock_object_from_code = mod->getFunction("art_portable_unlock_object_from_code");
@@ -427,7 +427,7 @@ func_art_portable_unlock_object_from_code = Function::Create(
  /*Name=*/"art_portable_unlock_object_from_code", mod); // (external, no body)
 func_art_portable_unlock_object_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_unlock_object_from_code_PAL;
+AttributeSet func_art_portable_unlock_object_from_code_PAL;
 func_art_portable_unlock_object_from_code->setAttributes(func_art_portable_unlock_object_from_code_PAL);
 
 Function* func_art_portable_test_suspend_from_code = mod->getFunction("art_portable_test_suspend_from_code");
@@ -438,7 +438,7 @@ func_art_portable_test_suspend_from_code = Function::Create(
  /*Name=*/"art_portable_test_suspend_from_code", mod); // (external, no body)
 func_art_portable_test_suspend_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_test_suspend_from_code_PAL;
+AttributeSet func_art_portable_test_suspend_from_code_PAL;
 func_art_portable_test_suspend_from_code->setAttributes(func_art_portable_test_suspend_from_code_PAL);
 
 Function* func_art_portable_push_shadow_frame_from_code = mod->getFunction("art_portable_push_shadow_frame_from_code");
@@ -449,7 +449,7 @@ func_art_portable_push_shadow_frame_from_code = Function::Create(
  /*Name=*/"art_portable_push_shadow_frame_from_code", mod); // (external, no body)
 func_art_portable_push_shadow_frame_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_push_shadow_frame_from_code_PAL;
+AttributeSet func_art_portable_push_shadow_frame_from_code_PAL;
 func_art_portable_push_shadow_frame_from_code->setAttributes(func_art_portable_push_shadow_frame_from_code_PAL);
 
 Function* func_art_portable_pop_shadow_frame_from_code = mod->getFunction("art_portable_pop_shadow_frame_from_code");
@@ -460,7 +460,7 @@ func_art_portable_pop_shadow_frame_from_code = Function::Create(
  /*Name=*/"art_portable_pop_shadow_frame_from_code", mod); // (external, no body)
 func_art_portable_pop_shadow_frame_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_pop_shadow_frame_from_code_PAL;
+AttributeSet func_art_portable_pop_shadow_frame_from_code_PAL;
 func_art_portable_pop_shadow_frame_from_code->setAttributes(func_art_portable_pop_shadow_frame_from_code_PAL);
 
 Function* func_art_portable_get_and_clear_exception = mod->getFunction("art_portable_get_and_clear_exception");
@@ -471,7 +471,7 @@ func_art_portable_get_and_clear_exception = Function::Create(
  /*Name=*/"art_portable_get_and_clear_exception", mod); // (external, no body)
 func_art_portable_get_and_clear_exception->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get_and_clear_exception_PAL;
+AttributeSet func_art_portable_get_and_clear_exception_PAL;
 func_art_portable_get_and_clear_exception->setAttributes(func_art_portable_get_and_clear_exception_PAL);
 
 Function* func_art_portable_throw_div_zero_from_code = mod->getFunction("art_portable_throw_div_zero_from_code");
@@ -482,7 +482,7 @@ func_art_portable_throw_div_zero_from_code = Function::Create(
  /*Name=*/"art_portable_throw_div_zero_from_code", mod); // (external, no body)
 func_art_portable_throw_div_zero_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_div_zero_from_code_PAL;
+AttributeSet func_art_portable_throw_div_zero_from_code_PAL;
 func_art_portable_throw_div_zero_from_code->setAttributes(func_art_portable_throw_div_zero_from_code_PAL);
 
 Function* func_art_portable_throw_array_bounds_from_code = mod->getFunction("art_portable_throw_array_bounds_from_code");
@@ -493,7 +493,7 @@ func_art_portable_throw_array_bounds_from_code = Function::Create(
  /*Name=*/"art_portable_throw_array_bounds_from_code", mod); // (external, no body)
 func_art_portable_throw_array_bounds_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_array_bounds_from_code_PAL;
+AttributeSet func_art_portable_throw_array_bounds_from_code_PAL;
 func_art_portable_throw_array_bounds_from_code->setAttributes(func_art_portable_throw_array_bounds_from_code_PAL);
 
 Function* func_art_portable_throw_no_such_method_from_code = mod->getFunction("art_portable_throw_no_such_method_from_code");
@@ -504,7 +504,7 @@ func_art_portable_throw_no_such_method_from_code = Function::Create(
  /*Name=*/"art_portable_throw_no_such_method_from_code", mod); // (external, no body)
 func_art_portable_throw_no_such_method_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_no_such_method_from_code_PAL;
+AttributeSet func_art_portable_throw_no_such_method_from_code_PAL;
 func_art_portable_throw_no_such_method_from_code->setAttributes(func_art_portable_throw_no_such_method_from_code_PAL);
 
 Function* func_art_portable_throw_null_pointer_exception_from_code = mod->getFunction("art_portable_throw_null_pointer_exception_from_code");
@@ -515,7 +515,7 @@ func_art_portable_throw_null_pointer_exception_from_code = Function::Create(
  /*Name=*/"art_portable_throw_null_pointer_exception_from_code", mod); // (external, no body)
 func_art_portable_throw_null_pointer_exception_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_null_pointer_exception_from_code_PAL;
+AttributeSet func_art_portable_throw_null_pointer_exception_from_code_PAL;
 func_art_portable_throw_null_pointer_exception_from_code->setAttributes(func_art_portable_throw_null_pointer_exception_from_code_PAL);
 
 Function* func_art_portable_throw_stack_overflow_from_code = mod->getFunction("art_portable_throw_stack_overflow_from_code");
@@ -526,7 +526,7 @@ func_art_portable_throw_stack_overflow_from_code = Function::Create(
  /*Name=*/"art_portable_throw_stack_overflow_from_code", mod); // (external, no body)
 func_art_portable_throw_stack_overflow_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_stack_overflow_from_code_PAL;
+AttributeSet func_art_portable_throw_stack_overflow_from_code_PAL;
 func_art_portable_throw_stack_overflow_from_code->setAttributes(func_art_portable_throw_stack_overflow_from_code_PAL);
 
 Function* func_art_portable_throw_exception_from_code = mod->getFunction("art_portable_throw_exception_from_code");
@@ -537,7 +537,7 @@ func_art_portable_throw_exception_from_code = Function::Create(
  /*Name=*/"art_portable_throw_exception_from_code", mod); // (external, no body)
 func_art_portable_throw_exception_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_throw_exception_from_code_PAL;
+AttributeSet func_art_portable_throw_exception_from_code_PAL;
 func_art_portable_throw_exception_from_code->setAttributes(func_art_portable_throw_exception_from_code_PAL);
 
 Function* func_art_portable_find_catch_block_from_code = mod->getFunction("art_portable_find_catch_block_from_code");
@@ -548,7 +548,7 @@ func_art_portable_find_catch_block_from_code = Function::Create(
  /*Name=*/"art_portable_find_catch_block_from_code", mod); // (external, no body)
 func_art_portable_find_catch_block_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_catch_block_from_code_PAL;
+AttributeSet func_art_portable_find_catch_block_from_code_PAL;
 func_art_portable_find_catch_block_from_code->setAttributes(func_art_portable_find_catch_block_from_code_PAL);
 
 Function* func_art_portable_alloc_object_from_code = mod->getFunction("art_portable_alloc_object_from_code");
@@ -559,7 +559,7 @@ func_art_portable_alloc_object_from_code = Function::Create(
  /*Name=*/"art_portable_alloc_object_from_code", mod); // (external, no body)
 func_art_portable_alloc_object_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_alloc_object_from_code_PAL;
+AttributeSet func_art_portable_alloc_object_from_code_PAL;
 func_art_portable_alloc_object_from_code->setAttributes(func_art_portable_alloc_object_from_code_PAL);
 
 Function* func_art_portable_alloc_object_from_code_with_access_check = mod->getFunction("art_portable_alloc_object_from_code_with_access_check");
@@ -570,7 +570,7 @@ func_art_portable_alloc_object_from_code_with_access_check = Function::Create(
  /*Name=*/"art_portable_alloc_object_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_alloc_object_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_alloc_object_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_alloc_object_from_code_with_access_check_PAL;
 func_art_portable_alloc_object_from_code_with_access_check->setAttributes(func_art_portable_alloc_object_from_code_with_access_check_PAL);
 
 Function* func_art_portable_alloc_array_from_code = mod->getFunction("art_portable_alloc_array_from_code");
@@ -581,7 +581,7 @@ func_art_portable_alloc_array_from_code = Function::Create(
  /*Name=*/"art_portable_alloc_array_from_code", mod); // (external, no body)
 func_art_portable_alloc_array_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_alloc_array_from_code_PAL;
+AttributeSet func_art_portable_alloc_array_from_code_PAL;
 func_art_portable_alloc_array_from_code->setAttributes(func_art_portable_alloc_array_from_code_PAL);
 
 Function* func_art_portable_alloc_array_from_code_with_access_check = mod->getFunction("art_portable_alloc_array_from_code_with_access_check");
@@ -592,7 +592,7 @@ func_art_portable_alloc_array_from_code_with_access_check = Function::Create(
  /*Name=*/"art_portable_alloc_array_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_alloc_array_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_alloc_array_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_alloc_array_from_code_with_access_check_PAL;
 func_art_portable_alloc_array_from_code_with_access_check->setAttributes(func_art_portable_alloc_array_from_code_with_access_check_PAL);
 
 Function* func_art_portable_check_and_alloc_array_from_code = mod->getFunction("art_portable_check_and_alloc_array_from_code");
@@ -603,7 +603,7 @@ func_art_portable_check_and_alloc_array_from_code = Function::Create(
  /*Name=*/"art_portable_check_and_alloc_array_from_code", mod); // (external, no body)
 func_art_portable_check_and_alloc_array_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_check_and_alloc_array_from_code_PAL;
+AttributeSet func_art_portable_check_and_alloc_array_from_code_PAL;
 func_art_portable_check_and_alloc_array_from_code->setAttributes(func_art_portable_check_and_alloc_array_from_code_PAL);
 
 Function* func_art_portable_check_and_alloc_array_from_code_with_access_check = mod->getFunction("art_portable_check_and_alloc_array_from_code_with_access_check");
@@ -614,7 +614,7 @@ func_art_portable_check_and_alloc_array_from_code_with_access_check = Function::
  /*Name=*/"art_portable_check_and_alloc_array_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_check_and_alloc_array_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_check_and_alloc_array_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_check_and_alloc_array_from_code_with_access_check_PAL;
 func_art_portable_check_and_alloc_array_from_code_with_access_check->setAttributes(func_art_portable_check_and_alloc_array_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_instance_field_from_code = mod->getFunction("art_portable_find_instance_field_from_code");
@@ -625,7 +625,7 @@ func_art_portable_find_instance_field_from_code = Function::Create(
  /*Name=*/"art_portable_find_instance_field_from_code", mod); // (external, no body)
 func_art_portable_find_instance_field_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_instance_field_from_code_PAL;
+AttributeSet func_art_portable_find_instance_field_from_code_PAL;
 func_art_portable_find_instance_field_from_code->setAttributes(func_art_portable_find_instance_field_from_code_PAL);
 
 Function* func_art_portable_find_static_field_from_code = mod->getFunction("art_portable_find_static_field_from_code");
@@ -636,7 +636,7 @@ func_art_portable_find_static_field_from_code = Function::Create(
  /*Name=*/"art_portable_find_static_field_from_code", mod); // (external, no body)
 func_art_portable_find_static_field_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_static_field_from_code_PAL;
+AttributeSet func_art_portable_find_static_field_from_code_PAL;
 func_art_portable_find_static_field_from_code->setAttributes(func_art_portable_find_static_field_from_code_PAL);
 
 Function* func_art_portable_find_static_method_from_code_with_access_check = mod->getFunction("art_portable_find_static_method_from_code_with_access_check");
@@ -647,7 +647,7 @@ func_art_portable_find_static_method_from_code_with_access_check = Function::Cre
  /*Name=*/"art_portable_find_static_method_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_find_static_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_static_method_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_find_static_method_from_code_with_access_check_PAL;
 func_art_portable_find_static_method_from_code_with_access_check->setAttributes(func_art_portable_find_static_method_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_direct_method_from_code_with_access_check = mod->getFunction("art_portable_find_direct_method_from_code_with_access_check");
@@ -658,7 +658,7 @@ func_art_portable_find_direct_method_from_code_with_access_check = Function::Cre
  /*Name=*/"art_portable_find_direct_method_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_find_direct_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_direct_method_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_find_direct_method_from_code_with_access_check_PAL;
 func_art_portable_find_direct_method_from_code_with_access_check->setAttributes(func_art_portable_find_direct_method_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_virtual_method_from_code_with_access_check = mod->getFunction("art_portable_find_virtual_method_from_code_with_access_check");
@@ -669,7 +669,7 @@ func_art_portable_find_virtual_method_from_code_with_access_check = Function::Cr
  /*Name=*/"art_portable_find_virtual_method_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_find_virtual_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_virtual_method_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_find_virtual_method_from_code_with_access_check_PAL;
 func_art_portable_find_virtual_method_from_code_with_access_check->setAttributes(func_art_portable_find_virtual_method_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_super_method_from_code_with_access_check = mod->getFunction("art_portable_find_super_method_from_code_with_access_check");
@@ -680,7 +680,7 @@ func_art_portable_find_super_method_from_code_with_access_check = Function::Crea
  /*Name=*/"art_portable_find_super_method_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_find_super_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_super_method_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_find_super_method_from_code_with_access_check_PAL;
 func_art_portable_find_super_method_from_code_with_access_check->setAttributes(func_art_portable_find_super_method_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_interface_method_from_code_with_access_check = mod->getFunction("art_portable_find_interface_method_from_code_with_access_check");
@@ -691,7 +691,7 @@ func_art_portable_find_interface_method_from_code_with_access_check = Function::
  /*Name=*/"art_portable_find_interface_method_from_code_with_access_check", mod); // (external, no body)
 func_art_portable_find_interface_method_from_code_with_access_check->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_interface_method_from_code_with_access_check_PAL;
+AttributeSet func_art_portable_find_interface_method_from_code_with_access_check_PAL;
 func_art_portable_find_interface_method_from_code_with_access_check->setAttributes(func_art_portable_find_interface_method_from_code_with_access_check_PAL);
 
 Function* func_art_portable_find_interface_method_from_code = mod->getFunction("art_portable_find_interface_method_from_code");
@@ -702,7 +702,7 @@ func_art_portable_find_interface_method_from_code = Function::Create(
  /*Name=*/"art_portable_find_interface_method_from_code", mod); // (external, no body)
 func_art_portable_find_interface_method_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_find_interface_method_from_code_PAL;
+AttributeSet func_art_portable_find_interface_method_from_code_PAL;
 func_art_portable_find_interface_method_from_code->setAttributes(func_art_portable_find_interface_method_from_code_PAL);
 
 Function* func_art_portable_initialize_static_storage_from_code = mod->getFunction("art_portable_initialize_static_storage_from_code");
@@ -713,7 +713,7 @@ func_art_portable_initialize_static_storage_from_code = Function::Create(
  /*Name=*/"art_portable_initialize_static_storage_from_code", mod); // (external, no body)
 func_art_portable_initialize_static_storage_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_initialize_static_storage_from_code_PAL;
+AttributeSet func_art_portable_initialize_static_storage_from_code_PAL;
 func_art_portable_initialize_static_storage_from_code->setAttributes(func_art_portable_initialize_static_storage_from_code_PAL);
 
 Function* func_art_portable_initialize_type_from_code = mod->getFunction("art_portable_initialize_type_from_code");
@@ -724,7 +724,7 @@ func_art_portable_initialize_type_from_code = Function::Create(
  /*Name=*/"art_portable_initialize_type_from_code", mod); // (external, no body)
 func_art_portable_initialize_type_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_initialize_type_from_code_PAL;
+AttributeSet func_art_portable_initialize_type_from_code_PAL;
 func_art_portable_initialize_type_from_code->setAttributes(func_art_portable_initialize_type_from_code_PAL);
 
 Function* func_art_portable_initialize_type_and_verify_access_from_code = mod->getFunction("art_portable_initialize_type_and_verify_access_from_code");
@@ -735,7 +735,7 @@ func_art_portable_initialize_type_and_verify_access_from_code = Function::Create
  /*Name=*/"art_portable_initialize_type_and_verify_access_from_code", mod); // (external, no body)
 func_art_portable_initialize_type_and_verify_access_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_initialize_type_and_verify_access_from_code_PAL;
+AttributeSet func_art_portable_initialize_type_and_verify_access_from_code_PAL;
 func_art_portable_initialize_type_and_verify_access_from_code->setAttributes(func_art_portable_initialize_type_and_verify_access_from_code_PAL);
 
 Function* func_art_portable_resolve_string_from_code = mod->getFunction("art_portable_resolve_string_from_code");
@@ -746,7 +746,7 @@ func_art_portable_resolve_string_from_code = Function::Create(
  /*Name=*/"art_portable_resolve_string_from_code", mod); // (external, no body)
 func_art_portable_resolve_string_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_resolve_string_from_code_PAL;
+AttributeSet func_art_portable_resolve_string_from_code_PAL;
 func_art_portable_resolve_string_from_code->setAttributes(func_art_portable_resolve_string_from_code_PAL);
 
 Function* func_art_portable_set32_static_from_code = mod->getFunction("art_portable_set32_static_from_code");
@@ -757,7 +757,7 @@ func_art_portable_set32_static_from_code = Function::Create(
  /*Name=*/"art_portable_set32_static_from_code", mod); // (external, no body)
 func_art_portable_set32_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set32_static_from_code_PAL;
+AttributeSet func_art_portable_set32_static_from_code_PAL;
 func_art_portable_set32_static_from_code->setAttributes(func_art_portable_set32_static_from_code_PAL);
 
 Function* func_art_portable_set64_static_from_code = mod->getFunction("art_portable_set64_static_from_code");
@@ -768,7 +768,7 @@ func_art_portable_set64_static_from_code = Function::Create(
  /*Name=*/"art_portable_set64_static_from_code", mod); // (external, no body)
 func_art_portable_set64_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set64_static_from_code_PAL;
+AttributeSet func_art_portable_set64_static_from_code_PAL;
 func_art_portable_set64_static_from_code->setAttributes(func_art_portable_set64_static_from_code_PAL);
 
 Function* func_art_portable_set_obj_static_from_code = mod->getFunction("art_portable_set_obj_static_from_code");
@@ -779,7 +779,7 @@ func_art_portable_set_obj_static_from_code = Function::Create(
  /*Name=*/"art_portable_set_obj_static_from_code", mod); // (external, no body)
 func_art_portable_set_obj_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set_obj_static_from_code_PAL;
+AttributeSet func_art_portable_set_obj_static_from_code_PAL;
 func_art_portable_set_obj_static_from_code->setAttributes(func_art_portable_set_obj_static_from_code_PAL);
 
 Function* func_art_portable_get32_static_from_code = mod->getFunction("art_portable_get32_static_from_code");
@@ -790,7 +790,7 @@ func_art_portable_get32_static_from_code = Function::Create(
  /*Name=*/"art_portable_get32_static_from_code", mod); // (external, no body)
 func_art_portable_get32_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get32_static_from_code_PAL;
+AttributeSet func_art_portable_get32_static_from_code_PAL;
 func_art_portable_get32_static_from_code->setAttributes(func_art_portable_get32_static_from_code_PAL);
 
 Function* func_art_portable_get64_static_from_code = mod->getFunction("art_portable_get64_static_from_code");
@@ -801,7 +801,7 @@ func_art_portable_get64_static_from_code = Function::Create(
  /*Name=*/"art_portable_get64_static_from_code", mod); // (external, no body)
 func_art_portable_get64_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get64_static_from_code_PAL;
+AttributeSet func_art_portable_get64_static_from_code_PAL;
 func_art_portable_get64_static_from_code->setAttributes(func_art_portable_get64_static_from_code_PAL);
 
 Function* func_art_portable_get_obj_static_from_code = mod->getFunction("art_portable_get_obj_static_from_code");
@@ -812,7 +812,7 @@ func_art_portable_get_obj_static_from_code = Function::Create(
  /*Name=*/"art_portable_get_obj_static_from_code", mod); // (external, no body)
 func_art_portable_get_obj_static_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get_obj_static_from_code_PAL;
+AttributeSet func_art_portable_get_obj_static_from_code_PAL;
 func_art_portable_get_obj_static_from_code->setAttributes(func_art_portable_get_obj_static_from_code_PAL);
 
 Function* func_art_portable_set32_instance_from_code = mod->getFunction("art_portable_set32_instance_from_code");
@@ -823,7 +823,7 @@ func_art_portable_set32_instance_from_code = Function::Create(
  /*Name=*/"art_portable_set32_instance_from_code", mod); // (external, no body)
 func_art_portable_set32_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set32_instance_from_code_PAL;
+AttributeSet func_art_portable_set32_instance_from_code_PAL;
 func_art_portable_set32_instance_from_code->setAttributes(func_art_portable_set32_instance_from_code_PAL);
 
 Function* func_art_portable_set64_instance_from_code = mod->getFunction("art_portable_set64_instance_from_code");
@@ -834,7 +834,7 @@ func_art_portable_set64_instance_from_code = Function::Create(
  /*Name=*/"art_portable_set64_instance_from_code", mod); // (external, no body)
 func_art_portable_set64_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set64_instance_from_code_PAL;
+AttributeSet func_art_portable_set64_instance_from_code_PAL;
 func_art_portable_set64_instance_from_code->setAttributes(func_art_portable_set64_instance_from_code_PAL);
 
 Function* func_art_portable_set_obj_instance_from_code = mod->getFunction("art_portable_set_obj_instance_from_code");
@@ -845,7 +845,7 @@ func_art_portable_set_obj_instance_from_code = Function::Create(
  /*Name=*/"art_portable_set_obj_instance_from_code", mod); // (external, no body)
 func_art_portable_set_obj_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_set_obj_instance_from_code_PAL;
+AttributeSet func_art_portable_set_obj_instance_from_code_PAL;
 func_art_portable_set_obj_instance_from_code->setAttributes(func_art_portable_set_obj_instance_from_code_PAL);
 
 Function* func_art_portable_get32_instance_from_code = mod->getFunction("art_portable_get32_instance_from_code");
@@ -856,7 +856,7 @@ func_art_portable_get32_instance_from_code = Function::Create(
  /*Name=*/"art_portable_get32_instance_from_code", mod); // (external, no body)
 func_art_portable_get32_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get32_instance_from_code_PAL;
+AttributeSet func_art_portable_get32_instance_from_code_PAL;
 func_art_portable_get32_instance_from_code->setAttributes(func_art_portable_get32_instance_from_code_PAL);
 
 Function* func_art_portable_get64_instance_from_code = mod->getFunction("art_portable_get64_instance_from_code");
@@ -867,7 +867,7 @@ func_art_portable_get64_instance_from_code = Function::Create(
  /*Name=*/"art_portable_get64_instance_from_code", mod); // (external, no body)
 func_art_portable_get64_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get64_instance_from_code_PAL;
+AttributeSet func_art_portable_get64_instance_from_code_PAL;
 func_art_portable_get64_instance_from_code->setAttributes(func_art_portable_get64_instance_from_code_PAL);
 
 Function* func_art_portable_get_obj_instance_from_code = mod->getFunction("art_portable_get_obj_instance_from_code");
@@ -878,7 +878,7 @@ func_art_portable_get_obj_instance_from_code = Function::Create(
  /*Name=*/"art_portable_get_obj_instance_from_code", mod); // (external, no body)
 func_art_portable_get_obj_instance_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_get_obj_instance_from_code_PAL;
+AttributeSet func_art_portable_get_obj_instance_from_code_PAL;
 func_art_portable_get_obj_instance_from_code->setAttributes(func_art_portable_get_obj_instance_from_code_PAL);
 
 Function* func_art_portable_decode_jobject_in_thread = mod->getFunction("art_portable_decode_jobject_in_thread");
@@ -889,7 +889,7 @@ func_art_portable_decode_jobject_in_thread = Function::Create(
  /*Name=*/"art_portable_decode_jobject_in_thread", mod); // (external, no body)
 func_art_portable_decode_jobject_in_thread->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_decode_jobject_in_thread_PAL;
+AttributeSet func_art_portable_decode_jobject_in_thread_PAL;
 func_art_portable_decode_jobject_in_thread->setAttributes(func_art_portable_decode_jobject_in_thread_PAL);
 
 Function* func_art_portable_fill_array_data_from_code = mod->getFunction("art_portable_fill_array_data_from_code");
@@ -900,7 +900,7 @@ func_art_portable_fill_array_data_from_code = Function::Create(
  /*Name=*/"art_portable_fill_array_data_from_code", mod); // (external, no body)
 func_art_portable_fill_array_data_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_fill_array_data_from_code_PAL;
+AttributeSet func_art_portable_fill_array_data_from_code_PAL;
 func_art_portable_fill_array_data_from_code->setAttributes(func_art_portable_fill_array_data_from_code_PAL);
 
 Function* func_art_portable_is_assignable_from_code = mod->getFunction("art_portable_is_assignable_from_code");
@@ -911,7 +911,7 @@ func_art_portable_is_assignable_from_code = Function::Create(
  /*Name=*/"art_portable_is_assignable_from_code", mod); // (external, no body)
 func_art_portable_is_assignable_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_is_assignable_from_code_PAL;
+AttributeSet func_art_portable_is_assignable_from_code_PAL;
 func_art_portable_is_assignable_from_code->setAttributes(func_art_portable_is_assignable_from_code_PAL);
 
 Function* func_art_portable_check_cast_from_code = mod->getFunction("art_portable_check_cast_from_code");
@@ -922,7 +922,7 @@ func_art_portable_check_cast_from_code = Function::Create(
  /*Name=*/"art_portable_check_cast_from_code", mod); // (external, no body)
 func_art_portable_check_cast_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_check_cast_from_code_PAL;
+AttributeSet func_art_portable_check_cast_from_code_PAL;
 func_art_portable_check_cast_from_code->setAttributes(func_art_portable_check_cast_from_code_PAL);
 
 Function* func_art_portable_check_put_array_element_from_code = mod->getFunction("art_portable_check_put_array_element_from_code");
@@ -933,7 +933,7 @@ func_art_portable_check_put_array_element_from_code = Function::Create(
  /*Name=*/"art_portable_check_put_array_element_from_code", mod); // (external, no body)
 func_art_portable_check_put_array_element_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_check_put_array_element_from_code_PAL;
+AttributeSet func_art_portable_check_put_array_element_from_code_PAL;
 func_art_portable_check_put_array_element_from_code->setAttributes(func_art_portable_check_put_array_element_from_code_PAL);
 
 Function* func_art_d2l = mod->getFunction("art_d2l");
@@ -944,7 +944,7 @@ func_art_d2l = Function::Create(
  /*Name=*/"art_d2l", mod); // (external, no body)
 func_art_d2l->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_d2l_PAL;
+AttributeSet func_art_d2l_PAL;
 func_art_d2l->setAttributes(func_art_d2l_PAL);
 
 Function* func_art_d2i = mod->getFunction("art_d2i");
@@ -955,7 +955,7 @@ func_art_d2i = Function::Create(
  /*Name=*/"art_d2i", mod); // (external, no body)
 func_art_d2i->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_d2i_PAL;
+AttributeSet func_art_d2i_PAL;
 func_art_d2i->setAttributes(func_art_d2i_PAL);
 
 Function* func_art_f2l = mod->getFunction("art_f2l");
@@ -966,7 +966,7 @@ func_art_f2l = Function::Create(
  /*Name=*/"art_f2l", mod); // (external, no body)
 func_art_f2l->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_f2l_PAL;
+AttributeSet func_art_f2l_PAL;
 func_art_f2l->setAttributes(func_art_f2l_PAL);
 
 Function* func_art_f2i = mod->getFunction("art_f2i");
@@ -977,7 +977,7 @@ func_art_f2i = Function::Create(
  /*Name=*/"art_f2i", mod); // (external, no body)
 func_art_f2i->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_f2i_PAL;
+AttributeSet func_art_f2i_PAL;
 func_art_f2i->setAttributes(func_art_f2i_PAL);
 
 Function* func_art_portable_jni_method_start = mod->getFunction("art_portable_jni_method_start");
@@ -988,7 +988,7 @@ func_art_portable_jni_method_start = Function::Create(
  /*Name=*/"art_portable_jni_method_start", mod); // (external, no body)
 func_art_portable_jni_method_start->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_start_PAL;
+AttributeSet func_art_portable_jni_method_start_PAL;
 func_art_portable_jni_method_start->setAttributes(func_art_portable_jni_method_start_PAL);
 
 Function* func_art_portable_jni_method_start_synchronized = mod->getFunction("art_portable_jni_method_start_synchronized");
@@ -999,7 +999,7 @@ func_art_portable_jni_method_start_synchronized = Function::Create(
  /*Name=*/"art_portable_jni_method_start_synchronized", mod); // (external, no body)
 func_art_portable_jni_method_start_synchronized->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_start_synchronized_PAL;
+AttributeSet func_art_portable_jni_method_start_synchronized_PAL;
 func_art_portable_jni_method_start_synchronized->setAttributes(func_art_portable_jni_method_start_synchronized_PAL);
 
 Function* func_art_portable_jni_method_end = mod->getFunction("art_portable_jni_method_end");
@@ -1010,7 +1010,7 @@ func_art_portable_jni_method_end = Function::Create(
  /*Name=*/"art_portable_jni_method_end", mod); // (external, no body)
 func_art_portable_jni_method_end->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_end_PAL;
+AttributeSet func_art_portable_jni_method_end_PAL;
 func_art_portable_jni_method_end->setAttributes(func_art_portable_jni_method_end_PAL);
 
 Function* func_art_portable_jni_method_end_synchronized = mod->getFunction("art_portable_jni_method_end_synchronized");
@@ -1021,7 +1021,7 @@ func_art_portable_jni_method_end_synchronized = Function::Create(
  /*Name=*/"art_portable_jni_method_end_synchronized", mod); // (external, no body)
 func_art_portable_jni_method_end_synchronized->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_end_synchronized_PAL;
+AttributeSet func_art_portable_jni_method_end_synchronized_PAL;
 func_art_portable_jni_method_end_synchronized->setAttributes(func_art_portable_jni_method_end_synchronized_PAL);
 
 Function* func_art_portable_jni_method_end_with_reference = mod->getFunction("art_portable_jni_method_end_with_reference");
@@ -1032,7 +1032,7 @@ func_art_portable_jni_method_end_with_reference = Function::Create(
  /*Name=*/"art_portable_jni_method_end_with_reference", mod); // (external, no body)
 func_art_portable_jni_method_end_with_reference->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_end_with_reference_PAL;
+AttributeSet func_art_portable_jni_method_end_with_reference_PAL;
 func_art_portable_jni_method_end_with_reference->setAttributes(func_art_portable_jni_method_end_with_reference_PAL);
 
 Function* func_art_portable_jni_method_end_with_reference_synchronized = mod->getFunction("art_portable_jni_method_end_with_reference_synchronized");
@@ -1043,7 +1043,7 @@ func_art_portable_jni_method_end_with_reference_synchronized = Function::Create(
  /*Name=*/"art_portable_jni_method_end_with_reference_synchronized", mod); // (external, no body)
 func_art_portable_jni_method_end_with_reference_synchronized->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_jni_method_end_with_reference_synchronized_PAL;
+AttributeSet func_art_portable_jni_method_end_with_reference_synchronized_PAL;
 func_art_portable_jni_method_end_with_reference_synchronized->setAttributes(func_art_portable_jni_method_end_with_reference_synchronized_PAL);
 
 Function* func_art_portable_is_exception_pending_from_code = mod->getFunction("art_portable_is_exception_pending_from_code");
@@ -1054,7 +1054,7 @@ func_art_portable_is_exception_pending_from_code = Function::Create(
  /*Name=*/"art_portable_is_exception_pending_from_code", mod); // (external, no body)
 func_art_portable_is_exception_pending_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_is_exception_pending_from_code_PAL;
+AttributeSet func_art_portable_is_exception_pending_from_code_PAL;
 func_art_portable_is_exception_pending_from_code->setAttributes(func_art_portable_is_exception_pending_from_code_PAL);
 
 Function* func_art_portable_mark_gc_card_from_code = mod->getFunction("art_portable_mark_gc_card_from_code");
@@ -1065,7 +1065,7 @@ func_art_portable_mark_gc_card_from_code = Function::Create(
  /*Name=*/"art_portable_mark_gc_card_from_code", mod); // (external, no body)
 func_art_portable_mark_gc_card_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_mark_gc_card_from_code_PAL;
+AttributeSet func_art_portable_mark_gc_card_from_code_PAL;
 func_art_portable_mark_gc_card_from_code->setAttributes(func_art_portable_mark_gc_card_from_code_PAL);
 
 Function* func_art_portable_proxy_invoke_handler_from_code = mod->getFunction("art_portable_proxy_invoke_handler_from_code");
@@ -1076,7 +1076,7 @@ func_art_portable_proxy_invoke_handler_from_code = Function::Create(
  /*Name=*/"art_portable_proxy_invoke_handler_from_code", mod); // (external, no body)
 func_art_portable_proxy_invoke_handler_from_code->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_art_portable_proxy_invoke_handler_from_code_PAL;
+AttributeSet func_art_portable_proxy_invoke_handler_from_code_PAL;
 func_art_portable_proxy_invoke_handler_from_code->setAttributes(func_art_portable_proxy_invoke_handler_from_code_PAL);
 
 // Global Variable Declarations

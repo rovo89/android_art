@@ -16,16 +16,16 @@
 
 #include "object_utils.h"
 
-#include <llvm/Support/ToolOutputFile.h>
-#include <llvm/Bitcode/ReaderWriter.h>
-#include <llvm/Analysis/Verifier.h>
-#include <llvm/Metadata.h>
 #include <llvm/ADT/DepthFirstIterator.h>
-#include <llvm/Instruction.h>
-#include <llvm/Type.h>
-#include <llvm/Instructions.h>
+#include <llvm/Analysis/Verifier.h>
+#include <llvm/Bitcode/ReaderWriter.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Metadata.h>
+#include <llvm/IR/Type.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
+#include <llvm/Support/ToolOutputFile.h>
 
 #include "compiler/dex/compiler_internals.h"
 #include "compiler/dex/dataflow_iterator.h"
