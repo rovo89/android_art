@@ -19,58 +19,54 @@
 #include "gc_map.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
-#include "ralloc_util.h"
-#include "codegen_util.h"
 
 namespace art {
 
-bool IsInexpensiveConstant(CompilationUnit* cu, RegLocation rl_src)
+bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src)
 {
   bool res = false;
   if (rl_src.is_const) {
     if (rl_src.wide) {
       if (rl_src.fp) {
-         res = cu->cg->InexpensiveConstantDouble(cu->mir_graph->ConstantValueWide(rl_src));
+         res = InexpensiveConstantDouble(mir_graph_->ConstantValueWide(rl_src));
       } else {
-         res = cu->cg->InexpensiveConstantLong(cu->mir_graph->ConstantValueWide(rl_src));
+         res = InexpensiveConstantLong(mir_graph_->ConstantValueWide(rl_src));
       }
     } else {
       if (rl_src.fp) {
-         res = cu->cg->InexpensiveConstantFloat(cu->mir_graph->ConstantValue(rl_src));
+         res = InexpensiveConstantFloat(mir_graph_->ConstantValue(rl_src));
       } else {
-         res = cu->cg->InexpensiveConstantInt(cu->mir_graph->ConstantValue(rl_src));
+         res = InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src));
       }
     }
   }
   return res;
 }
 
-void MarkSafepointPC(CompilationUnit* cu, LIR* inst)
+void Mir2Lir::MarkSafepointPC(LIR* inst)
 {
   inst->def_mask = ENCODE_ALL;
-  LIR* safepoint_pc = NewLIR0(cu, kPseudoSafepointPC);
+  LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
   DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
 }
 
-bool FastInstance(CompilationUnit* cu,  uint32_t field_idx,
-                  int& field_offset, bool& is_volatile, bool is_put)
+bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put)
 {
-  return cu->compiler_driver->ComputeInstanceFieldInfo(
-      field_idx, cu->mir_graph->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
+  return cu_->compiler_driver->ComputeInstanceFieldInfo(
+      field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
 }
 
 /* Convert an instruction to a NOP */
-void NopLIR( LIR* lir)
+void Mir2Lir::NopLIR( LIR* lir)
 {
   lir->flags.is_nop = true;
 }
 
-void SetMemRefType(CompilationUnit* cu, LIR* lir, bool is_load, int mem_type)
+void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type)
 {
   uint64_t *mask_ptr;
   uint64_t mask = ENCODE_MEM;;
-  Codegen* cg = cu->cg.get();
-  DCHECK(cg->GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
+  DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
   if (is_load) {
     mask_ptr = &lir->use_mask;
   } else {
@@ -92,7 +88,7 @@ void SetMemRefType(CompilationUnit* cu, LIR* lir, bool is_load, int mem_type)
       break;
     case kMustNotAlias:
       /* Currently only loads can be marked as kMustNotAlias */
-      DCHECK(!(cg->GetTargetInstFlags(lir->opcode) & IS_STORE));
+      DCHECK(!(GetTargetInstFlags(lir->opcode) & IS_STORE));
       *mask_ptr |= ENCODE_MUST_NOT_ALIAS;
       break;
     default:
@@ -103,9 +99,10 @@ void SetMemRefType(CompilationUnit* cu, LIR* lir, bool is_load, int mem_type)
 /*
  * Mark load/store instructions that access Dalvik registers through the stack.
  */
-void AnnotateDalvikRegAccess(CompilationUnit* cu, LIR* lir, int reg_id, bool is_load, bool is64bit)
+void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
+                                      bool is64bit)
 {
-  SetMemRefType(cu, lir, is_load, kDalvikReg);
+  SetMemRefType(lir, is_load, kDalvikReg);
 
   /*
    * Store the Dalvik register id in alias_info. Mark the MSB if it is a 64-bit
@@ -117,38 +114,36 @@ void AnnotateDalvikRegAccess(CompilationUnit* cu, LIR* lir, int reg_id, bool is_
 /*
  * Mark the corresponding bit(s).
  */
-void SetupRegMask(CompilationUnit* cu, uint64_t* mask, int reg)
+void Mir2Lir::SetupRegMask(uint64_t* mask, int reg)
 {
-  Codegen* cg = cu->cg.get();
-  *mask |= cg->GetRegMaskCommon(cu, reg);
+  *mask |= GetRegMaskCommon(reg);
 }
 
 /*
  * Set up the proper fields in the resource mask
  */
-void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
+void Mir2Lir::SetupResourceMasks(LIR* lir)
 {
   int opcode = lir->opcode;
-  Codegen* cg = cu->cg.get();
 
   if (opcode <= 0) {
     lir->use_mask = lir->def_mask = 0;
     return;
   }
 
-  uint64_t flags = cg->GetTargetInstFlags(opcode);
+  uint64_t flags = GetTargetInstFlags(opcode);
 
   if (flags & NEEDS_FIXUP) {
     lir->flags.pcRelFixup = true;
   }
 
   /* Get the starting size of the instruction's template */
-  lir->flags.size = cg->GetInsnSize(lir);
+  lir->flags.size = GetInsnSize(lir);
 
   /* Set up the mask for resources that are updated */
   if (flags & (IS_LOAD | IS_STORE)) {
     /* Default to heap - will catch specialized classes later */
-    SetMemRefType(cu, lir, flags & IS_LOAD, kHeapRef);
+    SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
   }
 
   /*
@@ -161,11 +156,11 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 
   if (flags & REG_DEF0) {
-    SetupRegMask(cu, &lir->def_mask, lir->operands[0]);
+    SetupRegMask(&lir->def_mask, lir->operands[0]);
   }
 
   if (flags & REG_DEF1) {
-    SetupRegMask(cu, &lir->def_mask, lir->operands[1]);
+    SetupRegMask(&lir->def_mask, lir->operands[1]);
   }
 
 
@@ -178,7 +173,7 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
 
     for (i = 0; i < 4; i++) {
       if (flags & (1 << (kRegUse0 + i))) {
-        SetupRegMask(cu, &lir->use_mask, lir->operands[i]);
+        SetupRegMask(&lir->use_mask, lir->operands[i]);
       }
     }
   }
@@ -188,7 +183,7 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 
   // Handle target-specific actions
-  cg->SetupTargetResourceMasks(cu, lir);
+  SetupTargetResourceMasks(lir);
 }
 
 /*
@@ -197,18 +192,17 @@ void SetupResourceMasks(CompilationUnit* cu, LIR* lir)
 #define DUMP_RESOURCE_MASK(X)
 
 /* Pretty-print a LIR instruction */
-void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
+void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr)
 {
   int offset = lir->offset;
   int dest = lir->operands[0];
-  const bool dump_nop = (cu->enable_debug & (1 << kDebugShowNops));
-  Codegen* cg = cu->cg.get();
+  const bool dump_nop = (cu_->enable_debug & (1 << kDebugShowNops));
 
   /* Handle pseudo-ops individually, and all regular insns as a group */
   switch (lir->opcode) {
     case kPseudoMethodEntry:
       LOG(INFO) << "-------- method entry "
-                << PrettyMethod(cu->method_idx, *cu->dex_file);
+                << PrettyMethod(cu_->method_idx, *cu_->dex_file);
       break;
     case kPseudoMethodExit:
       LOG(INFO) << "-------- Method_Exit";
@@ -264,9 +258,9 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
       if (lir->flags.is_nop && !dump_nop) {
         break;
       } else {
-        std::string op_name(cg->BuildInsnString(cg->GetTargetInstName(lir->opcode),
+        std::string op_name(BuildInsnString(GetTargetInstName(lir->opcode),
                                                lir, base_addr));
-        std::string op_operands(cg->BuildInsnString(cg->GetTargetInstFmt(lir->opcode),
+        std::string op_operands(BuildInsnString(GetTargetInstFmt(lir->opcode),
                                                     lir, base_addr));
         LOG(INFO) << StringPrintf("%05x: %-9s%s%s",
                                   reinterpret_cast<unsigned int>(base_addr + offset),
@@ -284,38 +278,37 @@ void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr)
   }
 }
 
-void DumpPromotionMap(CompilationUnit *cu)
+void Mir2Lir::DumpPromotionMap()
 {
-  Codegen* cg = cu->cg.get();
-  int num_regs = cu->num_dalvik_registers + cu->num_compiler_temps + 1;
+  int num_regs = cu_->num_dalvik_registers + cu_->num_compiler_temps + 1;
   for (int i = 0; i < num_regs; i++) {
-    PromotionMap v_reg_map = cu->promotion_map[i];
+    PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", v_reg_map.FpReg & cg->FpRegMask());
+      StringAppendF(&buf, " : s%d", v_reg_map.FpReg & FpRegMask());
     }
 
     std::string buf3;
-    if (i < cu->num_dalvik_registers) {
+    if (i < cu_->num_dalvik_registers) {
       StringAppendF(&buf3, "%02d", i);
-    } else if (i == cu->method_sreg) {
+    } else if (i == mir_graph_->GetMethodSReg()) {
       buf3 = "Method*";
     } else {
-      StringAppendF(&buf3, "ct%d", i - cu->num_dalvik_registers);
+      StringAppendF(&buf3, "ct%d", i - cu_->num_dalvik_registers);
     }
 
     LOG(INFO) << StringPrintf("V[%s] -> %s%d%s", buf3.c_str(),
                               v_reg_map.core_location == kLocPhysReg ?
                               "r" : "SP+", v_reg_map.core_location == kLocPhysReg ?
-                              v_reg_map.core_reg : SRegOffset(cu, i),
+                              v_reg_map.core_reg : SRegOffset(i),
                               buf.c_str());
   }
 }
 
 /* Dump a mapping table */
-static void DumpMappingTable(const char* table_name, const std::string& descriptor,
-                             const std::string& name, const std::string& signature,
-                             const std::vector<uint32_t>& v) {
+void Mir2Lir::DumpMappingTable(const char* table_name, const std::string& descriptor,
+                               const std::string& name, const std::string& signature,
+                               const std::vector<uint32_t>& v) {
   if (v.size() > 0) {
     std::string line(StringPrintf("\n  %s %s%s_%s_table[%zu] = {", table_name,
                      descriptor.c_str(), name.c_str(), signature.c_str(), v.size()));
@@ -330,49 +323,49 @@ static void DumpMappingTable(const char* table_name, const std::string& descript
 }
 
 /* Dump instructions and constant pool contents */
-void CodegenDump(CompilationUnit* cu)
+void Mir2Lir::CodegenDump()
 {
   LOG(INFO) << "Dumping LIR insns for "
-            << PrettyMethod(cu->method_idx, *cu->dex_file);
+            << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   LIR* lir_insn;
-  int insns_size = cu->code_item->insns_size_in_code_units_;
+  int insns_size = cu_->code_item->insns_size_in_code_units_;
 
-  LOG(INFO) << "Regs (excluding ins) : " << cu->num_regs;
-  LOG(INFO) << "Ins          : " << cu->num_ins;
-  LOG(INFO) << "Outs         : " << cu->num_outs;
-  LOG(INFO) << "CoreSpills       : " << cu->num_core_spills;
-  LOG(INFO) << "FPSpills       : " << cu->num_fp_spills;
-  LOG(INFO) << "CompilerTemps    : " << cu->num_compiler_temps;
-  LOG(INFO) << "Frame size       : " << cu->frame_size;
-  LOG(INFO) << "code size is " << cu->total_size <<
+  LOG(INFO) << "Regs (excluding ins) : " << cu_->num_regs;
+  LOG(INFO) << "Ins          : " << cu_->num_ins;
+  LOG(INFO) << "Outs         : " << cu_->num_outs;
+  LOG(INFO) << "CoreSpills       : " << num_core_spills_;
+  LOG(INFO) << "FPSpills       : " << num_fp_spills_;
+  LOG(INFO) << "CompilerTemps    : " << cu_->num_compiler_temps;
+  LOG(INFO) << "Frame size       : " << frame_size_;
+  LOG(INFO) << "code size is " << total_size_ <<
     " bytes, Dalvik size is " << insns_size * 2;
   LOG(INFO) << "expansion factor: "
-            << static_cast<float>(cu->total_size) / static_cast<float>(insns_size * 2);
-  DumpPromotionMap(cu);
-  for (lir_insn = cu->first_lir_insn; lir_insn != NULL; lir_insn = lir_insn->next) {
-    DumpLIRInsn(cu, lir_insn, 0);
+            << static_cast<float>(total_size_) / static_cast<float>(insns_size * 2);
+  DumpPromotionMap();
+  for (lir_insn = first_lir_insn_; lir_insn != NULL; lir_insn = lir_insn->next) {
+    DumpLIRInsn(lir_insn, 0);
   }
-  for (lir_insn = cu->literal_list; lir_insn != NULL; lir_insn = lir_insn->next) {
+  for (lir_insn = literal_list_; lir_insn != NULL; lir_insn = lir_insn->next) {
     LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)", lir_insn->offset, lir_insn->offset,
                               lir_insn->operands[0]);
   }
 
   const DexFile::MethodId& method_id =
-      cu->dex_file->GetMethodId(cu->method_idx);
-  std::string signature(cu->dex_file->GetMethodSignature(method_id));
-  std::string name(cu->dex_file->GetMethodName(method_id));
-  std::string descriptor(cu->dex_file->GetMethodDeclaringClassDescriptor(method_id));
+      cu_->dex_file->GetMethodId(cu_->method_idx);
+  std::string signature(cu_->dex_file->GetMethodSignature(method_id));
+  std::string name(cu_->dex_file->GetMethodName(method_id));
+  std::string descriptor(cu_->dex_file->GetMethodDeclaringClassDescriptor(method_id));
 
   // Dump mapping tables
-  DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, cu->pc2dexMappingTable);
-  DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, cu->dex2pcMappingTable);
+  DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, pc2dex_mapping_table_);
+  DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, dex2pc_mapping_table_);
 }
 
 
-LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0,
-      int op1, int op2, int op3, int op4, LIR* target)
+LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
+                     int op1, int op2, int op3, int op4, LIR* target)
 {
-  LIR* insn = static_cast<LIR*>(NewMem(cu, sizeof(LIR), true, kAllocLIR));
+  LIR* insn = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocLIR));
   insn->dalvik_offset = dalvik_offset;
   insn->opcode = opcode;
   insn->operands[0] = op0;
@@ -381,7 +374,7 @@ LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0,
   insn->operands[3] = op3;
   insn->operands[4] = op4;
   insn->target = target;
-  SetupResourceMasks(cu, insn);
+  SetupResourceMasks(insn);
   if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
       (opcode == kPseudoExportedPC)) {
     // Always make labels scheduling barriers
@@ -394,80 +387,70 @@ LIR* RawLIR(CompilationUnit* cu, int dalvik_offset, int opcode, int op0,
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
-LIR* NewLIR0(CompilationUnit* cu, int opcode)
+LIR* Mir2Lir::NewLIR0(int opcode)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & NO_OPERAND))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode);
+  AppendLIR(insn);
   return insn;
 }
 
-LIR* NewLIR1(CompilationUnit* cu, int opcode,
-               int dest)
+LIR* Mir2Lir::NewLIR1(int opcode, int dest)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_UNARY_OP))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest);
+  AppendLIR(insn);
   return insn;
 }
 
-LIR* NewLIR2(CompilationUnit* cu, int opcode,
-               int dest, int src1)
+LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_BINARY_OP))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1);
+  AppendLIR(insn);
   return insn;
 }
 
-LIR* NewLIR3(CompilationUnit* cu, int opcode,
-               int dest, int src1, int src2)
+LIR* Mir2Lir::NewLIR3(int opcode, int dest, int src1, int src2)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2);
+  AppendLIR(insn);
   return insn;
 }
 
-LIR* NewLIR4(CompilationUnit* cu, int opcode,
-      int dest, int src1, int src2, int info)
+LIR* Mir2Lir::NewLIR4(int opcode, int dest, int src1, int src2, int info)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_QUAD_OP))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2, info);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2, info);
+  AppendLIR(insn);
   return insn;
 }
 
-LIR* NewLIR5(CompilationUnit* cu, int opcode,
-       int dest, int src1, int src2, int info1, int info2)
+LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1,
+                      int info2)
 {
-  Codegen* cg = cu->cg.get();
-  DCHECK(is_pseudo_opcode(opcode) || (cg->GetTargetInstFlags(opcode) & IS_QUIN_OP))
-      << cg->GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu->method_idx, *cu->dex_file) << " "
-      << cu->current_dalvik_offset;
-  LIR* insn = RawLIR(cu, cu->current_dalvik_offset, opcode, dest, src1, src2, info1, info2);
-  AppendLIR(cu, insn);
+  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
+      << GetTargetInstName(opcode) << " " << opcode << " "
+      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
+      << current_dalvik_offset_;
+  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2, info1, info2);
+  AppendLIR(insn);
   return insn;
 }
 
@@ -475,7 +458,7 @@ LIR* NewLIR5(CompilationUnit* cu, int opcode,
  * Search the existing constants in the literal pool for an exact or close match
  * within specified delta (greater or equal to 0).
  */
-LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta)
+LIR* Mir2Lir::ScanLiteralPool(LIR* data_target, int value, unsigned int delta)
 {
   while (data_target) {
     if ((static_cast<unsigned>(value - data_target->operands[0])) <= delta)
@@ -486,7 +469,7 @@ LIR* ScanLiteralPool(LIR* data_target, int value, unsigned int delta)
 }
 
 /* Search the existing constants in the literal pool for an exact wide match */
-LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
+LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
 {
   bool lo_match = false;
   LIR* lo_target = NULL;
@@ -512,11 +495,11 @@ LIR* ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
  */
 
 /* Add a 32-bit constant to the constant pool */
-LIR* AddWordData(CompilationUnit* cu, LIR* *constant_list_p, int value)
+LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value)
 {
   /* Add the constant to the literal pool */
   if (constant_list_p) {
-    LIR* new_value = static_cast<LIR*>(NewMem(cu, sizeof(LIR), true, kAllocData));
+    LIR* new_value = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocData));
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
@@ -526,11 +509,10 @@ LIR* AddWordData(CompilationUnit* cu, LIR* *constant_list_p, int value)
 }
 
 /* Add a 64-bit constant to the constant pool or mixed with code */
-LIR* AddWideData(CompilationUnit* cu, LIR* *constant_list_p,
-               int val_lo, int val_hi)
+LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi)
 {
-  AddWordData(cu, constant_list_p, val_hi);
-  return AddWordData(cu, constant_list_p, val_lo);
+  AddWordData(constant_list_p, val_hi);
+  return AddWordData(constant_list_p, val_lo);
 }
 
 static void PushWord(std::vector<uint8_t>&buf, int data) {
@@ -547,57 +529,57 @@ static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
 }
 
 /* Write the literal pool to the output stream */
-static void InstallLiteralPools(CompilationUnit* cu)
+void Mir2Lir::InstallLiteralPools()
 {
-  AlignBuffer(cu->code_buffer, cu->data_offset);
-  LIR* data_lir = cu->literal_list;
+  AlignBuffer(code_buffer_, data_offset_);
+  LIR* data_lir = literal_list_;
   while (data_lir != NULL) {
-    PushWord(cu->code_buffer, data_lir->operands[0]);
+    PushWord(code_buffer_, data_lir->operands[0]);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push code and method literals, record offsets for the compiler to patch.
-  data_lir = cu->code_literal_list;
+  data_lir = code_literal_list_;
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
-    cu->compiler_driver->AddCodePatch(cu->dex_file,
-                                      cu->method_idx,
-                                      cu->invoke_type,
+    cu_->compiler_driver->AddCodePatch(cu_->dex_file,
+                                      cu_->method_idx,
+                                      cu_->invoke_type,
                                       target,
                                       static_cast<InvokeType>(data_lir->operands[1]),
-                                      cu->code_buffer.size());
-    const DexFile::MethodId& id = cu->dex_file->GetMethodId(target);
+                                      code_buffer_.size());
+    const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    PushWord(cu->code_buffer, unique_patch_value);
+    PushWord(code_buffer_, unique_patch_value);
     data_lir = NEXT_LIR(data_lir);
   }
-  data_lir = cu->method_literal_list;
+  data_lir = method_literal_list_;
   while (data_lir != NULL) {
     uint32_t target = data_lir->operands[0];
-    cu->compiler_driver->AddMethodPatch(cu->dex_file,
-                                        cu->method_idx,
-                                        cu->invoke_type,
+    cu_->compiler_driver->AddMethodPatch(cu_->dex_file,
+                                        cu_->method_idx,
+                                        cu_->invoke_type,
                                         target,
                                         static_cast<InvokeType>(data_lir->operands[1]),
-                                        cu->code_buffer.size());
-    const DexFile::MethodId& id = cu->dex_file->GetMethodId(target);
+                                        code_buffer_.size());
+    const DexFile::MethodId& id = cu_->dex_file->GetMethodId(target);
     // unique based on target to ensure code deduplication works
     uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
-    PushWord(cu->code_buffer, unique_patch_value);
+    PushWord(code_buffer_, unique_patch_value);
     data_lir = NEXT_LIR(data_lir);
   }
 }
 
 /* Write the switch tables to the output stream */
-static void InstallSwitchTables(CompilationUnit* cu)
+void Mir2Lir::InstallSwitchTables()
 {
   GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->switch_tables, &iterator);
+  GrowableListIteratorInit(&switch_tables_, &iterator);
   while (true) {
-    Codegen::SwitchTable* tab_rec =
-      reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext( &iterator));
+    Mir2Lir::SwitchTable* tab_rec =
+      reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext( &iterator));
     if (tab_rec == NULL) break;
-    AlignBuffer(cu->code_buffer, tab_rec->offset);
+    AlignBuffer(code_buffer_, tab_rec->offset);
     /*
      * For Arm, our reference point is the address of the bx
      * instruction that does the launch, so we have to subtract
@@ -605,7 +587,7 @@ static void InstallSwitchTables(CompilationUnit* cu)
      * is a label, so we can use the offset as-is.
      */
     int bx_offset = INVALID_OFFSET;
-    switch (cu->instruction_set) {
+    switch (cu_->instruction_set) {
       case kThumb2:
         bx_offset = tab_rec->anchor->offset + 4;
         break;
@@ -615,22 +597,22 @@ static void InstallSwitchTables(CompilationUnit* cu)
       case kMips:
         bx_offset = tab_rec->anchor->offset;
         break;
-      default: LOG(FATAL) << "Unexpected instruction set: " << cu->instruction_set;
+      default: LOG(FATAL) << "Unexpected instruction set: " << cu_->instruction_set;
     }
-    if (cu->verbose) {
+    if (cu_->verbose) {
       LOG(INFO) << "Switch table for offset 0x" << std::hex << bx_offset;
     }
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
       const int* keys = reinterpret_cast<const int*>(&(tab_rec->table[2]));
       for (int elems = 0; elems < tab_rec->table[1]; elems++) {
         int disp = tab_rec->targets[elems]->offset - bx_offset;
-        if (cu->verbose) {
+        if (cu_->verbose) {
           LOG(INFO) << "  Case[" << elems << "] key: 0x"
                     << std::hex << keys[elems] << ", disp: 0x"
                     << std::hex << disp;
         }
-        PushWord(cu->code_buffer, keys[elems]);
-        PushWord(cu->code_buffer,
+        PushWord(code_buffer_, keys[elems]);
+        PushWord(code_buffer_,
           tab_rec->targets[elems]->offset - bx_offset);
       }
     } else {
@@ -638,29 +620,29 @@ static void InstallSwitchTables(CompilationUnit* cu)
                 static_cast<int>(Instruction::kPackedSwitchSignature));
       for (int elems = 0; elems < tab_rec->table[1]; elems++) {
         int disp = tab_rec->targets[elems]->offset - bx_offset;
-        if (cu->verbose) {
+        if (cu_->verbose) {
           LOG(INFO) << "  Case[" << elems << "] disp: 0x"
                     << std::hex << disp;
         }
-        PushWord(cu->code_buffer, tab_rec->targets[elems]->offset - bx_offset);
+        PushWord(code_buffer_, tab_rec->targets[elems]->offset - bx_offset);
       }
     }
   }
 }
 
 /* Write the fill array dta to the output stream */
-static void InstallFillArrayData(CompilationUnit* cu)
+void Mir2Lir::InstallFillArrayData()
 {
   GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->fill_array_data, &iterator);
+  GrowableListIteratorInit(&fill_array_data_, &iterator);
   while (true) {
-    Codegen::FillArrayData *tab_rec =
-        reinterpret_cast<Codegen::FillArrayData*>(GrowableListIteratorNext( &iterator));
+    Mir2Lir::FillArrayData *tab_rec =
+        reinterpret_cast<Mir2Lir::FillArrayData*>(GrowableListIteratorNext( &iterator));
     if (tab_rec == NULL) break;
-    AlignBuffer(cu->code_buffer, tab_rec->offset);
+    AlignBuffer(code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
-      cu->code_buffer.push_back( tab_rec->table[i] & 0xFF);
-      cu->code_buffer.push_back( (tab_rec->table[i] >> 8) & 0xFF);
+      code_buffer_.push_back( tab_rec->table[i] & 0xFF);
+      code_buffer_.push_back( (tab_rec->table[i] >> 8) & 0xFF);
     }
   }
 }
@@ -675,15 +657,15 @@ static int AssignLiteralOffsetCommon(LIR* lir, int offset)
 }
 
 // Make sure we have a code address for every declared catch entry
-static bool VerifyCatchEntries(CompilationUnit* cu)
+bool Mir2Lir::VerifyCatchEntries()
 {
   bool success = true;
-  for (std::set<uint32_t>::const_iterator it = cu->mir_graph->catches_.begin();
-       it != cu->mir_graph->catches_.end(); ++it) {
+  for (std::set<uint32_t>::const_iterator it = mir_graph_->catches_.begin();
+       it != mir_graph_->catches_.end(); ++it) {
     uint32_t dex_pc = *it;
     bool found = false;
-    for (size_t i = 0; i < cu->dex2pcMappingTable.size(); i += 2) {
-      if (dex_pc == cu->dex2pcMappingTable[i+1]) {
+    for (size_t i = 0; i < dex2pc_mapping_table_.size(); i += 2) {
+      if (dex_pc == dex2pc_mapping_table_[i+1]) {
         found = true;
         break;
       }
@@ -694,46 +676,44 @@ static bool VerifyCatchEntries(CompilationUnit* cu)
     }
   }
   // Now, try in the other direction
-  for (size_t i = 0; i < cu->dex2pcMappingTable.size(); i += 2) {
-    uint32_t dex_pc = cu->dex2pcMappingTable[i+1];
-    if (cu->mir_graph->catches_.find(dex_pc) == cu->mir_graph->catches_.end()) {
+  for (size_t i = 0; i < dex2pc_mapping_table_.size(); i += 2) {
+    uint32_t dex_pc = dex2pc_mapping_table_[i+1];
+    if (mir_graph_->catches_.find(dex_pc) == mir_graph_->catches_.end()) {
       LOG(INFO) << "Unexpected catch entry @ dex pc 0x" << std::hex << dex_pc;
       success = false;
     }
   }
   if (!success) {
-    LOG(INFO) << "Bad dex2pcMapping table in " << PrettyMethod(cu->method_idx, *cu->dex_file);
-    LOG(INFO) << "Entries @ decode: " << cu->mir_graph->catches_.size() << ", Entries in table: "
-              << cu->dex2pcMappingTable.size()/2;
+    LOG(INFO) << "Bad dex2pcMapping table in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
+    LOG(INFO) << "Entries @ decode: " << mir_graph_->catches_.size() << ", Entries in table: "
+              << dex2pc_mapping_table_.size()/2;
   }
   return success;
 }
 
 
-static void CreateMappingTables(CompilationUnit* cu)
+void Mir2Lir::CreateMappingTables()
 {
-  for (LIR* tgt_lir = cu->first_lir_insn; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
-      cu->pc2dexMappingTable.push_back(tgt_lir->offset);
-      cu->pc2dexMappingTable.push_back(tgt_lir->dalvik_offset);
+      pc2dex_mapping_table_.push_back(tgt_lir->offset);
+      pc2dex_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoExportedPC)) {
-      cu->dex2pcMappingTable.push_back(tgt_lir->offset);
-      cu->dex2pcMappingTable.push_back(tgt_lir->dalvik_offset);
+      dex2pc_mapping_table_.push_back(tgt_lir->offset);
+      dex2pc_mapping_table_.push_back(tgt_lir->dalvik_offset);
     }
   }
   if (kIsDebugBuild) {
-    DCHECK(VerifyCatchEntries(cu));
+    DCHECK(VerifyCatchEntries());
   }
-  cu->combined_mapping_table.push_back(cu->pc2dexMappingTable.size() +
-                                        cu->dex2pcMappingTable.size());
-  cu->combined_mapping_table.push_back(cu->pc2dexMappingTable.size());
-  cu->combined_mapping_table.insert(cu->combined_mapping_table.end(),
-                                     cu->pc2dexMappingTable.begin(),
-                                     cu->pc2dexMappingTable.end());
-  cu->combined_mapping_table.insert(cu->combined_mapping_table.end(),
-                                     cu->dex2pcMappingTable.begin(),
-                                     cu->dex2pcMappingTable.end());
+  combined_mapping_table_.push_back(pc2dex_mapping_table_.size() +
+                                        dex2pc_mapping_table_.size());
+  combined_mapping_table_.push_back(pc2dex_mapping_table_.size());
+  combined_mapping_table_.insert(combined_mapping_table_.end(), pc2dex_mapping_table_.begin(),
+                                 pc2dex_mapping_table_.end());
+  combined_mapping_table_.insert(combined_mapping_table_.end(), dex2pc_mapping_table_.begin(),
+                                 dex2pc_mapping_table_.end());
 }
 
 class NativePcToReferenceMapBuilder {
@@ -814,8 +794,8 @@ class NativePcToReferenceMapBuilder {
   std::vector<uint8_t>* const table_;
 };
 
-static void CreateNativeGcMap(CompilationUnit* cu) {
-  const std::vector<uint32_t>& mapping_table = cu->pc2dexMappingTable;
+void Mir2Lir::CreateNativeGcMap() {
+  const std::vector<uint32_t>& mapping_table = pc2dex_mapping_table_;
   uint32_t max_native_offset = 0;
   for (size_t i = 0; i < mapping_table.size(); i += 2) {
     uint32_t native_offset = mapping_table[i + 0];
@@ -823,11 +803,11 @@ static void CreateNativeGcMap(CompilationUnit* cu) {
       max_native_offset = native_offset;
     }
   }
-  CompilerDriver::MethodReference method_ref(cu->dex_file, cu->method_idx);
+  CompilerDriver::MethodReference method_ref(cu_->dex_file, cu_->method_idx);
   const std::vector<uint8_t>* gc_map_raw = verifier::MethodVerifier::GetDexGcMap(method_ref);
   verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[4], gc_map_raw->size() - 4);
   // Compute native offset to references size.
-  NativePcToReferenceMapBuilder native_gc_map_builder(&cu->native_gc_map,
+  NativePcToReferenceMapBuilder native_gc_map_builder(&native_gc_map_,
                                                       mapping_table.size() / 2, max_native_offset,
                                                       dex_gc_map.RegWidth());
 
@@ -841,21 +821,21 @@ static void CreateNativeGcMap(CompilationUnit* cu) {
 }
 
 /* Determine the offset of each literal field */
-static int AssignLiteralOffset(CompilationUnit* cu, int offset)
+int Mir2Lir::AssignLiteralOffset(int offset)
 {
-  offset = AssignLiteralOffsetCommon(cu->literal_list, offset);
-  offset = AssignLiteralOffsetCommon(cu->code_literal_list, offset);
-  offset = AssignLiteralOffsetCommon(cu->method_literal_list, offset);
+  offset = AssignLiteralOffsetCommon(literal_list_, offset);
+  offset = AssignLiteralOffsetCommon(code_literal_list_, offset);
+  offset = AssignLiteralOffsetCommon(method_literal_list_, offset);
   return offset;
 }
 
-static int AssignSwitchTablesOffset(CompilationUnit* cu, int offset)
+int Mir2Lir::AssignSwitchTablesOffset(int offset)
 {
   GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->switch_tables, &iterator);
+  GrowableListIteratorInit(&switch_tables_, &iterator);
   while (true) {
-    Codegen::SwitchTable *tab_rec =
-        reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::SwitchTable *tab_rec =
+        reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -869,13 +849,13 @@ static int AssignSwitchTablesOffset(CompilationUnit* cu, int offset)
   return offset;
 }
 
-static int AssignFillArrayDataOffset(CompilationUnit* cu, int offset)
+int Mir2Lir::AssignFillArrayDataOffset(int offset)
 {
   GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->fill_array_data, &iterator);
+  GrowableListIteratorInit(&fill_array_data_, &iterator);
   while (true) {
-    Codegen::FillArrayData *tab_rec =
-        reinterpret_cast<Codegen::FillArrayData*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::FillArrayData *tab_rec =
+        reinterpret_cast<Mir2Lir::FillArrayData*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     offset += tab_rec->size;
@@ -886,12 +866,12 @@ static int AssignFillArrayDataOffset(CompilationUnit* cu, int offset)
 }
 
 // LIR offset assignment.
-static int AssignInsnOffsets(CompilationUnit* cu)
+int Mir2Lir::AssignInsnOffsets()
 {
   LIR* lir;
   int offset = 0;
 
-  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     lir->offset = offset;
     if (lir->opcode >= 0) {
       if (!lir->flags.is_nop) {
@@ -915,23 +895,23 @@ static int AssignInsnOffsets(CompilationUnit* cu)
  * Walk the compilation unit and assign offsets to instructions
  * and literals and compute the total size of the compiled unit.
  */
-static void AssignOffsets(CompilationUnit* cu)
+void Mir2Lir::AssignOffsets()
 {
-  int offset = AssignInsnOffsets(cu);
+  int offset = AssignInsnOffsets();
 
   /* Const values have to be word aligned */
   offset = (offset + 3) & ~3;
 
   /* Set up offsets for literals */
-  cu->data_offset = offset;
+  data_offset_ = offset;
 
-  offset = AssignLiteralOffset(cu, offset);
+  offset = AssignLiteralOffset(offset);
 
-  offset = AssignSwitchTablesOffset(cu, offset);
+  offset = AssignSwitchTablesOffset(offset);
 
-  offset = AssignFillArrayDataOffset(cu, offset);
+  offset = AssignFillArrayDataOffset(offset);
 
-  cu->total_size = offset;
+  total_size_ = offset;
 }
 
 /*
@@ -939,10 +919,9 @@ static void AssignOffsets(CompilationUnit* cu)
  * before sending them off to the assembler. If out-of-range branch distance is
  * seen rearrange the instructions a bit to correct it.
  */
-void AssembleLIR(CompilationUnit* cu)
+void Mir2Lir::AssembleLIR()
 {
-  Codegen* cg = cu->cg.get();
-  AssignOffsets(cu);
+  AssignOffsets();
   int assembler_retries = 0;
   /*
    * Assemble here.  Note that we generate code with optimistic assumptions
@@ -950,34 +929,34 @@ void AssembleLIR(CompilationUnit* cu)
    */
 
   while (true) {
-    AssemblerStatus res = cg->AssembleInstructions(cu, 0);
+    AssemblerStatus res = AssembleInstructions(0);
     if (res == kSuccess) {
       break;
     } else {
       assembler_retries++;
       if (assembler_retries > MAX_ASSEMBLER_RETRIES) {
-        CodegenDump(cu);
+        CodegenDump();
         LOG(FATAL) << "Assembler error - too many retries";
       }
       // Redo offsets and try again
-      AssignOffsets(cu);
-      cu->code_buffer.clear();
+      AssignOffsets();
+      code_buffer_.clear();
     }
   }
 
   // Install literals
-  InstallLiteralPools(cu);
+  InstallLiteralPools();
 
   // Install switch tables
-  InstallSwitchTables(cu);
+  InstallSwitchTables();
 
   // Install fill array data
-  InstallFillArrayData(cu);
+  InstallFillArrayData();
 
   // Create the mapping table and native offset to reference map.
-  CreateMappingTables(cu);
+  CreateMappingTables();
 
-  CreateNativeGcMap(cu);
+  CreateNativeGcMap();
 }
 
 /*
@@ -987,14 +966,14 @@ void AssembleLIR(CompilationUnit* cu)
  * all resource flags on this to prevent code motion across
  * target boundaries.  KeyVal is just there for debugging.
  */
-static LIR* InsertCaseLabel(CompilationUnit* cu, int vaddr, int keyVal)
+LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal)
 {
   SafeMap<unsigned int, LIR*>::iterator it;
-  it = cu->boundary_map.find(vaddr);
-  if (it == cu->boundary_map.end()) {
+  it = boundary_map_.find(vaddr);
+  if (it == boundary_map_.end()) {
     LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
   }
-  LIR* new_label = static_cast<LIR*>(NewMem(cu, sizeof(LIR), true, kAllocLIR));
+  LIR* new_label = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocLIR));
   new_label->dalvik_offset = vaddr;
   new_label->opcode = kPseudoCaseLabel;
   new_label->operands[0] = keyVal;
@@ -1002,7 +981,7 @@ static LIR* InsertCaseLabel(CompilationUnit* cu, int vaddr, int keyVal)
   return new_label;
 }
 
-static void MarkPackedCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_rec)
+void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec)
 {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
@@ -1010,11 +989,11 @@ static void MarkPackedCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_
   int entries = table[1];
   int low_key = s4FromSwitchData(&table[2]);
   for (int i = 0; i < entries; i++) {
-    tab_rec->targets[i] = InsertCaseLabel(cu, base_vaddr + targets[i], i + low_key);
+    tab_rec->targets[i] = InsertCaseLabel(base_vaddr + targets[i], i + low_key);
   }
 }
 
-static void MarkSparseCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_rec)
+void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec)
 {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
@@ -1022,29 +1001,29 @@ static void MarkSparseCaseLabels(CompilationUnit* cu, Codegen::SwitchTable *tab_
   const int* keys = reinterpret_cast<const int*>(&table[2]);
   const int* targets = &keys[entries];
   for (int i = 0; i < entries; i++) {
-    tab_rec->targets[i] = InsertCaseLabel(cu, base_vaddr + targets[i], keys[i]);
+    tab_rec->targets[i] = InsertCaseLabel(base_vaddr + targets[i], keys[i]);
   }
 }
 
-void ProcessSwitchTables(CompilationUnit* cu)
+void Mir2Lir::ProcessSwitchTables()
 {
   GrowableListIterator iterator;
-  GrowableListIteratorInit(&cu->switch_tables, &iterator);
+  GrowableListIteratorInit(&switch_tables_, &iterator);
   while (true) {
-    Codegen::SwitchTable *tab_rec =
-        reinterpret_cast<Codegen::SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::SwitchTable *tab_rec =
+        reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext(&iterator));
     if (tab_rec == NULL) break;
     if (tab_rec->table[0] == Instruction::kPackedSwitchSignature) {
-      MarkPackedCaseLabels(cu, tab_rec);
+      MarkPackedCaseLabels(tab_rec);
     } else if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
-      MarkSparseCaseLabels(cu, tab_rec);
+      MarkSparseCaseLabels(tab_rec);
     } else {
       LOG(FATAL) << "Invalid switch table";
     }
   }
 }
 
-void DumpSparseSwitchTable(const uint16_t* table)
+void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table)
   /*
    * Sparse switch data format:
    *  ushort ident = 0x0200   magic value
@@ -1066,7 +1045,7 @@ void DumpSparseSwitchTable(const uint16_t* table)
   }
 }
 
-void DumpPackedSwitchTable(const uint16_t* table)
+void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table)
   /*
    * Packed switch data format:
    *  ushort ident = 0x0100   magic value
@@ -1095,16 +1074,16 @@ void DumpPackedSwitchTable(const uint16_t* table)
  * which we split a single Dalvik instruction, only the first MIR op
  * associated with a Dalvik PC should be entered into the map.
  */
-LIR* MarkBoundary(CompilationUnit* cu, int offset, const char* inst_str)
+LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str)
 {
-  LIR* res = NewLIR1(cu, kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
-  if (cu->boundary_map.find(offset) == cu->boundary_map.end()) {
-    cu->boundary_map.Put(offset, res);
+  LIR* res = NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
+  if (boundary_map_.find(offset) == boundary_map_.end()) {
+    boundary_map_.Put(offset, res);
   }
   return res;
 }
 
-bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
+bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
 {
   bool is_taken;
   switch (opcode) {
@@ -1128,7 +1107,7 @@ bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
 }
 
 // Convert relation of src1/src2 to src2/src1
-ConditionCode FlipComparisonOrder(ConditionCode before) {
+ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
   ConditionCode res;
   switch (before) {
     case kCondEq: res = kCondEq; break;
@@ -1143,5 +1122,162 @@ ConditionCode FlipComparisonOrder(ConditionCode before) {
   }
   return res;
 }
+
+Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph)
+    : literal_list_(NULL),
+      method_literal_list_(NULL),
+      code_literal_list_(NULL),
+      cu_(cu),
+      mir_graph_(mir_graph),
+      data_offset_(0),
+      total_size_(0),
+      block_label_list_(NULL),
+      live_sreg_(0),
+      num_core_spills_(0),
+      num_fp_spills_(0),
+      frame_size_(0),
+      core_spill_mask_(0),
+      fp_spill_mask_(0),
+      first_lir_insn_(NULL),
+      last_lir_insn_(NULL)
+ {
+
+  CompilerInitGrowableList(cu_, &switch_tables_, 4, kListSwitchTables);
+  CompilerInitGrowableList(cu_, &fill_array_data_, 4, kListFillArrayData);
+  CompilerInitGrowableList(cu_, &throw_launchpads_, 2048, kListThrowLaunchPads);
+  CompilerInitGrowableList(cu_, &intrinsic_launchpads_, 4, kListMisc);
+  CompilerInitGrowableList(cu_, &suspend_launchpads_, 2048, kListSuspendLaunchPads);
+  promotion_map_ = static_cast<PromotionMap*>
+      (NewMem(cu_, (cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
+              sizeof(promotion_map_[0]), true, kAllocRegAlloc));
+}
+
+void Mir2Lir::Materialize() {
+  CompilerInitializeRegAlloc();  // Needs to happen after SSA naming
+
+  /* Allocate Registers using simple local allocation scheme */
+  SimpleRegAlloc();
+
+  //FIXME: re-enable by retrieving from mir_graph
+  SpecialCaseHandler special_case = kNoHandler;
+
+  if (special_case != kNoHandler) {
+      /*
+       * Custom codegen for special cases.  If for any reason the
+       * special codegen doesn't succeed, first_lir_insn_ will
+       * set to NULL;
+       */
+      SpecialMIR2LIR(special_case);
+    }
+
+  /* Convert MIR to LIR, etc. */
+  if (first_lir_insn_ == NULL) {
+    MethodMIR2LIR();
+  }
+
+  /* Method is not empty */
+  if (first_lir_insn_) {
+
+    // mark the targets of switch statement case labels
+    ProcessSwitchTables();
+
+    /* Convert LIR into machine code. */
+    AssembleLIR();
+
+    if (cu_->verbose) {
+      CodegenDump();
+    }
+
+  }
+
+}
+
+CompiledMethod* Mir2Lir::GetCompiledMethod() {
+  // Combine vmap tables - core regs, then fp regs - into vmap_table
+  std::vector<uint16_t> vmap_table;
+  // Core regs may have been inserted out of order - sort first
+  std::sort(core_vmap_table_.begin(), core_vmap_table_.end());
+  for (size_t i = 0 ; i < core_vmap_table_.size(); i++) {
+    // Copy, stripping out the phys register sort key
+    vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & core_vmap_table_[i]);
+  }
+  // If we have a frame, push a marker to take place of lr
+  if (frame_size_ > 0) {
+    vmap_table.push_back(INVALID_VREG);
+  } else {
+    DCHECK_EQ(__builtin_popcount(core_spill_mask_), 0);
+    DCHECK_EQ(__builtin_popcount(fp_spill_mask_), 0);
+  }
+  // Combine vmap tables - core regs, then fp regs. fp regs already sorted
+  for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
+    vmap_table.push_back(fp_vmap_table_[i]);
+  }
+  CompiledMethod* result =
+      new CompiledMethod(cu_->instruction_set, code_buffer_,
+                         frame_size_, core_spill_mask_, fp_spill_mask_,
+                         combined_mapping_table_, vmap_table, native_gc_map_);
+  return result;
+}
+
+int Mir2Lir::ComputeFrameSize() {
+  /* Figure out the frame size */
+  static const uint32_t kAlignMask = kStackAlignment - 1;
+  uint32_t size = (num_core_spills_ + num_fp_spills_ +
+                   1 /* filler word */ + cu_->num_regs + cu_->num_outs +
+                   cu_->num_compiler_temps + 1 /* cur_method* */)
+                   * sizeof(uint32_t);
+  /* Align and set */
+  return (size + kAlignMask) & ~(kAlignMask);
+}
+
+/*
+ * Append an LIR instruction to the LIR list maintained by a compilation
+ * unit
+ */
+void Mir2Lir::AppendLIR(LIR* lir)
+{
+  if (first_lir_insn_ == NULL) {
+    DCHECK(last_lir_insn_ == NULL);
+    last_lir_insn_ = first_lir_insn_ = lir;
+    lir->prev = lir->next = NULL;
+  } else {
+    last_lir_insn_->next = lir;
+    lir->prev = last_lir_insn_;
+    lir->next = NULL;
+    last_lir_insn_ = lir;
+  }
+}
+
+/*
+ * Insert an LIR instruction before the current instruction, which cannot be the
+ * first instruction.
+ *
+ * prev_lir <-> new_lir <-> current_lir
+ */
+void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir)
+{
+  DCHECK(current_lir->prev != NULL);
+  LIR *prev_lir = current_lir->prev;
+
+  prev_lir->next = new_lir;
+  new_lir->prev = prev_lir;
+  new_lir->next = current_lir;
+  current_lir->prev = new_lir;
+}
+
+/*
+ * Insert an LIR instruction after the current instruction, which cannot be the
+ * first instruction.
+ *
+ * current_lir -> new_lir -> old_next
+ */
+void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir)
+{
+  new_lir->prev = current_lir;
+  new_lir->next = current_lir->next;
+  current_lir->next = new_lir;
+  new_lir->next->prev = new_lir;
+}
+
 
 } // namespace art

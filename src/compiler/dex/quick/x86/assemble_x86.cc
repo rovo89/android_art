@@ -15,14 +15,13 @@
  */
 
 #include "codegen_x86.h"
-#include "compiler/dex/quick/codegen_util.h"
 #include "x86_lir.h"
 
 namespace art {
 
 #define MAX_ASSEMBLER_RETRIES 50
 
-const X86EncodingMap X86Codegen::EncodingMap[kX86Last] = {
+const X86EncodingMap X86Mir2Lir::EncodingMap[kX86Last] = {
   { kX8632BitData, kData,    IS_UNARY_OP,            { 0, 0, 0x00, 0, 0, 0, 0, 4 }, "data",  "0x!0d" },
   { kX86Bkpt,      kNullary, NO_OPERAND | IS_BRANCH, { 0, 0, 0xCC, 0, 0, 0, 0, 0 }, "int 3", "" },
   { kX86Nop,       kNop,     IS_UNARY_OP,            { 0, 0, 0x90, 0, 0, 0, 0, 0 }, "nop",   "" },
@@ -361,8 +360,8 @@ static size_t ComputeSize(const X86EncodingMap* entry, int base, int displacemen
   return size;
 }
 
-int X86Codegen::GetInsnSize(LIR* lir) {
-  const X86EncodingMap* entry = &X86Codegen::EncodingMap[lir->opcode];
+int X86Mir2Lir::GetInsnSize(LIR* lir) {
+  const X86EncodingMap* entry = &X86Mir2Lir::EncodingMap[lir->opcode];
   switch (entry->kind) {
     case kData:
       return 4;  // 4 bytes of data
@@ -479,7 +478,7 @@ int X86Codegen::GetInsnSize(LIR* lir) {
     case kMacro:
       DCHECK_EQ(lir->opcode, static_cast<int>(kX86StartOfMethod));
       return 5 /* call opcode + 4 byte displacement */ + 1 /* pop reg */ +
-          ComputeSize(&X86Codegen::EncodingMap[kX86Sub32RI], 0, 0, false) -
+          ComputeSize(&X86Mir2Lir::EncodingMap[kX86Sub32RI], 0, 0, false) -
           (lir->operands[0] == rAX  ? 1 : 0);  // shorter ax encoding
     default:
       break;
@@ -499,34 +498,34 @@ static uint8_t ModrmForDisp(int base, int disp) {
   }
 }
 
-static void EmitDisp(CompilationUnit* cu, int base, int disp) {
+void X86Mir2Lir::EmitDisp(int base, int disp) {
   // BP requires an explicit disp, so do not omit it in the 0 case
   if (disp == 0 && base != rBP) {
     return;
   } else if (IS_SIMM8(disp)) {
-    cu->code_buffer.push_back(disp & 0xFF);
+    code_buffer_.push_back(disp & 0xFF);
   } else {
-    cu->code_buffer.push_back(disp & 0xFF);
-    cu->code_buffer.push_back((disp >> 8) & 0xFF);
-    cu->code_buffer.push_back((disp >> 16) & 0xFF);
-    cu->code_buffer.push_back((disp >> 24) & 0xFF);
+    code_buffer_.push_back(disp & 0xFF);
+    code_buffer_.push_back((disp >> 8) & 0xFF);
+    code_buffer_.push_back((disp >> 16) & 0xFF);
+    code_buffer_.push_back((disp >> 24) & 0xFF);
   }
 }
 
-static void EmitOpReg(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t reg) {
+void X86Mir2Lir::EmitOpReg(const X86EncodingMap* entry, uint8_t reg) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -539,51 +538,51 @@ static void EmitOpReg(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t 
   }
   if (reg >= 4) {
     DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
-        << " in " << PrettyMethod(cu->method_idx, *cu->dex_file);
+        << " in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitOpMem(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t base, int disp) {
+void X86Mir2Lir::EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
   DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   DCHECK_LT(entry->skeleton.modrm_opcode, 8);
   DCHECK_LT(base, 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
-  cu->code_buffer.push_back(modrm);
-  EmitDisp(cu, base, disp);
+  code_buffer_.push_back(modrm);
+  EmitDisp(base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitMemReg(CompilationUnit* cu, const X86EncodingMap* entry,
+void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry,
                        uint8_t base, int disp, uint8_t reg) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -596,43 +595,43 @@ static void EmitMemReg(CompilationUnit* cu, const X86EncodingMap* entry,
   }
   if (reg >= 4) {
     DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
-        << " in " << PrettyMethod(cu->method_idx, *cu->dex_file);
+        << " in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
   DCHECK_LT(reg, 8);
   DCHECK_LT(base, 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg << 3) | base;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   if (base == rX86_SP) {
     // Special SIB for SP base
-    cu->code_buffer.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
+    code_buffer_.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
   }
-  EmitDisp(cu, base, disp);
+  EmitDisp(base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitRegMem(CompilationUnit* cu, const X86EncodingMap* entry,
+void X86Mir2Lir::EmitRegMem(const X86EncodingMap* entry,
                        uint8_t reg, uint8_t base, int disp) {
   // Opcode will flip operands.
-  EmitMemReg(cu, entry, base, disp, reg);
+  EmitMemReg(entry, base, disp, reg);
 }
 
-static void EmitRegArray(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t reg,
-                         uint8_t base, uint8_t index, int scale, int disp) {
+void X86Mir2Lir::EmitRegArray(const X86EncodingMap* entry, uint8_t reg, uint8_t base, uint8_t index,
+                  int scale, int disp) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -645,36 +644,35 @@ static void EmitRegArray(CompilationUnit* cu, const X86EncodingMap* entry, uint8
   }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg << 3) | rX86_SP;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_LT(scale, 4);
   DCHECK_LT(index, 8);
   DCHECK_LT(base, 8);
   uint8_t sib = (scale << 6) | (index << 3) | base;
-  cu->code_buffer.push_back(sib);
-  EmitDisp(cu, base, disp);
+  code_buffer_.push_back(sib);
+  EmitDisp(base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitArrayReg(CompilationUnit* cu, const X86EncodingMap* entry,
-                         uint8_t base, uint8_t index, int scale, int disp, uint8_t reg) {
+void X86Mir2Lir::EmitArrayReg(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale, int disp,
+                  uint8_t reg) {
   // Opcode will flip operands.
-  EmitRegArray(cu, entry, reg, base, index, scale, disp);
+  EmitRegArray(entry, reg, base, index, scale, disp);
 }
 
-static void EmitRegThread(CompilationUnit* cu, const X86EncodingMap* entry,
-                          uint8_t reg, int disp) {
+void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
-  cu->code_buffer.push_back(entry->skeleton.prefix1);
+  code_buffer_.push_back(entry->skeleton.prefix1);
   if (entry->skeleton.prefix2 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix2);
+    code_buffer_.push_back(entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -687,35 +685,34 @@ static void EmitRegThread(CompilationUnit* cu, const X86EncodingMap* entry,
   }
   if (reg >= 4) {
     DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
-        << " in " << PrettyMethod(cu->method_idx, *cu->dex_file);
+        << " in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (0 << 6) | (reg << 3) | rBP;
-  cu->code_buffer.push_back(modrm);
-  cu->code_buffer.push_back(disp & 0xFF);
-  cu->code_buffer.push_back((disp >> 8) & 0xFF);
-  cu->code_buffer.push_back((disp >> 16) & 0xFF);
-  cu->code_buffer.push_back((disp >> 24) & 0xFF);
+  code_buffer_.push_back(modrm);
+  code_buffer_.push_back(disp & 0xFF);
+  code_buffer_.push_back((disp >> 8) & 0xFF);
+  code_buffer_.push_back((disp >> 16) & 0xFF);
+  code_buffer_.push_back((disp >> 24) & 0xFF);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitRegReg(CompilationUnit* cu, const X86EncodingMap* entry,
-                       uint8_t reg1, uint8_t reg2) {
+void X86Mir2Lir::EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -732,27 +729,27 @@ static void EmitRegReg(CompilationUnit* cu, const X86EncodingMap* entry,
   DCHECK_LT(reg1, 8);
   DCHECK_LT(reg2, 8);
   uint8_t modrm = (3 << 6) | (reg1 << 3) | reg2;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitRegRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
+void X86Mir2Lir::EmitRegRegImm(const X86EncodingMap* entry,
                           uint8_t reg1, uint8_t reg2, int32_t imm) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -769,24 +766,24 @@ static void EmitRegRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
   DCHECK_LT(reg1, 8);
   DCHECK_LT(reg2, 8);
   uint8_t modrm = (3 << 6) | (reg1 << 3) | reg2;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   switch (entry->skeleton.immediate_bytes) {
     case 1:
       DCHECK(IS_SIMM8(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
       break;
     case 2:
       DCHECK(IS_SIMM16(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
       break;
     case 4:
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
-      cu->code_buffer.push_back((imm >> 16) & 0xFF);
-      cu->code_buffer.push_back((imm >> 24) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back((imm >> 16) & 0xFF);
+      code_buffer_.push_back((imm >> 24) & 0xFF);
       break;
     default:
       LOG(FATAL) << "Unexpected immediate bytes (" << entry->skeleton.immediate_bytes
@@ -795,24 +792,23 @@ static void EmitRegRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
   }
 }
 
-static void EmitRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
-                       uint8_t reg, int imm) {
+void X86Mir2Lir::EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
   if (reg == rAX && entry->skeleton.ax_opcode != 0) {
-    cu->code_buffer.push_back(entry->skeleton.ax_opcode);
+    code_buffer_.push_back(entry->skeleton.ax_opcode);
   } else {
-    cu->code_buffer.push_back(entry->skeleton.opcode);
+    code_buffer_.push_back(entry->skeleton.opcode);
     if (entry->skeleton.opcode == 0x0F) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+      code_buffer_.push_back(entry->skeleton.extra_opcode1);
       if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-        cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+        code_buffer_.push_back(entry->skeleton.extra_opcode2);
       } else {
         DCHECK_EQ(0, entry->skeleton.extra_opcode2);
       }
@@ -824,23 +820,23 @@ static void EmitRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
       reg = reg & X86_FP_REG_MASK;
     }
     uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-    cu->code_buffer.push_back(modrm);
+    code_buffer_.push_back(modrm);
   }
   switch (entry->skeleton.immediate_bytes) {
     case 1:
       DCHECK(IS_SIMM8(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
       break;
     case 2:
       DCHECK(IS_SIMM16(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
       break;
     case 4:
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
-      cu->code_buffer.push_back((imm >> 16) & 0xFF);
-      cu->code_buffer.push_back((imm >> 24) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back((imm >> 16) & 0xFF);
+      code_buffer_.push_back((imm >> 24) & 0xFF);
       break;
     default:
       LOG(FATAL) << "Unexpected immediate bytes (" << entry->skeleton.immediate_bytes
@@ -849,21 +845,20 @@ static void EmitRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
   }
 }
 
-static void EmitThreadImm(CompilationUnit* cu, const X86EncodingMap* entry,
-                          int disp, int imm) {
+void X86Mir2Lir::EmitThreadImm(const X86EncodingMap* entry, int disp, int imm) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -872,26 +867,26 @@ static void EmitThreadImm(CompilationUnit* cu, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
   uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | rBP;
-  cu->code_buffer.push_back(modrm);
-  cu->code_buffer.push_back(disp & 0xFF);
-  cu->code_buffer.push_back((disp >> 8) & 0xFF);
-  cu->code_buffer.push_back((disp >> 16) & 0xFF);
-  cu->code_buffer.push_back((disp >> 24) & 0xFF);
+  code_buffer_.push_back(modrm);
+  code_buffer_.push_back(disp & 0xFF);
+  code_buffer_.push_back((disp >> 8) & 0xFF);
+  code_buffer_.push_back((disp >> 16) & 0xFF);
+  code_buffer_.push_back((disp >> 24) & 0xFF);
   switch (entry->skeleton.immediate_bytes) {
     case 1:
       DCHECK(IS_SIMM8(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
       break;
     case 2:
       DCHECK(IS_SIMM16(imm));
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
       break;
     case 4:
-      cu->code_buffer.push_back(imm & 0xFF);
-      cu->code_buffer.push_back((imm >> 8) & 0xFF);
-      cu->code_buffer.push_back((imm >> 16) & 0xFF);
-      cu->code_buffer.push_back((imm >> 24) & 0xFF);
+      code_buffer_.push_back(imm & 0xFF);
+      code_buffer_.push_back((imm >> 8) & 0xFF);
+      code_buffer_.push_back((imm >> 16) & 0xFF);
+      code_buffer_.push_back((imm >> 24) & 0xFF);
       break;
     default:
       LOG(FATAL) << "Unexpected immediate bytes (" << entry->skeleton.immediate_bytes
@@ -901,36 +896,34 @@ static void EmitThreadImm(CompilationUnit* cu, const X86EncodingMap* entry,
   DCHECK_EQ(entry->skeleton.ax_opcode, 0);
 }
 
-static void EmitMovRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
-                       uint8_t reg, int imm) {
+void X86Mir2Lir::EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
   DCHECK_LT(reg, 8);
-  cu->code_buffer.push_back(0xB8 + reg);
-  cu->code_buffer.push_back(imm & 0xFF);
-  cu->code_buffer.push_back((imm >> 8) & 0xFF);
-  cu->code_buffer.push_back((imm >> 16) & 0xFF);
-  cu->code_buffer.push_back((imm >> 24) & 0xFF);
+  code_buffer_.push_back(0xB8 + reg);
+  code_buffer_.push_back(imm & 0xFF);
+  code_buffer_.push_back((imm >> 8) & 0xFF);
+  code_buffer_.push_back((imm >> 16) & 0xFF);
+  code_buffer_.push_back((imm >> 24) & 0xFF);
 }
 
-static void EmitShiftRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
-                            uint8_t reg, int imm) {
+void X86Mir2Lir::EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int imm) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
   if (imm != 1) {
-    cu->code_buffer.push_back(entry->skeleton.opcode);
+    code_buffer_.push_back(entry->skeleton.opcode);
   } else {
     // Shorter encoding for 1 bit shift
-    cu->code_buffer.push_back(entry->skeleton.ax_opcode);
+    code_buffer_.push_back(entry->skeleton.ax_opcode);
   }
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -940,115 +933,111 @@ static void EmitShiftRegImm(CompilationUnit* cu, const X86EncodingMap* entry,
   }
   if (reg >= 4) {
     DCHECK(strchr(entry->name, '8') == NULL) << entry->name << " " << static_cast<int>(reg)
-        << " in " << PrettyMethod(cu->method_idx, *cu->dex_file);
+        << " in " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   if (imm != 1) {
     DCHECK_EQ(entry->skeleton.immediate_bytes, 1);
     DCHECK(IS_SIMM8(imm));
-    cu->code_buffer.push_back(imm & 0xFF);
+    code_buffer_.push_back(imm & 0xFF);
   }
 }
 
-static void EmitShiftRegCl(CompilationUnit* cu, const X86EncodingMap* entry,
-                           uint8_t reg, uint8_t cl) {
+void X86Mir2Lir::EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_t cl) {
   DCHECK_EQ(cl, static_cast<uint8_t>(rCX));
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   DCHECK_EQ(0, entry->skeleton.extra_opcode1);
   DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   DCHECK_LT(reg, 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitRegCond(CompilationUnit* cu, const X86EncodingMap* entry,
-                       uint8_t reg, uint8_t condition) {
+void X86Mir2Lir::EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0x0F, entry->skeleton.opcode);
-  cu->code_buffer.push_back(0x0F);
+  code_buffer_.push_back(0x0F);
   DCHECK_EQ(0x90, entry->skeleton.extra_opcode1);
-  cu->code_buffer.push_back(0x90 | condition);
+  code_buffer_.push_back(0x90 | condition);
   DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   DCHECK_LT(reg, 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   DCHECK_EQ(entry->skeleton.immediate_bytes, 0);
 }
 
-static void EmitJmp(CompilationUnit* cu, const X86EncodingMap* entry, int rel) {
+void X86Mir2Lir::EmitJmp(const X86EncodingMap* entry, int rel) {
   if (entry->opcode == kX86Jmp8) {
     DCHECK(IS_SIMM8(rel));
-    cu->code_buffer.push_back(0xEB);
-    cu->code_buffer.push_back(rel & 0xFF);
+    code_buffer_.push_back(0xEB);
+    code_buffer_.push_back(rel & 0xFF);
   } else if (entry->opcode == kX86Jmp32) {
-    cu->code_buffer.push_back(0xE9);
-    cu->code_buffer.push_back(rel & 0xFF);
-    cu->code_buffer.push_back((rel >> 8) & 0xFF);
-    cu->code_buffer.push_back((rel >> 16) & 0xFF);
-    cu->code_buffer.push_back((rel >> 24) & 0xFF);
+    code_buffer_.push_back(0xE9);
+    code_buffer_.push_back(rel & 0xFF);
+    code_buffer_.push_back((rel >> 8) & 0xFF);
+    code_buffer_.push_back((rel >> 16) & 0xFF);
+    code_buffer_.push_back((rel >> 24) & 0xFF);
   } else {
     DCHECK(entry->opcode == kX86JmpR);
-    cu->code_buffer.push_back(entry->skeleton.opcode);
+    code_buffer_.push_back(entry->skeleton.opcode);
     uint8_t reg = static_cast<uint8_t>(rel);
     DCHECK_LT(reg, 8);
     uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
-    cu->code_buffer.push_back(modrm);
+    code_buffer_.push_back(modrm);
   }
 }
 
-static void EmitJcc(CompilationUnit* cu, const X86EncodingMap* entry,
-                    int rel, uint8_t cc) {
+void X86Mir2Lir::EmitJcc(const X86EncodingMap* entry, int rel, uint8_t cc) {
   DCHECK_LT(cc, 16);
   if (entry->opcode == kX86Jcc8) {
     DCHECK(IS_SIMM8(rel));
-    cu->code_buffer.push_back(0x70 | cc);
-    cu->code_buffer.push_back(rel & 0xFF);
+    code_buffer_.push_back(0x70 | cc);
+    code_buffer_.push_back(rel & 0xFF);
   } else {
     DCHECK(entry->opcode == kX86Jcc32);
-    cu->code_buffer.push_back(0x0F);
-    cu->code_buffer.push_back(0x80 | cc);
-    cu->code_buffer.push_back(rel & 0xFF);
-    cu->code_buffer.push_back((rel >> 8) & 0xFF);
-    cu->code_buffer.push_back((rel >> 16) & 0xFF);
-    cu->code_buffer.push_back((rel >> 24) & 0xFF);
+    code_buffer_.push_back(0x0F);
+    code_buffer_.push_back(0x80 | cc);
+    code_buffer_.push_back(rel & 0xFF);
+    code_buffer_.push_back((rel >> 8) & 0xFF);
+    code_buffer_.push_back((rel >> 16) & 0xFF);
+    code_buffer_.push_back((rel >> 24) & 0xFF);
   }
 }
 
-static void EmitCallMem(CompilationUnit* cu, const X86EncodingMap* entry,
-                        uint8_t base, int disp) {
+void X86Mir2Lir::EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp) {
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -1057,27 +1046,27 @@ static void EmitCallMem(CompilationUnit* cu, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
-  cu->code_buffer.push_back(modrm);
+  code_buffer_.push_back(modrm);
   if (base == rX86_SP) {
     // Special SIB for SP base
-    cu->code_buffer.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
+    code_buffer_.push_back(0 << 6 | (rX86_SP << 3) | rX86_SP);
   }
-  EmitDisp(cu, base, disp);
+  EmitDisp(base, disp);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitCallThread(CompilationUnit* cu, const X86EncodingMap* entry, int disp) {
+void X86Mir2Lir::EmitCallThread(const X86EncodingMap* entry, int disp) {
   DCHECK_NE(entry->skeleton.prefix1, 0);
-  cu->code_buffer.push_back(entry->skeleton.prefix1);
+  code_buffer_.push_back(entry->skeleton.prefix1);
   if (entry->skeleton.prefix2 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix2);
+    code_buffer_.push_back(entry->skeleton.prefix2);
   }
-  cu->code_buffer.push_back(entry->skeleton.opcode);
+  code_buffer_.push_back(entry->skeleton.opcode);
   if (entry->skeleton.opcode == 0x0F) {
-    cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+    code_buffer_.push_back(entry->skeleton.extra_opcode1);
     if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
-      cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+      code_buffer_.push_back(entry->skeleton.extra_opcode2);
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     }
@@ -1086,30 +1075,30 @@ static void EmitCallThread(CompilationUnit* cu, const X86EncodingMap* entry, int
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
   uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | rBP;
-  cu->code_buffer.push_back(modrm);
-  cu->code_buffer.push_back(disp & 0xFF);
-  cu->code_buffer.push_back((disp >> 8) & 0xFF);
-  cu->code_buffer.push_back((disp >> 16) & 0xFF);
-  cu->code_buffer.push_back((disp >> 24) & 0xFF);
+  code_buffer_.push_back(modrm);
+  code_buffer_.push_back(disp & 0xFF);
+  code_buffer_.push_back((disp >> 8) & 0xFF);
+  code_buffer_.push_back((disp >> 16) & 0xFF);
+  code_buffer_.push_back((disp >> 24) & 0xFF);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
-static void EmitPcRel(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t reg,
+void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, uint8_t reg,
                       int base_or_table, uint8_t index, int scale, int table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    Codegen::SwitchTable *tab_rec = reinterpret_cast<Codegen::SwitchTable*>(table_or_disp);
+    Mir2Lir::SwitchTable *tab_rec = reinterpret_cast<Mir2Lir::SwitchTable*>(table_or_disp);
     disp = tab_rec->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
-    Codegen::FillArrayData *tab_rec = reinterpret_cast<Codegen::FillArrayData*>(base_or_table);
+    Mir2Lir::FillArrayData *tab_rec = reinterpret_cast<Mir2Lir::FillArrayData*>(base_or_table);
     disp = tab_rec->offset;
   }
   if (entry->skeleton.prefix1 != 0) {
-    cu->code_buffer.push_back(entry->skeleton.prefix1);
+    code_buffer_.push_back(entry->skeleton.prefix1);
     if (entry->skeleton.prefix2 != 0) {
-      cu->code_buffer.push_back(entry->skeleton.prefix2);
+      code_buffer_.push_back(entry->skeleton.prefix2);
     }
   } else {
     DCHECK_EQ(0, entry->skeleton.prefix2);
@@ -1119,50 +1108,48 @@ static void EmitPcRel(CompilationUnit* cu, const X86EncodingMap* entry, uint8_t 
   }
   DCHECK_LT(reg, 8);
   if (entry->opcode == kX86PcRelLoadRA) {
-    cu->code_buffer.push_back(entry->skeleton.opcode);
+    code_buffer_.push_back(entry->skeleton.opcode);
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     uint8_t modrm = (2 << 6) | (reg << 3) | rX86_SP;
-    cu->code_buffer.push_back(modrm);
+    code_buffer_.push_back(modrm);
     DCHECK_LT(scale, 4);
     DCHECK_LT(index, 8);
     DCHECK_LT(base_or_table, 8);
     uint8_t base = static_cast<uint8_t>(base_or_table);
     uint8_t sib = (scale << 6) | (index << 3) | base;
-    cu->code_buffer.push_back(sib);
+    code_buffer_.push_back(sib);
     DCHECK_EQ(0, entry->skeleton.immediate_bytes);
   } else {
-    cu->code_buffer.push_back(entry->skeleton.opcode + reg);
+    code_buffer_.push_back(entry->skeleton.opcode + reg);
   }
-  cu->code_buffer.push_back(disp & 0xFF);
-  cu->code_buffer.push_back((disp >> 8) & 0xFF);
-  cu->code_buffer.push_back((disp >> 16) & 0xFF);
-  cu->code_buffer.push_back((disp >> 24) & 0xFF);
+  code_buffer_.push_back(disp & 0xFF);
+  code_buffer_.push_back((disp >> 8) & 0xFF);
+  code_buffer_.push_back((disp >> 16) & 0xFF);
+  code_buffer_.push_back((disp >> 24) & 0xFF);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
 }
 
-static void EmitMacro(CompilationUnit* cu, const X86EncodingMap* entry,
-                      uint8_t reg, int offset) {
+void X86Mir2Lir::EmitMacro(const X86EncodingMap* entry, uint8_t reg, int offset) {
   DCHECK(entry->opcode == kX86StartOfMethod) << entry->name;
-  cu->code_buffer.push_back(0xE8);  // call +0
-  cu->code_buffer.push_back(0);
-  cu->code_buffer.push_back(0);
-  cu->code_buffer.push_back(0);
-  cu->code_buffer.push_back(0);
+  code_buffer_.push_back(0xE8);  // call +0
+  code_buffer_.push_back(0);
+  code_buffer_.push_back(0);
+  code_buffer_.push_back(0);
+  code_buffer_.push_back(0);
 
   DCHECK_LT(reg, 8);
-  cu->code_buffer.push_back(0x58 + reg);  // pop reg
+  code_buffer_.push_back(0x58 + reg);  // pop reg
 
-  EmitRegImm(cu, &X86Codegen::EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
+  EmitRegImm(&X86Mir2Lir::EncodingMap[kX86Sub32RI], reg, offset + 5 /* size of call +0 */);
 }
 
-static void EmitUnimplemented(CompilationUnit* cu, const X86EncodingMap* entry, LIR* lir) {
-  Codegen* cg = cu->cg.get();
+void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
   UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " "
-                         << cg->BuildInsnString(entry->fmt, lir, 0);
-  for (int i = 0; i < cg->GetInsnSize(lir); ++i) {
-    cu->code_buffer.push_back(0xCC);  // push breakpoint instruction - int 3
+                         << BuildInsnString(entry->fmt, lir, 0);
+  for (int i = 0; i < GetInsnSize(lir); ++i) {
+    code_buffer_.push_back(0xCC);  // push breakpoint instruction - int 3
   }
 }
 
@@ -1172,12 +1159,12 @@ static void EmitUnimplemented(CompilationUnit* cu, const X86EncodingMap* entry, 
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr) {
+AssemblerStatus X86Mir2Lir::AssembleInstructions(uintptr_t start_addr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
   const bool kVerbosePcFixup = false;
-  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -1206,14 +1193,14 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
                   << " delta: " << delta << " old delta: " << lir->operands[0];
             }
             lir->opcode = kX86Jcc32;
-            SetupResourceMasks(cu, lir);
+            SetupResourceMasks(lir);
             res = kRetryAll;
           }
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
-            DumpLIRInsn(cu, lir, 0);
+            DumpLIRInsn(lir, 0);
             LOG(INFO) << "Target:";
-            DumpLIRInsn(cu, target_lir, 0);
+            DumpLIRInsn(target_lir, 0);
             LOG(INFO) << "Delta " << delta;
           }
           lir->operands[0] = delta;
@@ -1227,9 +1214,9 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
           int delta = target - pc;
           if (kVerbosePcFixup) {
             LOG(INFO) << "Source:";
-            DumpLIRInsn(cu, lir, 0);
+            DumpLIRInsn(lir, 0);
             LOG(INFO) << "Target:";
-            DumpLIRInsn(cu, target_lir, 0);
+            DumpLIRInsn(target_lir, 0);
             LOG(INFO) << "Delta " << delta;
           }
           lir->operands[0] = delta;
@@ -1247,7 +1234,7 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
           }
           uintptr_t target = target_lir->offset;
           delta = target - pc;
-          if (!(cu->disable_opt & (1 << kSafeOptimizations)) && delta == 0) {
+          if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && delta == 0) {
             // Useless branch
             lir->flags.is_nop = true;
             if (kVerbosePcFixup) {
@@ -1259,7 +1246,7 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
               LOG(INFO) << "Retry for JMP growth at " << lir->offset;
             }
             lir->opcode = kX86Jmp32;
-            SetupResourceMasks(cu, lir);
+            SetupResourceMasks(lir);
             res = kRetryAll;
           }
           lir->operands[0] = delta;
@@ -1287,21 +1274,21 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
     if (res != kSuccess) {
       continue;
     }
-    CHECK_EQ(static_cast<size_t>(lir->offset), cu->code_buffer.size());
-    const X86EncodingMap *entry = &X86Codegen::EncodingMap[lir->opcode];
-    size_t starting_cbuf_size = cu->code_buffer.size();
+    CHECK_EQ(static_cast<size_t>(lir->offset), code_buffer_.size());
+    const X86EncodingMap *entry = &X86Mir2Lir::EncodingMap[lir->opcode];
+    size_t starting_cbuf_size = code_buffer_.size();
     switch (entry->kind) {
       case kData:  // 4 bytes of data
-        cu->code_buffer.push_back(lir->operands[0]);
+        code_buffer_.push_back(lir->operands[0]);
         break;
       case kNullary:  // 1 byte of opcode
         DCHECK_EQ(0, entry->skeleton.prefix1);
         DCHECK_EQ(0, entry->skeleton.prefix2);
-        cu->code_buffer.push_back(entry->skeleton.opcode);
+        code_buffer_.push_back(entry->skeleton.opcode);
         if (entry->skeleton.extra_opcode1 != 0) {
-          cu->code_buffer.push_back(entry->skeleton.extra_opcode1);
+          code_buffer_.push_back(entry->skeleton.extra_opcode1);
           if (entry->skeleton.extra_opcode2 != 0) {
-            cu->code_buffer.push_back(entry->skeleton.extra_opcode2);
+            code_buffer_.push_back(entry->skeleton.extra_opcode2);
           }
         } else {
           DCHECK_EQ(0, entry->skeleton.extra_opcode2);
@@ -1311,88 +1298,88 @@ AssemblerStatus X86Codegen::AssembleInstructions(CompilationUnit *cu, uintptr_t 
         DCHECK_EQ(0, entry->skeleton.immediate_bytes);
         break;
       case kReg:  // lir operands - 0: reg
-        EmitOpReg(cu, entry, lir->operands[0]);
+        EmitOpReg(entry, lir->operands[0]);
         break;
       case kMem:  // lir operands - 0: base, 1: disp
-        EmitOpMem(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitOpMem(entry, lir->operands[0], lir->operands[1]);
         break;
       case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
-        EmitMemReg(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitMemReg(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
-        EmitArrayReg(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitArrayReg(entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
         break;
       case kRegMem:  // lir operands - 0: reg, 1: base, 2: disp
-        EmitRegMem(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitRegMem(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegArray:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
-        EmitRegArray(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitRegArray(entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
         break;
       case kRegThread:  // lir operands - 0: reg, 1: disp
-        EmitRegThread(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitRegThread(entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegReg:  // lir operands - 0: reg1, 1: reg2
-        EmitRegReg(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitRegReg(entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegRegStore:  // lir operands - 0: reg2, 1: reg1
-        EmitRegReg(cu, entry, lir->operands[1], lir->operands[0]);
+        EmitRegReg(entry, lir->operands[1], lir->operands[0]);
         break;
       case kRegRegImm:
-        EmitRegRegImm(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
+        EmitRegRegImm(entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegImm:  // lir operands - 0: reg, 1: immediate
-        EmitRegImm(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitRegImm(entry, lir->operands[0], lir->operands[1]);
         break;
       case kThreadImm:  // lir operands - 0: disp, 1: immediate
-        EmitThreadImm(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitThreadImm(entry, lir->operands[0], lir->operands[1]);
         break;
       case kMovRegImm:  // lir operands - 0: reg, 1: immediate
-        EmitMovRegImm(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitMovRegImm(entry, lir->operands[0], lir->operands[1]);
         break;
       case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
-        EmitShiftRegImm(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitShiftRegImm(entry, lir->operands[0], lir->operands[1]);
         break;
       case kShiftRegCl: // lir operands - 0: reg, 1: cl
-        EmitShiftRegCl(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitShiftRegCl(entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegCond:  // lir operands - 0: reg, 1: condition
-        EmitRegCond(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitRegCond(entry, lir->operands[0], lir->operands[1]);
         break;
       case kJmp:  // lir operands - 0: rel
-        EmitJmp(cu, entry, lir->operands[0]);
+        EmitJmp(entry, lir->operands[0]);
         break;
       case kJcc:  // lir operands - 0: rel, 1: CC, target assigned
-        EmitJcc(cu, entry, lir->operands[0], lir->operands[1]);
+        EmitJcc(entry, lir->operands[0], lir->operands[1]);
         break;
       case kCall:
         switch (entry->opcode) {
           case kX86CallM:  // lir operands - 0: base, 1: disp
-            EmitCallMem(cu, entry, lir->operands[0], lir->operands[1]);
+            EmitCallMem(entry, lir->operands[0], lir->operands[1]);
             break;
           case kX86CallT:  // lir operands - 0: disp
-            EmitCallThread(cu, entry, lir->operands[0]);
+            EmitCallThread(entry, lir->operands[0]);
             break;
           default:
-            EmitUnimplemented(cu, entry, lir);
+            EmitUnimplemented(entry, lir);
             break;
         }
         break;
       case kPcRel:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
-        EmitPcRel(cu, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+        EmitPcRel(entry, lir->operands[0], lir->operands[1], lir->operands[2],
                   lir->operands[3], lir->operands[4]);
         break;
       case kMacro:
-        EmitMacro(cu, entry, lir->operands[0], lir->offset);
+        EmitMacro(entry, lir->operands[0], lir->offset);
         break;
       default:
-        EmitUnimplemented(cu, entry, lir);
+        EmitUnimplemented(entry, lir);
         break;
     }
     CHECK_EQ(static_cast<size_t>(GetInsnSize(lir)),
-             cu->code_buffer.size() - starting_cbuf_size)
-        << "Instruction size mismatch for entry: " << X86Codegen::EncodingMap[lir->opcode].name;
+             code_buffer_.size() - starting_cbuf_size)
+        << "Instruction size mismatch for entry: " << X86Mir2Lir::EncodingMap[lir->opcode].name;
   }
   return res;
 }

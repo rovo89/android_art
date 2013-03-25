@@ -15,7 +15,6 @@
  */
 
 #include "codegen_mips.h"
-#include "compiler/dex/quick/codegen_util.h"
 #include "mips_lir.h"
 
 namespace art {
@@ -81,7 +80,7 @@ namespace art {
  * is expanded to include a nop.  This scheme should be replaced with
  * an assembler pass to fill those slots when possible.
  */
-const MipsEncodingMap MipsCodegen::EncodingMap[kMipsLast] = {
+const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMips32BitData, 0x00000000,
                  kFmtBitBlt, 31, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP,
@@ -457,7 +456,7 @@ const MipsEncodingMap MipsCodegen::EncodingMap[kMipsLast] = {
  * NOTE: An out-of-range bal isn't supported because it should
  * never happen with the current PIC model.
  */
-static void ConvertShortToLongBranch(CompilationUnit* cu, LIR* lir)
+void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir)
 {
   // For conditional branches we'll need to reverse the sense
   bool unconditional = false;
@@ -482,24 +481,24 @@ static void ConvertShortToLongBranch(CompilationUnit* cu, LIR* lir)
   }
   LIR* hop_target = NULL;
   if (!unconditional) {
-    hop_target = RawLIR(cu, dalvik_offset, kPseudoTargetLabel);
-    LIR* hop_branch = RawLIR(cu, dalvik_offset, opcode, lir->operands[0],
+    hop_target = RawLIR(dalvik_offset, kPseudoTargetLabel);
+    LIR* hop_branch = RawLIR(dalvik_offset, opcode, lir->operands[0],
                             lir->operands[1], 0, 0, 0, hop_target);
     InsertLIRBefore(lir, hop_branch);
   }
-  LIR* curr_pc = RawLIR(cu, dalvik_offset, kMipsCurrPC);
+  LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
   InsertLIRBefore(lir, curr_pc);
-  LIR* anchor = RawLIR(cu, dalvik_offset, kPseudoTargetLabel);
-  LIR* delta_hi = RawLIR(cu, dalvik_offset, kMipsDeltaHi, r_AT, 0,
+  LIR* anchor = RawLIR(dalvik_offset, kPseudoTargetLabel);
+  LIR* delta_hi = RawLIR(dalvik_offset, kMipsDeltaHi, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
   InsertLIRBefore(lir, delta_hi);
   InsertLIRBefore(lir, anchor);
-  LIR* delta_lo = RawLIR(cu, dalvik_offset, kMipsDeltaLo, r_AT, 0,
+  LIR* delta_lo = RawLIR(dalvik_offset, kMipsDeltaLo, r_AT, 0,
                         reinterpret_cast<uintptr_t>(anchor), 0, 0, lir->target);
   InsertLIRBefore(lir, delta_lo);
-  LIR* addu = RawLIR(cu, dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
+  LIR* addu = RawLIR(dalvik_offset, kMipsAddu, r_AT, r_AT, r_RA);
   InsertLIRBefore(lir, addu);
-  LIR* jr = RawLIR(cu, dalvik_offset, kMipsJr, r_AT);
+  LIR* jr = RawLIR(dalvik_offset, kMipsJr, r_AT);
   InsertLIRBefore(lir, jr);
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
@@ -513,12 +512,12 @@ static void ConvertShortToLongBranch(CompilationUnit* cu, LIR* lir)
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t start_addr)
+AssemblerStatus MipsMir2Lir::AssembleInstructions(uintptr_t start_addr)
 {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
@@ -550,17 +549,17 @@ AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t
         } else {
           // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
           LIR *new_delta_hi =
-              RawLIR(cu, lir->dalvik_offset, kMipsDeltaHi,
+              RawLIR(lir->dalvik_offset, kMipsDeltaHi,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
           InsertLIRBefore(lir, new_delta_hi);
           LIR *new_delta_lo =
-              RawLIR(cu, lir->dalvik_offset, kMipsDeltaLo,
+              RawLIR(lir->dalvik_offset, kMipsDeltaLo,
                      lir->operands[0], 0, lir->operands[2],
                      lir->operands[3], 0, lir->target);
           InsertLIRBefore(lir, new_delta_lo);
           LIR *new_addu =
-              RawLIR(cu, lir->dalvik_offset, kMipsAddu,
+              RawLIR(lir->dalvik_offset, kMipsAddu,
                      lir->operands[0], lir->operands[0], r_RA);
           InsertLIRBefore(lir, new_addu);
           lir->flags.is_nop = true;
@@ -588,7 +587,7 @@ AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cu, lir);
+          ConvertShortToLongBranch(lir);
         } else {
           lir->operands[0] = delta >> 2;
         }
@@ -602,7 +601,7 @@ AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cu, lir);
+          ConvertShortToLongBranch(lir);
         } else {
           lir->operands[1] = delta >> 2;
         }
@@ -616,7 +615,7 @@ AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t
         }
         if (delta > 131068 || delta < -131069) {
           res = kRetryAll;
-          ConvertShortToLongBranch(cu, lir);
+          ConvertShortToLongBranch(lir);
         } else {
           lir->operands[2] = delta >> 2;
         }
@@ -691,24 +690,24 @@ AssemblerStatus MipsCodegen::AssembleInstructions(CompilationUnit *cu, uintptr_t
       }
     }
     // We only support little-endian MIPS.
-    cu->code_buffer.push_back(bits & 0xff);
-    cu->code_buffer.push_back((bits >> 8) & 0xff);
-    cu->code_buffer.push_back((bits >> 16) & 0xff);
-    cu->code_buffer.push_back((bits >> 24) & 0xff);
+    code_buffer_.push_back(bits & 0xff);
+    code_buffer_.push_back((bits >> 8) & 0xff);
+    code_buffer_.push_back((bits >> 16) & 0xff);
+    code_buffer_.push_back((bits >> 24) & 0xff);
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
       const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
       uint32_t bits = encoder->skeleton;
-      cu->code_buffer.push_back(bits & 0xff);
-      cu->code_buffer.push_back((bits >> 8) & 0xff);
-      cu->code_buffer.push_back((bits >> 16) & 0xff);
-      cu->code_buffer.push_back((bits >> 24) & 0xff);
+      code_buffer_.push_back(bits & 0xff);
+      code_buffer_.push_back((bits >> 8) & 0xff);
+      code_buffer_.push_back((bits >> 16) & 0xff);
+      code_buffer_.push_back((bits >> 24) & 0xff);
     }
   }
   return res;
 }
 
-int MipsCodegen::GetInsnSize(LIR* lir)
+int MipsMir2Lir::GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }

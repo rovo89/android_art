@@ -29,7 +29,7 @@ namespace art {
  * TODO - many optimization flags are incomplete - they will only limit the
  * scope of optimizations but will not cause mis-optimizations.
  */
-const int oat_data_flow_attributes[kMirOpLast] = {
+const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   // 00 NOP
   DF_NOP,
 
@@ -883,7 +883,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb)
       AllocBitVector(cu_, cu_->num_dalvik_registers, false, kBitMapLiveIn);
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
     DecodedInstruction *d_insn = &mir->dalvikInsn;
 
     if (df_attributes & DF_HAS_USES) {
@@ -934,7 +934,7 @@ int MIRGraph::AddNewSReg(int v_reg)
   SetNumSSARegs(ssa_reg + 1);
   InsertGrowableList(cu_, ssa_base_vregs_, v_reg);
   InsertGrowableList(cu_, ssa_subscripts_, subscript);
-  std::string ssa_name = GetSSAName(cu_, ssa_reg);
+  std::string ssa_name = GetSSAName(ssa_reg);
   char* name = static_cast<char*>(NewMem(cu_, ssa_name.length() + 1, false, kAllocDFInfo));
   strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
   InsertGrowableList(cu_, ssa_strings_, reinterpret_cast<uintptr_t>(name));
@@ -1005,7 +1005,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
     mir->ssa_rep = static_cast<struct SSARepresentation *>(NewMem(cu_, sizeof(SSARepresentation),
                                                                  true, kAllocDFInfo));
 
-    int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
       // If not a pseudo-op, note non-leaf or can throw
     if (static_cast<int>(mir->dalvikInsn.opcode) <
@@ -1013,7 +1013,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
       int flags = Instruction::FlagsOf(mir->dalvikInsn.opcode);
 
       if (flags & Instruction::kInvoke) {
-        cu_->attributes &= ~METHOD_IS_LEAF;
+        attributes_ &= ~METHOD_IS_LEAF;
       }
     }
 
@@ -1114,19 +1114,17 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
     }
   }
 
-  if (!cu_->disable_dataflow) {
-    /*
-     * Take a snapshot of Dalvik->SSA mapping at the end of each block. The
-     * input to PHI nodes can be derived from the snapshot of all
-     * predecessor blocks.
-     */
-    bb->data_flow_info->vreg_to_ssa_map =
-        static_cast<int*>(NewMem(cu_, sizeof(int) * cu_->num_dalvik_registers, false,
-                                 kAllocDFInfo));
+  /*
+   * Take a snapshot of Dalvik->SSA mapping at the end of each block. The
+   * input to PHI nodes can be derived from the snapshot of all
+   * predecessor blocks.
+   */
+  bb->data_flow_info->vreg_to_ssa_map =
+      static_cast<int*>(NewMem(cu_, sizeof(int) * cu_->num_dalvik_registers, false,
+                               kAllocDFInfo));
 
-    memcpy(bb->data_flow_info->vreg_to_ssa_map, vreg_to_ssa_map_,
-           sizeof(int) * cu_->num_dalvik_registers);
-  }
+  memcpy(bb->data_flow_info->vreg_to_ssa_map, vreg_to_ssa_map_,
+         sizeof(int) * cu_->num_dalvik_registers);
   return true;
 }
 
@@ -1163,7 +1161,7 @@ void MIRGraph::CompilerInitializeSSAConversion()
   for (i = 0; i < num_dalvik_reg; i++) {
     InsertGrowableList(cu_, ssa_base_vregs_, i);
     InsertGrowableList(cu_, ssa_subscripts_, 0);
-    std::string ssa_name = GetSSAName(cu_, i);
+    std::string ssa_name = GetSSAName(i);
     char* name = static_cast<char*>(NewMem(cu_, ssa_name.length() + 1, true, kAllocDFInfo));
     strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
     InsertGrowableList(cu_, ssa_strings_, reinterpret_cast<uintptr_t>(name));
@@ -1185,7 +1183,7 @@ void MIRGraph::CompilerInitializeSSAConversion()
   }
 
   /* Add ssa reg for Method* */
-  cu_->method_sreg = AddNewSReg(SSA_METHOD_BASEREG);
+  method_sreg_ = AddNewSReg(SSA_METHOD_BASEREG);
 
   /*
    * Allocate the BasicBlockDataFlow structure for the entry and code blocks
@@ -1283,7 +1281,7 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
       use_counts_.elem_list[s_reg] += (1 << weight);
     }
     if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
-      int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+      int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
       // Implicit use of Method* ? */
       if (df_attributes & DF_UMS) {
         /*
@@ -1298,8 +1296,8 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
           uses_method_star &= InvokeUsesMethodStar(mir);
         }
         if (uses_method_star) {
-          raw_use_counts_.elem_list[cu_->method_sreg]++;
-          use_counts_.elem_list[cu_->method_sreg] += (1 << weight);
+          raw_use_counts_.elem_list[method_sreg_]++;
+          use_counts_.elem_list[method_sreg_] += (1 << weight);
         }
       }
     }

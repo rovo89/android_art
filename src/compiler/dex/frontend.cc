@@ -21,13 +21,12 @@
 #include "dataflow_iterator.h"
 #if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler/llvm/llvm_compilation_unit.h"
+#include "compiler/dex/portable/mir_to_gbc.h"
 #endif
 #include "leb128.h"
 #include "mirror/object.h"
 #include "runtime.h"
-#include "quick/codegen_util.h"
-#include "portable/mir_to_gbc.h"
-#include "quick/mir_to_lir.h"
+#include "backend.h"
 
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -116,9 +115,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
-  // FIXME: now we detect this in MIRGraph.
-  SpecialCaseHandler special_case = kNoHandler;
-
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   UniquePtr<CompilationUnit> cu(new CompilationUnit);
 
@@ -129,17 +125,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   cu->compiler_driver = &compiler;
   cu->class_linker = class_linker;
   cu->instruction_set = compiler.GetInstructionSet();
+  cu->compiler_backend = compiler_backend;
   DCHECK((cu->instruction_set == kThumb2) ||
          (cu->instruction_set == kX86) ||
          (cu->instruction_set == kMips));
 
-  cu->gen_bitcode = (compiler_backend == kPortable);
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-  cu->llvm_compilation_unit = llvm_compilation_unit;
-  cu->llvm_info = llvm_compilation_unit->GetQuickContext();
-  cu->symbol = llvm_compilation_unit->GetDexCompilationUnit()->GetSymbol();
-#endif
   /* Adjust this value accordingly once inlining is performed */
   cu->num_dalvik_registers = code_item->registers_size_;
   // TODO: set this from command line
@@ -155,9 +146,14 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
         (cu->enable_debug & (1 << kDebugVerbose));
   }
 
-  // If debug build, always verify bitcode.
-  if (kIsDebugBuild && cu->gen_bitcode) {
-    cu->enable_debug |= (1 << kDebugVerifyBitcode);
+  /*
+   * TODO: rework handling of optimization and debug flags.  Should we split out
+   * MIR and backend flags?  Need command-line setting as well.
+   */
+
+  if (compiler_backend == kPortable) {
+    // Fused long branches not currently usseful in bitcode.
+    cu->disable_opt |= (1 << kBranchFusing);
   }
 
   if (cu->instruction_set == kMips) {
@@ -175,9 +171,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
         (1 << kPromoteCompilerTemps));
   }
 
-  /* Assume leaf */
-  cu->attributes = METHOD_IS_LEAF;
-
   cu->mir_graph.reset(new MIRGraph(cu.get()));
 
   /* Gathering opcode stats? */
@@ -191,10 +184,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
   /* Do a code layout pass */
   cu->mir_graph->CodeLayout();
-
-  if (cu->enable_debug & (1 << kDebugVerifyDataflow)) {
-    cu->mir_graph->VerifyDataflow();
-  }
 
   /* Perform SSA transformation for the whole method */
   cu->mir_graph->SSATransformation();
@@ -218,123 +207,42 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     cu->mir_graph->DumpCheckStats();
   }
 
+  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    cu->mir_graph->ShowOpcodeStats();
+  }
+
   /* Set up regLocation[] array to describe values - one for each ssa_name. */
   cu->mir_graph->BuildRegLocations();
 
+  CompiledMethod* result = NULL;
+
 #if defined(ART_USE_PORTABLE_COMPILER)
-  /* Go the LLVM path? */
-  if (cu->gen_bitcode) {
-    // MIR->Bitcode
-    MethodMIR2Bitcode(cu.get());
-    if (compiler_backend == kPortable) {
-      // all done
-      ArenaReset(cu.get());
-      return NULL;
-    }
+  if (compiler_backend == kPortable) {
+    cu->cg.reset(PortableCodeGenerator(cu.get(), cu->mir_graph.get(), llvm_compilation_unit));
   } else
 #endif
   {
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
-        InitArmCodegen(cu.get()); break;
+        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get())); break;
       case kMips:
-        InitMipsCodegen(cu.get()); break;
+        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get())); break;
       case kX86:
-        InitX86Codegen(cu.get()); break;
+        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get())); break;
       default:
         LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
     }
-
-// ** MOVE ALL OF THIS TO Codegen.materialize()
-
-  /* Initialize the switch_tables list */                       // TO CODEGEN
-  CompilerInitGrowableList(cu.get(), &cu->switch_tables, 4,
-                      kListSwitchTables);
-
-  /* Intialize the fill_array_data list */                     // TO CODEGEN
-  CompilerInitGrowableList(cu.get(), &cu->fill_array_data, 4,
-                      kListFillArrayData);
-
-  /* Intialize the throw_launchpads list, estimate size based on insns_size */ // TO CODEGEN
-  CompilerInitGrowableList(cu.get(), &cu->throw_launchpads, code_item->insns_size_in_code_units_,
-                      kListThrowLaunchPads);
-
-  /* Intialize the instrinsic_launchpads list */  // TO_CODEGEN
-  CompilerInitGrowableList(cu.get(), &cu->intrinsic_launchpads, 4,
-                      kListMisc);
-
-
-  /* Intialize the suspend_launchpads list */ // TO_CODEGEN
-  CompilerInitGrowableList(cu.get(), &cu->suspend_launchpads, 2048,
-                      kListSuspendLaunchPads);
-
-    // TODO: Push these to codegen
-    cu.get()->cg->CompilerInitializeRegAlloc(cu.get());  // Needs to happen after SSA naming
-
-    /* Allocate Registers using simple local allocation scheme */
-    cu.get()->cg->SimpleRegAlloc(cu.get());
-
-    if (special_case != kNoHandler) {
-      /*
-       * Custom codegen for special cases.  If for any reason the
-       * special codegen doesn't succeed, cu->first_lir_insn will
-       * set to NULL;
-       */
-      SpecialMIR2LIR(cu.get(), special_case);
-    }
-
-    /* Convert MIR to LIR, etc. */
-    if (cu->first_lir_insn == NULL) {
-      MethodMIR2LIR(cu.get());
-    }
   }
 
-  /* Method is not empty */
-  if (cu->first_lir_insn) {
+  cu->cg->Materialize();
 
-    // mark the targets of switch statement case labels
-    ProcessSwitchTables(cu.get());
+  result = cu->cg->GetCompiledMethod();
 
-    /* Convert LIR into machine code. */
-    AssembleLIR(cu.get());
-
-    if (cu->verbose) {
-      CodegenDump(cu.get());
-    }
-
-  }
-
-  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
-    cu->mir_graph->ShowOpcodeStats();
-  }
-
-  // Combine vmap tables - core regs, then fp regs - into vmap_table
-  std::vector<uint16_t> vmap_table;
-  // Core regs may have been inserted out of order - sort first
-  std::sort(cu->core_vmap_table.begin(), cu->core_vmap_table.end());
-  for (size_t i = 0 ; i < cu->core_vmap_table.size(); i++) {
-    // Copy, stripping out the phys register sort key
-    vmap_table.push_back(~(-1 << VREG_NUM_WIDTH) & cu->core_vmap_table[i]);
-  }
-  // If we have a frame, push a marker to take place of lr
-  if (cu->frame_size > 0) {
-    vmap_table.push_back(INVALID_VREG);
+  if (result) {
+    VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file);
   } else {
-    DCHECK_EQ(__builtin_popcount(cu->core_spill_mask), 0);
-    DCHECK_EQ(__builtin_popcount(cu->fp_spill_mask), 0);
+    VLOG(compiler) << "Deferred " << PrettyMethod(method_idx, dex_file);
   }
-  // Combine vmap tables - core regs, then fp regs. fp regs already sorted
-  for (uint32_t i = 0; i < cu->fp_vmap_table.size(); i++) {
-    vmap_table.push_back(cu->fp_vmap_table[i]);
-  }
-  CompiledMethod* result =
-      new CompiledMethod(cu->instruction_set, cu->code_buffer,
-                         cu->frame_size, cu->core_spill_mask, cu->fp_spill_mask,
-                         cu->combined_mapping_table, vmap_table, cu->native_gc_map);
-
-  VLOG(compiler) << "Compiled " << PrettyMethod(method_idx, dex_file)
-     << " (" << (cu->code_buffer.size() * sizeof(cu->code_buffer[0]))
-     << " bytes)";
 
 #ifdef WITH_MEMSTATS
   if (cu->enable_debug & (1 << kDebugShowMemoryUsage)) {

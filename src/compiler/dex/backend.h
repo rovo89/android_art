@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2013 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_LOCALOPTIMIZATIONS_H_
-#define ART_SRC_COMPILER_DEX_QUICK_LOCALOPTIMIZATIONS_H_
+#ifndef ART_SRC_COMPILER_DEX_BACKEND_H_
+#define ART_SRC_COMPILER_DEX_BACKEND_H_
+
+#include "compiled_method.h"
 
 namespace art {
 
-void ApplyLocalOptimizations(CompilationUnit* cu, LIR* head_lir, LIR* tail_lir);
-void RemoveRedundantBranches(CompilationUnit* cu);
+class Backend {
+
+  public:
+    virtual ~Backend() {};
+    virtual void Materialize() = 0;
+    virtual CompiledMethod* GetCompiledMethod() = 0;
+
+  protected:
+    Backend() {};
+
+};  // Class Backend
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_QUICK_LOCALOPTIMIZATIONS_H_
+#endif // ART_SRC_COMPILER_DEX_BACKEND_H_

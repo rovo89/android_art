@@ -16,53 +16,52 @@
 
 #include "compiler_internals.h"
 #include "dataflow_iterator.h"
-#include "quick/ralloc_util.h"
 
 namespace art {
 
-static bool SetFp(CompilationUnit* cu, int index, bool is_fp) {
+bool MIRGraph::SetFp(int index, bool is_fp) {
   bool change = false;
-  if (is_fp && !cu->reg_location[index].fp) {
-    cu->reg_location[index].fp = true;
-    cu->reg_location[index].defined = true;
+  if (is_fp && !reg_location_[index].fp) {
+    reg_location_[index].fp = true;
+    reg_location_[index].defined = true;
     change = true;
   }
   return change;
 }
 
-static bool SetCore(CompilationUnit* cu, int index, bool is_core) {
+bool MIRGraph::SetCore(int index, bool is_core) {
   bool change = false;
-  if (is_core && !cu->reg_location[index].defined) {
-    cu->reg_location[index].core = true;
-    cu->reg_location[index].defined = true;
+  if (is_core && !reg_location_[index].defined) {
+    reg_location_[index].core = true;
+    reg_location_[index].defined = true;
     change = true;
   }
   return change;
 }
 
-static bool SetRef(CompilationUnit* cu, int index, bool is_ref) {
+bool MIRGraph::SetRef(int index, bool is_ref) {
   bool change = false;
-  if (is_ref && !cu->reg_location[index].defined) {
-    cu->reg_location[index].ref = true;
-    cu->reg_location[index].defined = true;
+  if (is_ref && !reg_location_[index].defined) {
+    reg_location_[index].ref = true;
+    reg_location_[index].defined = true;
     change = true;
   }
   return change;
 }
 
-static bool SetWide(CompilationUnit* cu, int index, bool is_wide) {
+bool MIRGraph::SetWide(int index, bool is_wide) {
   bool change = false;
-  if (is_wide && !cu->reg_location[index].wide) {
-    cu->reg_location[index].wide = true;
+  if (is_wide && !reg_location_[index].wide) {
+    reg_location_[index].wide = true;
     change = true;
   }
   return change;
 }
 
-static bool SetHigh(CompilationUnit* cu, int index, bool is_high) {
+bool MIRGraph::SetHigh(int index, bool is_high) {
   bool change = false;
-  if (is_high && !cu->reg_location[index].high_word) {
-    cu->reg_location[index].high_word = true;
+  if (is_high && !reg_location_[index].high_word) {
+    reg_location_[index].high_word = true;
     change = true;
   }
   return change;
@@ -85,20 +84,20 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     SSARepresentation *ssa_rep = mir->ssa_rep;
     if (ssa_rep) {
-      int attrs = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+      int attrs = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
       // Handle defs
       if (attrs & DF_DA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(cu_, ssa_rep->defs[0], true);
+          changed |= SetCore(ssa_rep->defs[0], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(cu_, ssa_rep->defs[0], true);
+          changed |= SetRef(ssa_rep->defs[0], true);
         }
         if (attrs & DF_A_WIDE) {
-          cu_->reg_location[ssa_rep->defs[0]].wide = true;
-          cu_->reg_location[ssa_rep->defs[1]].wide = true;
-          cu_->reg_location[ssa_rep->defs[1]].high_word = true;
+          reg_location_[ssa_rep->defs[0]].wide = true;
+          reg_location_[ssa_rep->defs[1]].wide = true;
+          reg_location_[ssa_rep->defs[1]].high_word = true;
           DCHECK_EQ(SRegToVReg(ssa_rep->defs[0])+1,
           SRegToVReg(ssa_rep->defs[1]));
         }
@@ -108,15 +107,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
       int next = 0;
       if (attrs & DF_UA) {
         if (attrs & DF_CORE_A) {
-          changed |= SetCore(cu_, ssa_rep->uses[next], true);
+          changed |= SetCore(ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_A) {
-          changed |= SetRef(cu_, ssa_rep->uses[next], true);
+          changed |= SetRef(ssa_rep->uses[next], true);
         }
         if (attrs & DF_A_WIDE) {
-          cu_->reg_location[ssa_rep->uses[next]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          reg_location_[ssa_rep->uses[next]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
           DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
           SRegToVReg(ssa_rep->uses[next + 1]));
           next += 2;
@@ -126,15 +125,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
       }
       if (attrs & DF_UB) {
         if (attrs & DF_CORE_B) {
-          changed |= SetCore(cu_, ssa_rep->uses[next], true);
+          changed |= SetCore(ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_B) {
-          changed |= SetRef(cu_, ssa_rep->uses[next], true);
+          changed |= SetRef(ssa_rep->uses[next], true);
         }
         if (attrs & DF_B_WIDE) {
-          cu_->reg_location[ssa_rep->uses[next]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          reg_location_[ssa_rep->uses[next]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
           DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
                                SRegToVReg(ssa_rep->uses[next + 1]));
           next += 2;
@@ -144,15 +143,15 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
       }
       if (attrs & DF_UC) {
         if (attrs & DF_CORE_C) {
-          changed |= SetCore(cu_, ssa_rep->uses[next], true);
+          changed |= SetCore(ssa_rep->uses[next], true);
         }
         if (attrs & DF_REF_C) {
-          changed |= SetRef(cu_, ssa_rep->uses[next], true);
+          changed |= SetRef(ssa_rep->uses[next], true);
         }
         if (attrs & DF_C_WIDE) {
-          cu_->reg_location[ssa_rep->uses[next]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].wide = true;
-          cu_->reg_location[ssa_rep->uses[next + 1]].high_word = true;
+          reg_location_[ssa_rep->uses[next]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].wide = true;
+          reg_location_[ssa_rep->uses[next + 1]].high_word = true;
           DCHECK_EQ(SRegToVReg(ssa_rep->uses[next])+1,
           SRegToVReg(ssa_rep->uses[next + 1]));
         }
@@ -164,27 +163,27 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
           (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
         switch(cu_->shorty[0]) {
             case 'I':
-              changed |= SetCore(cu_, ssa_rep->uses[0], true);
+              changed |= SetCore(ssa_rep->uses[0], true);
               break;
             case 'J':
-              changed |= SetCore(cu_, ssa_rep->uses[0], true);
-              changed |= SetCore(cu_, ssa_rep->uses[1], true);
-              cu_->reg_location[ssa_rep->uses[0]].wide = true;
-              cu_->reg_location[ssa_rep->uses[1]].wide = true;
-              cu_->reg_location[ssa_rep->uses[1]].high_word = true;
+              changed |= SetCore(ssa_rep->uses[0], true);
+              changed |= SetCore(ssa_rep->uses[1], true);
+              reg_location_[ssa_rep->uses[0]].wide = true;
+              reg_location_[ssa_rep->uses[1]].wide = true;
+              reg_location_[ssa_rep->uses[1]].high_word = true;
               break;
             case 'F':
-              changed |= SetFp(cu_, ssa_rep->uses[0], true);
+              changed |= SetFp(ssa_rep->uses[0], true);
               break;
             case 'D':
-              changed |= SetFp(cu_, ssa_rep->uses[0], true);
-              changed |= SetFp(cu_, ssa_rep->uses[1], true);
-              cu_->reg_location[ssa_rep->uses[0]].wide = true;
-              cu_->reg_location[ssa_rep->uses[1]].wide = true;
-              cu_->reg_location[ssa_rep->uses[1]].high_word = true;
+              changed |= SetFp(ssa_rep->uses[0], true);
+              changed |= SetFp(ssa_rep->uses[1], true);
+              reg_location_[ssa_rep->uses[0]].wide = true;
+              reg_location_[ssa_rep->uses[1]].wide = true;
+              reg_location_[ssa_rep->uses[1]].high_word = true;
               break;
             case 'L':
-              changed |= SetRef(cu_, ssa_rep->uses[0], true);
+              changed |= SetRef(ssa_rep->uses[0], true);
               break;
             default: break;
         }
@@ -198,7 +197,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
           (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
         DCHECK_EQ(next, 0);
         int target_idx = mir->dalvikInsn.vB;
-        const char* shorty = GetShortyFromTargetIdx(cu_, target_idx);
+        const char* shorty = GetShortyFromTargetIdx(target_idx);
         // Handle result type if floating point
         if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
           MIR* move_result_mir = FindMoveResult(bb, mir);
@@ -208,10 +207,10 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
             SSARepresentation* tgt_rep = move_result_mir->ssa_rep;
             DCHECK(tgt_rep != NULL);
             tgt_rep->fp_def[0] = true;
-            changed |= SetFp(cu_, tgt_rep->defs[0], true);
+            changed |= SetFp(tgt_rep->defs[0], true);
             if (shorty[0] == 'D') {
               tgt_rep->fp_def[1] = true;
-              changed |= SetFp(cu_, tgt_rep->defs[1], true);
+              changed |= SetFp(tgt_rep->defs[1], true);
             }
           }
         }
@@ -219,8 +218,8 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
         // If this is a non-static invoke, mark implicit "this"
         if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
             (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
-          cu_->reg_location[ssa_rep->uses[next]].defined = true;
-          cu_->reg_location[ssa_rep->uses[next]].ref = true;
+          reg_location_[ssa_rep->uses[next]].defined = true;
+          reg_location_[ssa_rep->uses[next]].ref = true;
           next++;
         }
         uint32_t cpos = 1;
@@ -231,28 +230,28 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
               case 'D':
                 ssa_rep->fp_use[i] = true;
                 ssa_rep->fp_use[i+1] = true;
-                cu_->reg_location[ssa_rep->uses[i]].wide = true;
-                cu_->reg_location[ssa_rep->uses[i+1]].wide = true;
-                cu_->reg_location[ssa_rep->uses[i+1]].high_word = true;
+                reg_location_[ssa_rep->uses[i]].wide = true;
+                reg_location_[ssa_rep->uses[i+1]].wide = true;
+                reg_location_[ssa_rep->uses[i+1]].high_word = true;
                 DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
                 i++;
                 break;
               case 'J':
-                cu_->reg_location[ssa_rep->uses[i]].wide = true;
-                cu_->reg_location[ssa_rep->uses[i+1]].wide = true;
-                cu_->reg_location[ssa_rep->uses[i+1]].high_word = true;
+                reg_location_[ssa_rep->uses[i]].wide = true;
+                reg_location_[ssa_rep->uses[i+1]].wide = true;
+                reg_location_[ssa_rep->uses[i+1]].high_word = true;
                 DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
-                changed |= SetCore(cu_, ssa_rep->uses[i],true);
+                changed |= SetCore(ssa_rep->uses[i],true);
                 i++;
                 break;
               case 'F':
                 ssa_rep->fp_use[i] = true;
                 break;
               case 'L':
-                changed |= SetRef(cu_,ssa_rep->uses[i], true);
+                changed |= SetRef(ssa_rep->uses[i], true);
                 break;
               default:
-                changed |= SetCore(cu_,ssa_rep->uses[i], true);
+                changed |= SetCore(ssa_rep->uses[i], true);
                 break;
             }
             i++;
@@ -262,11 +261,11 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
 
       for (int i=0; ssa_rep->fp_use && i< ssa_rep->num_uses; i++) {
         if (ssa_rep->fp_use[i])
-          changed |= SetFp(cu_, ssa_rep->uses[i], true);
+          changed |= SetFp(ssa_rep->uses[i], true);
         }
       for (int i=0; ssa_rep->fp_def && i< ssa_rep->num_defs; i++) {
         if (ssa_rep->fp_def[i])
-          changed |= SetFp(cu_, ssa_rep->defs[i], true);
+          changed |= SetFp(ssa_rep->defs[i], true);
         }
       // Special-case handling for moves & Phi
       if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
@@ -278,14 +277,14 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
          */
         bool is_phi = (static_cast<int>(mir->dalvikInsn.opcode) ==
                       kMirOpPhi);
-        RegLocation rl_temp = cu_->reg_location[ssa_rep->defs[0]];
+        RegLocation rl_temp = reg_location_[ssa_rep->defs[0]];
         bool defined_fp = rl_temp.defined && rl_temp.fp;
         bool defined_core = rl_temp.defined && rl_temp.core;
         bool defined_ref = rl_temp.defined && rl_temp.ref;
         bool is_wide = rl_temp.wide || ((attrs & DF_A_WIDE) != 0);
         bool is_high = is_phi && rl_temp.wide && rl_temp.high_word;
         for (int i = 0; i < ssa_rep->num_uses;i++) {
-          rl_temp = cu_->reg_location[ssa_rep->uses[i]];
+          rl_temp = reg_location_[ssa_rep->uses[i]];
           defined_fp |= rl_temp.defined && rl_temp.fp;
           defined_core |= rl_temp.defined && rl_temp.core;
           defined_ref |= rl_temp.defined && rl_temp.ref;
@@ -313,26 +312,26 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
                        << " has both fp and core/ref uses for same def.";
           cu_->disable_opt |= (1 << kPromoteRegs);
         }
-        changed |= SetFp(cu_, ssa_rep->defs[0], defined_fp);
-        changed |= SetCore(cu_, ssa_rep->defs[0], defined_core);
-        changed |= SetRef(cu_, ssa_rep->defs[0], defined_ref);
-        changed |= SetWide(cu_, ssa_rep->defs[0], is_wide);
-        changed |= SetHigh(cu_, ssa_rep->defs[0], is_high);
+        changed |= SetFp(ssa_rep->defs[0], defined_fp);
+        changed |= SetCore(ssa_rep->defs[0], defined_core);
+        changed |= SetRef(ssa_rep->defs[0], defined_ref);
+        changed |= SetWide(ssa_rep->defs[0], is_wide);
+        changed |= SetHigh(ssa_rep->defs[0], is_high);
         if (attrs & DF_A_WIDE) {
-          changed |= SetWide(cu_, ssa_rep->defs[1], true);
-          changed |= SetHigh(cu_, ssa_rep->defs[1], true);
+          changed |= SetWide(ssa_rep->defs[1], true);
+          changed |= SetHigh(ssa_rep->defs[1], true);
         }
         for (int i = 0; i < ssa_rep->num_uses; i++) {
-          changed |= SetFp(cu_, ssa_rep->uses[i], defined_fp);
-          changed |= SetCore(cu_, ssa_rep->uses[i], defined_core);
-          changed |= SetRef(cu_, ssa_rep->uses[i], defined_ref);
-          changed |= SetWide(cu_, ssa_rep->uses[i], is_wide);
-          changed |= SetHigh(cu_, ssa_rep->uses[i], is_high);
+          changed |= SetFp(ssa_rep->uses[i], defined_fp);
+          changed |= SetCore(ssa_rep->uses[i], defined_core);
+          changed |= SetRef(ssa_rep->uses[i], defined_ref);
+          changed |= SetWide(ssa_rep->uses[i], is_wide);
+          changed |= SetHigh(ssa_rep->uses[i], is_high);
         }
         if (attrs & DF_A_WIDE) {
           DCHECK_EQ(ssa_rep->num_uses, 2);
-          changed |= SetWide(cu_, ssa_rep->uses[1], true);
-          changed |= SetHigh(cu_, ssa_rep->uses[1], true);
+          changed |= SetWide(ssa_rep->uses[1], true);
+          changed |= SetHigh(ssa_rep->uses[1], true);
         }
       }
     }
@@ -344,7 +343,8 @@ static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
 
 void MIRGraph::DumpRegLocTable(RegLocation* table, int count)
 {
-  Codegen* cg = cu_->cg.get();
+  //FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
+  Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
   if (cg != NULL) {
     for (int i = 0; i < count; i++) {
       LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c %c%d %c%d S%d",
@@ -376,17 +376,6 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG,
                                      INVALID_SREG};
 
-int MIRGraph::ComputeFrameSize() {
-  /* Figure out the frame size */
-  static const uint32_t kAlignMask = kStackAlignment - 1;
-  uint32_t size = (cu_->num_core_spills + cu_->num_fp_spills +
-                   1 /* filler word */ + cu_->num_regs + cu_->num_outs +
-                   cu_->num_compiler_temps + 1 /* cur_method* */)
-                   * sizeof(uint32_t);
-  /* Align and set */
-  return (size + kAlignMask) & ~(kAlignMask);
-}
-
 /*
  * Simple register allocation.  Some Dalvik virtual registers may
  * be promoted to physical registers.  Most of the work for temp
@@ -408,21 +397,17 @@ void MIRGraph::BuildRegLocations()
   }
 
   /* Patch up the locations for Method* and the compiler temps */
-  loc[cu_->method_sreg].location = kLocCompilerTemp;
-  loc[cu_->method_sreg].defined = true;
+  loc[method_sreg_].location = kLocCompilerTemp;
+  loc[method_sreg_].defined = true;
   for (i = 0; i < cu_->num_compiler_temps; i++) {
-    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(cu_->compiler_temps.elem_list[i]);
+    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(compiler_temps_.elem_list[i]);
     loc[ct->s_reg].location = kLocCompilerTemp;
     loc[ct->s_reg].defined = true;
   }
 
-  cu_->reg_location = loc;
+  reg_location_ = loc;
 
-  /* Allocation the promotion map */
   int num_regs = cu_->num_dalvik_registers;
-  cu_->promotion_map = static_cast<PromotionMap*>
-      (NewMem(cu_, (num_regs + cu_->num_compiler_temps + 1) * sizeof(cu_->promotion_map[0]),
-              true, kAllocRegAlloc));
 
   /* Add types of incoming arguments based on signature */
   int num_ins = cu_->num_ins;
@@ -430,8 +415,8 @@ void MIRGraph::BuildRegLocations()
     int s_reg = num_regs - num_ins;
     if ((cu_->access_flags & kAccStatic) == 0) {
       // For non-static, skip past "this"
-      cu_->reg_location[s_reg].defined = true;
-      cu_->reg_location[s_reg].ref = true;
+      reg_location_[s_reg].defined = true;
+      reg_location_[s_reg].ref = true;
       s_reg++;
     }
     const char* shorty = cu_->shorty;
@@ -439,33 +424,33 @@ void MIRGraph::BuildRegLocations()
     for (int i = 1; i < shorty_len; i++) {
       switch (shorty[i]) {
         case 'D':
-          cu_->reg_location[s_reg].wide = true;
-          cu_->reg_location[s_reg+1].high_word = true;
-          cu_->reg_location[s_reg+1].fp = true;
+          reg_location_[s_reg].wide = true;
+          reg_location_[s_reg+1].high_word = true;
+          reg_location_[s_reg+1].fp = true;
           DCHECK_EQ(SRegToVReg(s_reg)+1, SRegToVReg(s_reg+1));
-          cu_->reg_location[s_reg].fp = true;
-          cu_->reg_location[s_reg].defined = true;
+          reg_location_[s_reg].fp = true;
+          reg_location_[s_reg].defined = true;
           s_reg++;
           break;
         case 'J':
-          cu_->reg_location[s_reg].wide = true;
-          cu_->reg_location[s_reg+1].high_word = true;
+          reg_location_[s_reg].wide = true;
+          reg_location_[s_reg+1].high_word = true;
           DCHECK_EQ(SRegToVReg(s_reg)+1, SRegToVReg(s_reg+1));
-          cu_->reg_location[s_reg].core = true;
-          cu_->reg_location[s_reg].defined = true;
+          reg_location_[s_reg].core = true;
+          reg_location_[s_reg].defined = true;
           s_reg++;
           break;
         case 'F':
-          cu_->reg_location[s_reg].fp = true;
-          cu_->reg_location[s_reg].defined = true;
+          reg_location_[s_reg].fp = true;
+          reg_location_[s_reg].defined = true;
           break;
         case 'L':
-          cu_->reg_location[s_reg].ref = true;
-          cu_->reg_location[s_reg].defined = true;
+          reg_location_[s_reg].ref = true;
+          reg_location_[s_reg].defined = true;
           break;
         default:
-          cu_->reg_location[s_reg].core = true;
-          cu_->reg_location[s_reg].defined = true;
+          reg_location_[s_reg].core = true;
+          reg_location_[s_reg].defined = true;
           break;
         }
         s_reg++;
@@ -485,10 +470,10 @@ void MIRGraph::BuildRegLocations()
    * allocator, remove this remapping.
    */
   for (i=0; i < GetNumSSARegs(); i++) {
-    if (cu_->reg_location[i].location != kLocCompilerTemp) {
-      int orig_sreg = cu_->reg_location[i].s_reg_low;
-      cu_->reg_location[i].orig_sreg = orig_sreg;
-      cu_->reg_location[i].s_reg_low = SRegToVReg(orig_sreg);
+    if (reg_location_[i].location != kLocCompilerTemp) {
+      int orig_sreg = reg_location_[i].s_reg_low;
+      reg_location_[i].orig_sreg = orig_sreg;
+      reg_location_[i].s_reg_low = SRegToVReg(orig_sreg);
     }
   }
 }

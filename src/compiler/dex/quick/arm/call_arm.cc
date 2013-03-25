@@ -18,18 +18,16 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "compiler/dex/quick/codegen_util.h"
-#include "compiler/dex/quick/ralloc_util.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 
 
 /* Return the position of an ssa name within the argument list */
-static int InPosition(CompilationUnit* cu, int s_reg)
+int ArmMir2Lir::InPosition(int s_reg)
 {
-  int v_reg = cu->mir_graph->SRegToVReg(s_reg);
-  return v_reg - cu->num_regs;
+  int v_reg = mir_graph_->SRegToVReg(s_reg);
+  return v_reg - cu_->num_regs;
 }
 
 /*
@@ -37,9 +35,9 @@ static int InPosition(CompilationUnit* cu, int s_reg)
  * there.  NOTE: all live arg registers must be locked prior to this call
  * to avoid having them allocated as a temp by downstream utilities.
  */
-RegLocation ArmCodegen::ArgLoc(CompilationUnit* cu, RegLocation loc)
+RegLocation ArmMir2Lir::ArgLoc(RegLocation loc)
 {
-  int arg_num = InPosition(cu, loc.s_reg_low);
+  int arg_num = InPosition(loc.s_reg_low);
   if (loc.wide) {
     if (arg_num == 2) {
       // Bad case - half in register, half in frame.  Just punt
@@ -67,16 +65,15 @@ RegLocation ArmCodegen::ArgLoc(CompilationUnit* cu, RegLocation loc)
  * the frame, we can't use the normal LoadValue() because it assumed
  * a proper frame - and we're frameless.
  */
-static RegLocation LoadArg(CompilationUnit* cu, RegLocation loc)
+RegLocation ArmMir2Lir::LoadArg(RegLocation loc)
 {
-  Codegen* cg = cu->cg.get();
   if (loc.location == kLocDalvikFrame) {
-    int start = (InPosition(cu, loc.s_reg_low) + 1) * sizeof(uint32_t);
-    loc.low_reg = AllocTemp(cu);
-    cg->LoadWordDisp(cu, rARM_SP, start, loc.low_reg);
+    int start = (InPosition(loc.s_reg_low) + 1) * sizeof(uint32_t);
+    loc.low_reg = AllocTemp();
+    LoadWordDisp(rARM_SP, start, loc.low_reg);
     if (loc.wide) {
-      loc.high_reg = AllocTemp(cu);
-      cg->LoadWordDisp(cu, rARM_SP, start + sizeof(uint32_t), loc.high_reg);
+      loc.high_reg = AllocTemp();
+      LoadWordDisp(rARM_SP, start + sizeof(uint32_t), loc.high_reg);
     }
     loc.location = kLocPhysReg;
   }
@@ -84,21 +81,22 @@ static RegLocation LoadArg(CompilationUnit* cu, RegLocation loc)
 }
 
 /* Lock any referenced arguments that arrive in registers */
-static void LockLiveArgs(CompilationUnit* cu, MIR* mir)
+void ArmMir2Lir::LockLiveArgs(MIR* mir)
 {
-  int first_in = cu->num_regs;
+  int first_in = cu_->num_regs;
   const int num_arg_regs = 3;  // TODO: generalize & move to RegUtil.cc
   for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
-    int v_reg = cu->mir_graph->SRegToVReg(mir->ssa_rep->uses[i]);
+    int v_reg = mir_graph_->SRegToVReg(mir->ssa_rep->uses[i]);
     int InPosition = v_reg - first_in;
     if (InPosition < num_arg_regs) {
-      LockTemp(cu, rARM_ARG1 + InPosition);
+      LockTemp(rARM_ARG1 + InPosition);
     }
   }
 }
 
 /* Find the next MIR, which may be in a following basic block */
-static MIR* GetNextMir(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir)
+// TODO: should this be a utility in mir_graph?
+MIR* ArmMir2Lir::GetNextMir(BasicBlock** p_bb, MIR* mir)
 {
   BasicBlock* bb = *p_bb;
   MIR* orig_mir = mir;
@@ -124,105 +122,100 @@ static MIR* GetNextMir(CompilationUnit* cu, BasicBlock** p_bb, MIR* mir)
 
 /* Used for the "verbose" listing */
 //TODO:  move to common code
-void ArmCodegen::GenPrintLabel(CompilationUnit *cu, MIR* mir)
+void ArmMir2Lir::GenPrintLabel(MIR* mir)
 {
   /* Mark the beginning of a Dalvik instruction for line tracking */
-  char* inst_str = cu->verbose ?
-     GetDalvikDisassembly(cu, mir) : NULL;
-  MarkBoundary(cu, mir->offset, inst_str);
+  char* inst_str = cu_->verbose ?
+     mir_graph_->GetDalvikDisassembly(mir) : NULL;
+  MarkBoundary(mir->offset, inst_str);
 }
 
-static MIR* SpecialIGet(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
-                        OpSize size, bool long_or_double, bool is_object)
+MIR* ArmMir2Lir::SpecialIGet(BasicBlock** bb, MIR* mir,
+                             OpSize size, bool long_or_double, bool is_object)
 {
-  Codegen* cg = cu->cg.get();
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(cu, field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
   if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
-  RegLocation rl_obj = GetSrc(cu, mir, 0);
-  LockLiveArgs(cu, mir);
-  rl_obj = ArmCodegen::ArgLoc(cu, rl_obj);
+  RegLocation rl_obj = mir_graph_->GetSrc(mir, 0);
+  LockLiveArgs(mir);
+  rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
   RegLocation rl_dest;
   if (long_or_double) {
-    rl_dest = GetReturnWide(cu, false);
+    rl_dest = GetReturnWide(false);
   } else {
-    rl_dest = GetReturn(cu, false);
+    rl_dest = GetReturn(false);
   }
   // Point of no return - no aborts after this
-  ArmCodegen::GenPrintLabel(cu, mir);
-  rl_obj = LoadArg(cu, rl_obj);
-  cg->GenIGet(cu, field_idx, mir->optimization_flags, size, rl_dest, rl_obj,
-              long_or_double, is_object);
-  return GetNextMir(cu, bb, mir);
+  ArmMir2Lir::GenPrintLabel(mir);
+  rl_obj = LoadArg(rl_obj);
+  GenIGet(field_idx, mir->optimization_flags, size, rl_dest, rl_obj, long_or_double, is_object);
+  return GetNextMir(bb, mir);
 }
 
-static MIR* SpecialIPut(CompilationUnit* cu, BasicBlock** bb, MIR* mir,
-                        OpSize size, bool long_or_double, bool is_object)
+MIR* ArmMir2Lir::SpecialIPut(BasicBlock** bb, MIR* mir,
+                             OpSize size, bool long_or_double, bool is_object)
 {
-  Codegen* cg = cu->cg.get();
   int field_offset;
   bool is_volatile;
   uint32_t field_idx = mir->dalvikInsn.vC;
-  bool fast_path = FastInstance(cu, field_idx, field_offset, is_volatile, false);
+  bool fast_path = FastInstance(field_idx, field_offset, is_volatile, false);
   if (!fast_path || !(mir->optimization_flags & MIR_IGNORE_NULL_CHECK)) {
     return NULL;
   }
   RegLocation rl_src;
   RegLocation rl_obj;
-  LockLiveArgs(cu, mir);
+  LockLiveArgs(mir);
   if (long_or_double) {
-    rl_src = GetSrcWide(cu, mir, 0);
-    rl_obj = GetSrc(cu, mir, 2);
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
+    rl_obj = mir_graph_->GetSrc(mir, 2);
   } else {
-    rl_src = GetSrc(cu, mir, 0);
-    rl_obj = GetSrc(cu, mir, 1);
+    rl_src = mir_graph_->GetSrc(mir, 0);
+    rl_obj = mir_graph_->GetSrc(mir, 1);
   }
-  rl_src = ArmCodegen::ArgLoc(cu, rl_src);
-  rl_obj = ArmCodegen::ArgLoc(cu, rl_obj);
+  rl_src = ArmMir2Lir::ArgLoc(rl_src);
+  rl_obj = ArmMir2Lir::ArgLoc(rl_obj);
   // Reject if source is split across registers & frame
   if (rl_obj.location == kLocInvalid) {
-    ResetRegPool(cu);
+    ResetRegPool();
     return NULL;
   }
   // Point of no return - no aborts after this
-  ArmCodegen::GenPrintLabel(cu, mir);
-  rl_obj = LoadArg(cu, rl_obj);
-  rl_src = LoadArg(cu, rl_src);
-  cg->GenIPut(cu, field_idx, mir->optimization_flags, size, rl_src, rl_obj,
-              long_or_double, is_object);
-  return GetNextMir(cu, bb, mir);
+  ArmMir2Lir::GenPrintLabel(mir);
+  rl_obj = LoadArg(rl_obj);
+  rl_src = LoadArg(rl_src);
+  GenIPut(field_idx, mir->optimization_flags, size, rl_src, rl_obj, long_or_double, is_object);
+  return GetNextMir(bb, mir);
 }
 
-static MIR* SpecialIdentity(CompilationUnit* cu, MIR* mir)
+MIR* ArmMir2Lir::SpecialIdentity(MIR* mir)
 {
-  Codegen* cg = cu->cg.get();
   RegLocation rl_src;
   RegLocation rl_dest;
   bool wide = (mir->ssa_rep->num_uses == 2);
   if (wide) {
-    rl_src = GetSrcWide(cu, mir, 0);
-    rl_dest = GetReturnWide(cu, false);
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
+    rl_dest = GetReturnWide(false);
   } else {
-    rl_src = GetSrc(cu, mir, 0);
-    rl_dest = GetReturn(cu, false);
+    rl_src = mir_graph_->GetSrc(mir, 0);
+    rl_dest = GetReturn(false);
   }
-  LockLiveArgs(cu, mir);
-  rl_src = ArmCodegen::ArgLoc(cu, rl_src);
+  LockLiveArgs(mir);
+  rl_src = ArmMir2Lir::ArgLoc(rl_src);
   if (rl_src.location == kLocInvalid) {
-    ResetRegPool(cu);
+    ResetRegPool();
     return NULL;
   }
   // Point of no return - no aborts after this
-  ArmCodegen::GenPrintLabel(cu, mir);
-  rl_src = LoadArg(cu, rl_src);
+  ArmMir2Lir::GenPrintLabel(mir);
+  rl_src = LoadArg(rl_src);
   if (wide) {
-    cg->StoreValueWide(cu, rl_dest, rl_src);
+    StoreValueWide(rl_dest, rl_src);
   } else {
-    cg->StoreValue(cu, rl_dest, rl_src);
+    StoreValue(rl_dest, rl_src);
   }
   return mir;
 }
@@ -230,10 +223,10 @@ static MIR* SpecialIdentity(CompilationUnit* cu, MIR* mir)
 /*
  * Special-case code genration for simple non-throwing leaf methods.
  */
-void ArmCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
+void ArmMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
                                 SpecialCaseHandler special_case)
 {
-   cu->current_dalvik_offset = mir->offset;
+   current_dalvik_offset_ = mir->offset;
    MIR* next_mir = NULL;
    switch (special_case) {
      case kNullMethod:
@@ -241,67 +234,67 @@ void ArmCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
        next_mir = mir;
        break;
      case kConstFunction:
-       ArmCodegen::GenPrintLabel(cu, mir);
-       LoadConstant(cu, rARM_RET0, mir->dalvikInsn.vB);
-       next_mir = GetNextMir(cu, &bb, mir);
+       ArmMir2Lir::GenPrintLabel(mir);
+       LoadConstant(rARM_RET0, mir->dalvikInsn.vB);
+       next_mir = GetNextMir(&bb, mir);
        break;
      case kIGet:
-       next_mir = SpecialIGet(cu, &bb, mir, kWord, false, false);
+       next_mir = SpecialIGet(&bb, mir, kWord, false, false);
        break;
      case kIGetBoolean:
      case kIGetByte:
-       next_mir = SpecialIGet(cu, &bb, mir, kUnsignedByte, false, false);
+       next_mir = SpecialIGet(&bb, mir, kUnsignedByte, false, false);
        break;
      case kIGetObject:
-       next_mir = SpecialIGet(cu, &bb, mir, kWord, false, true);
+       next_mir = SpecialIGet(&bb, mir, kWord, false, true);
        break;
      case kIGetChar:
-       next_mir = SpecialIGet(cu, &bb, mir, kUnsignedHalf, false, false);
+       next_mir = SpecialIGet(&bb, mir, kUnsignedHalf, false, false);
        break;
      case kIGetShort:
-       next_mir = SpecialIGet(cu, &bb, mir, kSignedHalf, false, false);
+       next_mir = SpecialIGet(&bb, mir, kSignedHalf, false, false);
        break;
      case kIGetWide:
-       next_mir = SpecialIGet(cu, &bb, mir, kLong, true, false);
+       next_mir = SpecialIGet(&bb, mir, kLong, true, false);
        break;
      case kIPut:
-       next_mir = SpecialIPut(cu, &bb, mir, kWord, false, false);
+       next_mir = SpecialIPut(&bb, mir, kWord, false, false);
        break;
      case kIPutBoolean:
      case kIPutByte:
-       next_mir = SpecialIPut(cu, &bb, mir, kUnsignedByte, false, false);
+       next_mir = SpecialIPut(&bb, mir, kUnsignedByte, false, false);
        break;
      case kIPutObject:
-       next_mir = SpecialIPut(cu, &bb, mir, kWord, false, true);
+       next_mir = SpecialIPut(&bb, mir, kWord, false, true);
        break;
      case kIPutChar:
-       next_mir = SpecialIPut(cu, &bb, mir, kUnsignedHalf, false, false);
+       next_mir = SpecialIPut(&bb, mir, kUnsignedHalf, false, false);
        break;
      case kIPutShort:
-       next_mir = SpecialIPut(cu, &bb, mir, kSignedHalf, false, false);
+       next_mir = SpecialIPut(&bb, mir, kSignedHalf, false, false);
        break;
      case kIPutWide:
-       next_mir = SpecialIPut(cu, &bb, mir, kLong, true, false);
+       next_mir = SpecialIPut(&bb, mir, kLong, true, false);
        break;
      case kIdentity:
-       next_mir = SpecialIdentity(cu, mir);
+       next_mir = SpecialIdentity(mir);
        break;
      default:
        return;
    }
    if (next_mir != NULL) {
-    cu->current_dalvik_offset = next_mir->offset;
+    current_dalvik_offset_ = next_mir->offset;
     if (special_case != kIdentity) {
-      ArmCodegen::GenPrintLabel(cu, next_mir);
+      ArmMir2Lir::GenPrintLabel(next_mir);
     }
-    NewLIR1(cu, kThumbBx, rARM_LR);
-    cu->core_spill_mask = 0;
-    cu->num_core_spills = 0;
-    cu->fp_spill_mask = 0;
-    cu->num_fp_spills = 0;
-    cu->frame_size = 0;
-    cu->core_vmap_table.clear();
-    cu->fp_vmap_table.clear();
+    NewLIR1(kThumbBx, rARM_LR);
+    core_spill_mask_ = 0;
+    num_core_spills_ = 0;
+    fp_spill_mask_ = 0;
+    num_fp_spills_ = 0;
+    frame_size_ = 0;
+    core_vmap_table_.clear();
+    fp_vmap_table_.clear();
   }
 }
 
@@ -324,28 +317,28 @@ void ArmCodegen::GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
  *   add   rARM_PC, r_disp   ; This is the branch from which we compute displacement
  *   cbnz  r_idx, lp
  */
-void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src)
 {
-  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
-  if (cu->verbose) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(NewMem(cu, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(NewMem(cu_, sizeof(SwitchTable), true, kAllocData));
   tab_rec->table = table;
-  tab_rec->vaddr = cu->current_dalvik_offset;
+  tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(NewMem(cu, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cu, &cu->switch_tables, reinterpret_cast<uintptr_t>(tab_rec));
+  tab_rec->targets = static_cast<LIR**>(NewMem(cu_, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cu_, &switch_tables_, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Get the switch value
-  rl_src = LoadValue(cu, rl_src, kCoreReg);
-  int rBase = AllocTemp(cu);
+  rl_src = LoadValue(rl_src, kCoreReg);
+  int rBase = AllocTemp();
   /* Allocate key and disp temps */
-  int r_key = AllocTemp(cu);
-  int r_disp = AllocTemp(cu);
+  int r_key = AllocTemp();
+  int r_disp = AllocTemp();
   // Make sure r_key's register number is less than r_disp's number for ldmia
   if (r_key > r_disp) {
     int tmp = r_disp;
@@ -353,69 +346,69 @@ void ArmCodegen::GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_o
     r_key = tmp;
   }
   // Materialize a pointer to the switch table
-  NewLIR3(cu, kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR3(kThumb2Adr, rBase, 0, reinterpret_cast<uintptr_t>(tab_rec));
   // Set up r_idx
-  int r_idx = AllocTemp(cu);
-  LoadConstant(cu, r_idx, size);
+  int r_idx = AllocTemp();
+  LoadConstant(r_idx, size);
   // Establish loop branch target
-  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  LIR* target = NewLIR0(kPseudoTargetLabel);
   // Load next key/disp
-  NewLIR2(cu, kThumb2LdmiaWB, rBase, (1 << r_key) | (1 << r_disp));
-  OpRegReg(cu, kOpCmp, r_key, rl_src.low_reg);
+  NewLIR2(kThumb2LdmiaWB, rBase, (1 << r_key) | (1 << r_disp));
+  OpRegReg(kOpCmp, r_key, rl_src.low_reg);
   // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-  OpIT(cu, kCondEq, "");
-  LIR* switch_branch = NewLIR1(cu, kThumb2AddPCR, r_disp);
+  OpIT(kCondEq, "");
+  LIR* switch_branch = NewLIR1(kThumb2AddPCR, r_disp);
   tab_rec->anchor = switch_branch;
   // Needs to use setflags encoding here
-  NewLIR3(cu, kThumb2SubsRRI12, r_idx, r_idx, 1);
-  OpCondBranch(cu, kCondNe, target);
+  NewLIR3(kThumb2SubsRRI12, r_idx, r_idx, 1);
+  OpCondBranch(kCondNe, target);
 }
 
 
-void ArmCodegen::GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
+void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
                                  RegLocation rl_src)
 {
-  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
-  if (cu->verbose) {
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(NewMem(cu, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(NewMem(cu_, sizeof(SwitchTable), true, kAllocData));
   tab_rec->table = table;
-  tab_rec->vaddr = cu->current_dalvik_offset;
+  tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(NewMem(cu, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cu, &cu->switch_tables, reinterpret_cast<uintptr_t>(tab_rec));
+  tab_rec->targets = static_cast<LIR**>(NewMem(cu_, size * sizeof(LIR*), true, kAllocLIR));
+  InsertGrowableList(cu_, &switch_tables_, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Get the switch value
-  rl_src = LoadValue(cu, rl_src, kCoreReg);
-  int table_base = AllocTemp(cu);
+  rl_src = LoadValue(rl_src, kCoreReg);
+  int table_base = AllocTemp();
   // Materialize a pointer to the switch table
-  NewLIR3(cu, kThumb2Adr, table_base, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  NewLIR3(kThumb2Adr, table_base, 0, reinterpret_cast<uintptr_t>(tab_rec));
   int low_key = s4FromSwitchData(&table[2]);
   int keyReg;
   // Remove the bias, if necessary
   if (low_key == 0) {
     keyReg = rl_src.low_reg;
   } else {
-    keyReg = AllocTemp(cu);
-    OpRegRegImm(cu, kOpSub, keyReg, rl_src.low_reg, low_key);
+    keyReg = AllocTemp();
+    OpRegRegImm(kOpSub, keyReg, rl_src.low_reg, low_key);
   }
   // Bounds check - if < 0 or >= size continue following switch
-  OpRegImm(cu, kOpCmp, keyReg, size-1);
-  LIR* branch_over = OpCondBranch(cu, kCondHi, NULL);
+  OpRegImm(kOpCmp, keyReg, size-1);
+  LIR* branch_over = OpCondBranch(kCondHi, NULL);
 
   // Load the displacement from the switch table
-  int disp_reg = AllocTemp(cu);
-  LoadBaseIndexed(cu, table_base, keyReg, disp_reg, 2, kWord);
+  int disp_reg = AllocTemp();
+  LoadBaseIndexed(table_base, keyReg, disp_reg, 2, kWord);
 
   // ..and go! NOTE: No instruction set switch here - must stay Thumb2
-  LIR* switch_branch = NewLIR1(cu, kThumb2AddPCR, disp_reg);
+  LIR* switch_branch = NewLIR1(kThumb2AddPCR, disp_reg);
   tab_rec->anchor = switch_branch;
 
   /* branch_over target here */
-  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  LIR* target = NewLIR0(kPseudoTargetLabel);
   branch_over->target = target;
 }
 
@@ -429,30 +422,30 @@ void ArmCodegen::GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_o
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void ArmCodegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, RegLocation rl_src)
+void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
 {
-  const uint16_t* table = cu->insns + cu->current_dalvik_offset + table_offset;
+  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
-      static_cast<FillArrayData*>(NewMem(cu, sizeof(FillArrayData), true, kAllocData));
+      static_cast<FillArrayData*>(NewMem(cu_, sizeof(FillArrayData), true, kAllocData));
   tab_rec->table = table;
-  tab_rec->vaddr = cu->current_dalvik_offset;
+  tab_rec->vaddr = current_dalvik_offset_;
   uint16_t width = tab_rec->table[1];
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  InsertGrowableList(cu, &cu->fill_array_data, reinterpret_cast<uintptr_t>(tab_rec));
+  InsertGrowableList(cu_, &fill_array_data_, reinterpret_cast<uintptr_t>(tab_rec));
 
   // Making a call - use explicit registers
-  FlushAllRegs(cu);   /* Everything to home location */
-  LoadValueDirectFixed(cu, rl_src, r0);
-  LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
+  FlushAllRegs();   /* Everything to home location */
+  LoadValueDirectFixed(rl_src, r0);
+  LoadWordDisp(rARM_SELF, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
                rARM_LR);
   // Materialize a pointer to the fill data image
-  NewLIR3(cu, kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tab_rec));
-  ClobberCalleeSave(cu);
-  LIR* call_inst = OpReg(cu, kOpBlx, rARM_LR);
-  MarkSafepointPC(cu, call_inst);
+  NewLIR3(kThumb2Adr, r1, 0, reinterpret_cast<uintptr_t>(tab_rec));
+  ClobberCalleeSave();
+  LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+  MarkSafepointPC(call_inst);
 }
 
 /*
@@ -481,33 +474,33 @@ void ArmCodegen::GenFillArrayData(CompilationUnit* cu, uint32_t table_offset, Re
  * preserved.
  *
  */
-void ArmCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
 {
-  FlushAllRegs(cu);
+  FlushAllRegs();
   DCHECK_EQ(LW_SHAPE_THIN, 0);
-  LoadValueDirectFixed(cu, rl_src, r0);  // Get obj
-  LockCallTemps(cu);  // Prepare for explicit register usage
-  GenNullCheck(cu, rl_src.s_reg_low, r0, opt_flags);
-  LoadWordDisp(cu, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
-  NewLIR3(cu, kThumb2Ldrex, r1, r0,
+  LoadValueDirectFixed(rl_src, r0);  // Get obj
+  LockCallTemps();  // Prepare for explicit register usage
+  GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
+  LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  NewLIR3(kThumb2Ldrex, r1, r0,
           mirror::Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
   // Align owner
-  OpRegImm(cu, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
+  OpRegImm(kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
-  NewLIR4(cu, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
-  NewLIR3(cu, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-  OpRegImm(cu, kOpCmp, r1, 0);
-  OpIT(cu, kCondEq, "");
-  NewLIR4(cu, kThumb2Strex, r1, r2, r0,
+  NewLIR4(kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
+  NewLIR3(kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+  OpRegImm(kOpCmp, r1, 0);
+  OpIT(kCondEq, "");
+  NewLIR4(kThumb2Strex, r1, r2, r0,
           mirror::Object::MonitorOffset().Int32Value() >> 2);
-  OpRegImm(cu, kOpCmp, r1, 0);
-  OpIT(cu, kCondNe, "T");
+  OpRegImm(kOpCmp, r1, 0);
+  OpIT(kCondNe, "T");
   // Go expensive route - artLockObjectFromCode(self, obj);
-  LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
-  ClobberCalleeSave(cu);
-  LIR* call_inst = OpReg(cu, kOpBlx, rARM_LR);
-  MarkSafepointPC(cu, call_inst);
-  GenMemBarrier(cu, kLoadLoad);
+  LoadWordDisp(rARM_SELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARM_LR);
+  ClobberCalleeSave();
+  LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+  MarkSafepointPC(call_inst);
+  GenMemBarrier(kLoadLoad);
 }
 
 /*
@@ -516,140 +509,140 @@ void ArmCodegen::GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-void ArmCodegen::GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src)
+void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
 {
   DCHECK_EQ(LW_SHAPE_THIN, 0);
-  FlushAllRegs(cu);
-  LoadValueDirectFixed(cu, rl_src, r0);  // Get obj
-  LockCallTemps(cu);  // Prepare for explicit register usage
-  GenNullCheck(cu, rl_src.s_reg_low, r0, opt_flags);
-  LoadWordDisp(cu, r0, mirror::Object::MonitorOffset().Int32Value(), r1); // Get lock
-  LoadWordDisp(cu, rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
+  FlushAllRegs();
+  LoadValueDirectFixed(rl_src, r0);  // Get obj
+  LockCallTemps();  // Prepare for explicit register usage
+  GenNullCheck(rl_src.s_reg_low, r0, opt_flags);
+  LoadWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r1); // Get lock
+  LoadWordDisp(rARM_SELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==thread_id) on unlock?
-  OpRegRegImm(cu, kOpAnd, r3, r1,
+  OpRegRegImm(kOpAnd, r3, r1,
               (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
   // Align owner
-  OpRegImm(cu, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
-  NewLIR3(cu, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-  OpRegReg(cu, kOpSub, r1, r2);
-  OpIT(cu, kCondEq, "EE");
-  StoreWordDisp(cu, r0, mirror::Object::MonitorOffset().Int32Value(), r3);
+  OpRegImm(kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
+  NewLIR3(kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
+  OpRegReg(kOpSub, r1, r2);
+  OpIT(kCondEq, "EE");
+  StoreWordDisp(r0, mirror::Object::MonitorOffset().Int32Value(), r3);
   // Go expensive route - UnlockObjectFromCode(obj);
-  LoadWordDisp(cu, rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
-  ClobberCalleeSave(cu);
-  LIR* call_inst = OpReg(cu, kOpBlx, rARM_LR);
-  MarkSafepointPC(cu, call_inst);
-  GenMemBarrier(cu, kStoreLoad);
+  LoadWordDisp(rARM_SELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARM_LR);
+  ClobberCalleeSave();
+  LIR* call_inst = OpReg(kOpBlx, rARM_LR);
+  MarkSafepointPC(call_inst);
+  GenMemBarrier(kStoreLoad);
 }
 
-void ArmCodegen::GenMoveException(CompilationUnit* cu, RegLocation rl_dest)
+void ArmMir2Lir::GenMoveException(RegLocation rl_dest)
 {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
-  RegLocation rl_result = EvalLoc(cu, rl_dest, kCoreReg, true);
-  int reset_reg = AllocTemp(cu);
-  LoadWordDisp(cu, rARM_SELF, ex_offset, rl_result.low_reg);
-  LoadConstant(cu, reset_reg, 0);
-  StoreWordDisp(cu, rARM_SELF, ex_offset, reset_reg);
-  FreeTemp(cu, reset_reg);
-  StoreValue(cu, rl_dest, rl_result);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  int reset_reg = AllocTemp();
+  LoadWordDisp(rARM_SELF, ex_offset, rl_result.low_reg);
+  LoadConstant(reset_reg, 0);
+  StoreWordDisp(rARM_SELF, ex_offset, reset_reg);
+  FreeTemp(reset_reg);
+  StoreValue(rl_dest, rl_result);
 }
 
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void ArmCodegen::MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg)
+void ArmMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
 {
-  int reg_card_base = AllocTemp(cu);
-  int reg_card_no = AllocTemp(cu);
-  LIR* branch_over = OpCmpImmBranch(cu, kCondEq, val_reg, 0, NULL);
-  LoadWordDisp(cu, rARM_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
-  OpRegRegImm(cu, kOpLsr, reg_card_no, tgt_addr_reg, CardTable::kCardShift);
-  StoreBaseIndexed(cu, reg_card_base, reg_card_no, reg_card_base, 0,
+  int reg_card_base = AllocTemp();
+  int reg_card_no = AllocTemp();
+  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
+  LoadWordDisp(rARM_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
+  OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, CardTable::kCardShift);
+  StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0,
                    kUnsignedByte);
-  LIR* target = NewLIR0(cu, kPseudoTargetLabel);
+  LIR* target = NewLIR0(kPseudoTargetLabel);
   branch_over->target = target;
-  FreeTemp(cu, reg_card_base);
-  FreeTemp(cu, reg_card_no);
+  FreeTemp(reg_card_base);
+  FreeTemp(reg_card_no);
 }
 
-void ArmCodegen::GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs, RegLocation rl_method)
+void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
 {
-  int spill_count = cu->num_core_spills + cu->num_fp_spills;
+  int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * On entry, r0, r1, r2 & r3 are live.  Let the register allocation
    * mechanism know so it doesn't try to use any of them when
    * expanding the frame or flushing.  This leaves the utility
    * code with a single temp: r12.  This should be enough.
    */
-  LockTemp(cu, r0);
-  LockTemp(cu, r1);
-  LockTemp(cu, r2);
-  LockTemp(cu, r3);
+  LockTemp(r0);
+  LockTemp(r1);
+  LockTemp(r2);
+  LockTemp(r3);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = ((cu->attributes & METHOD_IS_LEAF) &&
-                            (static_cast<size_t>(cu->frame_size) <
+  bool skip_overflow_check = (mir_graph_->MethodIsLeaf() &&
+                            (static_cast<size_t>(frame_size_) <
                             Thread::kStackOverflowReservedBytes));
-  NewLIR0(cu, kPseudoMethodEntry);
+  NewLIR0(kPseudoMethodEntry);
   if (!skip_overflow_check) {
     /* Load stack limit */
-    LoadWordDisp(cu, rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
+    LoadWordDisp(rARM_SELF, Thread::StackEndOffset().Int32Value(), r12);
   }
   /* Spill core callee saves */
-  NewLIR1(cu, kThumb2Push, cu->core_spill_mask);
+  NewLIR1(kThumb2Push, core_spill_mask_);
   /* Need to spill any FP regs? */
-  if (cu->num_fp_spills) {
+  if (num_fp_spills_) {
     /*
      * NOTE: fp spills are a little different from core spills in that
      * they are pushed as a contiguous block.  When promoting from
      * the fp set, we must allocate all singles from s16..highest-promoted
      */
-    NewLIR1(cu, kThumb2VPushCS, cu->num_fp_spills);
+    NewLIR1(kThumb2VPushCS, num_fp_spills_);
   }
   if (!skip_overflow_check) {
-    OpRegRegImm(cu, kOpSub, rARM_LR, rARM_SP, cu->frame_size - (spill_count * 4));
-    GenRegRegCheck(cu, kCondCc, rARM_LR, r12, kThrowStackOverflow);
-    OpRegCopy(cu, rARM_SP, rARM_LR);     // Establish stack
+    OpRegRegImm(kOpSub, rARM_LR, rARM_SP, frame_size_ - (spill_count * 4));
+    GenRegRegCheck(kCondCc, rARM_LR, r12, kThrowStackOverflow);
+    OpRegCopy(rARM_SP, rARM_LR);     // Establish stack
   } else {
-    OpRegImm(cu, kOpSub, rARM_SP, cu->frame_size - (spill_count * 4));
+    OpRegImm(kOpSub, rARM_SP, frame_size_ - (spill_count * 4));
   }
 
-  FlushIns(cu, ArgLocs, rl_method);
+  FlushIns(ArgLocs, rl_method);
 
-  FreeTemp(cu, r0);
-  FreeTemp(cu, r1);
-  FreeTemp(cu, r2);
-  FreeTemp(cu, r3);
+  FreeTemp(r0);
+  FreeTemp(r1);
+  FreeTemp(r2);
+  FreeTemp(r3);
 }
 
-void ArmCodegen::GenExitSequence(CompilationUnit* cu)
+void ArmMir2Lir::GenExitSequence()
 {
-  int spill_count = cu->num_core_spills + cu->num_fp_spills;
+  int spill_count = num_core_spills_ + num_fp_spills_;
   /*
    * In the exit path, r0/r1 are live - make sure they aren't
    * allocated by the register utilities as temps.
    */
-  LockTemp(cu, r0);
-  LockTemp(cu, r1);
+  LockTemp(r0);
+  LockTemp(r1);
 
-  NewLIR0(cu, kPseudoMethodExit);
-  OpRegImm(cu, kOpAdd, rARM_SP, cu->frame_size - (spill_count * 4));
+  NewLIR0(kPseudoMethodExit);
+  OpRegImm(kOpAdd, rARM_SP, frame_size_ - (spill_count * 4));
   /* Need to restore any FP callee saves? */
-  if (cu->num_fp_spills) {
-    NewLIR1(cu, kThumb2VPopCS, cu->num_fp_spills);
+  if (num_fp_spills_) {
+    NewLIR1(kThumb2VPopCS, num_fp_spills_);
   }
-  if (cu->core_spill_mask & (1 << rARM_LR)) {
+  if (core_spill_mask_ & (1 << rARM_LR)) {
     /* Unspill rARM_LR to rARM_PC */
-    cu->core_spill_mask &= ~(1 << rARM_LR);
-    cu->core_spill_mask |= (1 << rARM_PC);
+    core_spill_mask_ &= ~(1 << rARM_LR);
+    core_spill_mask_ |= (1 << rARM_PC);
   }
-  NewLIR1(cu, kThumb2Pop, cu->core_spill_mask);
-  if (!(cu->core_spill_mask & (1 << rARM_PC))) {
+  NewLIR1(kThumb2Pop, core_spill_mask_);
+  if (!(core_spill_mask_ & (1 << rARM_PC))) {
     /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
-    NewLIR1(cu, kThumbBx, rARM_LR);
+    NewLIR1(kThumbBx, rARM_LR);
   }
 }
 

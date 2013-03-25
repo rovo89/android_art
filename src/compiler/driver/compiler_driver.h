@@ -41,7 +41,8 @@ class TimingLogger;
 
 enum CompilerBackend {
   kQuick,
-  kPortable
+  kPortable,
+  kNoBackend
 };
 
 // Thread-local storage compiler worker threads

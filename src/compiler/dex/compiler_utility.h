@@ -84,8 +84,6 @@ enum oat_bit_map_kind {
   kNumBitMapKinds
 };
 
-// Allocate the initial memory block for arena-based allocation.
-bool HeapInit(CompilationUnit* cu);
 
 // Uncomment to collect memory usage statistics.
 //#define WITH_MEMSTATS
@@ -96,10 +94,6 @@ struct ArenaMemBlock {
   ArenaMemBlock *next;
   char ptr[0];
 };
-
-void* NewMem(CompilationUnit* cu, size_t size, bool zero, oat_alloc_kind kind);
-
-void ArenaReset(CompilationUnit *cu);
 
 struct GrowableList {
   GrowableList() : num_allocated(0), num_used(0), elem_list(NULL) {
@@ -146,11 +140,13 @@ struct ArenaBitVectorIterator {
 // Forward declarations
 struct BasicBlock;
 struct CompilationUnit;
-struct LIR;
-struct RegLocation;
-struct MIR;
 enum BBType;
 
+// Allocate the initial memory block for arena-based allocation.
+bool HeapInit(CompilationUnit* cu);
+void* NewMem(CompilationUnit* cu, size_t size, bool zero, oat_alloc_kind kind);
+BasicBlock* NewMemBB(CompilationUnit* cu, BBType block_type, int block_id);
+void ArenaReset(CompilationUnit *cu);
 void CompilerInitGrowableList(CompilationUnit* cu, GrowableList* g_list,
                               size_t init_length, oat_list_kind kind = kListMisc);
 void ReallocGrowableList(CompilationUnit* cu, GrowableList* g_list, size_t new_length);
@@ -177,25 +173,15 @@ bool UnifyBitVetors(ArenaBitVector* dest, const ArenaBitVector* src1, const Aren
 bool CompareBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
 bool TestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
 int CountSetBits(const ArenaBitVector* p_bits);
-void DumpLIRInsn(CompilationUnit* cu, LIR* lir, unsigned char* base_addr);
-void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
 void DumpBlockBitVector(const GrowableList* blocks, char* msg, const ArenaBitVector* bv,
                         int length);
-void GetBlockName(BasicBlock* bb, char* name);
-const char* GetShortyFromTargetIdx(CompilationUnit*, int);
 void DumpMemStats(CompilationUnit* cu);
-void DumpCompilationUnit(CompilationUnit* cu);
-BasicBlock* NewMemBB(CompilationUnit* cu, BBType block_type, int block_id);
-void AppendMIR(BasicBlock* bb, MIR* mir);
-void PrependMIR(BasicBlock* bb, MIR* mir);
-void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
-void AppendLIR(CompilationUnit *cu, LIR* lir);
-void InsertLIRBefore(LIR* current_lir, LIR* new_lir);
-void InsertLIRAfter(LIR* current_lir, LIR* new_lir);
+
 void ReplaceSpecialChars(std::string& str);
-char* GetDalvikDisassembly(CompilationUnit* cu, const MIR* mir);
 std::string GetSSAName(const CompilationUnit* cu, int ssa_reg);
 std::string GetSSANameWithConst(const CompilationUnit* cu, int ssa_reg, bool singles_only);
+void GetBlockName(BasicBlock* bb, char* name);
+const char* GetShortyFromTargetIdx(CompilationUnit*, int);
 
 }  // namespace art
 

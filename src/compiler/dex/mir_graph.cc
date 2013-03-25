@@ -53,8 +53,26 @@ static const CodePattern special_patterns[] = {
   {{Instruction::RETURN_WIDE}, kIdentity},
 };
 
+const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
+  "Phi",
+  "Copy",
+  "FusedCmplFloat",
+  "FusedCmpgFloat",
+  "FusedCmplDouble",
+  "FusedCmpgDouble",
+  "FusedCmpLong",
+  "Nop",
+  "OpNullCheck",
+  "OpRangeCheck",
+  "OpDivZeroCheck",
+  "Check1",
+  "Check2",
+  "Select",
+};
+
 MIRGraph::MIRGraph(CompilationUnit* cu)
-    : cu_(cu),
+    : reg_location_(NULL),
+      cu_(cu),
       ssa_base_vregs_(NULL),
       ssa_subscripts_(NULL),
       ssa_strings_(NULL),
@@ -78,7 +96,10 @@ MIRGraph::MIRGraph(CompilationUnit* cu)
       current_offset_(kInvalidEntry),
       def_count_(0),
       opcode_count_(NULL),
-      num_ssa_regs_(0) {
+      num_ssa_regs_(0),
+      method_sreg_(0),
+      attributes_(METHOD_IS_LEAF)  // Start with leaf assumption, change on encountering invoke.
+      {
   CompilerInitGrowableList(cu, &block_list_, 0, kListBlockList);
   try_block_addr_ = AllocBitVector(cu, 0, true /* expandable */);
 }
@@ -623,7 +644,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     code_ptr += width;
     int flags = Instruction::FlagsOf(insn->dalvikInsn.opcode);
 
-    int df_flags = oat_data_flow_attributes[insn->dalvikInsn.opcode];
+    int df_flags = oat_data_flow_attributes_[insn->dalvikInsn.opcode];
 
     if (df_flags & DF_HAS_DEFS) {
       def_count_ += (df_flags & DF_A_WIDE) ? 2 : 1;
@@ -684,7 +705,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   }
 
   if (cu_->verbose) {
-    DumpCompilationUnit(cu_);
+    DumpMIRGraph();
   }
 }
 
@@ -738,9 +759,9 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
             int opcode = mir->dalvikInsn.opcode;
             fprintf(file, "    {%04x %s %s %s\\l}%s\\\n", mir->offset,
-                    mir->ssa_rep ? GetDalvikDisassembly(cu_, mir) :
+                    mir->ssa_rep ? GetDalvikDisassembly(mir) :
                     (opcode < kMirOpFirst) ?  Instruction::Name(mir->dalvikInsn.opcode) :
-                    extended_mir_op_names[opcode - kMirOpFirst],
+                    extended_mir_op_names_[opcode - kMirOpFirst],
                     (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
                     (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
                     mir->next ? " | " : " ");
@@ -836,5 +857,316 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
   fprintf(file, "}\n");
   fclose(file);
 }
+
+/* Insert an MIR instruction to the end of a basic block */
+void MIRGraph::AppendMIR(BasicBlock* bb, MIR* mir)
+{
+  if (bb->first_mir_insn == NULL) {
+    DCHECK(bb->last_mir_insn == NULL);
+    bb->last_mir_insn = bb->first_mir_insn = mir;
+    mir->prev = mir->next = NULL;
+  } else {
+    bb->last_mir_insn->next = mir;
+    mir->prev = bb->last_mir_insn;
+    mir->next = NULL;
+    bb->last_mir_insn = mir;
+  }
+}
+
+/* Insert an MIR instruction to the head of a basic block */
+void MIRGraph::PrependMIR(BasicBlock* bb, MIR* mir)
+{
+  if (bb->first_mir_insn == NULL) {
+    DCHECK(bb->last_mir_insn == NULL);
+    bb->last_mir_insn = bb->first_mir_insn = mir;
+    mir->prev = mir->next = NULL;
+  } else {
+    bb->first_mir_insn->prev = mir;
+    mir->next = bb->first_mir_insn;
+    mir->prev = NULL;
+    bb->first_mir_insn = mir;
+  }
+}
+
+/* Insert a MIR instruction after the specified MIR */
+void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir)
+{
+  new_mir->prev = current_mir;
+  new_mir->next = current_mir->next;
+  current_mir->next = new_mir;
+
+  if (new_mir->next) {
+    /* Is not the last MIR in the block */
+    new_mir->next->prev = new_mir;
+  } else {
+    /* Is the last MIR in the block */
+    bb->last_mir_insn = new_mir;
+  }
+}
+
+char* MIRGraph::GetDalvikDisassembly(const MIR* mir)
+{
+  DecodedInstruction insn = mir->dalvikInsn;
+  std::string str;
+  int flags = 0;
+  int opcode = insn.opcode;
+  char* ret;
+  bool nop = false;
+  SSARepresentation* ssa_rep = mir->ssa_rep;
+  Instruction::Format dalvik_format = Instruction::k10x;  // Default to no-operand format
+  int defs = (ssa_rep != NULL) ? ssa_rep->num_defs : 0;
+  int uses = (ssa_rep != NULL) ? ssa_rep->num_uses : 0;
+
+  // Handle special cases.
+  if ((opcode == kMirOpCheck) || (opcode == kMirOpCheckPart2)) {
+    str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
+    str.append(": ");
+    // Recover the original Dex instruction
+    insn = mir->meta.throw_insn->dalvikInsn;
+    ssa_rep = mir->meta.throw_insn->ssa_rep;
+    defs = ssa_rep->num_defs;
+    uses = ssa_rep->num_uses;
+    opcode = insn.opcode;
+  } else if (opcode == kMirOpNop) {
+    str.append("[");
+    insn.opcode = mir->meta.original_opcode;
+    opcode = mir->meta.original_opcode;
+    nop = true;
+  }
+
+  if (opcode >= kMirOpFirst) {
+    str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
+  } else {
+    dalvik_format = Instruction::FormatOf(insn.opcode);
+    flags = Instruction::FlagsOf(insn.opcode);
+    str.append(Instruction::Name(insn.opcode));
+  }
+
+  if (opcode == kMirOpPhi) {
+    int* incoming = reinterpret_cast<int*>(insn.vB);
+    str.append(StringPrintf(" %s = (%s",
+               GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
+               GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
+    str.append(StringPrintf(":%d",incoming[0]));
+    int i;
+    for (i = 1; i < uses; i++) {
+      str.append(StringPrintf(", %s:%d",
+                              GetSSANameWithConst(ssa_rep->uses[i], true).c_str(),
+                              incoming[i]));
+    }
+    str.append(")");
+  } else if ((flags & Instruction::kBranch) != 0) {
+    // For branches, decode the instructions to print out the branch targets.
+    int offset = 0;
+    switch (dalvik_format) {
+      case Instruction::k21t:
+        str.append(StringPrintf(" %s,", GetSSANameWithConst(ssa_rep->uses[0], false).c_str()));
+        offset = insn.vB;
+        break;
+      case Instruction::k22t:
+        str.append(StringPrintf(" %s, %s,", GetSSANameWithConst(ssa_rep->uses[0], false).c_str(),
+                   GetSSANameWithConst(ssa_rep->uses[1], false).c_str()));
+        offset = insn.vC;
+        break;
+      case Instruction::k10t:
+      case Instruction::k20t:
+      case Instruction::k30t:
+        offset = insn.vA;
+        break;
+      default:
+        LOG(FATAL) << "Unexpected branch format " << dalvik_format << " from " << insn.opcode;
+    }
+    str.append(StringPrintf(" 0x%x (%c%x)", mir->offset + offset,
+                            offset > 0 ? '+' : '-', offset > 0 ? offset : -offset));
+  } else {
+    // For invokes-style formats, treat wide regs as a pair of singles
+    bool show_singles = ((dalvik_format == Instruction::k35c) ||
+                         (dalvik_format == Instruction::k3rc));
+    if (defs != 0) {
+      str.append(StringPrintf(" %s", GetSSANameWithConst(ssa_rep->defs[0], false).c_str()));
+      if (uses != 0) {
+        str.append(", ");
+      }
+    }
+    for (int i = 0; i < uses; i++) {
+      str.append(
+          StringPrintf(" %s", GetSSANameWithConst(ssa_rep->uses[i], show_singles).c_str()));
+      if (!show_singles && (reg_location_ != NULL) && reg_location_[i].wide) {
+        // For the listing, skip the high sreg.
+        i++;
+      }
+      if (i != (uses -1)) {
+        str.append(",");
+      }
+    }
+    switch (dalvik_format) {
+      case Instruction::k11n: // Add one immediate from vB
+      case Instruction::k21s:
+      case Instruction::k31i:
+      case Instruction::k21h:
+        str.append(StringPrintf(", #%d", insn.vB));
+        break;
+      case Instruction::k51l: // Add one wide immediate
+        str.append(StringPrintf(", #%lld", insn.vB_wide));
+        break;
+      case Instruction::k21c: // One register, one string/type/method index
+      case Instruction::k31c:
+        str.append(StringPrintf(", index #%d", insn.vB));
+        break;
+      case Instruction::k22c: // Two registers, one string/type/method index
+        str.append(StringPrintf(", index #%d", insn.vC));
+        break;
+      case Instruction::k22s: // Add one immediate from vC
+      case Instruction::k22b:
+        str.append(StringPrintf(", #%d", insn.vC));
+        break;
+      default:
+        ; // Nothing left to print
+      }
+  }
+  if (nop) {
+    str.append("]--optimized away");
+  }
+  int length = str.length() + 1;
+  ret = static_cast<char*>(NewMem(cu_, length, false, kAllocDFInfo));
+  strncpy(ret, str.c_str(), length);
+  return ret;
+}
+
+/* Turn method name into a legal Linux file name */
+void MIRGraph::ReplaceSpecialChars(std::string& str)
+{
+  static const struct { const char before; const char after; } match[] =
+      {{'/','-'}, {';','#'}, {' ','#'}, {'$','+'},
+       {'(','@'}, {')','@'}, {'<','='}, {'>','='}};
+  for (unsigned int i = 0; i < sizeof(match)/sizeof(match[0]); i++) {
+    std::replace(str.begin(), str.end(), match[i].before, match[i].after);
+  }
+}
+
+std::string MIRGraph::GetSSAName(int ssa_reg)
+{
+  return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+}
+
+// Similar to GetSSAName, but if ssa name represents an immediate show that as well.
+std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only)
+{
+  if (reg_location_ == NULL) {
+    // Pre-SSA - just use the standard name
+    return GetSSAName(ssa_reg);
+  }
+  if (IsConst(reg_location_[ssa_reg])) {
+    if (!singles_only && reg_location_[ssa_reg].wide) {
+      return StringPrintf("v%d_%d#0x%llx", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
+                          ConstantValueWide(reg_location_[ssa_reg]));
+    } else {
+      return StringPrintf("v%d_%d#0x%x", SRegToVReg(ssa_reg),GetSSASubscript(ssa_reg),
+                          ConstantValue(reg_location_[ssa_reg]));
+    }
+  } else {
+    return StringPrintf("v%d_%d", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg));
+  }
+}
+
+void MIRGraph::GetBlockName(BasicBlock* bb, char* name)
+{
+  switch (bb->block_type) {
+    case kEntryBlock:
+      snprintf(name, BLOCK_NAME_LEN, "entry_%d", bb->id);
+      break;
+    case kExitBlock:
+      snprintf(name, BLOCK_NAME_LEN, "exit_%d", bb->id);
+      break;
+    case kDalvikByteCode:
+      snprintf(name, BLOCK_NAME_LEN, "block%04x_%d", bb->start_offset, bb->id);
+      break;
+    case kExceptionHandling:
+      snprintf(name, BLOCK_NAME_LEN, "exception%04x_%d", bb->start_offset,
+               bb->id);
+      break;
+    default:
+      snprintf(name, BLOCK_NAME_LEN, "_%d", bb->id);
+      break;
+  }
+}
+
+const char* MIRGraph::GetShortyFromTargetIdx(int target_idx)
+{
+  // FIXME: use current code unit for inline support.
+  const DexFile::MethodId& method_id = cu_->dex_file->GetMethodId(target_idx);
+  return cu_->dex_file->GetShorty(method_id.proto_idx_);
+}
+
+/* Debug Utility - dump a compilation unit */
+void MIRGraph::DumpMIRGraph()
+{
+  BasicBlock* bb;
+  const char* block_type_names[] = {
+    "Entry Block",
+    "Code Block",
+    "Exit Block",
+    "Exception Handling",
+    "Catch Block"
+  };
+
+  LOG(INFO) << "Compiling " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
+  LOG(INFO) << cu_->insns << " insns";
+  LOG(INFO) << GetNumBlocks() << " blocks in total";
+  GrowableListIterator iterator = GetBasicBlockIterator();
+
+  while (true) {
+    bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
+    if (bb == NULL) break;
+    LOG(INFO) << StringPrintf("Block %d (%s) (insn %04x - %04x%s)",
+        bb->id,
+        block_type_names[bb->block_type],
+        bb->start_offset,
+        bb->last_mir_insn ? bb->last_mir_insn->offset : bb->start_offset,
+        bb->last_mir_insn ? "" : " empty");
+    if (bb->taken) {
+      LOG(INFO) << "  Taken branch: block " << bb->taken->id
+                << "(0x" << std::hex << bb->taken->start_offset << ")";
+    }
+    if (bb->fall_through) {
+      LOG(INFO) << "  Fallthrough : block " << bb->fall_through->id
+                << " (0x" << std::hex << bb->fall_through->start_offset << ")";
+    }
+  }
+}
+
+/*
+ * Build an array of location records for the incoming arguments.
+ * Note: one location record per word of arguments, with dummy
+ * high-word loc for wide arguments.  Also pull up any following
+ * MOVE_RESULT and incorporate it into the invoke.
+ */
+CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
+                                  bool is_range)
+{
+  CallInfo* info = static_cast<CallInfo*>(NewMem(cu_, sizeof(CallInfo), true, kAllocMisc));
+  MIR* move_result_mir = FindMoveResult(bb, mir);
+  if (move_result_mir == NULL) {
+    info->result.location = kLocInvalid;
+  } else {
+    info->result = GetRawDest(move_result_mir);
+    move_result_mir->meta.original_opcode = move_result_mir->dalvikInsn.opcode;
+    move_result_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+  }
+  info->num_arg_words = mir->ssa_rep->num_uses;
+  info->args = (info->num_arg_words == 0) ? NULL : static_cast<RegLocation*>
+      (NewMem(cu_, sizeof(RegLocation) * info->num_arg_words, false, kAllocMisc));
+  for (int i = 0; i < info->num_arg_words; i++) {
+    info->args[i] = GetRawSrc(mir, i);
+  }
+  info->opt_flags = mir->optimization_flags;
+  info->type = type;
+  info->is_range = is_range;
+  info->index = mir->dalvikInsn.vB;
+  info->offset = mir->offset;
+  return info;
+}
+
+
 
 } // namespace art

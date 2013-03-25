@@ -17,6 +17,8 @@
 #include "compiler_internals.h"
 #include "dataflow_iterator.h"
 
+#define NOTVISITED (-1)
+
 namespace art {
 
 BasicBlock* MIRGraph::NeedsVisit(BasicBlock* bb) {
@@ -179,7 +181,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb)
 
   /* hacky loop detection */
   if (bb->taken && IsBitSet(bb->dominators, bb->taken->id)) {
-    cu_->attributes |= METHOD_HAS_LOOP;
+    attributes_ |= METHOD_HAS_LOOP;
   }
 }
 
@@ -352,9 +354,6 @@ bool MIRGraph::SetDominators(BasicBlock* bb)
     DCHECK_NE(idom_dfs_idx, NOTVISITED);
     int i_dom_idx = dfs_post_order_.elem_list[idom_dfs_idx];
     BasicBlock* i_dom = GetBasicBlock(i_dom_idx);
-    if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
-      DCHECK_EQ(bb->i_dom->id, i_dom->id);
-    }
     bb->i_dom = i_dom;
     /* Add bb to the i_dominated set of the immediate dominator block */
     SetBit(cu_, i_dom->i_dominated, bb->id);
@@ -674,44 +673,42 @@ void MIRGraph::SSATransformation()
   /* Compute the DFS order */
   ComputeDFSOrders();
 
-  if (!cu_->disable_dataflow) {
-    /* Compute the dominator info */
-    ComputeDominators();
-  }
+  /* Compute the dominator info */
+  ComputeDominators();
 
   /* Allocate data structures in preparation for SSA conversion */
   CompilerInitializeSSAConversion();
 
-  if (!cu_->disable_dataflow) {
-    /* Find out the "Dalvik reg def x block" relation */
-    ComputeDefBlockMatrix();
+  /* Find out the "Dalvik reg def x block" relation */
+  ComputeDefBlockMatrix();
 
-    /* Insert phi nodes to dominance frontiers for all variables */
-    InsertPhiNodes();
-  }
+  /* Insert phi nodes to dominance frontiers for all variables */
+  InsertPhiNodes();
 
   /* Rename register names by local defs and phi nodes */
-  AllNodesIterator iter(this, false /* not iterative */);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+  AllNodesIterator iter1(this, false /* not iterative */);
+  for (BasicBlock* bb = iter1.Next(); bb != NULL; bb = iter1.Next()) {
     ClearVisitedFlag(bb);
   }
   DoDFSPreOrderSSARename(GetEntryBlock());
 
-  if (!cu_->disable_dataflow) {
-    /*
-     * Shared temp bit vector used by each block to count the number of defs
-     * from all the predecessor blocks.
-     */
-    temp_ssa_register_v_ = AllocBitVector(cu_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
+  /*
+   * Shared temp bit vector used by each block to count the number of defs
+   * from all the predecessor blocks.
+   */
+  temp_ssa_register_v_ = AllocBitVector(cu_, GetNumSSARegs(), false, kBitMapTempSSARegisterV);
 
-    /* Insert phi-operands with latest SSA names from predecessor blocks */
-    ReachableNodesIterator iter(this, false /* not iterative */);
-    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-      InsertPhiNodeOperands(bb);
-    }
+  /* Insert phi-operands with latest SSA names from predecessor blocks */
+  ReachableNodesIterator iter2(this, false /* not iterative */);
+  for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
+    InsertPhiNodeOperands(bb);
   }
+
   if (cu_->enable_debug & (1 << kDebugDumpCFG)) {
     DumpCFG("/sdcard/3_post_ssa_cfg/", false);
+  }
+  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
+    VerifyDataflow();
   }
 }
 

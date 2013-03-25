@@ -15,15 +15,13 @@
  */
 
 #include "codegen_x86.h"
-#include "compiler/dex/quick/codegen_util.h"
-#include "compiler/dex/quick/ralloc_util.h"
 #include "x86_lir.h"
 
 namespace art {
 
 /* This file contains codegen for the X86 ISA */
 
-LIR* X86Codegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
+LIR* X86Mir2Lir::OpFpRegCopy(int r_dest, int r_src)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
@@ -43,29 +41,29 @@ LIR* X86Codegen::OpFpRegCopy(CompilationUnit *cu, int r_dest, int r_src)
     }
   }
   DCHECK_NE((EncodingMap[opcode].flags & IS_BINARY_OP), 0ULL);
-  LIR* res = RawLIR(cu, cu->current_dalvik_offset, opcode, r_dest, r_src);
+  LIR* res = RawLIR(current_dalvik_offset_, opcode, r_dest, r_src);
   if (r_dest == r_src) {
     res->flags.is_nop = true;
   }
   return res;
 }
 
-bool X86Codegen::InexpensiveConstantInt(int32_t value)
+bool X86Mir2Lir::InexpensiveConstantInt(int32_t value)
 {
   return true;
 }
 
-bool X86Codegen::InexpensiveConstantFloat(int32_t value)
+bool X86Mir2Lir::InexpensiveConstantFloat(int32_t value)
 {
   return false;
 }
 
-bool X86Codegen::InexpensiveConstantLong(int64_t value)
+bool X86Mir2Lir::InexpensiveConstantLong(int64_t value)
 {
   return true;
 }
 
-bool X86Codegen::InexpensiveConstantDouble(int64_t value)
+bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value)
 {
   return false; // TUNING
 }
@@ -79,49 +77,49 @@ bool X86Codegen::InexpensiveConstantDouble(int64_t value)
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* X86Codegen::LoadConstantNoClobber(CompilationUnit *cu, int r_dest, int value)
+LIR* X86Mir2Lir::LoadConstantNoClobber(int r_dest, int value)
 {
   int r_dest_save = r_dest;
   if (X86_FPREG(r_dest)) {
     if (value == 0) {
-      return NewLIR2(cu, kX86XorpsRR, r_dest, r_dest);
+      return NewLIR2(kX86XorpsRR, r_dest, r_dest);
     }
     DCHECK(X86_SINGLEREG(r_dest));
-    r_dest = AllocTemp(cu);
+    r_dest = AllocTemp();
   }
 
   LIR *res;
   if (value == 0) {
-    res = NewLIR2(cu, kX86Xor32RR, r_dest, r_dest);
+    res = NewLIR2(kX86Xor32RR, r_dest, r_dest);
   } else {
     // Note, there is no byte immediate form of a 32 bit immediate move.
-    res = NewLIR2(cu, kX86Mov32RI, r_dest, value);
+    res = NewLIR2(kX86Mov32RI, r_dest, value);
   }
 
   if (X86_FPREG(r_dest_save)) {
-    NewLIR2(cu, kX86MovdxrRR, r_dest_save, r_dest);
-    FreeTemp(cu, r_dest);
+    NewLIR2(kX86MovdxrRR, r_dest_save, r_dest);
+    FreeTemp(r_dest);
   }
 
   return res;
 }
 
-LIR* X86Codegen::OpUnconditionalBranch(CompilationUnit* cu, LIR* target)
+LIR* X86Mir2Lir::OpUnconditionalBranch(LIR* target)
 {
-  LIR* res = NewLIR1(cu, kX86Jmp8, 0 /* offset to be patched during assembly*/ );
+  LIR* res = NewLIR1(kX86Jmp8, 0 /* offset to be patched during assembly*/ );
   res->target = target;
   return res;
 }
 
-LIR* X86Codegen::OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target)
+LIR* X86Mir2Lir::OpCondBranch(ConditionCode cc, LIR* target)
 {
-  LIR* branch = NewLIR2(cu, kX86Jcc8, 0 /* offset to be patched */,
+  LIR* branch = NewLIR2(kX86Jcc8, 0 /* offset to be patched */,
                         X86ConditionEncoding(cc));
   branch->target = target;
   return branch;
 }
 
-LIR* X86Codegen::OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
+LIR* X86Mir2Lir::OpReg(OpKind op, int r_dest_src)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -131,10 +129,10 @@ LIR* X86Codegen::OpReg(CompilationUnit *cu, OpKind op, int r_dest_src)
     default:
       LOG(FATAL) << "Bad case in OpReg " << op;
   }
-  return NewLIR1(cu, opcode, r_dest_src);
+  return NewLIR1(opcode, r_dest_src);
 }
 
-LIR* X86Codegen::OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int value)
+LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value)
 {
   X86OpCode opcode = kX86Bkpt;
   bool byte_imm = IS_SIMM8(value);
@@ -151,28 +149,28 @@ LIR* X86Codegen::OpRegImm(CompilationUnit *cu, OpKind op, int r_dest_src1, int v
     case kOpSub: opcode = byte_imm ? kX86Sub32RI8 : kX86Sub32RI; break;
     case kOpXor: opcode = byte_imm ? kX86Xor32RI8 : kX86Xor32RI; break;
     case kOpCmp: opcode = byte_imm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
-    case kOpMov: return LoadConstantNoClobber(cu, r_dest_src1, value);
+    case kOpMov: return LoadConstantNoClobber(r_dest_src1, value);
     case kOpMul:
       opcode = byte_imm ? kX86Imul32RRI8 : kX86Imul32RRI;
-      return NewLIR3(cu, opcode, r_dest_src1, r_dest_src1, value);
+      return NewLIR3(opcode, r_dest_src1, r_dest_src1, value);
     default:
       LOG(FATAL) << "Bad case in OpRegImm " << op;
   }
-  return NewLIR2(cu, opcode, r_dest_src1, value);
+  return NewLIR2(opcode, r_dest_src1, value);
 }
 
-LIR* X86Codegen::OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r_src2)
+LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
 {
     X86OpCode opcode = kX86Nop;
     bool src2_must_be_cx = false;
     switch (op) {
         // X86 unary opcodes
       case kOpMvn:
-        OpRegCopy(cu, r_dest_src1, r_src2);
-        return OpReg(cu, kOpNot, r_dest_src1);
+        OpRegCopy(r_dest_src1, r_src2);
+        return OpReg(kOpNot, r_dest_src1);
       case kOpNeg:
-        OpRegCopy(cu, r_dest_src1, r_src2);
-        return OpReg(cu, kOpNeg, r_dest_src1);
+        OpRegCopy(r_dest_src1, r_src2);
+        return OpReg(kOpNeg, r_dest_src1);
         // X86 binary opcodes
       case kOpSub: opcode = kX86Sub32RR; break;
       case kOpSbc: opcode = kX86Sbb32RR; break;
@@ -189,9 +187,9 @@ LIR* X86Codegen::OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r
       case kOp2Byte:
         // Use shifts instead of a byte operand if the source can't be byte accessed.
         if (r_src2 >= 4) {
-          NewLIR2(cu, kX86Mov32RR, r_dest_src1, r_src2);
-          NewLIR2(cu, kX86Sal32RI, r_dest_src1, 24);
-          return NewLIR2(cu, kX86Sar32RI, r_dest_src1, 24);
+          NewLIR2(kX86Mov32RR, r_dest_src1, r_src2);
+          NewLIR2(kX86Sal32RI, r_dest_src1, 24);
+          return NewLIR2(kX86Sar32RI, r_dest_src1, 24);
         } else {
           opcode = kX86Movsx8RR;
         }
@@ -204,10 +202,10 @@ LIR* X86Codegen::OpRegReg(CompilationUnit *cu, OpKind op, int r_dest_src1, int r
         break;
     }
     CHECK(!src2_must_be_cx || r_src2 == rCX);
-    return NewLIR2(cu, opcode, r_dest_src1, r_src2);
+    return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
-LIR* X86Codegen::OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
+LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
               int offset)
 {
   X86OpCode opcode = kX86Nop;
@@ -228,43 +226,43 @@ LIR* X86Codegen::OpRegMem(CompilationUnit *cu, OpKind op, int r_dest, int rBase,
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
-  return NewLIR3(cu, opcode, r_dest, rBase, offset);
+  return NewLIR3(opcode, r_dest, rBase, offset);
 }
 
-LIR* X86Codegen::OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_src1,
+LIR* X86Mir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1,
                  int r_src2)
 {
   if (r_dest != r_src1 && r_dest != r_src2) {
     if (op == kOpAdd) { // lea special case, except can't encode rbp as base
       if (r_src1 == r_src2) {
-        OpRegCopy(cu, r_dest, r_src1);
-        return OpRegImm(cu, kOpLsl, r_dest, 1);
+        OpRegCopy(r_dest, r_src1);
+        return OpRegImm(kOpLsl, r_dest, 1);
       } else if (r_src1 != rBP) {
-        return NewLIR5(cu, kX86Lea32RA, r_dest, r_src1 /* base */,
+        return NewLIR5(kX86Lea32RA, r_dest, r_src1 /* base */,
                        r_src2 /* index */, 0 /* scale */, 0 /* disp */);
       } else {
-        return NewLIR5(cu, kX86Lea32RA, r_dest, r_src2 /* base */,
+        return NewLIR5(kX86Lea32RA, r_dest, r_src2 /* base */,
                        r_src1 /* index */, 0 /* scale */, 0 /* disp */);
       }
     } else {
-      OpRegCopy(cu, r_dest, r_src1);
-      return OpRegReg(cu, op, r_dest, r_src2);
+      OpRegCopy(r_dest, r_src1);
+      return OpRegReg(op, r_dest, r_src2);
     }
   } else if (r_dest == r_src1) {
-    return OpRegReg(cu, op, r_dest, r_src2);
+    return OpRegReg(op, r_dest, r_src2);
   } else {  // r_dest == r_src2
     switch (op) {
       case kOpSub:  // non-commutative
-        OpReg(cu, kOpNeg, r_dest);
+        OpReg(kOpNeg, r_dest);
         op = kOpAdd;
         break;
       case kOpSbc:
       case kOpLsl: case kOpLsr: case kOpAsr: case kOpRor: {
-        int t_reg = AllocTemp(cu);
-        OpRegCopy(cu, t_reg, r_src1);
-        OpRegReg(cu, op, t_reg, r_src2);
-        LIR* res = OpRegCopy(cu, r_dest, t_reg);
-        FreeTemp(cu, t_reg);
+        int t_reg = AllocTemp();
+        OpRegCopy(t_reg, r_src1);
+        OpRegReg(op, t_reg, r_src2);
+        LIR* res = OpRegCopy(r_dest, t_reg);
+        FreeTemp(t_reg);
         return res;
       }
       case kOpAdd:  // commutative
@@ -276,38 +274,38 @@ LIR* X86Codegen::OpRegRegReg(CompilationUnit *cu, OpKind op, int r_dest, int r_s
       default:
         LOG(FATAL) << "Bad case in OpRegRegReg " << op;
     }
-    return OpRegReg(cu, op, r_dest, r_src1);
+    return OpRegReg(op, r_dest, r_src1);
   }
 }
 
-LIR* X86Codegen::OpRegRegImm(CompilationUnit *cu, OpKind op, int r_dest, int r_src,
+LIR* X86Mir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src,
                  int value)
 {
   if (op == kOpMul) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
-    return NewLIR3(cu, opcode, r_dest, r_src, value);
+    return NewLIR3(opcode, r_dest, r_src, value);
   } else if (op == kOpAnd) {
     if (value == 0xFF && r_src < 4) {
-      return NewLIR2(cu, kX86Movzx8RR, r_dest, r_src);
+      return NewLIR2(kX86Movzx8RR, r_dest, r_src);
     } else if (value == 0xFFFF) {
-      return NewLIR2(cu, kX86Movzx16RR, r_dest, r_src);
+      return NewLIR2(kX86Movzx16RR, r_dest, r_src);
     }
   }
   if (r_dest != r_src) {
     if (false && op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
       // TODO: fix bug in LEA encoding when disp == 0
-      return NewLIR5(cu, kX86Lea32RA, r_dest,  r5sib_no_base /* base */,
+      return NewLIR5(kX86Lea32RA, r_dest,  r5sib_no_base /* base */,
                      r_src /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) { // lea add special case
-      return NewLIR5(cu, kX86Lea32RA, r_dest, r_src /* base */,
+      return NewLIR5(kX86Lea32RA, r_dest, r_src /* base */,
                      r4sib_no_index /* index */, 0 /* scale */, value /* disp */);
     }
-    OpRegCopy(cu, r_dest, r_src);
+    OpRegCopy(r_dest, r_src);
   }
-  return OpRegImm(cu, op, r_dest, value);
+  return OpRegImm(op, r_dest, value);
 }
 
-LIR* X86Codegen::OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
+LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -316,10 +314,10 @@ LIR* X86Codegen::OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset)
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  return NewLIR1(cu, opcode, thread_offset);
+  return NewLIR1(opcode, thread_offset);
 }
 
-LIR* X86Codegen::OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
+LIR* X86Mir2Lir::OpMem(OpKind op, int rBase, int disp)
 {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
@@ -328,10 +326,10 @@ LIR* X86Codegen::OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp)
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  return NewLIR2(cu, opcode, rBase, disp);
+  return NewLIR2(opcode, rBase, disp);
 }
 
-LIR* X86Codegen::LoadConstantWide(CompilationUnit *cu, int r_dest_lo, int r_dest_hi, int64_t value)
+LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value)
 {
     int32_t val_lo = Low32Bits(value);
     int32_t val_hi = High32Bits(value);
@@ -339,27 +337,27 @@ LIR* X86Codegen::LoadConstantWide(CompilationUnit *cu, int r_dest_lo, int r_dest
     if (X86_FPREG(r_dest_lo)) {
       DCHECK(X86_FPREG(r_dest_hi));  // ignore r_dest_hi
       if (value == 0) {
-        return NewLIR2(cu, kX86XorpsRR, r_dest_lo, r_dest_lo);
+        return NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
       } else {
         if (val_lo == 0) {
-          res = NewLIR2(cu, kX86XorpsRR, r_dest_lo, r_dest_lo);
+          res = NewLIR2(kX86XorpsRR, r_dest_lo, r_dest_lo);
         } else {
-          res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
+          res = LoadConstantNoClobber(r_dest_lo, val_lo);
         }
         if (val_hi != 0) {
-          LoadConstantNoClobber(cu, r_dest_hi, val_hi);
-          NewLIR2(cu, kX86PsllqRI, r_dest_hi, 32);
-          NewLIR2(cu, kX86OrpsRR, r_dest_lo, r_dest_hi);
+          LoadConstantNoClobber(r_dest_hi, val_hi);
+          NewLIR2(kX86PsllqRI, r_dest_hi, 32);
+          NewLIR2(kX86OrpsRR, r_dest_lo, r_dest_hi);
         }
       }
     } else {
-      res = LoadConstantNoClobber(cu, r_dest_lo, val_lo);
-      LoadConstantNoClobber(cu, r_dest_hi, val_hi);
+      res = LoadConstantNoClobber(r_dest_lo, val_lo);
+      LoadConstantNoClobber(r_dest_hi, val_hi);
     }
     return res;
 }
 
-LIR* X86Codegen::LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+LIR* X86Mir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale,
                                      int displacement, int r_dest, int r_dest_hi, OpSize size,
                                      int s_reg) {
   LIR *load = NULL;
@@ -416,40 +414,40 @@ LIR* X86Codegen::LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index
 
   if (!is_array) {
     if (!pair) {
-      load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
+      load = NewLIR3(opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
     } else {
       if (rBase == r_dest) {
-        load2 = NewLIR3(cu, opcode, r_dest_hi, rBase,
+        load2 = NewLIR3(opcode, r_dest_hi, rBase,
                         displacement + HIWORD_OFFSET);
-        load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
+        load = NewLIR3(opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
       } else {
-        load = NewLIR3(cu, opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
-        load2 = NewLIR3(cu, opcode, r_dest_hi, rBase,
+        load = NewLIR3(opcode, r_dest, rBase, displacement + LOWORD_OFFSET);
+        load2 = NewLIR3(opcode, r_dest_hi, rBase,
                         displacement + HIWORD_OFFSET);
       }
     }
     if (rBase == rX86_SP) {
-      AnnotateDalvikRegAccess(cu, load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+      AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               true /* is_load */, is64bit);
       if (pair) {
-        AnnotateDalvikRegAccess(cu, load2, (displacement + HIWORD_OFFSET) >> 2,
+        AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
                                 true /* is_load */, is64bit);
       }
     }
   } else {
     if (!pair) {
-      load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
+      load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
                      displacement + LOWORD_OFFSET);
     } else {
       if (rBase == r_dest) {
-        load2 = NewLIR5(cu, opcode, r_dest_hi, rBase, r_index, scale,
+        load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
                         displacement + HIWORD_OFFSET);
-        load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
+        load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
                        displacement + LOWORD_OFFSET);
       } else {
-        load = NewLIR5(cu, opcode, r_dest, rBase, r_index, scale,
+        load = NewLIR5(opcode, r_dest, rBase, r_index, scale,
                        displacement + LOWORD_OFFSET);
-        load2 = NewLIR5(cu, opcode, r_dest_hi, rBase, r_index, scale,
+        load2 = NewLIR5(opcode, r_dest_hi, rBase, r_index, scale,
                         displacement + HIWORD_OFFSET);
       }
     }
@@ -459,25 +457,25 @@ LIR* X86Codegen::LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index
 }
 
 /* Load value from base + scaled index. */
-LIR* X86Codegen::LoadBaseIndexed(CompilationUnit *cu, int rBase,
+LIR* X86Mir2Lir::LoadBaseIndexed(int rBase,
                      int r_index, int r_dest, int scale, OpSize size) {
-  return LoadBaseIndexedDisp(cu, rBase, r_index, scale, 0,
+  return LoadBaseIndexedDisp(rBase, r_index, scale, 0,
                              r_dest, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR* X86Codegen::LoadBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Mir2Lir::LoadBaseDisp(int rBase, int displacement,
                   int r_dest, OpSize size, int s_reg) {
-  return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+  return LoadBaseIndexedDisp(rBase, INVALID_REG, 0, displacement,
                              r_dest, INVALID_REG, size, s_reg);
 }
 
-LIR* X86Codegen::LoadBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Mir2Lir::LoadBaseDispWide(int rBase, int displacement,
                       int r_dest_lo, int r_dest_hi, int s_reg) {
-  return LoadBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+  return LoadBaseIndexedDisp(rBase, INVALID_REG, 0, displacement,
                              r_dest_lo, r_dest_hi, kLong, s_reg);
 }
 
-LIR* X86Codegen::StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
+LIR* X86Mir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale,
                                       int displacement, int r_src, int r_src_hi, OpSize size,
                                       int s_reg) {
   LIR *store = NULL;
@@ -529,27 +527,27 @@ LIR* X86Codegen::StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_inde
 
   if (!is_array) {
     if (!pair) {
-      store = NewLIR3(cu, opcode, rBase, displacement + LOWORD_OFFSET, r_src);
+      store = NewLIR3(opcode, rBase, displacement + LOWORD_OFFSET, r_src);
     } else {
-      store = NewLIR3(cu, opcode, rBase, displacement + LOWORD_OFFSET, r_src);
-      store2 = NewLIR3(cu, opcode, rBase, displacement + HIWORD_OFFSET, r_src_hi);
+      store = NewLIR3(opcode, rBase, displacement + LOWORD_OFFSET, r_src);
+      store2 = NewLIR3(opcode, rBase, displacement + HIWORD_OFFSET, r_src_hi);
     }
     if (rBase == rX86_SP) {
-      AnnotateDalvikRegAccess(cu, store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+      AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               false /* is_load */, is64bit);
       if (pair) {
-        AnnotateDalvikRegAccess(cu, store2, (displacement + HIWORD_OFFSET) >> 2,
+        AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
                                 false /* is_load */, is64bit);
       }
     }
   } else {
     if (!pair) {
-      store = NewLIR5(cu, opcode, rBase, r_index, scale,
+      store = NewLIR5(opcode, rBase, r_index, scale,
                       displacement + LOWORD_OFFSET, r_src);
     } else {
-      store = NewLIR5(cu, opcode, rBase, r_index, scale,
+      store = NewLIR5(opcode, rBase, r_index, scale,
                       displacement + LOWORD_OFFSET, r_src);
-      store2 = NewLIR5(cu, opcode, rBase, r_index, scale,
+      store2 = NewLIR5(opcode, rBase, r_index, scale,
                        displacement + HIWORD_OFFSET, r_src_hi);
     }
   }
@@ -558,25 +556,25 @@ LIR* X86Codegen::StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_inde
 }
 
 /* store value base base + scaled index. */
-LIR* X86Codegen::StoreBaseIndexed(CompilationUnit *cu, int rBase, int r_index, int r_src,
+LIR* X86Mir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
                       int scale, OpSize size)
 {
-  return StoreBaseIndexedDisp(cu, rBase, r_index, scale, 0,
+  return StoreBaseIndexedDisp(rBase, r_index, scale, 0,
                               r_src, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR* X86Codegen::StoreBaseDisp(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Mir2Lir::StoreBaseDisp(int rBase, int displacement,
                                int r_src, OpSize size)
 {
-    return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0,
+    return StoreBaseIndexedDisp(rBase, INVALID_REG, 0,
                                 displacement, r_src, INVALID_REG, size,
                                 INVALID_SREG);
 }
 
-LIR* X86Codegen::StoreBaseDispWide(CompilationUnit *cu, int rBase, int displacement,
+LIR* X86Mir2Lir::StoreBaseDispWide(int rBase, int displacement,
                                    int r_src_lo, int r_src_hi)
 {
-  return StoreBaseIndexedDisp(cu, rBase, INVALID_REG, 0, displacement,
+  return StoreBaseIndexedDisp(rBase, INVALID_REG, 0, displacement,
                               r_src_lo, r_src_hi, kLong, INVALID_SREG);
 }
 

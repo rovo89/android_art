@@ -15,9 +15,7 @@
  */
 
 #include "codegen_x86.h"
-#include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/quick/ralloc_util.h"
 #include "x86_lir.h"
 
 #include <string>
@@ -46,32 +44,32 @@ namespace art {
 #endif
 };
 
-RegLocation X86Codegen::LocCReturn()
+RegLocation X86Mir2Lir::LocCReturn()
 {
   RegLocation res = X86_LOC_C_RETURN;
   return res;
 }
 
-RegLocation X86Codegen::LocCReturnWide()
+RegLocation X86Mir2Lir::LocCReturnWide()
 {
   RegLocation res = X86_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation X86Codegen::LocCReturnFloat()
+RegLocation X86Mir2Lir::LocCReturnFloat()
 {
   RegLocation res = X86_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation X86Codegen::LocCReturnDouble()
+RegLocation X86Mir2Lir::LocCReturnDouble()
 {
   RegLocation res = X86_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int X86Codegen::TargetReg(SpecialTargetRegister reg) {
+int X86Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rX86_SELF; break;
@@ -96,19 +94,19 @@ int X86Codegen::TargetReg(SpecialTargetRegister reg) {
 }
 
 // Create a double from a pair of singles.
-int X86Codegen::S2d(int low_reg, int high_reg)
+int X86Mir2Lir::S2d(int low_reg, int high_reg)
 {
   return X86_S2D(low_reg, high_reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t X86Codegen::FpRegMask()
+uint32_t X86Mir2Lir::FpRegMask()
 {
   return X86_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool X86Codegen::SameRegType(int reg1, int reg2)
+bool X86Mir2Lir::SameRegType(int reg1, int reg2)
 {
   return (X86_REGTYPE(reg1) == X86_REGTYPE(reg2));
 }
@@ -116,7 +114,7 @@ bool X86Codegen::SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t X86Codegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
+uint64_t X86Mir2Lir::GetRegMaskCommon(int reg)
 {
   uint64_t seed;
   int shift;
@@ -132,7 +130,7 @@ uint64_t X86Codegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
   return (seed << shift);
 }
 
-uint64_t X86Codegen::GetPCUseDefEncoding()
+uint64_t X86Mir2Lir::GetPCUseDefEncoding()
 {
   /*
    * FIXME: might make sense to use a virtual resource encoding bit for pc.  Might be
@@ -142,12 +140,12 @@ uint64_t X86Codegen::GetPCUseDefEncoding()
   return 0ULL;
 }
 
-void X86Codegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
+void X86Mir2Lir::SetupTargetResourceMasks(LIR* lir)
 {
-  DCHECK_EQ(cu->instruction_set, kX86);
+  DCHECK_EQ(cu_->instruction_set, kX86);
 
   // X86-specific resource map setup here.
-  uint64_t flags = X86Codegen::EncodingMap[lir->opcode].flags;
+  uint64_t flags = X86Mir2Lir::EncodingMap[lir->opcode].flags;
 
   if (flags & REG_USE_SP) {
     lir->use_mask |= ENCODE_X86_REG_SP;
@@ -158,22 +156,22 @@ void X86Codegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 
   if (flags & REG_DEFA) {
-    SetupRegMask(cu, &lir->def_mask, rAX);
+    SetupRegMask(&lir->def_mask, rAX);
   }
 
   if (flags & REG_DEFD) {
-    SetupRegMask(cu, &lir->def_mask, rDX);
+    SetupRegMask(&lir->def_mask, rDX);
   }
   if (flags & REG_USEA) {
-    SetupRegMask(cu, &lir->use_mask, rAX);
+    SetupRegMask(&lir->use_mask, rAX);
   }
 
   if (flags & REG_USEC) {
-    SetupRegMask(cu, &lir->use_mask, rCX);
+    SetupRegMask(&lir->use_mask, rCX);
   }
 
   if (flags & REG_USED) {
-    SetupRegMask(cu, &lir->use_mask, rDX);
+    SetupRegMask(&lir->use_mask, rDX);
   }
 }
 
@@ -206,7 +204,7 @@ static const char* x86CondName[] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.cc.
  */
-std::string X86Codegen::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
+std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char* base_addr) {
   std::string buf;
   size_t i = 0;
   size_t fmt_len = strlen(fmt);
@@ -264,7 +262,7 @@ std::string X86Codegen::BuildInsnString(const char *fmt, LIR *lir, unsigned char
   return buf;
 }
 
-void X86Codegen::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
+void X86Mir2Lir::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -306,10 +304,10 @@ void X86Codegen::DumpResourceMask(LIR *x86LIR, uint64_t mask, const char *prefix
   }
 }
 
-void X86Codegen::AdjustSpillMask(CompilationUnit* cu) {
+void X86Mir2Lir::AdjustSpillMask() {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
-  cu->core_spill_mask |= (1 << rRET);
-  cu->num_core_spills++;
+  core_spill_mask_ |= (1 << rRET);
+  num_core_spills_++;
 }
 
 /*
@@ -318,7 +316,7 @@ void X86Codegen::AdjustSpillMask(CompilationUnit* cu) {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void X86Codegen::MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
+void X86Mir2Lir::MarkPreservedSingle(int v_reg, int reg)
 {
   UNIMPLEMENTED(WARNING) << "MarkPreservedSingle";
 #if 0
@@ -326,10 +324,10 @@ void X86Codegen::MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
 #endif
 }
 
-void X86Codegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
+void X86Mir2Lir::FlushRegWide(int reg1, int reg2)
 {
-  RegisterInfo* info1 = GetRegInfo(cu, reg1);
-  RegisterInfo* info2 = GetRegInfo(cu, reg2);
+  RegisterInfo* info1 = GetRegInfo(reg1);
+  RegisterInfo* info2 = GetRegInfo(reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
          (info1->partner == info2->reg) &&
          (info2->partner == info1->reg));
@@ -341,93 +339,93 @@ void X86Codegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 
     info1->dirty = false;
     info2->dirty = false;
-    if (cu->mir_graph->SRegToVReg(info2->s_reg) < cu->mir_graph->SRegToVReg(info1->s_reg))
+    if (mir_graph_->SRegToVReg(info2->s_reg) < mir_graph_->SRegToVReg(info1->s_reg))
       info1 = info2;
-    int v_reg = cu->mir_graph->SRegToVReg(info1->s_reg);
-    StoreBaseDispWide(cu, rX86_SP, VRegOffset(cu, v_reg), info1->reg, info1->partner);
+    int v_reg = mir_graph_->SRegToVReg(info1->s_reg);
+    StoreBaseDispWide(rX86_SP, VRegOffset(v_reg), info1->reg, info1->partner);
   }
 }
 
-void X86Codegen::FlushReg(CompilationUnit* cu, int reg)
+void X86Mir2Lir::FlushReg(int reg)
 {
-  RegisterInfo* info = GetRegInfo(cu, reg);
+  RegisterInfo* info = GetRegInfo(reg);
   if (info->live && info->dirty) {
     info->dirty = false;
-    int v_reg = cu->mir_graph->SRegToVReg(info->s_reg);
-    StoreBaseDisp(cu, rX86_SP, VRegOffset(cu, v_reg), reg, kWord);
+    int v_reg = mir_graph_->SRegToVReg(info->s_reg);
+    StoreBaseDisp(rX86_SP, VRegOffset(v_reg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool X86Codegen::IsFpReg(int reg) {
+bool X86Mir2Lir::IsFpReg(int reg) {
   return X86_FPREG(reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
-void X86Codegen::ClobberCalleeSave(CompilationUnit *cu)
+void X86Mir2Lir::ClobberCalleeSave()
 {
-  Clobber(cu, rAX);
-  Clobber(cu, rCX);
-  Clobber(cu, rDX);
+  Clobber(rAX);
+  Clobber(rCX);
+  Clobber(rDX);
 }
 
-RegLocation X86Codegen::GetReturnWideAlt(CompilationUnit* cu) {
+RegLocation X86Mir2Lir::GetReturnWideAlt() {
   RegLocation res = LocCReturnWide();
   CHECK(res.low_reg == rAX);
   CHECK(res.high_reg == rDX);
-  Clobber(cu, rAX);
-  Clobber(cu, rDX);
-  MarkInUse(cu, rAX);
-  MarkInUse(cu, rDX);
-  MarkPair(cu, res.low_reg, res.high_reg);
+  Clobber(rAX);
+  Clobber(rDX);
+  MarkInUse(rAX);
+  MarkInUse(rDX);
+  MarkPair(res.low_reg, res.high_reg);
   return res;
 }
 
-RegLocation X86Codegen::GetReturnAlt(CompilationUnit* cu)
+RegLocation X86Mir2Lir::GetReturnAlt()
 {
   RegLocation res = LocCReturn();
   res.low_reg = rDX;
-  Clobber(cu, rDX);
-  MarkInUse(cu, rDX);
+  Clobber(rDX);
+  MarkInUse(rDX);
   return res;
 }
 
-RegisterInfo* X86Codegen::GetRegInfo(CompilationUnit* cu, int reg)
+X86Mir2Lir::RegisterInfo* X86Mir2Lir::GetRegInfo(int reg)
 {
-  return X86_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & X86_FP_REG_MASK]
-                    : &cu->reg_pool->core_regs[reg];
+  return X86_FPREG(reg) ? &reg_pool_->FPRegs[reg & X86_FP_REG_MASK]
+                    : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void X86Codegen::LockCallTemps(CompilationUnit* cu)
+void X86Mir2Lir::LockCallTemps()
 {
-  LockTemp(cu, rX86_ARG0);
-  LockTemp(cu, rX86_ARG1);
-  LockTemp(cu, rX86_ARG2);
-  LockTemp(cu, rX86_ARG3);
+  LockTemp(rX86_ARG0);
+  LockTemp(rX86_ARG1);
+  LockTemp(rX86_ARG2);
+  LockTemp(rX86_ARG3);
 }
 
 /* To be used when explicitly managing register use */
-void X86Codegen::FreeCallTemps(CompilationUnit* cu)
+void X86Mir2Lir::FreeCallTemps()
 {
-  FreeTemp(cu, rX86_ARG0);
-  FreeTemp(cu, rX86_ARG1);
-  FreeTemp(cu, rX86_ARG2);
-  FreeTemp(cu, rX86_ARG3);
+  FreeTemp(rX86_ARG0);
+  FreeTemp(rX86_ARG1);
+  FreeTemp(rX86_ARG2);
+  FreeTemp(rX86_ARG3);
 }
 
-void X86Codegen::GenMemBarrier(CompilationUnit *cu, MemBarrierKind barrier_kind)
+void X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
 {
 #if ANDROID_SMP != 0
   // TODO: optimize fences
-  NewLIR0(cu, kX86Mfence);
+  NewLIR0(kX86Mfence);
 #endif
 }
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int X86Codegen::AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
+int X86Mir2Lir::AllocTypedTempPair(bool fp_hint,
                           int reg_class)
 {
   int high_reg;
@@ -435,136 +433,135 @@ int X86Codegen::AllocTypedTempPair(CompilationUnit *cu, bool fp_hint,
   int res = 0;
 
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    low_reg = AllocTempDouble(cu);
+    low_reg = AllocTempDouble();
     high_reg = low_reg + 1;
     res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
     return res;
   }
 
-  low_reg = AllocTemp(cu);
-  high_reg = AllocTemp(cu);
+  low_reg = AllocTemp();
+  high_reg = AllocTemp();
   res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
   return res;
 }
 
-int X86Codegen::AllocTypedTemp(CompilationUnit *cu, bool fp_hint, int reg_class) {
+int X86Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    return AllocTempFloat(cu);
+    return AllocTempFloat();
   }
-  return AllocTemp(cu);
+  return AllocTemp();
 }
 
-void X86Codegen::CompilerInitializeRegAlloc(CompilationUnit* cu) {
+void X86Mir2Lir::CompilerInitializeRegAlloc() {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  RegisterPool *pool =
-      static_cast<RegisterPool*>(NewMem(cu, sizeof(*pool), true, kAllocRegAlloc));
-  cu->reg_pool = pool;
-  pool->num_core_regs = num_regs;
-  pool->core_regs =
-      static_cast<RegisterInfo*>(NewMem(cu, num_regs * sizeof(*cu->reg_pool->core_regs),
+  reg_pool_ = static_cast<RegisterPool*>(NewMem(cu_, sizeof(*reg_pool_), true, kAllocRegAlloc));
+  reg_pool_->num_core_regs = num_regs;
+  reg_pool_->core_regs =
+      static_cast<RegisterInfo*>(NewMem(cu_, num_regs * sizeof(*reg_pool_->core_regs),
                                              true, kAllocRegAlloc));
-  pool->num_fp_regs = num_fp_regs;
-  pool->FPRegs =
-      static_cast<RegisterInfo *>(NewMem(cu, num_fp_regs * sizeof(*cu->reg_pool->FPRegs),
+  reg_pool_->num_fp_regs = num_fp_regs;
+  reg_pool_->FPRegs =
+      static_cast<RegisterInfo *>(NewMem(cu_, num_fp_regs * sizeof(*reg_pool_->FPRegs),
                                               true, kAllocRegAlloc));
-  CompilerInitPool(pool->core_regs, core_regs, pool->num_core_regs);
-  CompilerInitPool(pool->FPRegs, FpRegs, pool->num_fp_regs);
+  CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
+  CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated
   for (int i = 0; i < num_reserved; i++) {
-    MarkInUse(cu, ReservedRegs[i]);
+    MarkInUse(ReservedRegs[i]);
   }
   // Mark temp regs - all others not in use can be used for promotion
   for (int i = 0; i < num_temps; i++) {
-    MarkTemp(cu, core_temps[i]);
+    MarkTemp(core_temps[i]);
   }
   for (int i = 0; i < num_fp_temps; i++) {
-    MarkTemp(cu, fp_temps[i]);
+    MarkTemp(fp_temps[i]);
   }
 }
 
-void X86Codegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
+void X86Mir2Lir::FreeRegLocTemps(RegLocation rl_keep,
                      RegLocation rl_free)
 {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
       (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
-    FreeTemp(cu, rl_free.low_reg);
-    FreeTemp(cu, rl_free.high_reg);
+    FreeTemp(rl_free.low_reg);
+    FreeTemp(rl_free.high_reg);
   }
 }
 
-void X86Codegen::SpillCoreRegs(CompilationUnit* cu) {
-  if (cu->num_core_spills == 0) {
+void X86Mir2Lir::SpillCoreRegs() {
+  if (num_core_spills_ == 0) {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = cu->core_spill_mask & ~(1 << rRET);
-  int offset = cu->frame_size - (4 * cu->num_core_spills);
+  uint32_t mask = core_spill_mask_ & ~(1 << rRET);
+  int offset = frame_size_ - (4 * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      StoreWordDisp(cu, rX86_SP, offset, reg);
+      StoreWordDisp(rX86_SP, offset, reg);
       offset += 4;
     }
   }
 }
 
-void X86Codegen::UnSpillCoreRegs(CompilationUnit* cu) {
-  if (cu->num_core_spills == 0) {
+void X86Mir2Lir::UnSpillCoreRegs() {
+  if (num_core_spills_ == 0) {
     return;
   }
   // Spill mask not including fake return address register
-  uint32_t mask = cu->core_spill_mask & ~(1 << rRET);
-  int offset = cu->frame_size - (4 * cu->num_core_spills);
+  uint32_t mask = core_spill_mask_ & ~(1 << rRET);
+  int offset = frame_size_ - (4 * num_core_spills_);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      LoadWordDisp(cu, rX86_SP, offset, reg);
+      LoadWordDisp(rX86_SP, offset, reg);
       offset += 4;
     }
   }
 }
 
-bool X86Codegen::IsUnconditionalBranch(LIR* lir)
+bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir)
 {
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
-/* Common initialization routine for an architecture family */
-bool InitX86Codegen(CompilationUnit* cu) {
-  cu->cg.reset(new X86Codegen());
+X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, mir_graph) {
   for (int i = 0; i < kX86Last; i++) {
-    if (X86Codegen::EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << X86Codegen::EncodingMap[i].name
+    if (X86Mir2Lir::EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(X86Codegen::EncodingMap[i].opcode);
+                 << static_cast<int>(X86Mir2Lir::EncodingMap[i].opcode);
     }
   }
-  return true;
+}
+
+Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph) {
+  return new X86Mir2Lir(cu, mir_graph);
 }
 
 // Not used in x86
-int X86Codegen::LoadHelper(CompilationUnit* cu, int offset)
+int X86Mir2Lir::LoadHelper(int offset)
 {
   LOG(FATAL) << "Unexpected use of LoadHelper in x86";
   return INVALID_REG;
 }
 
-uint64_t X86Codegen::GetTargetInstFlags(int opcode)
+uint64_t X86Mir2Lir::GetTargetInstFlags(int opcode)
 {
-  return X86Codegen::EncodingMap[opcode].flags;
+  return X86Mir2Lir::EncodingMap[opcode].flags;
 }
 
-const char* X86Codegen::GetTargetInstName(int opcode)
+const char* X86Mir2Lir::GetTargetInstName(int opcode)
 {
-  return X86Codegen::EncodingMap[opcode].name;
+  return X86Mir2Lir::EncodingMap[opcode].name;
 }
 
-const char* X86Codegen::GetTargetInstFmt(int opcode)
+const char* X86Mir2Lir::GetTargetInstFmt(int opcode)
 {
-  return X86Codegen::EncodingMap[opcode].fmt;
+  return X86Mir2Lir::EncodingMap[opcode].fmt;
 }
 
 } // namespace art

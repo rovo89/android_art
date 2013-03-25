@@ -16,7 +16,6 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "compiler/dex/quick/codegen_util.h"
 
 namespace art {
 
@@ -76,7 +75,7 @@ namespace art {
  *  [!] escape.  To insert "!", use "!!"
  */
 /* NOTE: must be kept in sync with enum ArmOpcode from LIR.h */
-const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
+const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
     ENCODING_MAP(kArm16BitData,    0x0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP, "data", "0x!0h(!0d)", 2),
@@ -1002,18 +1001,18 @@ const ArmEncodingMap ArmCodegen::EncodingMap[kArmLast] = {
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t start_addr)
+AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr)
 {
   LIR* lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  for (lir = cu->first_lir_insn; lir != NULL; lir = NEXT_LIR(lir)) {
+  for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
 
     if (lir->opcode < 0) {
       /* 1 means padding is needed */
       if ((lir->opcode == kPseudoPseudoAlign4) && (lir->operands[0] == 1)) {
-        cu->code_buffer.push_back(PADDING_MOV_R5_R5 & 0xFF);
-        cu->code_buffer.push_back((PADDING_MOV_R5_R5 >> 8) & 0xFF);
+        code_buffer_.push_back(PADDING_MOV_R5_R5 & 0xFF);
+        code_buffer_.push_back((PADDING_MOV_R5_R5 >> 8) & 0xFF);
       }
       continue;
     }
@@ -1073,7 +1072,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
               ?  lir->operands[0] : rARM_LR;
 
           // Add new Adr to generate the address.
-          LIR* new_adr = RawLIR(cu, lir->dalvik_offset, kThumb2Adr,
+          LIR* new_adr = RawLIR(lir->dalvik_offset, kThumb2Adr,
                      base_reg, 0, 0, 0, 0, lir->target);
           InsertLIRBefore(lir, new_adr);
 
@@ -1091,7 +1090,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
             lir->operands[2] = 0;
             lir->operands[1] = base_reg;
           }
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         } else {
           if ((lir->opcode == kThumb2Vldrs) ||
@@ -1114,7 +1113,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
            * Make new branch instruction and insert after
            */
           LIR* new_inst =
-            RawLIR(cu, lir->dalvik_offset, kThumbBCond, 0,
+            RawLIR(lir->dalvik_offset, kThumbBCond, 0,
                    (lir->opcode == kThumb2Cbz) ? kArmCondEq : kArmCondNe,
                    0, 0, 0, lir->target);
           InsertLIRAfter(lir, new_inst);
@@ -1123,7 +1122,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
           /* operand[0] is src1 in both cb[n]z & CmpRI8 */
           lir->operands[1] = 0;
           lir->target = 0;
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         } else {
           lir->operands[1] = delta >> 1;
@@ -1148,7 +1147,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
             }
           }
           lir->operands[0] = reg;
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumbBCond || lir->opcode == kThumb2BCond) {
@@ -1160,7 +1159,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
         delta = target - pc;
         if ((lir->opcode == kThumbBCond) && (delta > 254 || delta < -256)) {
           lir->opcode = kThumb2BCond;
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         }
         lir->operands[0] = delta >> 1;
@@ -1170,7 +1169,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
         uintptr_t target = target_lir->offset;
         int delta = target - pc;
         lir->operands[0] = delta >> 1;
-        if (!(cu->disable_opt & (1 << kSafeOptimizations)) &&
+        if (!(cu_->disable_opt & (1 << kSafeOptimizations)) &&
           lir->operands[0] == 0) {  // Useless branch
           lir->flags.is_nop = true;
           res = kRetryAll;
@@ -1184,11 +1183,11 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
           // Convert to Thumb2BCond w/ kArmCondAl
           lir->opcode = kThumb2BUncond;
           lir->operands[0] = 0;
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         } else {
           lir->operands[0] = delta >> 1;
-          if (!(cu->disable_opt & (1 << kSafeOptimizations)) &&
+          if (!(cu_->disable_opt & (1 << kSafeOptimizations)) &&
             lir->operands[0] == -1) {  // Useless branch
             lir->flags.is_nop = true;
             res = kRetryAll;
@@ -1232,12 +1231,12 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
           // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
           // TUNING: if this case fires often, it can be improved.  Not expected to be common.
           LIR *new_mov16L =
-              RawLIR(cu, lir->dalvik_offset, kThumb2MovImm16LST,
+              RawLIR(lir->dalvik_offset, kThumb2MovImm16LST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
                      reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
           InsertLIRBefore(lir, new_mov16L);
           LIR *new_mov16H =
-              RawLIR(cu, lir->dalvik_offset, kThumb2MovImm16HST,
+              RawLIR(lir->dalvik_offset, kThumb2MovImm16HST,
                      lir->operands[0], 0, reinterpret_cast<uintptr_t>(lir),
                      reinterpret_cast<uintptr_t>(tab_rec), 0, lir->target);
           InsertLIRBefore(lir, new_mov16H);
@@ -1247,7 +1246,7 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
             lir->opcode = kThumbAddRRHH;
           }
           lir->operands[1] = rARM_PC;
-          SetupResourceMasks(cu, lir);
+          SetupResourceMasks(lir);
           res = kRetryAll;
         }
       } else if (lir->opcode == kThumb2MovImm16LST) {
@@ -1380,16 +1379,16 @@ AssemblerStatus ArmCodegen::AssembleInstructions(CompilationUnit* cu, uintptr_t 
       }
     }
     if (encoder->size == 4) {
-      cu->code_buffer.push_back((bits >> 16) & 0xff);
-      cu->code_buffer.push_back((bits >> 24) & 0xff);
+      code_buffer_.push_back((bits >> 16) & 0xff);
+      code_buffer_.push_back((bits >> 24) & 0xff);
     }
-    cu->code_buffer.push_back(bits & 0xff);
-    cu->code_buffer.push_back((bits >> 8) & 0xff);
+    code_buffer_.push_back(bits & 0xff);
+    code_buffer_.push_back((bits >> 8) & 0xff);
   }
   return res;
 }
 
-int ArmCodegen::GetInsnSize(LIR* lir)
+int ArmMir2Lir::GetInsnSize(LIR* lir)
 {
   return EncodingMap[lir->opcode].size;
 }

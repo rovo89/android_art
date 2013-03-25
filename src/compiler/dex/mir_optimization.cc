@@ -45,7 +45,7 @@ bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
   ArenaBitVector *is_constant_v = is_constant_v_;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;
 
@@ -107,7 +107,6 @@ void MIRGraph::PropagateConstants()
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
   }
-
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
@@ -236,7 +235,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
         case Instruction::CMPG_FLOAT:
         case Instruction::CMPG_DOUBLE:
         case Instruction::CMP_LONG:
-          if (cu_->gen_bitcode) {
+          if ((cu_->disable_opt & (1 << kBranchFusing)) != 0) {
             // Bitcode doesn't allow this optimization.
             break;
           }
@@ -332,7 +331,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
       // Is this the select pattern?
       // TODO: flesh out support for Mips and X86.  NOTE: llvm's select op doesn't quite work here.
       // TUNING: expand to support IF_xx compare & branches
-      if (!cu_->gen_bitcode && (cu_->instruction_set == kThumb2) &&
+      if (!(cu_->compiler_backend == kPortable) && (cu_->instruction_set == kThumb2) &&
           ((mir->dalvikInsn.opcode == Instruction::IF_EQZ) ||
           (mir->dalvikInsn.opcode == Instruction::IF_NEZ))) {
         BasicBlock* ft = bb->fall_through;
@@ -485,18 +484,17 @@ bool MIRGraph::CountChecks(struct BasicBlock* bb)
     if (mir->ssa_rep == NULL) {
       continue;
     }
-    int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
     if (df_attributes & DF_HAS_NULL_CHKS) {
-      //TODO: move checkstats to mir_graph
-      cu_->checkstats->null_checks++;
+      checkstats_->null_checks++;
       if (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) {
-        cu_->checkstats->null_checks_eliminated++;
+        checkstats_->null_checks_eliminated++;
       }
     }
     if (df_attributes & DF_HAS_RANGE_CHKS) {
-      cu_->checkstats->range_checks++;
+      checkstats_->range_checks++;
       if (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) {
-        cu_->checkstats->range_checks_eliminated++;
+        checkstats_->range_checks_eliminated++;
       }
     }
   }
@@ -572,7 +570,7 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb)
     MIR* mir = bb->last_mir_insn;
     // Grab the attributes from the paired opcode
     MIR* throw_insn = mir->meta.throw_insn;
-    int df_attributes = oat_data_flow_attributes[throw_insn->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[throw_insn->dalvikInsn.opcode];
     bool can_combine = true;
     if (df_attributes & DF_HAS_NULL_CHKS) {
       can_combine &= ((throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0);
@@ -613,7 +611,7 @@ bool MIRGraph::CombineBlocks(struct BasicBlock* bb)
 
     // Kill bb_next and remap now-dead id to parent
     bb_next->block_type = kDead;
-    cu_->block_id_map.Overwrite(bb_next->id, bb->id);
+    block_id_map_.Overwrite(bb_next->id, bb->id);
 
     // Now, loop back and see if we can keep going
   }
@@ -661,7 +659,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
     if (mir->ssa_rep == NULL) {
         continue;
     }
-    int df_attributes = oat_data_flow_attributes[mir->dalvikInsn.opcode];
+    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
     // Mark target of NEW* as non-null
     if (df_attributes & DF_NON_NULL_DST) {
@@ -782,6 +780,9 @@ void MIRGraph::BasicBlockCombine()
 
 void MIRGraph::CodeLayout()
 {
+  if (cu_->enable_debug & (1 << kDebugVerifyDataflow)) {
+    VerifyDataflow();
+  }
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     LayoutBlocks(bb);
@@ -795,7 +796,7 @@ void MIRGraph::DumpCheckStats()
 {
   Checkstats* stats =
       static_cast<Checkstats*>(NewMem(cu_, sizeof(Checkstats), true, kAllocDFInfo));
-  cu_->checkstats = stats;
+  checkstats_ = stats;
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     CountChecks(bb);
@@ -850,7 +851,7 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb)
 void MIRGraph::BasicBlockOptimization()
 {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
-    CompilerInitGrowableList(cu_, &cu_->compiler_temps, 6, kListMisc);
+    CompilerInitGrowableList(cu_, &compiler_temps_, 6, kListMisc);
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     // Mark all blocks as not visited
     AllNodesIterator iter(this, false /* not iterative */);

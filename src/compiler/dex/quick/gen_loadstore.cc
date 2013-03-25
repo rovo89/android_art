@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-#include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
 #include "invoke_type.h"
-#include "ralloc_util.h"
 
 namespace art {
 
@@ -28,13 +26,13 @@ namespace art {
  * Load an immediate value into a fixed or temp register.  Target
  * register is clobbered, and marked in_use.
  */
-LIR* Codegen::LoadConstant(CompilationUnit* cu, int r_dest, int value)
+LIR* Mir2Lir::LoadConstant(int r_dest, int value)
 {
-  if (IsTemp(cu, r_dest)) {
-    Clobber(cu, r_dest);
-    MarkInUse(cu, r_dest);
+  if (IsTemp(r_dest)) {
+    Clobber(r_dest);
+    MarkInUse(r_dest);
   }
-  return LoadConstantNoClobber(cu, r_dest, value);
+  return LoadConstantNoClobber(r_dest, value);
 }
 
 /*
@@ -42,54 +40,51 @@ LIR* Codegen::LoadConstant(CompilationUnit* cu, int r_dest, int value)
  * promoted floating point register, also copy a zero into the int/ref identity of
  * that sreg.
  */
-void Codegen::Workaround7250540(CompilationUnit* cu, RegLocation rl_dest, int zero_reg)
+void Mir2Lir::Workaround7250540(RegLocation rl_dest, int zero_reg)
 {
   if (rl_dest.fp) {
-    int pmap_index = SRegToPMap(cu, rl_dest.s_reg_low);
-    if (cu->promotion_map[pmap_index].fp_location == kLocPhysReg) {
+    int pmap_index = SRegToPMap(rl_dest.s_reg_low);
+    if (promotion_map_[pmap_index].fp_location == kLocPhysReg) {
       // Now, determine if this vreg is ever used as a reference.  If not, we're done.
-      if (!cu->gen_bitcode) {
-        // TUNING: We no longer have this info for QuickGBC - assume the worst
-        bool used_as_reference = false;
-        int base_vreg = cu->mir_graph->SRegToVReg(rl_dest.s_reg_low);
-        for (int i = 0; !used_as_reference && (i < cu->mir_graph->GetNumSSARegs()); i++) {
-          if (cu->mir_graph->SRegToVReg(cu->reg_location[i].s_reg_low) == base_vreg) {
-            used_as_reference |= cu->reg_location[i].ref;
-          }
+      bool used_as_reference = false;
+      int base_vreg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
+      for (int i = 0; !used_as_reference && (i < mir_graph_->GetNumSSARegs()); i++) {
+        if (mir_graph_->SRegToVReg(mir_graph_->reg_location_[i].s_reg_low) == base_vreg) {
+          used_as_reference |= mir_graph_->reg_location_[i].ref;
         }
-        if (!used_as_reference) {
-          return;
-        }
+      }
+      if (!used_as_reference) {
+        return;
       }
       int temp_reg = zero_reg;
       if (temp_reg == INVALID_REG) {
-        temp_reg = AllocTemp(cu);
-        cu->cg->LoadConstant(cu, temp_reg, 0);
+        temp_reg = AllocTemp();
+        LoadConstant(temp_reg, 0);
       }
-      if (cu->promotion_map[pmap_index].core_location == kLocPhysReg) {
+      if (promotion_map_[pmap_index].core_location == kLocPhysReg) {
         // Promoted - just copy in a zero
-        OpRegCopy(cu, cu->promotion_map[pmap_index].core_reg, temp_reg);
+        OpRegCopy(promotion_map_[pmap_index].core_reg, temp_reg);
       } else {
         // Lives in the frame, need to store.
-        StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low), temp_reg, kWord);
+        StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low), temp_reg, kWord);
       }
       if (zero_reg == INVALID_REG) {
-        FreeTemp(cu, temp_reg);
+        FreeTemp(temp_reg);
       }
     }
   }
 }
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-LIR* Codegen::LoadWordDisp(CompilationUnit* cu, int rBase, int displacement, int r_dest)
+LIR* Mir2Lir::LoadWordDisp(int rBase, int displacement, int r_dest)
 {
-  return LoadBaseDisp(cu, rBase, displacement, r_dest, kWord,
+  return LoadBaseDisp(rBase, displacement, r_dest, kWord,
                       INVALID_SREG);
 }
 
-LIR* Codegen::StoreWordDisp(CompilationUnit* cu, int rBase, int displacement, int r_src)
+LIR* Mir2Lir::StoreWordDisp(int rBase, int displacement, int r_src)
 {
-  return StoreBaseDisp(cu, rBase, displacement, r_src, kWord);
+  return StoreBaseDisp(rBase, displacement, r_src, kWord);
 }
 
 /*
@@ -97,17 +92,17 @@ LIR* Codegen::StoreWordDisp(CompilationUnit* cu, int rBase, int displacement, in
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_dest)
+void Mir2Lir::LoadValueDirect(RegLocation rl_src, int r_dest)
 {
-  rl_src = UpdateLoc(cu, rl_src);
+  rl_src = UpdateLoc(rl_src);
   if (rl_src.location == kLocPhysReg) {
-    OpRegCopy(cu, r_dest, rl_src.low_reg);
-  } else if (IsInexpensiveConstant(cu, rl_src)) {
-    LoadConstantNoClobber(cu, r_dest, cu->mir_graph->ConstantValue(rl_src));
+    OpRegCopy(r_dest, rl_src.low_reg);
+  } else if (IsInexpensiveConstant(rl_src)) {
+    LoadConstantNoClobber(r_dest, mir_graph_->ConstantValue(rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    LoadWordDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low), r_dest);
+    LoadWordDisp(TargetReg(kSp), SRegOffset(rl_src.s_reg_low), r_dest);
   }
 }
 
@@ -116,11 +111,11 @@ void Codegen::LoadValueDirect(CompilationUnit* cu, RegLocation rl_src, int r_des
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-void Codegen::LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int r_dest)
+void Mir2Lir::LoadValueDirectFixed(RegLocation rl_src, int r_dest)
 {
-  Clobber(cu, r_dest);
-  MarkInUse(cu, r_dest);
-  LoadValueDirect(cu, rl_src, r_dest);
+  Clobber(r_dest);
+  MarkInUse(r_dest);
+  LoadValueDirect(rl_src, r_dest);
 }
 
 /*
@@ -128,18 +123,18 @@ void Codegen::LoadValueDirectFixed(CompilationUnit* cu, RegLocation rl_src, int 
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void Codegen::LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
+void Mir2Lir::LoadValueDirectWide(RegLocation rl_src, int reg_lo,
              int reg_hi)
 {
-  rl_src = UpdateLocWide(cu, rl_src);
+  rl_src = UpdateLocWide(rl_src);
   if (rl_src.location == kLocPhysReg) {
-    OpRegCopyWide(cu, reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
-  } else if (IsInexpensiveConstant(cu, rl_src)) {
-    LoadConstantWide(cu, reg_lo, reg_hi, cu->mir_graph->ConstantValueWide(rl_src));
+    OpRegCopyWide(reg_lo, reg_hi, rl_src.low_reg, rl_src.high_reg);
+  } else if (IsInexpensiveConstant(rl_src)) {
+    LoadConstantWide(reg_lo, reg_hi, mir_graph_->ConstantValueWide(rl_src));
   } else {
     DCHECK((rl_src.location == kLocDalvikFrame) ||
            (rl_src.location == kLocCompilerTemp));
-    LoadBaseDispWide(cu, TargetReg(kSp), SRegOffset(cu, rl_src.s_reg_low),
+    LoadBaseDispWide(TargetReg(kSp), SRegOffset(rl_src.s_reg_low),
                      reg_lo, reg_hi, INVALID_SREG);
   }
 }
@@ -149,28 +144,28 @@ void Codegen::LoadValueDirectWide(CompilationUnit* cu, RegLocation rl_src, int r
  * registers.  Should be used when loading to a fixed registers (for example,
  * loading arguments to an out of line call.
  */
-void Codegen::LoadValueDirectWideFixed(CompilationUnit* cu, RegLocation rl_src, int reg_lo,
+void Mir2Lir::LoadValueDirectWideFixed(RegLocation rl_src, int reg_lo,
                                        int reg_hi)
 {
-  Clobber(cu, reg_lo);
-  Clobber(cu, reg_hi);
-  MarkInUse(cu, reg_lo);
-  MarkInUse(cu, reg_hi);
-  LoadValueDirectWide(cu, rl_src, reg_lo, reg_hi);
+  Clobber(reg_lo);
+  Clobber(reg_hi);
+  MarkInUse(reg_lo);
+  MarkInUse(reg_hi);
+  LoadValueDirectWide(rl_src, reg_lo, reg_hi);
 }
 
-RegLocation Codegen::LoadValue(CompilationUnit* cu, RegLocation rl_src, RegisterClass op_kind)
+RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind)
 {
-  rl_src = EvalLoc(cu, rl_src, op_kind, false);
-  if (IsInexpensiveConstant(cu, rl_src) || rl_src.location != kLocPhysReg) {
-    LoadValueDirect(cu, rl_src, rl_src.low_reg);
+  rl_src = EvalLoc(rl_src, op_kind, false);
+  if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
+    LoadValueDirect(rl_src, rl_src.low_reg);
     rl_src.location = kLocPhysReg;
-    MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
+    MarkLive(rl_src.low_reg, rl_src.s_reg_low);
   }
   return rl_src;
 }
 
-void Codegen::StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src)
 {
   /*
    * Sanity checking - should never try to store to the same
@@ -178,68 +173,68 @@ void Codegen::StoreValue(CompilationUnit* cu, RegLocation rl_dest, RegLocation r
    * without an intervening ClobberSReg().
    */
   if (kIsDebugBuild) {
-    DCHECK((cu->live_sreg == INVALID_SREG) ||
-           (rl_dest.s_reg_low != cu->live_sreg));
-    cu->live_sreg = rl_dest.s_reg_low;
+    DCHECK((live_sreg_ == INVALID_SREG) ||
+           (rl_dest.s_reg_low != live_sreg_));
+    live_sreg_ = rl_dest.s_reg_low;
   }
   LIR* def_start;
   LIR* def_end;
   DCHECK(!rl_dest.wide);
   DCHECK(!rl_src.wide);
-  rl_src = UpdateLoc(cu, rl_src);
-  rl_dest = UpdateLoc(cu, rl_dest);
+  rl_src = UpdateLoc(rl_src);
+  rl_dest = UpdateLoc(rl_dest);
   if (rl_src.location == kLocPhysReg) {
-    if (IsLive(cu, rl_src.low_reg) ||
-      IsPromoted(cu, rl_src.low_reg) ||
+    if (IsLive(rl_src.low_reg) ||
+      IsPromoted(rl_src.low_reg) ||
       (rl_dest.location == kLocPhysReg)) {
       // Src is live/promoted or Dest has assigned reg.
-      rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
-      OpRegCopy(cu, rl_dest.low_reg, rl_src.low_reg);
+      rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+      OpRegCopy(rl_dest.low_reg, rl_src.low_reg);
     } else {
       // Just re-assign the registers.  Dest gets Src's regs
       rl_dest.low_reg = rl_src.low_reg;
-      Clobber(cu, rl_src.low_reg);
+      Clobber(rl_src.low_reg);
     }
   } else {
     // Load Src either into promoted Dest or temps allocated for Dest
-    rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
-    LoadValueDirect(cu, rl_src, rl_dest.low_reg);
+    rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+    LoadValueDirect(rl_src, rl_dest.low_reg);
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(cu, rl_dest.low_reg, rl_dest.s_reg_low);
-  MarkDirty(cu, rl_dest);
+  MarkLive(rl_dest.low_reg, rl_dest.s_reg_low);
+  MarkDirty(rl_dest);
 
 
-  ResetDefLoc(cu, rl_dest);
-  if (IsDirty(cu, rl_dest.low_reg) &&
-      oat_live_out(cu, rl_dest.s_reg_low)) {
-    def_start = cu->last_lir_insn;
-    StoreBaseDisp(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low),
+  ResetDefLoc(rl_dest);
+  if (IsDirty(rl_dest.low_reg) &&
+      oat_live_out(rl_dest.s_reg_low)) {
+    def_start = last_lir_insn_;
+    StoreBaseDisp(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low),
                   rl_dest.low_reg, kWord);
-    MarkClean(cu, rl_dest);
-    def_end = cu->last_lir_insn;
+    MarkClean(rl_dest);
+    def_end = last_lir_insn_;
     if (!rl_dest.ref) {
       // Exclude references from store elimination
-      MarkDef(cu, rl_dest, def_start, def_end);
+      MarkDef(rl_dest, def_start, def_end);
     }
   }
 }
 
-RegLocation Codegen::LoadValueWide(CompilationUnit* cu, RegLocation rl_src, RegisterClass op_kind)
+RegLocation Mir2Lir::LoadValueWide(RegLocation rl_src, RegisterClass op_kind)
 {
   DCHECK(rl_src.wide);
-  rl_src = EvalLoc(cu, rl_src, op_kind, false);
-  if (IsInexpensiveConstant(cu, rl_src) || rl_src.location != kLocPhysReg) {
-    LoadValueDirectWide(cu, rl_src, rl_src.low_reg, rl_src.high_reg);
+  rl_src = EvalLoc(rl_src, op_kind, false);
+  if (IsInexpensiveConstant(rl_src) || rl_src.location != kLocPhysReg) {
+    LoadValueDirectWide(rl_src, rl_src.low_reg, rl_src.high_reg);
     rl_src.location = kLocPhysReg;
-    MarkLive(cu, rl_src.low_reg, rl_src.s_reg_low);
-    MarkLive(cu, rl_src.high_reg, GetSRegHi(rl_src.s_reg_low));
+    MarkLive(rl_src.low_reg, rl_src.s_reg_low);
+    MarkLive(rl_src.high_reg, GetSRegHi(rl_src.s_reg_low));
   }
   return rl_src;
 }
 
-void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src)
+void Mir2Lir::StoreValueWide(RegLocation rl_dest, RegLocation rl_src)
 {
   /*
    * Sanity checking - should never try to store to the same
@@ -247,9 +242,9 @@ void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocati
    * without an intervening ClobberSReg().
    */
   if (kIsDebugBuild) {
-    DCHECK((cu->live_sreg == INVALID_SREG) ||
-           (rl_dest.s_reg_low != cu->live_sreg));
-    cu->live_sreg = rl_dest.s_reg_low;
+    DCHECK((live_sreg_ == INVALID_SREG) ||
+           (rl_dest.s_reg_low != live_sreg_));
+    live_sreg_ = rl_dest.s_reg_low;
   }
   LIR* def_start;
   LIR* def_end;
@@ -257,60 +252,60 @@ void Codegen::StoreValueWide(CompilationUnit* cu, RegLocation rl_dest, RegLocati
   DCHECK(rl_dest.wide);
   DCHECK(rl_src.wide);
   if (rl_src.location == kLocPhysReg) {
-    if (IsLive(cu, rl_src.low_reg) ||
-        IsLive(cu, rl_src.high_reg) ||
-        IsPromoted(cu, rl_src.low_reg) ||
-        IsPromoted(cu, rl_src.high_reg) ||
+    if (IsLive(rl_src.low_reg) ||
+        IsLive(rl_src.high_reg) ||
+        IsPromoted(rl_src.low_reg) ||
+        IsPromoted(rl_src.high_reg) ||
         (rl_dest.location == kLocPhysReg)) {
       // Src is live or promoted or Dest has assigned reg.
-      rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
-      OpRegCopyWide(cu, rl_dest.low_reg, rl_dest.high_reg,
+      rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+      OpRegCopyWide(rl_dest.low_reg, rl_dest.high_reg,
                     rl_src.low_reg, rl_src.high_reg);
     } else {
       // Just re-assign the registers.  Dest gets Src's regs
       rl_dest.low_reg = rl_src.low_reg;
       rl_dest.high_reg = rl_src.high_reg;
-      Clobber(cu, rl_src.low_reg);
-      Clobber(cu, rl_src.high_reg);
+      Clobber(rl_src.low_reg);
+      Clobber(rl_src.high_reg);
     }
   } else {
     // Load Src either into promoted Dest or temps allocated for Dest
-    rl_dest = EvalLoc(cu, rl_dest, kAnyReg, false);
-    LoadValueDirectWide(cu, rl_src, rl_dest.low_reg, rl_dest.high_reg);
+    rl_dest = EvalLoc(rl_dest, kAnyReg, false);
+    LoadValueDirectWide(rl_src, rl_dest.low_reg, rl_dest.high_reg);
   }
 
   // Dest is now live and dirty (until/if we flush it to home location)
-  MarkLive(cu, rl_dest.low_reg, rl_dest.s_reg_low);
-  MarkLive(cu, rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
-  MarkDirty(cu, rl_dest);
-  MarkPair(cu, rl_dest.low_reg, rl_dest.high_reg);
+  MarkLive(rl_dest.low_reg, rl_dest.s_reg_low);
+  MarkLive(rl_dest.high_reg, GetSRegHi(rl_dest.s_reg_low));
+  MarkDirty(rl_dest);
+  MarkPair(rl_dest.low_reg, rl_dest.high_reg);
 
 
-  ResetDefLocWide(cu, rl_dest);
-  if ((IsDirty(cu, rl_dest.low_reg) ||
-      IsDirty(cu, rl_dest.high_reg)) &&
-      (oat_live_out(cu, rl_dest.s_reg_low) ||
-      oat_live_out(cu, GetSRegHi(rl_dest.s_reg_low)))) {
-    def_start = cu->last_lir_insn;
-    DCHECK_EQ((cu->mir_graph->SRegToVReg(rl_dest.s_reg_low)+1),
-              cu->mir_graph->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
-    StoreBaseDispWide(cu, TargetReg(kSp), SRegOffset(cu, rl_dest.s_reg_low),
+  ResetDefLocWide(rl_dest);
+  if ((IsDirty(rl_dest.low_reg) ||
+      IsDirty(rl_dest.high_reg)) &&
+      (oat_live_out(rl_dest.s_reg_low) ||
+      oat_live_out(GetSRegHi(rl_dest.s_reg_low)))) {
+    def_start = last_lir_insn_;
+    DCHECK_EQ((mir_graph_->SRegToVReg(rl_dest.s_reg_low)+1),
+              mir_graph_->SRegToVReg(GetSRegHi(rl_dest.s_reg_low)));
+    StoreBaseDispWide(TargetReg(kSp), SRegOffset(rl_dest.s_reg_low),
                       rl_dest.low_reg, rl_dest.high_reg);
-    MarkClean(cu, rl_dest);
-    def_end = cu->last_lir_insn;
-    MarkDefWide(cu, rl_dest, def_start, def_end);
+    MarkClean(rl_dest);
+    def_end = last_lir_insn_;
+    MarkDefWide(rl_dest, def_start, def_end);
   }
 }
 
 /* Utilities to load the current Method* */
-void Codegen::LoadCurrMethodDirect(CompilationUnit *cu, int r_tgt)
+void Mir2Lir::LoadCurrMethodDirect(int r_tgt)
 {
-  LoadValueDirectFixed(cu, cu->method_loc, r_tgt);
+  LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
 }
 
-RegLocation Codegen::LoadCurrMethod(CompilationUnit *cu)
+RegLocation Mir2Lir::LoadCurrMethod()
 {
-  return LoadValue(cu, cu->method_loc, kCoreReg);
+  return LoadValue(mir_graph_->GetMethodLoc(), kCoreReg);
 }
 
 }  // namespace art

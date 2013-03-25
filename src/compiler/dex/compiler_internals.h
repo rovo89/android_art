@@ -24,7 +24,7 @@
 
 #include "base/logging.h"
 #include "class_linker.h"
-#include "quick/codegen.h"
+#include "quick/mir_to_lir.h"
 #include "compiler/driver/compiler_driver.h"
 #include "mir_graph.h"
 #include "compiler_ir.h"

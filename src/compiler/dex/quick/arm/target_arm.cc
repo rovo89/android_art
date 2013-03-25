@@ -18,9 +18,7 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
-#include "compiler/dex/quick/codegen_util.h"
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/quick/ralloc_util.h"
 
 namespace art {
 
@@ -35,32 +33,32 @@ static int core_temps[] = {r0, r1, r2, r3, r12};
 static int fp_temps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                         fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15};
 
-RegLocation ArmCodegen::LocCReturn()
+RegLocation ArmMir2Lir::LocCReturn()
 {
   RegLocation res = ARM_LOC_C_RETURN;
   return res;
 }
 
-RegLocation ArmCodegen::LocCReturnWide()
+RegLocation ArmMir2Lir::LocCReturnWide()
 {
   RegLocation res = ARM_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation ArmCodegen::LocCReturnFloat()
+RegLocation ArmMir2Lir::LocCReturnFloat()
 {
   RegLocation res = ARM_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation ArmCodegen::LocCReturnDouble()
+RegLocation ArmMir2Lir::LocCReturnDouble()
 {
   RegLocation res = ARM_LOC_C_RETURN_DOUBLE;
   return res;
 }
 
 // Return a target-dependent special register.
-int ArmCodegen::TargetReg(SpecialTargetRegister reg) {
+int ArmMir2Lir::TargetReg(SpecialTargetRegister reg) {
   int res = INVALID_REG;
   switch (reg) {
     case kSelf: res = rARM_SELF; break;
@@ -86,19 +84,19 @@ int ArmCodegen::TargetReg(SpecialTargetRegister reg) {
 
 
 // Create a double from a pair of singles.
-int ArmCodegen::S2d(int low_reg, int high_reg)
+int ArmMir2Lir::S2d(int low_reg, int high_reg)
 {
   return ARM_S2D(low_reg, high_reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t ArmCodegen::FpRegMask()
+uint32_t ArmMir2Lir::FpRegMask()
 {
   return ARM_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool ArmCodegen::SameRegType(int reg1, int reg2)
+bool ArmMir2Lir::SameRegType(int reg1, int reg2)
 {
   return (ARM_REGTYPE(reg1) == ARM_REGTYPE(reg2));
 }
@@ -106,7 +104,7 @@ bool ArmCodegen::SameRegType(int reg1, int reg2)
 /*
  * Decode the register id.
  */
-uint64_t ArmCodegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
+uint64_t ArmMir2Lir::GetRegMaskCommon(int reg)
 {
   uint64_t seed;
   int shift;
@@ -123,17 +121,17 @@ uint64_t ArmCodegen::GetRegMaskCommon(CompilationUnit* cu, int reg)
   return (seed << shift);
 }
 
-uint64_t ArmCodegen::GetPCUseDefEncoding()
+uint64_t ArmMir2Lir::GetPCUseDefEncoding()
 {
   return ENCODE_ARM_REG_PC;
 }
 
-void ArmCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
+void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir)
 {
-  DCHECK_EQ(cu->instruction_set, kThumb2);
+  DCHECK_EQ(cu_->instruction_set, kThumb2);
 
   // Thumb2 specific setup
-  uint64_t flags = ArmCodegen::EncodingMap[lir->opcode].flags;
+  uint64_t flags = ArmMir2Lir::EncodingMap[lir->opcode].flags;
   int opcode = lir->opcode;
 
   if (flags & REG_DEF_SP) {
@@ -158,7 +156,7 @@ void ArmCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 
   if (flags & REG_DEF_FPCS_LIST2) {
     for (int i = 0; i < lir->operands[2]; i++) {
-      SetupRegMask(cu, &lir->def_mask, lir->operands[1] + i);
+      SetupRegMask(&lir->def_mask, lir->operands[1] + i);
     }
   }
 
@@ -185,12 +183,12 @@ void ArmCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
 
   if (flags & REG_USE_FPCS_LIST2) {
     for (int i = 0; i < lir->operands[2]; i++) {
-      SetupRegMask(cu, &lir->use_mask, lir->operands[1] + i);
+      SetupRegMask(&lir->use_mask, lir->operands[1] + i);
     }
   }
   /* Fixup for kThumbPush/lr and kThumbPop/pc */
   if (opcode == kThumbPush || opcode == kThumbPop) {
-    uint64_t r8Mask = GetRegMaskCommon(cu, r8);
+    uint64_t r8Mask = GetRegMaskCommon(r8);
     if ((opcode == kThumbPush) && (lir->use_mask & r8Mask)) {
       lir->use_mask &= ~r8Mask;
       lir->use_mask |= ENCODE_ARM_REG_LR;
@@ -204,7 +202,7 @@ void ArmCodegen::SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir)
   }
 }
 
-ArmConditionCode ArmCodegen::ArmConditionEncoding(ConditionCode ccode)
+ArmConditionCode ArmMir2Lir::ArmConditionEncoding(ConditionCode ccode)
 {
   ArmConditionCode res;
   switch (ccode) {
@@ -317,7 +315,7 @@ const char* cc_names[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string ArmCodegen::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
+std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
 {
   std::string buf;
   int i;
@@ -456,7 +454,7 @@ std::string ArmCodegen::BuildInsnString(const char* fmt, LIR* lir, unsigned char
   return buf;
 }
 
-void ArmCodegen::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
+void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
 {
   char buf[256];
   buf[0] = 0;
@@ -502,98 +500,98 @@ void ArmCodegen::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefi
   }
 }
 
-bool ArmCodegen::IsUnconditionalBranch(LIR* lir)
+bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir)
 {
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
-bool InitArmCodegen(CompilationUnit* cu)
-{
-  cu->cg.reset(new ArmCodegen());
+ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, mir_graph) {
+  // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
-    if (ArmCodegen::EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << ArmCodegen::EncodingMap[i].name
+    if (ArmMir2Lir::EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << ArmMir2Lir::EncodingMap[i].name
                  << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(ArmCodegen::EncodingMap[i].opcode);
+                 << static_cast<int>(ArmMir2Lir::EncodingMap[i].opcode);
     }
   }
-  return true;
+}
+
+Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph) {
+  return new ArmMir2Lir(cu, mir_graph);
 }
 
 /*
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int ArmCodegen::AllocTypedTempPair(CompilationUnit* cu, bool fp_hint, int reg_class)
+int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class)
 {
   int high_reg;
   int low_reg;
   int res = 0;
 
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg)) {
-    low_reg = AllocTempDouble(cu);
+    low_reg = AllocTempDouble();
     high_reg = low_reg + 1;
   } else {
-    low_reg = AllocTemp(cu);
-    high_reg = AllocTemp(cu);
+    low_reg = AllocTemp();
+    high_reg = AllocTemp();
   }
   res = (low_reg & 0xff) | ((high_reg & 0xff) << 8);
   return res;
 }
 
-int ArmCodegen::AllocTypedTemp(CompilationUnit* cu, bool fp_hint, int reg_class)
+int ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class)
 {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
-    return AllocTempFloat(cu);
-  return AllocTemp(cu);
+    return AllocTempFloat();
+  return AllocTemp();
 }
 
-void ArmCodegen::CompilerInitializeRegAlloc(CompilationUnit* cu)
+void ArmMir2Lir::CompilerInitializeRegAlloc()
 {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  RegisterPool *pool =
-      static_cast<RegisterPool*>(NewMem(cu, sizeof(*pool), true, kAllocRegAlloc));
-  cu->reg_pool = pool;
-  pool->num_core_regs = num_regs;
-  pool->core_regs = reinterpret_cast<RegisterInfo*>
-      (NewMem(cu, num_regs * sizeof(*cu->reg_pool->core_regs), true, kAllocRegAlloc));
-  pool->num_fp_regs = num_fp_regs;
-  pool->FPRegs = static_cast<RegisterInfo*>
-      (NewMem(cu, num_fp_regs * sizeof(*cu->reg_pool->FPRegs), true, kAllocRegAlloc));
-  CompilerInitPool(pool->core_regs, core_regs, pool->num_core_regs);
-  CompilerInitPool(pool->FPRegs, FpRegs, pool->num_fp_regs);
+  reg_pool_ = static_cast<RegisterPool*>(NewMem(cu_, sizeof(*reg_pool_), true, kAllocRegAlloc));
+  reg_pool_->num_core_regs = num_regs;
+  reg_pool_->core_regs = reinterpret_cast<RegisterInfo*>
+      (NewMem(cu_, num_regs * sizeof(*reg_pool_->core_regs), true, kAllocRegAlloc));
+  reg_pool_->num_fp_regs = num_fp_regs;
+  reg_pool_->FPRegs = static_cast<RegisterInfo*>
+      (NewMem(cu_, num_fp_regs * sizeof(*reg_pool_->FPRegs), true, kAllocRegAlloc));
+  CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
+  CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated
   for (int i = 0; i < num_reserved; i++) {
     if (NO_SUSPEND && (ReservedRegs[i] == rARM_SUSPEND)) {
       //To measure cost of suspend check
       continue;
     }
-    MarkInUse(cu, ReservedRegs[i]);
+    MarkInUse(ReservedRegs[i]);
   }
   // Mark temp regs - all others not in use can be used for promotion
   for (int i = 0; i < num_temps; i++) {
-    MarkTemp(cu, core_temps[i]);
+    MarkTemp(core_temps[i]);
   }
   for (int i = 0; i < num_fp_temps; i++) {
-    MarkTemp(cu, fp_temps[i]);
+    MarkTemp(fp_temps[i]);
   }
 
   // Start allocation at r2 in an attempt to avoid clobbering return values
-  pool->next_core_reg = r2;
+  reg_pool_->next_core_reg = r2;
 }
 
-void ArmCodegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
+void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep,
                      RegLocation rl_free)
 {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
     (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
-    FreeTemp(cu, rl_free.low_reg);
-    FreeTemp(cu, rl_free.high_reg);
+    FreeTemp(rl_free.low_reg);
+    FreeTemp(rl_free.high_reg);
   }
 }
 /*
@@ -602,10 +600,10 @@ void ArmCodegen::FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep,
  * machinery is in place, always spill lr.
  */
 
-void ArmCodegen::AdjustSpillMask(CompilationUnit* cu)
+void ArmMir2Lir::AdjustSpillMask()
 {
-  cu->core_spill_mask |= (1 << rARM_LR);
-  cu->num_core_spills++;
+  core_spill_mask_ |= (1 << rARM_LR);
+  num_core_spills_++;
 }
 
 /*
@@ -614,26 +612,26 @@ void ArmCodegen::AdjustSpillMask(CompilationUnit* cu)
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void ArmCodegen::MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg)
+void ArmMir2Lir::MarkPreservedSingle(int v_reg, int reg)
 {
   DCHECK_GE(reg, ARM_FP_REG_MASK + ARM_FP_CALLEE_SAVE_BASE);
   reg = (reg & ARM_FP_REG_MASK) - ARM_FP_CALLEE_SAVE_BASE;
   // Ensure fp_vmap_table is large enough
-  int table_size = cu->fp_vmap_table.size();
+  int table_size = fp_vmap_table_.size();
   for (int i = table_size; i < (reg + 1); i++) {
-    cu->fp_vmap_table.push_back(INVALID_VREG);
+    fp_vmap_table_.push_back(INVALID_VREG);
   }
   // Add the current mapping
-  cu->fp_vmap_table[reg] = v_reg;
+  fp_vmap_table_[reg] = v_reg;
   // Size of fp_vmap_table is high-water mark, use to set mask
-  cu->num_fp_spills = cu->fp_vmap_table.size();
-  cu->fp_spill_mask = ((1 << cu->num_fp_spills) - 1) << ARM_FP_CALLEE_SAVE_BASE;
+  num_fp_spills_ = fp_vmap_table_.size();
+  fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << ARM_FP_CALLEE_SAVE_BASE;
 }
 
-void ArmCodegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
+void ArmMir2Lir::FlushRegWide(int reg1, int reg2)
 {
-  RegisterInfo* info1 = GetRegInfo(cu, reg1);
-  RegisterInfo* info2 = GetRegInfo(cu, reg2);
+  RegisterInfo* info1 = GetRegInfo(reg1);
+  RegisterInfo* info2 = GetRegInfo(reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
        (info1->partner == info2->reg) &&
        (info2->partner == info1->reg));
@@ -645,121 +643,121 @@ void ArmCodegen::FlushRegWide(CompilationUnit* cu, int reg1, int reg2)
 
     info1->dirty = false;
     info2->dirty = false;
-    if (cu->mir_graph->SRegToVReg(info2->s_reg) <
-      cu->mir_graph->SRegToVReg(info1->s_reg))
+    if (mir_graph_->SRegToVReg(info2->s_reg) <
+      mir_graph_->SRegToVReg(info1->s_reg))
       info1 = info2;
-    int v_reg = cu->mir_graph->SRegToVReg(info1->s_reg);
-    StoreBaseDispWide(cu, rARM_SP, VRegOffset(cu, v_reg), info1->reg, info1->partner);
+    int v_reg = mir_graph_->SRegToVReg(info1->s_reg);
+    StoreBaseDispWide(rARM_SP, VRegOffset(v_reg), info1->reg, info1->partner);
   }
 }
 
-void ArmCodegen::FlushReg(CompilationUnit* cu, int reg)
+void ArmMir2Lir::FlushReg(int reg)
 {
-  RegisterInfo* info = GetRegInfo(cu, reg);
+  RegisterInfo* info = GetRegInfo(reg);
   if (info->live && info->dirty) {
     info->dirty = false;
-    int v_reg = cu->mir_graph->SRegToVReg(info->s_reg);
-    StoreBaseDisp(cu, rARM_SP, VRegOffset(cu, v_reg), reg, kWord);
+    int v_reg = mir_graph_->SRegToVReg(info->s_reg);
+    StoreBaseDisp(rARM_SP, VRegOffset(v_reg), reg, kWord);
   }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
-bool ArmCodegen::IsFpReg(int reg) {
+bool ArmMir2Lir::IsFpReg(int reg) {
   return ARM_FPREG(reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ArmCodegen::ClobberCalleeSave(CompilationUnit *cu)
+void ArmMir2Lir::ClobberCalleeSave()
 {
-  Clobber(cu, r0);
-  Clobber(cu, r1);
-  Clobber(cu, r2);
-  Clobber(cu, r3);
-  Clobber(cu, r12);
-  Clobber(cu, r14lr);
-  Clobber(cu, fr0);
-  Clobber(cu, fr1);
-  Clobber(cu, fr2);
-  Clobber(cu, fr3);
-  Clobber(cu, fr4);
-  Clobber(cu, fr5);
-  Clobber(cu, fr6);
-  Clobber(cu, fr7);
-  Clobber(cu, fr8);
-  Clobber(cu, fr9);
-  Clobber(cu, fr10);
-  Clobber(cu, fr11);
-  Clobber(cu, fr12);
-  Clobber(cu, fr13);
-  Clobber(cu, fr14);
-  Clobber(cu, fr15);
+  Clobber(r0);
+  Clobber(r1);
+  Clobber(r2);
+  Clobber(r3);
+  Clobber(r12);
+  Clobber(r14lr);
+  Clobber(fr0);
+  Clobber(fr1);
+  Clobber(fr2);
+  Clobber(fr3);
+  Clobber(fr4);
+  Clobber(fr5);
+  Clobber(fr6);
+  Clobber(fr7);
+  Clobber(fr8);
+  Clobber(fr9);
+  Clobber(fr10);
+  Clobber(fr11);
+  Clobber(fr12);
+  Clobber(fr13);
+  Clobber(fr14);
+  Clobber(fr15);
 }
 
-RegLocation ArmCodegen::GetReturnWideAlt(CompilationUnit* cu)
+RegLocation ArmMir2Lir::GetReturnWideAlt()
 {
   RegLocation res = LocCReturnWide();
   res.low_reg = r2;
   res.high_reg = r3;
-  Clobber(cu, r2);
-  Clobber(cu, r3);
-  MarkInUse(cu, r2);
-  MarkInUse(cu, r3);
-  MarkPair(cu, res.low_reg, res.high_reg);
+  Clobber(r2);
+  Clobber(r3);
+  MarkInUse(r2);
+  MarkInUse(r3);
+  MarkPair(res.low_reg, res.high_reg);
   return res;
 }
 
-RegLocation ArmCodegen::GetReturnAlt(CompilationUnit* cu)
+RegLocation ArmMir2Lir::GetReturnAlt()
 {
   RegLocation res = LocCReturn();
   res.low_reg = r1;
-  Clobber(cu, r1);
-  MarkInUse(cu, r1);
+  Clobber(r1);
+  MarkInUse(r1);
   return res;
 }
 
-RegisterInfo* ArmCodegen::GetRegInfo(CompilationUnit* cu, int reg)
+ArmMir2Lir::RegisterInfo* ArmMir2Lir::GetRegInfo(int reg)
 {
-  return ARM_FPREG(reg) ? &cu->reg_pool->FPRegs[reg & ARM_FP_REG_MASK]
-      : &cu->reg_pool->core_regs[reg];
+  return ARM_FPREG(reg) ? &reg_pool_->FPRegs[reg & ARM_FP_REG_MASK]
+      : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void ArmCodegen::LockCallTemps(CompilationUnit* cu)
+void ArmMir2Lir::LockCallTemps()
 {
-  LockTemp(cu, r0);
-  LockTemp(cu, r1);
-  LockTemp(cu, r2);
-  LockTemp(cu, r3);
+  LockTemp(r0);
+  LockTemp(r1);
+  LockTemp(r2);
+  LockTemp(r3);
 }
 
 /* To be used when explicitly managing register use */
-void ArmCodegen::FreeCallTemps(CompilationUnit* cu)
+void ArmMir2Lir::FreeCallTemps()
 {
-  FreeTemp(cu, r0);
-  FreeTemp(cu, r1);
-  FreeTemp(cu, r2);
-  FreeTemp(cu, r3);
+  FreeTemp(r0);
+  FreeTemp(r1);
+  FreeTemp(r2);
+  FreeTemp(r3);
 }
 
-int ArmCodegen::LoadHelper(CompilationUnit* cu, int offset)
+int ArmMir2Lir::LoadHelper(int offset)
 {
-  LoadWordDisp(cu, rARM_SELF, offset, rARM_LR);
+  LoadWordDisp(rARM_SELF, offset, rARM_LR);
   return rARM_LR;
 }
 
-uint64_t ArmCodegen::GetTargetInstFlags(int opcode)
+uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode)
 {
-  return ArmCodegen::EncodingMap[opcode].flags;
+  return ArmMir2Lir::EncodingMap[opcode].flags;
 }
 
-const char* ArmCodegen::GetTargetInstName(int opcode)
+const char* ArmMir2Lir::GetTargetInstName(int opcode)
 {
-  return ArmCodegen::EncodingMap[opcode].name;
+  return ArmMir2Lir::EncodingMap[opcode].name;
 }
 
-const char* ArmCodegen::GetTargetInstFmt(int opcode)
+const char* ArmMir2Lir::GetTargetInstFmt(int opcode)
 {
-  return ArmCodegen::EncodingMap[opcode].fmt;
+  return ArmMir2Lir::EncodingMap[opcode].fmt;
 }
 
 }  // namespace art

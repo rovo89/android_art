@@ -50,6 +50,7 @@ enum opt_control_vector {
   kBBOpt,
   kMatch,
   kPromoteCompilerTemps,
+  kBranchFusing,
 };
 
 // Force code generation paths for testing.
@@ -72,14 +73,6 @@ enum debugControlVector {
   kDebugDumpBitcodeFile,
   kDebugVerifyBitcode,
 };
-
-enum OatMethodAttributes {
-  kIsLeaf,            // Method is leaf.
-  kHasLoop,           // Method contains simple loop.
-};
-
-#define METHOD_IS_LEAF          (1 << kIsLeaf)
-#define METHOD_HAS_LOOP         (1 << kHasLoop)
 
 class LLVMInfo {
   public:

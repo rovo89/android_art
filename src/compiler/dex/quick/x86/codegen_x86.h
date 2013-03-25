@@ -22,64 +22,60 @@
 
 namespace art {
 
-class X86Codegen : public Codegen {
+class X86Mir2Lir : public Mir2Lir {
   public:
+
+    X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph);
+
     // Required for target - codegen helpers.
-    virtual bool SmallLiteralDivide(CompilationUnit* cu, Instruction::Code dalvik_opcode,
-                                    RegLocation rl_src, RegLocation rl_dest, int lit);
-    virtual int LoadHelper(CompilationUnit* cu, int offset);
-    virtual LIR* LoadBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_dest,
-                              OpSize size, int s_reg);
-    virtual LIR* LoadBaseDispWide(CompilationUnit* cu, int rBase, int displacement, int r_dest_lo,
-                                  int r_dest_hi, int s_reg);
-    virtual LIR* LoadBaseIndexed(CompilationUnit* cu, int rBase, int r_index, int r_dest, int scale,
-                                 OpSize size);
-    virtual LIR* LoadBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
-                                     int displacement, int r_dest, int r_dest_hi, OpSize size,
-                                     int s_reg);
-    virtual LIR* LoadConstantNoClobber(CompilationUnit* cu, int r_dest, int value);
-    virtual LIR* LoadConstantWide(CompilationUnit* cu, int r_dest_lo, int r_dest_hi, int64_t value);
-    virtual LIR* StoreBaseDisp(CompilationUnit* cu, int rBase, int displacement, int r_src,
-                               OpSize size);
-    virtual LIR* StoreBaseDispWide(CompilationUnit* cu, int rBase, int displacement, int r_src_lo,
-                                   int r_src_hi);
-    virtual LIR* StoreBaseIndexed(CompilationUnit* cu, int rBase, int r_index, int r_src, int scale,
-                                 OpSize size);
-    virtual LIR* StoreBaseIndexedDisp(CompilationUnit *cu, int rBase, int r_index, int scale,
-                                      int displacement, int r_src, int r_src_hi, OpSize size,
-                                      int s_reg);
-    virtual void MarkGCCard(CompilationUnit* cu, int val_reg, int tgt_addr_reg);
+    virtual bool SmallLiteralDivide(Instruction::Code dalvik_opcode, RegLocation rl_src,
+                                    RegLocation rl_dest, int lit);
+    virtual int LoadHelper(int offset);
+    virtual LIR* LoadBaseDisp(int rBase, int displacement, int r_dest, OpSize size, int s_reg);
+    virtual LIR* LoadBaseDispWide(int rBase, int displacement, int r_dest_lo, int r_dest_hi,
+                                  int s_reg);
+    virtual LIR* LoadBaseIndexed(int rBase, int r_index, int r_dest, int scale, OpSize size);
+    virtual LIR* LoadBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
+                                     int r_dest, int r_dest_hi, OpSize size, int s_reg);
+    virtual LIR* LoadConstantNoClobber(int r_dest, int value);
+    virtual LIR* LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value);
+    virtual LIR* StoreBaseDisp(int rBase, int displacement, int r_src, OpSize size);
+    virtual LIR* StoreBaseDispWide(int rBase, int displacement, int r_src_lo, int r_src_hi);
+    virtual LIR* StoreBaseIndexed(int rBase, int r_index, int r_src, int scale, OpSize size);
+    virtual LIR* StoreBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
+                                      int r_src, int r_src_hi, OpSize size, int s_reg);
+    virtual void MarkGCCard(int val_reg, int tgt_addr_reg);
 
     // Required for target - register utilities.
     virtual bool IsFpReg(int reg);
     virtual bool SameRegType(int reg1, int reg2);
-    virtual int AllocTypedTemp(CompilationUnit* cu, bool fp_hint, int reg_class);
-    virtual int AllocTypedTempPair(CompilationUnit* cu, bool fp_hint, int reg_class);
+    virtual int AllocTypedTemp(bool fp_hint, int reg_class);
+    virtual int AllocTypedTempPair(bool fp_hint, int reg_class);
     virtual int S2d(int low_reg, int high_reg);
     virtual int TargetReg(SpecialTargetRegister reg);
-    virtual RegisterInfo* GetRegInfo(CompilationUnit* cu, int reg);
-    virtual RegLocation GetReturnAlt(CompilationUnit* cu);
-    virtual RegLocation GetReturnWideAlt(CompilationUnit* cu);
+    virtual RegisterInfo* GetRegInfo(int reg);
+    virtual RegLocation GetReturnAlt();
+    virtual RegLocation GetReturnWideAlt();
     virtual RegLocation LocCReturn();
     virtual RegLocation LocCReturnDouble();
     virtual RegLocation LocCReturnFloat();
     virtual RegLocation LocCReturnWide();
     virtual uint32_t FpRegMask();
-    virtual uint64_t GetRegMaskCommon(CompilationUnit* cu, int reg);
-    virtual void AdjustSpillMask(CompilationUnit* cu);
-    virtual void ClobberCalleeSave(CompilationUnit *cu);
-    virtual void FlushReg(CompilationUnit* cu, int reg);
-    virtual void FlushRegWide(CompilationUnit* cu, int reg1, int reg2);
-    virtual void FreeCallTemps(CompilationUnit* cu);
-    virtual void FreeRegLocTemps(CompilationUnit* cu, RegLocation rl_keep, RegLocation rl_free);
-    virtual void LockCallTemps(CompilationUnit* cu);
-    virtual void MarkPreservedSingle(CompilationUnit* cu, int v_reg, int reg);
-    virtual void CompilerInitializeRegAlloc(CompilationUnit* cu);
+    virtual uint64_t GetRegMaskCommon(int reg);
+    virtual void AdjustSpillMask();
+    virtual void ClobberCalleeSave();
+    virtual void FlushReg(int reg);
+    virtual void FlushRegWide(int reg1, int reg2);
+    virtual void FreeCallTemps();
+    virtual void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
+    virtual void LockCallTemps();
+    virtual void MarkPreservedSingle(int v_reg, int reg);
+    virtual void CompilerInitializeRegAlloc();
 
     // Required for target - miscellaneous.
-    virtual AssemblerStatus AssembleInstructions(CompilationUnit* cu, uintptr_t start_addr);
+    virtual AssemblerStatus AssembleInstructions(uintptr_t start_addr);
     virtual void DumpResourceMask(LIR* lir, uint64_t mask, const char* prefix);
-    virtual void SetupTargetResourceMasks(CompilationUnit* cu, LIR* lir);
+    virtual void SetupTargetResourceMasks(LIR* lir);
     virtual const char* GetTargetInstFmt(int opcode);
     virtual const char* GetTargetInstName(int opcode);
     virtual std::string BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr);
@@ -89,115 +85,119 @@ class X86Codegen : public Codegen {
     virtual bool IsUnconditionalBranch(LIR* lir);
 
     // Required for target - Dalvik-level generators.
-    virtual void GenArithImmOpLong(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                    RegLocation rl_src1, RegLocation rl_src2);
-    virtual void GenArrayObjPut(CompilationUnit* cu, int opt_flags, RegLocation rl_array,
+    virtual void GenArrayObjPut(int opt_flags, RegLocation rl_array,
                                 RegLocation rl_index, RegLocation rl_src, int scale);
-    virtual void GenArrayGet(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+    virtual void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale);
-    virtual void GenArrayPut(CompilationUnit* cu, int opt_flags, OpSize size, RegLocation rl_array,
+    virtual void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale);
-    virtual void GenShiftImmOpLong(CompilationUnit* cu, Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_shift);
-    virtual void GenMulLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual void GenAddLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual void GenAndLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual void GenArithOpDouble(CompilationUnit* cu, Instruction::Code opcode,
-                                  RegLocation rl_dest, RegLocation rl_src1,
-                                  RegLocation rl_src2);
-    virtual void GenArithOpFloat(CompilationUnit *cu, Instruction::Code opcode, RegLocation rl_dest,
+    virtual void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                   RegLocation rl_src1, RegLocation rl_shift);
+    virtual void GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenAddLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenAndLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest,
+                                  RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
                                  RegLocation rl_src1, RegLocation rl_src2);
-    virtual void GenCmpFP(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                          RegLocation rl_src1, RegLocation rl_src2);
-    virtual void GenConversion(CompilationUnit* cu, Instruction::Code opcode, RegLocation rl_dest,
-                               RegLocation rl_src);
-    virtual bool GenInlinedCas32(CompilationUnit* cu, CallInfo* info, bool need_write_barrier);
-    virtual bool GenInlinedMinMaxInt(CompilationUnit *cu, CallInfo* info, bool is_min);
-    virtual bool GenInlinedSqrt(CompilationUnit* cu, CallInfo* info);
-    virtual void GenNegLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
-    virtual void GenOrLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2);
-    virtual void GenSubLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual void GenXorLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual LIR* GenRegMemCheck(CompilationUnit* cu, ConditionCode c_code, int reg1, int base,
-                                int offset, ThrowKind kind);
-    virtual RegLocation GenDivRem(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int reg_hi,
-                                  bool is_div);
-    virtual RegLocation GenDivRemLit(CompilationUnit* cu, RegLocation rl_dest, int reg_lo, int lit,
-                                     bool is_div);
-    virtual void GenCmpLong(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2);
-    virtual void GenDivZeroCheck(CompilationUnit* cu, int reg_lo, int reg_hi);
-    virtual void GenEntrySequence(CompilationUnit* cu, RegLocation* ArgLocs,
-                                  RegLocation rl_method);
-    virtual void GenExitSequence(CompilationUnit* cu);
-    virtual void GenFillArrayData(CompilationUnit* cu, uint32_t table_offset,
-                                  RegLocation rl_src);
-    virtual void GenFusedFPCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir, bool gt_bias,
-                                     bool is_double);
-    virtual void GenFusedLongCmpBranch(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
-    virtual void GenSelect(CompilationUnit* cu, BasicBlock* bb, MIR* mir);
-    virtual void GenMemBarrier(CompilationUnit* cu, MemBarrierKind barrier_kind);
-    virtual void GenMonitorEnter(CompilationUnit* cu, int opt_flags, RegLocation rl_src);
-    virtual void GenMonitorExit(CompilationUnit* cu, int opt_flags, RegLocation rl_src);
-    virtual void GenMoveException(CompilationUnit* cu, RegLocation rl_dest);
-    virtual void GenMultiplyByTwoBitMultiplier(CompilationUnit* cu, RegLocation rl_src,
-                                               RegLocation rl_result, int lit, int first_bit,
-                                               int second_bit);
-    virtual void GenNegDouble(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
-    virtual void GenNegFloat(CompilationUnit* cu, RegLocation rl_dest, RegLocation rl_src);
-    virtual void GenPackedSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src);
-    virtual void GenSparseSwitch(CompilationUnit* cu, MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src);
-    virtual void GenSpecialCase(CompilationUnit* cu, BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case);
+    virtual void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                          RegLocation rl_src2);
+    virtual void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
+    virtual bool GenInlinedCas32(CallInfo* info, bool need_write_barrier);
+    virtual bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
+    virtual bool GenInlinedSqrt(CallInfo* info);
+    virtual void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenOrLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenXorLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual LIR* GenRegMemCheck(ConditionCode c_code, int reg1, int base, int offset,
+                                ThrowKind kind);
+    virtual RegLocation GenDivRem(RegLocation rl_dest, int reg_lo, int reg_hi, bool is_div);
+    virtual RegLocation GenDivRemLit(RegLocation rl_dest, int reg_lo, int lit, bool is_div);
+    virtual void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2);
+    virtual void GenDivZeroCheck(int reg_lo, int reg_hi);
+    virtual void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
+    virtual void GenExitSequence();
+    virtual void GenFillArrayData(uint32_t table_offset, RegLocation rl_src);
+    virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
+    virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
+    virtual void GenSelect(BasicBlock* bb, MIR* mir);
+    virtual void GenMemBarrier(MemBarrierKind barrier_kind);
+    virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src);
+    virtual void GenMonitorExit(int opt_flags, RegLocation rl_src);
+    virtual void GenMoveException(RegLocation rl_dest);
+    virtual void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result,
+                                               int lit, int first_bit, int second_bit);
+    virtual void GenNegDouble(RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
+    virtual void GenPackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
+    virtual void GenSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src);
+    virtual void GenSpecialCase(BasicBlock* bb, MIR* mir, SpecialCaseHandler special_case);
 
     // Single operation generators.
-    virtual LIR* OpUnconditionalBranch(CompilationUnit* cu, LIR* target);
-    virtual LIR* OpCmpBranch(CompilationUnit* cu, ConditionCode cond, int src1, int src2,
-                             LIR* target);
-    virtual LIR* OpCmpImmBranch(CompilationUnit* cu, ConditionCode cond, int reg, int check_value,
-                                LIR* target);
-    virtual LIR* OpCondBranch(CompilationUnit* cu, ConditionCode cc, LIR* target);
-    virtual LIR* OpDecAndBranch(CompilationUnit* cu, ConditionCode c_code, int reg,
-                                LIR* target);
-    virtual LIR* OpFpRegCopy(CompilationUnit* cu, int r_dest, int r_src);
-    virtual LIR* OpIT(CompilationUnit* cu, ConditionCode cond, const char* guide);
-    virtual LIR* OpMem(CompilationUnit* cu, OpKind op, int rBase, int disp);
-    virtual LIR* OpPcRelLoad(CompilationUnit* cu, int reg, LIR* target);
-    virtual LIR* OpReg(CompilationUnit* cu, OpKind op, int r_dest_src);
-    virtual LIR* OpRegCopy(CompilationUnit* cu, int r_dest, int r_src);
-    virtual LIR* OpRegCopyNoInsert(CompilationUnit* cu, int r_dest, int r_src);
-    virtual LIR* OpRegImm(CompilationUnit* cu, OpKind op, int r_dest_src1, int value);
-    virtual LIR* OpRegMem(CompilationUnit* cu, OpKind op, int r_dest, int rBase, int offset);
-    virtual LIR* OpRegReg(CompilationUnit* cu, OpKind op, int r_dest_src1, int r_src2);
-    virtual LIR* OpRegRegImm(CompilationUnit* cu, OpKind op, int r_dest, int r_src1, int value);
-    virtual LIR* OpRegRegReg(CompilationUnit* cu, OpKind op, int r_dest, int r_src1,
-                             int r_src2);
-    virtual LIR* OpTestSuspend(CompilationUnit* cu, LIR* target);
-    virtual LIR* OpThreadMem(CompilationUnit* cu, OpKind op, int thread_offset);
-    virtual LIR* OpVldm(CompilationUnit* cu, int rBase, int count);
-    virtual LIR* OpVstm(CompilationUnit* cu, int rBase, int count);
-    virtual void OpLea(CompilationUnit* cu, int rBase, int reg1, int reg2, int scale,
-                       int offset);
-    virtual void OpRegCopyWide(CompilationUnit* cu, int dest_lo, int dest_hi, int src_lo,
-                               int src_hi);
-    virtual void OpTlsCmp(CompilationUnit* cu, int offset, int val);
+    virtual LIR* OpUnconditionalBranch(LIR* target);
+    virtual LIR* OpCmpBranch(ConditionCode cond, int src1, int src2, LIR* target);
+    virtual LIR* OpCmpImmBranch(ConditionCode cond, int reg, int check_value, LIR* target);
+    virtual LIR* OpCondBranch(ConditionCode cc, LIR* target);
+    virtual LIR* OpDecAndBranch(ConditionCode c_code, int reg, LIR* target);
+    virtual LIR* OpFpRegCopy(int r_dest, int r_src);
+    virtual LIR* OpIT(ConditionCode cond, const char* guide);
+    virtual LIR* OpMem(OpKind op, int rBase, int disp);
+    virtual LIR* OpPcRelLoad(int reg, LIR* target);
+    virtual LIR* OpReg(OpKind op, int r_dest_src);
+    virtual LIR* OpRegCopy(int r_dest, int r_src);
+    virtual LIR* OpRegCopyNoInsert(int r_dest, int r_src);
+    virtual LIR* OpRegImm(OpKind op, int r_dest_src1, int value);
+    virtual LIR* OpRegMem(OpKind op, int r_dest, int rBase, int offset);
+    virtual LIR* OpRegReg(OpKind op, int r_dest_src1, int r_src2);
+    virtual LIR* OpRegRegImm(OpKind op, int r_dest, int r_src1, int value);
+    virtual LIR* OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2);
+    virtual LIR* OpTestSuspend(LIR* target);
+    virtual LIR* OpThreadMem(OpKind op, int thread_offset);
+    virtual LIR* OpVldm(int rBase, int count);
+    virtual LIR* OpVstm(int rBase, int count);
+    virtual void OpLea(int rBase, int reg1, int reg2, int scale, int offset);
+    virtual void OpRegCopyWide(int dest_lo, int dest_hi, int src_lo, int src_hi);
+    virtual void OpTlsCmp(int offset, int val);
 
-    void OpRegThreadMem(CompilationUnit* cu, OpKind op, int r_dest, int thread_offset);
-    void SpillCoreRegs(CompilationUnit* cu);
-    void UnSpillCoreRegs(CompilationUnit* cu);
+    void OpRegThreadMem(OpKind op, int r_dest, int thread_offset);
+    void SpillCoreRegs();
+    void UnSpillCoreRegs();
     static const X86EncodingMap EncodingMap[kX86Last];
     bool InexpensiveConstantInt(int32_t value);
     bool InexpensiveConstantFloat(int32_t value);
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
+
+  private:
+    void EmitDisp(int base, int disp);
+    void EmitOpReg(const X86EncodingMap* entry, uint8_t reg);
+    void EmitOpMem(const X86EncodingMap* entry, uint8_t base, int disp);
+    void EmitMemReg(const X86EncodingMap* entry, uint8_t base, int disp, uint8_t reg);
+    void EmitRegMem(const X86EncodingMap* entry, uint8_t reg, uint8_t base, int disp);
+    void EmitRegArray(const X86EncodingMap* entry, uint8_t reg, uint8_t base, uint8_t index,
+                      int scale, int disp);
+    void EmitArrayReg(const X86EncodingMap* entry, uint8_t base, uint8_t index, int scale, int disp,
+                      uint8_t reg);
+    void EmitRegThread(const X86EncodingMap* entry, uint8_t reg, int disp);
+    void EmitRegReg(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2);
+    void EmitRegRegImm(const X86EncodingMap* entry, uint8_t reg1, uint8_t reg2, int32_t imm);
+    void EmitRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
+    void EmitThreadImm(const X86EncodingMap* entry, int disp, int imm);
+    void EmitMovRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
+    void EmitShiftRegImm(const X86EncodingMap* entry, uint8_t reg, int imm);
+    void EmitShiftRegCl(const X86EncodingMap* entry, uint8_t reg, uint8_t cl);
+    void EmitRegCond(const X86EncodingMap* entry, uint8_t reg, uint8_t condition);
+    void EmitJmp(const X86EncodingMap* entry, int rel);
+    void EmitJcc(const X86EncodingMap* entry, int rel, uint8_t cc);
+    void EmitCallMem(const X86EncodingMap* entry, uint8_t base, int disp);
+    void EmitCallThread(const X86EncodingMap* entry, int disp);
+    void EmitPcRel(const X86EncodingMap* entry, uint8_t reg, int base_or_table, uint8_t index,
+                   int scale, int table_or_disp);
+    void EmitMacro(const X86EncodingMap* entry, uint8_t reg, int offset);
+    void EmitUnimplemented(const X86EncodingMap* entry, LIR* lir);
 };
 
 }  // namespace art

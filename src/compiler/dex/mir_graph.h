@@ -114,7 +114,191 @@ enum DataFlowAttributePos {
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
 
-extern const int oat_data_flow_attributes[kMirOpLast];
+enum OatMethodAttributes {
+  kIsLeaf,            // Method is leaf.
+  kHasLoop,           // Method contains simple loop.
+};
+
+#define METHOD_IS_LEAF          (1 << kIsLeaf)
+#define METHOD_HAS_LOOP         (1 << kHasLoop)
+
+// Minimum field size to contain Dalvik v_reg number.
+#define VREG_NUM_WIDTH 16
+
+#define INVALID_SREG (-1)
+#define INVALID_VREG (0xFFFFU)
+#define INVALID_REG (0xFF)
+#define INVALID_OFFSET (0xDEADF00FU)
+
+/* SSA encodings for special registers */
+#define SSA_METHOD_BASEREG (-2)
+/* First compiler temp basereg, grows smaller */
+#define SSA_CTEMP_BASEREG (SSA_METHOD_BASEREG - 1)
+
+#define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
+#define MIR_NULL_CHECK_ONLY             (1 << kMIRNullCheckOnly)
+#define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
+#define MIR_RANGE_CHECK_ONLY            (1 << kMIRRangeCheckOnly)
+#define MIR_INLINED                     (1 << kMIRInlined)
+#define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
+#define MIR_CALLEE                      (1 << kMIRCallee)
+#define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
+#define MIR_DUP                         (1 << kMIRDup)
+
+/*
+ * In general, vreg/sreg describe Dalvik registers that originated with dx.  However,
+ * it is useful to have compiler-generated temporary registers and have them treated
+ * in the same manner as dx-generated virtual registers.  This struct records the SSA
+ * name of compiler-introduced temporaries.
+ */
+struct CompilerTemp {
+  int s_reg;
+};
+
+// When debug option enabled, records effectiveness of null and range check elimination.
+struct Checkstats {
+  int null_checks;
+  int null_checks_eliminated;
+  int range_checks;
+  int range_checks_eliminated;
+};
+
+// Dataflow attributes of a basic block.
+struct BasicBlockDataFlow {
+  ArenaBitVector* use_v;
+  ArenaBitVector* def_v;
+  ArenaBitVector* live_in_v;
+  ArenaBitVector* phi_v;
+  int* vreg_to_ssa_map;
+  ArenaBitVector* ending_null_check_v;
+};
+
+/*
+ * Normalized use/def for a MIR operation using SSA names rather than vregs.  Note that
+ * uses/defs retain the Dalvik convention that long operations operate on a pair of 32-bit
+ * vregs.  For example, "ADD_LONG v0, v2, v3" would have 2 defs (v0/v1) and 4 uses (v2/v3, v4/v5).
+ * Following SSA renaming, this is the primary struct used by code generators to locate
+ * operand and result registers.  This is a somewhat confusing and unhelpful convention that
+ * we may want to revisit in the future.
+ */
+struct SSARepresentation {
+  int num_uses;
+  int* uses;
+  bool* fp_use;
+  int num_defs;
+  int* defs;
+  bool* fp_def;
+};
+
+/*
+ * The Midlevel Intermediate Representation node, which may be largely considered a
+ * wrapper around a Dalvik byte code.
+ */
+struct MIR {
+  DecodedInstruction dalvikInsn;
+  unsigned int width;
+  unsigned int offset;
+  int m_unit_index;               // From which method was this MIR included
+  MIR* prev;
+  MIR* next;
+  SSARepresentation* ssa_rep;
+  int optimization_flags;
+  union {
+    // Establish link between two halves of throwing instructions.
+    MIR* throw_insn;
+    // Saved opcode for NOP'd MIRs
+    Instruction::Code original_opcode;
+  } meta;
+};
+
+struct BasicBlock {
+  int id;
+  int dfs_id;
+  bool visited;
+  bool hidden;
+  bool catch_entry;
+  bool explicit_throw;
+  bool conditional_branch;
+  bool terminated_by_return;        // Block ends with a Dalvik return opcode.
+  bool dominates_return;            // Is a member of return extended basic block.
+  uint16_t start_offset;
+  uint16_t nesting_depth;
+  BBType block_type;
+  MIR* first_mir_insn;
+  MIR* last_mir_insn;
+  BasicBlock* fall_through;
+  BasicBlock* taken;
+  BasicBlock* i_dom;                // Immediate dominator.
+  BasicBlockDataFlow* data_flow_info;
+  GrowableList* predecessors;
+  ArenaBitVector* dominators;
+  ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
+  ArenaBitVector* dom_frontier;     // Dominance frontier.
+  struct {                          // For one-to-many successors like.
+    BlockListType block_list_type;  // switch and exception handling.
+    GrowableList blocks;
+  } successor_block_list;
+};
+
+/*
+ * The "blocks" field in "successor_block_list" points to an array of elements with the type
+ * "SuccessorBlockInfo".  For catch blocks, key is type index for the exception.  For swtich
+ * blocks, key is the case value.
+ */
+struct SuccessorBlockInfo {
+  BasicBlock* block;
+  int key;
+};
+
+/*
+ * Whereas a SSA name describes a definition of a Dalvik vreg, the RegLocation describes
+ * the type of an SSA name (and, can also be used by code generators to record where the
+ * value is located (i.e. - physical register, frame, spill, etc.).  For each SSA name (SReg)
+ * there is a RegLocation.
+ * FIXME: The orig_sreg field was added as a workaround for llvm bitcode generation.  With
+ * the latest restructuring, we should be able to remove it and rely on s_reg_low throughout.
+ */
+struct RegLocation {
+  RegLocationType location:3;
+  unsigned wide:1;
+  unsigned defined:1;   // Do we know the type?
+  unsigned is_const:1;  // Constant, value in mir_graph->constant_values[].
+  unsigned fp:1;        // Floating point?
+  unsigned core:1;      // Non-floating point?
+  unsigned ref:1;       // Something GC cares about.
+  unsigned high_word:1; // High word of pair?
+  unsigned home:1;      // Does this represent the home location?
+  uint8_t low_reg;      // First physical register.
+  uint8_t high_reg;     // 2nd physical register (if wide).
+  int32_t s_reg_low;    // SSA name for low Dalvik word.
+  int32_t orig_sreg;    // TODO: remove after Bitcode gen complete
+                        // and consolodate usage w/ s_reg_low.
+};
+
+/*
+ * Collection of information describing an invoke, and the destination of
+ * the subsequent MOVE_RESULT (if applicable).  Collected as a unit to enable
+ * more efficient invoke code generation.
+ */
+struct CallInfo {
+  int num_arg_words;    // Note: word count, not arg count.
+  RegLocation* args;    // One for each word of arguments.
+  RegLocation result;   // Eventual target of MOVE_RESULT.
+  int opt_flags;
+  InvokeType type;
+  uint32_t dex_idx;
+  uint32_t index;       // Method idx for invokes, type idx for FilledNewArray.
+  uintptr_t direct_code;
+  uintptr_t direct_method;
+  RegLocation target;    // Target of following move_result.
+  bool skip_this;
+  bool is_range;
+  int offset;            // Dalvik offset.
+};
+
+
+const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
+                             INVALID_REG, INVALID_REG, INVALID_SREG, INVALID_SREG};
 
 class MIRGraph {
  public:
@@ -213,8 +397,6 @@ class MIRGraph {
 
   void DumpRegLocTable(RegLocation* table, int count);
 
-  int ComputeFrameSize();
-
   void BasicBlockOptimization();
 
   bool IsConst(int32_t s_reg) const {
@@ -273,6 +455,69 @@ class MIRGraph {
     return GET_ELEM_N(ssa_strings_, char*, ssa_reg);
   }
 
+  RegLocation GetRawSrc(MIR* mir, int num)
+  {
+    DCHECK(num < mir->ssa_rep->num_uses);
+    RegLocation res = reg_location_[mir->ssa_rep->uses[num]];
+    return res;
+  }
+
+  RegLocation GetRawDest(MIR* mir)
+  {
+    DCHECK_GT(mir->ssa_rep->num_defs, 0);
+    RegLocation res = reg_location_[mir->ssa_rep->defs[0]];
+    return res;
+  }
+
+  RegLocation GetDest(MIR* mir)
+  {
+    RegLocation res = GetRawDest(mir);
+    DCHECK(!res.wide);
+    return res;
+  }
+
+  RegLocation GetSrc(MIR* mir, int num)
+  {
+    RegLocation res = GetRawSrc(mir, num);
+    DCHECK(!res.wide);
+    return res;
+  }
+
+  RegLocation GetDestWide(MIR* mir)
+  {
+    RegLocation res = GetRawDest(mir);
+    DCHECK(res.wide);
+    return res;
+  }
+
+  RegLocation GetSrcWide(MIR* mir, int low)
+  {
+    RegLocation res = GetRawSrc(mir, low);
+    DCHECK(res.wide);
+    return res;
+  }
+
+  RegLocation GetBadLoc() {
+    return bad_loc;
+  }
+
+  int GetMethodSReg() {
+    return method_sreg_;
+  }
+
+  bool MethodIsLeaf() {
+    return attributes_ & METHOD_IS_LEAF;
+  }
+
+  RegLocation GetRegLocation(int index) {
+    DCHECK((index >= 0) && (index > num_ssa_regs_));
+    return reg_location_[index];
+  }
+
+  RegLocation GetMethodLoc() {
+    return reg_location_[method_sreg_];
+  }
+
   void BasicBlockCombine();
   void CodeLayout();
   void DumpCheckStats();
@@ -284,12 +529,37 @@ class MIRGraph {
   void SSATransformation();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
   void NullCheckElimination();
+  bool SetFp(int index, bool is_fp);
+  bool SetCore(int index, bool is_core);
+  bool SetRef(int index, bool is_ref);
+  bool SetWide(int index, bool is_wide);
+  bool SetHigh(int index, bool is_high);
+  void AppendMIR(BasicBlock* bb, MIR* mir);
+  void PrependMIR(BasicBlock* bb, MIR* mir);
+  void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
+  char* GetDalvikDisassembly(const MIR* mir);
+
+  void ReplaceSpecialChars(std::string& str);
+  std::string GetSSAName(int ssa_reg);
+  std::string GetSSANameWithConst(int ssa_reg, bool singles_only);
+  void GetBlockName(BasicBlock* bb, char* name);
+  const char* GetShortyFromTargetIdx(int);
+  void DumpMIRGraph();
+  CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
 
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
    * we can verify that all catch entries have native PC entries.
    */
    std::set<uint32_t> catches_;
+
+   // TODO: make these private.
+   RegLocation* reg_location_;                         // Map SSA names to location.
+   GrowableList compiler_temps_;
+   SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
+
+   static const int oat_data_flow_attributes_[kMirOpLast];
+   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
 
  private:
 
@@ -393,6 +663,9 @@ class MIRGraph {
    int* opcode_count_;                            // Dex opcode coverage stats.
    int num_ssa_regs_;                             // Number of names following SSA transformation.
    std::vector<BasicBlock*> extended_basic_blocks_; // Heads of block "traces".
+   int method_sreg_;
+   unsigned int attributes_;
+   Checkstats* checkstats_;
 };
 
 }  // namespace art
