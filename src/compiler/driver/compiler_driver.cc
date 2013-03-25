@@ -1431,7 +1431,7 @@ static const char* class_initializer_black_list[] = {
   "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
   "Ljavax/net/ssl/HttpsURLConnection;", // Calls SSLSocketFactory.getDefault -> java.security.Security.getProperty.
   "Llibcore/icu/LocaleData;", // Requires java.util.Locale.
-  "Llibcore/icu/TimeZones;", // Requires java.util.TimeZone.
+  "Llibcore/icu/TimeZoneNames;", // Requires java.util.TimeZone.
   "Llibcore/io/OsConstants;", // Platform specific.
   "Llibcore/net/MimeUtils;", // Calls libcore.net.MimeUtils.getContentTypesPropertiesStream -> System.getProperty.
   "Llibcore/util/ZoneInfo;", // Sub-class of TimeZone.
