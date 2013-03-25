@@ -1224,7 +1224,7 @@ public:
 
   // Scans all of the objects
   virtual void Run(Thread* self) {
-    int index;
+    size_t index;
     while ((index = index_++) < length_) {
       if (kUseMarkStackPrefetch) {
         static const size_t prefetch_look_ahead = 1;

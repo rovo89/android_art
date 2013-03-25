@@ -45,7 +45,7 @@ class ArmContext : public Context {
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    CHECK_LT(reg, kNumberOfCoreRegisters);
+    CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
     return *gprs_[reg];
   }
 
