@@ -439,6 +439,8 @@ uint32_t ElfWriter::FixupCompiledCodeOffset(ElfFile& elf_file,
 }
 #endif
 
+static const bool DEBUG_FIXUP = false;
+
 bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
   UniquePtr<ElfFile> elf_file(ElfFile::Open(file, true, false));
   CHECK(elf_file.get() != NULL);
@@ -588,9 +590,14 @@ bool ElfWriter::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
       }
     }
     if (elf_dyn_needs_fixup) {
-        uint32_t d_ptr = elf_dyn.d_un.d_ptr;
-        d_ptr += base_address;
-        elf_dyn.d_un.d_ptr = d_ptr;
+      uint32_t d_ptr = elf_dyn.d_un.d_ptr;
+      if (DEBUG_FIXUP) {
+        LOG(INFO) << StringPrintf("In %s moving Elf32_Dyn[%d] from 0x%08x to 0x%08x",
+                                  elf_file.GetFile().GetPath().c_str(), i,
+                                  d_ptr, d_ptr + base_address);
+      }
+      d_ptr += base_address;
+      elf_dyn.d_un.d_ptr = d_ptr;
     }
   }
   return true;
@@ -603,6 +610,11 @@ bool ElfWriter::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
     if (sh.sh_addr == 0) {
       continue;
     }
+    if (DEBUG_FIXUP) {
+      LOG(INFO) << StringPrintf("In %s moving Elf32_Shdr[%d] from 0x%08x to 0x%08x",
+                                elf_file.GetFile().GetPath().c_str(), i,
+                                sh.sh_addr, sh.sh_addr + base_address);
+    }
     sh.sh_addr += base_address;
   }
   return true;
@@ -613,10 +625,17 @@ bool ElfWriter::FixupProgramHeaders(ElfFile& elf_file, uintptr_t base_address) {
   for (::llvm::ELF::Elf32_Word i = 0; i < elf_file.GetProgramHeaderNum(); i++) {
     ::llvm::ELF::Elf32_Phdr& ph = elf_file.GetProgramHeader(i);
     CHECK_EQ(ph.p_vaddr, ph.p_paddr) << elf_file.GetFile().GetPath() << " i=" << i;
-    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))));
+    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))))
+            << elf_file.GetFile().GetPath() << " i=" << i;
+    if (DEBUG_FIXUP) {
+      LOG(INFO) << StringPrintf("In %s moving Elf32_Phdr[%d] from 0x%08x to 0x%08x",
+                                elf_file.GetFile().GetPath().c_str(), i,
+                                ph.p_vaddr, ph.p_vaddr + base_address);
+    }
     ph.p_vaddr += base_address;
     ph.p_paddr += base_address;
-    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))));
+    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))))
+            << elf_file.GetFile().GetPath() << " i=" << i;
   }
   return true;
 }
@@ -629,6 +648,11 @@ bool ElfWriter::FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dyn
   for (uint32_t i = 0; i < elf_file.GetSymbolNum(*symbol_section); i++) {
     ::llvm::ELF::Elf32_Sym& symbol = elf_file.GetSymbol(section_type, i);
     if (symbol.st_value != 0) {
+      if (DEBUG_FIXUP) {
+        LOG(INFO) << StringPrintf("In %s moving Elf32_Sym[%d] from 0x%08x to 0x%08x",
+                                  elf_file.GetFile().GetPath().c_str(), i,
+                                  symbol.st_value, symbol.st_value + base_address);
+      }
       symbol.st_value += base_address;
     }
   }
@@ -641,11 +665,21 @@ bool ElfWriter::FixupRelocations(ElfFile& elf_file, uintptr_t base_address) {
     if (sh.sh_type == llvm::ELF::SHT_REL) {
       for (uint32_t i = 0; i < elf_file.GetRelNum(sh); i++) {
         llvm::ELF::Elf32_Rel& rel = elf_file.GetRel(sh, i);
+        if (DEBUG_FIXUP) {
+          LOG(INFO) << StringPrintf("In %s moving Elf32_Rel[%d] from 0x%08x to 0x%08x",
+                                    elf_file.GetFile().GetPath().c_str(), i,
+                                    rel.r_offset, rel.r_offset + base_address);
+        }
         rel.r_offset += base_address;
       }
     } else if (sh.sh_type == llvm::ELF::SHT_RELA) {
       for (uint32_t i = 0; i < elf_file.GetRelaNum(sh); i++) {
         llvm::ELF::Elf32_Rela& rela = elf_file.GetRela(sh, i);
+        if (DEBUG_FIXUP) {
+          LOG(INFO) << StringPrintf("In %s moving Elf32_Rela[%d] from 0x%08x to 0x%08x",
+                                    elf_file.GetFile().GetPath().c_str(), i,
+                                    rela.r_offset, rela.r_offset + base_address);
+        }
         rela.r_offset += base_address;
       }
     }
