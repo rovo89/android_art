@@ -57,7 +57,7 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 void InvokeWithArgArray(const ScopedObjectAccess& soa, mirror::AbstractMethod* method,
-                        ArgArray *arg_array, JValue* result, JValue* float_result)
+                        ArgArray *arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);

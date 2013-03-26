@@ -596,11 +596,6 @@ class MethodHelper {
     return GetParamPrimitiveType(param) == Primitive::kPrimNot;
   }
 
-  bool IsReturnFloatOrDouble() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const char ret_shorty = GetShorty()[0];
-    return (ret_shorty == 'F') || (ret_shorty == 'D');
-  }
-
   bool HasSameNameAndSignature(MethodHelper* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (GetDexCache() == other->GetDexCache()) {

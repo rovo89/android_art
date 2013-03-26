@@ -74,7 +74,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     CHECK(c != NULL);
     Object* obj = klass->AllocObject(self);
     CHECK(obj != NULL);
-    EnterInterpreterFromInvoke(self, c, obj, NULL, NULL, NULL);
+    EnterInterpreterFromInvoke(self, c, obj, NULL, NULL);
     result->SetL(obj);
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
@@ -136,7 +136,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    EnterInterpreterFromInvoke(self, target_method, receiver, args, result, result);
+    EnterInterpreterFromInvoke(self, target_method, receiver, args, result);
   }
 }
 
@@ -414,14 +414,8 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     arg_array.BuildArgArray(shadow_frame, receiver, dec_insn.arg + (type != kStatic ? 1 : 0));
   }
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    JValue unused_result;
-    if (mh.IsReturnFloatOrDouble()) {
-      target_method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(),
-                            &unused_result, result);
-    } else {
-      target_method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(),
-                            result, &unused_result);
-    }
+    target_method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result,
+                          mh.GetShorty()[0]);
   } else {
     uint32_t* args = arg_array.GetArray();
     if (type != kStatic) {
@@ -1807,7 +1801,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 }
 
 void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
-                                uint32_t* args, JValue* result, JValue* float_result) {
+                                uint32_t* args, JValue* result) {
   DCHECK_EQ(self, Thread::Current());
   if (__builtin_frame_address(0) < self->GetStackEnd()) {
     ThrowStackOverflowError(self);
@@ -1875,28 +1869,16 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   }
   if (LIKELY(!method->IsNative())) {
     JValue r = Execute(self, mh, code_item, *shadow_frame.get(), JValue());
-    if (result != NULL && float_result != NULL) {
-      if (mh.IsReturnFloatOrDouble()) {
-        *float_result = r;
-      } else {
-        *result = r;
-      }
+    if (result != NULL) {
+      *result = r;
     }
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     if (!Runtime::Current()->IsStarted()) {
-      if (mh.IsReturnFloatOrDouble()) {
-        UnstartedRuntimeJni(self, method, receiver, args, float_result);
-      } else {
-        UnstartedRuntimeJni(self, method, receiver, args, result);
-      }
+      UnstartedRuntimeJni(self, method, receiver, args, result);
     } else {
-      if (mh.IsReturnFloatOrDouble()) {
-        InterpreterJni(self, method, shorty, receiver, args, float_result);
-      } else {
-        InterpreterJni(self, method, shorty, receiver, args, result);
-      }
+      InterpreterJni(self, method, shorty, receiver, args, result);
     }
   }
   self->PopShadowFrame();

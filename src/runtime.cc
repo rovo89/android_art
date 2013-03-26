@@ -630,9 +630,8 @@ static void CreateSystemClassLoader() {
   CHECK(getSystemClassLoader != NULL);
 
   JValue result;
-  JValue float_result;
   ArgArray arg_array(NULL, 0);
-  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, &float_result);
+  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, 'L');
   mirror::ClassLoader* class_loader = down_cast<mirror::ClassLoader*>(result.GetL());
   CHECK(class_loader != NULL);
 
