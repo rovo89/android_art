@@ -265,12 +265,28 @@ bool Class::IsInSamePackage(const Class* that) const {
   while (klass2->IsArrayClass()) {
     klass2 = klass2->GetComponentType();
   }
+  // trivial check again for array types
+  if (klass1 == klass2) {
+    return true;
+  }
   // Compare the package part of the descriptor string.
-  ClassHelper kh(klass1);
-  std::string descriptor1(kh.GetDescriptor());
-  kh.ChangeClass(klass2);
-  std::string descriptor2(kh.GetDescriptor());
-  return IsInSamePackage(descriptor1, descriptor2);
+  if (LIKELY(!klass1->IsProxyClass() && !klass2->IsProxyClass())) {
+    ClassHelper kh(klass1);
+    const DexFile* dex_file = &kh.GetDexFile();
+    const DexFile::TypeId* type_id = &dex_file->GetTypeId(klass1->GetDexTypeIndex());
+    const char* descriptor1 = dex_file->GetTypeDescriptor(*type_id);
+    kh.ChangeClass(klass2);
+    dex_file = &kh.GetDexFile();
+    type_id = &dex_file->GetTypeId(klass1->GetDexTypeIndex());
+    const char* descriptor2 = dex_file->GetTypeDescriptor(*type_id);
+    return IsInSamePackage(descriptor1, descriptor2);
+  } else {
+    ClassHelper kh(klass1);
+    std::string descriptor1(kh.GetDescriptor());
+    kh.ChangeClass(klass2);
+    std::string descriptor2(kh.GetDescriptor());
+    return IsInSamePackage(descriptor1, descriptor2);
+  }
 }
 
 bool Class::IsClassClass() const {
