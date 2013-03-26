@@ -135,12 +135,12 @@ static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
 }
 
 void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
-                        ArgArray* arg_array, JValue* result, JValue* float_result)
+                        ArgArray* arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, arg_array->GetArray());
   }
-  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, float_result);
+  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, result_type);
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
@@ -150,15 +150,10 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 static AbstractMethod* FindVirtualMethod(Object* receiver, AbstractMethod* method)
@@ -173,15 +168,10 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
@@ -191,15 +181,10 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 // Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
@@ -597,15 +582,10 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 class JNI {

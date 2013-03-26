@@ -248,7 +248,6 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
 
   ArgArray arg_array(NULL, 0);
   JValue result;
-  JValue float_result;
   if (src_class == Primitive::kPrimDouble || src_class == Primitive::kPrimLong) {
     arg_array.AppendWide(value.GetJ());
   } else {
@@ -256,7 +255,7 @@ mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   }
 
   soa.DecodeMethod(m)->Invoke(soa.Self(), arg_array.GetArray(), arg_array.GetNumBytes(),
-                              &result, &float_result);
+                              &result, 'L');
   return result.GetL();
 }
 

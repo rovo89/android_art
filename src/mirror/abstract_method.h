@@ -193,8 +193,7 @@ class MANAGED AbstractMethod : public Object {
   // Find the method that this method overrides
   AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
-              JValue* float_result)
+  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, char result_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {

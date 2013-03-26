@@ -164,10 +164,9 @@ void* Thread::CreateCallback(void* arg) {
     mirror::AbstractMethod* m =
         receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     JValue result;
-    JValue float_result;
     ArgArray arg_array(NULL, 0);
     arg_array.Append(reinterpret_cast<uint32_t>(receiver));
-    m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, &float_result);
+    m->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, 'V');
   }
   // Detach and delete self.
   Runtime::Current()->GetThreadList()->Unregister(self);

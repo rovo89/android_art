@@ -2707,10 +2707,9 @@ bool ClassLinker::InitializeClass(mirror::Class* klass, bool can_run_clinit, boo
   if (clinit != NULL) {
     if (Runtime::Current()->IsStarted()) {
       JValue result;
-      JValue float_result;
-      clinit->Invoke(self, NULL, 0, &result, &float_result);
+      clinit->Invoke(self, NULL, 0, &result, 'V');
     } else {
-      art::interpreter::EnterInterpreterFromInvoke(self, clinit, NULL, NULL, NULL, NULL);
+      art::interpreter::EnterInterpreterFromInvoke(self, clinit, NULL, NULL, NULL);
     }
   }
 
