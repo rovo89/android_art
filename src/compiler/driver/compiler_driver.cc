@@ -415,6 +415,7 @@ CompilerDriver::~CompilerDriver() {
                                                     compiler_library_, "ArtUnInitQuickCompilerContext");
   }
   uninit_compiler_context(*this);
+#if 0
   if (compiler_library_ != NULL) {
     VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
     /*
@@ -427,9 +428,14 @@ CompilerDriver::~CompilerDriver() {
      * However, this is not required by POSIX and we don't do it.
      * See: http://b/issue?id=4998315
      * What's the right thing to do here?
+     *
+     * This has now been completely disabled because mclinker was
+     * closing stdout on exit, which was affecting both quick and
+     * portable.
      */
     dlclose(compiler_library_);
   }
+#endif
 }
 
 CompilerTls* CompilerDriver::GetTls() {
