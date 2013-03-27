@@ -478,7 +478,6 @@ struct AbstractMethodOffsets : public CheckOffsets<AbstractMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, fp_spill_mask_),       "fpSpillMask"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, frame_size_in_bytes_), "frameSizeInBytes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_gc_map_),       "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, invoke_stub_),         "invokeStub"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, mapping_table_),       "mappingTable"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_dex_index_),    "methodDexIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_index_),        "methodIndex"));

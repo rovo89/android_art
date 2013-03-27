@@ -41,7 +41,6 @@ class StubCompiler {
  public:
   StubCompiler(LlvmCompilationUnit* cunit, const CompilerDriver& compiler);
 
-  CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty);
   CompiledInvokeStub* CreateProxyStub(const char* shorty);
 
  private:

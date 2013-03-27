@@ -82,8 +82,6 @@ class CompilerLLVM {
 
   CompiledMethod* CompileNativeMethod(DexCompilationUnit* dex_compilation_unit);
 
-  CompiledInvokeStub* CreateInvokeStub(bool is_static, const char *shorty);
-
   CompiledInvokeStub* CreateProxyStub(const char *shorty);
 
  private:

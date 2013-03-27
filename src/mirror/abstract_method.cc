@@ -270,10 +270,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
   ManagedStack fragment;
   self->PushManagedStackFragment(&fragment);
 
-  // Call the invoke stub associated with the method.
-  // Pass everything as arguments.
-  AbstractMethod::InvokeStub* stub = GetInvokeStub();
-
+  // Call the invoke stub, passing everything as arguments.
   if (UNLIKELY(!Runtime::Current()->IsStarted())){
     LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
@@ -285,8 +282,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
     if (GetCode() != NULL) {
       if (!interpret) {
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Invoking '%s' code=%p stub=%p",
-                                    PrettyMethod(this).c_str(), GetCode(), stub);
+          LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
         }
 #ifdef ART_USE_PORTABLE_COMPILER
         (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
@@ -304,8 +300,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
           interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
         }
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
-                                    PrettyMethod(this).c_str(), GetCode(), stub);
+          LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
         }
       } else {
         if (kLogInvocationStartAndReturn) {
@@ -323,8 +318,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this)
-          << "' code=" << reinterpret_cast<const void*>(GetCode())
-          << " stub=" << reinterpret_cast<void*>(stub);
+          << "' code=" << reinterpret_cast<const void*>(GetCode());
       if (result != NULL) {
         result->SetJ(0);
       }

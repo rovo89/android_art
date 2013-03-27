@@ -53,9 +53,6 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/write_elf.cc \
 	src/compiler/driver/dex_compilation_unit.cc \
 	src/compiler/invoke_stubs/portable/stub_compiler.cc \
-	src/compiler/invoke_stubs/quick/jni_internal_arm.cc \
-	src/compiler/invoke_stubs/quick/jni_internal_mips.cc \
-	src/compiler/invoke_stubs/quick/jni_internal_x86.cc \
 	src/compiler/jni/portable/jni_compiler.cc \
 	src/compiler/jni/quick/arm/calling_convention_arm.cc \
 	src/compiler/jni/quick/mips/calling_convention_mips.cc \

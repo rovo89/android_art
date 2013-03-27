@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '3', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '0', '4', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -140,8 +140,7 @@ OatMethodOffsets::OatMethodOffsets()
     fp_spill_mask_(0),
     mapping_table_offset_(0),
     vmap_table_offset_(0),
-    gc_map_offset_(0),
-    invoke_stub_offset_(0)
+    gc_map_offset_(0)
 #if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(0)
 #endif
@@ -153,8 +152,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t fp_spill_mask,
                                    uint32_t mapping_table_offset,
                                    uint32_t vmap_table_offset,
-                                   uint32_t gc_map_offset,
-                                   uint32_t invoke_stub_offset
+                                   uint32_t gc_map_offset
 #if defined(ART_USE_PORTABLE_COMPILER)
                                  , uint32_t proxy_stub_offset
 #endif
@@ -165,8 +163,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     fp_spill_mask_(fp_spill_mask),
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
-    gc_map_offset_(gc_map_offset),
-    invoke_stub_offset_(invoke_stub_offset)
+    gc_map_offset_(gc_map_offset)
 #if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(proxy_stub_offset)
 #endif

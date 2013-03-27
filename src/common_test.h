@@ -188,8 +188,7 @@ class CommonTest : public testing::Test {
                                      const uint32_t fp_spill_mask,
                                      const uint32_t* mapping_table,
                                      const uint16_t* vmap_table,
-                                     const uint8_t* gc_map,
-                                     const mirror::AbstractMethod::InvokeStub* invoke_stub) {
+                                     const uint8_t* gc_map) {
       return OatFile::OatMethod(NULL,
                                 reinterpret_cast<uint32_t>(code),
                                 frame_size_in_bytes,
@@ -197,8 +196,7 @@ class CommonTest : public testing::Test {
                                 fp_spill_mask,
                                 reinterpret_cast<uint32_t>(mapping_table),
                                 reinterpret_cast<uint32_t>(vmap_table),
-                                reinterpret_cast<uint32_t>(gc_map),
-                                reinterpret_cast<uint32_t>(invoke_stub)
+                                reinterpret_cast<uint32_t>(gc_map)
 #if defined(ART_USE_PORTABLE_COMPILER)
                               , 0
 #endif
@@ -207,21 +205,7 @@ class CommonTest : public testing::Test {
 
   void MakeExecutable(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
-
-    MethodHelper mh(method);
-    const CompiledInvokeStub* compiled_invoke_stub =
-        compiler_driver_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
-    CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
-
-    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    MakeExecutable(invoke_stub);
-    const mirror::AbstractMethod::InvokeStub* method_invoke_stub =
-        reinterpret_cast<const mirror::AbstractMethod::InvokeStub*>(
-          CompiledCode::CodePointer(&invoke_stub[0],
-                                    compiled_invoke_stub->GetInstructionSet()));
-
-    LOG(INFO) << "MakeExecutable " << PrettyMethod(method)
-              << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
+    LOG(INFO) << "MakeExecutable " << PrettyMethod(method);
 
     const CompiledMethod* compiled_method = NULL;
     if (!method->IsAbstract()) {
@@ -247,8 +231,7 @@ class CommonTest : public testing::Test {
                                                       compiled_method->GetFpSpillMask(),
                                                       &compiled_method->GetMappingTable()[0],
                                                       &compiled_method->GetVmapTable()[0],
-                                                      NULL,
-                                                      method_invoke_stub);
+                                                      NULL);
       oat_method.LinkMethod(method);
     } else {
       const void* method_code;
@@ -266,8 +249,7 @@ class CommonTest : public testing::Test {
                                                       0,
                                                       NULL,
                                                       NULL,
-                                                      NULL,
-                                                      method_invoke_stub);
+                                                      NULL);
       oat_method.LinkMethod(method);
     }
   }
