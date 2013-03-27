@@ -164,16 +164,6 @@ inline uint32_t AbstractMethod::GetOatNativeGcMapOffset() const {
   return reinterpret_cast<uint32_t>(GetNativeGcMap());
 }
 
-inline uint32_t AbstractMethod::GetOatInvokeStubOffset() const {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetInvokeStub());
-}
-
-inline void AbstractMethod::SetOatInvokeStubOffset(uint32_t invoke_stub_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetInvokeStub(reinterpret_cast<InvokeStub*>(invoke_stub_offset));
-}
-
 inline bool AbstractMethod::IsRuntimeMethod() const {
   return GetDexMethodIndex() == DexFile::kDexNoIndex16;
 }

@@ -344,8 +344,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.fp_spill_mask_,
       oat_method_offsets.mapping_table_offset_,
       oat_method_offsets.vmap_table_offset_,
-      oat_method_offsets.gc_map_offset_,
-      oat_method_offsets.invoke_stub_offset_
+      oat_method_offsets.gc_map_offset_
 #if defined(ART_USE_PORTABLE_COMPILER)
     , oat_method_offsets.proxy_stub_offset_
 #endif
@@ -359,8 +358,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t fp_spill_mask,
                               const uint32_t mapping_table_offset,
                               const uint32_t vmap_table_offset,
-                              const uint32_t gc_map_offset,
-                              const uint32_t invoke_stub_offset
+                              const uint32_t gc_map_offset
 #if defined(ART_USE_PORTABLE_COMPILER)
                             , const uint32_t proxy_stub_offset
 #endif
@@ -372,8 +370,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
     fp_spill_mask_(fp_spill_mask),
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
-    native_gc_map_offset_(gc_map_offset),
-    invoke_stub_offset_(invoke_stub_offset)
+    native_gc_map_offset_(gc_map_offset)
 #if defined(ART_USE_PORTABLE_COMPILER)
   , proxy_stub_offset_(proxy_stub_offset)
 #endif
@@ -417,25 +414,6 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
 #endif
 }
 
-mirror::AbstractMethod::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
-  const byte* stub = GetOatPointer<const byte*>(invoke_stub_offset_);
-  return reinterpret_cast<mirror::AbstractMethod::InvokeStub*>(const_cast<byte*>(stub));
-}
-
-uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-  return 0;
-#else
-  uintptr_t code = reinterpret_cast<uint32_t>(GetInvokeStub());
-  if (code == 0) {
-    return 0;
-  }
-  // TODO: make this Thumb2 specific
-  code &= ~0x1;
-  return reinterpret_cast<uint32_t*>(code)[-1];
-#endif
-}
-
 #if defined(ART_USE_PORTABLE_COMPILER)
 const void* OatFile::OatMethod::GetProxyStub() const {
   return GetOatPointer<const void*>(proxy_stub_offset_);
@@ -451,7 +429,6 @@ void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
   method->SetMappingTable(GetMappingTable());
   method->SetVmapTable(GetVmapTable());
   method->SetNativeGcMap(GetNativeGcMap());  // Note, used by native methods in work around JNI mode.
-  method->SetInvokeStub(GetInvokeStub());
 }
 
 }  // namespace art

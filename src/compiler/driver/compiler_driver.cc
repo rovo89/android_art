@@ -292,7 +292,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
-      compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       compiled_proxy_stubs_lock_("compiled proxy stubs lock"),
       image_(image),
       thread_count_(thread_count),
@@ -306,9 +305,7 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      create_invoke_stub_(NULL),
-      compiler_get_method_code_addr_(NULL),
-      compiler_get_method_invoke_stub_addr_(NULL)
+      compiler_get_method_code_addr_(NULL)
 {
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -342,29 +339,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
   }
 
   if (compiler_backend_ == kPortable) {
-    create_invoke_stub_ =
-        FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateLLVMInvokeStub");
-  } else {
-    switch (instruction_set) {
-      case kArm:
-      case kThumb2:
-        create_invoke_stub_ =
-            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateArmInvokeStub");
-        break;
-      case kMips:
-        create_invoke_stub_ =
-            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateMipsInvokeStub");
-        break;
-      case kX86:
-        create_invoke_stub_ =
-            FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateX86InvokeStub");
-        break;
-      default:
-        LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-    }
-  }
-
-  if (compiler_backend_ == kPortable) {
     create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
         compiler_so_name, compiler_library_, "ArtCreateProxyStub");
   }
@@ -384,10 +358,6 @@ CompilerDriver::~CompilerDriver() {
   {
     MutexLock mu(self, compiled_methods_lock_);
     STLDeleteValues(&compiled_methods_);
-  }
-  {
-    MutexLock mu(self, compiled_invoke_stubs_lock_);
-    STLDeleteValues(&compiled_invoke_stubs_);
   }
   {
     MutexLock mu(self, compiled_proxy_stubs_lock_);
@@ -1635,14 +1605,6 @@ void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_fil
   timings.AddSplit("Compile " + dex_file.GetLocation());
 }
 
-static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
-  std::string key(shorty);
-  if (is_static) {
-    key += "$";  // Must not be a shorty type character.
-  }
-  return key;
-}
-
 void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                                    InvokeType invoke_type, uint32_t class_def_idx,
                                    uint32_t method_idx, jobject class_loader,
@@ -1693,13 +1655,6 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   uint32_t shorty_len;
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &shorty_len);
   bool is_static = (access_flags & kAccStatic) != 0;
-  std::string key(MakeInvokeStubKey(is_static, shorty));
-  CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(key);
-  if (compiled_invoke_stub == NULL) {
-    compiled_invoke_stub = (*create_invoke_stub_)(*this, is_static, shorty, shorty_len);
-    CHECK(compiled_invoke_stub != NULL);
-    InsertInvokeStub(key, compiled_invoke_stub);
-  }
 
   if ((compiler_backend_ == kPortable) && !is_static) {
     CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
@@ -1714,33 +1669,6 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     ScopedObjectAccess soa(self);
     LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
         << self->GetException()->Dump();
-  }
-}
-
-CompiledInvokeStub* CompilerDriver::FindInvokeStub(bool is_static, const char* shorty) const {
-  const std::string key(MakeInvokeStubKey(is_static, shorty));
-  return FindInvokeStub(key);
-}
-
-CompiledInvokeStub* CompilerDriver::FindInvokeStub(const std::string& key) const {
-  MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
-  InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
-  if (it == compiled_invoke_stubs_.end()) {
-    return NULL;
-  } else {
-    DCHECK(it->second != NULL);
-    return it->second;
-  }
-}
-
-void CompilerDriver::InsertInvokeStub(const std::string& key, CompiledInvokeStub* compiled_invoke_stub) {
-  MutexLock mu(Thread::Current(), compiled_invoke_stubs_lock_);
-  InvokeStubTable::iterator it = compiled_invoke_stubs_.find(key);
-  if (it != compiled_invoke_stubs_.end()) {
-    // Someone else won the race.
-    delete compiled_invoke_stub;
-  } else {
-    compiled_invoke_stubs_.Put(key, compiled_invoke_stub);
   }
 }
 
