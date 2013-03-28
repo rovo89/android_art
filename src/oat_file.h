@@ -230,7 +230,7 @@ class OatFile {
   explicit OatFile(const std::string& filename);
   bool Dlopen(const std::string& elf_filename, byte* requested_base);
   bool ElfFileOpen(File* file, byte* requested_base, bool writable);
-  void Setup();
+  bool Setup();
 
   const byte* Begin() const;
   const byte* End() const;

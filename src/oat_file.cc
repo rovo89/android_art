@@ -52,8 +52,7 @@ OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
   UniquePtr<OatFile> oat_file(new OatFile(location));
   oat_file->begin_ = &oat_contents[0];
   oat_file->end_ = &oat_contents[oat_contents.size()];
-  oat_file->Setup();
-  return oat_file.release();
+  return oat_file->Setup() ? oat_file.release() : NULL;
 }
 
 OatFile* OatFile::Open(const std::string& filename,
@@ -160,8 +159,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
   }
   // Readjust to be non-inclusive upper bound.
   end_ += sizeof(uint32_t);
-  Setup();
-  return true;
+  return Setup();
 }
 
 bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable) {
@@ -196,11 +194,14 @@ bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable) {
   }
   // Readjust to be non-inclusive upper bound.
   end_ += sizeof(uint32_t);
-  Setup();
-  return true;
+  return Setup();
 }
 
-void OatFile::Setup() {
+bool OatFile::Setup() {
+  if (!GetOatHeader().IsValid()) {
+    LOG(WARNING) << "Invalid oat magic for " << GetLocation();
+    return false;
+  }
   const byte* oat = Begin();
   oat += sizeof(OatHeader);
   oat += GetOatHeader().GetImageFileLocationSize();
@@ -250,6 +251,7 @@ void OatFile::Setup() {
                                                          dex_file_pointer,
                                                          methods_offsets_pointer));
   }
+  return true;
 }
 
 const OatHeader& OatFile::GetOatHeader() const {
