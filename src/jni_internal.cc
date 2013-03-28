@@ -2146,18 +2146,18 @@ class JNI {
     jint address_arg = reinterpret_cast<jint>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
-    jobject result = env->NewObject(WellKnownClasses::java_nio_ReadWriteDirectByteBuffer,
-                                    WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init,
+    jobject result = env->NewObject(WellKnownClasses::java_nio_DirectByteBuffer,
+                                    WellKnownClasses::java_nio_DirectByteBuffer_init,
                                     address_arg, capacity_arg);
     return static_cast<JNIEnvExt*>(env)->self->IsExceptionPending() ? NULL : result;
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
-    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress));
+    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
-    return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity));
+    return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_capacity));
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {

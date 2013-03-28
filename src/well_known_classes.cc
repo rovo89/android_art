@@ -41,7 +41,7 @@ jclass WellKnownClasses::java_lang_Thread;
 jclass WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler;
 jclass WellKnownClasses::java_lang_ThreadGroup;
 jclass WellKnownClasses::java_lang_Throwable;
-jclass WellKnownClasses::java_nio_ReadWriteDirectByteBuffer;
+jclass WellKnownClasses::java_nio_DirectByteBuffer;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 
@@ -67,7 +67,7 @@ jmethodID WellKnownClasses::java_lang_Thread_init;
 jmethodID WellKnownClasses::java_lang_Thread_run;
 jmethodID WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
 jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
-jmethodID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init;
+jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
@@ -82,8 +82,8 @@ jfieldID WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_name;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
 jfieldID WellKnownClasses::java_lang_reflect_Proxy_h;
-jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity;
-jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
+jfieldID WellKnownClasses::java_nio_DirectByteBuffer_capacity;
+jfieldID WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
 jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
@@ -136,7 +136,7 @@ void WellKnownClasses::InitClasses(JNIEnv* env) {
   java_lang_Thread$UncaughtExceptionHandler = CacheClass(env, "java/lang/Thread$UncaughtExceptionHandler");
   java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");
   java_lang_Throwable = CacheClass(env, "java/lang/Throwable");
-  java_nio_ReadWriteDirectByteBuffer = CacheClass(env, "java/nio/ReadWriteDirectByteBuffer");
+  java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
 }
@@ -162,7 +162,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
   java_lang_Thread$UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread$UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
   java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "removeThread", "(Ljava/lang/Thread;)V");
-  java_nio_ReadWriteDirectByteBuffer_init = CacheMethod(env, java_nio_ReadWriteDirectByteBuffer, false, "<init>", "(II)V");
+  java_nio_DirectByteBuffer_init = CacheMethod(env, java_nio_DirectByteBuffer, false, "<init>", "(II)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
@@ -177,8 +177,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
   java_lang_ThreadGroup_systemThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, false, "h", "Ljava/lang/reflect/InvocationHandler;");
-  java_nio_ReadWriteDirectByteBuffer_capacity = CacheField(env, java_nio_ReadWriteDirectByteBuffer, false, "capacity", "I");
-  java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_ReadWriteDirectByteBuffer, false, "effectiveDirectAddress", "I");
+  java_nio_DirectByteBuffer_capacity = CacheField(env, java_nio_DirectByteBuffer, false, "capacity", "I");
+  java_nio_DirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_DirectByteBuffer, false, "effectiveDirectAddress", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_data = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "data", "[B");
   org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");

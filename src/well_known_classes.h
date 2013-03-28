@@ -53,7 +53,7 @@ struct WellKnownClasses {
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_Thread$UncaughtExceptionHandler;
   static jclass java_lang_Throwable;
-  static jclass java_nio_ReadWriteDirectByteBuffer;
+  static jclass java_nio_DirectByteBuffer;
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 
@@ -79,7 +79,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Thread_run;
   static jmethodID java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
   static jmethodID java_lang_ThreadGroup_removeThread;
-  static jmethodID java_nio_ReadWriteDirectByteBuffer_init;
+  static jmethodID java_nio_DirectByteBuffer_init;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
@@ -94,8 +94,8 @@ struct WellKnownClasses {
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
   static jfieldID java_lang_ThreadGroup_systemThreadGroup;
-  static jfieldID java_nio_ReadWriteDirectByteBuffer_capacity;
-  static jfieldID java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
+  static jfieldID java_nio_DirectByteBuffer_capacity;
+  static jfieldID java_nio_DirectByteBuffer_effectiveDirectAddress;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_length;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_offset;
