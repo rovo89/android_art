@@ -347,6 +347,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   if (invoke_type != kStatic) {
+    const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
     CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       compiled_proxy_stub->AddOatdataOffsetToCompliledCodeOffset(
