@@ -966,9 +966,14 @@ LIR* ArmCodegen::StoreBaseDispBody(CompilationUnit* cu, int rBase, int displacem
           short_form = true;
           encoded_disp >>= 2;
         }
-      break;
+        break;
       }
-      if (all_low_regs && displacement < 128 && displacement >= 0) {
+      if (ARM_LOWREG(r_src) && (rBase == r13sp) &&
+          (displacement <= 1020) && (displacement >= 0)) {
+        short_form = true;
+        encoded_disp >>= 2;
+        opcode = kThumbStrSpRel;
+      } else if (all_low_regs && displacement < 128 && displacement >= 0) {
         DCHECK_EQ((displacement & 0x3), 0);
         short_form = true;
         encoded_disp >>= 2;
