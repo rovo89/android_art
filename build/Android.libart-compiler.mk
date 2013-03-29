@@ -196,14 +196,14 @@ ifeq ($(ART_BUILD_DEBUG),true)
   $(eval $(call build-libart-compiler,host,debug))
 endif
 
-# Rule to build /system/lib/libcompiler-rt.a
+# Rule to build /system/lib/libcompiler_rt.a
 # Usually static libraries are not installed on the device.
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
 ifeq ($(ART_BUILD_TARGET),true)
-# TODO: Move to external/compiler-rt
-$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler-rt,,)/libcompiler-rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler-rt.a))
+# TODO: Move to external/compiler_rt
+$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,)/libcompiler_rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
 
-$(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler-rt.a
+$(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a
 
 endif
 endif

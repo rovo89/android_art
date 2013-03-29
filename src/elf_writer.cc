@@ -294,7 +294,7 @@ void ElfWriter::AddRuntimeInputs(const std::string& android_root, bool is_host) 
     compiler_runtime_lib += "/lib/gcc/i686-linux/4.6.x-google/libgcc.a";
   } else {
     compiler_runtime_lib += android_root;
-    compiler_runtime_lib += "/lib/libcompiler-rt.a";
+    compiler_runtime_lib += "/lib/libcompiler_rt.a";
   }
   // TODO: ownership of compiler_runtime_lib_input?
   mcld::Input* compiler_runtime_lib_input = ir_builder_->ReadInput(compiler_runtime_lib,
