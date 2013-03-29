@@ -16,157 +16,592 @@
 
 #include "reg_type.h"
 
+
+#include "base/casts.h"
 #include "dex_file-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
-#include "reg_type_cache.h"
+#include "reg_type_cache-inl.h"
 
 #include <limits>
+#include <sstream>
 
 namespace art {
 namespace verifier {
 
-static const char* type_strings[] = {
-    "Undefined",
-    "Conflict",
-    "boolean",
-    "byte",
-    "short",
-    "char",
-    "int",
-    "float",
-    "long (Low Half)",
-    "long (High Half)",
-    "double (Low Half)",
-    "double (High Half)",
-    "Precise 32-bit Constant",
-    "Imprecise 32-bit Constant",
-    "Precise 64-bit Constant (Low Half)",
-    "Precise 64-bit Constant (High Half)",
-    "Imprecise 64-bit Constant (Low Half)",
-    "Imprecise 64-bit Constant (High Half)",
-    "Unresolved Reference",
-    "Uninitialized Reference",
-    "Uninitialized This Reference",
-    "Unresolved And Uninitialized Reference",
-    "Unresolved And Uninitialized This Reference",
-    "Unresolved Merged References",
-    "Unresolved Super Class",
-    "Reference",
-    "Precise Reference",
-};
+static const bool kIsDebugBuild = false;
+UndefinedType* UndefinedType::instance_ = NULL;
+ConflictType* ConflictType::instance_ = NULL;
+BooleanType* BooleanType::instance = NULL;
+ByteType* ByteType::instance_ = NULL;
+ShortType* ShortType::instance_ = NULL;
+CharType* CharType::instance_ = NULL;
+FloatType* FloatType::instance_ = NULL;
+LongLoType* LongLoType::instance_ = NULL;
+LongHiType* LongHiType::instance_ = NULL;
+DoubleLoType* DoubleLoType::instance_ = NULL;
+DoubleHiType* DoubleHiType::instance_ = NULL;
+IntegerType* IntegerType::instance_ = NULL;
 
-std::string RegType::Dump(const RegTypeCache* reg_types) const {
-  DCHECK(type_ >=  kRegTypeUndefined && type_ <= kRegTypePreciseReference);
-  DCHECK(arraysize(type_strings) == (kRegTypePreciseReference + 1));
-  std::string result;
-  if (IsUnresolvedMergedReference()) {
-    if (reg_types == NULL) {
-      std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
-      result += StringPrintf("UnresolvedMergedReferences(%d, %d)", refs.first, refs.second);
-    } else {
-      std::set<uint16_t> types = GetMergedTypes(reg_types);
-      result += "UnresolvedMergedReferences(";
-      typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
-      It it = types.begin();
-      result += reg_types->GetFromId(*it).Dump(reg_types);
-      for(++it; it != types.end(); ++it) {
-        result += ", ";
-        result += reg_types->GetFromId(*it).Dump(reg_types);
-      }
-      result += ")";
-    }
-  } else if (IsUnresolvedSuperClass()) {
-    uint16_t super_type_id = GetUnresolvedSuperClassChildId();
-    if (reg_types == NULL) {
-      result += StringPrintf("UnresolvedSuperClass(%d)", super_type_id);
-    } else {
-      result += "UnresolvedSuperClass(";
-      result += reg_types->GetFromId(super_type_id).Dump(reg_types);
-      result += ")";
-    }
-  } else if (IsConstant()) {
-    uint32_t val = ConstantValue();
-    if (val == 0) {
-      CHECK(IsPreciseConstant());
-      result = "Zero/null";
-    } else {
-      result = IsPreciseConstant() ? "Precise " : "Imprecise ";
-      if (IsConstantShort()) {
-        result += StringPrintf("Constant: %d", val);
-      } else {
-        result += StringPrintf("Constant: 0x%x", val);
-      }
-    }
-  } else if (IsConstantLo()) {
-    int32_t val = ConstantValueLo();
-    result = IsPreciseConstantLo() ? "Precise " : "Imprecise ";
-    if (val >= std::numeric_limits<jshort>::min() &&
-        val <= std::numeric_limits<jshort>::max()) {
-      result += StringPrintf("Low-half Constant: %d", val);
-    } else {
-      result += StringPrintf("Low-half Constant: 0x%x", val);
-    }
-  } else if (IsConstantHi()) {
-    int32_t val = ConstantValueHi();
-    result = IsPreciseConstantHi() ? "Precise " : "Imprecise ";
-    if (val >= std::numeric_limits<jshort>::min() &&
-        val <= std::numeric_limits<jshort>::max()) {
-      result += StringPrintf("High-half Constant: %d", val);
-    } else {
-      result += StringPrintf("High-half Constant: 0x%x", val);
-    }
+std::string PreciseConstType::Dump() const {
+  std::stringstream result;
+  uint32_t val = ConstantValue();
+  if (val == 0) {
+    CHECK(IsPreciseConstant());
+    result << "Zero/null";
   } else {
-    result = type_strings[type_];
-    if (IsReferenceTypes()) {
-      result += ": ";
-      if (IsUnresolvedTypes()) {
-        result += PrettyDescriptor(GetDescriptor());
-      } else {
-        result += PrettyDescriptor(GetClass());
-      }
+    result << "Precise ";
+    if (IsConstantShort()) {
+      result << StringPrintf("Constant: %d", val);
+    } else {
+      result << StringPrintf("Constant: 0x%x", val);
     }
   }
-  return result;
+  return result.str();
+}
+
+std::string BooleanType::Dump() const {
+  return "boolean";
+}
+
+std::string ConflictType::Dump() const {
+    return "Conflict";
+}
+std::string ByteType::Dump() const {
+  return "Byte";
+}
+std::string ShortType::Dump() const {
+  return "short";
+}
+std::string CharType::Dump() const {
+  return "Char";
+}
+std::string FloatType::Dump() const {
+  return "float";
+}
+std::string LongLoType::Dump() const {
+  return "long (Low Half)";
+}
+std::string LongHiType::Dump() const {
+  return "long (High Half)";
+}
+std::string DoubleLoType::Dump() const {
+  return "Double (Low Half)";
+}
+std::string DoubleHiType::Dump() const {
+  return "Double (High Half)";
+}
+std::string IntegerType::Dump() const {
+    return "Integer";
+}
+
+
+DoubleHiType* DoubleHiType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                           uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new DoubleHiType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+
+DoubleHiType* DoubleHiType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+
+void DoubleHiType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+DoubleLoType* DoubleLoType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                           uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new DoubleLoType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+
+DoubleLoType* DoubleLoType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+
+void DoubleLoType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+LongLoType* LongLoType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                       uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new LongLoType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+
+LongHiType* LongHiType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                       uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new LongHiType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+
+LongHiType* LongHiType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+
+void LongHiType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+LongLoType* LongLoType::GetInstance() {
+  CHECK (instance_ != NULL);
+  return instance_;
+}
+
+void LongLoType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+FloatType* FloatType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                     uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (instance_ == NULL) {
+    instance_ = new FloatType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+FloatType* FloatType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+
+void FloatType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+CharType* CharType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                   uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new CharType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+CharType* CharType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void CharType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+
+ShortType* ShortType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                     uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new ShortType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+ShortType* ShortType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void ShortType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+ByteType* ByteType::CreateInstance(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (instance_ == NULL) {
+    instance_ = new ByteType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+ByteType* ByteType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void ByteType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+IntegerType* IntegerType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                         uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new IntegerType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+IntegerType* IntegerType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void IntegerType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+ConflictType* ConflictType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                           uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new ConflictType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+ConflictType* ConflictType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void ConflictType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+BooleanType* BooleanType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                         uint16_t cache_id) {
+  if (BooleanType::instance == NULL) {
+    instance = new BooleanType(klass, descriptor, cache_id);
+  }
+  return BooleanType::instance;
+}
+BooleanType* BooleanType::GetInstance() {
+  CHECK(BooleanType::instance != NULL);
+  return BooleanType::instance;
+}
+
+void BooleanType::Destroy() {
+  if(BooleanType::instance != NULL) {
+    delete instance;
+    instance = NULL;
+  }
+}
+
+std::string UndefinedType::Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return "Undefined";
+}
+UndefinedType* UndefinedType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+                                             uint16_t cache_id) {
+  if (instance_ == NULL) {
+    instance_ = new UndefinedType(klass, descriptor, cache_id);
+  }
+  return instance_;
+}
+UndefinedType* UndefinedType::GetInstance() {
+  CHECK(instance_ != NULL);
+  return instance_;
+}
+void UndefinedType::Destroy() {
+  if (instance_ != NULL) {
+    delete instance_;
+    instance_ = NULL;
+  }
+}
+std::string UnresolvedMergedType::Dump() const {
+  std::stringstream result;
+  std::set<uint16_t> types = GetMergedTypes();
+  result << "UnresolvedMergedReferences(";
+  typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
+  It it = types.begin();
+  result << reg_type_cache_->GetFromId(*it).Dump();
+  for (++it; it != types.end(); ++it) {
+    result << ", ";
+    result << reg_type_cache_->GetFromId(*it).Dump();
+  }
+  result << ")";
+  return result.str();
+}
+std::string UnresolvedSuperClass::Dump() const {
+  std::stringstream result;
+  uint16_t super_type_id = GetUnresolvedSuperClassChildId();
+  result << "UnresolvedSuperClass(" << reg_type_cache_->GetFromId(super_type_id).Dump() << ")";
+  return result.str();
+}
+
+std::string UnresolvedReferenceType::Dump() const {
+  std::stringstream result;
+  result << "Unresolved Reference" << ": " << PrettyDescriptor(GetDescriptor());
+  return result.str();
+}
+
+std::string UnresolvedUninitializedRefType::Dump() const {
+  std::stringstream result;
+  result << "Unresolved And Uninitialized Reference" << ": " << PrettyDescriptor(GetDescriptor());
+  result << " Allocation PC: " << GetAllocationPc();
+  return result.str();
+}
+
+std::string UnresolvedUninitialisedThisRefType::Dump() const {
+  std::stringstream result;
+  result << "Unresolved And Uninitialized This Reference" << PrettyDescriptor(GetDescriptor());
+  return result.str();
+}
+
+std::string ReferenceType::Dump() const {
+  std::stringstream result;
+  result << "Reference" << ": " << PrettyDescriptor(GetClass());
+  return result.str();
+}
+
+std::string PreciseReferenceType::Dump() const {
+  std::stringstream result;
+  result << "Precise Reference" << ": "<< PrettyDescriptor(GetClass());
+  return result.str();
+}
+
+std::string UninitialisedReferenceType::Dump() const {
+  std::stringstream result;
+  result << "Uninitialized Reference" << ": " << PrettyDescriptor(GetClass());
+  result << " Allocation PC: " << GetAllocationPc();
+  return result.str();
+}
+std::string UninitialisedThisReferenceType::Dump() const {
+  std::stringstream result;
+  result << "Uninitialized This Reference" << ": " << PrettyDescriptor(GetClass());
+  result << "Allocation PC: " << GetAllocationPc();
+  return result.str();
+}
+
+std::string ImpreciseConstType::Dump() const {
+  std::stringstream result;
+  uint32_t val = ConstantValue();
+  if (val == 0) {
+    CHECK(IsPreciseConstant());
+    result << "Zero/null";
+  } else {
+    result << "Imprecise ";
+    if (IsConstantShort()) {
+      result << StringPrintf("Constant: %d", val);
+    } else {
+      result << StringPrintf("Constant: 0x%x", val);
+    }
+  }
+  return result.str();
+}
+std::string PreciseConstLoType::Dump() const {
+  std::stringstream result;
+
+  int32_t val = ConstantValueLo();
+  result << "Precise ";
+  if (val >= std::numeric_limits<jshort>::min() &&
+      val <= std::numeric_limits<jshort>::max()) {
+    result << StringPrintf("Low-half Constant: %d", val);
+  } else {
+    result << StringPrintf("Low-half Constant: 0x%x", val);
+  }
+  return result.str();
+}
+
+std::string ImpreciseConstLoType::Dump() const {
+  std::stringstream result;
+
+  int32_t val = ConstantValueLo();
+  result << "Imprecise ";
+  if (val >= std::numeric_limits<jshort>::min() &&
+      val <= std::numeric_limits<jshort>::max()) {
+    result << StringPrintf("Low-half Constant: %d", val);
+  } else {
+    result << StringPrintf("Low-half Constant: 0x%x", val);
+  }
+  return result.str();
+}
+
+std::string PreciseConstHiType::Dump() const {
+  std::stringstream result;
+  int32_t val = ConstantValueHi();
+  result << "Precise ";
+  if (val >= std::numeric_limits<jshort>::min() &&
+      val <= std::numeric_limits<jshort>::max()) {
+    result << StringPrintf("High-half Constant: %d", val);
+  } else {
+    result << StringPrintf("High-half Constant: 0x%x", val);
+  }
+  return result.str();
+}
+
+std::string ImpreciseConstHiType::Dump() const {
+  std::stringstream result;
+  int32_t val = ConstantValueHi();
+  result << "Imprecise ";
+  if (val >= std::numeric_limits<jshort>::min() &&
+      val <= std::numeric_limits<jshort>::max()) {
+    result << StringPrintf("High-half Constant: %d", val);
+  } else {
+    result << StringPrintf("High-half Constant: 0x%x", val);
+  }
+  return result.str();
+}
+
+BooleanType::BooleanType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+      : RegType(klass, descriptor, cache_id) {
+}
+
+ConflictType::ConflictType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+ByteType::ByteType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+ShortType::ShortType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+CharType::CharType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+IntegerType::IntegerType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+ConstantType::ConstantType(uint32_t constat, uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_): RegType(NULL, "", cache_id), constant_(constat) {
+}
+
+ReferenceType::ReferenceType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, std::string& descriptor,
+                                           uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+UnresolvedUninitialisedThisRefType::UnresolvedUninitialisedThisRefType(std::string& descriptor,
+                                                                       uint16_t cache_id)
+    : UninitializedType(NULL, descriptor, 0, cache_id) {
+}
+
+UnresolvedUninitializedRefType::UnresolvedUninitializedRefType( std::string& descriptor,
+                                                         uint32_t allocation_pc, uint16_t cache_id)
+    : UninitializedType(NULL, descriptor, allocation_pc, cache_id) {
+}
+
+UninitialisedReferenceType::UninitialisedReferenceType(mirror::Class* klass,
+                                std::string& descriptor, uint32_t allocation_pc, uint16_t cache_id)
+    : UninitializedType(klass, descriptor, allocation_pc, cache_id) {
+}
+
+LongHiType::LongHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+FloatType::FloatType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+DoubleLoType::DoubleLoType(mirror::Class* klass,  std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+DoubleHiType::DoubleHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+LongLoType::LongLoType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+const RegType& UndefinedType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (incoming_type.IsUndefined()) {
+    return *this;  // Undefined MERGE Undefined => Undefined
+  }
+  return reg_types->Conflict();
 }
 
 const RegType& RegType::HighHalf(RegTypeCache* cache) const {
   DCHECK(IsLowHalf());
-  if (type_ == kRegTypeLongLo) {
-    return cache->FromType(kRegTypeLongHi);
-  } else if (type_ == kRegTypeDoubleLo) {
-    return cache->FromType(kRegTypeDoubleHi);
+  if (IsLongLo()) {
+    return cache->LongHi();
+  } else if (IsDoubleLo()) {
+    return cache->DoubleHi();
   } else {
-    DCHECK_EQ(type_, kRegTypeImpreciseConstLo);
-    return cache->FromType(kRegTypeImpreciseConstHi);
+    DCHECK(IsImpreciseConstantLo());
+    return cache->FromCat2ConstHi(ConstantValue(), false);
   }
 }
 
-std::set<uint16_t> RegType::GetMergedTypes(const RegTypeCache* cache) const {
+Primitive::Type RegType::GetPrimitiveType() const {
+  if (IsNonZeroReferenceTypes()) {
+    return Primitive::kPrimNot;
+  } else if (IsBooleanTypes()) {
+    return Primitive::kPrimBoolean;
+  } else if (IsByteTypes()) {
+    return Primitive::kPrimByte;
+  } else if (IsShortTypes()) {
+    return Primitive::kPrimShort;
+  } else if (IsCharTypes()) {
+    return Primitive::kPrimChar;
+  } else if (IsFloat()) {
+    return Primitive::kPrimFloat;
+  } else if (IsIntegralTypes()) {
+    return Primitive::kPrimInt;
+  } else if (IsDoubleLo()) {
+    return Primitive::kPrimDouble;
+  } else {
+    DCHECK(IsLongTypes());
+    return Primitive::kPrimLong;
+  }
+}
+
+std::set<uint16_t> UnresolvedMergedType::GetMergedTypes() const {
   std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
-  const RegType& left = cache->GetFromId(refs.first);
-  const RegType& right = cache->GetFromId(refs.second);
+  const RegType& _left(reg_type_cache_->GetFromId(refs.first));
+  RegType& __left(const_cast<RegType&>(_left));
+  UnresolvedMergedType* left = down_cast<UnresolvedMergedType*>(&__left);
+
+  RegType& _right(
+      const_cast<RegType&>(reg_type_cache_->GetFromId(refs.second)));
+  UnresolvedMergedType* right = down_cast<UnresolvedMergedType*>(&_right);
+
   std::set<uint16_t> types;
-  if (left.IsUnresolvedMergedReference()) {
-    types = left.GetMergedTypes(cache);
+  if (left->IsUnresolvedMergedReference()) {
+    types = left->GetMergedTypes();
   } else {
     types.insert(refs.first);
   }
-  if (right.IsUnresolvedMergedReference()) {
-    std::set<uint16_t> right_types = right.GetMergedTypes(cache);
+  if (right->IsUnresolvedMergedReference()) {
+    std::set<uint16_t> right_types = right->GetMergedTypes();
     types.insert(right_types.begin(), right_types.end());
   } else {
     types.insert(refs.second);
   }
-#ifndef NDEBUG
-  typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
-  for(It it = types.begin(); it != types.end(); ++it) {
-    CHECK(!cache->GetFromId(*it).IsUnresolvedMergedReference());
+  if (kIsDebugBuild) {
+    typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
+    for (It it = types.begin(); it != types.end(); ++it) {
+      CHECK(!reg_type_cache_->GetFromId(*it).IsUnresolvedMergedReference());
+    }
   }
-#endif
   return types;
 }
 
@@ -200,13 +635,13 @@ bool RegType::CanAccess(const RegType& other) const {
     } else if (!other_unresolved) {
       return other.GetClass()->IsPublic();  // Be conservative, only allow if other is public.
     } else {
-      return false; // More complicated test not possible on unresolved types, be conservative.
+      return false;  // More complicated test not possible on unresolved types, be conservative.
     }
   }
 }
 
 bool RegType::CanAccessMember(mirror::Class* klass, uint32_t access_flags) const {
-  if (access_flags & kAccPublic) {
+  if ((access_flags & kAccPublic) != 0) {
     return true;
   }
   if (!IsUnresolvedTypes()) {
@@ -227,23 +662,6 @@ bool RegType::IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lo
   } else {
     return false;
   }
-}
-
-bool RegType::IsConstantByte() const {
-  return IsConstant() &&
-      ConstantValue() >= std::numeric_limits<jbyte>::min() &&
-      ConstantValue() <= std::numeric_limits<jbyte>::max();
-}
-
-bool RegType::IsConstantShort() const {
-  return IsConstant() &&
-      ConstantValue() >= std::numeric_limits<jshort>::min() &&
-      ConstantValue() <= std::numeric_limits<jshort>::max();
-}
-
-bool RegType::IsConstantChar() const {
-  return IsConstant() && ConstantValue() >= 0 &&
-      ConstantValue() <= std::numeric_limits<jchar>::max();
 }
 
 bool RegType::IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -272,30 +690,41 @@ bool RegType::IsInstantiableTypes() const {
   return IsUnresolvedTypes() || (IsNonZeroReferenceTypes() && GetClass()->IsInstantiable());
 }
 
+ImpreciseConstType::ImpreciseConstType(uint32_t constat, uint16_t cache_id)
+  : ConstantType(constat, cache_id) {
+}
+
 bool RegType::IsAssignableFrom(const RegType& src) const {
   if (Equals(src)) {
     return true;
   } else {
-    switch (GetType()) {
-      case RegType::kRegTypeBoolean:  return src.IsBooleanTypes();
-      case RegType::kRegTypeByte:     return src.IsByteTypes();
-      case RegType::kRegTypeShort:    return src.IsShortTypes();
-      case RegType::kRegTypeChar:     return src.IsCharTypes();
-      case RegType::kRegTypeInteger:  return src.IsIntegralTypes();
-      case RegType::kRegTypeFloat:    return src.IsFloatTypes();
-      case RegType::kRegTypeLongLo:   return src.IsLongTypes();
-      case RegType::kRegTypeDoubleLo: return src.IsDoubleTypes();
-      default:
-        if (!IsReferenceTypes()) {
-          LOG(FATAL) << "Unexpected register type in IsAssignableFrom: '" << src << "'";
-        }
-        if (src.IsZero()) {
-          return true;  // all reference types can be assigned null
-        } else if (!src.IsReferenceTypes()) {
-          return false;  // expect src to be a reference type
-        } else if (IsJavaLangObject()) {
-          return true;  // all reference types can be assigned to Object
-        } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
+    if (IsBoolean()) {
+      return src.IsBooleanTypes();
+    } else if (IsByte()) {
+      return src.IsByteTypes();
+    } else if (IsShort()) {
+      return src.IsShortTypes();
+    } else if (IsChar()) {
+      return src.IsCharTypes();
+    } else if (IsInteger()) {
+      return src.IsIntegralTypes();
+    } else if (IsFloat()) {
+      return src.IsFloatTypes();
+    } else if (IsLongLo()) {
+      return src.IsLongTypes();
+    } else if (IsDoubleLo()) {
+      return src.IsDoubleTypes();
+    } else {
+      if (!IsReferenceTypes()) {
+        LOG(FATAL) << "Unexpected register type in 4bleFrom: '" << src << "'";
+      }
+      if (src.IsZero()) {
+        return true;  // all reference types can be assigned null
+      } else if (!src.IsReferenceTypes()) {
+        return false;  // expect src to be a reference type
+      } else if (IsJavaLangObject()) {
+        return true;  // all reference types can be assigned to Object
+      } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
           return true;  // We allow assignment to any interface, see comment in ClassJoin
         } else if (IsJavaLangObjectArray()) {
           return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
@@ -303,23 +732,39 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
                    GetClass()->IsAssignableFrom(src.GetClass())) {
           // We're assignable from the Class point-of-view
           return true;
+        } else if (IsUnresolvedTypes()) {
+          // Unresolved types are only assignable for null, Object and equality.
+          return (src.IsZero() || src.IsJavaLangObject());
         } else {
-          // TODO: unresolved types are only assignable for null, Object and equality currently.
           return false;
         }
     }
   }
 }
 
+int32_t ConstantType::ConstantValue() const {
+  DCHECK(IsConstantTypes());
+  return constant_;
+}
+int32_t ConstantType::ConstantValueLo() const {
+  DCHECK(IsConstantLo());
+  return constant_;
+}
+int32_t ConstantType::ConstantValueHi() const {
+  if (IsConstantHi() || IsPreciseConstantHi() || IsImpreciseConstantHi()) {
+    return constant_;
+  } else {
+    DCHECK(false);
+    return 0;
+  }
+}
 static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
   return a.IsConstant() ? b : a;
 }
 
 const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
   DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
-  if (IsUndefined() && incoming_type.IsUndefined()) {
-    return *this;  // Undefined MERGE Undefined => Undefined
-  } else if (IsConflict()) {
+  if (IsConflict()) {
     return *this;  // Conflict MERGE * => Conflict
   } else if (incoming_type.IsConflict()) {
     return incoming_type;  // * MERGE Conflict => Conflict
@@ -497,40 +942,59 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
 }
 
 void RegType::CheckInvariants() const {
-  bool checked = false;
   if (IsConstant() || IsConstantLo() || IsConstantHi()) {
-    // Constants: allocation_pc_or_constant_or_merged_types_ will hold the constant value, nothing
-    // else should be defined.
     CHECK(descriptor_.empty()) << *this;
     CHECK(klass_ == NULL) << *this;
-    checked = true;
   }
-  if (IsUnresolvedTypes()) {
-    if (IsUnresolvedMergedReference() || IsUnresolvedSuperClass()) {
-      // Unresolved super/merged types: allocation pc/merged types should be defined.
-      CHECK(descriptor_.empty()) << *this;
-      CHECK(klass_ == NULL) << *this;
-      CHECK_NE(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
-    } else {
-      // Unresolved types: have a descriptor and no allocation pc/merged types.
-      CHECK(!descriptor_.empty()) << *this;
-      CHECK(klass_ == NULL) << *this;
-      if (!IsUnresolvedAndUninitializedReference()) {
-        CHECK_EQ(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
-      }
-    }
-    checked = true;
-  }
-  if (IsReferenceTypes() && !checked) {
-    // A resolved reference type.
-    CHECK(descriptor_.empty()) << *this;
-    CHECK(klass_ != NULL) << *this;
-    CHECK(klass_->IsClass()) << *this;
-    if (!IsUninitializedReference()) {
-      CHECK_EQ(allocation_pc_or_constant_or_merged_types_, 0U) << *this;
-    }
-  }
-  CHECK(checked = true);
+}
+
+UninitializedType::UninitializedType(mirror::Class* klass, std::string& descriptor,
+                                     uint32_t allocation_pc, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id), allocation_pc_(allocation_pc) {
+}
+
+void UninitializedType::CheckInvariants() const {
+  CHECK_EQ(allocation_pc_, 0U) << *this;
+}
+
+void UninitialisedThisReferenceType::CheckInvariants() const {
+  UninitializedType::CheckInvariants();
+}
+
+UninitialisedThisReferenceType::UninitialisedThisReferenceType(mirror::Class* klass,
+  std::string& descriptor, uint16_t cache_id) : UninitializedType(klass, descriptor, 0, cache_id) {
+}
+
+void UnresolvedUninitialisedThisRefType::CheckInvariants() const {
+  UninitializedType::CheckInvariants();
+  CHECK(!descriptor_.empty()) << *this;
+  CHECK(klass_ == NULL) << *this;
+}
+
+void UnresolvedUninitializedRefType::CheckInvariants() const {
+  UninitializedType::CheckInvariants();
+  CHECK(!descriptor_.empty()) << *this;
+  CHECK(klass_ == NULL) << *this;
+}
+
+void UnresolvedMergedType::CheckInvariants() const {
+  // Unresolved merged types: merged types should be defined.
+  CHECK(descriptor_.empty()) << *this;
+  CHECK(klass_ == NULL) << *this;
+  CHECK_NE(merged_types_.first, 0U) << *this;
+  CHECK_NE(merged_types_.second, 0U) << *this;
+}
+
+void UnresolvedReferenceType::CheckInvariants() const {
+  CHECK(!descriptor_.empty()) << *this;
+  CHECK(klass_ == NULL) << *this;
+}
+
+void UnresolvedSuperClass::CheckInvariants() const {
+  // Unresolved merged types: merged types should be defined.
+  CHECK(descriptor_.empty()) << *this;
+  CHECK(klass_ == NULL) << *this;
+  CHECK_NE(unresolved_child_id_, 0U) << *this;
 }
 
 std::ostream& operator<<(std::ostream& os, const RegType& rhs) {

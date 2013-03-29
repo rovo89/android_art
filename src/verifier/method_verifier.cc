@@ -3325,6 +3325,7 @@ void MethodVerifier::Init() {
     MutexLock mu(self, *rejected_classes_lock_);
     rejected_classes_ = new MethodVerifier::RejectedClassesTable;
   }
+  art::verifier::RegTypeCache::Init();
 }
 
 void MethodVerifier::Shutdown() {
@@ -3345,6 +3346,7 @@ void MethodVerifier::Shutdown() {
   }
   delete rejected_classes_lock_;
   rejected_classes_lock_ = NULL;
+  verifier::RegTypeCache::ShutDown();
 }
 
 void MethodVerifier::AddRejectedClass(CompilerDriver::ClassReference ref) {

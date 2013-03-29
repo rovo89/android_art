@@ -15,17 +15,18 @@
  */
 
 #include "reg_type.h"
+#include "reg_type_cache-inl.h"
 
-#include "reg_type_cache.h"
-
+#include "base/casts.h"
 #include "common_test.h"
+#include <set>
 
 namespace art {
 namespace verifier {
 
 class RegTypeTest : public CommonTest {};
-
 TEST_F(RegTypeTest, Primitives) {
+
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
 
@@ -278,12 +279,185 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(double_reg_type.IsArrayIndexTypes());
 }
 
-// TODO: test reference RegType
-// TODO: test constant RegType
-// TODO: test VerifyAgainst
-// TODO: test Merge
-// TODO: test Equals
-// TODO: test ClassJoin
+
+class RegTypeReferenceTest : public CommonTest {};
+
+TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Tests matching precisions. A reference type that was created precise doesn't
+  // match the one that is imprecise.
+  RegTypeCache cache(true);
+  const RegType& imprecise_obj = cache.JavaLangObject(false);
+  const RegType& precise_obj = cache.JavaLangObject(true);
+  const RegType& precise_obj_2 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+
+  EXPECT_TRUE(precise_obj.Equals(precise_obj_2));
+  EXPECT_FALSE(imprecise_obj.Equals(precise_obj));
+  EXPECT_FALSE(imprecise_obj.Equals(precise_obj));
+  EXPECT_FALSE(imprecise_obj.Equals(precise_obj_2));
+}
+
+TEST_F(RegTypeReferenceTest, UnresolvedType) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Tests creating unresolved types. Miss for the first time asking the cache and
+  // a hit second time.
+  RegTypeCache cache(true);
+  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
+
+  const RegType& ref_type_1 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  EXPECT_TRUE(ref_type_0.Equals(ref_type_1));
+
+  const RegType& unresolved_super_class =  cache.FromUnresolvedSuperClass(ref_type_0);
+  EXPECT_TRUE(unresolved_super_class.IsUnresolvedSuperClass());
+}
+
+TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Tests creating types uninitialized types from unresolved types.
+  RegTypeCache cache(true);
+  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
+  const RegType& ref_type = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  EXPECT_TRUE(ref_type_0.Equals(ref_type));
+
+  // Create an uninitialized type of this unresolved type
+  const RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
+  EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
+  EXPECT_TRUE(unresolved_unintialised.IsUninitializedTypes());
+
+  // Create an uninitialized type of this unresolved type with different  PC
+  const RegType& ref_type_unresolved_unintialised_1 =  cache.Uninitialized(ref_type, 1102ull);
+  EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
+  EXPECT_FALSE(unresolved_unintialised.Equals(ref_type_unresolved_unintialised_1));
+
+  // Create an uninitialized type of this unresolved type with the same PC
+  const RegType& unresolved_unintialised_2 =
+      cache.Uninitialized(ref_type, 1101ull);
+  EXPECT_TRUE(unresolved_unintialised.Equals(unresolved_unintialised_2));
+}
+
+TEST_F(RegTypeReferenceTest, Dump) {
+  ScopedObjectAccess soa(Thread::Current());
+  // Tests creating types uninitialized types from unresolved types.
+  RegTypeCache cache(true);
+
+  const RegType& unresolved_ref = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& unresolved_ref_another = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExistEither;", true);
+  const RegType& resolved_ref = cache.JavaLangString();
+
+  const RegType& resolved_unintialiesd = cache.Uninitialized(resolved_ref, 10);
+  const RegType& unresolved_unintialized = cache.Uninitialized(unresolved_ref, 12);
+  const RegType& unresolved_merged = cache.FromUnresolvedMerge(unresolved_ref, unresolved_ref_another);
+
+  std::string expected = "Unresolved Reference: java.lang.DoesNotExist";
+  EXPECT_EQ(expected, unresolved_ref.Dump());
+  expected = "Precise Reference: java.lang.String";
+  EXPECT_EQ( expected, resolved_ref.Dump());
+  expected ="Uninitialized Reference: java.lang.String Allocation PC: 10";
+  EXPECT_EQ(expected, resolved_unintialiesd.Dump());
+  expected = "Unresolved And Uninitialized Reference: java.lang.DoesNotExist Allocation PC: 12";
+  EXPECT_EQ(expected, unresolved_unintialized.Dump());
+  expected = "UnresolvedMergedReferences(Unresolved Reference: java.lang.DoesNotExist, Unresolved Reference: java.lang.DoesNotExistEither)";
+  EXPECT_EQ(expected, unresolved_merged.Dump());
+}
+
+
+TEST_F(RegTypeReferenceTest, JavalangString) {
+  // Add a class to the cache then look for the same class and make sure it is  a
+  // Hit the second time. Then check for the same effect when using
+  // The JavaLangObject method instead of FromDescriptor. String class is final.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache(true);
+  const RegType& ref_type = cache.JavaLangString();
+  const RegType& ref_type_2 = cache.JavaLangString();
+  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/String;", true);
+
+  EXPECT_TRUE(ref_type.Equals(ref_type_2));
+  EXPECT_TRUE(ref_type_2.Equals(ref_type_3));
+  EXPECT_TRUE(ref_type.IsPreciseReference());
+
+  // Create an uninitialized type out of this:
+  const RegType& ref_type_unintialized = cache.Uninitialized(ref_type, 0110ull);
+  EXPECT_TRUE(ref_type_unintialized.IsUninitializedReference());
+  EXPECT_FALSE(ref_type_unintialized.IsUnresolvedAndUninitializedReference());
+
+}
+TEST_F(RegTypeReferenceTest, JavalangObject) {
+  // Add a class to the cache then look for the same class and make sure it is  a
+  // Hit the second time. Then I am checking for the same effect when using
+  // The JavaLangObject method instead of FromDescriptor. Object Class in not final.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache(true);
+  const RegType& ref_type = cache.JavaLangObject(true);
+  const RegType& ref_type_2 = cache.JavaLangObject(true);
+  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+
+  EXPECT_TRUE(ref_type.Equals(ref_type_2));
+  EXPECT_TRUE(ref_type_3.Equals(ref_type_2));
+  EXPECT_EQ(ref_type.GetId(), ref_type_3.GetId());
+}
+TEST_F(RegTypeReferenceTest, Merging) {
+  // Tests merging logic
+  //String and object , LUB is object.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache_new(true);
+  const RegType& string = cache_new.JavaLangString();
+  const RegType& Object = cache_new.JavaLangObject(true);
+  EXPECT_TRUE(string.Merge(Object, &cache_new).IsJavaLangObject());
+  // Merge two unresolved types.
+  const RegType& ref_type_0 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
+  const RegType& ref_type_1 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExistToo;", true);
+  EXPECT_FALSE(ref_type_0.Equals(ref_type_1));
+
+  const RegType& merged = ref_type_1.Merge(ref_type_0, &cache_new);
+  EXPECT_TRUE(merged.IsUnresolvedMergedReference());
+  RegType& merged_nonconst = const_cast<RegType&>(merged);
+
+  std::set<uint16_t> merged_ids = (down_cast<UnresolvedMergedType*>(&merged_nonconst))->GetMergedTypes();
+  EXPECT_EQ(ref_type_0.GetId(), *(merged_ids.begin()));
+  EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
+}
+
+TEST_F(RegTypeTest, ConstLoHi) {
+  // Tests creating primitive types types.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache(true);
+  const RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
+  const RegType& ref_type_const_3 = cache.FromCat1Const(30, false);
+
+  EXPECT_TRUE(ref_type_const_0.Equals(ref_type_const_1));
+  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_2));
+  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_3));
+
+  const RegType& ref_type_const_wide_0 = cache.FromCat2ConstHi(50, true);
+  const RegType& ref_type_const_wide_1 = cache.FromCat2ConstHi(50, true);
+  EXPECT_TRUE(ref_type_const_wide_0.Equals(ref_type_const_wide_1));
+
+  const RegType& ref_type_const_wide_2 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_3 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_4 = cache.FromCat2ConstLo(55, true);
+
+  EXPECT_TRUE(ref_type_const_wide_2.Equals(ref_type_const_wide_3));
+  EXPECT_FALSE(ref_type_const_wide_2.Equals(ref_type_const_wide_4));
+}
+
+
+TEST_F(RegTypeTest, ConstPrecision) {
+
+  // Tests creating primitive types types.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache_new(true);
+  const RegType& imprecise_const = cache_new.FromCat1Const(10, false);
+  const RegType& precise_const = cache_new.FromCat1Const(10, true);
+
+  EXPECT_TRUE(imprecise_const.IsImpreciseConstant());
+  EXPECT_TRUE(precise_const.IsPreciseConstant());
+  EXPECT_FALSE(imprecise_const.Equals(precise_const));
+}
 
 }  // namespace verifier
 }  // namespace art
