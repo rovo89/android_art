@@ -188,7 +188,10 @@ class IRBuilder : public LLVMIRBuilder {
                                  ::llvm::BasicBlock* false_bb,
                                  ExpectCond expect) {
     ::llvm::BranchInst* branch_inst = CreateCondBr(cond, true_bb, false_bb);
-    branch_inst->setMetadata(::llvm::LLVMContext::MD_prof, mdb_.GetBranchWeights(expect));
+    if (false) {
+      // TODO: http://b/8511695 Restore branch weight metadata
+      branch_inst->setMetadata(::llvm::LLVMContext::MD_prof, mdb_.GetBranchWeights(expect));
+    }
     return branch_inst;
   }
 
