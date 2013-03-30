@@ -122,10 +122,6 @@ class CompilerDriver {
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
-  CompiledInvokeStub* FindInvokeStub(const std::string& key) const
-      LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
-
   CompiledInvokeStub* FindProxyStub(const char* shorty) const;
 
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
@@ -321,9 +317,6 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void InsertInvokeStub(const std::string& key, CompiledInvokeStub* compiled_invoke_stub)
-      LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);
-
   void InsertProxyStub(const char* shorty, CompiledInvokeStub* compiled_proxy_stub);
 
   std::vector<const PatchInformation*> code_to_patch_;
@@ -348,10 +341,6 @@ class CompilerDriver {
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
   typedef SafeMap<std::string, CompiledInvokeStub*> InvokeStubTable;
-  // Invocation stubs created to allow invocation of the compiled methods.
-  mutable Mutex compiled_invoke_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  InvokeStubTable compiled_invoke_stubs_ GUARDED_BY(compiled_invoke_stubs_lock_);
-
   typedef SafeMap<std::string, CompiledInvokeStub*> ProxyStubTable;
   // Proxy stubs created for proxy invocation delegation
   mutable Mutex compiled_proxy_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -387,9 +376,6 @@ class CompilerDriver {
                                            uint32_t access_flags, uint32_t method_idx,
                                            const DexFile& dex_file);
   JniCompilerFn jni_compiler_;
-  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(CompilerDriver& driver, bool is_static,
-                                                    const char* shorty, uint32_t shorty_len);
-  CreateInvokeStubFn create_invoke_stub_;
 
   pthread_key_t tls_key_;
 
@@ -403,11 +389,6 @@ class CompilerDriver {
   typedef const void* (*CompilerGetMethodCodeAddrFn)
       (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
-
-  typedef const mirror::AbstractMethod::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
-      (const CompilerDriver& driver, const CompiledInvokeStub* cm, const mirror::AbstractMethod* method);
-  CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
-
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

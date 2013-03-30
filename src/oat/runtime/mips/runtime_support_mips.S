@@ -427,15 +427,18 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     /*
-     * Invocation stub.
+     * Common invocation stub for portable and quick.
      * On entry:
      *   a0 = method pointer
      *   a1 = argument array or NULL for no argument methods
      *   a2 = size of argument array in bytes
      *   a3 = (managed) thread pointer
-     *   [sp + 16] = JValue* result for non-floating point returns
-     *   [sp + 20] = JValue* result for floating point returns
+     *   [sp + 16] = JValue* result
+     *   [sp + 20] = result type char
      */
+     .type art_portable_invoke_stub, %function
+     .global art_portable_invoke_stub
+art_portable_invoke_stub:
 ENTRY art_quick_invoke_stub
     GENERATE_GLOBAL_POINTER
     sw    $a0, 0($sp)           # save out a0
@@ -476,13 +479,20 @@ ENTRY art_quick_invoke_stub
     addiu $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
     lw    $t0, 16($sp)          # get result pointer
+    lw    $t1, 20($sp)          # get result type char
+    li    $t2, 68               # put char 'D' into t2
+    beq   $t1, $t2, 1f          # branch if result type char == 'D'
+    li    $t3, 70               # put char 'F' into t3
+    beq   $t1, $t3, 1f          # branch if result type char == 'F'
     sw    $v0, 0($t0)           # store the result
+    jr    $ra
     sw    $v1, 4($t0)           # store the other half of the result
-    lw    $t0, 20($sp)          # get floating point result pointer
+1:
     s.s   $f0, 0($t0)           # store floating point result
     jr    $ra
     s.s   $f1, 4($t0)           # store other half of floating point result
 END art_quick_invoke_stub
+    .size art_portable_invoke_stub, .-art_portable_invoke_stub
 
     /*
      * Entry point of native methods when JNI bug compatibility is enabled.

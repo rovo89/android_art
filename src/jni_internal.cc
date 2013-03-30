@@ -135,12 +135,12 @@ static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
 }
 
 void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
-                        ArgArray* arg_array, JValue* result, JValue* float_result)
+                        ArgArray* arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, arg_array->GetArray());
   }
-  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, float_result);
+  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, result_type);
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
@@ -150,15 +150,10 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 static AbstractMethod* FindVirtualMethod(Object* receiver, AbstractMethod* method)
@@ -173,15 +168,10 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
@@ -191,15 +181,10 @@ static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
   AbstractMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 // Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
@@ -597,15 +582,10 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
   Object* receiver = method->IsStatic() ? NULL : soa.Decode<Object*>(obj);
   MethodHelper mh(method);
   JValue result;
-  JValue float_result;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, receiver, args);
-  InvokeWithArgArray(soa, method, &arg_array, &result, &float_result);
-  if (mh.IsReturnFloatOrDouble()) {
-    return float_result;
-  } else {
-    return result;
-  }
+  InvokeWithArgArray(soa, method, &arg_array, &result, mh.GetShorty()[0]);
+  return result;
 }
 
 class JNI {
@@ -2163,21 +2143,21 @@ class JNI {
     // At the moment, the Java side is limited to 32 bits.
     CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
     CHECK_LE(capacity, 0xffffffff);
-    jint address_arg = reinterpret_cast<jint>(address);
+    jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
-    jobject result = env->NewObject(WellKnownClasses::java_nio_ReadWriteDirectByteBuffer,
-                                    WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init,
+    jobject result = env->NewObject(WellKnownClasses::java_nio_DirectByteBuffer,
+                                    WellKnownClasses::java_nio_DirectByteBuffer_init,
                                     address_arg, capacity_arg);
     return static_cast<JNIEnvExt*>(env)->self->IsExceptionPending() ? NULL : result;
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
-    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress));
+    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
-    return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity));
+    return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_capacity));
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {

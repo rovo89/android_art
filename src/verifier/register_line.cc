@@ -74,24 +74,19 @@ bool RegisterLine::SetRegisterTypeWide(uint32_t vdst, const RegType& new_type1,
 }
 
 void RegisterLine::SetResultTypeToUnknown() {
-  result_[0] = RegType::kRegTypeUndefined;
-  result_[1] = RegType::kRegTypeUndefined;
+  result_[0] = verifier_->GetRegTypeCache()->Undefined().GetId();
+  result_[1] = result_[0];
 }
 
 void RegisterLine::SetResultRegisterType(const RegType& new_type) {
   DCHECK(!new_type.IsLowHalf());
   DCHECK(!new_type.IsHighHalf());
   result_[0] = new_type.GetId();
-  result_[1] = RegType::kRegTypeUndefined;
-  if (new_type.IsLowHalf()) {
-    DCHECK_EQ(new_type.HighHalf(verifier_->GetRegTypeCache()).GetId(), new_type.GetId() + 1);
-    result_[1] = new_type.GetId() + 1;
-  } else {
-    result_[1] = RegType::kRegTypeUndefined;
-  }
+  result_[1] = verifier_->GetRegTypeCache()->Undefined().GetId();
 }
 
-void RegisterLine::SetResultRegisterTypeWide(const RegType& new_type1, const RegType& new_type2) {
+void RegisterLine::SetResultRegisterTypeWide(const RegType& new_type1,
+                                             const RegType& new_type2) {
   DCHECK(new_type1.CheckWidePair(new_type2));
   result_[0] = new_type1.GetId();
   result_[1] = new_type2.GetId();
@@ -118,16 +113,18 @@ const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_ins
   return this_type;
 }
 
-bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) {
+bool RegisterLine::VerifyRegisterType(uint32_t vsrc,
+                                      const RegType& check_type) {
   // Verify the src register type against the check type refining the type of the register
   const RegType& src_type = GetRegisterType(vsrc);
-  if (!check_type.IsAssignableFrom(src_type)) {
+  if (!(check_type.IsAssignableFrom(src_type))) {
     // Hard fail if one of the types is primitive, since they are concretely known.
     enum VerifyError fail_type = (!check_type.IsNonZeroReferenceTypes() ||
-                                  !src_type.IsNonZeroReferenceTypes()) ?
-                                  VERIFY_ERROR_BAD_CLASS_HARD : VERIFY_ERROR_BAD_CLASS_SOFT;
-    verifier_->Fail(fail_type) << "register v" << vsrc << " has type " << src_type
-                               << " but expected " << check_type;
+                                  !src_type.IsNonZeroReferenceTypes())
+                                 ? VERIFY_ERROR_BAD_CLASS_HARD
+                                 : VERIFY_ERROR_BAD_CLASS_SOFT;
+    verifier_->Fail(fail_type) << "register v" << vsrc << " has type "
+                               << src_type << " but expected " << check_type;
     return false;
   }
   if (check_type.IsLowHalf()) {
@@ -185,11 +182,11 @@ std::string RegisterLine::Dump() const {
   std::string result;
   for (size_t i = 0; i < num_regs_; i++) {
     result += StringPrintf("%zd:[", i);
-    result += GetRegisterType(i).Dump(verifier_->GetRegTypeCache());
+    result += GetRegisterType(i).Dump();
     result += "],";
   }
-  typedef std::deque<uint32_t>::const_iterator It; // TODO: C++0x auto
-  for (It it = monitors_.begin(), end = monitors_.end(); it != end ; ++it) {
+  typedef std::deque<uint32_t>::const_iterator It;  // TODO: C++0x auto
+  for (It it = monitors_.begin(), end = monitors_.end(); it != end; ++it) {
     result += StringPrintf("{%d},", *it);
   }
   return result;
@@ -240,7 +237,7 @@ void RegisterLine::CopyResultRegister1(uint32_t vdst, bool is_reference) {
   } else {
     DCHECK(verifier_->GetRegTypeCache()->GetFromId(result_[1]).IsUndefined());
     SetRegisterType(vdst, type);
-    result_[0] = RegType::kRegTypeUndefined;
+    result_[0] = verifier_->GetRegTypeCache()->Undefined().GetId();
   }
 }
 
@@ -257,13 +254,15 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
   } else {
     DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
     SetRegisterTypeWide(vdst, type_l, type_h);  // also sets the high
-    result_[0] = RegType::kRegTypeUndefined;
-    result_[1] = RegType::kRegTypeUndefined;
+    result_[0] = verifier_->GetRegTypeCache()->Undefined().GetId();
+    result_[1] = verifier_->GetRegTypeCache()->Undefined().GetId();
+
   }
 }
 
 void RegisterLine::CheckUnaryOp(const DecodedInstruction& dec_insn,
-                                const RegType& dst_type, const RegType& src_type) {
+                                const RegType& dst_type,
+                                const RegType& src_type) {
   if (VerifyRegisterType(dec_insn.vB, src_type)) {
     SetRegisterType(dec_insn.vA, dst_type);
   }

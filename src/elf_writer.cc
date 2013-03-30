@@ -242,12 +242,6 @@ void ElfWriter::AddMethodInputs(const std::vector<const DexFile*>& dex_files) {
     if (compiled_method != NULL) {
       AddCompiledCodeInput(*compiled_method);
     }
-    const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(invoke_type == kStatic,
-                                                                                      shorty);
-    if (compiled_invoke_stub != NULL) {
-      AddCompiledCodeInput(*compiled_invoke_stub);
-    }
-
     if (invoke_type != kStatic) {
       const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
       if (compiled_proxy_stub != NULL) {
@@ -392,15 +386,6 @@ void ElfWriter::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_fil
         method->SetOatCodeOffset(offset);
       }
     }
-    const CompiledInvokeStub* compiled_invoke_stub = compiler_driver_->FindInvokeStub(invoke_type == kStatic,
-                                                                                      shorty);
-    if (compiled_invoke_stub != NULL) {
-      uint32_t offset = FixupCompiledCodeOffset(*elf_file.get(), oatdata_address, *compiled_invoke_stub);
-      if (method != NULL) {
-        method->SetOatInvokeStubOffset(offset);
-      }
-    }
-
     if (invoke_type != kStatic) {
       const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
       if (compiled_proxy_stub != NULL) {

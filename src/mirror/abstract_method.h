@@ -39,13 +39,6 @@ class StaticStorageBase;
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED AbstractMethod : public Object {
  public:
-  // A function that invokes a method with an array of its arguments.
-  typedef void InvokeStub(const AbstractMethod* method,
-                          Object* obj,
-                          Thread* thread,
-                          JValue* args,
-                          JValue* result);
-
   Class* GetDeclaringClass() const;
 
   void SetDeclaringClass(Class *new_declaring_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -193,8 +186,7 @@ class MANAGED AbstractMethod : public Object {
   // Find the method that this method overrides
   AbstractMethod* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
-              JValue* float_result)
+  void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, char result_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {
@@ -346,36 +338,6 @@ class MANAGED AbstractMethod : public Object {
 
   void SetNativeMethod(const void*);
 
-  // Native to managed invocation stub entry point
-  InvokeStub* GetInvokeStub() const {
-    InvokeStub* result = GetFieldPtr<InvokeStub*>(
-        OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_), false);
-    // TODO: DCHECK(result != NULL);  should be ahead of time compiled
-    return result;
-  }
-
-  void SetInvokeStub(InvokeStub* invoke_stub) {
-    SetFieldPtr<InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_),
-                             invoke_stub, false);
-  }
-
-  uint32_t GetInvokeStubSize() const {
-    uintptr_t invoke_stub = reinterpret_cast<uintptr_t>(GetInvokeStub());
-    if (invoke_stub == 0) {
-      return 0;
-    }
-    // TODO: make this Thumb2 specific
-    invoke_stub &= ~0x1;
-    return reinterpret_cast<const uint32_t*>(invoke_stub)[-1];
-  }
-
-  uint32_t GetOatInvokeStubOffset() const;
-  void SetOatInvokeStubOffset(uint32_t invoke_stub_offset);
-
-  static MemberOffset GetInvokeStubOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, invoke_stub_);
-  }
-
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, method_index_);
   }
@@ -473,9 +435,6 @@ class MANAGED AbstractMethod : public Object {
 
   // Garbage collection map of native PC offsets to reference bitmaps.
   const uint8_t* native_gc_map_;
-
-  // Native invocation stub entry point for calling from native to managed code.
-  InvokeStub* invoke_stub_;
 
   // Mapping from native pc to dex pc
   const uint32_t* mapping_table_;

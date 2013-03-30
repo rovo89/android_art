@@ -91,9 +91,6 @@ class OatFile {
     uint32_t GetNativeGcMapOffset() const {
       return native_gc_map_offset_;
     }
-    uint32_t GetInvokeStubOffset() const {
-      return invoke_stub_offset_;
-    }
 
     const void* GetCode() const;
     uint32_t GetCodeSize() const;
@@ -107,9 +104,6 @@ class OatFile {
     const uint8_t* GetNativeGcMap() const {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
     }
-
-    mirror::AbstractMethod::InvokeStub* GetInvokeStub() const;
-    uint32_t GetInvokeStubSize() const;
 
 #if defined(ART_USE_PORTABLE_COMPILER)
     const void* GetProxyStub() const;
@@ -125,8 +119,7 @@ class OatFile {
               const uint32_t fp_spill_mask,
               const uint32_t mapping_table_offset,
               const uint32_t vmap_table_offset,
-              const uint32_t gc_map_offset,
-              const uint32_t invoke_stub_offset
+              const uint32_t gc_map_offset
 #if defined(ART_USE_PORTABLE_COMPILER)
             , const uint32_t proxy_stub_offset
 #endif
@@ -150,7 +143,6 @@ class OatFile {
     uint32_t mapping_table_offset_;
     uint32_t vmap_table_offset_;
     uint32_t native_gc_map_offset_;
-    uint32_t invoke_stub_offset_;
 
 #if defined(ART_USE_PORTABLE_COMPILER)
     uint32_t proxy_stub_offset_;
@@ -238,7 +230,7 @@ class OatFile {
   explicit OatFile(const std::string& filename);
   bool Dlopen(const std::string& elf_filename, byte* requested_base);
   bool ElfFileOpen(File* file, byte* requested_base, bool writable);
-  void Setup();
+  bool Setup();
 
   const byte* Begin() const;
   const byte* End() const;

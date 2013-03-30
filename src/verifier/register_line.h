@@ -52,10 +52,11 @@ enum TypeCategory {
 class RegisterLine {
  public:
   RegisterLine(size_t num_regs, MethodVerifier* verifier)
-      : line_(new uint16_t[num_regs]), verifier_(verifier), num_regs_(num_regs) {
+      : line_(new uint16_t[num_regs]),
+        verifier_(verifier),
+        num_regs_(num_regs) {
     memset(line_.get(), 0, num_regs_ * sizeof(uint16_t));
-    result_[0] = RegType::kRegTypeUndefined;
-    result_[1] = RegType::kRegTypeUndefined;
+    SetResultTypeToUnknown();
   }
 
   // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
@@ -78,7 +79,7 @@ class RegisterLine {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the invisible result register to unknown
-  void SetResultTypeToUnknown();
+  void SetResultTypeToUnknown() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the type of register N, verifying that the register is valid.  If "newType" is the "Lo"
   // part of a 64-bit value, register N+1 will be set to "newType+1".

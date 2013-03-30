@@ -136,18 +136,16 @@ Runtime::~Runtime() {
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
   delete monitor_list_;
-
   delete class_linker_;
   delete heap_;
-  verifier::MethodVerifier::Shutdown();
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
-
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
+  verifier::MethodVerifier::Shutdown();
 }
 
 struct AbortState {
@@ -630,9 +628,8 @@ static void CreateSystemClassLoader() {
   CHECK(getSystemClassLoader != NULL);
 
   JValue result;
-  JValue float_result;
   ArgArray arg_array(NULL, 0);
-  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, &float_result);
+  InvokeWithArgArray(soa, getSystemClassLoader, &arg_array, &result, 'L');
   mirror::ClassLoader* class_loader = down_cast<mirror::ClassLoader*>(result.GetL());
   CHECK(class_loader != NULL);
 
@@ -811,7 +808,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
-  verifier::MethodVerifier::Init();
 
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,
@@ -851,6 +847,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     class_linker_ = ClassLinker::CreateFromCompiler(*options->boot_class_path_, intern_table_);
   }
   CHECK(class_linker_ != NULL);
+  verifier::MethodVerifier::Init();
 
   method_trace_ = options->method_trace_;
   method_trace_file_ = options->method_trace_file_;

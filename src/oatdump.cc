@@ -239,7 +239,6 @@ class OatDumper {
     offsets_.insert(oat_method.GetMappingTableOffset());
     offsets_.insert(oat_method.GetVmapTableOffset());
     offsets_.insert(oat_method.GetNativeGcMapOffset());
-    offsets_.insert(oat_method.GetInvokeStubOffset());
   }
 
   void DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
@@ -367,16 +366,6 @@ class OatDumper {
       std::ostream indent2_os(&indent2_filter);
       DumpCode(indent2_os, oat_method, dex_method_idx, &dex_file, class_def_idx, code_item,
                method_access_flags);
-    }
-    {
-      indent1_os << StringPrintf("INVOKE STUB: %p (offset=0x%08x size=%d)%s\n",
-                                 oat_method.GetInvokeStub(),
-                                 oat_method.GetInvokeStubOffset(),
-                                 oat_method.GetInvokeStubSize(),
-                                 oat_method.GetInvokeStub() != NULL ? "..." : "");
-      Indenter indent2_filter(indent1_os.rdbuf(), kIndentChar, kIndentBy1Count);
-      std::ostream indent2_os(&indent2_filter);
-      DumpInvokeStub(indent2_os, oat_method);
     }
   }
 
@@ -682,12 +671,6 @@ class OatDumper {
         }
       }
     }
-  }
-
-  void DumpInvokeStub(std::ostream& os, const OatFile::OatMethod& oat_method) {
-    const uint8_t* begin = reinterpret_cast<const uint8_t*>(oat_method.GetInvokeStub());
-    const uint8_t* end = begin + oat_method.GetInvokeStubSize();
-    disassembler_->Dump(os, begin, end);
   }
 
   const std::string host_prefix_;
@@ -1006,11 +989,6 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
         bool first_occurrence;
-        size_t invoke_stub_size = state->ComputeOatSize(
-            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurrence);
-        if (first_occurrence) {
-          state->stats_.managed_to_native_code_bytes += invoke_stub_size;
-        }
         const void* oat_code = state->GetOatCodeBegin(method);
         uint32_t oat_code_size = state->GetOatCodeSize(method);
         state->ComputeOatSize(oat_code, &first_occurrence);
@@ -1049,12 +1027,6 @@ class ImageDumper {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }
 
-        // TODO: compute invoke stub using length from oat file.
-        size_t invoke_stub_size = state->ComputeOatSize(
-            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurrence);
-        if (first_occurrence) {
-          state->stats_.native_to_managed_code_bytes += invoke_stub_size;
-        }
         const void* oat_code_begin = state->GetOatCodeBegin(method);
         const void* oat_code_end = state->GetOatCodeEnd(method);
         uint32_t oat_code_size = state->GetOatCodeSize(method);
@@ -1078,7 +1050,7 @@ class ImageDumper {
                                   dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
 
         size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
-            vmap_table_bytes + invoke_stub_size + oat_code_size + object_bytes;
+            vmap_table_bytes + oat_code_size + object_bytes;
 
         double expansion =
             static_cast<double>(oat_code_size) / static_cast<double>(dex_instruction_bytes);

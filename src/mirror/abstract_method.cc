@@ -32,8 +32,8 @@
 namespace art {
 namespace mirror {
 
-extern "C" void art_quick_invoke_stub(AbstractMethod*, uint32_t*, uint32_t,
-                                      Thread*, JValue*, JValue*);
+extern "C" void art_portable_invoke_stub(AbstractMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
+extern "C" void art_quick_invoke_stub(AbstractMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
 
 // TODO: get global references for these
 Class* AbstractMethod::java_lang_reflect_Constructor_ = NULL;
@@ -260,7 +260,7 @@ uint32_t AbstractMethod::FindCatchBlock(Class* exception_type, uint32_t dex_pc) 
 }
 
 void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
-                            JValue* float_result) {
+                            char result_type) {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
@@ -270,15 +270,11 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
   ManagedStack fragment;
   self->PushManagedStackFragment(&fragment);
 
-  // Call the invoke stub associated with the method.
-  // Pass everything as arguments.
-  AbstractMethod::InvokeStub* stub = GetInvokeStub();
-
+  // Call the invoke stub, passing everything as arguments.
   if (UNLIKELY(!Runtime::Current()->IsStarted())){
     LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
       result->SetJ(0);
-      float_result->SetJ(0);
     }
   } else {
     bool interpret = self->ReadFlag(kEnterInterpreter) && !IsNative() && !IsProxyMethod();
@@ -286,37 +282,12 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
     if (GetCode() != NULL) {
       if (!interpret) {
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Invoking '%s' code=%p stub=%p",
-                                    PrettyMethod(this).c_str(), GetCode(), stub);
+          LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
         }
-        // TODO: Temporary to keep portable working while stubs are removed from quick.
 #ifdef ART_USE_PORTABLE_COMPILER
-        MethodHelper mh(this);
-        const char* shorty = mh.GetShorty();
-        uint32_t shorty_len = mh.GetShortyLength();
-        UniquePtr<JValue[]> jvalue_args(new JValue[shorty_len - 1]);
-        Object* receiver = NULL;
-        uint32_t* ptr = args;
-        if (!this->IsStatic()) {
-          receiver = reinterpret_cast<Object*>(*ptr);
-          ptr++;
-        }
-        for (uint32_t i = 1; i < shorty_len; i++) {
-          if ((shorty[i] == 'J') || (shorty[i] == 'D')) {
-            jvalue_args[i - 1].SetJ(*((uint64_t*)ptr));
-            ptr++;
-          } else {
-            jvalue_args[i - 1].SetI(*ptr);
-          }
-          ptr++;
-        }
-        if (mh.IsReturnFloatOrDouble()) {
-          (*stub)(this, receiver, self, jvalue_args.get(), float_result);
-        } else {
-          (*stub)(this, receiver, self, jvalue_args.get(), result);
-        }
+        (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
 #else
-        (*art_quick_invoke_stub)(this, args, args_size, self, result, float_result);
+        (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
 #endif
         if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException()) == -1)) {
           // Unusual case where we were running LLVM generated code and an
@@ -329,20 +300,17 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
           interpreter::EnterInterpreterFromLLVM(self, shadow_frame, result);
         }
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Returned '%s' code=%p stub=%p",
-                                    PrettyMethod(this).c_str(), GetCode(), stub);
+          LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
         }
       } else {
         if (kLogInvocationStartAndReturn) {
           LOG(INFO) << "Interpreting " << PrettyMethod(this) << "'";
         }
         if (this->IsStatic()) {
-          art::interpreter::EnterInterpreterFromInvoke(self, this, NULL, args,
-                                                       result, float_result);
+          art::interpreter::EnterInterpreterFromInvoke(self, this, NULL, args, result);
         } else {
           Object* receiver = reinterpret_cast<Object*>(args[0]);
-          art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1,
-                                                       result, float_result);
+          art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1, result);
         }
         if (kLogInvocationStartAndReturn) {
           LOG(INFO) << "Returned '" << PrettyMethod(this) << "'";
@@ -350,11 +318,9 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this)
-          << "' code=" << reinterpret_cast<const void*>(GetCode())
-          << " stub=" << reinterpret_cast<void*>(stub);
+          << "' code=" << reinterpret_cast<const void*>(GetCode());
       if (result != NULL) {
         result->SetJ(0);
-        float_result->SetJ(0);
       }
     }
   }

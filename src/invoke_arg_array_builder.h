@@ -67,6 +67,12 @@ class ArgArray {
   }
 
   void AppendWide(uint64_t value) {
+    // For ARM and MIPS portable, align wide values to 8 bytes (ArgArray starts at offset of 4).
+#if defined(ART_USE_PORTABLE_COMPILER) && (defined(__arm__) || defined(__mips__))
+    if (num_bytes_ % 8 == 0) {
+      num_bytes_ += 4;
+    }
+#endif
     arg_array_[num_bytes_ / 4] = value;
     arg_array_[(num_bytes_ / 4) + 1] = value >> 32;
     num_bytes_ += 8;

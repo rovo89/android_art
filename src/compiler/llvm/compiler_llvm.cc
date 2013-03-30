@@ -173,17 +173,6 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }
 
 
-CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
-                                                   char const *shorty) {
-  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
-
-  UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(cunit.get(), *compiler_driver_));
-
-  return stub_compiler->CreateInvokeStub(is_static, shorty);
-}
-
-
 CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
   UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
 
@@ -251,15 +240,6 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
 
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);
-  return result;
-}
-
-extern "C" art::CompiledInvokeStub* ArtCreateLLVMInvokeStub(art::CompilerDriver& driver,
-                                                            bool is_static,
-                                                            const char* shorty,
-                                                            uint32_t shorty_len) {
-  art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
   return result;
 }
 

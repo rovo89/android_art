@@ -2729,12 +2729,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   MethodHelper mh(m);
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(soa, pReq->receiver_, reinterpret_cast<jvalue*>(pReq->arg_values_));
-  JValue unused_result;
-  if (mh.IsReturnFloatOrDouble()) {
-    InvokeWithArgArray(soa, m, &arg_array, &unused_result, &pReq->result_value);
-  } else {
-    InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, &unused_result);
-  }
+  InvokeWithArgArray(soa, m, &arg_array, &pReq->result_value, mh.GetShorty()[0]);
 
   pReq->exception = gRegistry->Add(soa.Self()->GetException());
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());

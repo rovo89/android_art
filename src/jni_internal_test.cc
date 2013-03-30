@@ -31,7 +31,7 @@
 namespace art {
 
 extern "C" void art_quick_invoke_stub(const mirror::AbstractMethod*, uint32_t*, uint32_t,
-                                      Thread*, JValue*, JValue*);
+                                      Thread*, JValue*, char);
 
 class JniInternalTest : public CommonTest {
  protected:
@@ -114,12 +114,11 @@ class JniInternalTest : public CommonTest {
 
     ArgArray arg_array(NULL, 0);
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
     }
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'V');
   }
 
   void InvokeIdentityByteMethod(bool is_static)
@@ -131,7 +130,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -140,22 +138,22 @@ class JniInternalTest : public CommonTest {
 
     arg_array.Append(0);
     result.SetB(-1);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'B');
     EXPECT_EQ(0, result.GetB());
 
     args[0] = -1;
     result.SetB(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'B');
     EXPECT_EQ(-1, result.GetB());
 
     args[0] = SCHAR_MAX;
     result.SetB(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'B');
     EXPECT_EQ(SCHAR_MAX, result.GetB());
 
     args[0] = (SCHAR_MIN << 24) >> 24;
     result.SetB(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'B');
     EXPECT_EQ(SCHAR_MIN, result.GetB());
   }
 
@@ -168,7 +166,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -177,22 +174,22 @@ class JniInternalTest : public CommonTest {
 
     arg_array.Append(0);
     result.SetI(-1);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
 
     args[0] = -1;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-1, result.GetI());
 
     args[0] = INT_MAX;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(INT_MAX, result.GetI());
 
     args[0] = INT_MIN;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(INT_MIN, result.GetI());
   }
 
@@ -206,7 +203,6 @@ class JniInternalTest : public CommonTest {
     uint32_t* args = arg_array.GetArray();
     JValue value;
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -216,29 +212,29 @@ class JniInternalTest : public CommonTest {
     value.SetD(0.0);
     arg_array.AppendWide(value.GetJ());
     result.SetD(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(0.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(-1.0);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(-1.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(-1.0, result.GetD());
 
     value.SetD(DBL_MAX);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(DBL_MAX, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(DBL_MAX, result.GetD());
 
     value.SetD(DBL_MIN);
     args[0] = value.GetJ();
     args[1] = value.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(DBL_MIN, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(DBL_MIN, result.GetD());
   }
 
   void InvokeSumIntIntMethod(bool is_static)
@@ -250,7 +246,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -260,31 +255,31 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0);
     arg_array.Append(0);
     result.SetI(-1);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
     args[1] = 2;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(3, result.GetI());
 
     args[0] = -2;
     args[1] = 5;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(3, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MIN;
     result.SetI(1234);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-1, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MAX;
     result.SetI(INT_MIN);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-2, result.GetI());
   }
 
@@ -297,7 +292,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -308,35 +302,35 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0);
     arg_array.Append(0);
     result.SetI(-1);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
     args[1] = 2;
     args[2] = 3;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(6, result.GetI());
 
     args[0] = -1;
     args[1] = 2;
     args[2] = -3;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-2, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MIN;
     args[2] = INT_MAX;
     result.SetI(1234);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(2147483646, result.GetI());
 
     args[0] = INT_MAX;
     args[1] = INT_MAX;
     args[2] = INT_MAX;
     result.SetI(INT_MIN);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(2147483645, result.GetI());
   }
 
@@ -349,7 +343,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -361,7 +354,7 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0);
     arg_array.Append(0);
     result.SetI(-1);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
@@ -369,7 +362,7 @@ class JniInternalTest : public CommonTest {
     args[2] = 3;
     args[3] = 4;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(10, result.GetI());
 
     args[0] = -1;
@@ -377,7 +370,7 @@ class JniInternalTest : public CommonTest {
     args[2] = -3;
     args[3] = 4;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(2, result.GetI());
 
     args[0] = INT_MAX;
@@ -385,7 +378,7 @@ class JniInternalTest : public CommonTest {
     args[2] = INT_MAX;
     args[3] = INT_MIN;
     result.SetI(1234);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-2, result.GetI());
 
     args[0] = INT_MAX;
@@ -393,7 +386,7 @@ class JniInternalTest : public CommonTest {
     args[2] = INT_MAX;
     args[3] = INT_MAX;
     result.SetI(INT_MIN);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-4, result.GetI());
   }
 
@@ -406,7 +399,6 @@ class JniInternalTest : public CommonTest {
     ArgArray arg_array(NULL, 0);
     uint32_t* args = arg_array.GetArray();
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -419,7 +411,7 @@ class JniInternalTest : public CommonTest {
     arg_array.Append(0);
     arg_array.Append(0);
     result.SetI(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(0, result.GetI());
 
     args[0] = 1;
@@ -428,7 +420,7 @@ class JniInternalTest : public CommonTest {
     args[3] = 4;
     args[4] = 5;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(15, result.GetI());
 
     args[0] = -1;
@@ -437,7 +429,7 @@ class JniInternalTest : public CommonTest {
     args[3] = 4;
     args[4] = -5;
     result.SetI(0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(-3, result.GetI());
 
     args[0] = INT_MAX;
@@ -446,7 +438,7 @@ class JniInternalTest : public CommonTest {
     args[3] = INT_MIN;
     args[4] = INT_MAX;
     result.SetI(1234);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(2147483645, result.GetI());
 
     args[0] = INT_MAX;
@@ -455,7 +447,7 @@ class JniInternalTest : public CommonTest {
     args[3] = INT_MAX;
     args[4] = INT_MAX;
     result.SetI(INT_MIN);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'I');
     EXPECT_EQ(2147483643, result.GetI());
   }
 
@@ -470,7 +462,6 @@ class JniInternalTest : public CommonTest {
     JValue value;
     JValue value2;
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -482,8 +473,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value.GetJ());
     arg_array.AppendWide(value2.GetJ());
     result.SetD(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(0.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(2.0);
@@ -492,8 +483,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(3.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(3.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(-2.0);
@@ -502,8 +493,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(-1.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(-1.0, result.GetD());
 
     value.SetD(DBL_MAX);
     value2.SetD(DBL_MIN);
@@ -512,8 +503,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(1.7976931348623157e308, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(1.7976931348623157e308, result.GetD());
 
     value.SetD(DBL_MAX);
     value2.SetD(DBL_MAX);
@@ -522,8 +513,8 @@ class JniInternalTest : public CommonTest {
     args[2] = value2.GetJ();
     args[3] = value2.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(INFINITY, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(INFINITY, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
@@ -538,7 +529,6 @@ class JniInternalTest : public CommonTest {
     JValue value2;
     JValue value3;
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -552,8 +542,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value2.GetJ());
     arg_array.AppendWide(value3.GetJ());
     result.SetD(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(0.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(2.0);
@@ -565,8 +555,8 @@ class JniInternalTest : public CommonTest {
     args[4] = value3.GetJ();
     args[5] = value3.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(6.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(6.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(-2.0);
@@ -578,8 +568,8 @@ class JniInternalTest : public CommonTest {
     args[4] = value3.GetJ();
     args[5] = value3.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(2.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
@@ -595,7 +585,6 @@ class JniInternalTest : public CommonTest {
     JValue value3;
     JValue value4;
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -611,8 +600,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value3.GetJ());
     arg_array.AppendWide(value4.GetJ());
     result.SetD(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(0.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(2.0);
@@ -627,8 +616,8 @@ class JniInternalTest : public CommonTest {
     args[6] = value4.GetJ();
     args[7] = value4.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(10.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(10.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(-2.0);
@@ -643,8 +632,8 @@ class JniInternalTest : public CommonTest {
     args[6] = value4.GetJ();
     args[7] = value4.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(-2.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(-2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
@@ -661,7 +650,6 @@ class JniInternalTest : public CommonTest {
     JValue value4;
     JValue value5;
     JValue result;
-    JValue float_result;
 
     if (!is_static) {
       arg_array.Append(reinterpret_cast<uint32_t>(receiver));
@@ -679,8 +667,8 @@ class JniInternalTest : public CommonTest {
     arg_array.AppendWide(value4.GetJ());
     arg_array.AppendWide(value5.GetJ());
     result.SetD(-1.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(0.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(0.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(2.0);
@@ -698,8 +686,8 @@ class JniInternalTest : public CommonTest {
     args[8] = value5.GetJ();
     args[9] = value5.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(15.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(15.0, result.GetD());
 
     value.SetD(1.0);
     value2.SetD(-2.0);
@@ -717,8 +705,8 @@ class JniInternalTest : public CommonTest {
     args[8] = value5.GetJ();
     args[9] = value5.GetJ() >> 32;
     result.SetD(0.0);
-    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
-    EXPECT_EQ(3.0, float_result.GetD());
+    (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'D');
+    EXPECT_EQ(3.0, result.GetD());
   }
 
   JavaVMExt* vm_;
@@ -1602,9 +1590,8 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   ArgArray arg_array(NULL, 0);
   arg_array.Append(0);
   JValue result;
-  JValue float_result;
 
-  (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, &float_result);
+  (*art_quick_invoke_stub)(method, arg_array.GetArray(), arg_array.GetNumBytes(), Thread::Current(), &result, 'V');
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {

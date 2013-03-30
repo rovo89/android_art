@@ -479,14 +479,8 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
 void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) {
   FixupInstanceFields(orig, copy);
 
-  // OatWriter replaces the code_ and invoke_stub_ with offset values.
+  // OatWriter replaces the code_ with an offset value.
   // Here we readjust to a pointer relative to oat_begin_
-
-  // Every type of method can have an invoke stub
-  uint32_t invoke_stub_offset = orig->GetOatInvokeStubOffset();
-  const byte* invoke_stub = GetOatAddress(invoke_stub_offset);
-  copy->SetInvokeStub(reinterpret_cast<AbstractMethod::InvokeStub*>(const_cast<byte*>(invoke_stub)));
-
   if (orig->IsAbstract()) {
     // Abstract methods are pointed to a stub that will throw AbstractMethodError if they are called
     ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
