@@ -2143,7 +2143,7 @@ class JNI {
     // At the moment, the Java side is limited to 32 bits.
     CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
     CHECK_LE(capacity, 0xffffffff);
-    jint address_arg = reinterpret_cast<jint>(address);
+    jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
     jobject result = env->NewObject(WellKnownClasses::java_nio_DirectByteBuffer,
