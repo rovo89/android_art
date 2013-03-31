@@ -1022,7 +1022,7 @@ art_quick_instrumentation_exit_from_code:
     jr       $t0            # return
     addiu    $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
-END art_quickInstrumentation_exit_from_code
+END art_quick_instrumentation_exit_from_code
 
     /*
      * The thread's enter interpreter flag is set and so we should transition to the interpreter
