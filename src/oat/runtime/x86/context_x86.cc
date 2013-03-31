@@ -62,7 +62,7 @@ void X86Context::SmashCallerSaves() {
 }
 
 void X86Context::SetGPR(uint32_t reg, uintptr_t value){
-  CHECK_LT(reg, kNumberOfCpuRegisters);
+  CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
   CHECK_NE(gprs_[reg], &gZero);
   CHECK(gprs_[reg] != NULL);
   *gprs_[reg] = value;
