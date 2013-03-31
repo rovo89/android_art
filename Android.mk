@@ -165,7 +165,7 @@ test-art-host-interpreter: test-art-host-interpreter-oat test-art-host-interpret
 	@echo test-art-host-interpreter PASSED
 
 .PHONY: test-art-host-dependencies
-test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION)
+test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) $(HOST_CORE_DEX_LOCATIONS)
 
 .PHONY: test-art-host-gtest
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
