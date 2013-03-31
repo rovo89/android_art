@@ -69,7 +69,7 @@ void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
 }
 
 void MipsContext::SetGPR(uint32_t reg, uintptr_t value) {
-  CHECK_LT(reg, kNumberOfCoreRegisters);
+  CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
   CHECK_NE(gprs_[reg], &gZero); // Can't overwrite this static value since they are never reset.
   CHECK(gprs_[reg] != NULL);
   *gprs_[reg] = value;
