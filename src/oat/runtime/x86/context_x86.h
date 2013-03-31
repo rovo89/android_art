@@ -43,7 +43,7 @@ class X86Context : public Context {
   }
 
   virtual uintptr_t GetGPR(uint32_t reg) {
-    CHECK_LT(reg, kNumberOfCpuRegisters);
+    CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
     return *gprs_[reg];
   }
 
