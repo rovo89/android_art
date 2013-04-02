@@ -360,8 +360,7 @@ class Mir2Lir : public Backend {
     RegLocation UpdateRawLoc(RegLocation loc);
     RegLocation EvalLocWide(RegLocation loc, int reg_class, bool update);
     RegLocation EvalLoc(RegLocation loc, int reg_class, bool update);
-    void CountRefs(BasicBlock* bb, RefCounts* core_counts,
-                   RefCounts* fp_counts);
+    void CountRefs(RefCounts* core_counts, RefCounts* fp_counts);
     void DumpCounts(const RefCounts* arr, int size, const char* msg);
     void DoPromotion();
     int VRegOffset(int v_reg);

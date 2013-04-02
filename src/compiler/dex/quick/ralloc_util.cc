@@ -1000,15 +1000,7 @@ RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update)
 }
 
 /* USE SSA names to count references of base Dalvik v_regs. */
-void Mir2Lir::CountRefs(BasicBlock* bb, RefCounts* core_counts,
-                        RefCounts* fp_counts)
-{
-  // TUNING: this routine could use some tweaking.
-  if ((cu_->disable_opt & (1 << kPromoteRegs)) ||
-    !((bb->block_type == kEntryBlock) || (bb->block_type == kExitBlock) ||
-      (bb->block_type == kDalvikByteCode))) {
-    return;
-  }
+void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts) {
   for (int i = 0; i < mir_graph_->GetNumSSARegs(); i++) {
     RegLocation loc = mir_graph_->reg_location_[i];
     RefCounts* counts = loc.fp ? fp_counts : core_counts;
@@ -1048,7 +1040,7 @@ void Mir2Lir::DoPromotion()
   int reg_bias = cu_->num_compiler_temps + 1;
   int dalvik_regs = cu_->num_dalvik_registers;
   int num_regs = dalvik_regs + reg_bias;
-  const int promotion_threshold = 2;
+  const int promotion_threshold = 1;
 
   // Allow target code to add any special registers
   AdjustSpillMask();
@@ -1082,13 +1074,8 @@ void Mir2Lir::DoPromotion()
     FpRegs[dalvik_regs + i].s_reg = ct->s_reg;
   }
 
-  GrowableListIterator iterator = mir_graph_->GetBasicBlockIterator();
-  while (true) {
-    BasicBlock* bb;
-    bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
-    if (bb == NULL) break;
-    CountRefs(bb, core_regs, FpRegs);
-  }
+  // Sum use counts of SSA regs by original Dalvik vreg.
+  CountRefs(core_regs, FpRegs);
 
   /*
    * Ideally, we'd allocate doubles starting with an even-numbered
@@ -1126,7 +1113,7 @@ void Mir2Lir::DoPromotion()
 
     // Promote core regs
     for (int i = 0; (i < num_regs) &&
-            (core_regs[i].count > promotion_threshold); i++) {
+            (core_regs[i].count >= promotion_threshold); i++) {
       int p_map_idx = SRegToPMap(core_regs[i].s_reg);
       if (promotion_map_[p_map_idx].core_location !=
           kLocPhysReg) {
