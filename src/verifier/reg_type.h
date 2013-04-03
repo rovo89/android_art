@@ -172,10 +172,11 @@ class RegType {
   }
   // Check this is the low half, and that type_h is its matching high-half
   inline bool CheckWidePair(const RegType& type_h) const {
-    return true;
     if (IsLowHalf()) {
-      return ((IsPreciseConstantLo() && type_h.IsImpreciseConstantHi()) ||
+      return ((IsPreciseConstantLo() && type_h.IsPreciseConstantHi()) ||
+              (IsPreciseConstantLo() && type_h.IsImpreciseConstantHi()) ||
               (IsImpreciseConstantLo() && type_h.IsPreciseConstantHi()) ||
+              (IsImpreciseConstantLo() && type_h.IsImpreciseConstantHi()) ||
               (IsDoubleLo() && type_h.IsDoubleHi()) ||
               (IsLongLo() && type_h.IsLongHi()));
     }
@@ -254,7 +255,8 @@ class RegType {
     return IsLongLo() || IsLongConstant();
   }
   bool IsLongHighTypes() const {
-    return (IsLongConstantHigh() || IsPreciseConstantHi() ||
+    return (IsLongHi() ||
+            IsPreciseConstantHi() ||
             IsImpreciseConstantHi());
   }
   bool IsDoubleTypes() const {

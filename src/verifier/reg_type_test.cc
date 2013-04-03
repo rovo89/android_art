@@ -25,6 +25,54 @@ namespace art {
 namespace verifier {
 
 class RegTypeTest : public CommonTest {};
+
+TEST_F(RegTypeTest, ConstLoHi) {
+  // Tests creating primitive types types.
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache(true);
+  const RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
+  const RegType& ref_type_const_3 = cache.FromCat1Const(30, false);
+  EXPECT_TRUE(ref_type_const_0.Equals(ref_type_const_1));
+  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_2));
+  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_3));
+
+  const RegType& ref_type_const_wide_0 = cache.FromCat2ConstHi(50, true);
+  const RegType& ref_type_const_wide_1 = cache.FromCat2ConstHi(50, true);
+  EXPECT_TRUE(ref_type_const_wide_0.Equals(ref_type_const_wide_1));
+
+  const RegType& ref_type_const_wide_2 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_3 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_4 = cache.FromCat2ConstLo(55, true);
+  EXPECT_TRUE(ref_type_const_wide_2.Equals(ref_type_const_wide_3));
+  EXPECT_FALSE(ref_type_const_wide_2.Equals(ref_type_const_wide_4));
+}
+
+TEST_F(RegTypeTest, Pairs) {
+  ScopedObjectAccess soa(Thread::Current());
+  RegTypeCache cache(true);
+  int64_t val = static_cast<int32_t>(1234);
+  const RegType& precise_lo = cache.FromCat2ConstLo(static_cast<int32_t>(val), true);
+  const RegType& precise_hi = cache.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+  const RegType& precise_const = cache.FromCat1Const(static_cast<int32_t>(val >> 32), true);
+  const RegType& long_lo = cache.LongLo();
+  const RegType& long_hi = cache.LongHi();
+  //Check sanity of types.
+  EXPECT_TRUE(precise_lo.IsLowHalf());
+  EXPECT_FALSE(precise_hi.IsLowHalf());
+  EXPECT_FALSE(precise_lo.IsHighHalf());
+  EXPECT_TRUE(precise_hi.IsHighHalf());
+  EXPECT_TRUE(long_hi.IsLongHighTypes());
+  EXPECT_TRUE(precise_hi.IsLongHighTypes());
+  // Check Pairing.
+  EXPECT_FALSE(precise_lo.CheckWidePair(precise_const));
+  EXPECT_TRUE(precise_lo.CheckWidePair(precise_hi));
+  // Test Merging.
+  EXPECT_TRUE((long_lo.Merge(precise_lo, &cache)).IsLongTypes());
+  EXPECT_TRUE((long_hi.Merge(precise_hi, &cache)).IsLongHighTypes());
+}
+
 TEST_F(RegTypeTest, Primitives) {
 
   ScopedObjectAccess soa(Thread::Current());
@@ -283,9 +331,9 @@ TEST_F(RegTypeTest, Primitives) {
 class RegTypeReferenceTest : public CommonTest {};
 
 TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
-  ScopedObjectAccess soa(Thread::Current());
   // Tests matching precisions. A reference type that was created precise doesn't
   // match the one that is imprecise.
+  ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
   const RegType& imprecise_obj = cache.JavaLangObject(false);
   const RegType& precise_obj = cache.JavaLangObject(true);
@@ -298,9 +346,9 @@ TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
 }
 
 TEST_F(RegTypeReferenceTest, UnresolvedType) {
-  ScopedObjectAccess soa(Thread::Current());
   // Tests creating unresolved types. Miss for the first time asking the cache and
   // a hit second time.
+  ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
   const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
@@ -313,39 +361,33 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
 }
 
 TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
-  ScopedObjectAccess soa(Thread::Current());
   // Tests creating types uninitialized types from unresolved types.
+  ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
   const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
   const RegType& ref_type = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type));
-
   // Create an uninitialized type of this unresolved type
   const RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
   EXPECT_TRUE(unresolved_unintialised.IsUninitializedTypes());
-
   // Create an uninitialized type of this unresolved type with different  PC
   const RegType& ref_type_unresolved_unintialised_1 =  cache.Uninitialized(ref_type, 1102ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
   EXPECT_FALSE(unresolved_unintialised.Equals(ref_type_unresolved_unintialised_1));
-
   // Create an uninitialized type of this unresolved type with the same PC
-  const RegType& unresolved_unintialised_2 =
-      cache.Uninitialized(ref_type, 1101ull);
+  const RegType& unresolved_unintialised_2 = cache.Uninitialized(ref_type, 1101ull);
   EXPECT_TRUE(unresolved_unintialised.Equals(unresolved_unintialised_2));
 }
 
 TEST_F(RegTypeReferenceTest, Dump) {
+  // Tests types for proper Dump messages.
   ScopedObjectAccess soa(Thread::Current());
-  // Tests creating types uninitialized types from unresolved types.
   RegTypeCache cache(true);
-
   const RegType& unresolved_ref = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   const RegType& unresolved_ref_another = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExistEither;", true);
   const RegType& resolved_ref = cache.JavaLangString();
-
   const RegType& resolved_unintialiesd = cache.Uninitialized(resolved_ref, 10);
   const RegType& unresolved_unintialized = cache.Uninitialized(unresolved_ref, 12);
   const RegType& unresolved_merged = cache.FromUnresolvedMerge(unresolved_ref, unresolved_ref_another);
@@ -399,7 +441,7 @@ TEST_F(RegTypeReferenceTest, JavalangObject) {
 }
 TEST_F(RegTypeReferenceTest, Merging) {
   // Tests merging logic
-  //String and object , LUB is object.
+  // String and object , LUB is object.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
   const RegType& string = cache_new.JavaLangString();
@@ -418,31 +460,6 @@ TEST_F(RegTypeReferenceTest, Merging) {
   std::set<uint16_t> merged_ids = (down_cast<UnresolvedMergedType*>(&merged_nonconst))->GetMergedTypes();
   EXPECT_EQ(ref_type_0.GetId(), *(merged_ids.begin()));
   EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
-}
-
-TEST_F(RegTypeTest, ConstLoHi) {
-  // Tests creating primitive types types.
-  ScopedObjectAccess soa(Thread::Current());
-  RegTypeCache cache(true);
-  const RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
-  const RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
-  const RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
-  const RegType& ref_type_const_3 = cache.FromCat1Const(30, false);
-
-  EXPECT_TRUE(ref_type_const_0.Equals(ref_type_const_1));
-  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_2));
-  EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_3));
-
-  const RegType& ref_type_const_wide_0 = cache.FromCat2ConstHi(50, true);
-  const RegType& ref_type_const_wide_1 = cache.FromCat2ConstHi(50, true);
-  EXPECT_TRUE(ref_type_const_wide_0.Equals(ref_type_const_wide_1));
-
-  const RegType& ref_type_const_wide_2 = cache.FromCat2ConstLo(50, true);
-  const RegType& ref_type_const_wide_3 = cache.FromCat2ConstLo(50, true);
-  const RegType& ref_type_const_wide_4 = cache.FromCat2ConstLo(55, true);
-
-  EXPECT_TRUE(ref_type_const_wide_2.Equals(ref_type_const_wide_3));
-  EXPECT_FALSE(ref_type_const_wide_2.Equals(ref_type_const_wide_4));
 }
 
 
