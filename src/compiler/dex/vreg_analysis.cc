@@ -388,19 +388,19 @@ void MIRGraph::BuildRegLocations()
   RegLocation* loc;
 
   /* Allocate the location map */
-  loc = static_cast<RegLocation*>(NewMem(cu_, GetNumSSARegs() * sizeof(*loc),
-                                  true, kAllocRegAlloc));
+  loc = static_cast<RegLocation*>(arena_->NewMem(GetNumSSARegs() * sizeof(*loc), true,
+                                                 ArenaAllocator::kAllocRegAlloc));
   for (i=0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
-    loc[i].is_const = IsBitSet(is_constant_v_, i);
+    loc[i].is_const = is_constant_v_->IsBitSet(i);
   }
 
   /* Patch up the locations for Method* and the compiler temps */
   loc[method_sreg_].location = kLocCompilerTemp;
   loc[method_sreg_].defined = true;
   for (i = 0; i < cu_->num_compiler_temps; i++) {
-    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(compiler_temps_.elem_list[i]);
+    CompilerTemp* ct = compiler_temps_.Get(i);
     loc[ct->s_reg].location = kLocCompilerTemp;
     loc[ct->s_reg].defined = true;
   }

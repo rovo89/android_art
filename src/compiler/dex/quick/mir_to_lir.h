@@ -21,8 +21,9 @@
 #include "compiled_method.h"
 #include "compiler/dex/compiler_enums.h"
 #include "compiler/dex/compiler_ir.h"
-#include "compiler/dex/compiler_utility.h"
 #include "compiler/dex/backend.h"
+#include "compiler/dex/growable_array.h"
+#include "compiler/dex/arena_allocator.h"
 #include "safe_map.h"
 
 namespace art {
@@ -124,9 +125,12 @@ struct LIR {
 };
 
 // Target-specific initialization.
-Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph);
-Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph);
-Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph);
+Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena);
+Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena);
+Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena);
 
 // Utility macros to traverse the LIR list.
 #define NEXT_LIR(lir) (lir->next)
@@ -684,7 +688,7 @@ class Mir2Lir : public Backend {
     LIR* code_literal_list_;                   // Code literals requiring patching.
 
   protected:
-    Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph);
+    Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     CompilationUnit* GetCompilationUnit() {
       return cu_;
@@ -692,11 +696,11 @@ class Mir2Lir : public Backend {
 
     CompilationUnit* const cu_;
     MIRGraph* const mir_graph_;
-    GrowableList switch_tables_;
-    GrowableList fill_array_data_;
-    GrowableList throw_launchpads_;
-    GrowableList suspend_launchpads_;
-    GrowableList intrinsic_launchpads_;
+    GrowableArray<SwitchTable*> switch_tables_;
+    GrowableArray<FillArrayData*> fill_array_data_;
+    GrowableArray<LIR*> throw_launchpads_;
+    GrowableArray<LIR*> suspend_launchpads_;
+    GrowableArray<LIR*> intrinsic_launchpads_;
     SafeMap<unsigned int, LIR*> boundary_map_; // boundary lookup cache.
     /*
      * Holds mapping from native PC to dex PC for safepoints where we may deoptimize.
@@ -742,6 +746,7 @@ class Mir2Lir : public Backend {
     unsigned int fp_spill_mask_;
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
+    ArenaAllocator* arena_;
 
 };  // Class Mir2Lir
 

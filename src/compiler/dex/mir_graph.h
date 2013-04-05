@@ -20,6 +20,8 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "compiler_ir.h"
+#include "arena_bit_vector.h"
+#include "growable_array.h"
 
 namespace art {
 
@@ -145,6 +147,8 @@ enum OatMethodAttributes {
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 #define MIR_DUP                         (1 << kMIRDup)
 
+#define BLOCK_NAME_LEN 80
+
 /*
  * In general, vreg/sreg describe Dalvik registers that originated with dx.  However,
  * it is useful to have compiler-generated temporary registers and have them treated
@@ -211,6 +215,8 @@ struct MIR {
   } meta;
 };
 
+struct SuccessorBlockInfo;
+
 struct BasicBlock {
   int id;
   int dfs_id;
@@ -230,13 +236,13 @@ struct BasicBlock {
   BasicBlock* taken;
   BasicBlock* i_dom;                // Immediate dominator.
   BasicBlockDataFlow* data_flow_info;
-  GrowableList* predecessors;
+  GrowableArray<BasicBlock*>* predecessors;
   ArenaBitVector* dominators;
   ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
   ArenaBitVector* dom_frontier;     // Dominance frontier.
   struct {                          // For one-to-many successors like.
     BlockListType block_list_type;  // switch and exception handling.
-    GrowableList blocks;
+    GrowableArray<SuccessorBlockInfo*>* blocks;
   } successor_block_list;
 };
 
@@ -245,6 +251,7 @@ struct BasicBlock {
  * "SuccessorBlockInfo".  For catch blocks, key is type index for the exception.  For swtich
  * blocks, key is the case value.
  */
+// TODO: make class with placement new.
 struct SuccessorBlockInfo {
   BasicBlock* block;
   int key;
@@ -302,7 +309,7 @@ const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
 
 class MIRGraph {
  public:
-  MIRGraph(CompilationUnit* cu);
+  MIRGraph(CompilationUnit* cu, ArenaAllocator* arena);
   ~MIRGraph() {}
 
   /*
@@ -342,47 +349,41 @@ class MIRGraph {
     return exit_block_;
   }
 
-  GrowableListIterator GetBasicBlockIterator() {
-    GrowableListIterator iterator;
-    GrowableListIteratorInit(&block_list_, &iterator);
-    return iterator;
-  }
-
   BasicBlock* GetBasicBlock(int block_id) const {
-    return reinterpret_cast<BasicBlock*>(GrowableListGetElement(&block_list_, block_id));
+    return block_list_.Get(block_id);
   }
 
   size_t GetBasicBlockListCount() const {
-    return block_list_.num_used;
+    return block_list_.Size();
   }
 
-  GrowableList* GetBlockList() {
+  GrowableArray<BasicBlock*>* GetBlockList() {
     return &block_list_;
   }
 
-  GrowableList* GetDfsOrder() {
-    return &dfs_order_;
+  GrowableArray<int>* GetDfsOrder() {
+    return dfs_order_;
   }
 
-  GrowableList* GetDfsPostOrder() {
-    return &dfs_post_order_;
+  GrowableArray<int>* GetDfsPostOrder() {
+    return dfs_post_order_;
   }
 
-  GrowableList* GetDomPostOrder() {
-    return &dom_post_order_traversal_;
-  }
-
-  GrowableList* GetSSASubscripts() {
-    return ssa_subscripts_;
+  GrowableArray<int>* GetDomPostOrder() {
+    return dom_post_order_traversal_;
   }
 
   int GetDefCount() const {
     return def_count_;
   }
 
+  ArenaAllocator* GetArena() {
+    return arena_;
+  }
+
   void EnableOpcodeCounting() {
-    opcode_count_ = static_cast<int*>(NewMem(cu_, kNumPackedOpcodes * sizeof(int), true,
-                                             kAllocMisc));
+    opcode_count_ = static_cast<int*>(arena_->NewMem(kNumPackedOpcodes * sizeof(int), true,
+                                      ArenaAllocator::kAllocMisc));
   }
 
   void ShowOpcodeStats();
@@ -400,7 +401,7 @@ class MIRGraph {
   void BasicBlockOptimization();
 
   bool IsConst(int32_t s_reg) const {
-    return (IsBitSet(is_constant_v_, s_reg));
+    return is_constant_v_->IsBitSet(s_reg);
   }
 
   bool IsConst(RegLocation loc) const {
@@ -435,24 +436,24 @@ class MIRGraph {
     num_ssa_regs_ = new_num;
   }
 
-  int GetNumReachableBlocks() const {
+  unsigned int GetNumReachableBlocks() const {
     return num_reachable_blocks_;
   }
 
   int GetUseCount(int vreg) const {
-    return GrowableListGetElement(&use_counts_, vreg);
+    return use_counts_.Get(vreg);
   }
 
   int GetRawUseCount(int vreg) const {
-    return GrowableListGetElement(&raw_use_counts_, vreg);
+    return raw_use_counts_.Get(vreg);
   }
 
   int GetSSASubscript(int ssa_reg) const {
-    return GrowableListGetElement(ssa_subscripts_, ssa_reg);
+    return ssa_subscripts_->Get(ssa_reg);
   }
 
   const char* GetSSAString(int ssa_reg) const {
-    return GET_ELEM_N(ssa_strings_, char*, ssa_reg);
+    return ssa_strings_->Get(ssa_reg);
   }
 
   RegLocation GetRawSrc(MIR* mir, int num)
@@ -538,7 +539,6 @@ class MIRGraph {
   void PrependMIR(BasicBlock* bb, MIR* mir);
   void InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir);
   char* GetDalvikDisassembly(const MIR* mir);
-
   void ReplaceSpecialChars(std::string& str);
   std::string GetSSAName(int ssa_reg);
   std::string GetSSANameWithConst(int ssa_reg, bool singles_only);
@@ -546,6 +546,7 @@ class MIRGraph {
   const char* GetShortyFromTargetIdx(int);
   void DumpMIRGraph();
   CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
+  BasicBlock* NewMemBB(BBType block_type, int block_id);
 
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
@@ -555,7 +556,7 @@ class MIRGraph {
 
    // TODO: make these private.
    RegLocation* reg_location_;                         // Map SSA names to location.
-   GrowableList compiler_temps_;
+   GrowableArray<CompilerTemp*> compiler_temps_;
    SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
 
    static const int oat_data_flow_attributes_[kMirOpLast];
@@ -610,10 +611,10 @@ class MIRGraph {
    int GetSSAUseCount(int s_reg);
    bool BasicBlockOpt(BasicBlock* bb);
    bool EliminateNullChecks(BasicBlock* bb);
-   bool NullCheckEliminationInit(BasicBlock* bb);
+   void NullCheckEliminationInit(BasicBlock* bb);
    bool BuildExtendedBBList(struct BasicBlock* bb);
    bool FillDefBlockMatrix(BasicBlock* bb);
-   bool InitializeDominationInfo(BasicBlock* bb);
+   void InitializeDominationInfo(BasicBlock* bb);
    bool ComputeblockIDom(BasicBlock* bb);
    bool ComputeBlockDominators(BasicBlock* bb);
    bool SetDominators(BasicBlock* bb);
@@ -621,32 +622,32 @@ class MIRGraph {
    bool InsertPhiNodeOperands(BasicBlock* bb);
    bool ComputeDominanceFrontier(BasicBlock* bb);
    bool DoConstantPropogation(BasicBlock* bb);
-   bool CountChecks(BasicBlock* bb);
+   void CountChecks(BasicBlock* bb);
    bool CombineBlocks(BasicBlock* bb);
 
    CompilationUnit* const cu_;
-   GrowableList* ssa_base_vregs_;
-   GrowableList* ssa_subscripts_;
-   GrowableList* ssa_strings_;
+   GrowableArray<int>* ssa_base_vregs_;
+   GrowableArray<int>* ssa_subscripts_;
+   GrowableArray<char*>* ssa_strings_;
    // Map original Dalvik virtual reg i to the current SSA name.
    int* vreg_to_ssa_map_;            // length == method->registers_size
    int* ssa_last_defs_;              // length == method->registers_size
    ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
    int* constant_values_;            // length == num_ssa_reg
    // Use counts of ssa names.
-   GrowableList use_counts_;         // Weighted by nesting depth
-   GrowableList raw_use_counts_;     // Not weighted
-   int num_reachable_blocks_;
-   GrowableList dfs_order_;
-   GrowableList dfs_post_order_;
-   GrowableList dom_post_order_traversal_;
+   GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
+   GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
+   unsigned int num_reachable_blocks_;
+   GrowableArray<int>* dfs_order_;
+   GrowableArray<int>* dfs_post_order_;
+   GrowableArray<int>* dom_post_order_traversal_;
    int* i_dom_list_;
    ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
    ArenaBitVector* temp_block_v_;
    ArenaBitVector* temp_dalvik_register_v_;
    ArenaBitVector* temp_ssa_register_v_;  // num_ssa_regs.
    static const int kInvalidEntry = -1;
-   GrowableList block_list_;
+   GrowableArray<BasicBlock*> block_list_;
    ArenaBitVector* try_block_addr_;
    BasicBlock* entry_block_;
    BasicBlock* exit_block_;
@@ -666,6 +667,7 @@ class MIRGraph {
    int method_sreg_;
    unsigned int attributes_;
    Checkstats* checkstats_;
+   ArenaAllocator* arena_;
 };
 
 }  // namespace art

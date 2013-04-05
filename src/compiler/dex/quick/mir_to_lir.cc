@@ -794,7 +794,7 @@ void Mir2Lir::SpecialMIR2LIR(SpecialCaseHandler special_case)
   BasicBlock*bb = NULL;
   for (int idx = 0; idx < num_reachable_blocks; idx++) {
     // TODO: no direct access of growable lists.
-    int dfs_index = mir_graph_->GetDfsOrder()->elem_list[idx];
+    int dfs_index = mir_graph_->GetDfsOrder()->Get(idx);
     bb = mir_graph_->GetBasicBlock(dfs_index);
     if (bb->block_type == kDalvikByteCode) {
       break;
@@ -821,7 +821,8 @@ void Mir2Lir::MethodMIR2LIR()
 {
   // Hold the labels of each block.
   block_label_list_ =
-      static_cast<LIR*>(NewMem(cu_, sizeof(LIR) * mir_graph_->GetNumBlocks(), true, kAllocLIR));
+      static_cast<LIR*>(arena_->NewMem(sizeof(LIR) * mir_graph_->GetNumBlocks(), true,
+                                       ArenaAllocator::kAllocLIR));
 
   PreOrderDfsIterator iter(mir_graph_, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {

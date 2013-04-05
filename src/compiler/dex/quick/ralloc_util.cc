@@ -18,7 +18,6 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/compiler_utility.h"
 
 namespace art {
 
@@ -1056,10 +1055,12 @@ void Mir2Lir::DoPromotion()
    * TUNING: replace with linear scan once we have the ability
    * to describe register live ranges for GC.
    */
-  RefCounts *core_regs = static_cast<RefCounts*>(NewMem(cu_, sizeof(RefCounts) * num_regs,
-                                                       true, kAllocRegAlloc));
-  RefCounts *FpRegs = static_cast<RefCounts *>(NewMem(cu_, sizeof(RefCounts) * num_regs,
-                                                      true, kAllocRegAlloc));
+  RefCounts *core_regs =
+      static_cast<RefCounts*>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
+                                             ArenaAllocator::kAllocRegAlloc));
+  RefCounts *FpRegs =
+      static_cast<RefCounts *>(arena_->NewMem(sizeof(RefCounts) * num_regs, true,
+                                              ArenaAllocator::kAllocRegAlloc));
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < dalvik_regs; i++) {
     core_regs[i].s_reg = FpRegs[i].s_reg = i;
@@ -1069,7 +1070,7 @@ void Mir2Lir::DoPromotion()
   FpRegs[dalvik_regs].s_reg = mir_graph_->GetMethodSReg();  // For consistecy
   // Set ssa names for compiler_temps
   for (int i = 1; i <= cu_->num_compiler_temps; i++) {
-    CompilerTemp* ct = reinterpret_cast<CompilerTemp*>(mir_graph_->compiler_temps_.elem_list[i]);
+    CompilerTemp* ct = mir_graph_->compiler_temps_.Get(i);
     core_regs[dalvik_regs + i].s_reg = ct->s_reg;
     FpRegs[dalvik_regs + i].s_reg = ct->s_reg;
   }

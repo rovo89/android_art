@@ -458,15 +458,16 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  reg_pool_ = static_cast<RegisterPool*>(NewMem(cu_, sizeof(*reg_pool_), true, kAllocRegAlloc));
+  reg_pool_ = static_cast<RegisterPool*>(arena_->NewMem(sizeof(*reg_pool_), true,
+                                                        ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_core_regs = num_regs;
   reg_pool_->core_regs =
-      static_cast<RegisterInfo*>(NewMem(cu_, num_regs * sizeof(*reg_pool_->core_regs),
-                                             true, kAllocRegAlloc));
+      static_cast<RegisterInfo*>(arena_->NewMem(num_regs * sizeof(*reg_pool_->core_regs), true,
+                                                ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_fp_regs = num_fp_regs;
   reg_pool_->FPRegs =
-      static_cast<RegisterInfo *>(NewMem(cu_, num_fp_regs * sizeof(*reg_pool_->FPRegs),
-                                              true, kAllocRegAlloc));
+      static_cast<RegisterInfo *>(arena_->NewMem(num_fp_regs * sizeof(*reg_pool_->FPRegs), true,
+                                                 ArenaAllocator::kAllocRegAlloc));
   CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
   CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated
@@ -528,7 +529,8 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir)
   return (lir->opcode == kX86Jmp8 || lir->opcode == kX86Jmp32);
 }
 
-X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, mir_graph) {
+X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
+    : Mir2Lir(cu, mir_graph, arena) {
   for (int i = 0; i < kX86Last; i++) {
     if (X86Mir2Lir::EncodingMap[i].opcode != i) {
       LOG(FATAL) << "Encoding order for " << X86Mir2Lir::EncodingMap[i].name
@@ -538,8 +540,9 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, m
   }
 }
 
-Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph) {
-  return new X86Mir2Lir(cu, mir_graph);
+Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena) {
+  return new X86Mir2Lir(cu, mir_graph, arena);
 }
 
 // Not used in x86

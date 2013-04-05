@@ -21,7 +21,6 @@
 #include "compiled_method.h"
 #include "compiler/dex/compiler_enums.h"
 #include "compiler/dex/compiler_ir.h"
-#include "compiler/dex/compiler_utility.h"
 #include "compiler/dex/backend.h"
 #include "compiler/llvm/llvm_compilation_unit.h"
 #include "safe_map.h"
@@ -38,13 +37,14 @@ class MIRGraph;
 
 // Target-specific initialization.
 Backend* PortableCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                               ArenaAllocator* const arena,
                                llvm::LlvmCompilationUnit* const llvm_compilation_unit);
 
 class MirConverter : public Backend {
 
   public:
     // TODO: flesh out and integrate into new world order.
-    MirConverter(CompilationUnit* cu, MIRGraph* mir_graph,
+    MirConverter(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena,
                  llvm::LlvmCompilationUnit* llvm_compilation_unit)
       : cu_(cu),
         mir_graph_(mir_graph),
@@ -59,8 +59,10 @@ class MirConverter : public Backend {
         placeholder_bb_(NULL),
         entry_bb_(NULL),
         entry_target_bb_(NULL),
+        llvm_values_(arena, mir_graph->GetNumSSARegs()),
         temp_name_(0),
         current_dalvik_offset_(0) {
+      arena_ = arena;
       if (kIsDebugBuild) {
         cu->enable_debug |= (1 << kDebugVerifyBitcode);
       }
@@ -182,7 +184,7 @@ class MirConverter : public Backend {
     ::llvm::BasicBlock* entry_bb_;
     ::llvm::BasicBlock* entry_target_bb_;
     std::string bitcode_filename_;
-    GrowableList llvm_values_;
+    GrowableArray< ::llvm::Value*> llvm_values_;
     int32_t temp_name_;
     SafeMap<int32_t, ::llvm::BasicBlock*> id_to_block_map_;  // block id -> llvm bb.
     int current_dalvik_offset_;

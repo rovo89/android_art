@@ -75,8 +75,7 @@ namespace art {
       const int start_idx_;
       const int end_idx_;
       const bool reverse_;
-      GrowableList* block_id_list_;
-      GrowableListIterator all_nodes_iterator_;
+      GrowableArray<int>* block_id_list_;
       int idx_;
       bool changed_;
 
@@ -142,10 +141,18 @@ namespace art {
 
       AllNodesIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0, 0, false) {
-        GrowableListIteratorInit(mir_graph->GetBlockList(), &all_nodes_iterator_);
+        all_nodes_iterator_ =
+            new (mir_graph->GetArena()) GrowableArray<BasicBlock*>::Iterator (mir_graph->GetBlockList());
+      }
+
+      virtual void Reset() {
+        all_nodes_iterator_->Reset();
       }
 
       virtual BasicBlock* NextBody(bool had_change);
+
+    private:
+      GrowableArray<BasicBlock*>::Iterator* all_nodes_iterator_;
   };
 
 }  // namespace art

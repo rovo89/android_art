@@ -488,13 +488,16 @@ void MipsMir2Lir::CompilerInitializeRegAlloc()
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  reg_pool_ = static_cast<RegisterPool*>(NewMem(cu_, sizeof(*reg_pool_), true, kAllocRegAlloc));
+  reg_pool_ = static_cast<RegisterPool*>(arena_->NewMem(sizeof(*reg_pool_), true,
+                                                        ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_core_regs = num_regs;
   reg_pool_->core_regs = static_cast<RegisterInfo*>
-     (NewMem(cu_, num_regs * sizeof(*reg_pool_->core_regs), true, kAllocRegAlloc));
+     (arena_->NewMem(num_regs * sizeof(*reg_pool_->core_regs), true,
+                     ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_fp_regs = num_fp_regs;
   reg_pool_->FPRegs = static_cast<RegisterInfo*>
-      (NewMem(cu_, num_fp_regs * sizeof(*reg_pool_->FPRegs), true, kAllocRegAlloc));
+      (arena_->NewMem(num_fp_regs * sizeof(*reg_pool_->FPRegs), true,
+                      ArenaAllocator::kAllocRegAlloc));
   CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
   CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated
@@ -572,7 +575,8 @@ bool MipsMir2Lir::IsUnconditionalBranch(LIR* lir)
   return (lir->opcode == kMipsB);
 }
 
-MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, mir_graph) {
+MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
+    : Mir2Lir(cu, mir_graph, arena) {
   for (int i = 0; i < kMipsLast; i++) {
     if (MipsMir2Lir::EncodingMap[i].opcode != i) {
       LOG(FATAL) << "Encoding order for " << MipsMir2Lir::EncodingMap[i].name
@@ -582,8 +586,9 @@ MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu,
   }
 }
 
-Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph) {
-  return new MipsMir2Lir(cu, mir_graph);
+Mir2Lir* MipsCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                           ArenaAllocator* const arena) {
+  return new MipsMir2Lir(cu, mir_graph, arena);
 }
 
 uint64_t MipsMir2Lir::GetTargetInstFlags(int opcode)

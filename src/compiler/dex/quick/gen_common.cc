@@ -45,7 +45,7 @@ LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind)
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_);
   LIR* branch = OpCondBranch(c_code, tgt);
   // Remember branch target - will process later
-  InsertGrowableList(cu_, &throw_launchpads_, reinterpret_cast<uintptr_t>(tgt));
+  throw_launchpads_.Insert(tgt);
   return branch;
 }
 
@@ -59,7 +59,7 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKin
     branch = OpCmpImmBranch(c_code, reg, imm_val, tgt);
   }
   // Remember branch target - will process later
-  InsertGrowableList(cu_, &throw_launchpads_, reinterpret_cast<uintptr_t>(tgt));
+  throw_launchpads_.Insert(tgt);
   return branch;
 }
 
@@ -80,7 +80,7 @@ LIR* Mir2Lir::GenRegRegCheck(ConditionCode c_code, int reg1, int reg2,
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, reg1, reg2);
   LIR* branch = OpCmpBranch(c_code, reg1, reg2, tgt);
   // Remember branch target - will process later
-  InsertGrowableList(cu_, &throw_launchpads_, reinterpret_cast<uintptr_t>(tgt));
+  throw_launchpads_.Insert(tgt);
   return branch;
 }
 
@@ -520,13 +520,12 @@ void Mir2Lir::GenShowTarget()
 
 void Mir2Lir::HandleSuspendLaunchPads()
 {
-  LIR** suspend_label = reinterpret_cast<LIR**>(suspend_launchpads_.elem_list);
-  int num_elems = suspend_launchpads_.num_used;
+  int num_elems = suspend_launchpads_.Size();
   int helper_offset = ENTRYPOINT_OFFSET(pTestSuspendFromCode);
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
     ResetDefTracking();
-    LIR* lab = suspend_label[i];
+    LIR* lab = suspend_launchpads_.Get(i);
     LIR* resume_lab = reinterpret_cast<LIR*>(lab->operands[0]);
     current_dalvik_offset_ = lab->operands[1];
     AppendLIR(lab);
@@ -538,12 +537,11 @@ void Mir2Lir::HandleSuspendLaunchPads()
 
 void Mir2Lir::HandleIntrinsicLaunchPads()
 {
-  LIR** intrinsic_label = reinterpret_cast<LIR**>(intrinsic_launchpads_.elem_list);
-  int num_elems = intrinsic_launchpads_.num_used;
+  int num_elems = intrinsic_launchpads_.Size();
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
     ResetDefTracking();
-    LIR* lab = intrinsic_label[i];
+    LIR* lab = intrinsic_launchpads_.Get(i);
     CallInfo* info = reinterpret_cast<CallInfo*>(lab->operands[0]);
     current_dalvik_offset_ = info->offset;
     AppendLIR(lab);
@@ -558,12 +556,11 @@ void Mir2Lir::HandleIntrinsicLaunchPads()
 
 void Mir2Lir::HandleThrowLaunchPads()
 {
-  LIR** throw_label = reinterpret_cast<LIR**>(throw_launchpads_.elem_list);
-  int num_elems = throw_launchpads_.num_used;
+  int num_elems = throw_launchpads_.Size();
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
     ResetDefTracking();
-    LIR* lab = throw_label[i];
+    LIR* lab = throw_launchpads_.Get(i);
     current_dalvik_offset_ = lab->operands[1];
     AppendLIR(lab);
     int func_offset = 0;
@@ -1685,7 +1682,7 @@ void Mir2Lir::GenSuspendTest(int opt_flags)
   LIR* target = RawLIR(current_dalvik_offset_, kPseudoSuspendTarget,
                        reinterpret_cast<uintptr_t>(ret_lab), current_dalvik_offset_);
   branch->target = target;
-  InsertGrowableList(cu_, &suspend_launchpads_, reinterpret_cast<uintptr_t>(target));
+  suspend_launchpads_.Insert(target);
 }
 
 /* Check if we need to check for pending suspend request */
@@ -1701,7 +1698,7 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target)
              reinterpret_cast<uintptr_t>(target), current_dalvik_offset_);
   FlushAllRegs();
   OpUnconditionalBranch(launch_pad);
-  InsertGrowableList(cu_, &suspend_launchpads_, reinterpret_cast<uintptr_t>(launch_pad));
+  suspend_launchpads_.Insert(launch_pad);
 }
 
 }  // namespace art
