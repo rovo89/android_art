@@ -97,6 +97,7 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
                                                                  true, true)) {
       DCHECK(Thread::Current()->IsExceptionPending());
+      self->PopManagedStackFragment(fragment);
       return 0;
     }
   }

@@ -278,6 +278,7 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopQuickFrame(mirror::AbstractMethod** top) {
+    DCHECK(top_shadow_frame_ == NULL);
     top_quick_frame_ = top;
   }
 
@@ -286,6 +287,7 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopQuickFramePc(uintptr_t pc) {
+    DCHECK(top_shadow_frame_ == NULL);
     top_quick_frame_pc_ = pc;
   }
 
@@ -298,6 +300,7 @@ class PACKED(4) ManagedStack {
   }
 
   ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame) {
+    DCHECK(top_quick_frame_ == NULL);
     ShadowFrame* old_frame = top_shadow_frame_;
     top_shadow_frame_ = new_top_frame;
     new_top_frame->SetLink(old_frame);
@@ -305,6 +308,7 @@ class PACKED(4) ManagedStack {
   }
 
   ShadowFrame* PopShadowFrame() {
+    DCHECK(top_quick_frame_ == NULL);
     CHECK(top_shadow_frame_ != NULL);
     ShadowFrame* frame = top_shadow_frame_;
     top_shadow_frame_ = frame->GetLink();
@@ -316,6 +320,7 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopShadowFrame(ShadowFrame* top) {
+    DCHECK(top_quick_frame_ == NULL);
     top_shadow_frame_ = top;
   }
 
