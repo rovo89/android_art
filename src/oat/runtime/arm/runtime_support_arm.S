@@ -922,18 +922,32 @@ ENTRY art_quick_test_suspend
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 END art_quick_test_suspend
 
+    .extern artPortableProxyInvokeHandler
+ENTRY art_portable_proxy_invoke_handler
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    str     r0, [sp, #0]           @ place proxy method at bottom of frame
+    mov     r2, r9                 @ pass Thread::Current
+    mov     r3, sp                 @ pass SP
+    blx     artPortableProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
+    ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    ldr     lr,  [sp, #44]         @ restore lr
+    add     sp,  #48               @ pop frame
+    .cfi_adjust_cfa_offset -48
+    bx      lr                     @ return
+END art_portable_proxy_invoke_handler
+
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
      * r0 holds the proxy method and r1 holds the receiver; r2 and r3 may contain arguments. The
      * frame size of the invoked proxy method agrees with a ref and args callee save frame.
      */
-    .extern artProxyInvokeHandler
+     .extern artQuickProxyInvokeHandler
 ENTRY art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
     mov     r2, r9                 @ pass Thread::Current
     mov     r3, sp                 @ pass SP
-    blx     artProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
+    blx     artQuickProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
     ldr     r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     ldr     lr,  [sp, #44]         @ restore lr
     add     sp,  #48               @ pop frame

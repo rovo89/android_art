@@ -939,6 +939,22 @@ DEFINE_FUNCTION art_quick_get_obj_static_from_code
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_get_obj_static_from_code
 
+DEFINE_FUNCTION art_portable_proxy_invoke_handler
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
+    PUSH esp                      // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    PUSH ecx                      // pass receiver
+    PUSH eax                      // pass proxy method
+    call SYMBOL(artPortableProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    movd %eax, %xmm0              // place return value also into floating point return value
+    movd %edx, %xmm1
+    punpckldq %xmm1, %xmm0
+    addl LITERAL(44), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -44
+    ret
+END_FUNCTION art_portable_proxy_invoke_handler
+
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame and Method*
     PUSH esp                      // pass SP
@@ -946,7 +962,7 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     .cfi_adjust_cfa_offset 4
     PUSH ecx                      // pass receiver
     PUSH eax                      // pass proxy method
-    call SYMBOL(artProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
+    call SYMBOL(artQuickProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0

@@ -27,11 +27,11 @@
 namespace art {
 
 // Visits arguments on the stack placing them into the shadow frame.
-class BuildShadowFrameVisitor : public ArgumentVisitor {
+class BuildShadowFrameVisitor : public QuickArgumentVisitor {
  public:
   BuildShadowFrameVisitor(MethodHelper& caller_mh, mirror::AbstractMethod** sp,
                           ShadowFrame& sf, size_t first_arg_reg) :
-    ArgumentVisitor(caller_mh, sp), sf_(sf), cur_reg_(first_arg_reg) {}
+    QuickArgumentVisitor(caller_mh, sp), sf_(sf), cur_reg_(first_arg_reg) {}
 
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Primitive::Type type = GetParamPrimitiveType();

@@ -2585,8 +2585,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
 #if !defined(ART_USE_PORTABLE_COMPILER)
   method->SetCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
 #else
-  OatFile::OatMethod oat_method = GetOatMethodFor(prototype.get());
-  method->SetCode(oat_method.GetProxyStub());
+  method->SetCode(reinterpret_cast<void*>(art_portable_proxy_invoke_handler));
 #endif
 
   return method;
