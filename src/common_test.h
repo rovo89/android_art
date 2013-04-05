@@ -197,9 +197,6 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(mapping_table),
                                 reinterpret_cast<uint32_t>(vmap_table),
                                 reinterpret_cast<uint32_t>(gc_map)
-#if defined(ART_USE_PORTABLE_COMPILER)
-                              , 0
-#endif
                                 );
   }
 

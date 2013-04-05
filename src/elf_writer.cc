@@ -235,18 +235,10 @@ void ElfWriter::AddMethodInputs(const std::vector<const DexFile*>& dex_files) {
   while (it.HasNext()) {
     const DexFile& dex_file = it.GetDexFile();
     uint32_t method_idx = it.GetMemberIndex();
-    InvokeType invoke_type = it.GetInvokeType();
-    const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
     const CompiledMethod* compiled_method =
       compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file, method_idx));
     if (compiled_method != NULL) {
       AddCompiledCodeInput(*compiled_method);
-    }
-    if (invoke_type != kStatic) {
-      const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
-      if (compiled_proxy_stub != NULL) {
-        AddCompiledCodeInput(*compiled_proxy_stub);
-      }
     }
     it.Next();
   }
@@ -364,7 +356,6 @@ void ElfWriter::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_fil
     const DexFile& dex_file = it.GetDexFile();
     uint32_t method_idx = it.GetMemberIndex();
     InvokeType invoke_type = it.GetInvokeType();
-    const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
     mirror::AbstractMethod* method = NULL;
     if (compiler_driver_->IsImage()) {
       ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -384,12 +375,6 @@ void ElfWriter::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_fil
            method->IsConstructor() ||
            method->GetDeclaringClass()->IsInitialized())) {
         method->SetOatCodeOffset(offset);
-      }
-    }
-    if (invoke_type != kStatic) {
-      const CompiledInvokeStub* compiled_proxy_stub = compiler_driver_->FindProxyStub(shorty);
-      if (compiled_proxy_stub != NULL) {
-        FixupCompiledCodeOffset(*elf_file.get(), oatdata_address, *compiled_proxy_stub);
       }
     }
     it.Next();

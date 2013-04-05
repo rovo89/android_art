@@ -30,7 +30,6 @@
 #include <vector>
 
 namespace art {
-  class CompiledInvokeStub;
   class CompiledMethod;
   class CompilerDriver;
   class DexCompilationUnit;
@@ -81,8 +80,6 @@ class CompilerLLVM {
   CompiledMethod* CompileGBCMethod(DexCompilationUnit* dex_compilation_unit, std::string* func);
 
   CompiledMethod* CompileNativeMethod(DexCompilationUnit* dex_compilation_unit);
-
-  CompiledInvokeStub* CreateProxyStub(const char *shorty);
 
  private:
   LlvmCompilationUnit* AllocateCompilationUnit();

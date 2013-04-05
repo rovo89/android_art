@@ -52,7 +52,6 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/ssa_transformation.cc \
 	src/compiler/dex/write_elf.cc \
 	src/compiler/driver/dex_compilation_unit.cc \
-	src/compiler/invoke_stubs/portable/stub_compiler.cc \
 	src/compiler/jni/portable/jni_compiler.cc \
 	src/compiler/jni/quick/arm/calling_convention_arm.cc \
 	src/compiler/jni/quick/mips/calling_convention_mips.cc \

@@ -154,13 +154,4 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
       frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {}
 
-CompiledInvokeStub::CompiledInvokeStub(InstructionSet instruction_set,
-                                       const std::vector<uint8_t>& code)
-    : CompiledCode(instruction_set, code) {}
-
-CompiledInvokeStub::CompiledInvokeStub(InstructionSet instruction_set,
-                                       const std::string& elf_object,
-                                       const std::string& symbol)
-    : CompiledCode(instruction_set, elf_object, symbol) {}
-
 }  // namespace art

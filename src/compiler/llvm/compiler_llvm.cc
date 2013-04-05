@@ -22,7 +22,6 @@
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "compiler/driver/dex_compilation_unit.h"
-#include "compiler/invoke_stubs/portable/stub_compiler.h"
 #include "compiler/jni/portable/jni_compiler.h"
 #include "globals.h"
 #include "ir_builder.h"
@@ -173,15 +172,6 @@ CompileNativeMethod(DexCompilationUnit* dex_compilation_unit) {
 }
 
 
-CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
-  UniquePtr<LlvmCompilationUnit> cunit(AllocateCompilationUnit());
-
-  UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(cunit.get(), *compiler_driver_));
-
-  return stub_compiler->CreateProxyStub(shorty);
-}
-
 } // namespace llvm
 } // namespace art
 
@@ -240,14 +230,6 @@ extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& dri
 
   art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&dex_compilation_unit);
-  return result;
-}
-
-extern "C" art::CompiledInvokeStub* ArtCreateProxyStub(art::CompilerDriver& driver,
-                                                       const char* shorty,
-                                                       uint32_t shorty_len) {
-  art::llvm::CompilerLLVM* compiler_llvm = ContextOf(driver);
-  art::CompiledInvokeStub* result = compiler_llvm->CreateProxyStub(shorty);
   return result;
 }
 
