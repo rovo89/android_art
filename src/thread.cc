@@ -847,9 +847,30 @@ struct StackDumpVisitor : public StackVisitor {
   int frame_count;
 };
 
+static bool ShouldShowNativeStack(const Thread* thread) {
+  ThreadState state = thread->GetState();
+
+  // In native code somewhere in the VM (one of the kWaitingFor* states)? That's interesting.
+  if (state > kWaiting && state < kStarting) {
+    return true;
+  }
+
+  // In an Object.wait variant or Thread.sleep? That's not interesting.
+  if (state == kTimedWaiting || state == kSleeping || state == kWaiting) {
+    return false;
+  }
+
+  // In some other native method? That's interesting.
+  // We don't just check kNative because native methods will be in state kSuspended if they're
+  // calling back into the VM, or kBlocked if they're blocked on a monitor, or one of the
+  // thread-startup states if it's early enough in their life cycle (http://b/7432159).
+  mirror::AbstractMethod* current_method = thread->GetCurrentMethod();
+  return current_method != NULL && current_method->IsNative();
+}
+
 void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
-  if (GetState() == kNative) {
+  if (ShouldShowNativeStack(this)) {
     DumpKernelStack(os, GetTid(), "  kernel: ", false);
     DumpNativeStack(os, GetTid(), "  native: ", false);
   }
