@@ -56,8 +56,8 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
       case kTrackRegsAll:
         interesting = flags[i].IsOpcode();
         break;
-      case kTrackRegsGcPoints:
-        interesting = flags[i].IsGcPoint() || flags[i].IsBranchTarget();
+      case kTrackCompilerInterestPoints:
+        interesting = flags[i].IsCompileTimeInfoPoint() || flags[i].IsBranchTarget() ;
         break;
       case kTrackRegsBranches:
         interesting = flags[i].IsBranchTarget();
@@ -496,7 +496,7 @@ bool MethodVerifier::VerifyInstructions() {
 
   /* Flag the start of the method as a branch target, and a GC point due to stack overflow errors */
   insn_flags_[0].SetBranchTarget();
-  insn_flags_[0].SetGcPoint();
+  insn_flags_[0].SetCompileTimeInfoPoint();
 
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
@@ -505,8 +505,10 @@ bool MethodVerifier::VerifyInstructions() {
       return false;
     }
     /* Flag instructions that are garbage collection points */
+    // All invoke points are marked as "Throw" points already.
+    // We are relying on this to also count all the invokes as interesting.
     if (inst->IsBranch() || inst->IsSwitch() || inst->IsThrow() || inst->IsReturn()) {
-      insn_flags_[dex_pc].SetGcPoint();
+      insn_flags_[dex_pc].SetCompileTimeInfoPoint();
     }
     dex_pc += inst->SizeInCodeUnits();
     inst = inst->Next();
@@ -918,7 +920,8 @@ bool MethodVerifier::VerifyCodeFlow() {
                  << " insns_size=" << insns_size << ")";
   }
   /* Create and initialize table holding register status */
-  reg_table_.Init(kTrackRegsGcPoints, insn_flags_.get(), insns_size, registers_size, this);
+  reg_table_.Init(kTrackCompilerInterestPoints, insn_flags_.get(), insns_size, registers_size, this);
+
 
   work_line_.reset(new RegisterLine(registers_size, this));
   saved_line_.reset(new RegisterLine(registers_size, this));
@@ -952,6 +955,10 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
+  MethodVerifier::PcToConreteMethod* pc_to_conrete_method = GenerateDevirtMap();
+  if(pc_to_conrete_method != NULL ) {
+    SetDevirtMap(ref, pc_to_conrete_method);
+  }
   return true;
 }
 
@@ -3137,7 +3144,7 @@ void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bit
   size_t max_insn = 0;
   size_t max_ref_reg = -1;
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
-    if (insn_flags_[i].IsGcPoint()) {
+    if (insn_flags_[i].IsCompileTimeInfoPoint()) {
       local_gc_points++;
       max_insn = i;
       RegisterLine* line = reg_table_.GetLine(i);
@@ -3151,6 +3158,72 @@ void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bit
     i++;
   }
   *log2_max_gc_pc = i;
+}
+
+MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
+
+  PcToConreteMethod* pc_to_concrete_method = new PcToConreteMethod();
+  uint32_t dex_pc = 0;
+  const uint16_t* insns = code_item_->insns_ ;
+  const Instruction* inst = Instruction::At(insns);
+
+  for (; dex_pc < code_item_->insns_size_in_code_units_;
+         dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits(), inst = inst->Next()) {
+
+    bool is_virtual   = (inst->Opcode() == Instruction::INVOKE_VIRTUAL) ||
+        (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE);
+    bool is_interface = (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
+        (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
+
+   if(!(is_interface || is_virtual))
+     continue;
+
+    // Check if vC ("this" pointer in the instruction) has a precise type.
+    RegisterLine* line = reg_table_.GetLine(dex_pc);
+    DecodedInstruction dec_insn(inst);
+    const RegType& reg_type(line->GetRegisterType(dec_insn.vC));
+
+    if (!reg_type.IsPreciseReference()) {
+       continue;
+    }
+
+    CHECK(!(reg_type.GetClass()->IsInterface()));
+    // If the class is an array class, it can be both Abstract and final and so
+    // the reg_type will be created as precise.
+    CHECK(!(reg_type.GetClass()->IsAbstract()) || reg_type.GetClass()->IsArrayClass());
+    // Find the abstract method.
+    // vB has the method index.
+    mirror::AbstractMethod* abstract_method =  NULL ;
+    abstract_method =  dex_cache_->GetResolvedMethod(dec_insn.vB);
+    if(abstract_method == NULL) {
+      // If the method is not found in the cache this means that it was never found
+      // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
+      continue;
+    }
+    // Find the concrete method.
+    mirror::AbstractMethod* concrete_method = NULL;
+    if (is_interface) {
+      concrete_method = reg_type.GetClass()->FindVirtualMethodForInterface(abstract_method);
+    }
+    if (is_virtual) {
+      concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(abstract_method);
+    }
+    CHECK(concrete_method != NULL);
+    CHECK(!concrete_method->IsAbstract()) << PrettyMethod(concrete_method);
+    // Build method reference.
+    CompilerDriver::MethodReference concrete_ref(
+        concrete_method->GetDeclaringClass()->GetDexCache()->GetDexFile(),
+        concrete_method->GetDexMethodIndex());
+    // Now Save the current PC and the concrete method reference to be used
+    // in compiler driver.
+    pc_to_concrete_method->Put(dex_pc, concrete_ref );
+    }
+
+  if (pc_to_concrete_method->size() == 0) {
+    delete pc_to_concrete_method;
+    return NULL ;
+  }
+  return pc_to_concrete_method;
 }
 
 const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
@@ -3199,7 +3272,7 @@ const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
   table->push_back((num_entries >> 8) & 0xFF);
   // Write table data
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
-    if (insn_flags_[i].IsGcPoint()) {
+    if (insn_flags_[i].IsCompileTimeInfoPoint()) {
       table->push_back(i & 0xFF);
       if (pc_bytes == 2) {
         table->push_back((i >> 8) & 0xFF);
@@ -3219,7 +3292,7 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   size_t map_index = 0;
   for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     const uint8_t* reg_bitmap = map.FindBitMap(i, false);
-    if (insn_flags_[i].IsGcPoint()) {
+    if (insn_flags_[i].IsCompileTimeInfoPoint()) {
       CHECK_LT(map_index, map.NumEntries());
       CHECK_EQ(map.GetDexPc(map_index), i);
       CHECK_EQ(map.GetBitMap(map_index), reg_bitmap);
@@ -3254,6 +3327,21 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std:
   CHECK(GetDexGcMap(ref) != NULL);
 }
 
+
+void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConreteMethod* devirt_map) {
+
+  MutexLock mu(Thread::Current(), *devirt_maps_lock_);
+  DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
+  if (it != devirt_maps_->end()) {
+    delete it->second;
+    devirt_maps_->erase(it);
+  }
+
+  devirt_maps_->Put(ref, devirt_map);
+  CHECK(devirt_maps_->find(ref) != devirt_maps_->end());
+}
+
+
 const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
   MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
@@ -3263,6 +3351,22 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodRe
   }
   CHECK(it->second != NULL);
   return it->second;
+}
+
+const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(CompilerDriver::MethodReference ref, uint32_t pc) {
+  MutexLock mu(Thread::Current(), *devirt_maps_lock_);
+  DevirtualizationMapTable::const_iterator it = devirt_maps_->find(ref);
+  if (it == devirt_maps_->end()) {
+    return NULL;
+  }
+
+  // Look up the PC in the map, get the concrete method to execute and return its reference.
+  MethodVerifier::PcToConreteMethod::const_iterator pc_to_concrete_method = it->second->find(pc);
+  if(pc_to_concrete_method != it->second->end()) {
+    return &(pc_to_concrete_method->second);
+  } else {
+    return NULL;
+  }
 }
 
 std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
@@ -3312,6 +3416,9 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
 Mutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
 MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
+Mutex* MethodVerifier::devirt_maps_lock_ = NULL;
+MethodVerifier::DevirtualizationMapTable* MethodVerifier::devirt_maps_ = NULL;
+
 Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
@@ -3321,6 +3428,12 @@ void MethodVerifier::Init() {
   {
     MutexLock mu(self, *dex_gc_maps_lock_);
     dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
+  }
+
+  devirt_maps_lock_ = new Mutex("verifier Devirtualization lock");
+  {
+    MutexLock mu(self, *devirt_maps_lock_);
+    devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();
   }
 
   rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
@@ -3341,6 +3454,15 @@ void MethodVerifier::Shutdown() {
   }
   delete dex_gc_maps_lock_;
   dex_gc_maps_lock_ = NULL;
+
+  {
+    MutexLock mu(self, *devirt_maps_lock_);
+    STLDeleteValues(devirt_maps_);
+    delete devirt_maps_;
+    devirt_maps_ = NULL;
+  }
+  delete devirt_maps_lock_;
+  devirt_maps_lock_ = NULL;
 
   {
     MutexLock mu(self, *rejected_classes_lock_);

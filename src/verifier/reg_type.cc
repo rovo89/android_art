@@ -494,6 +494,7 @@ ReferenceType::ReferenceType(mirror::Class* klass, std::string& descriptor, uint
 PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, std::string& descriptor,
                                            uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
+  DCHECK(!klass->IsAbstract() || klass->IsArrayClass());
 }
 
 UnresolvedUninitialisedThisRefType::UnresolvedUninitialisedThisRefType(std::string& descriptor,
@@ -609,7 +610,9 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   if (!IsUnresolvedTypes()) {
     mirror::Class* super_klass = GetClass()->GetSuperClass();
     if (super_klass != NULL) {
-      return cache->FromClass(super_klass, IsPreciseReference());
+      // A super class of a precise type isn't precise as a precise type indicates the register
+      // holds exactly that type.
+      return cache->FromClass(super_klass, false);
     } else {
       return cache->Zero();
     }

@@ -1249,11 +1249,13 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
+  uint32_t current_offset = static_cast<uint32_t>(current_offset_);
   bool fast_path =
-      cu_->compiler_driver->ComputeInvokeInfo(dex_method_idx, &m_unit, type,
-                                             vtable_idx, direct_code,
-                                             direct_method) &&
-                                             !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
+      cu_->compiler_driver->ComputeInvokeInfo(dex_method_idx, current_offset,
+                                              &m_unit, type,
+                                              vtable_idx, direct_code,
+                                              direct_method) &&
+                                              !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));
 }
