@@ -123,8 +123,6 @@ class CompilerDriver {
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  CompiledInvokeStub* FindProxyStub(const char* shorty) const;
-
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
   bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, size_t class_def_index);
 
@@ -318,8 +316,6 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void InsertProxyStub(const char* shorty, CompiledInvokeStub* compiled_proxy_stub);
-
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
 
@@ -340,12 +336,6 @@ class CompilerDriver {
   // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
-
-  typedef SafeMap<std::string, CompiledInvokeStub*> InvokeStubTable;
-  typedef SafeMap<std::string, CompiledInvokeStub*> ProxyStubTable;
-  // Proxy stubs created for proxy invocation delegation
-  mutable Mutex compiled_proxy_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ProxyStubTable compiled_proxy_stubs_ GUARDED_BY(compiled_proxy_stubs_lock_);
 
   bool image_;
   size_t thread_count_;
@@ -379,10 +369,6 @@ class CompilerDriver {
   JniCompilerFn jni_compiler_;
 
   pthread_key_t tls_key_;
-
-  typedef CompiledInvokeStub* (*CreateProxyStubFn)
-      (CompilerDriver& driver, const char* shorty, uint32_t shorty_len);
-  CreateProxyStubFn create_proxy_stub_;
 
   typedef void (*CompilerEnableAutoElfLoadingFn)(CompilerDriver& driver);
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;

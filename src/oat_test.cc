@@ -143,12 +143,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
   EXPECT_EQ(36U, sizeof(OatHeader));
-#if !defined(ART_USE_PORTABLE_COMPILER)
   EXPECT_EQ(28U, sizeof(OatMethodOffsets));
-#else
-  // ART-LLVM has a extra 4 bytes field: proxy_stub_offset_
-  EXPECT_EQ(32U, sizeof(OatMethodOffsets));
-#endif
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {

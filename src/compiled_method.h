@@ -168,20 +168,6 @@ class CompiledMethod : public CompiledCode {
   std::vector<uint8_t> native_gc_map_;
 };
 
-class CompiledInvokeStub : public CompiledCode {
- public:
-  // Used by Quick to provide a blob of code.
-  explicit CompiledInvokeStub(InstructionSet instruction_set,
-                              const std::vector<uint8_t>& code);
-
-  // Used by Portable to provide ELF object.
-  explicit CompiledInvokeStub(InstructionSet instruction_set,
-                              const std::string& elf_object,
-                              const std::string& symbol);
-
-  ~CompiledInvokeStub() {}
-};
-
 }  // namespace art
 
 #endif  // ART_SRC_COMPILED_METHOD_H_

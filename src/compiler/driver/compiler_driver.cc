@@ -292,7 +292,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
-      compiled_proxy_stubs_lock_("compiled proxy stubs lock"),
       image_(image),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
@@ -338,11 +337,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
     jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtQuickJniCompileMethod");
   }
 
-  if (compiler_backend_ == kPortable) {
-    create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
-        compiler_so_name, compiler_library_, "ArtCreateProxyStub");
-  }
-
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
     CHECK(image_classes_ == NULL);
@@ -358,10 +352,6 @@ CompilerDriver::~CompilerDriver() {
   {
     MutexLock mu(self, compiled_methods_lock_);
     STLDeleteValues(&compiled_methods_);
-  }
-  {
-    MutexLock mu(self, compiled_proxy_stubs_lock_);
-    STLDeleteValues(&compiled_proxy_stubs_);
   }
   {
     MutexLock mu(self, compiled_methods_lock_);
@@ -1658,45 +1648,10 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
   }
 
-  uint32_t shorty_len;
-  const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &shorty_len);
-  bool is_static = (access_flags & kAccStatic) != 0;
-
-  if ((compiler_backend_ == kPortable) && !is_static) {
-    CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
-    if (compiled_proxy_stub == NULL) {
-      compiled_proxy_stub = (*create_proxy_stub_)(*this, shorty, shorty_len);
-      CHECK(compiled_proxy_stub != NULL);
-      InsertProxyStub(shorty, compiled_proxy_stub);
-    }
-  }
-
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
     LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
         << self->GetException()->Dump();
-  }
-}
-
-CompiledInvokeStub* CompilerDriver::FindProxyStub(const char* shorty) const {
-  MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
-  ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
-  if (it == compiled_proxy_stubs_.end()) {
-    return NULL;
-  } else {
-    DCHECK(it->second != NULL);
-    return it->second;
-  }
-}
-
-void CompilerDriver::InsertProxyStub(const char* shorty, CompiledInvokeStub* compiled_proxy_stub) {
-  MutexLock mu(Thread::Current(), compiled_proxy_stubs_lock_);
-  InvokeStubTable::iterator it = compiled_proxy_stubs_.find(shorty);
-  if (it != compiled_proxy_stubs_.end()) {
-    // Someone else won the race.
-    delete compiled_proxy_stub;
-  } else {
-    compiled_proxy_stubs_.Put(shorty, compiled_proxy_stub);
   }
 }
 

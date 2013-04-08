@@ -347,9 +347,6 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.mapping_table_offset_,
       oat_method_offsets.vmap_table_offset_,
       oat_method_offsets.gc_map_offset_
-#if defined(ART_USE_PORTABLE_COMPILER)
-    , oat_method_offsets.proxy_stub_offset_
-#endif
       );
 }
 
@@ -361,9 +358,6 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t mapping_table_offset,
                               const uint32_t vmap_table_offset,
                               const uint32_t gc_map_offset
-#if defined(ART_USE_PORTABLE_COMPILER)
-                            , const uint32_t proxy_stub_offset
-#endif
                               )
   : begin_(base),
     code_offset_(code_offset),
@@ -373,9 +367,6 @@ OatFile::OatMethod::OatMethod(const byte* base,
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
     native_gc_map_offset_(gc_map_offset)
-#if defined(ART_USE_PORTABLE_COMPILER)
-  , proxy_stub_offset_(proxy_stub_offset)
-#endif
 {
 #ifndef NDEBUG
   if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
@@ -415,12 +406,6 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 #endif
 }
-
-#if defined(ART_USE_PORTABLE_COMPILER)
-const void* OatFile::OatMethod::GetProxyStub() const {
-  return GetOatPointer<const void*>(proxy_stub_offset_);
-}
-#endif
 
 void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
   CHECK(method != NULL);
