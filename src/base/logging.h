@@ -319,7 +319,7 @@ extern LogVerbosity gLogVerbosity;
 
 // Used on fatal exit. Prevents recursive aborts. Allows us to disable
 // some error checking to ensure fatal shutdown makes forward progress.
-extern bool gAborting;
+extern unsigned int gAborting;
 
 extern void InitLogging(char* argv[]);
 

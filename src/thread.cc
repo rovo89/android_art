@@ -859,14 +859,18 @@ static bool ShouldShowNativeStack(const Thread* thread) {
 }
 
 void Thread::DumpStack(std::ostream& os) const {
-  // If we're currently in native code, dump that stack before dumping the managed stack.
-  if (ShouldShowNativeStack(this)) {
-    DumpKernelStack(os, GetTid(), "  kernel: ", false);
-    DumpNativeStack(os, GetTid(), "  native: ", false);
+  if (this == Thread::Current() || IsSuspended()) {
+    // If we're currently in native code, dump that stack before dumping the managed stack.
+    if (ShouldShowNativeStack(this)) {
+      DumpKernelStack(os, GetTid(), "  kernel: ", false);
+      DumpNativeStack(os, GetTid(), "  native: ", false);
+    }
+    UniquePtr<Context> context(Context::Create());
+    StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(), !throwing_OutOfMemoryError_);
+    dumper.WalkStack();
+  } else {
+    os << "Not able to dump stack of thread that isn't suspended";
   }
-  UniquePtr<Context> context(Context::Create());
-  StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(), !throwing_OutOfMemoryError_);
-  dumper.WalkStack();
 }
 
 void Thread::ThreadExitCallback(void* arg) {

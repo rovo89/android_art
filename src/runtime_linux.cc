@@ -236,7 +236,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   }
   handlingUnexpectedSignal = true;
 
-  gAborting = true;  // set before taking any locks
+  gAborting++;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||

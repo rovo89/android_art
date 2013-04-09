@@ -25,7 +25,7 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
-bool gAborting = false;
+unsigned int gAborting = 0;
 
 static LogSeverity gMinimumLogSeverity = INFO;
 static std::string* gCmdLine;

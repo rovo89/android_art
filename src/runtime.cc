@@ -147,11 +147,11 @@ Runtime::~Runtime() {
 
 struct AbortState {
   void Dump(std::ostream& os) {
-    if (gAborting) {
+    if (gAborting > 1) {
       os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
       return;
     }
-    gAborting = true;
+    gAborting++;
     os << "Runtime aborting...\n";
     if (Runtime::Current() == NULL) {
       os << "(Runtime does not yet exist!)\n";
@@ -193,7 +193,7 @@ struct AbortState {
 };
 
 void Runtime::Abort() {
-  gAborting = true;  // set before taking any locks
+  gAborting++;  // set before taking any locks
 
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
