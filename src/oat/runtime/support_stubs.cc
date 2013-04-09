@@ -348,24 +348,19 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
 }
 #endif // ART_USE_PORTABLE_COMPILER
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
 extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* self,
                                              mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if !defined(ART_USE_PORTABLE_COMPILER)
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+#else
+  UNUSED(sp);
+#endif
   ThrowLocation throw_location = self->GetCurrentLocationForThrow();
   self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
                            "abstract method \"%s\"", PrettyMethod(method).c_str());
   self->QuickDeliverException();
 }
-#else // ART_USE_PORTABLE_COMPILER
-extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
-                                             mirror::AbstractMethod**)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(method).c_str());
-}
-#endif // ART_USE_PORTABLE_COMPILER
 
 }  // namespace art
