@@ -212,7 +212,7 @@ class CommonTest : public testing::Test {
           compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file,
                                                                               method->GetDexMethodIndex()));
 
-#ifndef ART_SLOW_MODE
+#ifndef ART_LIGHT_MODE
       CHECK(compiled_method != NULL) << PrettyMethod(method);
 #endif
     }
@@ -373,8 +373,8 @@ class CommonTest : public testing::Test {
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     image_classes_.reset(new std::set<std::string>);
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false, image_classes_.get(),
-                                              true, true));
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false, false,
+                                              image_classes_.get(), true, true));
 
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
     // pool is created by the runtime.

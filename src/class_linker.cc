@@ -954,10 +954,11 @@ void ClassLinker::InitFromImage() {
 
   mirror::ObjectArray<mirror::Class>* class_roots =
       space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)->AsObjectArray<mirror::Class>();
+  class_roots_ = class_roots;
 
   // Special case of setting up the String class early so that we can test arbitrary objects
   // as being Strings or not
-  mirror::String::SetClass(class_roots->Get(kJavaLangString));
+  mirror::String::SetClass(GetClassRoot(kJavaLangString));
 
   CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
            static_cast<uint32_t>(dex_caches->GetLength()));
@@ -978,6 +979,11 @@ void ClassLinker::InitFromImage() {
     AppendToBootClassPath(*dex_file, dex_cache);
   }
 
+  // Set classes on AbstractMethod early so that IsMethod tests can be performed during the live
+  // bitmap walk.
+  mirror::AbstractMethod::SetClasses(GetClassRoot(kJavaLangReflectConstructor),
+                                     GetClassRoot(kJavaLangReflectMethod));
+
   // reinit clases_ table
   {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -994,8 +1000,6 @@ void ClassLinker::InitFromImage() {
   DCHECK(array_iftable_ == GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
   mirror::Field::SetClass(GetClassRoot(kJavaLangReflectField));
-  mirror::AbstractMethod::SetClasses(GetClassRoot(kJavaLangReflectConstructor),
-                             GetClassRoot(kJavaLangReflectMethod));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   mirror::CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
@@ -1028,6 +1032,15 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
     mirror::Class* existing = class_linker->InsertClass(kh.GetDescriptor(), klass, true);
     DCHECK(existing == NULL) << kh.GetDescriptor();
     return;
+  }
+
+  // Check if object is an uncompiled method and point the to the interpreter entry point.
+  if (obj->IsMethod()) {
+    mirror::AbstractMethod* method = obj->AsMethod();
+    if (method->GetCode() == NULL) {
+      const void* interpreter_entry = GetInterpreterEntryPoint();
+      method->SetCode(interpreter_entry);
+    }
   }
 }
 

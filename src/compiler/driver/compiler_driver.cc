@@ -284,9 +284,9 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
 }
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
-                               bool image, size_t thread_count, bool support_debugging,
-                               const std::set<std::string>* image_classes, bool dump_stats,
-                               bool dump_timings)
+                               bool image, size_t thread_count, bool support_debugging, bool light_mode,
+                               const std::set<std::string>* image_classes, 
+                               bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -295,6 +295,7 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       image_(image),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
+      light_mode_(light_mode),
       start_ns_(0),
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),
@@ -1612,10 +1613,15 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    bool dont_compile = false;
-#if ART_SLOW_MODE
-    dont_compile = (image_classes_ == NULL) || (image_classes_->size() == 0);
-#endif // ART_SLOW_MODE
+    std::string method_name(PrettyMethod(method_idx, dex_file, false));
+    // In light mode we only compile image classes.
+    bool dont_compile = light_mode_ && ((image_classes_ == NULL) || (image_classes_->size() == 0));
+
+    // Don't compile class initializers, ever.
+    if ((access_flags & kAccConstructor) && (access_flags & kAccStatic)) {
+      dont_compile = true;
+    }
+
     if (!dont_compile) {
       compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
           method_idx, class_loader, dex_file);

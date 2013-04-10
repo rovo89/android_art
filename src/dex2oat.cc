@@ -137,6 +137,8 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Use a separate --runtime-arg switch for each argument.");
   UsageError("      Example: --runtime-arg -Xms256m");
   UsageError("");
+  UsageError("  --light-mode: compile only if generating image file");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -144,14 +146,15 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, CompilerBackend compiler_backend,
-                     InstructionSet instruction_set, size_t thread_count, bool support_debugging)
+                     InstructionSet instruction_set, size_t thread_count, bool support_debugging,
+                     bool light_mode)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
     *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count,
-                             support_debugging);
+                             support_debugging, light_mode);
     return true;
   }
 
@@ -159,6 +162,7 @@ class Dex2Oat {
     delete runtime_;
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_) << " (threads: " << thread_count_ << ")";
   }
+
 
   // Make a list of descriptors for classes to include in the image
   const std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
@@ -261,6 +265,7 @@ class Dex2Oat {
                                                         image,
                                                         thread_count_,
                                                         support_debugging_,
+                                                        light_mode_,
                                                         image_classes,
                                                         dump_stats,
                                                         dump_timings));
@@ -339,14 +344,23 @@ class Dex2Oat {
     return true;
   }
 
+  void SetLightMode(bool light_mode) {
+    light_mode_ = light_mode;
+  }
+
+  bool GetLightMode() {
+    return light_mode_;
+  }
+
  private:
   explicit Dex2Oat(Runtime* runtime, CompilerBackend compiler_backend, InstructionSet instruction_set,
-                   size_t thread_count, bool support_debugging)
+                   size_t thread_count, bool support_debugging, bool light_mode)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         runtime_(runtime),
         thread_count_(thread_count),
         support_debugging_(support_debugging),
+        light_mode_(light_mode),
         start_ns_(NanoTime()) {
   }
 
@@ -484,6 +498,7 @@ class Dex2Oat {
   Runtime* runtime_;
   size_t thread_count_;
   bool support_debugging_;
+  bool light_mode_;
   uint64_t start_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
@@ -671,6 +686,7 @@ static int dex2oat(int argc, char** argv) {
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
   bool support_debugging = false;
+  bool light_mode = false;
 #if defined(ART_USE_PORTABLE_COMPILER)
   CompilerBackend compiler_backend = kPortable;
 #else
@@ -689,6 +705,10 @@ static int dex2oat(int argc, char** argv) {
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
+
+#if ART_LIGHT_MODE
+  light_mode = true;
+#endif // ART_LIGHT_MODE
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -718,6 +738,8 @@ static int dex2oat(int argc, char** argv) {
       }
     } else if (option == "-g") {
       support_debugging = true;
+    } else if (option == "--light-mode") {
+      light_mode = true;
     } else if (option == "--watch-dog") {
       watch_dog_enabled = true;
     } else if (option == "--no-watch-dog") {
@@ -923,7 +945,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, support_debugging)) {
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, support_debugging, light_mode)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
@@ -969,6 +991,7 @@ static int dex2oat(int argc, char** argv) {
       }
     }
   }
+
 
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),

@@ -67,9 +67,9 @@ class CompilerDriver {
   // can assume will be in the image, with NULL implying all available
   // classes.
   explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
-                          size_t thread_count, bool support_debugging,
-                          const std::set<std::string>* image_classes, bool dump_stats,
-                          bool dump_timings);
+                          size_t thread_count, bool support_debugging, bool light_mode,
+                          const std::set<std::string>* image_classes, 
+                          bool dump_stats, bool dump_timings);
 
   ~CompilerDriver();
 
@@ -82,6 +82,10 @@ class CompilerDriver {
 
   bool IsDebuggingSupported() {
     return support_debugging_;
+  }
+
+  bool IsLightMode() const {
+    return light_mode_;
   }
 
   InstructionSet GetInstructionSet() const {
@@ -340,6 +344,7 @@ class CompilerDriver {
   bool image_;
   size_t thread_count_;
   bool support_debugging_;
+  const bool light_mode_;
   uint64_t start_ns_;
 
   UniquePtr<AOTCompilationStats> stats_;
