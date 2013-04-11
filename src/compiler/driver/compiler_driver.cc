@@ -1615,9 +1615,6 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     bool dont_compile = false;
 #if ART_SLOW_MODE
     dont_compile = (image_classes_ == NULL) || (image_classes_->size() == 0);
-    if (dont_compile) {
-      LOG(INFO) << "Not compiling code as ART_SLOW_MODE is enabled";
-    }
 #endif // ART_SLOW_MODE
     if (!dont_compile) {
       compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
