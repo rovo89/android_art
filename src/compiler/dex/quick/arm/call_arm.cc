@@ -326,12 +326,14 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(NewMem(cu_, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(arena_->NewMem(sizeof(SwitchTable), true,
+                                               ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(NewMem(cu_, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cu_, &switch_tables_, reinterpret_cast<uintptr_t>(tab_rec));
+  tab_rec->targets = static_cast<LIR**>(arena_->NewMem(size * sizeof(LIR*), true,
+                                                       ArenaAllocator::kAllocLIR));
+  switch_tables_.Insert(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -374,12 +376,14 @@ void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
   }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
-      static_cast<SwitchTable*>(NewMem(cu_, sizeof(SwitchTable), true, kAllocData));
+      static_cast<SwitchTable*>(arena_->NewMem(sizeof(SwitchTable), true,
+                                               ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(NewMem(cu_, size * sizeof(LIR*), true, kAllocLIR));
-  InsertGrowableList(cu_, &switch_tables_, reinterpret_cast<uintptr_t>(tab_rec));
+  tab_rec->targets =
+      static_cast<LIR**>(arena_->NewMem(size * sizeof(LIR*), true, ArenaAllocator::kAllocLIR));
+  switch_tables_.Insert(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -427,14 +431,15 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
-      static_cast<FillArrayData*>(NewMem(cu_, sizeof(FillArrayData), true, kAllocData));
+      static_cast<FillArrayData*>(arena_->NewMem(sizeof(FillArrayData), true,
+                                                 ArenaAllocator::kAllocData));
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint16_t width = tab_rec->table[1];
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  InsertGrowableList(cu_, &fill_array_data_, reinterpret_cast<uintptr_t>(tab_rec));
+  fill_array_data_.Insert(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */

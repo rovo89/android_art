@@ -27,7 +27,7 @@ namespace art {
         changed_ = false;
       }
       if (idx_ >= 0) {
-        int bb_id = block_id_list_->elem_list[idx_--];
+        int bb_id = block_id_list_->Get(idx_--);
         res = mir_graph_->GetBasicBlock(bb_id);
       }
     } else {
@@ -36,22 +36,22 @@ namespace art {
         changed_ = false;
       }
       if (idx_ < end_idx_) {
-        int bb_id = block_id_list_->elem_list[idx_++];
+        int bb_id = block_id_list_->Get(idx_++);
         res = mir_graph_->GetBasicBlock(bb_id);
       }
     }
     return res;
   }
 
-  // AllNodes uses the existing GrowableList iterator, so use different NextBody().
+  // AllNodes uses the existing GrowableArray iterator, so use different NextBody().
   BasicBlock* AllNodesIterator::NextBody(bool had_change) {
     changed_ |= had_change;
     BasicBlock* res = NULL;
     bool keep_looking = true;
     while (keep_looking) {
-      res = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&all_nodes_iterator_));
+      res = all_nodes_iterator_->Next();
       if (is_iterative_ && changed_ && (res == NULL)) {
-        GrowableListIteratorInit(mir_graph_->GetBlockList(), &all_nodes_iterator_);
+        all_nodes_iterator_->Reset();
         changed_ = false;
       } else if ((res == NULL) || (!res->hidden)) {
         keep_looking = false;

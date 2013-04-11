@@ -32,7 +32,7 @@ LIR* X86Mir2Lir::GenRegMemCheck(ConditionCode c_code,
   OpRegMem(kOpCmp, reg1, base, offset);
   LIR* branch = OpCondBranch(c_code, tgt);
   // Remember branch target - will process later
-  InsertGrowableList(cu_, &throw_launchpads_, reinterpret_cast<uintptr_t>(tgt));
+  throw_launchpads_.Insert(tgt);
   return branch;
 }
 

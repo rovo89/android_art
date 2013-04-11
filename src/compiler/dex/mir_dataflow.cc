@@ -844,24 +844,23 @@ const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
 
 /* Return the base virtual register for a SSA name */
 int MIRGraph::SRegToVReg(int ssa_reg) const {
-  DCHECK_LT(ssa_reg, static_cast<int>(ssa_base_vregs_->num_used));
-  return GET_ELEM_N(ssa_base_vregs_, int, ssa_reg);
+  return ssa_base_vregs_->Get(ssa_reg);
 }
 
 /* Any register that is used before being defined is considered live-in */
 void MIRGraph::HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
                             ArenaBitVector* live_in_v, int dalvik_reg_id)
 {
-  SetBit(cu_, use_v, dalvik_reg_id);
-  if (!IsBitSet(def_v, dalvik_reg_id)) {
-    SetBit(cu_, live_in_v, dalvik_reg_id);
+  use_v->SetBit(dalvik_reg_id);
+  if (!def_v->IsBitSet(dalvik_reg_id)) {
+    live_in_v->SetBit(dalvik_reg_id);
   }
 }
 
 /* Mark a reg as being defined */
 void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id)
 {
-  SetBit(cu_, def_v, dalvik_reg_id);
+  def_v->SetBit(dalvik_reg_id);
 }
 
 /*
@@ -876,11 +875,11 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb)
   if (bb->data_flow_info == NULL) return false;
 
   use_v = bb->data_flow_info->use_v =
-      AllocBitVector(cu_, cu_->num_dalvik_registers, false, kBitMapUse);
+      new (arena_) ArenaBitVector(arena_, cu_->num_dalvik_registers, false, kBitMapUse);
   def_v = bb->data_flow_info->def_v =
-      AllocBitVector(cu_, cu_->num_dalvik_registers, false, kBitMapDef);
+      new (arena_) ArenaBitVector(arena_, cu_->num_dalvik_registers, false, kBitMapDef);
   live_in_v = bb->data_flow_info->live_in_v =
-      AllocBitVector(cu_, cu_->num_dalvik_registers, false, kBitMapLiveIn);
+      new (arena_) ArenaBitVector(arena_, cu_->num_dalvik_registers, false, kBitMapLiveIn);
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
@@ -932,13 +931,14 @@ int MIRGraph::AddNewSReg(int v_reg)
   int subscript = (v_reg < 0) ? 0 : ++ssa_last_defs_[v_reg];
   int ssa_reg = GetNumSSARegs();
   SetNumSSARegs(ssa_reg + 1);
-  InsertGrowableList(cu_, ssa_base_vregs_, v_reg);
-  InsertGrowableList(cu_, ssa_subscripts_, subscript);
+  ssa_base_vregs_->Insert(v_reg);
+  ssa_subscripts_->Insert(subscript);
   std::string ssa_name = GetSSAName(ssa_reg);
-  char* name = static_cast<char*>(NewMem(cu_, ssa_name.length() + 1, false, kAllocDFInfo));
+  char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, false,
+                                                 ArenaAllocator::kAllocDFInfo));
   strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-  InsertGrowableList(cu_, ssa_strings_, reinterpret_cast<uintptr_t>(name));
-  DCHECK_EQ(ssa_base_vregs_->num_used, ssa_subscripts_->num_used);
+  ssa_strings_->Insert(name);
+  DCHECK_EQ(ssa_base_vregs_->Size(), ssa_subscripts_->Size());
   return ssa_reg;
 }
 
@@ -966,10 +966,11 @@ void MIRGraph::DataFlowSSAFormat35C(MIR* mir)
   int i;
 
   mir->ssa_rep->num_uses = num_uses;
-  mir->ssa_rep->uses = static_cast<int*>(NewMem(cu_, sizeof(int) * num_uses, true, kAllocDFInfo));
+  mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, true,
+                                                        ArenaAllocator::kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssa_rep->fp_use = static_cast<bool*>(NewMem(cu_, sizeof(bool) * num_uses, true,
-                                                 kAllocDFInfo));
+  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, true,
+                                                           ArenaAllocator::kAllocDFInfo));
 
   for (i = 0; i < num_uses; i++) {
     HandleSSAUse(mir->ssa_rep->uses, d_insn->arg[i], i);
@@ -984,10 +985,11 @@ void MIRGraph::DataFlowSSAFormat3RC(MIR* mir)
   int i;
 
   mir->ssa_rep->num_uses = num_uses;
-  mir->ssa_rep->uses = static_cast<int*>(NewMem(cu_, sizeof(int) * num_uses, true, kAllocDFInfo));
+  mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, true,
+                                                        ArenaAllocator::kAllocDFInfo));
   // NOTE: will be filled in during type & size inference pass
-  mir->ssa_rep->fp_use = static_cast<bool*>(NewMem(cu_, sizeof(bool) * num_uses, true,
-                                                 kAllocDFInfo));
+  mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, true,
+                                                           ArenaAllocator::kAllocDFInfo));
 
   for (i = 0; i < num_uses; i++) {
     HandleSSAUse(mir->ssa_rep->uses, d_insn->vC+i, i);
@@ -1002,8 +1004,9 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
   if (bb->data_flow_info == NULL) return false;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    mir->ssa_rep = static_cast<struct SSARepresentation *>(NewMem(cu_, sizeof(SSARepresentation),
-                                                                 true, kAllocDFInfo));
+    mir->ssa_rep =
+        static_cast<struct SSARepresentation *>(arena_->NewMem(sizeof(SSARepresentation), true,
+                                                               ArenaAllocator::kAllocDFInfo));
 
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
 
@@ -1052,10 +1055,10 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
 
     if (num_uses) {
       mir->ssa_rep->num_uses = num_uses;
-      mir->ssa_rep->uses = static_cast<int*>(NewMem(cu_, sizeof(int) * num_uses, false,
-                                                   kAllocDFInfo));
-      mir->ssa_rep->fp_use = static_cast<bool*>(NewMem(cu_, sizeof(bool) * num_uses, false,
-                                                     kAllocDFInfo));
+      mir->ssa_rep->uses = static_cast<int*>(arena_->NewMem(sizeof(int) * num_uses, false,
+                                                            ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->fp_use = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_uses, false,
+                                                               ArenaAllocator::kAllocDFInfo));
     }
 
     int num_defs = 0;
@@ -1069,10 +1072,10 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
 
     if (num_defs) {
       mir->ssa_rep->num_defs = num_defs;
-      mir->ssa_rep->defs = static_cast<int*>(NewMem(cu_, sizeof(int) * num_defs, false,
-                                                   kAllocDFInfo));
-      mir->ssa_rep->fp_def = static_cast<bool*>(NewMem(cu_, sizeof(bool) * num_defs, false,
-                                                     kAllocDFInfo));
+      mir->ssa_rep->defs = static_cast<int*>(arena_->NewMem(sizeof(int) * num_defs, false,
+                                                            ArenaAllocator::kAllocDFInfo));
+      mir->ssa_rep->fp_def = static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_defs, false,
+                                                               ArenaAllocator::kAllocDFInfo));
     }
 
     DecodedInstruction *d_insn = &mir->dalvikInsn;
@@ -1120,8 +1123,8 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
    * predecessor blocks.
    */
   bb->data_flow_info->vreg_to_ssa_map =
-      static_cast<int*>(NewMem(cu_, sizeof(int) * cu_->num_dalvik_registers, false,
-                               kAllocDFInfo));
+      static_cast<int*>(arena_->NewMem(sizeof(int) * cu_->num_dalvik_registers, false,
+                                       ArenaAllocator::kAllocDFInfo));
 
   memcpy(bb->data_flow_info->vreg_to_ssa_map, vreg_to_ssa_map_,
          sizeof(int) * cu_->num_dalvik_registers);
@@ -1131,22 +1134,14 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
 /* Setup the basic data structures for SSA conversion */
 void MIRGraph::CompilerInitializeSSAConversion()
 {
-  int i;
-  int num_dalvik_reg = cu_->num_dalvik_registers;
+  size_t num_dalvik_reg = cu_->num_dalvik_registers;
 
-  ssa_base_vregs_ =
-      static_cast<GrowableList*>(NewMem(cu_, sizeof(GrowableList), false, kAllocDFInfo));
-  ssa_subscripts_ =
-      static_cast<GrowableList*>(NewMem(cu_, sizeof(GrowableList), false, kAllocDFInfo));
-  ssa_strings_ =
-      static_cast<GrowableList*>(NewMem(cu_, sizeof(GrowableList), false, kAllocDFInfo));
-  // Create the ssa mappings, estimating the max size
-  CompilerInitGrowableList(cu_, ssa_base_vregs_, num_dalvik_reg + GetDefCount() + 128,
-                           kListSSAtoDalvikMap);
-  CompilerInitGrowableList(cu_, ssa_subscripts_, num_dalvik_reg + GetDefCount() + 128,
-                           kListSSAtoDalvikMap);
-  CompilerInitGrowableList(cu_, ssa_strings_, num_dalvik_reg + GetDefCount() + 128,
-                           kListSSAtoDalvikMap);
+  ssa_base_vregs_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
+                                            kGrowableArraySSAtoDalvikMap);
+  ssa_subscripts_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
+                                            kGrowableArraySSAtoDalvikMap);
+  ssa_strings_ = new (arena_) GrowableArray<char*>(arena_, num_dalvik_reg + GetDefCount() + 128,
+                                           kGrowableArraySSAtoDalvikMap);
   /*
    * Initial number of SSA registers is equal to the number of Dalvik
    * registers.
@@ -1158,13 +1153,14 @@ void MIRGraph::CompilerInitializeSSAConversion()
    * the subscript is 0 so we use the ENCODE_REG_SUB macro to encode the value
    * into "(0 << 16) | i"
    */
-  for (i = 0; i < num_dalvik_reg; i++) {
-    InsertGrowableList(cu_, ssa_base_vregs_, i);
-    InsertGrowableList(cu_, ssa_subscripts_, 0);
+  for (unsigned int i = 0; i < num_dalvik_reg; i++) {
+    ssa_base_vregs_->Insert(i);
+    ssa_subscripts_->Insert(0);
     std::string ssa_name = GetSSAName(i);
-    char* name = static_cast<char*>(NewMem(cu_, ssa_name.length() + 1, true, kAllocDFInfo));
+    char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, true,
+                                                   ArenaAllocator::kAllocDFInfo));
     strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-    InsertGrowableList(cu_, ssa_strings_, reinterpret_cast<uintptr_t>(name));
+    ssa_strings_->Insert(name);
   }
 
   /*
@@ -1172,12 +1168,14 @@ void MIRGraph::CompilerInitializeSSAConversion()
    * Dalvik register, and the SSA names for those are the same.
    */
   vreg_to_ssa_map_ =
-      static_cast<int*>(NewMem(cu_, sizeof(int) * num_dalvik_reg, false, kAllocDFInfo));
+      static_cast<int*>(arena_->NewMem(sizeof(int) * num_dalvik_reg, false,
+                                       ArenaAllocator::kAllocDFInfo));
   /* Keep track of the higest def for each dalvik reg */
   ssa_last_defs_ =
-      static_cast<int*>(NewMem(cu_, sizeof(int) * num_dalvik_reg, false, kAllocDFInfo));
+      static_cast<int*>(arena_->NewMem(sizeof(int) * num_dalvik_reg, false,
+                                       ArenaAllocator::kAllocDFInfo));
 
-  for (i = 0; i < num_dalvik_reg; i++) {
+  for (unsigned int i = 0; i < num_dalvik_reg; i++) {
     vreg_to_ssa_map_[i] = i;
     ssa_last_defs_[i] = 0;
   }
@@ -1188,17 +1186,18 @@ void MIRGraph::CompilerInitializeSSAConversion()
   /*
    * Allocate the BasicBlockDataFlow structure for the entry and code blocks
    */
-  GrowableListIterator iterator = GetBasicBlockIterator();
+  GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
 
   while (true) {
-    BasicBlock* bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
+    BasicBlock* bb = iterator.Next();
     if (bb == NULL) break;
     if (bb->hidden == true) continue;
     if (bb->block_type == kDalvikByteCode ||
       bb->block_type == kEntryBlock ||
       bb->block_type == kExitBlock) {
-      bb->data_flow_info = static_cast<BasicBlockDataFlow*>(NewMem(cu_, sizeof(BasicBlockDataFlow),
-                                                                 true, kAllocDFInfo));
+      bb->data_flow_info =
+          static_cast<BasicBlockDataFlow*>(arena_->NewMem(sizeof(BasicBlockDataFlow), true,
+                                                          ArenaAllocator::kAllocDFInfo));
       }
   }
 }
@@ -1276,9 +1275,8 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
     uint32_t weight = std::min(16U, static_cast<uint32_t>(bb->nesting_depth));
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       int s_reg = mir->ssa_rep->uses[i];
-      DCHECK_LT(s_reg, static_cast<int>(use_counts_.num_used));
-      raw_use_counts_.elem_list[s_reg]++;
-      use_counts_.elem_list[s_reg] += (1 << weight);
+      raw_use_counts_.Increment(s_reg);
+      use_counts_.Put(s_reg, use_counts_.Get(s_reg) + (1 << weight));
     }
     if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
       int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
@@ -1296,8 +1294,8 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
           uses_method_star &= InvokeUsesMethodStar(mir);
         }
         if (uses_method_star) {
-          raw_use_counts_.elem_list[method_sreg_]++;
-          use_counts_.elem_list[method_sreg_] += (1 << weight);
+          raw_use_counts_.Increment(method_sreg_);
+          use_counts_.Put(method_sreg_, use_counts_.Get(method_sreg_) + (1 << weight));
         }
       }
     }
@@ -1307,13 +1305,14 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
 
 void MIRGraph::MethodUseCount()
 {
+  // Now that we know, resize the lists.
   int num_ssa_regs = GetNumSSARegs();
-  CompilerInitGrowableList(cu_, &use_counts_, num_ssa_regs + 32, kListMisc);
-  CompilerInitGrowableList(cu_, &raw_use_counts_, num_ssa_regs + 32, kListMisc);
+  use_counts_.Resize(num_ssa_regs + 32);
+  raw_use_counts_.Resize(num_ssa_regs + 32);
   // Initialize list
   for (int i = 0; i < num_ssa_regs; i++) {
-    InsertGrowableList(cu_, &use_counts_, 0);
-    InsertGrowableList(cu_, &raw_use_counts_, 0);
+    use_counts_.Insert(0);
+    raw_use_counts_.Insert(0);
   }
   if (cu_->disable_opt & (1 << kPromoteRegs)) {
     return;
@@ -1327,11 +1326,10 @@ void MIRGraph::MethodUseCount()
 /* Verify if all the successor is connected with all the claimed predecessors */
 bool MIRGraph::VerifyPredInfo(BasicBlock* bb)
 {
-  GrowableListIterator iter;
+  GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
 
-  GrowableListIteratorInit(bb->predecessors, &iter);
   while (true) {
-    BasicBlock *pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter));
+    BasicBlock *pred_bb = iter.Next();
     if (!pred_bb) break;
     bool found = false;
     if (pred_bb->taken == bb) {
@@ -1339,12 +1337,9 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb)
     } else if (pred_bb->fall_through == bb) {
         found = true;
     } else if (pred_bb->successor_block_list.block_list_type != kNotUsed) {
-      GrowableListIterator iterator;
-      GrowableListIteratorInit(&pred_bb->successor_block_list.blocks,
-                                  &iterator);
+      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_block_list.blocks);
       while (true) {
-        SuccessorBlockInfo *successor_block_info =
-            reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iterator));
+        SuccessorBlockInfo *successor_block_info = iterator.Next();
         if (successor_block_info == NULL) break;
         BasicBlock *succ_bb = successor_block_info->block;
         if (succ_bb == bb) {

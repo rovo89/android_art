@@ -505,7 +505,8 @@ bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir)
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
-ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, mir_graph) {
+ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
+    : Mir2Lir(cu, mir_graph, arena) {
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
     if (ArmMir2Lir::EncodingMap[i].opcode != i) {
@@ -516,8 +517,9 @@ ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph) : Mir2Lir(cu, m
   }
 }
 
-Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph) {
-  return new ArmMir2Lir(cu, mir_graph);
+Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                          ArenaAllocator* const arena) {
+  return new ArmMir2Lir(cu, mir_graph, arena);
 }
 
 /*
@@ -555,13 +557,16 @@ void ArmMir2Lir::CompilerInitializeRegAlloc()
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
   int num_fp_regs = sizeof(FpRegs)/sizeof(*FpRegs);
   int num_fp_temps = sizeof(fp_temps)/sizeof(*fp_temps);
-  reg_pool_ = static_cast<RegisterPool*>(NewMem(cu_, sizeof(*reg_pool_), true, kAllocRegAlloc));
+  reg_pool_ = static_cast<RegisterPool*>(arena_->NewMem(sizeof(*reg_pool_), true,
+                                                        ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_core_regs = num_regs;
   reg_pool_->core_regs = reinterpret_cast<RegisterInfo*>
-      (NewMem(cu_, num_regs * sizeof(*reg_pool_->core_regs), true, kAllocRegAlloc));
+      (arena_->NewMem(num_regs * sizeof(*reg_pool_->core_regs), true,
+                     ArenaAllocator::kAllocRegAlloc));
   reg_pool_->num_fp_regs = num_fp_regs;
   reg_pool_->FPRegs = static_cast<RegisterInfo*>
-      (NewMem(cu_, num_fp_regs * sizeof(*reg_pool_->FPRegs), true, kAllocRegAlloc));
+      (arena_->NewMem(num_fp_regs * sizeof(*reg_pool_->FPRegs), true,
+                      ArenaAllocator::kAllocRegAlloc));
   CompilerInitPool(reg_pool_->core_regs, core_regs, reg_pool_->num_core_regs);
   CompilerInitPool(reg_pool_->FPRegs, FpRegs, reg_pool_->num_fp_regs);
   // Keep special registers from being allocated

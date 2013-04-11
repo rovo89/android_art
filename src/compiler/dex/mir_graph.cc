@@ -70,8 +70,9 @@ const char* MIRGraph::extended_mir_op_names_[kMirOpLast - kMirOpFirst] = {
   "Select",
 };
 
-MIRGraph::MIRGraph(CompilationUnit* cu)
+MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
     : reg_location_(NULL),
+      compiler_temps_(arena, 6, kGrowableArrayMisc),
       cu_(cu),
       ssa_base_vregs_(NULL),
       ssa_subscripts_(NULL),
@@ -80,12 +81,18 @@ MIRGraph::MIRGraph(CompilationUnit* cu)
       ssa_last_defs_(NULL),
       is_constant_v_(NULL),
       constant_values_(NULL),
+      use_counts_(arena, 256, kGrowableArrayMisc),
+      raw_use_counts_(arena, 256, kGrowableArrayMisc),
       num_reachable_blocks_(0),
+      dfs_order_(NULL),
+      dfs_post_order_(NULL),
+      dom_post_order_traversal_(NULL),
       i_dom_list_(NULL),
       def_block_matrix_(NULL),
       temp_block_v_(NULL),
       temp_dalvik_register_v_(NULL),
       temp_ssa_register_v_(NULL),
+      block_list_(arena, 100, kGrowableArrayBlockList),
       try_block_addr_(NULL),
       entry_block_(NULL),
       exit_block_(NULL),
@@ -98,10 +105,11 @@ MIRGraph::MIRGraph(CompilationUnit* cu)
       opcode_count_(NULL),
       num_ssa_regs_(0),
       method_sreg_(0),
-      attributes_(METHOD_IS_LEAF)  // Start with leaf assumption, change on encountering invoke.
+      attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
+      checkstats_(NULL),
+      arena_(arena)
       {
-  CompilerInitGrowableList(cu, &block_list_, 0, kListBlockList);
-  try_block_addr_ = AllocBitVector(cu, 0, true /* expandable */);
+  try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
 }
 
 bool MIRGraph::ContentIsInsn(const uint16_t* code_ptr) {
@@ -143,8 +151,8 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
   if (insn == NULL) {
     LOG(FATAL) << "Break split failed";
   }
-  BasicBlock *bottom_block = NewMemBB(cu_, kDalvikByteCode, num_blocks_++);
-  InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(bottom_block));
+  BasicBlock *bottom_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  block_list_.Insert(bottom_block);
 
   bottom_block->start_offset = code_offset;
   bottom_block->first_mir_insn = insn;
@@ -161,38 +169,30 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
   bottom_block->taken = orig_block->taken;
   if (bottom_block->taken) {
     orig_block->taken = NULL;
-    DeleteGrowableList(bottom_block->taken->predecessors, reinterpret_cast<uintptr_t>(orig_block));
-    InsertGrowableList(cu_, bottom_block->taken->predecessors,
-                          reinterpret_cast<uintptr_t>(bottom_block));
+    bottom_block->taken->predecessors->Delete(orig_block);
+    bottom_block->taken->predecessors->Insert(bottom_block);
   }
 
   /* Handle the fallthrough path */
   bottom_block->fall_through = orig_block->fall_through;
   orig_block->fall_through = bottom_block;
-  InsertGrowableList(cu_, bottom_block->predecessors,
-                        reinterpret_cast<uintptr_t>(orig_block));
+  bottom_block->predecessors->Insert(orig_block);
   if (bottom_block->fall_through) {
-    DeleteGrowableList(bottom_block->fall_through->predecessors,
-                          reinterpret_cast<uintptr_t>(orig_block));
-    InsertGrowableList(cu_, bottom_block->fall_through->predecessors,
-                          reinterpret_cast<uintptr_t>(bottom_block));
+    bottom_block->fall_through->predecessors->Delete(orig_block);
+    bottom_block->fall_through->predecessors->Insert(bottom_block);
   }
 
   /* Handle the successor list */
   if (orig_block->successor_block_list.block_list_type != kNotUsed) {
     bottom_block->successor_block_list = orig_block->successor_block_list;
     orig_block->successor_block_list.block_list_type = kNotUsed;
-    GrowableListIterator iterator;
-
-    GrowableListIteratorInit(&bottom_block->successor_block_list.blocks,
-                                &iterator);
+    GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bottom_block->successor_block_list.blocks);
     while (true) {
-      SuccessorBlockInfo *successor_block_info =
-          reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iterator));
+      SuccessorBlockInfo *successor_block_info = iterator.Next();
       if (successor_block_info == NULL) break;
       BasicBlock *bb = successor_block_info->block;
-      DeleteGrowableList(bb->predecessors, reinterpret_cast<uintptr_t>(orig_block));
-      InsertGrowableList(cu_, bb->predecessors, reinterpret_cast<uintptr_t>(bottom_block));
+      bb->predecessors->Delete(orig_block);
+      bb->predecessors->Insert(bottom_block);
     }
   }
 
@@ -234,8 +234,8 @@ BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool creat
   }
 
   if (split) {
-    for (i = 0; i < block_list_.num_used; i++) {
-      bb = reinterpret_cast<BasicBlock*>(block_list_.elem_list[i]);
+    for (i = 0; i < block_list_.Size(); i++) {
+      bb = block_list_.Get(i);
       if (bb->block_type != kDalvikByteCode) continue;
       /* Check if a branch jumps into the middle of an existing block */
       if ((code_offset > bb->start_offset) && (bb->last_mir_insn != NULL) &&
@@ -248,8 +248,8 @@ BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool creat
   }
 
   /* Create a new one */
-  bb = NewMemBB(cu_, kDalvikByteCode, num_blocks_++);
-  InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(bb));
+  bb = NewMemBB(kDalvikByteCode, num_blocks_++);
+  block_list_.Insert(bb);
   bb->start_offset = code_offset;
   block_map_.Put(bb->start_offset, bb);
   return bb;
@@ -271,7 +271,7 @@ void MIRGraph::ProcessTryCatchBlocks()
     int start_offset = pTry->start_addr_;
     int end_offset = start_offset + pTry->insn_count_;
     for (offset = start_offset; offset < end_offset; offset++) {
-      SetBit(cu_, try_block_addr_, offset);
+      try_block_addr_->SetBit(offset);
     }
   }
 
@@ -325,7 +325,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
   BasicBlock *taken_block = FindBlock(target, /* split */ true, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block);
   cur_block->taken = taken_block;
-  InsertGrowableList(cu_, taken_block->predecessors, reinterpret_cast<uintptr_t>(cur_block));
+  taken_block->predecessors->Insert(cur_block);
 
   /* Always terminate the current block for conditional branches */
   if (flags & Instruction::kContinue) {
@@ -348,8 +348,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
                                              /* immed_pred_block_p */
                                              &cur_block);
     cur_block->fall_through = fallthrough_block;
-    InsertGrowableList(cu_, fallthrough_block->predecessors,
-                          reinterpret_cast<uintptr_t>(cur_block));
+    fallthrough_block->predecessors->Insert(cur_block);
   } else if (code_ptr < code_end) {
     /* Create a fallthrough block for real instructions (incl. NOP) */
     if (ContentIsInsn(code_ptr)) {
@@ -413,31 +412,28 @@ void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset
   cur_block->successor_block_list.block_list_type =
       (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
       kPackedSwitch : kSparseSwitch;
-  CompilerInitGrowableList(cu_, &cur_block->successor_block_list.blocks, size,
-                      kListSuccessorBlocks);
+  cur_block->successor_block_list.blocks =
+      new (arena_)GrowableArray<SuccessorBlockInfo*>(arena_, size, kGrowableArraySuccessorBlocks);
 
   for (i = 0; i < size; i++) {
     BasicBlock *case_block = FindBlock(cur_offset + target_table[i], /* split */ true,
                                       /* create */ true, /* immed_pred_block_p */ &cur_block);
     SuccessorBlockInfo *successor_block_info =
-        static_cast<SuccessorBlockInfo*>(NewMem(cu_, sizeof(SuccessorBlockInfo),
-                                         false, kAllocSuccessor));
+        static_cast<SuccessorBlockInfo*>(arena_->NewMem(sizeof(SuccessorBlockInfo), false,
+                                                        ArenaAllocator::kAllocSuccessor));
     successor_block_info->block = case_block;
     successor_block_info->key =
         (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
         first_key + i : keyTable[i];
-    InsertGrowableList(cu_, &cur_block->successor_block_list.blocks,
-                          reinterpret_cast<uintptr_t>(successor_block_info));
-    InsertGrowableList(cu_, case_block->predecessors,
-                          reinterpret_cast<uintptr_t>(cur_block));
+    cur_block->successor_block_list.blocks->Insert(successor_block_info);
+    case_block->predecessors->Insert(cur_block);
   }
 
   /* Fall-through case */
   BasicBlock* fallthrough_block = FindBlock( cur_offset +  width, /* split */ false,
                                            /* create */ true, /* immed_pred_block_p */ NULL);
   cur_block->fall_through = fallthrough_block;
-  InsertGrowableList(cu_, fallthrough_block->predecessors,
-                        reinterpret_cast<uintptr_t>(cur_block));
+  fallthrough_block->predecessors->Insert(cur_block);
 }
 
 /* Process instructions with the kThrow flag */
@@ -445,7 +441,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
                                       int flags, ArenaBitVector* try_block_addr,
                                       const uint16_t* code_ptr, const uint16_t* code_end)
 {
-  bool in_try_block = IsBitSet(try_block_addr, cur_offset);
+  bool in_try_block = try_block_addr->IsBitSet(cur_offset);
 
   /* In try block */
   if (in_try_block) {
@@ -458,8 +454,8 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
     }
 
     cur_block->successor_block_list.block_list_type = kCatch;
-    CompilerInitGrowableList(cu_, &cur_block->successor_block_list.blocks, 2,
-                        kListSuccessorBlocks);
+    cur_block->successor_block_list.blocks =
+        new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, 2, kGrowableArraySuccessorBlocks);
 
     for (;iterator.HasNext(); iterator.Next()) {
       BasicBlock *catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
@@ -469,20 +465,18 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
         catches_.insert(catch_block->start_offset);
       }
       SuccessorBlockInfo *successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
-          (NewMem(cu_, sizeof(SuccessorBlockInfo), false, kAllocSuccessor));
+          (arena_->NewMem(sizeof(SuccessorBlockInfo), false, ArenaAllocator::kAllocSuccessor));
       successor_block_info->block = catch_block;
       successor_block_info->key = iterator.GetHandlerTypeIndex();
-      InsertGrowableList(cu_, &cur_block->successor_block_list.blocks,
-                            reinterpret_cast<uintptr_t>(successor_block_info));
-      InsertGrowableList(cu_, catch_block->predecessors,
-                            reinterpret_cast<uintptr_t>(cur_block));
+      cur_block->successor_block_list.blocks->Insert(successor_block_info);
+      catch_block->predecessors->Insert(cur_block);
     }
   } else {
-    BasicBlock *eh_block = NewMemBB(cu_, kExceptionHandling, num_blocks_++);
+    BasicBlock *eh_block = NewMemBB(kExceptionHandling, num_blocks_++);
     cur_block->taken = eh_block;
-    InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(eh_block));
+    block_list_.Insert(eh_block);
     eh_block->start_offset = cur_offset;
-    InsertGrowableList(cu_, eh_block->predecessors, reinterpret_cast<uintptr_t>(cur_block));
+    eh_block->predecessors->Insert(cur_block);
   }
 
   if (insn->dalvikInsn.opcode == Instruction::THROW){
@@ -512,12 +506,12 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
    * not automatically terminated after the work portion, and may
    * contain following instructions.
    */
-  BasicBlock *new_block = NewMemBB(cu_, kDalvikByteCode, num_blocks_++);
-  InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(new_block));
+  BasicBlock *new_block = NewMemBB(kDalvikByteCode, num_blocks_++);
+  block_list_.Insert(new_block);
   new_block->start_offset = insn->offset;
   cur_block->fall_through = new_block;
-  InsertGrowableList(cu_, new_block->predecessors, reinterpret_cast<uintptr_t>(cur_block));
-  MIR* new_insn = static_cast<MIR*>(NewMem(cu_, sizeof(MIR), true, kAllocMIR));
+  new_block->predecessors->Insert(cur_block);
+  MIR* new_insn = static_cast<MIR*>(arena_->NewMem(sizeof(MIR), true, ArenaAllocator::kAllocMIR));
   *new_insn = *insn;
   insn->dalvikInsn.opcode =
       static_cast<Instruction::Code>(kMirOpCheck);
@@ -545,21 +539,20 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       current_code_item_->insns_ + current_code_item_->insns_size_in_code_units_;
 
   // TODO: need to rework expansion of block list & try_block_addr when inlining activated.
-  ReallocGrowableList(cu_, &block_list_, block_list_.num_used +
-                      current_code_item_->insns_size_in_code_units_);
+  block_list_.Resize(block_list_.Size() + current_code_item_->insns_size_in_code_units_);
   // TODO: replace with explicit resize routine.  Using automatic extension side effect for now.
-  SetBit(cu_, try_block_addr_, current_code_item_->insns_size_in_code_units_);
-  ClearBit(try_block_addr_, current_code_item_->insns_size_in_code_units_);
+  try_block_addr_->SetBit(current_code_item_->insns_size_in_code_units_);
+  try_block_addr_->ClearBit(current_code_item_->insns_size_in_code_units_);
 
   // If this is the first method, set up default entry and exit blocks.
   if (current_method_ == 0) {
     DCHECK(entry_block_ == NULL);
     DCHECK(exit_block_ == NULL);
     DCHECK(num_blocks_ == 0);
-    entry_block_ = NewMemBB(cu_, kEntryBlock, num_blocks_++);
-    exit_block_ = NewMemBB(cu_, kExitBlock, num_blocks_++);
-    InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(entry_block_));
-    InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(exit_block_));
+    entry_block_ = NewMemBB(kEntryBlock, num_blocks_++);
+    exit_block_ = NewMemBB(kExitBlock, num_blocks_++);
+    block_list_.Insert(entry_block_);
+    block_list_.Insert(exit_block_);
     // TODO: deprecate all "cu->" fields; move what's left to wherever CompilationUnit is allocated.
     cu_->dex_file = &dex_file;
     cu_->class_def_idx = class_def_idx;
@@ -582,16 +575,16 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   }
 
   /* Current block to record parsed instructions */
-  BasicBlock *cur_block = NewMemBB(cu_, kDalvikByteCode, num_blocks_++);
+  BasicBlock *cur_block = NewMemBB(kDalvikByteCode, num_blocks_++);
   DCHECK_EQ(current_offset_, 0);
   cur_block->start_offset = current_offset_;
-  InsertGrowableList(cu_, &block_list_, reinterpret_cast<uintptr_t>(cur_block));
+  block_list_.Insert(cur_block);
   /* Add first block to the fast lookup cache */
 // FIXME: block map needs association with offset/method pair rather than just offset
   block_map_.Put(cur_block->start_offset, cur_block);
 // FIXME: this needs to insert at the insert point rather than entry block.
   entry_block_->fall_through = cur_block;
-  InsertGrowableList(cu_, cur_block->predecessors, reinterpret_cast<uintptr_t>(entry_block_));
+  cur_block->predecessors->Insert(entry_block_);
 
     /* Identify code range in try blocks and set up the empty catch blocks */
   ProcessTryCatchBlocks();
@@ -600,7 +593,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   int num_patterns = sizeof(special_patterns)/sizeof(special_patterns[0]);
   bool live_pattern = (num_patterns > 0) && !(cu_->disable_opt & (1 << kMatch));
   bool* dead_pattern =
-      static_cast<bool*>(NewMem(cu_, sizeof(bool) * num_patterns, true, kAllocMisc));
+      static_cast<bool*>(arena_->NewMem(sizeof(bool) * num_patterns, true,
+                                        ArenaAllocator::kAllocMisc));
   SpecialCaseHandler special_case = kNoHandler;
   // FIXME - wire this up
   (void)special_case;
@@ -608,7 +602,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
   /* Parse all instructions and put them into containing basic blocks */
   while (code_ptr < code_end) {
-    MIR *insn = static_cast<MIR *>(NewMem(cu_, sizeof(MIR), true, kAllocMIR));
+    MIR *insn = static_cast<MIR *>(arena_->NewMem(sizeof(MIR), true, ArenaAllocator::kAllocMIR));
     insn->offset = current_offset_;
     insn->m_unit_index = current_method_;
     int width = ParseInsn(code_ptr, &insn->dalvikInsn);
@@ -656,8 +650,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     } else if (flags & Instruction::kReturn) {
       cur_block->terminated_by_return = true;
       cur_block->fall_through = exit_block_;
-      InsertGrowableList(cu_, exit_block_->predecessors,
-                            reinterpret_cast<uintptr_t>(cur_block));
+      exit_block_->predecessors->Insert(cur_block);
       /*
        * Terminate the current block if there are instructions
        * afterwards.
@@ -694,8 +687,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
 
       if ((cur_block->fall_through == NULL) && (flags & Instruction::kContinue)) {
         cur_block->fall_through = next_block;
-        InsertGrowableList(cu_, next_block->predecessors,
-                              reinterpret_cast<uintptr_t>(cur_block));
+        next_block->predecessors->Insert(cur_block);
       }
       cur_block = next_block;
     }
@@ -742,7 +734,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
   int idx;
 
   for (idx = 0; idx < num_blocks; idx++) {
-    int block_idx = all_blocks ? idx : dfs_order_.elem_list[idx];
+    int block_idx = all_blocks ? idx : dfs_order_->Get(idx);
     BasicBlock *bb = GetBasicBlock(block_idx);
     if (bb == NULL) break;
     if (bb->block_type == kDead) continue;
@@ -793,19 +785,15 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
               bb->start_offset, bb->id,
               (bb->successor_block_list.block_list_type == kCatch) ?
                "Mrecord" : "record");
-      GrowableListIterator iterator;
-      GrowableListIteratorInit(&bb->successor_block_list.blocks,
-                                  &iterator);
-      SuccessorBlockInfo *successor_block_info =
-          reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iterator));
+      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bb->successor_block_list.blocks);
+      SuccessorBlockInfo *successor_block_info = iterator.Next();
 
       int succ_id = 0;
       while (true) {
         if (successor_block_info == NULL) break;
 
         BasicBlock *dest_block = successor_block_info->block;
-        SuccessorBlockInfo *next_successor_block_info =
-            reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iterator));
+        SuccessorBlockInfo *next_successor_block_info = iterator.Next();
 
         fprintf(file, "    {<f%d> %04x: %04x\\l}%s\\\n",
                 succ_id++,
@@ -824,13 +812,11 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
       if (bb->successor_block_list.block_list_type == kPackedSwitch ||
           bb->successor_block_list.block_list_type == kSparseSwitch) {
 
-        GrowableListIteratorInit(&bb->successor_block_list.blocks,
-                                    &iterator);
+        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_block_list.blocks);
 
         succ_id = 0;
         while (true) {
-          SuccessorBlockInfo *successor_block_info =
-              reinterpret_cast<SuccessorBlockInfo*>( GrowableListIteratorNext(&iterator));
+          SuccessorBlockInfo *successor_block_info = iter.Next();
           if (successor_block_info == NULL) break;
 
           BasicBlock *dest_block = successor_block_info->block;
@@ -1028,7 +1014,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir)
     str.append("]--optimized away");
   }
   int length = str.length() + 1;
-  ret = static_cast<char*>(NewMem(cu_, length, false, kAllocDFInfo));
+  ret = static_cast<char*>(arena_->NewMem(length, false, ArenaAllocator::kAllocDFInfo));
   strncpy(ret, str.c_str(), length);
   return ret;
 }
@@ -1113,10 +1099,10 @@ void MIRGraph::DumpMIRGraph()
   LOG(INFO) << "Compiling " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   LOG(INFO) << cu_->insns << " insns";
   LOG(INFO) << GetNumBlocks() << " blocks in total";
-  GrowableListIterator iterator = GetBasicBlockIterator();
+  GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
 
   while (true) {
-    bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iterator));
+    bb = iterator.Next();
     if (bb == NULL) break;
     LOG(INFO) << StringPrintf("Block %d (%s) (insn %04x - %04x%s)",
         bb->id,
@@ -1144,7 +1130,8 @@ void MIRGraph::DumpMIRGraph()
 CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
                                   bool is_range)
 {
-  CallInfo* info = static_cast<CallInfo*>(NewMem(cu_, sizeof(CallInfo), true, kAllocMisc));
+  CallInfo* info = static_cast<CallInfo*>(arena_->NewMem(sizeof(CallInfo), true,
+                                                         ArenaAllocator::kAllocMisc));
   MIR* move_result_mir = FindMoveResult(bb, mir);
   if (move_result_mir == NULL) {
     info->result.location = kLocInvalid;
@@ -1155,7 +1142,8 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   }
   info->num_arg_words = mir->ssa_rep->num_uses;
   info->args = (info->num_arg_words == 0) ? NULL : static_cast<RegLocation*>
-      (NewMem(cu_, sizeof(RegLocation) * info->num_arg_words, false, kAllocMisc));
+      (arena_->NewMem(sizeof(RegLocation) * info->num_arg_words, false,
+                      ArenaAllocator::kAllocMisc));
   for (int i = 0; i < info->num_arg_words; i++) {
     info->args[i] = GetRawSrc(mir, i);
   }
@@ -1167,6 +1155,19 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   return info;
 }
 
-
+// Allocate a new basic block.
+BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id)
+{
+  BasicBlock* bb = static_cast<BasicBlock*>(arena_->NewMem(sizeof(BasicBlock), true,
+                                                           ArenaAllocator::kAllocBB));
+  bb->block_type = block_type;
+  bb->id = block_id;
+  // TUNING: better estimate of the exit block predecessors?
+  bb->predecessors = new (arena_)
+      GrowableArray<BasicBlock*>(arena_, (block_type == kExitBlock) ? 2048 : 2, kGrowableArrayPredecessors);
+  bb->successor_block_list.block_list_type = kNotUsed;
+  block_id_map_.Put(block_id, block_id);
+  return bb;
+}
 
 } // namespace art

@@ -27,6 +27,7 @@
 #include "mirror/object.h"
 #include "runtime.h"
 #include "backend.h"
+#include "base/logging.h"
 
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -118,10 +119,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   UniquePtr<CompilationUnit> cu(new CompilationUnit);
 
-  if (!HeapInit(cu.get())) {
-    LOG(FATAL) << "Failed to initialize compiler heap";
-  }
-
   cu->compiler_driver = &compiler;
   cu->class_linker = class_linker;
   cu->instruction_set = compiler.GetInstructionSet();
@@ -171,7 +168,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
         (1 << kPromoteCompilerTemps));
   }
 
-  cu->mir_graph.reset(new MIRGraph(cu.get()));
+  cu->mir_graph.reset(new MIRGraph(cu.get(), &cu->arena));
 
   /* Gathering opcode stats? */
   if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
@@ -218,17 +215,18 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 
 #if defined(ART_USE_PORTABLE_COMPILER)
   if (compiler_backend == kPortable) {
-    cu->cg.reset(PortableCodeGenerator(cu.get(), cu->mir_graph.get(), llvm_compilation_unit));
+    cu->cg.reset(PortableCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena,
+                                       llvm_compilation_unit));
   } else
 #endif
   {
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
-        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get())); break;
+        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
       case kMips:
-        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get())); break;
+        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
       case kX86:
-        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get())); break;
+        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
       default:
         LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
     }
@@ -244,13 +242,14 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     VLOG(compiler) << "Deferred " << PrettyMethod(method_idx, dex_file);
   }
 
-#ifdef WITH_MEMSTATS
   if (cu->enable_debug & (1 << kDebugShowMemoryUsage)) {
-    DumpMemStats(cu.get());
+    if (cu->arena.BytesAllocated() > (5 * 1024 *1024)) {
+      MemStats mem_stats(cu->arena);
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+    }
   }
-#endif
 
-  ArenaReset(cu.get());
+  cu->arena.ArenaReset();
 
   return result;
 }

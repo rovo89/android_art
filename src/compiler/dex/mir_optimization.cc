@@ -22,19 +22,19 @@ namespace art {
 
 static unsigned int Predecessors(BasicBlock* bb)
 {
-  return bb->predecessors->num_used;
+  return bb->predecessors->Size();
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
 void MIRGraph::SetConstant(int32_t ssa_reg, int value)
 {
-  SetBit(cu_, is_constant_v_, ssa_reg);
+  is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = value;
 }
 
 void MIRGraph::SetConstantWide(int ssa_reg, int64_t value)
 {
-  SetBit(cu_, is_constant_v_, ssa_reg);
+  is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = Low32Bits(value);
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }
@@ -42,7 +42,6 @@ void MIRGraph::SetConstantWide(int ssa_reg, int64_t value)
 bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
 {
   MIR* mir;
-  ArenaBitVector *is_constant_v = is_constant_v_;
 
   for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
@@ -83,7 +82,7 @@ bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
       int i;
 
       for (i = 0; i < mir->ssa_rep->num_uses; i++) {
-        if (!IsBitSet(is_constant_v, mir->ssa_rep->uses[i])) break;
+        if (!is_constant_v_->IsBitSet(mir->ssa_rep->uses[i])) break;
       }
       /* Move a register holding a constant to another register */
       if (i == mir->ssa_rep->num_uses) {
@@ -100,9 +99,9 @@ bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
 
 void MIRGraph::PropagateConstants()
 {
-  is_constant_v_ = AllocBitVector(cu_, GetNumSSARegs(), false);
-  constant_values_ = static_cast<int*>(NewMem(cu_, sizeof(int) * GetNumSSARegs(), true,
-                                       kAllocDFInfo));
+  is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
+  constant_values_ = static_cast<int*>(arena_->NewMem(sizeof(int) * GetNumSSARegs(), true,
+                                                      ArenaAllocator::kAllocDFInfo));
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
     DoConstantPropogation(bb);
@@ -210,8 +209,7 @@ static SelectInstructionKind SelectKind(MIR* mir)
 
 int MIRGraph::GetSSAUseCount(int s_reg)
 {
-  DCHECK(s_reg < static_cast<int>(raw_use_counts_.num_used));
-  return raw_use_counts_.elem_list[s_reg];
+  return raw_use_counts_.Get(s_reg);
 }
 
 
@@ -404,8 +402,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
               } else {
                 DCHECK_EQ(SelectKind(if_true), kSelectMove);
                 DCHECK_EQ(SelectKind(if_false), kSelectMove);
-                int* src_ssa = static_cast<int*>(NewMem(cu_, sizeof(int) * 3, false,
-                                                 kAllocDFInfo));
+                int* src_ssa =
+                    static_cast<int*>(arena_->NewMem(sizeof(int) * 3, false,
+                                                     ArenaAllocator::kAllocDFInfo));
                 src_ssa[0] = mir->ssa_rep->uses[0];
                 src_ssa[1] = if_true->ssa_rep->uses[0];
                 src_ssa[2] = if_false->ssa_rep->uses[0];
@@ -413,10 +412,12 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
                 mir->ssa_rep->num_uses = 3;
               }
               mir->ssa_rep->num_defs = 1;
-              mir->ssa_rep->defs = static_cast<int*>(NewMem(cu_, sizeof(int) * 1, false,
-                                                     kAllocDFInfo));
-              mir->ssa_rep->fp_def = static_cast<bool*>(NewMem(cu_, sizeof(bool) * 1, false,
-                                                     kAllocDFInfo));
+              mir->ssa_rep->defs =
+                  static_cast<int*>(arena_->NewMem(sizeof(int) * 1, false,
+                                                   ArenaAllocator::kAllocDFInfo));
+              mir->ssa_rep->fp_def =
+                  static_cast<bool*>(arena_->NewMem(sizeof(bool) * 1, false,
+                                                    ArenaAllocator::kAllocDFInfo));
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
               /*
                * There is usually a Phi node in the join block for our two cases.  If the
@@ -467,38 +468,37 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
   return true;
 }
 
-bool MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb)
+void MIRGraph::NullCheckEliminationInit(struct BasicBlock* bb)
 {
-  if (bb->data_flow_info == NULL) return false;
-  bb->data_flow_info->ending_null_check_v =
-      AllocBitVector(cu_, GetNumSSARegs(), false, kBitMapNullCheck);
-  ClearAllBits(bb->data_flow_info->ending_null_check_v);
-  return true;
+  if (bb->data_flow_info != NULL) {
+    bb->data_flow_info->ending_null_check_v =
+        new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false, kBitMapNullCheck);
+  }
 }
 
 /* Collect stats on number of checks removed */
-bool MIRGraph::CountChecks(struct BasicBlock* bb)
+void MIRGraph::CountChecks(struct BasicBlock* bb)
 {
-  if (bb->data_flow_info == NULL) return false;
-  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    if (mir->ssa_rep == NULL) {
-      continue;
-    }
-    int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
-    if (df_attributes & DF_HAS_NULL_CHKS) {
-      checkstats_->null_checks++;
-      if (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) {
-        checkstats_->null_checks_eliminated++;
+  if (bb->data_flow_info != NULL) {
+    for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+      if (mir->ssa_rep == NULL) {
+        continue;
       }
-    }
-    if (df_attributes & DF_HAS_RANGE_CHKS) {
-      checkstats_->range_checks++;
-      if (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) {
-        checkstats_->range_checks_eliminated++;
+      int df_attributes = oat_data_flow_attributes_[mir->dalvikInsn.opcode];
+      if (df_attributes & DF_HAS_NULL_CHKS) {
+        checkstats_->null_checks++;
+        if (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) {
+          checkstats_->null_checks_eliminated++;
+        }
+      }
+      if (df_attributes & DF_HAS_RANGE_CHKS) {
+        checkstats_->range_checks++;
+        if (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) {
+          checkstats_->range_checks_eliminated++;
+        }
       }
     }
   }
-  return false;
 }
 
 /* Try to make common case the fallthrough path */
@@ -514,7 +514,7 @@ static bool LayoutBlocks(struct BasicBlock* bb)
     if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
-    BasicBlock* prev = GET_ELEM_N(walker->predecessors, BasicBlock*, 0);
+    BasicBlock* prev = walker->predecessors->Get(0);
     if (prev->conditional_branch) {
       if (prev->fall_through == walker) {
         // Already done - return
@@ -629,28 +629,26 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
    * status (except for "this").
    */
   if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
-    ClearAllBits(temp_ssa_register_v_);
+    temp_ssa_register_v_->ClearAllBits();
     if ((cu_->access_flags & kAccStatic) == 0) {
       // If non-static method, mark "this" as non-null
       int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
-      SetBit(cu_, temp_ssa_register_v_, this_reg);
+      temp_ssa_register_v_->SetBit(this_reg);
     }
   } else {
     // Starting state is intesection of all incoming arcs
-    GrowableListIterator iter;
-    GrowableListIteratorInit(bb->predecessors, &iter);
-    BasicBlock* pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter));
+    GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
+    BasicBlock* pred_bb = iter.Next();
     DCHECK(pred_bb != NULL);
-    CopyBitVector(temp_ssa_register_v_, pred_bb->data_flow_info->ending_null_check_v);
+    temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
     while (true) {
-      pred_bb = reinterpret_cast<BasicBlock*>(GrowableListIteratorNext(&iter));
+      pred_bb = iter.Next();
       if (!pred_bb) break;
       if ((pred_bb->data_flow_info == NULL) ||
           (pred_bb->data_flow_info->ending_null_check_v == NULL)) {
         continue;
       }
-      IntersectBitVectors(temp_ssa_register_v_, temp_ssa_register_v_,
-                          pred_bb->data_flow_info->ending_null_check_v);
+      temp_ssa_register_v_->Intersect(pred_bb->data_flow_info->ending_null_check_v);
     }
   }
 
@@ -663,7 +661,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
 
     // Mark target of NEW* as non-null
     if (df_attributes & DF_NON_NULL_DST) {
-      SetBit(cu_, temp_ssa_register_v_, mir->ssa_rep->defs[0]);
+      temp_ssa_register_v_->SetBit(mir->ssa_rep->defs[0]);
     }
 
     // Mark non-null returns from invoke-style NEW*
@@ -673,7 +671,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
       if (next_mir &&
           next_mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
         // Mark as null checked
-        SetBit(cu_, temp_ssa_register_v_, next_mir->ssa_rep->defs[0]);
+        temp_ssa_register_v_->SetBit(next_mir->ssa_rep->defs[0]);
       } else {
         if (next_mir) {
           LOG(WARNING) << "Unexpected opcode following new: " << next_mir->dalvikInsn.opcode;
@@ -688,7 +686,7 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
             // First non-pseudo should be MOVE_RESULT_OBJECT
             if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
               // Mark as null checked
-              SetBit(cu_, temp_ssa_register_v_, tmir->ssa_rep->defs[0]);
+              temp_ssa_register_v_->SetBit(tmir->ssa_rep->defs[0]);
             } else {
               LOG(WARNING) << "Unexpected op after new: " << tmir->dalvikInsn.opcode;
             }
@@ -709,11 +707,10 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
           mir->ssa_rep->num_uses;
       bool null_checked = true;
       for (int i = 0; i < operands; i++) {
-        null_checked &= IsBitSet(temp_ssa_register_v_,
-        mir->ssa_rep->uses[i]);
+        null_checked &= temp_ssa_register_v_->IsBitSet(mir->ssa_rep->uses[i]);
       }
       if (null_checked) {
-        SetBit(cu_, temp_ssa_register_v_, tgt_sreg);
+        temp_ssa_register_v_->SetBit(tgt_sreg);
       }
     }
 
@@ -728,24 +725,22 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
         src_idx = 0;
       }
       int src_sreg = mir->ssa_rep->uses[src_idx];
-        if (IsBitSet(temp_ssa_register_v_, src_sreg)) {
+        if (temp_ssa_register_v_->IsBitSet(src_sreg)) {
           // Eliminate the null check
           mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
         } else {
           // Mark s_reg as null-checked
-          SetBit(cu_, temp_ssa_register_v_, src_sreg);
+          temp_ssa_register_v_->SetBit(src_sreg);
         }
      }
   }
 
   // Did anything change?
-  bool res = CompareBitVectors(bb->data_flow_info->ending_null_check_v,
-                                  temp_ssa_register_v_);
-  if (res) {
-    CopyBitVector(bb->data_flow_info->ending_null_check_v,
-                     temp_ssa_register_v_);
+  bool changed = !temp_ssa_register_v_->Equal(bb->data_flow_info->ending_null_check_v);
+  if (changed) {
+    bb->data_flow_info->ending_null_check_v->Copy(temp_ssa_register_v_);
   }
-  return res;
+  return changed;
 }
 
 void MIRGraph::NullCheckElimination()
@@ -795,7 +790,8 @@ void MIRGraph::CodeLayout()
 void MIRGraph::DumpCheckStats()
 {
   Checkstats* stats =
-      static_cast<Checkstats*>(NewMem(cu_, sizeof(Checkstats), true, kAllocDFInfo));
+      static_cast<Checkstats*>(arena_->NewMem(sizeof(Checkstats), true,
+                                              ArenaAllocator::kAllocDFInfo));
   checkstats_ = stats;
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
@@ -851,7 +847,6 @@ bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb)
 void MIRGraph::BasicBlockOptimization()
 {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
-    CompilerInitGrowableList(cu_, &compiler_temps_, 6, kListMisc);
     DCHECK_EQ(cu_->num_compiler_temps, 0);
     // Mark all blocks as not visited
     AllNodesIterator iter(this, false /* not iterative */);

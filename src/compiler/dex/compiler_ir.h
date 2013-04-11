@@ -26,13 +26,12 @@
 #include "compiler/llvm/intrinsic_helper.h"
 #include "compiler/llvm/ir_builder.h"
 #include "compiler_enums.h"
-#include "compiler_utility.h"
 #include "dex_instruction.h"
 #include "safe_map.h"
+#include "arena_allocator.h"
 
 namespace art {
 
-struct ArenaBitVector;
 class LLVMInfo;
 namespace llvm {
 class LlvmCompilationUnit;
@@ -67,10 +66,6 @@ struct CompilationUnit {
       num_regs(0),
       num_compiler_temps(0),
       compiler_flip_match(false),
-      arena_head(NULL),
-      current_arena(NULL),
-      num_arena_blocks(0),
-      mstats(NULL),
       mir_graph(NULL),
       cg(NULL) {}
   /*
@@ -109,10 +104,7 @@ struct CompilationUnit {
   bool compiler_flip_match;
 
   // TODO: move memory management to mir_graph, or just switch to using standard containers.
-  ArenaMemBlock* arena_head;
-  ArenaMemBlock* current_arena;
-  int num_arena_blocks;
-  Memstats* mstats;
+  ArenaAllocator arena;
 
   UniquePtr<MIRGraph> mir_graph;   // MIR container.
   UniquePtr<Backend> cg;           // Target-specific codegen.

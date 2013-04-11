@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_DEX_BACKEND_H_
 
 #include "compiled_method.h"
+#include "arena_allocator.h"
 
 namespace art {
 
@@ -29,7 +30,8 @@ class Backend {
     virtual CompiledMethod* GetCompiledMethod() = 0;
 
   protected:
-    Backend() {};
+    Backend() : arena_(NULL) {};
+    ArenaAllocator* arena_;
 
 };  // Class Backend
 

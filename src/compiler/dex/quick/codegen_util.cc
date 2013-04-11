@@ -365,7 +365,7 @@ void Mir2Lir::CodegenDump()
 LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
                      int op1, int op2, int op3, int op4, LIR* target)
 {
-  LIR* insn = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocLIR));
+  LIR* insn = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
   insn->dalvik_offset = dalvik_offset;
   insn->opcode = opcode;
   insn->operands[0] = op0;
@@ -499,7 +499,7 @@ LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value)
 {
   /* Add the constant to the literal pool */
   if (constant_list_p) {
-    LIR* new_value = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocData));
+    LIR* new_value = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocData));
     new_value->operands[0] = value;
     new_value->next = *constant_list_p;
     *constant_list_p = new_value;
@@ -573,11 +573,9 @@ void Mir2Lir::InstallLiteralPools()
 /* Write the switch tables to the output stream */
 void Mir2Lir::InstallSwitchTables()
 {
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&switch_tables_, &iterator);
+  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
-    Mir2Lir::SwitchTable* tab_rec =
-      reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext( &iterator));
+    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     AlignBuffer(code_buffer_, tab_rec->offset);
     /*
@@ -633,11 +631,9 @@ void Mir2Lir::InstallSwitchTables()
 /* Write the fill array dta to the output stream */
 void Mir2Lir::InstallFillArrayData()
 {
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&fill_array_data_, &iterator);
+  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
   while (true) {
-    Mir2Lir::FillArrayData *tab_rec =
-        reinterpret_cast<Mir2Lir::FillArrayData*>(GrowableListIteratorNext( &iterator));
+    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     AlignBuffer(code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
@@ -831,11 +827,9 @@ int Mir2Lir::AssignLiteralOffset(int offset)
 
 int Mir2Lir::AssignSwitchTablesOffset(int offset)
 {
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&switch_tables_, &iterator);
+  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
-    Mir2Lir::SwitchTable *tab_rec =
-        reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::SwitchTable *tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -851,11 +845,9 @@ int Mir2Lir::AssignSwitchTablesOffset(int offset)
 
 int Mir2Lir::AssignFillArrayDataOffset(int offset)
 {
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&fill_array_data_, &iterator);
+  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
   while (true) {
-    Mir2Lir::FillArrayData *tab_rec =
-        reinterpret_cast<Mir2Lir::FillArrayData*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     tab_rec->offset = offset;
     offset += tab_rec->size;
@@ -973,7 +965,7 @@ LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal)
   if (it == boundary_map_.end()) {
     LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
   }
-  LIR* new_label = static_cast<LIR*>(NewMem(cu_, sizeof(LIR), true, kAllocLIR));
+  LIR* new_label = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
   new_label->dalvik_offset = vaddr;
   new_label->opcode = kPseudoCaseLabel;
   new_label->operands[0] = keyVal;
@@ -1007,11 +999,9 @@ void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec)
 
 void Mir2Lir::ProcessSwitchTables()
 {
-  GrowableListIterator iterator;
-  GrowableListIteratorInit(&switch_tables_, &iterator);
+  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
-    Mir2Lir::SwitchTable *tab_rec =
-        reinterpret_cast<Mir2Lir::SwitchTable*>(GrowableListIteratorNext(&iterator));
+    Mir2Lir::SwitchTable *tab_rec = iterator.Next();
     if (tab_rec == NULL) break;
     if (tab_rec->table[0] == Instruction::kPackedSwitchSignature) {
       MarkPackedCaseLabels(tab_rec);
@@ -1123,15 +1113,23 @@ ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
   return res;
 }
 
-Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph)
+// TODO: move to mir_to_lir.cc
+Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : literal_list_(NULL),
       method_literal_list_(NULL),
       code_literal_list_(NULL),
       cu_(cu),
       mir_graph_(mir_graph),
+      switch_tables_(arena, 4, kGrowableArraySwitchTables),
+      fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
+      throw_launchpads_(arena, 2048, kGrowableArrayThrowLaunchPads),
+      suspend_launchpads_(arena, 4, kGrowableArraySuspendLaunchPads),
+      intrinsic_launchpads_(arena, 2048, kGrowableArrayMisc),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
+      current_dalvik_offset_(0),
+      reg_pool_(NULL),
       live_sreg_(0),
       num_core_spills_(0),
       num_fp_spills_(0),
@@ -1141,15 +1139,10 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph)
       first_lir_insn_(NULL),
       last_lir_insn_(NULL)
  {
-
-  CompilerInitGrowableList(cu_, &switch_tables_, 4, kListSwitchTables);
-  CompilerInitGrowableList(cu_, &fill_array_data_, 4, kListFillArrayData);
-  CompilerInitGrowableList(cu_, &throw_launchpads_, 2048, kListThrowLaunchPads);
-  CompilerInitGrowableList(cu_, &intrinsic_launchpads_, 4, kListMisc);
-  CompilerInitGrowableList(cu_, &suspend_launchpads_, 2048, kListSuspendLaunchPads);
+  arena_ = arena;
   promotion_map_ = static_cast<PromotionMap*>
-      (NewMem(cu_, (cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
-              sizeof(promotion_map_[0]), true, kAllocRegAlloc));
+      (arena_->NewMem((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
+                      sizeof(promotion_map_[0]), true, ArenaAllocator::kAllocRegAlloc));
 }
 
 void Mir2Lir::Materialize() {

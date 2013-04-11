@@ -16,6 +16,8 @@
 
 LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/local_value_numbering.cc \
+	src/compiler/dex/arena_allocator.cc \
+	src/compiler/dex/arena_bit_vector.cc \
 	src/compiler/dex/quick/arm/assemble_arm.cc \
 	src/compiler/dex/quick/arm/call_arm.cc \
 	src/compiler/dex/quick/arm/fp_arm.cc \
@@ -42,7 +44,6 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/quick/x86/target_x86.cc \
 	src/compiler/dex/quick/x86/utility_x86.cc \
 	src/compiler/dex/portable/mir_to_gbc.cc \
-	src/compiler/dex/compiler_utility.cc \
 	src/compiler/dex/mir_dataflow.cc \
 	src/compiler/dex/dataflow_iterator.cc \
 	src/compiler/dex/mir_optimization.cc \

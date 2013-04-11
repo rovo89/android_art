@@ -49,7 +49,7 @@ namespace art {
 
 ::llvm::Value* MirConverter::GetLLVMValue(int s_reg)
 {
-  return reinterpret_cast< ::llvm::Value*>(GrowableListGetElement(&llvm_values_, s_reg));
+  return llvm_values_.Get(s_reg);
 }
 
 void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg)
@@ -74,7 +74,7 @@ void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg)
   }
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
-  llvm_values_.elem_list[s_reg] = reinterpret_cast<uintptr_t>(val);
+  llvm_values_.Put(s_reg, val);
   ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
@@ -1786,17 +1786,15 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb)
             art::llvm::IntrinsicHelper::CatchTargets);
         ::llvm::Value* switch_key =
             irb_->CreateCall(intr, irb_->getInt32(mir->offset));
-        GrowableListIterator iter;
-        GrowableListIteratorInit(&bb->successor_block_list.blocks, &iter);
+        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_block_list.blocks);
         // New basic block to use for work half
         ::llvm::BasicBlock* work_bb =
             ::llvm::BasicBlock::Create(*context_, "", func_);
         ::llvm::SwitchInst* sw =
             irb_->CreateSwitch(switch_key, work_bb,
-                                     bb->successor_block_list.blocks.num_used);
+                                     bb->successor_block_list.blocks->Size());
         while (true) {
-          SuccessorBlockInfo *successor_block_info =
-              reinterpret_cast<SuccessorBlockInfo*>(GrowableListIteratorNext(&iter));
+          SuccessorBlockInfo *successor_block_info = iter.Next();
           if (successor_block_info == NULL) break;
           ::llvm::BasicBlock *target =
               GetLLVMBlock(successor_block_info->block->id);
@@ -1938,7 +1936,6 @@ bool MirConverter::CreateLLVMBasicBlock(BasicBlock* bb)
 void MirConverter::MethodMIR2Bitcode()
 {
   InitIR();
-  CompilerInitGrowableList(cu_, &llvm_values_, mir_graph_->GetNumSSARegs());
 
   // Create the function
   CreateFunction();
@@ -1961,18 +1958,18 @@ void MirConverter::MethodMIR2Bitcode()
     ::llvm::Value* val;
     RegLocation rl_temp = mir_graph_->reg_location_[i];
     if ((mir_graph_->SRegToVReg(i) < 0) || rl_temp.high_word) {
-      InsertGrowableList(cu_, &llvm_values_, 0);
+      llvm_values_.Insert(0);
     } else if ((i < cu_->num_regs) ||
                (i >= (cu_->num_regs + cu_->num_ins))) {
       ::llvm::Constant* imm_value = mir_graph_->reg_location_[i].wide ?
          irb_->getJLong(0) : irb_->getJInt(0);
       val = EmitConst(imm_value, mir_graph_->reg_location_[i]);
       val->setName(mir_graph_->GetSSAString(i));
-      InsertGrowableList(cu_, &llvm_values_, reinterpret_cast<uintptr_t>(val));
+      llvm_values_.Insert(val);
     } else {
       // Recover previously-created argument values
       ::llvm::Value* arg_val = arg_iter++;
-      InsertGrowableList(cu_, &llvm_values_, reinterpret_cast<uintptr_t>(arg_val));
+      llvm_values_.Insert(arg_val);
     }
   }
 
@@ -2051,8 +2048,9 @@ void MirConverter::MethodMIR2Bitcode()
 }
 
 Backend* PortableCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
+                               ArenaAllocator* const arena,
                                llvm::LlvmCompilationUnit* const llvm_compilation_unit) {
-  return new MirConverter(cu, mir_graph, llvm_compilation_unit);
+  return new MirConverter(cu, mir_graph, arena, llvm_compilation_unit);
 }
 
 }  // namespace art

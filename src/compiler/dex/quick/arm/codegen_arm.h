@@ -24,7 +24,7 @@ namespace art {
 class ArmMir2Lir : public Mir2Lir {
   public:
 
-    ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph);
+    ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivide(Instruction::Code dalvik_opcode, RegLocation rl_src,
