@@ -1019,7 +1019,7 @@ END art_quick_instrumentation_exit_from_code
      */
     .extern artDeoptimize
 ENTRY art_quick_deoptimize
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     mov    r0, r9         @ Set up args.
     mov    r1, sp
     blx    artDeoptimize  @ artDeoptimize(Thread*, SP)

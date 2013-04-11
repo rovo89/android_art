@@ -538,7 +538,8 @@ void Dbg::GoActive() {
   runtime->GetInstrumentation()->AddListener(&gDebugInstrumentationListener,
                                              instrumentation::Instrumentation::kMethodEntered |
                                              instrumentation::Instrumentation::kMethodExited |
-                                             instrumentation::Instrumentation::kDexPcMoved);
+                                             instrumentation::Instrumentation::kDexPcMoved |
+                                             instrumentation::Instrumentation::kExceptionCaught);
   gDebuggerActive = true;
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   runtime->GetThreadList()->ResumeAll();
@@ -561,7 +562,8 @@ void Dbg::Disconnected() {
   runtime->GetInstrumentation()->RemoveListener(&gDebugInstrumentationListener,
                                                 instrumentation::Instrumentation::kMethodEntered |
                                                 instrumentation::Instrumentation::kMethodExited |
-                                                instrumentation::Instrumentation::kDexPcMoved);
+                                                instrumentation::Instrumentation::kDexPcMoved |
+                                                instrumentation::Instrumentation::kExceptionCaught);
   gDebuggerActive = false;
   gRegistry->Clear();
   gDebuggerConnected = false;

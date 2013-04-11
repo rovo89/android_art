@@ -1030,7 +1030,7 @@ END art_quick_instrumentation_exit_from_code
     .extern artEnterInterpreterFromDeoptimize
 ENTRY art_quick_deoptimize
     GENERATE_GLOBAL_POINTER
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move     $a0, rSELF     # pass Thread::current
     jal      artDeoptimize  # artDeoptimize(Thread*, SP)
                             # Returns caller method's frame size.

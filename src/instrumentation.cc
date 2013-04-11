@@ -274,6 +274,10 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
     require_interpreter = true;
     have_dex_pc_listeners_ = true;
   }
+  if ((events & kExceptionCaught) != 0) {
+    exception_caught_listeners_.push_back(listener);
+    have_exception_caught_listeners_ = true;
+  }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
 }
 
@@ -311,6 +315,10 @@ void Instrumentation::RemoveListener(InstrumentationListener* listener, uint32_t
     }
     have_dex_pc_listeners_ = dex_pc_listeners_.size() > 0;
     require_interpreter |= have_dex_pc_listeners_;
+  }
+  if ((events & kExceptionCaught) != 0) {
+    exception_caught_listeners_.remove(listener);
+    have_exception_caught_listeners_ = exception_caught_listeners_.size() > 0;
   }
   ConfigureStubs(require_entry_exit_stubs, require_interpreter);
 }
