@@ -1042,7 +1042,7 @@ END_FUNCTION art_quick_instrumentation_exit_from_code
      */
 DEFINE_FUNCTION art_quick_deoptimize
     pushl %ebx                    // Fake that we were called.
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     mov  %esp, %ecx               // Remember SP.
     subl LITERAL(8), %esp         // Align stack.
     .cfi_adjust_cfa_offset 8
