@@ -438,11 +438,14 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
                                            uint32_t catch_dex_pc,
                                            mirror::Throwable* exception_object) {
   if (have_exception_caught_listeners_) {
+    DCHECK_EQ(thread->GetException(NULL), exception_object);
+    thread->ClearException();
     typedef std::list<InstrumentationListener*>::const_iterator It; // TODO: C++0x auto
     for (It it = exception_caught_listeners_.begin(), end = exception_caught_listeners_.end();
         it != end; ++it) {
       (*it)->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc, exception_object);
     }
+    thread->SetException(throw_location, exception_object);
   }
 }
 
