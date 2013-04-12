@@ -37,6 +37,10 @@ void Mir2Lir::ResetRegPool()
     if (reg_pool_->FPRegs[i].is_temp)
       reg_pool_->FPRegs[i].in_use = false;
   }
+  // Reset temp tracking sanity check.
+  if (kIsDebugBuild) {
+    live_sreg_ = INVALID_SREG;
+  }
 }
 
  /*

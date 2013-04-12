@@ -1158,11 +1158,13 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   }
   RegLocation rl_object = LoadValue(rl_src_obj, kCoreReg);
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
-  RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
+  RegLocation rl_value;
   if (is_long) {
+    rl_value = LoadValueWide(rl_src_value, kCoreReg);
     OpRegReg(kOpAdd, rl_object.low_reg, rl_offset.low_reg);
     StoreBaseDispWide(rl_object.low_reg, 0, rl_value.low_reg, rl_value.high_reg);
   } else {
+    rl_value = LoadValue(rl_src_value, kCoreReg);
     StoreBaseIndexed(rl_object.low_reg, rl_offset.low_reg, rl_value.low_reg, 0, kWord);
   }
   if (is_volatile) {
