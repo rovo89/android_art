@@ -117,6 +117,15 @@ mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id) {
   return self->DecodeJObject(entry.jni_reference);
 }
 
+jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, lock_);
+  id_iterator it = id_to_entry_.find(id);
+  CHECK(it != id_to_entry_.end()) << id;
+  ObjectRegistryEntry& entry = *(it->second);
+  return entry.jni_reference;
+}
+
 void ObjectRegistry::DisableCollection(JDWP::ObjectId id) {
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);

@@ -76,6 +76,10 @@ class ObjectRegistry {
   // Returned by Get when passed an invalid object id.
   static mirror::Object* const kInvalidObject;
 
+  // This is needed to get the jobject of a thread instead of the Object*.
+  // Avoid using this and use standard Get when possible.
+  jobject GetJObject(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   JDWP::ObjectId InternalAdd(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Object* InternalGet(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

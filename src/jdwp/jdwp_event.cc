@@ -143,8 +143,6 @@ static void dumpEvent(const JdwpEvent* pEvent) {
  * not be added to the list, and an appropriate error will be returned.
  */
 JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
-  MutexLock mu(Thread::Current(), event_list_lock_);
-
   CHECK(pEvent != NULL);
   CHECK(pEvent->prev == NULL);
   CHECK(pEvent->next == NULL);
@@ -175,6 +173,7 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
   /*
    * Add to list.
    */
+  MutexLock mu(Thread::Current(), event_list_lock_);
   if (event_list_ != NULL) {
     pEvent->next = event_list_;
     event_list_->prev = pEvent;

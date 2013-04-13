@@ -2374,22 +2374,75 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   }
 }
 
-JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize step_size,
-                                   JDWP::JdwpStepDepth step_depth) {
-  ScopedObjectAccessUnchecked soa(Thread::Current());
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Thread* thread;
-  JDWP::JdwpError error = DecodeThread(soa, thread_id, thread);
-  if (error != JDWP::ERR_NONE) {
-    return error;
+// Scoped utility class to suspend a thread so that we may do tasks such as walk its stack. Doesn't
+// cause suspension if the thread is the current thread.
+class ScopedThreadSuspension {
+ public:
+  ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id) :
+      thread_(NULL),
+      error_(JDWP::ERR_NONE),
+      self_suspend_(false),
+      other_suspend_(false) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ScopedObjectAccessUnchecked soa(self);
+    {
+      MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+      error_ = DecodeThread(soa, thread_id, thread_);
+    }
+    if (error_ == JDWP::ERR_NONE) {
+      if (thread_ == soa.Self()) {
+        self_suspend_ = true;
+      } else {
+        soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
+        jobject thread_peer = gRegistry->GetJObject(thread_id);
+        bool timed_out;
+        Thread* suspended_thread = Thread::SuspendForDebugger(thread_peer, true, &timed_out);
+        CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
+        if (suspended_thread == NULL) {
+          // Thread terminated from under us while suspending.
+          error_ = JDWP::ERR_INVALID_THREAD;
+        } else {
+          CHECK_EQ(suspended_thread, thread_);
+          other_suspend_ = true;
+        }
+      }
+    }
   }
 
-  MutexLock mu2(soa.Self(), *Locks::breakpoint_lock_);
+  Thread* GetThread() const {
+    return thread_;
+  }
+
+  JDWP::JdwpError GetError() const {
+    return error_;
+  }
+
+  ~ScopedThreadSuspension() {
+    if (other_suspend_) {
+      Runtime::Current()->GetThreadList()->Resume(thread_, true);
+    }
+  }
+
+ private:
+  Thread* thread_;
+  JDWP::JdwpError error_;
+  bool self_suspend_;
+  bool other_suspend_;
+};
+
+JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize step_size,
+                                   JDWP::JdwpStepDepth step_depth) {
+  Thread* self = Thread::Current();
+  ScopedThreadSuspension sts(self, thread_id);
+  if (sts.GetError() != JDWP::ERR_NONE) {
+    return sts.GetError();
+  }
+
+  MutexLock mu2(self, *Locks::breakpoint_lock_);
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
-  if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
+  if (gSingleStepControl.thread != NULL && sts.GetThread() != gSingleStepControl.thread) {
     LOG(WARNING) << "single-step already active for " << *gSingleStepControl.thread
-                 << "; switching to " << *thread;
+                 << "; switching to " << *sts.GetThread();
   }
 
   //
@@ -2426,7 +2479,8 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
       return true;
     }
   };
-  SingleStepStackVisitor visitor(thread);
+
+  SingleStepStackVisitor visitor(sts.GetThread());
   visitor.WalkStack();
 
   //
@@ -2493,7 +2547,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   // Everything else...
   //
 
-  gSingleStepControl.thread = thread;
+  gSingleStepControl.thread = sts.GetThread();
   gSingleStepControl.step_size = step_size;
   gSingleStepControl.step_depth = step_depth;
   gSingleStepControl.is_active = true;
