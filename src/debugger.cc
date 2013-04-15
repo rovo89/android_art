@@ -2690,9 +2690,26 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       return JDWP::ERR_ILLEGAL_ARGUMENT;
     }
     const char* shorty = mh.GetShorty();
+    const DexFile::TypeList* types = mh.GetParameterTypeList();
     for (size_t i = 0; i < arg_count; ++i) {
       if (shorty[i + 1] != JdwpTagToShortyChar(arg_types[i])) {
         return JDWP::ERR_ILLEGAL_ARGUMENT;
+      }
+
+      if (shorty[i + 1] == 'L') {
+        // Did we really get an argument of an appropriate reference type?
+        mirror::Class* parameter_type = mh.GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+        mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i]);
+        if (argument == ObjectRegistry::kInvalidObject) {
+          return JDWP::ERR_INVALID_OBJECT;
+        }
+        if (!argument->InstanceOf(parameter_type)) {
+          return JDWP::ERR_ILLEGAL_ARGUMENT;
+        }
+
+        // Turn the on-the-wire ObjectId into a jobject.
+        jvalue& v = reinterpret_cast<jvalue&>(arg_values[i]);
+        v.l = gRegistry->GetJObject(arg_values[i]);
       }
     }
 

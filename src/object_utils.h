@@ -480,27 +480,6 @@ class MethodHelper {
     return GetDexFile().GetProtoParameters(proto);
   }
 
-  mirror::ObjectArray<mirror::Class>* GetParameterTypes(Thread* self)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::TypeList* params = GetParameterTypeList();
-    uint32_t num_params = params == NULL ? 0 : params->Size();
-    SirtRef<mirror::ObjectArray<mirror::Class> >
-        result(self, GetClassLinker()->AllocClassArray(self, num_params));
-    if (UNLIKELY(result.get() == NULL)) {
-      CHECK(self->IsExceptionPending());
-      return NULL;
-    }
-    for (uint32_t i = 0; i < num_params; i++) {
-      mirror::Class* param_type = GetClassFromTypeIdx(params->GetTypeItem(i).type_idx_);
-      if (param_type == NULL) {
-        DCHECK(Thread::Current()->IsExceptionPending());
-        return NULL;
-      }
-      result->Set(i, param_type);
-    }
-    return result.get();
-  }
-
   mirror::Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
