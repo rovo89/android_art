@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 
 #include "dex_file-inl.h"
 #include "utils.h"
@@ -72,13 +72,13 @@ int const Instruction::kInstructionSizeInCodeUnits[] = {
  * Handy macros for helping decode instructions.
  */
 #define FETCH(_offset)      (insns[(_offset)])
-#define FETCH_u4(_offset)   (fetch_u4_impl((_offset), insns))
+#define FETCH_uint32(_offset)   (fetch_uint32_impl((_offset), insns))
 #define INST_A(_insn)       (((uint16_t)(_insn) >> 8) & 0x0f)
 #define INST_B(_insn)       ((uint16_t)(_insn) >> 12)
 #define INST_AA(_insn)      ((_insn) >> 8)
 
-/* Helper for FETCH_u4, above. */
-static inline uint32_t fetch_u4_impl(uint32_t offset, const uint16_t* insns) {
+/* Helper for FETCH_uint32, above. */
+static inline uint32_t fetch_uint32_impl(uint32_t offset, const uint16_t* insns) {
   return insns[offset] | ((uint32_t) insns[offset+1] << 16);
 }
 
@@ -150,12 +150,12 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       vC = FETCH(1);
       break;
     case k30t:       // op +AAAAAAAA
-      vA = FETCH_u4(1);                     // signed 32-bit value
+      vA = FETCH_uint32(1);                     // signed 32-bit value
       break;
     case k31t:       // op vAA, +BBBBBBBB
     case k31c:       // op vAA, string@BBBBBBBB
       vA = INST_AA(insn);
-      vB = FETCH_u4(1);                     // 32-bit value
+      vB = FETCH_uint32(1);                     // 32-bit value
       break;
     case k32x:       // op vAAAA, vBBBB
       vA = FETCH(1);
@@ -163,7 +163,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       break;
     case k31i:       // op vAA, #+BBBBBBBB
       vA = INST_AA(insn);
-      vB = FETCH_u4(1);                     // signed 32-bit value
+      vB = FETCH_uint32(1);                     // signed 32-bit value
       break;
     case k35c:       // op {vC, vD, vE, vF, vG}, thing@BBBB
       {
@@ -213,7 +213,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
         break;
     case k51l:       // op vAA, #+BBBBBBBBBBBBBBBB
       vA = INST_AA(insn);
-      vB_wide = FETCH_u4(1) | ((uint64_t) FETCH_u4(3) << 32);
+      vB_wide = FETCH_uint32(1) | ((uint64_t) FETCH_uint32(3) << 32);
       break;
     default:
       LOG(ERROR) << "Can't decode unexpected format " << FormatOf(opcode) << " (op=" << opcode << ")";

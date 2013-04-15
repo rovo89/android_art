@@ -126,11 +126,13 @@ class ShadowFrame {
   }
 
   int64_t GetVRegLong(size_t i) const {
+    DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
     return *reinterpret_cast<const int64_t*>(vreg);
   }
 
   double GetVRegDouble(size_t i) const {
+    DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
     return *reinterpret_cast<const double*>(vreg);
   }
@@ -163,11 +165,13 @@ class ShadowFrame {
   }
 
   void SetVRegLong(size_t i, int64_t val) {
+    DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
     *reinterpret_cast<int64_t*>(vreg) = val;
   }
 
   void SetVRegDouble(size_t i, double val) {
+    DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
     *reinterpret_cast<double*>(vreg) = val;
   }

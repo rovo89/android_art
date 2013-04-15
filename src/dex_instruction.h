@@ -21,6 +21,9 @@
 #include "base/macros.h"
 #include "globals.h"
 
+typedef uint8_t uint4_t;
+typedef int8_t int4_t;
+
 namespace art {
 
 class DexFile;
@@ -176,6 +179,64 @@ class Instruction {
     return kInstructionNames[opcode];
   }
 
+  // VRegA
+  int8_t VRegA_10t() const;
+  uint4_t VRegA_11n() const;
+  uint8_t VRegA_11x() const;
+  uint4_t VRegA_12x() const;
+  int16_t VRegA_20t() const;
+  uint8_t VRegA_21c() const;
+  uint8_t VRegA_21h() const;
+  uint8_t VRegA_21s() const;
+  uint8_t VRegA_21t() const;
+  uint8_t VRegA_22b() const;
+  uint4_t VRegA_22c() const;
+  uint4_t VRegA_22s() const;
+  uint4_t VRegA_22t() const;
+  uint8_t VRegA_22x() const;
+  uint8_t VRegA_23x() const;
+  int32_t VRegA_30t() const;
+  uint8_t VRegA_31c() const;
+  uint8_t VRegA_31i() const;
+  uint8_t VRegA_31t() const;
+  uint16_t VRegA_32x() const;
+  uint4_t VRegA_35c() const;
+  uint8_t VRegA_3rc() const;
+  uint8_t VRegA_51l() const;
+
+  // VRegB
+  int4_t VRegB_11n() const;
+  uint4_t VRegB_12x() const;
+  uint16_t VRegB_21c() const;
+  uint16_t VRegB_21h() const;
+  int16_t VRegB_21s() const;
+  int16_t VRegB_21t() const;
+  uint8_t VRegB_22b() const;
+  uint4_t VRegB_22c() const;
+  uint4_t VRegB_22s() const;
+  uint4_t VRegB_22t() const;
+  uint16_t VRegB_22x() const;
+  uint8_t VRegB_23x() const;
+  uint32_t VRegB_31c() const;
+  int32_t VRegB_31i() const;
+  int32_t VRegB_31t() const;
+  uint16_t VRegB_32x() const;
+  uint16_t VRegB_35c() const;
+  uint16_t VRegB_3rc() const;
+  uint64_t VRegB_51l() const; // vB_wide
+
+  // VRegC
+  int8_t VRegC_22b() const;
+  uint16_t VRegC_22c() const;
+  int16_t VRegC_22s() const;
+  int16_t VRegC_22t() const;
+  uint8_t VRegC_23x() const;
+  uint4_t VRegC_35c() const;
+  uint16_t VRegC_3rc() const;
+
+  // Fills the given array with the 'arg' array of the instruction.
+  void GetArgs(uint32_t args[5]) const;
+
   // Returns the opcode field of the instruction.
   Code Opcode() const {
     const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
@@ -266,6 +327,27 @@ class Instruction {
 
  private:
   size_t SizeInCodeUnitsComplexOpcode() const;
+
+  uint16_t Fetch16(size_t offset) const {
+    const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
+    return insns[offset];
+  }
+
+  uint32_t Fetch32(size_t offset) const {
+    return (Fetch16(offset) | ((uint32_t) Fetch16(offset + 1) << 16));
+  }
+
+  uint4_t InstA() const {
+    return static_cast<uint4_t>((Fetch16(0) >> 8) & 0x0f);
+  }
+
+  uint4_t InstB() const {
+    return static_cast<uint4_t>(Fetch16(0) >> 12);
+  }
+
+  uint8_t InstAA() const {
+    return static_cast<uint8_t>(Fetch16(0) >> 8);
+  }
 
   static const char* const kInstructionNames[];
   static Format const kInstructionFormats[];

@@ -163,7 +163,7 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
   } else {
-    if (resolved_field->IsStatic() != is_static) {
+    if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
       ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
       return NULL;
     }
