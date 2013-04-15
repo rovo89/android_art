@@ -207,7 +207,7 @@ static void netShutdown(JdwpNetState* netState) {
   /* if we might be sitting in select, kick us loose */
   if (netState->wakePipe[1] >= 0) {
     VLOG(jdwp) << "+++ writing to wakePipe";
-    (void) write(netState->wakePipe[1], "", 1);
+    TEMP_FAILURE_RETRY(write(netState->wakePipe[1], "", 1));
   }
 }
 
@@ -581,7 +581,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     errno = 0;
-    cc = write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen);
+    cc = TEMP_FAILURE_RETRY(write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen));
     if (cc != kMagicHandshakeLen) {
       PLOG(ERROR) << "Failed writing handshake bytes (" << cc << " of " << kMagicHandshakeLen << ")";
       goto fail;

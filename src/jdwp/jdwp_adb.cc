@@ -332,7 +332,7 @@ static void adbStateShutdown(JdwpNetState* netState) {
 
   if (netState->wakeFds[1] >= 0) {
     VLOG(jdwp) << "+++ writing to wakePipe";
-    write(netState->wakeFds[1], "", 1);
+    TEMP_FAILURE_RETRY(write(netState->wakeFds[1], "", 1));
   }
 }
 
@@ -520,7 +520,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     errno = 0;
-    cc = write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen);
+    cc = TEMP_FAILURE_RETRY(write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen));
     if (cc != kMagicHandshakeLen) {
       PLOG(ERROR) << "Failed writing handshake bytes (" << cc << " of " << kMagicHandshakeLen << ")";
       goto fail;

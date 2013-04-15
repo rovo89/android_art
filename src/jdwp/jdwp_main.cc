@@ -58,7 +58,7 @@ void JdwpNetStateBase::ConsumeBytes(size_t count) {
  */
 ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply) {
   MutexLock mu(Thread::Current(), socket_lock_);
-  return write(clientSock, expandBufGetBuffer(pReply), expandBufGetLength(pReply));
+  return TEMP_FAILURE_RETRY(write(clientSock, expandBufGetBuffer(pReply), expandBufGetLength(pReply)));
 }
 
 /*
@@ -66,7 +66,7 @@ ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply) {
  */
 ssize_t JdwpNetStateBase::WriteBufferedPacket(const iovec* iov, int iov_count) {
   MutexLock mu(Thread::Current(), socket_lock_);
-  return writev(clientSock, iov, iov_count);
+  return TEMP_FAILURE_RETRY(writev(clientSock, iov, iov_count));
 }
 
 bool JdwpState::IsConnected() {
