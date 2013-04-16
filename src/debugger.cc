@@ -2815,13 +2815,12 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
       m = actual_method;
     }
   }
-  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
+  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m)
+             << " receiver=" << pReq->receiver_
+             << " arg_count=" << pReq->arg_count_;
   CHECK(m != NULL);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
-
-  LOG(INFO) << "self=" << soa.Self() << " pReq->receiver_=" << pReq->receiver_ << " m=" << m
-      << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
 
   MethodHelper mh(m);
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
