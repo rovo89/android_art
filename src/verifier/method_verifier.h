@@ -144,11 +144,12 @@ class MethodVerifier {
   };
 
   /* Verify a class. Returns "kNoFailure" on success. */
-  static FailureKind VerifyClass(const mirror::Class* klass, std::string& error)
+  static FailureKind VerifyClass(const mirror::Class* klass, std::string& error,
+                                 bool allow_soft_failures)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FailureKind VerifyClass(const DexFile* dex_file, mirror::DexCache* dex_cache,
                                  mirror::ClassLoader* class_loader, uint32_t class_def_idx,
-                                 std::string& error)
+                                 std::string& error, bool allow_soft_failures)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
@@ -206,7 +207,7 @@ class MethodVerifier {
                  mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                  const DexFile::CodeItem* code_item,
                  uint32_t method_idx, mirror::AbstractMethod* method,
-                 uint32_t access_flags, bool can_load_classes)
+                 uint32_t access_flags, bool can_load_classes, bool allow_soft_failures)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run verification on the method. Returns true if verification completes and false if the input
@@ -238,7 +239,8 @@ class MethodVerifier {
                                   mirror::DexCache* dex_cache,
                                   mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                   const DexFile::CodeItem* code_item,
-                                  mirror::AbstractMethod* method, uint32_t method_access_flags)
+                                  mirror::AbstractMethod* method, uint32_t method_access_flags,
+                                  bool allow_soft_failures)
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -636,6 +638,10 @@ class MethodVerifier {
   size_t monitor_enter_count_;
 
   const bool can_load_classes_;
+
+  // Converts soft failures to hard failures when false. Only false when the compiler isn't
+  // running and the verifier is called from the class linker.
+  const bool allow_soft_failures_;
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 

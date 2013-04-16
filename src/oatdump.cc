@@ -584,7 +584,7 @@ class OatDumper {
       mirror::ClassLoader* class_loader = NULL;
       verifier.reset(new verifier::MethodVerifier(dex_file, dex_cache, class_loader, class_def_idx,
                                                   code_item, dex_method_idx, NULL,
-                                                  method_access_flags, true));
+                                                  method_access_flags, true, true));
       verifier->Verify();
       verified_dex_file = dex_file;
       verified_dex_method_idx = dex_method_idx;

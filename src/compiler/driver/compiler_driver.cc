@@ -1216,7 +1216,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
     if (verifier::MethodVerifier::VerifyClass(manager->GetDexFile(),
                                               dex_cache,
                                               soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader()),
-                                              class_def_index, error_msg) ==
+                                              class_def_index, error_msg, true) ==
                                                   verifier::MethodVerifier::kHardFailure) {
       const DexFile::ClassDef& class_def = manager->GetDexFile()->GetClassDef(class_def_index);
       LOG(ERROR) << "Verification failed on class "

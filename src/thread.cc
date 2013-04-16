@@ -1763,7 +1763,7 @@ class CatchBlockStackVisitor : public StackVisitor {
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, m, new_dex_pc);
     verifier::MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
                                       mh.GetClassDefIndex(), code_item,
-                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), false);
+                                      m->GetDexMethodIndex(), m, m->GetAccessFlags(), false, true);
     verifier.Verify();
     std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
     for(uint16_t reg = 0; reg < num_regs; reg++) {

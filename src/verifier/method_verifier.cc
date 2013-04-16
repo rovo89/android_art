@@ -72,7 +72,8 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* klass,
-                                                        std::string& error) {
+                                                        std::string& error,
+                                                        bool allow_soft_failures) {
   if (klass->IsVerified()) {
     return kNoFailure;
   }
@@ -100,14 +101,15 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const mirror::Class* kla
     error += dex_file.GetLocation();
     return kHardFailure;
   }
-  return VerifyClass(&dex_file, kh.GetDexCache(), klass->GetClassLoader(), class_def_idx, error);
+  return VerifyClass(&dex_file, kh.GetDexCache(), klass->GetClassLoader(), class_def_idx, error, allow_soft_failures);
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                         mirror::DexCache* dex_cache,
                                                         mirror::ClassLoader* class_loader,
                                                         uint32_t class_def_idx,
-                                                        std::string& error) {
+                                                        std::string& error,
+                                                        bool allow_soft_failures) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
   if (class_data == NULL) {
@@ -140,7 +142,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       Thread::Current()->ClearException();
     }
     MethodVerifier::FailureKind result = VerifyMethod(method_idx, dex_file, dex_cache, class_loader,
-        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags());
+        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags(), allow_soft_failures);
     if (result != kNoFailure) {
       if (result == kHardFailure) {
         hard_fail = true;
@@ -175,7 +177,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
       Thread::Current()->ClearException();
     }
     MethodVerifier::FailureKind result = VerifyMethod(method_idx, dex_file, dex_cache, class_loader,
-        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags());
+        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags(), allow_soft_failures);
     if (result != kNoFailure) {
       if (result == kHardFailure) {
         hard_fail = true;
@@ -205,12 +207,13 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx,
                                                          uint32_t class_def_idx,
                                                          const DexFile::CodeItem* code_item,
                                                          mirror::AbstractMethod* method,
-                                                         uint32_t method_access_flags) {
+                                                         uint32_t method_access_flags,
+                                                         bool allow_soft_failures) {
   MethodVerifier::FailureKind result = kNoFailure;
   uint64_t start_ns = NanoTime();
 
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
-                          method, method_access_flags, true);
+                          method, method_access_flags, true, allow_soft_failures);
   if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
@@ -247,7 +250,7 @@ void MethodVerifier::VerifyMethodAndDump(std::ostream& os, uint32_t dex_method_i
                                          mirror::AbstractMethod* method,
                                          uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item,
-                          dex_method_idx, method, method_access_flags, true);
+                          dex_method_idx, method, method_access_flags, true, true);
   verifier.Verify();
   verifier.DumpFailures(os);
   os << verifier.info_messages_.str();
@@ -258,8 +261,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
                                mirror::ClassLoader* class_loader, uint32_t class_def_idx,
                                const DexFile::CodeItem* code_item,
                                uint32_t dex_method_idx, mirror::AbstractMethod* method,
-                               uint32_t method_access_flags,
-    bool can_load_classes)
+                               uint32_t method_access_flags, bool can_load_classes,
+                               bool allow_soft_failures)
     : reg_types_(can_load_classes),
       work_insn_idx_(-1),
       dex_method_idx_(dex_method_idx),
@@ -276,7 +279,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0),
-      can_load_classes_(can_load_classes) {
+      can_load_classes_(can_load_classes),
+      allow_soft_failures_(allow_soft_failures) {
 }
 
 void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
@@ -284,7 +288,7 @@ void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc
   MethodHelper mh(m);
   MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
                           mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
-                          m, m->GetAccessFlags(), false);
+                          m, m->GetAccessFlags(), false, true);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = &monitor_enter_dex_pcs;
   verifier.FindLocksAtDexPc();
@@ -354,8 +358,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       break;
       // Indication that verification should be retried at runtime.
     case VERIFY_ERROR_BAD_CLASS_SOFT:
-      if (!Runtime::Current()->IsCompiler()) {
-        // It is runtime so hard fail.
+      if (!allow_soft_failures_) {
         have_pending_hard_failure_ = true;
       }
       break;

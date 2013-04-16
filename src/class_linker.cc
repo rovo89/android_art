@@ -2233,7 +2233,7 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   }
   std::string error_msg;
   if (!preverified) {
-    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg);
+    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg, Runtime::Current()->IsCompiler());
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
