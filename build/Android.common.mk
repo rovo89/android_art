@@ -14,10 +14,10 @@
 # limitations under the License.
 #
 
-ART_SLOW_MODE := false
-ifneq ($(wildcard art/SLOW_ART),)
-$(info Enabling ART_SLOW_MODE because of existence of art/SLOW_ART)
-ART_SLOW_MODE := true
+ART_LIGHT_MODE := false
+ifneq ($(wildcard art/LIGHT_ART),)
+$(info Enabling ART_LIGHT_MODE because of existence of art/LIGHT_ART)
+ART_LIGHT_MODE := true
 endif
 
 ART_USE_PORTABLE_COMPILER := false
@@ -58,8 +58,8 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-fstrict-aliasing
 
-ifeq ($(ART_SLOW_MODE),true)
-  art_cflags += -DART_SLOW_MODE=1
+ifeq ($(ART_LIGHT_MODE),true)
+  art_cflags += -DART_LIGHT_MODE=1
 endif
 
 # TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)

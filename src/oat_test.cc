@@ -76,7 +76,8 @@ TEST_F(OatTest, WriteRead) {
 #else
     CompilerBackend compiler_backend = kQuick;
 #endif
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, 2, false, NULL, true, true));
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, 2, false, false,
+                                              NULL, true, true));
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
 
