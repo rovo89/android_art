@@ -377,9 +377,9 @@ void Heap::AddSpace(ContinuousSpace* space) {
   }
 }
 
-void Heap::DumpGcPerformanceInfo() {
+void Heap::DumpGcPerformanceInfo(std::ostream& os) {
   // Dump cumulative timings.
-  LOG(INFO) << "Dumping cumulative Gc timings";
+  os << "Dumping cumulative Gc timings\n";
   uint64_t total_duration = 0;
 
   // Dump cumulative loggers for each GC type.
@@ -390,19 +390,18 @@ void Heap::DumpGcPerformanceInfo() {
     MarkSweep* collector = *it;
     CumulativeLogger& logger = collector->GetCumulativeTimings();
     if (logger.GetTotalNs() != 0) {
-      LOG(INFO) << Dumpable<CumulativeLogger>(logger);
+      os << Dumpable<CumulativeLogger>(logger);
       const uint64_t total_ns = logger.GetTotalNs();
       const uint64_t total_pause_ns = (*it)->GetTotalPausedTime();
       double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
       const uint64_t freed_bytes = collector->GetTotalFreedBytes();
       const uint64_t freed_objects = collector->GetTotalFreedObjects();
-      LOG(INFO)
-          << collector->GetName() << " total time: " << PrettyDuration(total_ns) << "\n"
-          << collector->GetName() << " paused time: " << PrettyDuration(total_pause_ns) << "\n"
-          << collector->GetName() << " freed: " << freed_objects
-          << " objects with total size " << PrettySize(freed_bytes) << "\n"
-          << collector->GetName() << " throughput: " << freed_objects / seconds << "/s / "
-          << PrettySize(freed_bytes / seconds) << "/s\n";
+      os << collector->GetName() << " total time: " << PrettyDuration(total_ns) << "\n"
+         << collector->GetName() << " paused time: " << PrettyDuration(total_pause_ns) << "\n"
+         << collector->GetName() << " freed: " << freed_objects
+         << " objects with total size " << PrettySize(freed_bytes) << "\n"
+         << collector->GetName() << " throughput: " << freed_objects / seconds << "/s / "
+         << PrettySize(freed_bytes / seconds) << "/s\n";
       total_duration += total_ns;
       total_paused_time += total_pause_ns;
     }
@@ -412,26 +411,26 @@ void Heap::DumpGcPerformanceInfo() {
   size_t total_bytes_allocated = GetTotalBytesAllocated();
   if (total_duration != 0) {
     const double total_seconds = double(total_duration / 1000) / 1000000.0;
-    LOG(INFO) << "Total time spent in GC: " << PrettyDuration(total_duration);
-    LOG(INFO) << "Mean GC size throughput: "
-              << PrettySize(GetTotalBytesFreed() / total_seconds) << "/s";
-    LOG(INFO) << "Mean GC object throughput: "
-              << (GetTotalObjectsFreed() / total_seconds) << " objects/s";
+    os << "Total time spent in GC: " << PrettyDuration(total_duration) << "\n";
+    os << "Mean GC size throughput: "
+       << PrettySize(GetTotalBytesFreed() / total_seconds) << "/s\n";
+    os << "Mean GC object throughput: "
+       << (GetTotalObjectsFreed() / total_seconds) << " objects/s\n";
   }
-  LOG(INFO) << "Total number of allocations: " << total_objects_allocated;
-  LOG(INFO) << "Total bytes allocated " << PrettySize(total_bytes_allocated);
+  os << "Total number of allocations: " << total_objects_allocated << "\n";
+  os << "Total bytes allocated " << PrettySize(total_bytes_allocated) << "\n";
   if (measure_allocation_time_) {
-    LOG(INFO) << "Total time spent allocating: " << PrettyDuration(allocation_time);
-    LOG(INFO) << "Mean allocation time: "
-              << PrettyDuration(allocation_time / total_objects_allocated);
+    os << "Total time spent allocating: " << PrettyDuration(allocation_time) << "\n";
+    os << "Mean allocation time: " << PrettyDuration(allocation_time / total_objects_allocated)
+       << "\n";
   }
-  LOG(INFO) << "Total mutator paused time: " << PrettyDuration(total_paused_time);
-  LOG(INFO) << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_);
+  os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
+  os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
 }
 
 Heap::~Heap() {
   if (kDumpGcPerformanceOnShutdown) {
-    DumpGcPerformanceInfo();
+    DumpGcPerformanceInfo(LOG(INFO));
   }
 
   STLDeleteElements(&mark_sweep_collectors_);
@@ -1586,7 +1585,7 @@ GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
 void Heap::DumpForSigQuit(std::ostream& os) {
   os << "Heap: " << GetPercentFree() << "% free, " << PrettySize(GetUsedMemorySize()) << "/"
      << PrettySize(GetTotalMemory()) << "; " << GetObjectsAllocated() << " objects\n";
-  DumpGcPerformanceInfo();
+  DumpGcPerformanceInfo(os);
 }
 
 size_t Heap::GetPercentFree() {

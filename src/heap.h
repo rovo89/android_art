@@ -332,7 +332,7 @@ class Heap {
   void UnReserveOatFileAddressRange();
 
   // GC performance measuring
-  void DumpGcPerformanceInfo();
+  void DumpGcPerformanceInfo(std::ostream& os);
 
   // Thread pool.
   void CreateThreadPool();
