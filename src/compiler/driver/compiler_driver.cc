@@ -1613,12 +1613,11 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    std::string method_name(PrettyMethod(method_idx, dex_file, false));
     // In light mode we only compile image classes.
     bool dont_compile = light_mode_ && ((image_classes_ == NULL) || (image_classes_->size() == 0));
 
     // Don't compile class initializers, ever.
-    if ((access_flags & kAccConstructor) && (access_flags & kAccStatic)) {
+    if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
       dont_compile = true;
     }
 
