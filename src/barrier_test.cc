@@ -37,14 +37,14 @@ class CheckWaitTask : public Task {
   }
 
   void Run(Thread* self) {
-    LOG(INFO) << "Before barrier 1 " << self;
+    LOG(INFO) << "Before barrier 1 " << *self;
     ++*count1_;
     barrier_->Wait(self);
     ++*count2_;
-    LOG(INFO) << "Before barrier 2 " << self;
+    LOG(INFO) << "Before barrier 2 " << *self;
     barrier_->Wait(self);
     ++*count3_;
-    LOG(INFO) << "After barrier 2 " << self;
+    LOG(INFO) << "After barrier 2 " << *self;
   }
 
   virtual void Finalize() {

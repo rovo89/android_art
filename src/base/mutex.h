@@ -258,7 +258,8 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread has shared access to the ReaderWriterMutex.
   void AssertSharedHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(IsSharedHeld(self)) << *this;
+      // TODO: we can only assert this well when self != NULL.
+      CHECK(IsSharedHeld(self) || self == NULL) << *this;
     }
   }
   void AssertReaderHeld(const Thread* self) { AssertSharedHeld(self); }
@@ -297,7 +298,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 // (Signal) or all at once (Broadcast).
 class ConditionVariable {
  public:
-  explicit ConditionVariable(const std::string& name, Mutex& mutex);
+  explicit ConditionVariable(const char* name, Mutex& mutex);
   ~ConditionVariable();
 
   void Broadcast(Thread* self);
@@ -308,7 +309,7 @@ class ConditionVariable {
   void TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
-  std::string name_;
+  const char* const name_;
   // The Mutex being used by waiters. It is an error to mix condition variables between different
   // Mutexes.
   Mutex& guard_;

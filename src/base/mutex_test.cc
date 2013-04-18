@@ -126,6 +126,7 @@ static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
 
   state.mu.Unlock(Thread::Current());
   state.mu.Unlock(Thread::Current());
+  EXPECT_EQ(pthread_join(pthread, NULL), 0);
 }
 
 // This ensures we don't hang when waiting on a recursively locked mutex,

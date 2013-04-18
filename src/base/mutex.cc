@@ -690,7 +690,7 @@ std::ostream& operator<<(std::ostream& os, const ReaderWriterMutex& mu) {
   return os;
 }
 
-ConditionVariable::ConditionVariable(const std::string& name, Mutex& guard)
+ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
     : name_(name), guard_(guard) {
 #if ART_USE_FUTEXES
   sequence_ = 0;
