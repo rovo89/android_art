@@ -95,7 +95,6 @@ struct JdwpOptions {
 
 struct JdwpEvent;
 struct JdwpNetStateBase;
-struct JdwpTransport;
 struct ModBasket;
 struct Request;
 
@@ -307,7 +306,6 @@ struct JdwpState {
 
  private:
   bool run;
-  const JdwpTransport* transport_;
 
  public: // TODO: fix privacy
   JdwpNetStateBase* netState;

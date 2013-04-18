@@ -35,34 +35,64 @@ static void* StartJdwpThread(void* arg);
 /*
  * JdwpNetStateBase class implementation
  */
-JdwpNetStateBase::JdwpNetStateBase() : socket_lock_("JdwpNetStateBase lock") {
+JdwpNetStateBase::JdwpNetStateBase(JdwpState* state)
+    : state_(state), socket_lock_("JdwpNetStateBase lock") {
   clientSock = -1;
-  inputCount = 0;
+  wake_pipe_[0] = -1;
+  wake_pipe_[1] = -1;
+  input_count_ = 0;
   awaiting_handshake_ = false;
+}
+
+JdwpNetStateBase::~JdwpNetStateBase() {
+  if (wake_pipe_[0] != -1) {
+    close(wake_pipe_[0]);
+    wake_pipe_[0] = -1;
+  }
+  if (wake_pipe_[1] != -1) {
+    close(wake_pipe_[1]);
+    wake_pipe_[1] = -1;
+  }
+}
+
+bool JdwpNetStateBase::MakePipe() {
+  if (pipe(wake_pipe_) == -1) {
+    PLOG(ERROR) << "pipe failed";
+    return false;
+  }
+  return true;
+}
+
+void JdwpNetStateBase::WakePipe() {
+  // If we might be sitting in select, kick us loose.
+  if (wake_pipe_[1] != -1) {
+    VLOG(jdwp) << "+++ writing to wake pipe";
+    TEMP_FAILURE_RETRY(write(wake_pipe_[1], "", 1));
+  }
 }
 
 void JdwpNetStateBase::ConsumeBytes(size_t count) {
   CHECK_GT(count, 0U);
-  CHECK_LE(count, inputCount);
+  CHECK_LE(count, input_count_);
 
-  if (count == inputCount) {
-    inputCount = 0;
+  if (count == input_count_) {
+    input_count_ = 0;
     return;
   }
 
-  memmove(inputBuffer, inputBuffer + count, inputCount - count);
-  inputCount -= count;
+  memmove(input_buffer_, input_buffer_ + count, input_count_ - count);
+  input_count_ -= count;
 }
 
 bool JdwpNetStateBase::HaveFullPacket() {
   if (awaiting_handshake_) {
-    return (inputCount >= kMagicHandshakeLen);
+    return (input_count_ >= kMagicHandshakeLen);
   }
-  if (inputCount < 4) {
+  if (input_count_ < 4) {
     return false;
   }
-  uint32_t length = Get4BE(inputBuffer);
-  return (inputCount >= length);
+  uint32_t length = Get4BE(input_buffer_);
+  return (input_count_ >= length);
 }
 
 bool JdwpNetStateBase::IsAwaitingHandshake() {
@@ -177,7 +207,6 @@ JdwpState::JdwpState(const JdwpOptions* options)
       debug_thread_started_(false),
       debug_thread_id_(0),
       run(false),
-      transport_(NULL),
       netState(NULL),
       attach_lock_("JDWP attach lock", kJdwpAttachLock),
       attach_cond_("JDWP attach condition variable", attach_lock_),
@@ -208,21 +237,15 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
-    // LOGD("prepping for JDWP over TCP");
-    state->transport_ = SocketTransport();
+    InitSocketTransport(state.get(), options);
     break;
 #ifdef HAVE_ANDROID_OS
   case kJdwpTransportAndroidAdb:
-    // LOGD("prepping for JDWP over ADB");
-    state->transport_ = AndroidAdbTransport();
+    InitAdbTransport(state.get(), options);
     break;
 #endif
   default:
     LOG(FATAL) << "Unknown transport: " << options->transport;
-  }
-
-  if (!(*state->transport_->startup)(state.get(), options)) {
-    return NULL;
   }
 
   /*
@@ -320,7 +343,7 @@ void JdwpState::ResetState() {
  * Tell the JDWP thread to shut down.  Frees "state".
  */
 JdwpState::~JdwpState() {
-  if (transport_ != NULL) {
+  if (netState != NULL) {
     if (IsConnected()) {
       PostVMDeath();
     }
@@ -329,7 +352,7 @@ JdwpState::~JdwpState() {
      * Close down the network to inspire the thread to halt.
      */
     VLOG(jdwp) << "JDWP shutting down net...";
-    (*transport_->shutdown)(this);
+    netState->Shutdown();
 
     if (debug_thread_started_) {
       run = false;
@@ -340,7 +363,7 @@ JdwpState::~JdwpState() {
     }
 
     VLOG(jdwp) << "JDWP freeing netstate...";
-    (*transport_->free)(this);
+    delete netState;
     netState = NULL;
   }
   CHECK(netState == NULL);
@@ -358,7 +381,7 @@ bool JdwpState::IsActive() {
 // Returns "false" if we encounter a connection-fatal error.
 bool JdwpState::HandlePacket() {
   JdwpNetStateBase* netStateBase = reinterpret_cast<JdwpNetStateBase*>(netState);
-  JDWP::Request request(netStateBase->inputBuffer, netStateBase->inputCount);
+  JDWP::Request request(netStateBase->input_buffer_, netStateBase->input_count_);
 
   ExpandBuf* pReply = expandBufAlloc();
   ProcessRequest(request, pReply);
@@ -424,7 +447,7 @@ void JdwpState::Run() {
        * Block forever, waiting for a connection.  To support the
        * "timeout=xxx" option we'll need to tweak this.
        */
-      if (!(*transport_->accept)(this)) {
+      if (!netState->Accept()) {
         break;
       }
     } else {
@@ -434,7 +457,7 @@ void JdwpState::Run() {
        * have a timeout if the handshake reply isn't received in a
        * reasonable amount of time.
        */
-      if (!(*transport_->establish)(this, options_)) {
+      if (!netState->Establish(options_)) {
         /* wake anybody who was waiting for us to succeed */
         MutexLock mu(thread_, attach_lock_);
         attach_cond_.Broadcast(thread_);
@@ -454,7 +477,7 @@ void JdwpState::Run() {
         CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
       }
 
-      if (!(*transport_->processIncoming)(this)) {
+      if (!netState->ProcessIncoming()) {
         /* blocking read */
         break;
       }

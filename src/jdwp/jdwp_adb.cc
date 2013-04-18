@@ -52,66 +52,77 @@ namespace art {
 
 namespace JDWP {
 
-struct JdwpNetState : public JdwpNetStateBase {
-  int                 controlSock;
-  bool                shuttingDown;
-  int                 wakeFds[2];
+struct JdwpAdbState : public JdwpNetStateBase {
+ public:
+  JdwpAdbState(JdwpState* state) : JdwpNetStateBase(state) {
+    control_sock_ = -1;
+    shutting_down_ = false;
 
-  socklen_t           controlAddrLen;
+    control_addr_.controlAddrUn.sun_family = AF_UNIX;
+    control_addr_len_ = sizeof(control_addr_.controlAddrUn.sun_family) + kJdwpControlNameLen;
+    memcpy(control_addr_.controlAddrUn.sun_path, kJdwpControlName, kJdwpControlNameLen);
+  }
+
+  ~JdwpAdbState() {
+    if (clientSock != -1) {
+      shutdown(clientSock, SHUT_RDWR);
+      close(clientSock);
+    }
+    if (control_sock_ != -1) {
+      shutdown(control_sock_, SHUT_RDWR);
+      close(control_sock_);
+    }
+  }
+
+  virtual bool Accept();
+
+  virtual bool Establish(const JdwpOptions*) {
+    return false;
+  }
+
+  virtual void Shutdown() {
+    shutting_down_ = true;
+
+    int control_sock = this->control_sock_;
+    int clientSock = this->clientSock;
+
+    /* clear these out so it doesn't wake up and try to reuse them */
+    this->control_sock_ = this->clientSock = -1;
+
+    if (clientSock != -1) {
+      shutdown(clientSock, SHUT_RDWR);
+    }
+
+    if (control_sock != -1) {
+      shutdown(control_sock, SHUT_RDWR);
+    }
+
+    WakePipe();
+  }
+
+  virtual bool ProcessIncoming();
+
+ private:
+  int ReceiveClientFd();
+
+  int control_sock_;
+  bool shutting_down_;
+
+  socklen_t control_addr_len_;
   union {
-    sockaddr_un  controlAddrUn;
-    sockaddr     controlAddrPlain;
-  } controlAddr;
-
-  JdwpNetState() {
-    controlSock = -1;
-    shuttingDown = false;
-    wakeFds[0] = -1;
-    wakeFds[1] = -1;
-
-    controlAddr.controlAddrUn.sun_family = AF_UNIX;
-    controlAddrLen = sizeof(controlAddr.controlAddrUn.sun_family) + kJdwpControlNameLen;
-    memcpy(controlAddr.controlAddrUn.sun_path, kJdwpControlName, kJdwpControlNameLen);
-  }
+    sockaddr_un controlAddrUn;
+    sockaddr controlAddrPlain;
+  } control_addr_;
 };
-
-static JdwpNetState* GetNetState(JdwpState* state) {
-  return reinterpret_cast<JdwpNetState*>(state->netState);
-}
-
-static void adbStateFree(JdwpNetState* netState) {
-  if (netState == NULL) {
-    return;
-  }
-
-  if (netState->clientSock >= 0) {
-    shutdown(netState->clientSock, SHUT_RDWR);
-    close(netState->clientSock);
-  }
-  if (netState->controlSock >= 0) {
-    shutdown(netState->controlSock, SHUT_RDWR);
-    close(netState->controlSock);
-  }
-  if (netState->wakeFds[0] >= 0) {
-    close(netState->wakeFds[0]);
-    netState->wakeFds[0] = -1;
-  }
-  if (netState->wakeFds[1] >= 0) {
-    close(netState->wakeFds[1]);
-    netState->wakeFds[1] = -1;
-  }
-
-  delete netState;
-}
 
 /*
  * Do initial prep work, e.g. binding to ports and opening files.  This
  * runs in the main thread, before the JDWP thread starts, so it shouldn't
  * do anything that might block forever.
  */
-static bool startup(JdwpState* state, const JdwpOptions*) {
+bool InitAdbTransport(JdwpState* state, const JdwpOptions*) {
   VLOG(jdwp) << "ADB transport startup";
-  state->netState = new JdwpNetState;
+  state->netState = new JdwpAdbState(state);
   return (state->netState != NULL);
 }
 
@@ -120,21 +131,20 @@ static bool startup(JdwpState* state, const JdwpOptions*) {
  * directly with a debugger or DDMS.
  *
  * Returns the file descriptor on success.  On failure, returns -1 and
- * closes netState->controlSock.
+ * closes netState->control_sock_.
  */
-static int  receiveClientFd(JdwpNetState*  netState) {
-  msghdr    msg;
-  cmsghdr*  cmsg;
-  iovec     iov;
-  char             dummy = '!';
+int JdwpAdbState::ReceiveClientFd() {
+  char dummy = '!';
   union {
     cmsghdr cm;
     char buffer[CMSG_SPACE(sizeof(int))];
   } cm_un;
-  int              ret;
 
+  iovec iov;
   iov.iov_base       = &dummy;
   iov.iov_len        = 1;
+
+  msghdr msg;
   msg.msg_name       = NULL;
   msg.msg_namelen    = 0;
   msg.msg_iov        = &iov;
@@ -143,22 +153,20 @@ static int  receiveClientFd(JdwpNetState*  netState) {
   msg.msg_control    = cm_un.buffer;
   msg.msg_controllen = sizeof(cm_un.buffer);
 
-  cmsg = CMSG_FIRSTHDR(&msg);
+  cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
   cmsg->cmsg_len   = msg.msg_controllen;
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type  = SCM_RIGHTS;
   ((int*)(void*)CMSG_DATA(cmsg))[0] = -1;
 
-  do {
-    ret = recvmsg(netState->controlSock, &msg, 0);
-  } while (ret < 0 && errno == EINTR);
+  int rc = TEMP_FAILURE_RETRY(recvmsg(control_sock_, &msg, 0));
 
-  if (ret <= 0) {
-    if (ret < 0) {
-      PLOG(WARNING) << "Receiving file descriptor from ADB failed (socket " << netState->controlSock << ")";
+  if (rc <= 0) {
+    if (rc == -1) {
+      PLOG(WARNING) << "Receiving file descriptor from ADB failed (socket " << control_sock_ << ")";
     }
-    close(netState->controlSock);
-    netState->controlSock = -1;
+    close(control_sock_);
+    control_sock_ = -1;
     return -1;
   }
 
@@ -172,30 +180,28 @@ static int  receiveClientFd(JdwpNetState*  netState) {
  * This needs to un-block and return "false" if the VM is shutting down.  It
  * should return "true" when it successfully accepts a connection.
  */
-static bool acceptConnection(JdwpState* state) {
-  JdwpNetState* netState = GetNetState(state);
+bool JdwpAdbState::Accept() {
   int retryCount = 0;
 
   /* first, ensure that we get a connection to the ADB daemon */
 
  retry:
-  if (netState->shuttingDown) {
+  if (shutting_down_) {
     return false;
   }
 
-  if (netState->controlSock < 0) {
+  if (control_sock_ == -1) {
     int        sleep_ms     = 500;
     const int  sleep_max_ms = 2*1000;
     char       buff[5];
 
-    netState->controlSock = socket(PF_UNIX, SOCK_STREAM, 0);
-    if (netState->controlSock < 0) {
+    control_sock_ = socket(PF_UNIX, SOCK_STREAM, 0);
+    if (control_sock_ < 0) {
       PLOG(ERROR) << "Could not create ADB control socket";
       return false;
     }
 
-    if (pipe(netState->wakeFds) < 0) {
-      PLOG(ERROR) << "pipe failed";
+    if (!MakePipe()) {
       return false;
     }
 
@@ -216,11 +222,11 @@ static bool acceptConnection(JdwpState* state) {
        * up after a few minutes in case somebody ships an app with
        * the debuggable flag set.
        */
-      int  ret = connect(netState->controlSock, &netState->controlAddr.controlAddrPlain, netState->controlAddrLen);
+      int  ret = connect(control_sock_, &control_addr_.controlAddrPlain, control_addr_len_);
       if (!ret) {
 #ifdef HAVE_ANDROID_OS
-        if (!socket_peer_is_trusted(netState->controlSock)) {
-          if (shutdown(netState->controlSock, SHUT_RDWR)) {
+        if (!socket_peer_is_trusted(control_sock_)) {
+          if (shutdown(control_sock_, SHUT_RDWR)) {
             PLOG(ERROR) << "trouble shutting down socket";
           }
           return false;
@@ -228,7 +234,7 @@ static bool acceptConnection(JdwpState* state) {
 #endif
 
         /* now try to send our pid to the ADB daemon */
-        ret = TEMP_FAILURE_RETRY(send(netState->controlSock, buff, 4, 0));
+        ret = TEMP_FAILURE_RETRY(send(control_sock_, buff, 4, 0));
         if (ret >= 0) {
           VLOG(jdwp) << StringPrintf("PID sent as '%.*s' to ADB", 4, buff);
           break;
@@ -247,7 +253,7 @@ static bool acceptConnection(JdwpState* state) {
       if (sleep_ms > sleep_max_ms) {
         sleep_ms = sleep_max_ms;
       }
-      if (netState->shuttingDown) {
+      if (shutting_down_) {
         return false;
       }
     }
@@ -255,75 +261,22 @@ static bool acceptConnection(JdwpState* state) {
 
   VLOG(jdwp) << "trying to receive file descriptor from ADB";
   /* now we can receive a client file descriptor */
-  netState->clientSock = receiveClientFd(netState);
-  if (netState->shuttingDown) {
+  clientSock = ReceiveClientFd();
+  if (shutting_down_) {
     return false;       // suppress logs and additional activity
   }
-  if (netState->clientSock < 0) {
+  if (clientSock == -1) {
     if (++retryCount > 5) {
       LOG(ERROR) << "adb connection max retries exceeded";
       return false;
     }
     goto retry;
   } else {
-    VLOG(jdwp) << "received file descriptor " << netState->clientSock << " from ADB";
-    netState->SetAwaitingHandshake(true);
-    netState->inputCount = 0;
+    VLOG(jdwp) << "received file descriptor " << clientSock << " from ADB";
+    SetAwaitingHandshake(true);
+    input_count_ = 0;
     return true;
   }
-}
-
-/*
- * Connect out to a debugger (for server=n).  Not required.
- */
-static bool establishConnection(JdwpState*, const JdwpOptions*) {
-  return false;
-}
-
-/*
- * Close all network stuff, including the socket we use to listen for
- * new connections.
- *
- * May be called from a non-JDWP thread, e.g. when the VM is shutting down.
- */
-static void adbStateShutdown(JdwpNetState* netState) {
-  int  controlSock;
-  int  clientSock;
-
-  if (netState == NULL) {
-    return;
-  }
-
-  netState->shuttingDown = true;
-
-  clientSock = netState->clientSock;
-  if (clientSock >= 0) {
-    shutdown(clientSock, SHUT_RDWR);
-    netState->clientSock = -1;
-  }
-
-  controlSock = netState->controlSock;
-  if (controlSock >= 0) {
-    shutdown(controlSock, SHUT_RDWR);
-    netState->controlSock = -1;
-  }
-
-  if (netState->wakeFds[1] >= 0) {
-    VLOG(jdwp) << "+++ writing to wakePipe";
-    TEMP_FAILURE_RETRY(write(netState->wakeFds[1], "", 1));
-  }
-}
-
-static void netShutdown(JdwpState* state) {
-  adbStateShutdown(GetNetState(state));
-}
-
-/*
- * Free up anything we put in state->netState.  This is called after
- * "netShutdown", after the JDWP thread has stopped.
- */
-static void netFree(JdwpState* state) {
-  adbStateFree(GetNetState(state));
 }
 
 /*
@@ -341,13 +294,12 @@ static void netFree(JdwpState* state) {
  * Returns "false" on error (indicating that the connection has been severed),
  * "true" if things are still okay.
  */
-static bool processIncoming(JdwpState* state) {
-  JdwpNetState* netState = GetNetState(state);
+bool JdwpAdbState::ProcessIncoming() {
   int readCount;
 
-  CHECK_GE(netState->clientSock, 0);
+  CHECK(clientSock != -1);
 
-  if (!netState->HaveFullPacket()) {
+  if (!HaveFullPacket()) {
     /* read some more, looping until we have data */
     errno = 0;
     while (1) {
@@ -359,21 +311,21 @@ static bool processIncoming(JdwpState* state) {
       FD_ZERO(&readfds);
 
       /* configure fds; note these may get zapped by another thread */
-      fd = netState->controlSock;
+      fd = control_sock_;
       if (fd >= 0) {
         FD_SET(fd, &readfds);
         if (maxfd < fd) {
           maxfd = fd;
         }
       }
-      fd = netState->clientSock;
+      fd = clientSock;
       if (fd >= 0) {
         FD_SET(fd, &readfds);
         if (maxfd < fd) {
           maxfd = fd;
         }
       }
-      fd = netState->wakeFds[0];
+      fd = wake_pipe_[0];
       if (fd >= 0) {
         FD_SET(fd, &readfds);
         if (maxfd < fd) {
@@ -395,7 +347,7 @@ static bool processIncoming(JdwpState* state) {
        * and accept(), but not select()).
        *
        * We can do one of three things: (1) send a signal and catch
-       * EINTR, (2) open an additional fd ("wakePipe") and write to
+       * EINTR, (2) open an additional fd ("wake pipe") and write to
        * it when it's time to exit, or (3) time out periodically and
        * re-issue the select.  We're currently using #2, as it's more
        * reliable than #1 and generally better than #3.  Wastes two fds.
@@ -409,26 +361,25 @@ static bool processIncoming(JdwpState* state) {
         goto fail;
       }
 
-      if (netState->wakeFds[0] >= 0 && FD_ISSET(netState->wakeFds[0], &readfds)) {
+      if (wake_pipe_[0] >= 0 && FD_ISSET(wake_pipe_[0], &readfds)) {
         LOG(DEBUG) << "Got wake-up signal, bailing out of select";
         goto fail;
       }
-      if (netState->controlSock >= 0 && FD_ISSET(netState->controlSock, &readfds)) {
-        int  sock = receiveClientFd(netState);
+      if (control_sock_ >= 0 && FD_ISSET(control_sock_, &readfds)) {
+        int  sock = ReceiveClientFd();
         if (sock >= 0) {
           LOG(INFO) << "Ignoring second debugger -- accepting and dropping";
           close(sock);
         } else {
-          CHECK_LT(netState->controlSock, 0);
+          CHECK(control_sock_ == -1);
           /*
            * Remote side most likely went away, so our next read
-           * on netState->clientSock will fail and throw us out
-           * of the loop.
+           * on clientSock will fail and throw us out of the loop.
            */
         }
       }
-      if (netState->clientSock >= 0 && FD_ISSET(netState->clientSock, &readfds)) {
-        readCount = read(netState->clientSock, netState->inputBuffer + netState->inputCount, sizeof(netState->inputBuffer) - netState->inputCount);
+      if (clientSock >= 0 && FD_ISSET(clientSock, &readfds)) {
+        readCount = read(clientSock, input_buffer_ + input_count_, sizeof(input_buffer_) - input_count_);
         if (readCount < 0) {
           /* read failed */
           if (errno != EINTR) {
@@ -446,8 +397,8 @@ static bool processIncoming(JdwpState* state) {
       }
     }
 
-    netState->inputCount += readCount;
-    if (!netState->HaveFullPacket()) {
+    input_count_ += readCount;
+    if (!HaveFullPacket()) {
       return true;        /* still not there yet */
     }
   }
@@ -460,23 +411,21 @@ static bool processIncoming(JdwpState* state) {
    *
    * Other than this one case, the protocol [claims to be] stateless.
    */
-  if (netState->IsAwaitingHandshake()) {
-    int cc;
-
-    if (memcmp(netState->inputBuffer, kMagicHandshake, kMagicHandshakeLen) != 0) {
-      LOG(ERROR) << StringPrintf("ERROR: bad handshake '%.14s'", netState->inputBuffer);
+  if (IsAwaitingHandshake()) {
+    if (memcmp(input_buffer_, kMagicHandshake, kMagicHandshakeLen) != 0) {
+      LOG(ERROR) << StringPrintf("ERROR: bad handshake '%.14s'", input_buffer_);
       goto fail;
     }
 
     errno = 0;
-    cc = TEMP_FAILURE_RETRY(write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen));
+    int cc = TEMP_FAILURE_RETRY(write(clientSock, input_buffer_, kMagicHandshakeLen));
     if (cc != kMagicHandshakeLen) {
       PLOG(ERROR) << "Failed writing handshake bytes (" << cc << " of " << kMagicHandshakeLen << ")";
       goto fail;
     }
 
-    netState->ConsumeBytes(kMagicHandshakeLen);
-    netState->SetAwaitingHandshake(false);
+    ConsumeBytes(kMagicHandshakeLen);
+    SetAwaitingHandshake(false);
     VLOG(jdwp) << "+++ handshake complete";
     return true;
   }
@@ -484,30 +433,11 @@ static bool processIncoming(JdwpState* state) {
   /*
    * Handle this packet.
    */
-  return state->HandlePacket();
+  return state_->HandlePacket();
 
  fail:
-  netState->Close();
+  Close();
   return false;
-}
-
-/*
- * Our functions.
- */
-static const JdwpTransport adbTransport = {
-  startup,
-  acceptConnection,
-  establishConnection,
-  netShutdown,
-  netFree,
-  processIncoming,
-};
-
-/*
- * Return our set.
- */
-const JdwpTransport* AndroidAdbTransport() {
-  return &adbTransport;
 }
 
 }  // namespace JDWP

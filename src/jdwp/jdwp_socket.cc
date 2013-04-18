@@ -42,45 +42,41 @@ namespace JDWP {
  *
  * We only talk to one debugger at a time.
  */
-struct JdwpNetState : public JdwpNetStateBase {
+struct JdwpSocketState : public JdwpNetStateBase {
   uint16_t listenPort;
   int     listenSock;         /* listen for connection from debugger */
-  int     wakePipe[2];        /* break out of select */
 
-  in_addr remoteAddr;
-  uint16_t remotePort;
-
-  JdwpNetState() {
+  JdwpSocketState(JdwpState* state) : JdwpNetStateBase(state) {
     listenPort  = 0;
     listenSock  = -1;
-    wakePipe[0] = -1;
-    wakePipe[1] = -1;
   }
+
+  virtual bool Accept();
+  virtual bool Establish(const JdwpOptions*);
+  virtual void Shutdown();
+  virtual bool ProcessIncoming();
+
+ private:
+  in_addr remote_addr_;
+  uint16_t remote_port_;
 };
 
-static void socketStateShutdown(JdwpNetState* state);
-static void socketStateFree(JdwpNetState* state);
-
-static JdwpNetState* GetNetState(JdwpState* state) {
-  return reinterpret_cast<JdwpNetState*>(state->netState);
-}
-
-static JdwpNetState* netStartup(uint16_t port, bool probe);
+static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool probe);
 
 /*
  * Set up some stuff for transport=dt_socket.
  */
-static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
+bool InitSocketTransport(JdwpState* state, const JdwpOptions* options) {
   uint16_t port = options->port;
 
   if (options->server) {
     if (options->port != 0) {
       /* try only the specified port */
-      state->netState = netStartup(port, false);
+      state->netState = SocketStartup(state, port, false);
     } else {
       /* scan through a range of ports, binding to the first available */
       for (port = kBasePort; port <= kMaxPort; port++) {
-        state->netState = netStartup(port, true);
+        state->netState = SocketStartup(state, port, true);
         if (state->netState != NULL) {
           break;
         }
@@ -91,7 +87,7 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
       return false;
     }
   } else {
-    state->netState = netStartup(0, false);
+    state->netState = SocketStartup(state, 0, false);
   }
 
   if (options->suspend) {
@@ -115,8 +111,8 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
  *
  * Returns 0 on success.
  */
-static JdwpNetState* netStartup(uint16_t port, bool probe) {
-  JdwpNetState* netState = new JdwpNetState;
+static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool probe) {
+  JdwpSocketState* netState = new JdwpSocketState(state);
   if (port == 0) {
     return netState;
   }
@@ -159,15 +155,13 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
   return netState;
 
  fail:
-  socketStateShutdown(netState);
-  socketStateFree(netState);
+  netState->Shutdown();
+  delete netState;
   return NULL;
 }
 
 /*
  * Shut down JDWP listener.  Don't free state.
- *
- * Note that "netState" may be partially initialized if "startup" failed.
  *
  * This may be called from a non-JDWP thread as part of shutting the
  * JDWP thread down.
@@ -175,64 +169,24 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
  * (This is currently called several times during startup as we probe
  * for an open port.)
  */
-static void socketStateShutdown(JdwpNetState* netState) {
-  if (netState == NULL) {
-    return;
-  }
-
-  int listenSock = netState->listenSock;
-  int clientSock = netState->clientSock;
+void JdwpSocketState::Shutdown() {
+  int listenSock = this->listenSock;
+  int clientSock = this->clientSock;
 
   /* clear these out so it doesn't wake up and try to reuse them */
-  netState->listenSock = netState->clientSock = -1;
+  this->listenSock = this->clientSock = -1;
 
   /* "shutdown" dislodges blocking read() and accept() calls */
-  if (listenSock >= 0) {
+  if (listenSock != -1) {
     shutdown(listenSock, SHUT_RDWR);
     close(listenSock);
   }
-  if (clientSock >= 0) {
+  if (clientSock != -1) {
     shutdown(clientSock, SHUT_RDWR);
     close(clientSock);
   }
 
-  /* if we might be sitting in select, kick us loose */
-  if (netState->wakePipe[1] >= 0) {
-    VLOG(jdwp) << "+++ writing to wakePipe";
-    TEMP_FAILURE_RETRY(write(netState->wakePipe[1], "", 1));
-  }
-}
-
-static void netShutdown(JdwpState* state) {
-  socketStateShutdown(GetNetState(state));
-}
-
-/*
- * Free JDWP state.
- *
- * Call this after shutting the network down with socketStateShutdown().
- */
-static void socketStateFree(JdwpNetState* netState) {
-  if (netState == NULL) {
-    return;
-  }
-  CHECK_EQ(netState->listenSock, -1);
-  CHECK_EQ(netState->clientSock, -1);
-
-  if (netState->wakePipe[0] >= 0) {
-    close(netState->wakePipe[0]);
-    netState->wakePipe[0] = -1;
-  }
-  if (netState->wakePipe[1] >= 0) {
-    close(netState->wakePipe[1]);
-    netState->wakePipe[1] = -1;
-  }
-
-  delete netState;
-}
-
-static void netFree(JdwpState* state) {
-  socketStateFree(GetNetState(state));
+  WakePipe();
 }
 
 /*
@@ -240,7 +194,7 @@ static void netFree(JdwpState* state) {
  * packets until the previous transmissions have been acked.  JDWP does a
  * lot of back-and-forth with small packets, so this may help.
  */
-static int setNoDelay(int fd) {
+static int SetNoDelay(int fd) {
   int on = 1;
   int cc = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
   CHECK_EQ(cc, 0);
@@ -252,8 +206,7 @@ static int setNoDelay(int fd) {
  * If that's not desirable, use checkConnection() to make sure something
  * is pending.
  */
-static bool acceptConnection(JdwpState* state) {
-  JdwpNetState* netState = GetNetState(state);
+bool JdwpSocketState::Accept() {
   union {
     sockaddr_in  addrInet;
     sockaddr     addrPlain;
@@ -261,15 +214,15 @@ static bool acceptConnection(JdwpState* state) {
   socklen_t addrlen;
   int sock;
 
-  if (netState->listenSock < 0) {
+  if (listenSock < 0) {
     return false;       /* you're not listening! */
   }
 
-  CHECK_LT(netState->clientSock, 0);      /* must not already be talking */
+  CHECK(clientSock == -1);      /* must not already be talking */
 
   addrlen = sizeof(addr);
   do {
-    sock = accept(netState->listenSock, &addr.addrPlain, &addrlen);
+    sock = accept(listenSock, &addr.addrPlain, &addrlen);
     if (sock < 0 && errno != EINTR) {
       // When we call shutdown() on the socket, accept() returns with
       // EINVAL.  Don't gripe about it.
@@ -284,19 +237,18 @@ static bool acceptConnection(JdwpState* state) {
     }
   } while (sock < 0);
 
-  netState->remoteAddr = addr.addrInet.sin_addr;
-  netState->remotePort = ntohs(addr.addrInet.sin_port);
-  VLOG(jdwp) << "+++ accepted connection from " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
+  remote_addr_ = addr.addrInet.sin_addr;
+  remote_port_ = ntohs(addr.addrInet.sin_port);
+  VLOG(jdwp) << "+++ accepted connection from " << inet_ntoa(remote_addr_) << ":" << remote_port_;
 
-  netState->clientSock = sock;
-  netState->SetAwaitingHandshake(true);
-  netState->inputCount = 0;
+  clientSock = sock;
+  SetAwaitingHandshake(true);
+  input_count_ = 0;
 
   VLOG(jdwp) << "Setting TCP_NODELAY on accepted socket";
-  setNoDelay(netState->clientSock);
+  SetNoDelay(clientSock);
 
-  if (pipe(netState->wakePipe) < 0) {
-    PLOG(ERROR) << "pipe failed";
+  if (!MakePipe()) {
     return false;
   }
 
@@ -306,14 +258,13 @@ static bool acceptConnection(JdwpState* state) {
 /*
  * Create a connection to a waiting debugger.
  */
-static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
+bool JdwpSocketState::Establish(const JdwpOptions* options) {
   union {
     sockaddr_in  addrInet;
     sockaddr     addrPlain;
   } addr;
   hostent* pEntry;
 
-  CHECK(state != NULL && state->netState != NULL);
   CHECK(!options->server);
   CHECK(!options->host.empty());
   CHECK_NE(options->port, 0);
@@ -321,8 +272,6 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   /*
    * Start by resolving the host name.
    */
-//#undef HAVE_GETHOSTBYNAME_R
-//#warning "forcing non-R"
 #ifdef HAVE_GETHOSTBYNAME_R
   hostent he;
   char auxBuf[128];
@@ -352,9 +301,8 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   /*
    * Create a socket.
    */
-  JdwpNetState* netState = GetNetState(state);
-  netState->clientSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (netState->clientSock < 0) {
+  clientSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (clientSock < 0) {
     PLOG(ERROR) << "Unable to create socket";
     return false;
   }
@@ -362,21 +310,20 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   /*
    * Try to connect.
    */
-  if (connect(netState->clientSock, &addr.addrPlain, sizeof(addr)) != 0) {
+  if (connect(clientSock, &addr.addrPlain, sizeof(addr)) != 0) {
     PLOG(ERROR) << "Unable to connect to " << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port);
-    close(netState->clientSock);
-    netState->clientSock = -1;
+    close(clientSock);
+    clientSock = -1;
     return false;
   }
 
   LOG(INFO) << "Connection established to " << options->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
-  netState->SetAwaitingHandshake(true);
-  netState->inputCount = 0;
+  SetAwaitingHandshake(true);
+  input_count_ = 0;
 
-  setNoDelay(netState->clientSock);
+  SetNoDelay(clientSock);
 
-  if (pipe(netState->wakePipe) < 0) {
-    PLOG(ERROR) << "pipe failed";
+  if (!MakePipe()) {
     return false;
   }
 
@@ -398,50 +345,50 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
  * Returns "false" on error (indicating that the connection has been severed),
  * "true" if things are still okay.
  */
-static bool processIncoming(JdwpState* state) {
-  JdwpNetState* netState = GetNetState(state);
+bool JdwpSocketState::ProcessIncoming() {
   int readCount;
 
-  CHECK_GE(netState->clientSock, 0);
+  CHECK(clientSock != -1);
 
-  if (!netState->HaveFullPacket()) {
+  if (!HaveFullPacket()) {
     /* read some more, looping until we have data */
     errno = 0;
     while (1) {
       int selCount;
       fd_set readfds;
-      int maxfd;
+      int maxfd = -1;
       int fd;
 
-      maxfd = netState->listenSock;
-      if (netState->clientSock > maxfd) {
-        maxfd = netState->clientSock;
+      FD_ZERO(&readfds);
+
+      /* configure fds; note these may get zapped by another thread */
+      fd = listenSock;
+      if (fd >= 0) {
+        FD_SET(fd, &readfds);
+        if (maxfd < fd) {
+          maxfd = fd;
+        }
       }
-      if (netState->wakePipe[0] > maxfd) {
-        maxfd = netState->wakePipe[0];
+      fd = clientSock;
+      if (fd >= 0) {
+        FD_SET(fd, &readfds);
+        if (maxfd < fd) {
+          maxfd = fd;
+        }
+      }
+      fd = wake_pipe_[0];
+      if (fd >= 0) {
+        FD_SET(fd, &readfds);
+        if (maxfd < fd) {
+          maxfd = fd;
+        }
+      } else {
+        LOG(INFO) << "NOTE: entering select w/o wakepipe";
       }
 
       if (maxfd < 0) {
         VLOG(jdwp) << "+++ all fds are closed";
         return false;
-      }
-
-      FD_ZERO(&readfds);
-
-      /* configure fds; note these may get zapped by another thread */
-      fd = netState->listenSock;
-      if (fd >= 0) {
-        FD_SET(fd, &readfds);
-      }
-      fd = netState->clientSock;
-      if (fd >= 0) {
-        FD_SET(fd, &readfds);
-      }
-      fd = netState->wakePipe[0];
-      if (fd >= 0) {
-        FD_SET(fd, &readfds);
-      } else {
-        LOG(INFO) << "NOTE: entering select w/o wakepipe";
       }
 
       /*
@@ -451,7 +398,7 @@ static bool processIncoming(JdwpState* state) {
        * and accept(), but not select()).
        *
        * We can do one of three things: (1) send a signal and catch
-       * EINTR, (2) open an additional fd ("wakePipe") and write to
+       * EINTR, (2) open an additional fd ("wake pipe") and write to
        * it when it's time to exit, or (3) time out periodically and
        * re-issue the select.  We're currently using #2, as it's more
        * reliable than #1 and generally better than #3.  Wastes two fds.
@@ -465,15 +412,15 @@ static bool processIncoming(JdwpState* state) {
         goto fail;
       }
 
-      if (netState->wakePipe[0] >= 0 && FD_ISSET(netState->wakePipe[0], &readfds)) {
-        if (netState->listenSock >= 0) {
+      if (wake_pipe_[0] >= 0 && FD_ISSET(wake_pipe_[0], &readfds)) {
+        if (listenSock >= 0) {
           LOG(ERROR) << "Exit wake set, but not exiting?";
         } else {
           LOG(DEBUG) << "Got wake-up signal, bailing out of select";
         }
         goto fail;
       }
-      if (netState->listenSock >= 0 && FD_ISSET(netState->listenSock, &readfds)) {
+      if (listenSock >= 0 && FD_ISSET(listenSock, &readfds)) {
         LOG(INFO) << "Ignoring second debugger -- accepting and dropping";
         union {
           sockaddr_in   addrInet;
@@ -481,15 +428,15 @@ static bool processIncoming(JdwpState* state) {
         } addr;
         socklen_t addrlen;
         int tmpSock;
-        tmpSock = accept(netState->listenSock, &addr.addrPlain, &addrlen);
+        tmpSock = accept(listenSock, &addr.addrPlain, &addrlen);
         if (tmpSock < 0) {
           LOG(INFO) << "Weird -- accept failed";
         } else {
           close(tmpSock);
         }
       }
-      if (netState->clientSock >= 0 && FD_ISSET(netState->clientSock, &readfds)) {
-        readCount = read(netState->clientSock, netState->inputBuffer + netState->inputCount, sizeof(netState->inputBuffer) - netState->inputCount);
+      if (clientSock >= 0 && FD_ISSET(clientSock, &readfds)) {
+        readCount = read(clientSock, input_buffer_ + input_count_, sizeof(input_buffer_) - input_count_);
         if (readCount < 0) {
           /* read failed */
           if (errno != EINTR) {
@@ -507,8 +454,8 @@ static bool processIncoming(JdwpState* state) {
       }
     }
 
-    netState->inputCount += readCount;
-    if (!netState->HaveFullPacket()) {
+    input_count_ += readCount;
+    if (!HaveFullPacket()) {
       return true;        /* still not there yet */
     }
   }
@@ -521,23 +468,21 @@ static bool processIncoming(JdwpState* state) {
    *
    * Other than this one case, the protocol [claims to be] stateless.
    */
-  if (netState->IsAwaitingHandshake()) {
-    int cc;
-
-    if (memcmp(netState->inputBuffer, kMagicHandshake, kMagicHandshakeLen) != 0) {
-      LOG(ERROR) << StringPrintf("ERROR: bad handshake '%.14s'", netState->inputBuffer);
+  if (IsAwaitingHandshake()) {
+    if (memcmp(input_buffer_, kMagicHandshake, kMagicHandshakeLen) != 0) {
+      LOG(ERROR) << StringPrintf("ERROR: bad handshake '%.14s'", input_buffer_);
       goto fail;
     }
 
     errno = 0;
-    cc = TEMP_FAILURE_RETRY(write(netState->clientSock, netState->inputBuffer, kMagicHandshakeLen));
+    int cc = TEMP_FAILURE_RETRY(write(clientSock, input_buffer_, kMagicHandshakeLen));
     if (cc != kMagicHandshakeLen) {
       PLOG(ERROR) << "Failed writing handshake bytes (" << cc << " of " << kMagicHandshakeLen << ")";
       goto fail;
     }
 
-    netState->ConsumeBytes(kMagicHandshakeLen);
-    netState->SetAwaitingHandshake(false);
+    ConsumeBytes(kMagicHandshakeLen);
+    SetAwaitingHandshake(false);
     VLOG(jdwp) << "+++ handshake complete";
     return true;
   }
@@ -545,34 +490,11 @@ static bool processIncoming(JdwpState* state) {
   /*
    * Handle this packet.
    */
-  return state->HandlePacket();
+  return state_->HandlePacket();
 
  fail:
-  netState->Close();
+  Close();
   return false;
-}
-
-/*
- * Our functions.
- *
- * We can't generally share the implementations with other transports,
- * even if they're also socket-based, because our JdwpNetState will be
- * different from theirs.
- */
-static const JdwpTransport socketTransport = {
-  prepareSocket,
-  acceptConnection,
-  establishConnection,
-  netShutdown,
-  netFree,
-  processIncoming,
-};
-
-/*
- * Return our set.
- */
-const JdwpTransport* SocketTransport() {
-  return &socketTransport;
 }
 
 }  // namespace JDWP

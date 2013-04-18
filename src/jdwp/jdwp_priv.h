@@ -45,48 +45,49 @@ namespace JDWP {
 
 struct JdwpState;
 
-/*
- * Transport functions.
- */
-struct JdwpTransport {
-  bool (*startup)(JdwpState* state, const JdwpOptions* options);
-  bool (*accept)(JdwpState* state);
-  bool (*establish)(JdwpState* state, const JdwpOptions* options);
-  void (*shutdown)(JdwpState* state);
-  void (*free)(JdwpState* state);
-  bool (*processIncoming)(JdwpState* state);
-};
-
-const JdwpTransport* SocketTransport();
-const JdwpTransport* AndroidAdbTransport();
+bool InitSocketTransport(JdwpState*, const JdwpOptions*);
+bool InitAdbTransport(JdwpState*, const JdwpOptions*);
 
 /*
  * Base class for the adb and socket JdwpNetState implementations.
  */
 class JdwpNetStateBase {
  public:
-  int clientSock;     /* active connection to debugger */
+  JdwpNetStateBase(JdwpState*);
+  virtual ~JdwpNetStateBase();
 
-  enum { kInputBufferSize = 8192 };
-
-  unsigned char inputBuffer[kInputBufferSize];
-  size_t inputCount;
-
-  JdwpNetStateBase();
+  virtual bool Accept() = 0;
+  virtual bool Establish(const JdwpOptions*) = 0;
+  virtual void Shutdown() = 0;
+  virtual bool ProcessIncoming() = 0;
 
   void ConsumeBytes(size_t byte_count);
 
   bool IsConnected();
 
   bool IsAwaitingHandshake();
-  void SetAwaitingHandshake(bool new_state);
-
-  bool HaveFullPacket();
 
   void Close();
 
   ssize_t WritePacket(ExpandBuf* pReply);
   ssize_t WriteBufferedPacket(const iovec* iov, int iov_count);
+
+  int clientSock; // Active connection to debugger.
+
+  int wake_pipe_[2]; // Used to break out of select.
+
+  uint8_t input_buffer_[8192];
+  size_t input_count_;
+
+ protected:
+  bool HaveFullPacket();
+
+  bool MakePipe();
+  void WakePipe();
+
+  void SetAwaitingHandshake(bool new_state);
+
+  JdwpState* state_;
 
  private:
   // Used to serialize writes to the socket.
