@@ -26,7 +26,7 @@
 
 namespace llvm {
   class Function;
-}
+}  // namespace llvm
 
 namespace art {
 
@@ -86,7 +86,7 @@ class CompiledCode {
   std::vector<uint8_t> code_;
 
   // Used for the Portable ELF symbol name.
-  std::string symbol_;
+  const std::string symbol_;
 
   // There are offsets from the oatdata symbol to where the offset to
   // the compiled method will be found. These are computed by the
@@ -121,7 +121,7 @@ class CompiledMethod : public CompiledCode {
                  const std::string& symbol)
       : CompiledCode(instruction_set, code, symbol),
         frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-        fp_spill_mask_(0), native_gc_map_(gc_map) {
+        fp_spill_mask_(0), gc_map_(gc_map) {
   }
 
   // Constructs a CompiledMethod for the Portable JniCompiler.
@@ -155,17 +155,24 @@ class CompiledMethod : public CompiledCode {
     return vmap_table_;
   }
 
-  const std::vector<uint8_t>& GetNativeGcMap() const {
-    return native_gc_map_;
+  const std::vector<uint8_t>& GetGcMap() const {
+    return gc_map_;
   }
 
  private:
+  // For quick code, the size of the activation used by the code.
   const size_t frame_size_in_bytes_;
+  // For quick code, a bit mask describing spilled GPR callee-save registers.
   const uint32_t core_spill_mask_;
+  // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
+  // For quick code, a map from native PC offset to dex PC.
   std::vector<uint32_t> mapping_table_;
+  // For quick code, a map from GPR/FPR register to dex register.
   std::vector<uint16_t> vmap_table_;
-  std::vector<uint8_t> native_gc_map_;
+  // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
+  // are live. For portable code, the key is a dalvik PC.
+  std::vector<uint8_t> gc_map_;
 };
 
 }  // namespace art

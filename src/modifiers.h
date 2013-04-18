@@ -42,7 +42,7 @@ static const uint32_t kAccMiranda = 0x8000;  // method
 
 static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
 
-static const uint32_t kAccConstructor = 0x00010000;  // method (dex only)
+static const uint32_t kAccConstructor = 0x00010000;  // method (dex only) <init> and <clinit>
 static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (dex only)
 static const uint32_t kAccClassIsProxy = 0x00040000;  // class (dex only)
 // TODO: JACK CLASS ACCESS (HACK TO BE REMOVED)
