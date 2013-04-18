@@ -37,10 +37,6 @@ namespace art {
 
 namespace JDWP {
 
-// fwd
-static void netShutdown(JdwpNetState* state);
-static void netFree(JdwpNetState* state);
-
 /*
  * JDWP network state.
  *
@@ -54,17 +50,20 @@ struct JdwpNetState : public JdwpNetStateBase {
   in_addr remoteAddr;
   uint16_t remotePort;
 
-  bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
-
   JdwpNetState() {
     listenPort  = 0;
     listenSock  = -1;
     wakePipe[0] = -1;
     wakePipe[1] = -1;
-
-    awaitingHandshake = false;
   }
 };
+
+static void socketStateShutdown(JdwpNetState* state);
+static void socketStateFree(JdwpNetState* state);
+
+static JdwpNetState* GetNetState(JdwpState* state) {
+  return reinterpret_cast<JdwpNetState*>(state->netState);
+}
 
 static JdwpNetState* netStartup(uint16_t port, bool probe);
 
@@ -102,13 +101,6 @@ static bool prepareSocket(JdwpState* state, const JdwpOptions* options) {
   }
 
   return true;
-}
-
-/*
- * Are we still waiting for the handshake string?
- */
-static bool awaitingHandshake(JdwpState* state) {
-  return state->netState->awaitingHandshake;
 }
 
 /*
@@ -167,8 +159,8 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
   return netState;
 
  fail:
-  netShutdown(netState);
-  netFree(netState);
+  socketStateShutdown(netState);
+  socketStateFree(netState);
   return NULL;
 }
 
@@ -183,7 +175,7 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
  * (This is currently called several times during startup as we probe
  * for an open port.)
  */
-static void netShutdown(JdwpNetState* netState) {
+static void socketStateShutdown(JdwpNetState* netState) {
   if (netState == NULL) {
     return;
   }
@@ -211,16 +203,16 @@ static void netShutdown(JdwpNetState* netState) {
   }
 }
 
-static void netShutdownExtern(JdwpState* state) {
-  netShutdown(state->netState);
+static void netShutdown(JdwpState* state) {
+  socketStateShutdown(GetNetState(state));
 }
 
 /*
  * Free JDWP state.
  *
- * Call this after shutting the network down with netShutdown().
+ * Call this after shutting the network down with socketStateShutdown().
  */
-static void netFree(JdwpNetState* netState) {
+static void socketStateFree(JdwpNetState* netState) {
   if (netState == NULL) {
     return;
   }
@@ -239,15 +231,8 @@ static void netFree(JdwpNetState* netState) {
   delete netState;
 }
 
-static void netFreeExtern(JdwpState* state) {
-  netFree(state->netState);
-}
-
-/*
- * Returns "true" if we're connected to a debugger.
- */
-static bool isConnected(JdwpState* state) {
-  return (state->netState != NULL && state->netState->clientSock >= 0);
+static void netFree(JdwpState* state) {
+  socketStateFree(GetNetState(state));
 }
 
 /*
@@ -268,7 +253,7 @@ static int setNoDelay(int fd) {
  * is pending.
  */
 static bool acceptConnection(JdwpState* state) {
-  JdwpNetState* netState = state->netState;
+  JdwpNetState* netState = GetNetState(state);
   union {
     sockaddr_in  addrInet;
     sockaddr     addrPlain;
@@ -304,7 +289,7 @@ static bool acceptConnection(JdwpState* state) {
   VLOG(jdwp) << "+++ accepted connection from " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
 
   netState->clientSock = sock;
-  netState->awaitingHandshake = true;
+  netState->SetAwaitingHandshake(true);
   netState->inputCount = 0;
 
   VLOG(jdwp) << "Setting TCP_NODELAY on accepted socket";
@@ -367,8 +352,7 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   /*
    * Create a socket.
    */
-  JdwpNetState* netState;
-  netState = state->netState;
+  JdwpNetState* netState = GetNetState(state);
   netState->clientSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (netState->clientSock < 0) {
     PLOG(ERROR) << "Unable to create socket";
@@ -386,7 +370,7 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   }
 
   LOG(INFO) << "Connection established to " << options->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
-  netState->awaitingHandshake = true;
+  netState->SetAwaitingHandshake(true);
   netState->inputCount = 0;
 
   setNoDelay(netState->clientSock);
@@ -397,41 +381,6 @@ static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   }
 
   return true;
-}
-
-/*
- * Close the connection to the debugger.
- *
- * Reset the state so we're ready to receive a new connection.
- */
-static void closeConnection(JdwpState* state) {
-  JdwpNetState* netState;
-
-  CHECK(state != NULL && state->netState != NULL);
-
-  netState = state->netState;
-  if (netState->clientSock < 0) {
-    return;
-  }
-
-  VLOG(jdwp) << "+++ closed connection to " << inet_ntoa(netState->remoteAddr) << ":" << netState->remotePort;
-
-  close(netState->clientSock);
-  netState->clientSock = -1;
-}
-
-/*
- * Figure out if we have a full packet in the buffer.
- */
-static bool haveFullPacket(JdwpNetState* netState) {
-  if (netState->awaitingHandshake) {
-    return (netState->inputCount >= kMagicHandshakeLen);
-  }
-  if (netState->inputCount < 4) {
-    return false;
-  }
-  uint32_t length = Get4BE(netState->inputBuffer);
-  return (netState->inputCount >= length);
 }
 
 /*
@@ -450,12 +399,12 @@ static bool haveFullPacket(JdwpNetState* netState) {
  * "true" if things are still okay.
  */
 static bool processIncoming(JdwpState* state) {
-  JdwpNetState* netState = state->netState;
+  JdwpNetState* netState = GetNetState(state);
   int readCount;
 
   CHECK_GE(netState->clientSock, 0);
 
-  if (!haveFullPacket(netState)) {
+  if (!netState->HaveFullPacket()) {
     /* read some more, looping until we have data */
     errno = 0;
     while (1) {
@@ -550,7 +499,7 @@ static bool processIncoming(JdwpState* state) {
           return true;
         } else if (readCount == 0) {
           /* EOF hit -- far end went away */
-          LOG(DEBUG) << "+++ peer disconnected";
+          VLOG(jdwp) << "+++ peer disconnected";
           goto fail;
         } else {
           break;
@@ -559,7 +508,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     netState->inputCount += readCount;
-    if (!haveFullPacket(netState)) {
+    if (!netState->HaveFullPacket()) {
       return true;        /* still not there yet */
     }
   }
@@ -572,7 +521,7 @@ static bool processIncoming(JdwpState* state) {
    *
    * Other than this one case, the protocol [claims to be] stateless.
    */
-  if (netState->awaitingHandshake) {
+  if (netState->IsAwaitingHandshake()) {
     int cc;
 
     if (memcmp(netState->inputBuffer, kMagicHandshake, kMagicHandshakeLen) != 0) {
@@ -588,7 +537,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     netState->ConsumeBytes(kMagicHandshakeLen);
-    netState->awaitingHandshake = false;
+    netState->SetAwaitingHandshake(false);
     VLOG(jdwp) << "+++ handshake complete";
     return true;
   }
@@ -599,69 +548,8 @@ static bool processIncoming(JdwpState* state) {
   return state->HandlePacket();
 
  fail:
-  closeConnection(state);
+  netState->Close();
   return false;
-}
-
-/*
- * Send a request.
- *
- * The entire packet must be sent with a single write() call to avoid
- * threading issues.
- *
- * Returns "true" if it was sent successfully.
- */
-static bool sendRequest(JdwpState* state, ExpandBuf* pReq) {
-  JdwpNetState* netState = state->netState;
-
-  /*dumpPacket(expandBufGetBuffer(pReq));*/
-  if (netState->clientSock < 0) {
-    /* can happen with some DDMS events */
-    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
-    return false;
-  }
-
-  errno = 0;
-  ssize_t cc = netState->WritePacket(pReq);
-
-  if (cc != (ssize_t) expandBufGetLength(pReq)) {
-    PLOG(ERROR) << "Failed sending req to debugger (" << cc << " of " << expandBufGetLength(pReq) << ")";
-    return false;
-  }
-
-  return true;
-}
-
-/*
- * Send a request that was split into multiple buffers.
- *
- * The entire packet must be sent with a single writev() call to avoid
- * threading issues.
- *
- * Returns "true" if it was sent successfully.
- */
-static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iov_count) {
-  JdwpNetState* netState = state->netState;
-
-  if (netState->clientSock < 0) {
-    /* can happen with some DDMS events */
-    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
-    return false;
-  }
-
-  size_t expected = 0;
-  for (int i = 0; i < iov_count; i++) {
-    expected += iov[i].iov_len;
-  }
-
-  ssize_t actual = netState->WriteBufferedPacket(iov, iov_count);
-
-  if ((size_t)actual != expected) {
-    PLOG(ERROR) << "Failed sending b-req to debugger (" << actual << " of " << expected << ")";
-    return false;
-  }
-
-  return true;
 }
 
 /*
@@ -675,14 +563,9 @@ static const JdwpTransport socketTransport = {
   prepareSocket,
   acceptConnection,
   establishConnection,
-  closeConnection,
-  netShutdownExtern,
-  netFreeExtern,
-  isConnected,
-  awaitingHandshake,
+  netShutdown,
+  netFree,
   processIncoming,
-  sendRequest,
-  sendBufferedRequest,
 };
 
 /*

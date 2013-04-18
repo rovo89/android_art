@@ -94,7 +94,7 @@ struct JdwpOptions {
 };
 
 struct JdwpEvent;
-struct JdwpNetState;
+struct JdwpNetStateBase;
 struct JdwpTransport;
 struct ModBasket;
 struct Request;
@@ -227,12 +227,7 @@ struct JdwpState {
 
   bool HandlePacket();
 
-  /*
-   * Send an event, formatted into "pReq", to the debugger.
-   *
-   * (Messages are sent asynchronously, and do not receive a reply.)
-   */
-  bool SendRequest(ExpandBuf* pReq);
+  void SendRequest(ExpandBuf* pReq);
 
   void ResetState()
       LOCKS_EXCLUDED(event_list_lock_)
@@ -294,6 +289,7 @@ struct JdwpState {
   void UnregisterEvent(JdwpEvent* pEvent)
       EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SendBufferedRequest(uint32_t type, const iovec* iov, int iov_count);
 
  public: // TODO: fix privacy
   const JdwpOptions* options_;
@@ -314,7 +310,7 @@ struct JdwpState {
   const JdwpTransport* transport_;
 
  public: // TODO: fix privacy
-  JdwpNetState* netState;
+  JdwpNetStateBase* netState;
 
  private:
   // For wait-for-debugger.

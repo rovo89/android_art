@@ -43,10 +43,6 @@ namespace art {
 
 namespace JDWP {
 
-/*
- * Transport-specific network status.
- */
-struct JdwpNetState;
 struct JdwpState;
 
 /*
@@ -56,21 +52,16 @@ struct JdwpTransport {
   bool (*startup)(JdwpState* state, const JdwpOptions* options);
   bool (*accept)(JdwpState* state);
   bool (*establish)(JdwpState* state, const JdwpOptions* options);
-  void (*close)(JdwpState* state);
   void (*shutdown)(JdwpState* state);
   void (*free)(JdwpState* state);
-  bool (*isConnected)(JdwpState* state);
-  bool (*awaitingHandshake)(JdwpState* state);
   bool (*processIncoming)(JdwpState* state);
-  bool (*sendRequest)(JdwpState* state, ExpandBuf* pReq);
-  bool (*sendBufferedRequest)(JdwpState* state, const iovec* iov, int iov_count);
 };
 
 const JdwpTransport* SocketTransport();
 const JdwpTransport* AndroidAdbTransport();
 
 /*
- * Base class for JdwpNetState
+ * Base class for the adb and socket JdwpNetState implementations.
  */
 class JdwpNetStateBase {
  public:
@@ -82,13 +73,27 @@ class JdwpNetStateBase {
   size_t inputCount;
 
   JdwpNetStateBase();
+
   void ConsumeBytes(size_t byte_count);
+
+  bool IsConnected();
+
+  bool IsAwaitingHandshake();
+  void SetAwaitingHandshake(bool new_state);
+
+  bool HaveFullPacket();
+
+  void Close();
+
   ssize_t WritePacket(ExpandBuf* pReply);
   ssize_t WriteBufferedPacket(const iovec* iov, int iov_count);
 
  private:
   // Used to serialize writes to the socket.
   Mutex socket_lock_;
+
+  // Are we waiting for the JDWP handshake?
+  bool awaiting_handshake_;
 };
 
 }  // namespace JDWP

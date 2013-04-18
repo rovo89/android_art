@@ -54,7 +54,6 @@ namespace JDWP {
 
 struct JdwpNetState : public JdwpNetStateBase {
   int                 controlSock;
-  bool                awaitingHandshake;
   bool                shuttingDown;
   int                 wakeFds[2];
 
@@ -66,7 +65,6 @@ struct JdwpNetState : public JdwpNetStateBase {
 
   JdwpNetState() {
     controlSock = -1;
-    awaitingHandshake = false;
     shuttingDown = false;
     wakeFds[0] = -1;
     wakeFds[1] = -1;
@@ -76,6 +74,10 @@ struct JdwpNetState : public JdwpNetStateBase {
     memcpy(controlAddr.controlAddrUn.sun_path, kJdwpControlName, kJdwpControlNameLen);
   }
 };
+
+static JdwpNetState* GetNetState(JdwpState* state) {
+  return reinterpret_cast<JdwpNetState*>(state->netState);
+}
 
 static void adbStateFree(JdwpNetState* netState) {
   if (netState == NULL) {
@@ -108,15 +110,9 @@ static void adbStateFree(JdwpNetState* netState) {
  * do anything that might block forever.
  */
 static bool startup(JdwpState* state, const JdwpOptions*) {
-  JdwpNetState* netState;
-
   VLOG(jdwp) << "ADB transport startup";
-
-  state->netState = netState = new JdwpNetState;
-  if (netState == NULL) {
-    return false;
-  }
-  return true;
+  state->netState = new JdwpNetState;
+  return (state->netState != NULL);
 }
 
 /*
@@ -177,7 +173,7 @@ static int  receiveClientFd(JdwpNetState*  netState) {
  * should return "true" when it successfully accepts a connection.
  */
 static bool acceptConnection(JdwpState* state) {
-  JdwpNetState*  netState = state->netState;
+  JdwpNetState* netState = GetNetState(state);
   int retryCount = 0;
 
   /* first, ensure that we get a connection to the ADB daemon */
@@ -271,7 +267,7 @@ static bool acceptConnection(JdwpState* state) {
     goto retry;
   } else {
     VLOG(jdwp) << "received file descriptor " << netState->clientSock << " from ADB";
-    netState->awaitingHandshake = 1;
+    netState->SetAwaitingHandshake(true);
     netState->inputCount = 0;
     return true;
   }
@@ -282,24 +278,6 @@ static bool acceptConnection(JdwpState* state) {
  */
 static bool establishConnection(JdwpState*, const JdwpOptions*) {
   return false;
-}
-
-/*
- * Close a connection from a debugger (which may have already dropped us).
- * Only called from the JDWP thread.
- */
-static void closeConnection(JdwpState* state) {
-  CHECK(state != NULL && state->netState != NULL);
-
-  JdwpNetState* netState = state->netState;
-  if (netState->clientSock < 0) {
-    return;
-  }
-
-  VLOG(jdwp) << "+++ closed JDWP <-> ADB connection";
-
-  close(netState->clientSock);
-  netState->clientSock = -1;
 }
 
 /*
@@ -337,7 +315,7 @@ static void adbStateShutdown(JdwpNetState* netState) {
 }
 
 static void netShutdown(JdwpState* state) {
-  adbStateShutdown(state->netState);
+  adbStateShutdown(GetNetState(state));
 }
 
 /*
@@ -345,36 +323,7 @@ static void netShutdown(JdwpState* state) {
  * "netShutdown", after the JDWP thread has stopped.
  */
 static void netFree(JdwpState* state) {
-  JdwpNetState*  netState = state->netState;
-  adbStateFree(netState);
-}
-
-/*
- * Is a debugger connected to us?
- */
-static bool isConnected(JdwpState* state) {
-  return (state->netState != NULL && state->netState->clientSock >= 0);
-}
-
-/*
- * Are we still waiting for the JDWP handshake?
- */
-static bool awaitingHandshake(JdwpState* state) {
-  return state->netState->awaitingHandshake;
-}
-
-/*
- * Figure out if we have a full packet in the buffer.
- */
-static bool haveFullPacket(JdwpNetState* netState) {
-  if (netState->awaitingHandshake) {
-    return (netState->inputCount >= kMagicHandshakeLen);
-  }
-  if (netState->inputCount < 4) {
-    return false;
-  }
-  uint32_t length = Get4BE(netState->inputBuffer);
-  return (netState->inputCount >= length);
+  adbStateFree(GetNetState(state));
 }
 
 /*
@@ -393,12 +342,12 @@ static bool haveFullPacket(JdwpNetState* netState) {
  * "true" if things are still okay.
  */
 static bool processIncoming(JdwpState* state) {
-  JdwpNetState* netState = state->netState;
+  JdwpNetState* netState = GetNetState(state);
   int readCount;
 
   CHECK_GE(netState->clientSock, 0);
 
-  if (!haveFullPacket(netState)) {
+  if (!netState->HaveFullPacket()) {
     /* read some more, looping until we have data */
     errno = 0;
     while (1) {
@@ -498,7 +447,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     netState->inputCount += readCount;
-    if (!haveFullPacket(netState)) {
+    if (!netState->HaveFullPacket()) {
       return true;        /* still not there yet */
     }
   }
@@ -511,7 +460,7 @@ static bool processIncoming(JdwpState* state) {
    *
    * Other than this one case, the protocol [claims to be] stateless.
    */
-  if (netState->awaitingHandshake) {
+  if (netState->IsAwaitingHandshake()) {
     int cc;
 
     if (memcmp(netState->inputBuffer, kMagicHandshake, kMagicHandshakeLen) != 0) {
@@ -527,7 +476,7 @@ static bool processIncoming(JdwpState* state) {
     }
 
     netState->ConsumeBytes(kMagicHandshakeLen);
-    netState->awaitingHandshake = false;
+    netState->SetAwaitingHandshake(false);
     VLOG(jdwp) << "+++ handshake complete";
     return true;
   }
@@ -538,68 +487,8 @@ static bool processIncoming(JdwpState* state) {
   return state->HandlePacket();
 
  fail:
-  closeConnection(state);
+  netState->Close();
   return false;
-}
-
-/*
- * Send a request.
- *
- * The entire packet must be sent with a single write() call to avoid
- * threading issues.
- *
- * Returns "true" if it was sent successfully.
- */
-static bool sendRequest(JdwpState* state, ExpandBuf* pReq) {
-  JdwpNetState* netState = state->netState;
-
-  if (netState->clientSock < 0) {
-    /* can happen with some DDMS events */
-    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
-    return false;
-  }
-
-  errno = 0;
-
-  ssize_t cc = netState->WritePacket(pReq);
-
-  if (cc != (ssize_t) expandBufGetLength(pReq)) {
-    PLOG(ERROR) << "Failed sending req to debugger (" << cc << " of " << expandBufGetLength(pReq) << ")";
-    return false;
-  }
-
-  return true;
-}
-
-/*
- * Send a request that was split into multiple buffers.
- *
- * The entire packet must be sent with a single writev() call to avoid
- * threading issues.
- *
- * Returns "true" if it was sent successfully.
- */
-static bool sendBufferedRequest(JdwpState* state, const iovec* iov, int iov_count) {
-  JdwpNetState* netState = state->netState;
-
-  if (netState->clientSock < 0) {
-    /* can happen with some DDMS events */
-    VLOG(jdwp) << "NOT sending request -- no debugger is attached";
-    return false;
-  }
-
-  size_t expected = 0;
-  for (int i = 0; i < iov_count; i++) {
-    expected += iov[i].iov_len;
-  }
-
-  ssize_t actual = netState->WriteBufferedPacket(iov, iov_count);
-  if ((size_t)actual != expected) {
-    PLOG(ERROR) << "Failed sending b-req to debugger (" << actual << " of " << expected << ")";
-    return false;
-  }
-
-  return true;
 }
 
 /*
@@ -609,14 +498,9 @@ static const JdwpTransport adbTransport = {
   startup,
   acceptConnection,
   establishConnection,
-  closeConnection,
   netShutdown,
   netFree,
-  isConnected,
-  awaitingHandshake,
   processIncoming,
-  sendRequest,
-  sendBufferedRequest
 };
 
 /*

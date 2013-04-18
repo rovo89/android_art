@@ -1077,22 +1077,14 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
       }
     }
   }
-  bool success;
   if (safe_to_release_mutator_lock_over_send) {
     // Change state to waiting to allow GC, ... while we're sending.
     self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
-    success = (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+    SendBufferedRequest(type, wrapiov, iov_count + 1);
     self->TransitionFromSuspendedToRunnable();
   } else {
     // Send and possibly block GC...
-    success = (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
-  }
-  if (!success) {
-    LOG(INFO) << StringPrintf("JDWP send of type %c%c%c%c failed.",
-                              static_cast<uint8_t>(type >> 24),
-                              static_cast<uint8_t>(type >> 16),
-                              static_cast<uint8_t>(type >> 8),
-                              static_cast<uint8_t>(type));
+    SendBufferedRequest(type, wrapiov, iov_count + 1);
   }
 }
 

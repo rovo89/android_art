@@ -38,6 +38,7 @@ static void* StartJdwpThread(void* arg);
 JdwpNetStateBase::JdwpNetStateBase() : socket_lock_("JdwpNetStateBase lock") {
   clientSock = -1;
   inputCount = 0;
+  awaiting_handshake_ = false;
 }
 
 void JdwpNetStateBase::ConsumeBytes(size_t count) {
@@ -51,6 +52,43 @@ void JdwpNetStateBase::ConsumeBytes(size_t count) {
 
   memmove(inputBuffer, inputBuffer + count, inputCount - count);
   inputCount -= count;
+}
+
+bool JdwpNetStateBase::HaveFullPacket() {
+  if (awaiting_handshake_) {
+    return (inputCount >= kMagicHandshakeLen);
+  }
+  if (inputCount < 4) {
+    return false;
+  }
+  uint32_t length = Get4BE(inputBuffer);
+  return (inputCount >= length);
+}
+
+bool JdwpNetStateBase::IsAwaitingHandshake() {
+  return awaiting_handshake_;
+}
+
+void JdwpNetStateBase::SetAwaitingHandshake(bool new_state) {
+  awaiting_handshake_ = new_state;
+}
+
+bool JdwpNetStateBase::IsConnected() {
+  return clientSock >= 0;
+}
+
+// Close a connection from a debugger (which may have already dropped us).
+// Resets the state so we're ready to receive a new connection.
+// Only called from the JDWP thread.
+void JdwpNetStateBase::Close() {
+  if (clientSock < 0) {
+    return;
+  }
+
+  VLOG(jdwp) << "+++ closing JDWP connection on fd " << clientSock;
+
+  close(clientSock);
+  clientSock = -1;
 }
 
 /*
@@ -70,11 +108,46 @@ ssize_t JdwpNetStateBase::WriteBufferedPacket(const iovec* iov, int iov_count) {
 }
 
 bool JdwpState::IsConnected() {
-  return (*transport_->isConnected)(this);
+  return netState != NULL && netState->IsConnected();
 }
 
-bool JdwpState::SendRequest(ExpandBuf* pReq) {
-  return (*transport_->sendRequest)(this, pReq);
+void JdwpState::SendBufferedRequest(uint32_t type, const iovec* iov, int iov_count) {
+  if (netState->clientSock < 0) {
+    // Can happen with some DDMS events.
+    VLOG(jdwp) << "Not sending JDWP packet: no debugger attached!";
+    return;
+  }
+
+  size_t expected = 0;
+  for (int i = 0; i < iov_count; ++i) {
+    expected += iov[i].iov_len;
+  }
+
+  errno = 0;
+  ssize_t actual = netState->WriteBufferedPacket(iov, iov_count);
+  if (static_cast<size_t>(actual) != expected) {
+    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet %c%c%c%c to debugger (%d of %d)",
+                                static_cast<uint8_t>(type >> 24),
+                                static_cast<uint8_t>(type >> 16),
+                                static_cast<uint8_t>(type >> 8),
+                                static_cast<uint8_t>(type),
+                                actual, expected);
+  }
+}
+
+void JdwpState::SendRequest(ExpandBuf* pReq) {
+  if (netState->clientSock < 0) {
+    // Can happen with some DDMS events.
+    VLOG(jdwp) << "Not sending JDWP packet: no debugger attached!";
+    return;
+  }
+
+  errno = 0;
+  ssize_t actual = netState->WritePacket(pReq);
+  if (static_cast<size_t>(actual) != expandBufGetLength(pReq)) {
+    PLOG(ERROR) << StringPrintf("Failed to send JDWP packet to debugger (%d of %d)",
+                                actual, expandBufGetLength(pReq));
+  }
 }
 
 /*
@@ -390,7 +463,7 @@ void JdwpState::Run() {
         exit(exit_status_);
       }
 
-      if (first && !(*transport_->awaitingHandshake)(this)) {
+      if (first && !netState->IsAwaitingHandshake()) {
         /* handshake worked, tell the interpreter that we're active */
         first = false;
 
@@ -406,7 +479,7 @@ void JdwpState::Run() {
       }
     }
 
-    (*transport_->close)(this);
+    netState->Close();
 
     if (ddm_is_active_) {
       ddm_is_active_ = false;
