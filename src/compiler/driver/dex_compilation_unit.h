@@ -97,7 +97,7 @@ class DexCompilationUnit {
   }
 
  private:
-  CompilationUnit* cu_;
+  CompilationUnit* const cu_;
 
   const jobject class_loader_;
 

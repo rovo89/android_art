@@ -1115,7 +1115,8 @@ ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
 
 // TODO: move to mir_to_lir.cc
 Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : literal_list_(NULL),
+    : Backend(arena),
+      literal_list_(NULL),
       method_literal_list_(NULL),
       code_literal_list_(NULL),
       cu_(cu),
@@ -1139,7 +1140,6 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       first_lir_insn_(NULL),
       last_lir_insn_(NULL)
  {
-  arena_ = arena;
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->NewMem((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), true, ArenaAllocator::kAllocRegAlloc));

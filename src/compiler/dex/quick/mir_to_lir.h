@@ -745,8 +745,6 @@ class Mir2Lir : public Backend {
     unsigned int fp_spill_mask_;
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
-    ArenaAllocator* arena_;
-
 };  // Class Mir2Lir
 
 }  // namespace art

@@ -46,7 +46,8 @@ class MirConverter : public Backend {
     // TODO: flesh out and integrate into new world order.
     MirConverter(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena,
                  llvm::LlvmCompilationUnit* llvm_compilation_unit)
-      : cu_(cu),
+      : Backend(arena),
+        cu_(cu),
         mir_graph_(mir_graph),
         llvm_compilation_unit_(llvm_compilation_unit),
         llvm_info_(llvm_compilation_unit->GetQuickContext()),
@@ -62,7 +63,6 @@ class MirConverter : public Backend {
         llvm_values_(arena, mir_graph->GetNumSSARegs()),
         temp_name_(0),
         current_dalvik_offset_(0) {
-      arena_ = arena;
       if (kIsDebugBuild) {
         cu->enable_debug |= (1 << kDebugVerifyBitcode);
       }

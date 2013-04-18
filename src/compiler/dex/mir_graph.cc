@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "base/stl_util.h"
 #include "compiler_internals.h"
-#include "mir_graph.h"
-#include "leb128.h"
 #include "dex_file-inl.h"
+#include "leb128.h"
+#include "mir_graph.h"
 
 namespace art {
 
@@ -110,6 +111,10 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       arena_(arena)
       {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
+}
+
+MIRGraph::~MIRGraph() {
+  STLDeleteElements(&m_units_);
 }
 
 bool MIRGraph::ContentIsInsn(const uint16_t* code_ptr) {
