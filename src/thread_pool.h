@@ -50,7 +50,7 @@ class ThreadPoolWorker {
   static void* Callback(void* arg) LOCKS_EXCLUDED(Locks::mutator_lock_);
   virtual void Run();
 
-  ThreadPool* thread_pool_;
+  ThreadPool* const thread_pool_;
   const std::string name_;
   const size_t stack_size_;
   pthread_t pthread_;

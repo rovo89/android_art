@@ -25,11 +25,13 @@ namespace art {
 
 class CountTask : public Task {
  public:
-  CountTask(AtomicInteger* count) : count_(count) {
-
+  CountTask(AtomicInteger* count) : count_(count), verbose_(false) {
   }
 
-  void Run(Thread* /* self */) {
+  void Run(Thread* self) {
+    if (verbose_) {
+      LOG(INFO) << "Running: " << *self;
+    }
     // Simulate doing some work.
     usleep(100);
     // Increment the counter which keeps track of work completed.
@@ -37,11 +39,15 @@ class CountTask : public Task {
   }
 
   void Finalize() {
+    if (verbose_) {
+      LOG(INFO) << "Finalizing: " << *Thread::Current();
+    }
     delete this;
   }
 
  private:
   AtomicInteger* const count_;
+  const bool verbose_;
 };
 
 class ThreadPoolTest : public CommonTest {
@@ -87,6 +93,12 @@ TEST_F(ThreadPoolTest, StopStart) {
   usleep(200);
   // Ensure that the task added after the workers were stopped doesn't get run.
   EXPECT_EQ(0, bad_count);
+  // Allow tasks to finish up and delete themselves.
+  thread_pool.StartWorkers(self);
+  while (count.get() != num_tasks && bad_count.get() != 1) {
+    usleep(200);
+  }
+  thread_pool.StopWorkers(self);
 }
 
 class TreeTask : public Task {

@@ -76,6 +76,8 @@ ThreadPool::ThreadPool(size_t num_threads)
     started_(false),
     shutting_down_(false),
     waiting_count_(0),
+    start_time_(0),
+    total_wait_time_(0),
     // Add one since the caller of constructor waits on the barrier too.
     creation_barier_(num_threads + 1) {
   Thread* self = Thread::Current();
