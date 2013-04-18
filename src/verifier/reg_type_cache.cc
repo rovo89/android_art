@@ -268,7 +268,7 @@ void RegTypeCache::ShutDown() {
     IntegerType::Destroy();
     LongLoType::Destroy();
     LongHiType::Destroy();
-    FloatType::GetInstance();
+    FloatType::Destroy();
     DoubleLoType::Destroy();
     DoubleHiType::Destroy();
     RegTypeCache::primitive_initialized_ = false;
