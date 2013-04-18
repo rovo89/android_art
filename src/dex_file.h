@@ -690,11 +690,11 @@ class DexFile {
     return handler_data + offset;
   }
 
-  // Find the handler associated with a given address, if any.
-  // Initializes the given iterator and returns true if a match is
-  // found. Returns end if there is no applicable handler.
-  static int32_t FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,
-                                        uint32_t address);
+  // Find which try region is associated with the given address (ie dex pc). Returns -1 if none.
+  static int32_t FindTryItem(const CodeItem &code_item, uint32_t address);
+
+  // Find the handler offset associated with the given address (ie dex pc). Returns -1 if none.
+  static int32_t FindCatchHandlerOffset(const CodeItem &code_item, uint32_t address);
 
   // Get the pointer to the start of the debugging data
   const byte* GetDebugInfoStream(const CodeItem* code_item) const {

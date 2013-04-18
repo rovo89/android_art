@@ -609,29 +609,37 @@ int32_t DexFile::GetLineNumFromPC(const mirror::AbstractMethod* method, uint32_t
   return context.line_num_;
 }
 
-int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries_size,
-                                        uint32_t address) {
+int32_t DexFile::FindTryItem(const CodeItem &code_item, uint32_t address) {
   // Note: Signed type is important for max and min.
   int32_t min = 0;
-  int32_t max = tries_size - 1;
+  int32_t max = code_item.tries_size_ - 1;
 
-  while (max >= min) {
-    int32_t mid = (min + max) / 2;
-    const TryItem* try_item = DexFile::GetTryItems(code_item, mid);
-    uint32_t start = try_item->start_addr_;
+  while (min <= max) {
+    int32_t mid = min + ((max - min) / 2);
+
+    const art::DexFile::TryItem* ti = GetTryItems(code_item, mid);
+    uint32_t start = ti->start_addr_;
+    uint32_t end = start + ti->insn_count_;
+
     if (address < start) {
       max = mid - 1;
-    } else {
-      uint32_t end = start + try_item->insn_count_;
-      if (address >= end) {
-        min = mid + 1;
-      } else {  // We have a winner!
-        return (int32_t) try_item->handler_off_;
-      }
+    } else if (address >= end) {
+      min = mid + 1;
+    } else {  // We have a winner!
+      return mid;
     }
   }
   // No match.
   return -1;
+}
+
+int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, uint32_t address) {
+  int32_t try_item = FindTryItem(code_item, address);
+  if (try_item == -1) {
+    return -1;
+  } else {
+    return DexFile::GetTryItems(code_item, try_item)->handler_off_;
+  }
 }
 
 void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -1029,7 +1037,7 @@ CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, u
       break;
     }
     default:
-      offset = DexFile::FindCatchHandlerOffset(code_item, code_item.tries_size_, address);
+      offset = DexFile::FindCatchHandlerOffset(code_item, address);
   }
   Init(code_item, offset);
 }
