@@ -105,15 +105,20 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count,
   CHECK_NE(0U, byte_count);
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
-  // Adjust 'offset' and 'byte_count' to be page-aligned.
+  // Adjust 'offset' to be page-aligned as required by mmap.
   int page_offset = start % kPageSize;
   off_t page_aligned_offset = start - page_offset;
+  // Adjust 'byte_count' to be page-aligned as we will map this anyway.
   size_t page_aligned_byte_count = RoundUp(byte_count + page_offset, kPageSize);
-  byte* page_aligned_addr = addr - page_offset;
+  // The 'addr' is modified (if specified, ie non-null) to be page aligned to the file but not
+  // necessarily to virtual memory. mmap will page align 'addr' for us.
+  byte* page_aligned_addr = (addr == NULL) ? NULL : (addr - page_offset);
   if (!reuse) {
     // reuse means it is okay that it overlaps an existing page mapping.
     // Only use this if you actually made the page reservation yourself.
     CheckMapRequest(page_aligned_addr, page_aligned_byte_count);
+  } else {
+    CHECK(addr != NULL);
   }
   byte* actual = reinterpret_cast<byte*>(mmap(page_aligned_addr,
                                               page_aligned_byte_count,
