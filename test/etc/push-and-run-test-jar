@@ -46,7 +46,11 @@ while true; do
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
-        INVOKE_WITH="$1"
+        if [ "x$INVOKE_WITH" = "x" ]; then
+            INVOKE_WITH="$1"
+        else
+            INVOKE_WITH="$INVOKE_WITH $1"
+        fi
         shift
     elif [ "x$1" = "x--no-verify" ]; then
         VERIFY="n"

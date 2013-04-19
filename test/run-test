@@ -106,7 +106,7 @@ while true; do
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
         what="$1"
-        run_args="${run_args} --invoke-with \"${what}\""
+        run_args="${run_args} --invoke-with ${what}"
         shift
     elif [ "x$1" = "x--dev" ]; then
         run_args="${run_args} --dev"
@@ -184,7 +184,7 @@ if [ "$usage" = "yes" ]; then
              "If used, then the"
         echo "                   other runtime options are ignored."
         echo "    --host         Use the host-mode virtual machine."
-        echo "    --valgrind     Use valgrind when running locally."
+        echo "    --invoke-with  Pass --invoke-with option to runtime."
         echo "    --jvm          Use a host-local RI virtual machine."
         echo "    --output-path [path] Location where to store the build" \
              "files."
