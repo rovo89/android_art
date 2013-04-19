@@ -554,7 +554,8 @@ void ThreadList::Unregister(Thread* self) {
   while (self != NULL) {
     // Remove and delete the Thread* while holding the thread_list_lock_ and
     // thread_suspend_count_lock_ so that the unregistering thread cannot be suspended.
-    MutexLock mu(self, *Locks::thread_list_lock_);
+    // Note: deliberately not using MutexLock that could hold a stale self pointer.
+    Locks::thread_list_lock_->ExclusiveLock(self);
     CHECK(Contains(self));
     // Note: we don't take the thread_suspend_count_lock_ here as to be suspending a thread other
     // than yourself you need to hold the thread_list_lock_ (see Thread::ModifySuspendCount).
@@ -563,6 +564,7 @@ void ThreadList::Unregister(Thread* self) {
       delete self;
       self = NULL;
     }
+    Locks::thread_list_lock_->ExclusiveUnlock(self);
   }
 
   // Clear the TLS data, so that the underlying native thread is recognizably detached.

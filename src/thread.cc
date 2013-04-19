@@ -66,8 +66,9 @@
 
 namespace art {
 
+bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
-ConditionVariable* Thread::resume_cond_;
+ConditionVariable* Thread::resume_cond_ = NULL;
 
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 
@@ -323,6 +324,7 @@ void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
   // avoids pthread_self_ ever being invalid when discovered from Thread::Current().
   pthread_self_ = pthread_self();
+  CHECK(is_started_);
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
   DCHECK_EQ(Thread::Current(), this);
 
@@ -829,7 +831,7 @@ struct StackDumpVisitor : public StackVisitor {
 
   std::ostream& os;
   const Thread* thread;
-  bool can_allocate;
+  const bool can_allocate;
   MethodHelper mh;
   mirror::AbstractMethod* last_method;
   int last_line_number;
@@ -880,6 +882,7 @@ void Thread::ThreadExitCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   if (self->thread_exit_check_count_ == 0) {
     LOG(WARNING) << "Native thread exiting without having called DetachCurrentThread (maybe it's going to use a pthread_key_create destructor?): " << *self;
+    CHECK(is_started_);
     CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, self), "reattach self");
     self->thread_exit_check_count_ = 1;
   } else {
@@ -888,6 +891,8 @@ void Thread::ThreadExitCallback(void* arg) {
 }
 
 void Thread::Startup() {
+  CHECK(!is_started_);
+  is_started_ = true;
   {
     MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);  // Keep GCC happy.
     resume_cond_ = new ConditionVariable("Thread resumption condition variable",
@@ -915,7 +920,13 @@ void Thread::FinishStartup() {
 }
 
 void Thread::Shutdown() {
+  CHECK(is_started_);
+  is_started_ = false;
   CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
+  if (resume_cond_ != NULL) {
+    delete resume_cond_;
+    resume_cond_ = NULL;
+  }
 }
 
 Thread::Thread(bool daemon)

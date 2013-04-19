@@ -101,11 +101,15 @@ class PACKED(4) Thread {
   // Reset internal state of child thread after fork.
   void InitAfterFork();
 
-  static Thread* Current() __attribute__ ((pure)) {
+  static Thread* Current() {
     // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
     // that we can replace this with a direct %fs access on x86.
-    void* thread = pthread_getspecific(Thread::pthread_key_self_);
-    return reinterpret_cast<Thread*>(thread);
+    if(!is_started_) {
+      return NULL;
+    } else {
+      void* thread = pthread_getspecific(Thread::pthread_key_self_);
+      return reinterpret_cast<Thread*>(thread);
+    }
   }
 
   static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts,
@@ -616,6 +620,9 @@ class PACKED(4) Thread {
   void NotifyLocked(Thread* self) EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_);
 
   static void ThreadExitCallback(void* arg);
+
+  // Has Thread::Startup been called?
+  static bool is_started_;
 
   // TLS key used to retrieve the Thread*.
   static pthread_key_t pthread_key_self_;
