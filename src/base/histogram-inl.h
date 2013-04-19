@@ -218,8 +218,8 @@ inline double Histogram<Value>::Percentile(double per) const {
       break;
     }
 
-    if (per >= cumulative_perc_[idx] &&
-        cumulative_perc_[idx] != cumulative_perc_[idx - 1] && idx != 0) {
+    if (per >= cumulative_perc_[idx] && idx != 0 &&
+        cumulative_perc_[idx] != cumulative_perc_[idx - 1]) {
       lower_idx = idx;
     }
   }

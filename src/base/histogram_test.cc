@@ -1,6 +1,25 @@
+/*
+ * Copyright (C) 2013 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "gtest/gtest.h"
 #include "histogram-inl.h"
+#include "UniquePtr.h"
+
 #include <sstream>
+
 using namespace art;
 
 //Simple usage:
@@ -15,8 +34,8 @@ using namespace art;
 //  PerValue = hist->PercentileVal(0.50); finds the 50th percentile(median).
 
 TEST(Histtest, MeanTest) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MeanTest"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("MeanTest");
   double mean;
   for (size_t Idx = 0; Idx < 90; Idx++) {
     hist->AddValue(static_cast<uint64_t>(50));
@@ -33,8 +52,8 @@ TEST(Histtest, MeanTest) {
 }
 
 TEST(Histtest, VarianceTest) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("VarianceTest"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("VarianceTest");
   double variance;
   hist->AddValue(9);
   hist->AddValue(17);
@@ -43,12 +62,11 @@ TEST(Histtest, VarianceTest) {
   hist->CreateHistogram();
   variance = hist->Variance();
   EXPECT_EQ(64.25, variance);
-  delete hist;
 }
 
 TEST(Histtest, Percentile) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Percentile"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("Percentile");
   double PerValue;
 
   hist->AddValue(20);
@@ -70,13 +88,11 @@ TEST(Histtest, Percentile) {
   hist->CreateHistogram();
   PerValue = hist->Percentile(0.50);
   EXPECT_EQ(875, static_cast<int>(PerValue * 10));
-
-  delete hist;
 }
 
 TEST(Histtest, UpdateRange) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("UpdateRange"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("UpdateRange");
   double PerValue;
 
   hist->AddValue(15);
@@ -112,14 +128,12 @@ TEST(Histtest, UpdateRange) {
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
   EXPECT_LE(PerValue, 145);
-
-  delete hist;
 }
 ;
 
 TEST(Histtest, Reset) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Reset"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("Reset");
   double PerValue;
   hist->AddValue(0);
   hist->AddValue(189);
@@ -158,14 +172,12 @@ TEST(Histtest, Reset) {
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
   EXPECT_LE(PerValue, 145);
-
-  delete hist;
 }
 ;
 
 TEST(Histtest, MultipleCreateHist) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MultipleCreateHist"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("MultipleCreateHist");
   double PerValue;
   hist->AddValue(15);
   hist->AddValue(17);
@@ -200,27 +212,24 @@ TEST(Histtest, MultipleCreateHist) {
   EXPECT_EQ(expected, stream.str());
   EXPECT_GE(PerValue, 132);
   EXPECT_LE(PerValue, 145);
-
-  delete hist;
 }
 
 TEST(Histtest, SingleValue) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SingleValue"));
 
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("SingleValue");
   hist->AddValue(1);
   hist->CreateHistogram();
   std::stringstream stream;
   std::string expected = "SingleValue:\t99% C.I. 1us-1us Avg: 1us Max: 1us\n";
   hist->PrintConfidenceIntervals(stream, 0.99);
   EXPECT_EQ(expected, stream.str());
-  delete hist;
 }
 
 TEST(Histtest, CappingPercentiles) {
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("CappingPercentiles"));
 
   double per_995;
   double per_005;
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("CappingPercentiles");
   // All values are similar.
   for (uint64_t idx = 0ull; idx < 150ull; idx++) {
     hist->AddValue(0);
@@ -239,12 +248,10 @@ TEST(Histtest, CappingPercentiles) {
   per_995 = hist->Percentile(0.995);
   EXPECT_EQ(1, per_005);
   EXPECT_EQ(4, per_995);
-  delete hist;
 }
 
 TEST(Histtest, SpikyValues) {
-
-  Histogram<uint64_t> *hist = new Histogram<uint64_t>("SpikyValues");
+  UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("SpikyValues"));
 
   for (uint64_t idx = 0ull; idx < 30ull; idx++) {
     for (uint64_t idx_inner = 0ull; idx_inner < 5ull; idx_inner++) {
@@ -258,6 +265,4 @@ TEST(Histtest, SpikyValues) {
       "SpikyValues:\t99% C.I. 0.089us-2541.825us Avg: 95.033us Max: 10000us\n";
   hist->PrintConfidenceIntervals(stream, 0.99);
   EXPECT_EQ(expected, stream.str());
-
-  delete hist;
 }

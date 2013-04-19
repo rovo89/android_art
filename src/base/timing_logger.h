@@ -30,15 +30,15 @@ class CumulativeLogger;
 
 class TimingLogger {
  public:
-  explicit TimingLogger(const std::string &name, bool precise);
-  void AddSplit(const std::string &label);
-  void Dump(std::ostream &os) const;
+  explicit TimingLogger(const std::string& name, bool precise);
+  void AddSplit(const std::string& label);
+  void Dump(std::ostream& os) const;
   void Reset();
   uint64_t GetTotalNs() const;
 
  protected:
-  std::string name_;
-  bool precise_;
+  const std::string name_;
+  const bool precise_;
   std::vector<uint64_t> times_;
   std::vector<std::string> labels_;
 
@@ -49,16 +49,18 @@ class CumulativeLogger {
 
  public:
 
-  explicit CumulativeLogger(const std::string &name);
+  explicit CumulativeLogger(const std::string& name);
   void prepare_stats();
   ~CumulativeLogger();
   void Start();
   void End();
   void Reset();
-  void Dump(std::ostream &os) LOCKS_EXCLUDED(lock_);
+  void Dump(std::ostream& os) LOCKS_EXCLUDED(lock_);
   uint64_t GetTotalNs() const;
-  void SetName(const std::string &name);
-  void AddLogger(const TimingLogger &logger) LOCKS_EXCLUDED(lock_);
+  // Allow the name to be modified, particularly when the cumulative logger is a field within a
+  // parent class that is unable to determine the "name" of a sub-class.
+  void SetName(const std::string& name);
+  void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
 
  private:
 
@@ -69,6 +71,7 @@ class CumulativeLogger {
   static const uint64_t kAdjust = 1000;
   std::vector<Histogram<uint64_t> *> histograms_ GUARDED_BY(lock_);
   std::string name_;
+  const std::string lock_name_;
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   size_t index_ GUARDED_BY(lock_);
   size_t iterations_ GUARDED_BY(lock_);
