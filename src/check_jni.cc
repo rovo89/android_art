@@ -405,7 +405,7 @@ class ScopedCheck {
     va_list ap;
 
     const mirror::AbstractMethod* traceMethod = NULL;
-    if ((!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
+    if (has_method_ && (!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni))) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
