@@ -249,8 +249,6 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
     }
   }
 
-  cu->arena.ArenaReset();
-
   return result;
 }
 

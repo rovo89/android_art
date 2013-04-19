@@ -66,7 +66,10 @@ namespace art {
             is_iterative_(is_iterative),
             start_idx_(start_idx),
             end_idx_(end_idx),
-            reverse_(reverse) {}
+            reverse_(reverse),
+            block_id_list_(NULL),
+            idx_(0),
+            changed_(false) {}
 
       virtual BasicBlock* NextBody(bool had_change);
 

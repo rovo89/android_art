@@ -47,8 +47,8 @@ class ArenaAllocator {
     };
 
   ArenaAllocator(size_t default_size = ARENA_DEFAULT_BLOCK_SIZE);
+  ~ArenaAllocator();
   void* NewMem(size_t size, bool zero, ArenaAllocKind kind);
-  void ArenaReset();
   size_t BytesAllocated() {
     return malloc_bytes_;
   }

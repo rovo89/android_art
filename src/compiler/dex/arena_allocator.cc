@@ -50,6 +50,18 @@ ArenaAllocator::ArenaAllocator(size_t default_size)
   num_arena_blocks_++;
 }
 
+ArenaAllocator::~ArenaAllocator() {
+  // Reclaim all the arena blocks allocated so far.
+  ArenaMemBlock* head = arena_head_;
+  while (head != NULL) {
+    ArenaMemBlock* p = head;
+    head = head->next;
+    free(p);
+  }
+  arena_head_ = current_arena_ = NULL;
+  num_arena_blocks_ = 0;
+}
+
 // Return an arena with no storage for use as a sentinal.
 ArenaAllocator::ArenaMemBlock* ArenaAllocator::EmptyArena() {
   ArenaMemBlock* res = static_cast<ArenaMemBlock*>(malloc(sizeof(ArenaMemBlock)));
@@ -89,19 +101,6 @@ void* ArenaAllocator::NewMem(size_t size, bool zero, ArenaAllocKind kind) {
     memset(ptr, 0, size);
   }
   return ptr;
-}
-
-// Reclaim all the arena blocks allocated so far.
-void ArenaAllocator::ArenaReset() {
-  ArenaMemBlock* head = arena_head_;
-  while (head != NULL) {
-    ArenaMemBlock* p = head;
-    head = head->next;
-    free(p);
-  }
-  // We must always have an arena.  Create a zero-length one.
-  arena_head_ = current_arena_ = EmptyArena();
-  num_arena_blocks_ = 1;
 }
 
 // Dump memory usage stats.
