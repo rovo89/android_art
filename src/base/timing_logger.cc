@@ -70,15 +70,20 @@ void TimingLogger::Dump(std::ostream &os) const {
   os << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms\n";
 }
 
-CumulativeLogger::CumulativeLogger(const std::string &name)
+CumulativeLogger::CumulativeLogger(const std::string& name)
     : name_(name),
-      lock_(("CumulativeLoggerLock" + name).c_str(), kDefaultMutexLevel, true) {
+      lock_name_("CumulativeLoggerLock" + name),
+      lock_(lock_name_.c_str(), kDefaultMutexLevel, true) {
   Reset();
 }
 
-CumulativeLogger::~CumulativeLogger() { STLDeleteElements(&histograms_); }
+CumulativeLogger::~CumulativeLogger() {
+  STLDeleteElements(&histograms_);
+}
 
-void CumulativeLogger::SetName(const std::string &name) { name_ = name; }
+void CumulativeLogger::SetName(const std::string& name) {
+  name_ = name;
+}
 
 void CumulativeLogger::Start() {
   MutexLock mu(Thread::Current(), lock_);
