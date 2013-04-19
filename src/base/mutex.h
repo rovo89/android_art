@@ -58,7 +58,7 @@ const bool kDebugLocking = kIsDebugBuild;
 // Base class for all Mutex implementations
 class BaseMutex {
  public:
-  const std::string& GetName() const {
+  const char* GetName() const {
     return name_;
   }
 
@@ -84,7 +84,7 @@ class BaseMutex {
   void DumpContention(std::ostream& os) const;
 
   const LockLevel level_;  // Support for lock hierarchy.
-  const std::string name_;
+  const char* const name_;
 #if CONTENTION_LOGGING
   // A log entry that records contention but makes no guarantee that either tid will be held live.
   struct ContentionLogEntry {
