@@ -177,20 +177,22 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descr
     }
     // Class was not found, must create new type.
 
-    // Create a type if:
-    // 1-The class is instantiable ( not Abstract or Interface ), we should
-    //   abort failing the verification if we get that.
-    // 2- And, the class should be instantiable (Not interface, Abstract or a
-    //    primitive type) OR it is imprecise.
-
-    // Create a precise type if :
-    // 1-The class is final.
-    // 2-OR the precise was passed as true .
+    //To pass the verification, the type should be imprecise,
+    // instantiable or an interface with the precise type set to false.
     CHECK(!precise || klass->IsInstantiable());
+
+    // Create a precise type if:
+    // 1- Class is final and NOT an interface. a precise interface
+    //    is meaningless !!
+    // 2- Precise Flag passed as true.
+
     RegType* entry;
-    // Create an imprecise type if we can'tt tell for a fact that it is precise.
-    if (klass->IsFinal() || precise) {
+    // Create an imprecise type if we can't tell for a fact that it is precise.
+    if ((klass->IsFinal()) || precise) {
+      CHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
+      CHECK(!klass->IsInterface());
       entry = new PreciseReferenceType(klass, descriptor, entries_.size());
+
     } else {
       entry = new ReferenceType(klass, descriptor, entries_.size());
     }
@@ -378,6 +380,7 @@ const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocat
 }
 const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
   RegType* entry;
+
   if (uninit_type.IsUnresolvedTypes()) {
     std::string descriptor(uninit_type.GetDescriptor());
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
@@ -390,15 +393,27 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
     entry = new UnresolvedReferenceType(descriptor, entries_.size());
   } else {
     mirror::Class* klass = uninit_type.GetClass();
-    for (size_t i = primitive_count_; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
-        return *cur_entry;
+    if(uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
+      // For uninitialized this reference look for reference types that are not precise.
+      for (size_t i = primitive_count_; i < entries_.size(); i++) {
+        RegType* cur_entry = entries_[i];
+        if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
+          return *cur_entry;
+        }
       }
+      std::string descriptor = "";
+      entry = new ReferenceType(klass, descriptor, entries_.size());
+    } else {
+      for (size_t i = primitive_count_; i < entries_.size(); i++) {
+        RegType* cur_entry = entries_[i];
+        if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
+          return *cur_entry;
+        }
+      }
+      std::string descriptor = "";
+      entry = new PreciseReferenceType(klass, descriptor, entries_.size());
     }
-    std::string descriptor = "";
-    entry = new PreciseReferenceType(klass, descriptor, entries_.size());
-  }
+ }
   entries_.push_back(entry);
   return *entry;
 }
