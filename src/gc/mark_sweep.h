@@ -423,10 +423,12 @@ class MarkSweep : public GarbageCollector {
   UniquePtr<Barrier> gc_barrier_;
   Mutex large_object_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Mutex mark_stack_expand_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+  const bool is_concurrent_;
+
   TimingLogger timings_;
   CumulativeLogger cumulative_timings_;
 
-  bool is_concurrent_;
   bool clear_soft_references_;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.

@@ -137,9 +137,9 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent)
       gc_barrier_(new Barrier(0)),
       large_object_lock_("mark sweep large object lock", kMarkSweepLargeObjectLock),
       mark_stack_expand_lock_("mark sweep mark stack expand lock"),
+      is_concurrent_(is_concurrent),
       timings_(GetName(), true),
-      cumulative_timings_(GetName()),
-      is_concurrent_(is_concurrent) {
+      cumulative_timings_(GetName()) {
   cumulative_timings_.SetName(GetName());
   ResetCumulativeStatistics();
 }
