@@ -42,7 +42,7 @@ void QuasiAtomic::Startup() {
 #if NEED_SWAP_MUTEXES
   gSwapMutexes = new std::vector<Mutex*>;
   for (size_t i = 0; i < kSwapMutexCount; ++i) {
-    gSwapMutexes->push_back(new Mutex(StringPrintf("QuasiAtomic stripe %d", i).c_str()));
+    gSwapMutexes->push_back(new Mutex("QuasiAtomic stripe"));
   }
 #endif
 }
@@ -56,7 +56,10 @@ void QuasiAtomic::Shutdown() {
 
 int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
   int64_t value;
-#if defined(__arm__)
+#if NEED_SWAP_MUTEXES
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  value = *addr;
+#elif defined(__arm__)
   // Exclusive loads are defined not to tear, clearing the exclusive state isn't necessary. If we
   // have LPAE (such as Cortex-A15) then ldrd would suffice.
   __asm__ __volatile__("@ QuasiAtomic::Read64\n"
@@ -69,14 +72,16 @@ int64_t QuasiAtomic::Read64(volatile const int64_t* addr) {
       : "=x" (value)
       : "m" (*addr));
 #else
-  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
-  return *addr;
+#error Unexpected architecture
 #endif
   return value;
 }
 
 void QuasiAtomic::Write64(volatile int64_t* addr, int64_t value) {
-#if defined(__arm__)
+#if NEED_SWAP_MUTEXES
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  *addr = value;
+#elif defined(__arm__)
   // The write is done as a swap so that the cache-line is in the exclusive state for the store. If
   // we know that ARM architecture has LPAE (such as Cortex-A15) this isn't necessary and strd will
   // suffice.
@@ -96,14 +101,20 @@ void QuasiAtomic::Write64(volatile int64_t* addr, int64_t value) {
       : "=m" (*addr)
       : "x" (value));
 #else
-  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
-  *addr = value;
+#error Unexpected architecture
 #endif
 }
 
 
 bool QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr) {
-#if defined(__arm__)
+#if NEED_SWAP_MUTEXES
+  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
+  if (*addr == old_value) {
+    *addr = new_value;
+    return true;
+  }
+  return false;
+#elif defined(__arm__)
   int64_t prev;
   int status;
   do {
@@ -134,12 +145,7 @@ bool QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* 
       );
   return status != 0;
 #else
-  MutexLock mu(Thread::Current(), GetSwapMutex(addr));
-  if (*addr == old_value) {
-    *addr = new_value;
-    return true;
-  }
-  return false;
+#error Unexpected architecture
 #endif
 }
 
