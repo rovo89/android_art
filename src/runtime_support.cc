@@ -207,11 +207,11 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
         // instance fields must be being accessed on an initialized class
         return resolved_field;
       } else {
-        // If the class is already initializing, we must be inside <clinit>, or
-        // we'd still be waiting for the lock.
-        if (fields_class->IsInitializing()) {
+        // If the class is initialized we're done.
+        if (fields_class->IsInitialized()) {
           return resolved_field;
         } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true, true)) {
+          // otherwise let's ensure the class is initialized before resolving the field
           return resolved_field;
         } else {
           DCHECK(self->IsExceptionPending());  // Throw exception and unwind

@@ -1003,7 +1003,7 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        DCHECK(method->GetNativeGcMap() != NULL) << PrettyMethod(method);
+        CHECK((method->GetCode() == NULL) || (method->GetNativeGcMap() != NULL));
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
