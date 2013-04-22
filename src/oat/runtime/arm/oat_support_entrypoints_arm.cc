@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "runtime_support.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "runtime_support.h"
 
 namespace art {
 
@@ -97,9 +97,6 @@ extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
 extern "C" int32_t art_quick_string_compareto(void*, void*);
 
 // Invoke entrypoints.
-const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod*,
-                                                     mirror::AbstractMethod**, Thread*,
-                                                     Runtime::TrampolineType);
 extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);
@@ -120,12 +117,6 @@ extern "C" void art_quick_throw_div_zero_from_code();
 extern "C" void art_quick_throw_no_such_method_from_code(int32_t method_idx);
 extern "C" void art_quick_throw_null_pointer_exception_from_code();
 extern "C" void art_quick_throw_stack_overflow_from_code(void*);
-
-// Instrumentation entrypoints.
-extern "C" void art_quick_instrumentation_entry_from_code(void*);
-extern "C" void art_quick_instrumentation_exit_from_code();
-extern "C" void art_quick_interpreter_entry(void*);
-extern "C" void art_quick_deoptimize();
 
 void InitEntryPoints(EntryPoints* points) {
   // Alloc
@@ -206,7 +197,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pMemcpy = memcpy;
 
   // Invocation
-  points->pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
   points->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
   points->pInvokeInterfaceTrampoline = art_quick_invoke_interface_trampoline;
   points->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;
@@ -227,21 +217,5 @@ void InitEntryPoints(EntryPoints* points) {
   points->pThrowNullPointerFromCode = art_quick_throw_null_pointer_exception_from_code;
   points->pThrowStackOverflowFromCode = art_quick_throw_stack_overflow_from_code;
 };
-
-uintptr_t GetInstrumentationExitPc() {
-  return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit_from_code);
-}
-
-uintptr_t GetDeoptimizationEntryPoint() {
-  return reinterpret_cast<uintptr_t>(art_quick_deoptimize);
-}
-
-void* GetInstrumentationEntryPoint() {
-  return reinterpret_cast<void*>(art_quick_instrumentation_entry_from_code);
-}
-
-void* GetInterpreterEntryPoint() {
-  return reinterpret_cast<void*>(art_quick_interpreter_entry);
-}
 
 }  // namespace art

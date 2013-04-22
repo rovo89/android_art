@@ -62,7 +62,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
         if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
           new_code = class_linker->GetOatCodeFor(method);
         } else {
-          new_code = Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData();
+          new_code = GetResolutionTrampoline();
         }
       } else {  // !uninstall
         if (!interpreter_stubs_installed_ || method->IsNative()) {
@@ -380,7 +380,7 @@ const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* metho
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetCode();
     DCHECK(code != NULL);
-    if (LIKELY(code != runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData())) {
+    if (LIKELY(code != GetResolutionTrampoline())) {
       return code;
     }
   }

@@ -102,9 +102,6 @@ Runtime::Runtime()
       use_compile_time_class_path_(false),
       main_thread_group_(NULL),
       system_thread_group_(NULL) {
-  for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
-    resolution_stub_array_[i] = NULL;
-  }
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     callee_save_methods_[i] = NULL;
   }
@@ -1070,9 +1067,6 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   }
   visitor(jni_stub_array_, arg);
   visitor(abstract_method_error_stub_array_, arg);
-  for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
-    visitor(resolution_stub_array_[i], arg);
-  }
   visitor(resolution_method_, arg);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_methods_[i], arg);
@@ -1109,12 +1103,6 @@ void Runtime::SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method
   abstract_method_error_stub_array_ = abstract_method_error_stub_array;
 }
 
-void Runtime::SetResolutionStubArray(mirror::ByteArray* resolution_stub_array, TrampolineType type) {
-  CHECK(resolution_stub_array != NULL);
-  CHECK(!HasResolutionStubArray(type) || resolution_stub_array_[type] == resolution_stub_array);
-  resolution_stub_array_[type] = resolution_stub_array;
-}
-
 mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   mirror::Class* method_class = mirror::AbstractMethod::GetMethodClass();
   Thread* self = Thread::Current();
@@ -1123,9 +1111,8 @@ mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
-  mirror::ByteArray* unknown_resolution_stub = GetResolutionStubArray(kUnknownMethod);
-  CHECK(unknown_resolution_stub != NULL);
-  method->SetCode(unknown_resolution_stub->GetData());
+  // When compiling, the code pointer will get set later when the image is loaded.
+  method->SetCode(Runtime::Current()->IsCompiler() ? NULL : GetResolutionTrampoline());
   return method.get();
 }
 

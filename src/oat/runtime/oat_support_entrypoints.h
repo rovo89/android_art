@@ -112,9 +112,6 @@ struct PACKED(4) EntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(mirror::AbstractMethod*,
-                                                           mirror::AbstractMethod**, Thread*,
-                                                           Runtime::TrampolineType);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
@@ -162,18 +159,6 @@ void InitEntryPoints(EntryPoints* points);
 
 // Change the debugger entry point in the data structure.
 void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled);
-
-// The return_pc of instrumentation exit stub.
-uintptr_t GetInstrumentationExitPc();
-
-// Entry point for deoptimization.
-uintptr_t GetDeoptimizationEntryPoint();
-
-// Return address of instrumentation stub.
-void* GetInstrumentationEntryPoint();
-
-// Return address of interpreter stub.
-void* GetInterpreterEntryPoint();
 
 }  // namespace art
 

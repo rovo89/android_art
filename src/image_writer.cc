@@ -354,10 +354,6 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
-  image_roots->Set(ImageHeader::kStaticResolutionStubArray,
-                   runtime->GetResolutionStubArray(Runtime::kStaticMethod));
-  image_roots->Set(ImageHeader::kUnknownMethodResolutionStubArray,
-                   runtime->GetResolutionStubArray(Runtime::kUnknownMethod));
   image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
   image_roots->Set(ImageHeader::kCalleeSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
@@ -490,31 +486,13 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   }
 
   if (orig == Runtime::Current()->GetResolutionMethod()) {
-    // The resolution stub's code points at the unknown resolution trampoline
-    ByteArray* orig_res_stub_array_ =
-        Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod);
-    CHECK(orig->GetCode() == orig_res_stub_array_->GetData());
-    ByteArray* copy_res_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array_));
-    copy->SetCode(copy_res_stub_array_->GetData());
+    // The resolution method's code is set to the resolution trampoline when we load the image.
+    copy->SetCode(NULL);
     return;
   }
 
-  // Non-abstract methods typically have code
-  uint32_t code_offset = orig->GetOatCodeOffset();
-  const byte* code = NULL;
-  if (orig->IsStatic()) {
-    // Static methods may point at the resolution trampoline stub
-    ByteArray* orig_res_stub_array_ =
-        Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod);
-    if (reinterpret_cast<int8_t*>(code_offset) == orig_res_stub_array_->GetData()) {
-      ByteArray* copy_res_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array_));
-      code = reinterpret_cast<const byte*>(copy_res_stub_array_->GetData());
-    }
-  }
-  if (code == NULL) {
-    code = GetOatAddress(code_offset);
-  }
-  copy->SetCode(code);
+  // Non-abstract methods have code
+  copy->SetCode(GetOatAddress(orig->GetOatCodeOffset()));
 
   if (orig->IsNative()) {
     // The native method's pointer is directed to a stub to lookup via dlsym.

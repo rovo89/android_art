@@ -264,24 +264,6 @@ class Runtime {
 
   void SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method_error_stub_array);
 
-  enum TrampolineType {
-    kStaticMethod,
-    kUnknownMethod,
-    kLastTrampolineMethodType  // Value used for iteration
-  };
-
-  bool HasResolutionStubArray(TrampolineType type) const {
-    return resolution_stub_array_[type] != NULL;
-  }
-
-  mirror::ByteArray* GetResolutionStubArray(TrampolineType type) const {
-    CHECK(HasResolutionStubArray(type));
-    DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastTrampolineMethodType));
-    return resolution_stub_array_[type];
-  }
-
-  void SetResolutionStubArray(mirror::ByteArray* resolution_stub_array, TrampolineType type);
-
   // Returns a special method that calls into a trampoline for runtime method resolution
   mirror::AbstractMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
@@ -418,8 +400,6 @@ class Runtime {
   mirror::ByteArray* jni_stub_array_;
 
   mirror::ByteArray* abstract_method_error_stub_array_;
-
-  mirror::ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
   mirror::AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
 

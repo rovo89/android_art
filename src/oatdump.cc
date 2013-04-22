@@ -84,8 +84,6 @@ static void usage() {
 const char* image_roots_descriptions_[] = {
   "kJniStubArray",
   "kAbstractMethodErrorStubArray",
-  "kStaticResolutionStubArray",
-  "kUnknownMethodResolutionStubArray",
   "kResolutionMethod",
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
@@ -883,9 +881,8 @@ class ImageDumper {
 
   const void* GetOatCodeBegin(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
-    if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
+    if (code == GetResolutionTrampoline()) {
       code = oat_dumper_->GetOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {
@@ -999,7 +996,7 @@ class ImageDumper {
           indent_os << StringPrintf("OAT CODE: %p\n", oat_code);
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
-          method->IsResolutionMethod()) {
+          method->IsResolutionMethod() || MethodHelper(method).IsClassInitializer()) {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {

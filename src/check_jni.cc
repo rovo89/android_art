@@ -31,9 +31,9 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
 #include "object_utils.h"
+#include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
-#include "runtime.h"
 
 #define LIBCORE_CPP_JNI_HELPERS
 #include <JNIHelp.h> // from libcore

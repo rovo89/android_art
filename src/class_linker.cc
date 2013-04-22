@@ -1034,12 +1034,11 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
     return;
   }
 
-  // Check if object is an uncompiled method and point the to the interpreter entry point.
+  // Check if object is a method without its code set and point it to the resolution trampoline.
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
     if (method->GetCode() == NULL) {
-      const void* interpreter_entry = GetInterpreterEntryPoint();
-      method->SetCode(interpreter_entry);
+      method->SetCode(GetResolutionTrampoline());
     }
   }
 }
@@ -1607,7 +1606,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
-    method->SetCode(runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
+    method->SetCode(GetResolutionTrampoline());
   }
 
   if (method->IsNative()) {

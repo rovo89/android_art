@@ -246,6 +246,47 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+     /*
+     * Portable resolution trampoline.
+     */
+     .extern artPortableResolutionTrampoline
+ENTRY art_portable_resolution_trampoline
+    push   {r0, r1, r2, r3, lr}           @ spill regs
+    .save  {r0, r1, r2, r3, lr}
+    .pad #20
+    .cfi_adjust_cfa_offset 20
+    sub    sp, #12                        @ pad stack pointer to align frame
+    .pad #12
+    mov    r2, r9                         @ pass Thread::Current
+    mov    r1, sp                         @ pass stack pointer
+    blx    artPortableResolutionTrampoline   @ (method_idx, sp, Thread*)
+    mov    r12, r0                        @ save method code pointer result
+    add    sp, #12                        @ remove padding from stack pointer
+    .cfi_adjust_cfa_offset -12
+    pop    {r0, r1, r2, r3, lr}           @ restore regs
+    .cfi_adjust_cfa_offset -20
+    cmp    r12, #0                        @ is method code null?
+    bxne   r12                            @ if non-null, tail call to method's code
+    bx     lr                             @ otherwise, return to caller to handle exception
+END art_portable_resolution_trampoline
+
+    /*
+     * Quick resolution trampoline.
+     */
+     .extern artQuickResolutionTrampoline
+ENTRY art_quick_resolution_trampoline
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
+    mov    r2, r9                         @ pass Thread::Current
+    mov    r1, sp                         @ pass stack pointer
+    blx    artQuickResolutionTrampoline   @ (method_idx, sp, Thread*)
+    mov    r12, r0                        @ save method code pointer result
+    add    sp, #4                         @ set up stack pointer
+    .cfi_adjust_cfa_offset -4
+    pop    {r0-r3, r5-r8, r10-r11, lr}    @ 11 words, r0 will hold method*
+    .cfi_adjust_cfa_offset -44
+    bx     r12                            @ leaf call to method code
+END art_quick_resolution_trampoline
+
     /*
      * Portable invocation stub.
      * On entry:

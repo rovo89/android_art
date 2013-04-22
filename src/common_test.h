@@ -36,6 +36,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
+#include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
@@ -354,13 +355,6 @@ class CommonTest : public testing::Test {
 
     runtime_->SetJniDlsymLookupStub(CompilerDriver::CreateJniDlsymLookupStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
-    for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
-      Runtime::TrampolineType type = Runtime::TrampolineType(i);
-      if (!runtime_->HasResolutionStubArray(type)) {
-        runtime_->SetResolutionStubArray(
-            CompilerDriver::CreateResolutionStub(instruction_set, type), type);
-      }
-    }
     if (!runtime_->HasResolutionMethod()) {
       runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
     }

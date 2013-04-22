@@ -518,14 +518,6 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
   mirror::Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
   runtime->SetAbstractMethodErrorStubArray(down_cast<mirror::ByteArray*>(ame_stub_array));
 
-  mirror::Object* resolution_stub_array =
-      image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
-  runtime->SetResolutionStubArray(
-      down_cast<mirror::ByteArray*>(resolution_stub_array), Runtime::kStaticMethod);
-  resolution_stub_array = image_header.GetImageRoot(ImageHeader::kUnknownMethodResolutionStubArray);
-  runtime->SetResolutionStubArray(
-      down_cast<mirror::ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
-
   mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
   runtime->SetResolutionMethod(down_cast<mirror::AbstractMethod*>(resolution_method));
 

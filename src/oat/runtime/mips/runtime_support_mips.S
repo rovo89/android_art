@@ -378,16 +378,16 @@ ENTRY \c_name
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
     lw    $a2, 48($sp)                    # pass caller Method*
     move  $t0, $sp                        # save $sp
-    addiu $sp, $sp, -16                   # make space for extra args
-    .cfi_adjust_cfa_offset 16
+    addiu $sp, $sp, -32                   # make space for extra args
+    .cfi_adjust_cfa_offset 32
     move  $a3, rSELF                      # pass Thread::Current
-    sw    $gp, 12($sp)                    # save $gp
+    sw    $gp, 20($sp)                    # save $gp
     .cfi_rel_offset 28, 12
     jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
     sw    $t0, 16($sp)                    # pass $sp
-    lw    $gp, 12($sp)                    # restore $gp
-    addiu $sp, $sp, 16                    # release out args
-    .cfi_adjust_cfa_offset -16
+    lw    $gp, 20($sp)                    # restore $gp
+    addiu $sp, $sp, 32                    # release out args
+    .cfi_adjust_cfa_offset -32
     move  $a0, $v0                        # save target Method*
     move  $t9, $v1                        # save $v0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -407,6 +407,70 @@ INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
+
+     /*
+     * Portable resolution trampoline.
+     */
+     .extern artPortableResolutionTrampoline
+ENTRY art_portable_resolution_trampoline
+    GENERATE_GLOBAL_POINTER
+    addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
+    .cfi_adjust_cfa_offset 32
+    sw     $ra, 16($sp)
+    .cfi_rel_offset 31, 16
+    sw     $a3, 12($sp)
+    .cfi_rel_offset 7, 12
+    sw     $a2, 8($sp)
+    .cfi_rel_offset 6, 8
+    sw     $a1, 4($sp)
+    .cfi_rel_offset 5, 4
+    sw     $a0, 0($sp)
+    .cfi_rel_offset 4, 0
+    move  $a2, $s1              # pass Thread::Current()
+    jal   artPortableResolutionTrampoline  # (method_idx, sp, Thread*)
+    move  $a1, $sp              # pass stack pointer
+    lw    $a0, 0($sp)           # restore registers from stack
+    lw    $a1, 4($sp)
+    lw    $a2, 8($sp)
+    lw    $a3, 12($sp)
+    lw    $ra, 16($sp)
+    beq   $v0, $zero, resolve_fail
+    addiu $sp, $sp, 32          # restore the stack
+    .cfi_adjust_cfa_offset -32
+    jr    $t9                   # leaf call to method's code
+    move  $t9, $v0              # put method code result in $t9
+resolve_fail:
+    jr    $ra
+    nop
+END art_portable_resolution_trampoline
+
+     /*
+     * Quick resolution trampoline.
+     */
+     .extern artQuickResolutionTrampoline
+ENTRY art_quick_resolution_trampoline
+    GENERATE_GLOBAL_POINTER
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    move  $a2, $s1              # pass Thread::Current()
+    jal   artQuickResolutionTrampoline  # (method_idx, sp, Thread*)
+    move  $a1, $sp              # pass stack pointer
+    move  $t9, $v0              # put method code result in $t9
+    lw    $a0, 0($sp)           # restore registers from stack
+    lw    $a1, 4($sp)
+    lw    $a2, 8($sp)
+    lw    $a3, 12($sp)
+    lw    $s2, 16($sp)
+    lw    $s3, 20($sp)
+    lw    $s4, 24($sp)
+    lw    $s5, 28($sp)
+    lw    $s6, 32($sp)
+    lw    $s7, 36($sp)
+    lw    $fp, 40($sp)
+    lw    $ra, 44($sp)
+    jr    $t9                   # leaf call to method's code
+    addiu $sp, $sp, 48          # restore the stack
+    .cfi_adjust_cfa_offset -48
+END art_quick_resolution_trampoline
 
     /*
      * Common invocation stub for portable and quick.

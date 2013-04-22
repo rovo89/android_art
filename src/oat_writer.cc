@@ -369,7 +369,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
         method->GetDeclaringClass()->IsInitialized()) {
       method->SetOatCodeOffset(code_offset);
     } else {
-      method->SetCode(Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
+      method->SetCode(NULL);
     }
     method->SetOatVmapTableOffset(vmap_table_offset);
     method->SetOatNativeGcMapOffset(gc_map_offset);

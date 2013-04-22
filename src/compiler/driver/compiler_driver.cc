@@ -409,22 +409,6 @@ CompilerTls* CompilerDriver::GetTls() {
   return res;
 }
 
-mirror::ByteArray* CompilerDriver::CreateResolutionStub(InstructionSet instruction_set,
-                                                        Runtime::TrampolineType type) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return arm::ArmCreateResolutionTrampoline(type);
-    case kMips:
-      return mips::MipsCreateResolutionTrampoline(type);
-    case kX86:
-      return x86::X86CreateResolutionTrampoline(type);
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return NULL;
-  }
-}
-
 mirror::ByteArray* CompilerDriver::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
   switch (instruction_set) {
     case kArm:

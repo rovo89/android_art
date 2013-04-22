@@ -20,9 +20,9 @@
 #include "abstract_method.h"
 
 #include "dex_file.h"
-#include "oat/runtime/oat_support_entrypoints.h"
 #include "object_array.h"
 #include "runtime.h"
+#include "runtime_support.h"
 
 namespace art {
 namespace mirror {
@@ -117,8 +117,7 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (GetCode() == GetInterpreterEntryPoint()) {
     return;
   }
-  Runtime* runtime = Runtime::Current();
-  if (GetCode() == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
+  if (GetCode() == GetResolutionTrampoline()) {
       return;
   }
   DCHECK(IsWithinCode(pc))

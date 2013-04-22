@@ -28,8 +28,6 @@ typedef PrimitiveArray<int8_t> ByteArray;
 namespace arm {
   mirror::ByteArray* CreateAbstractMethodErrorStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
@@ -37,16 +35,12 @@ namespace arm {
 namespace mips {
   mirror::ByteArray* CreateAbstractMethodErrorStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 namespace x86 {
   mirror::ByteArray* CreateAbstractMethodErrorStub()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ByteArray* CreateJniDlsymLookupStub()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

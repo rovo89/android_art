@@ -378,12 +378,6 @@ class Dex2Oat {
     if (!runtime->HasAbstractMethodErrorStubArray()) {
       runtime->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
     }
-    for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
-      Runtime::TrampolineType type = Runtime::TrampolineType(i);
-      if (!runtime->HasResolutionStubArray(type)) {
-        runtime->SetResolutionStubArray(CompilerDriver::CreateResolutionStub(instruction_set, type), type);
-      }
-    }
     if (!runtime->HasResolutionMethod()) {
       runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
     }

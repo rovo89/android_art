@@ -32,7 +32,13 @@
 
 extern "C" void art_interpreter_invoke_handler();
 extern "C" void art_portable_proxy_invoke_handler();
+extern "C" void art_portable_resolution_trampoline();
+extern "C" void art_quick_deoptimize();
+extern "C" void art_quick_instrumentation_entry_from_code(void*);
+extern "C" void art_quick_instrumentation_exit_from_code();
+extern "C" void art_quick_interpreter_entry(void*);
 extern "C" void art_quick_proxy_invoke_handler();
+extern "C" void art_quick_resolution_trampoline();
 extern "C" void art_work_around_app_jni_bugs();
 
 extern "C" double art_l2d(int64_t l);
@@ -313,6 +319,46 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char
                                     std::vector<jvalue>& args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ;
 
+// Entry point for deoptimization.
+static inline uintptr_t GetDeoptimizationEntryPoint() {
+  return reinterpret_cast<uintptr_t>(art_quick_deoptimize);
+}
+
+// Return address of instrumentation stub.
+static inline void* GetInstrumentationEntryPoint() {
+  return reinterpret_cast<void*>(art_quick_instrumentation_entry_from_code);
+}
+
+// The return_pc of instrumentation exit stub.
+static inline uintptr_t GetInstrumentationExitPc() {
+  return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit_from_code);
+}
+
+// Return address of interpreter stub.
+static inline void* GetInterpreterEntryPoint() {
+  return reinterpret_cast<void*>(art_quick_interpreter_entry);
+}
+
+// Return address of portable resolution trampoline stub.
+static inline void* GetPortableResolutionTrampoline() {
+  return reinterpret_cast<void*>(art_portable_resolution_trampoline);
+}
+
+// Return address of quick resolution trampoline stub.
+static inline void* GetQuickResolutionTrampoline() {
+  return reinterpret_cast<void*>(art_quick_resolution_trampoline);
+}
+
+// Return address of resolution trampoline stub for defined compiler.
+static inline void* GetResolutionTrampoline() {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return GetPortableResolutionTrampoline();
+#else
+  return GetQuickResolutionTrampoline();
+#endif
+
 }  // namespace art
+
+}
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

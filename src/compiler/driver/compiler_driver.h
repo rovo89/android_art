@@ -106,12 +106,6 @@ class CompilerDriver {
   static mirror::ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-
-  // Generate the trampoline that's invoked by unresolved direct methods
-  static mirror::ByteArray* CreateResolutionStub(InstructionSet instruction_set,
-                                                 Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   static mirror::ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

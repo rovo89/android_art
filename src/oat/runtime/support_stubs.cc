@@ -35,11 +35,94 @@ extern "C" void art_quick_deliver_exception_from_code(void*);
 
 namespace art {
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
-// Lazily resolve a method. Called by stub code.
-const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
-                                                     mirror::AbstractMethod** sp, Thread* thread,
-                                                     Runtime::TrampolineType type)
+// Lazily resolve a method for portable. Called by stub code.
+extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* called,
+                                                       mirror::AbstractMethod** called_addr,
+                                                       Thread* thread)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t dex_pc;
+  mirror::AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
+
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  InvokeType invoke_type;
+  uint32_t dex_method_idx;
+  DCHECK(called->IsRuntimeMethod());
+  const DexFile::CodeItem* code_item = MethodHelper(caller).GetCodeItem();
+  CHECK_LT(dex_pc, code_item->insns_size_in_code_units_);
+  const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
+  Instruction::Code instr_code = instr->Opcode();
+  switch (instr_code) {
+    case Instruction::INVOKE_DIRECT:  // Fall-through.
+    case Instruction::INVOKE_DIRECT_RANGE:
+      invoke_type = kDirect;
+      break;
+    case Instruction::INVOKE_STATIC:  // Fall-through.
+    case Instruction::INVOKE_STATIC_RANGE:
+      invoke_type = kStatic;
+      break;
+    case Instruction::INVOKE_SUPER:  // Fall-through.
+    case Instruction::INVOKE_SUPER_RANGE:
+      invoke_type = kSuper;
+      break;
+    case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+      invoke_type = kVirtual;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
+      invoke_type = kDirect;  // Avoid used uninitialized warnings.
+  }
+  DecodedInstruction dec_insn(instr);
+  dex_method_idx = dec_insn.vB;
+  called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
+  const void* code = NULL;
+  if (LIKELY(!thread->IsExceptionPending())) {
+    // Incompatible class change should have been handled in resolve method.
+    CHECK(!called->CheckIncompatibleClassChange(invoke_type));
+    // Ensure that the called method's class is initialized.
+    mirror::Class* called_class = called->GetDeclaringClass();
+    linker->EnsureInitialized(called_class, true, true);
+    if (LIKELY(called_class->IsInitialized())) {
+      code = called->GetCode();
+      // TODO: remove this after we solve the link issue.
+      { // for lazy link.
+        if (code == NULL) {
+          code = linker->GetOatCodeFor(called);
+        }
+      }
+    } else if (called_class->IsInitializing()) {
+      if (invoke_type == kStatic) {
+        // Class is still initializing, go to oat and grab code (trampoline must be left in place
+        // until class is initialized to stop races between threads).
+        code = linker->GetOatCodeFor(called);
+      } else {
+        // No trampoline for non-static methods.
+        code = called->GetCode();
+        // TODO: remove this after we solve the link issue.
+        { // for lazy link.
+          if (code == NULL) {
+            code = linker->GetOatCodeFor(called);
+          }
+        }
+      }
+    } else {
+      DCHECK(called_class->IsErroneous());
+    }
+  }
+  if (LIKELY(code != NULL)) {
+    // Expect class to at least be initializing.
+    DCHECK(called->GetDeclaringClass()->IsInitializing());
+    // Don't want infinite recursion.
+    DCHECK(code != GetResolutionTrampoline());
+    // Set up entry into main method
+    *called_addr = called;
+  }
+  return code;
+}
+
+// Lazily resolve a method for quick. Called by stub code.
+extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* called,
+                                                    mirror::AbstractMethod** sp, Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__arm__)
   // On entry the stack pointed by sp is:
@@ -122,8 +205,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   const char* shorty;
   uint32_t shorty_len;
 #endif
-  if (type == Runtime::kUnknownMethod) {
-    DCHECK(called->IsRuntimeMethod());
+  if (called->IsRuntimeMethod()) {
     uint32_t dex_pc = caller->ToDexPc(caller_pc);
     const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
@@ -156,8 +238,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
 #endif
   } else {
-    DCHECK(!called->IsRuntimeMethod());
-    invoke_type = (type == Runtime::kStaticMethod) ? kStatic : kDirect;
+    invoke_type = kStatic;
     dex_method_idx = called->GetDexMethodIndex();
 #if !defined(__i386__)
     MethodHelper mh(called);
@@ -212,7 +293,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
   }
 #endif
   // Resolve method filling in dex cache
-  if (type == Runtime::kUnknownMethod) {
+  if (called->IsRuntimeMethod()) {
     called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
   }
   const void* code = NULL;
@@ -248,105 +329,12 @@ const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* cal
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
+    DCHECK(code != GetResolutionTrampoline());
     // Set up entry into main method
     regs[0] = reinterpret_cast<uintptr_t>(called);
   }
   return code;
 }
-#else // ART_USE_PORTABLE_COMPILER
-const void* UnresolvedDirectMethodTrampolineFromCode(mirror::AbstractMethod* called,
-                                                     mirror::AbstractMethod** called_addr,
-                                                     Thread* thread, Runtime::TrampolineType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t dex_pc;
-  mirror::AbstractMethod* caller = thread->GetCurrentMethod(&dex_pc);
-
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  InvokeType invoke_type;
-  uint32_t dex_method_idx;
-  if (type == Runtime::kUnknownMethod) {
-    DCHECK(called->IsRuntimeMethod());
-    const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
-    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
-    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
-    Instruction::Code instr_code = instr->Opcode();
-    switch (instr_code) {
-      case Instruction::INVOKE_DIRECT:  // Fall-through.
-      case Instruction::INVOKE_DIRECT_RANGE:
-        invoke_type = kDirect;
-        break;
-      case Instruction::INVOKE_STATIC:  // Fall-through.
-      case Instruction::INVOKE_STATIC_RANGE:
-        invoke_type = kStatic;
-        break;
-      case Instruction::INVOKE_SUPER:  // Fall-through.
-      case Instruction::INVOKE_SUPER_RANGE:
-        invoke_type = kSuper;
-        break;
-      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
-      case Instruction::INVOKE_VIRTUAL_RANGE:
-        invoke_type = kVirtual;
-        break;
-      default:
-        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
-        invoke_type = kDirect;  // Avoid used uninitialized warnings.
-    }
-    DecodedInstruction dec_insn(instr);
-    dex_method_idx = dec_insn.vB;
-  } else {
-    DCHECK(!called->IsRuntimeMethod());
-    invoke_type = (type == Runtime::kStaticMethod) ? kStatic : kDirect;
-    dex_method_idx = called->GetDexMethodIndex();
-  }
-  if (type == Runtime::kUnknownMethod) {
-    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
-  }
-  const void* code = NULL;
-  if (LIKELY(!thread->IsExceptionPending())) {
-    // Incompatible class change should have been handled in resolve method.
-    CHECK(!called->CheckIncompatibleClassChange(invoke_type));
-    // Ensure that the called method's class is initialized.
-    mirror::Class* called_class = called->GetDeclaringClass();
-    linker->EnsureInitialized(called_class, true, true);
-    if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetCode();
-      // TODO: remove this after we solve the link issue.
-      { // for lazy link.
-        if (code == NULL) {
-          code = linker->GetOatCodeFor(called);
-        }
-      }
-    } else if (called_class->IsInitializing()) {
-      if (invoke_type == kStatic) {
-        // Class is still initializing, go to oat and grab code (trampoline must be left in place
-        // until class is initialized to stop races between threads).
-        code = linker->GetOatCodeFor(called);
-      } else {
-        // No trampoline for non-static methods.
-        code = called->GetCode();
-        // TODO: remove this after we solve the link issue.
-        { // for lazy link.
-          if (code == NULL) {
-            code = linker->GetOatCodeFor(called);
-          }
-        }
-      }
-    } else {
-      DCHECK(called_class->IsErroneous());
-    }
-  }
-  if (LIKELY(code != NULL)) {
-    // Expect class to at least be initializing.
-    DCHECK(called->GetDeclaringClass()->IsInitializing());
-    // Don't want infinite recursion.
-    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
-    // Set up entry into main method
-    *called_addr = called;
-  }
-  return code;
-}
-#endif // ART_USE_PORTABLE_COMPILER
 
 // Called by the AbstractMethodError. Called by stub code.
 extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* self,
