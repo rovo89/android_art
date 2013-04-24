@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
 #include "callee_save_frame.h"
-#endif
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
@@ -25,9 +23,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
-#if defined(ART_USE_PORTABLE_COMPILER)
-#include "nth_caller_visitor.h"
-#endif
 #include "scoped_thread_state_change.h"
 
 // Architecture specific assembler helper to deliver exception.
