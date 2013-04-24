@@ -41,35 +41,39 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
   uint32_t dex_method_idx;
-  DCHECK(called->IsRuntimeMethod());
-  const DexFile::CodeItem* code_item = MethodHelper(caller).GetCodeItem();
-  CHECK_LT(dex_pc, code_item->insns_size_in_code_units_);
-  const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
-  Instruction::Code instr_code = instr->Opcode();
-  switch (instr_code) {
-    case Instruction::INVOKE_DIRECT:  // Fall-through.
-    case Instruction::INVOKE_DIRECT_RANGE:
-      invoke_type = kDirect;
-      break;
-    case Instruction::INVOKE_STATIC:  // Fall-through.
-    case Instruction::INVOKE_STATIC_RANGE:
-      invoke_type = kStatic;
-      break;
-    case Instruction::INVOKE_SUPER:  // Fall-through.
-    case Instruction::INVOKE_SUPER_RANGE:
-      invoke_type = kSuper;
-      break;
-    case Instruction::INVOKE_VIRTUAL:  // Fall-through.
-    case Instruction::INVOKE_VIRTUAL_RANGE:
-      invoke_type = kVirtual;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
-      invoke_type = kDirect;  // Avoid used uninitialized warnings.
+  if (called->IsRuntimeMethod()) {
+    const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
+    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
+    Instruction::Code instr_code = instr->Opcode();
+    switch (instr_code) {
+      case Instruction::INVOKE_DIRECT:  // Fall-through.
+      case Instruction::INVOKE_DIRECT_RANGE:
+        invoke_type = kDirect;
+        break;
+      case Instruction::INVOKE_STATIC:  // Fall-through.
+      case Instruction::INVOKE_STATIC_RANGE:
+        invoke_type = kStatic;
+        break;
+      case Instruction::INVOKE_SUPER:  // Fall-through.
+      case Instruction::INVOKE_SUPER_RANGE:
+        invoke_type = kSuper;
+        break;
+      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+      case Instruction::INVOKE_VIRTUAL_RANGE:
+        invoke_type = kVirtual;
+        break;
+      default:
+        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
+        invoke_type = kDirect;  // Avoid used uninitialized warnings.
+    }
+    DecodedInstruction dec_insn(instr);
+    dex_method_idx = dec_insn.vB;
+    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
+  } else {
+    CHECK(called->IsStatic()) << PrettyMethod(called);
+    invoke_type = kStatic;
   }
-  DecodedInstruction dec_insn(instr);
-  dex_method_idx = dec_insn.vB;
-  called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
