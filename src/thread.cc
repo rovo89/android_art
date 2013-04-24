@@ -671,7 +671,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   bool is_daemon = false;
   Thread* self = Thread::Current();
 
-  if (thread != NULL && thread->opeer_ != NULL) {
+  if (self != NULL && thread != NULL && thread->opeer_ != NULL) {
     ScopedObjectAccessUnchecked soa(self);
     priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->opeer_);
     is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->opeer_);
