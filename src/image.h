@@ -81,8 +81,6 @@ class PACKED(4) ImageHeader {
   }
 
   enum ImageRoot {
-    kJniStubArray,
-    kAbstractMethodErrorStubArray,
     kResolutionMethod,
     kCalleeSaveMethod,
     kRefsOnlySaveMethod,

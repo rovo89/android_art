@@ -257,6 +257,7 @@ ENTRY art_portable_resolution_trampoline
     .cfi_adjust_cfa_offset 20
     sub    sp, #12                        @ pad stack pointer to align frame
     .pad #12
+    .cfi_adjust_cfa_offset 12
     mov    r2, r9                         @ pass Thread::Current
     mov    r1, sp                         @ pass stack pointer
     blx    artPortableResolutionTrampoline   @ (method_idx, sp, Thread*)
@@ -1065,6 +1066,49 @@ ENTRY art_quick_deoptimize
     mov    r1, sp
     blx    artDeoptimize  @ artDeoptimize(Thread*, SP)
 END art_quick_deoptimize
+
+    /*
+     * Portable abstract method error stub. r0 contains method* on entry. SP unused in portable.
+     */
+    .extern artThrowAbstractMethodErrorFromCode
+ENTRY art_portable_abstract_method_error_stub
+    mov    r1, r9         @ pass Thread::Current
+    b      artThrowAbstractMethodErrorFromCode  @ (Method*, Thread*, SP)
+END art_portable_abstract_method_error_stub
+
+    /*
+     * Quick abstract method error stub. r0 contains method* on entry.
+     */
+ENTRY art_quick_abstract_method_error_stub
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    mov    r1, r9         @ pass Thread::Current
+    mov    r2, sp         @ pass SP
+    b      artThrowAbstractMethodErrorFromCode  @ (Method*, Thread*, SP)
+END art_quick_abstract_method_error_stub
+
+    /*
+     * Jni dlsym lookup stub.
+     */
+    .extern artFindNativeMethod
+ENTRY art_jni_dlsym_lookup_stub
+    push   {r0, r1, r2, r3, lr}           @ spill regs
+    .save  {r0, r1, r2, r3, lr}
+    .pad #20
+    .cfi_adjust_cfa_offset 20
+    sub    sp, #12                        @ pad stack pointer to align frame
+    .pad #12
+    .cfi_adjust_cfa_offset 12
+    mov    r0, r9                         @ pass Thread::Current
+    blx    artFindNativeMethod            @ (Thread*)
+    mov    r12, r0                        @ save result in r12
+    add    sp, #12                        @ restore stack pointer
+    .cfi_adjust_cfa_offset -12
+    pop    {r0, r1, r2, r3, lr}           @ restore regs
+    .cfi_adjust_cfa_offset -20
+    cmp    r12, #0                        @ is method code null?
+    bxne   r12                            @ if non-null, tail call to method's code
+    bx     lr                             @ otherwise, return to caller to handle exception
+END art_jni_dlsym_lookup_stub
 
     /*
      * Signed 64-bit integer multiply.

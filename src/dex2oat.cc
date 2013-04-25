@@ -372,12 +372,6 @@ class Dex2Oat {
     }
     Runtime* runtime = Runtime::Current();
     // if we loaded an existing image, we will reuse values from the image roots.
-    if (!runtime->HasJniDlsymLookupStub()) {
-      runtime->SetJniDlsymLookupStub(CompilerDriver::CreateJniDlsymLookupStub(instruction_set));
-    }
-    if (!runtime->HasAbstractMethodErrorStubArray()) {
-      runtime->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
-    }
     if (!runtime->HasResolutionMethod()) {
       runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
     }

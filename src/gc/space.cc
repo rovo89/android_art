@@ -512,12 +512,6 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
   Runtime* runtime = Runtime::Current();
-  mirror::Object* jni_stub_array = image_header.GetImageRoot(ImageHeader::kJniStubArray);
-  runtime->SetJniDlsymLookupStub(down_cast<mirror::ByteArray*>(jni_stub_array));
-
-  mirror::Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
-  runtime->SetAbstractMethodErrorStubArray(down_cast<mirror::ByteArray*>(ame_stub_array));
-
   mirror::Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
   runtime->SetResolutionMethod(down_cast<mirror::AbstractMethod*>(resolution_method));
 

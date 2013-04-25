@@ -222,9 +222,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	src/native/sun_misc_Unsafe.cc \
 	src/oat.cc \
-	src/oat/runtime/arm/stub_arm.cc \
-	src/oat/runtime/mips/stub_mips.cc \
-	src/oat/runtime/x86/stub_x86.cc \
 	src/oat/utils/arm/assembler_arm.cc \
 	src/oat/utils/arm/managed_register_arm.cc \
 	src/oat/utils/assembler.cc \

@@ -351,9 +351,6 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
       image_roots(self,
                   ObjectArray<Object>::Alloc(self, object_array_class,
                                              ImageHeader::kImageRootsMax));
-  image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
-  image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
-                   runtime->GetAbstractMethodErrorStubArray());
   image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
   image_roots->Set(ImageHeader::kCalleeSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
@@ -478,10 +475,8 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   // OatWriter replaces the code_ with an offset value.
   // Here we readjust to a pointer relative to oat_begin_
   if (orig->IsAbstract()) {
-    // Abstract methods are pointed to a stub that will throw AbstractMethodError if they are called
-    ByteArray* orig_ame_stub_array_ = Runtime::Current()->GetAbstractMethodErrorStubArray();
-    ByteArray* copy_ame_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_ame_stub_array_));
-    copy->SetCode(copy_ame_stub_array_->GetData());
+    // Code for abstract methods is set to the abstract method error stub when we load the image.
+    copy->SetCode(NULL);
     return;
   }
 
@@ -495,11 +490,9 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   copy->SetCode(GetOatAddress(orig->GetOatCodeOffset()));
 
   if (orig->IsNative()) {
-    // The native method's pointer is directed to a stub to lookup via dlsym.
+    // The native method's pointer is set to a stub to lookup via dlsym when we load the image.
     // Note this is not the code_ pointer, that is handled above.
-    ByteArray* orig_jni_stub_array_ = Runtime::Current()->GetJniDlsymLookupStub();
-    ByteArray* copy_jni_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_jni_stub_array_));
-    copy->SetNativeMethod(copy_jni_stub_array_->GetData());
+    copy->SetNativeMethod(NULL);
   } else {
     // normal (non-abstract non-native) methods have mapping tables to relocate
     uint32_t mapping_table_off = orig->GetOatMappingTableOffset();

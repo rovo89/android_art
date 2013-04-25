@@ -51,7 +51,6 @@ class Thread;
 void SetJniGlobalsMax(size_t max);
 void JniAbortF(const char* jni_function_name, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)));
-void* FindNativeMethod(Thread* thread);
 void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
                            size_t method_count);
 

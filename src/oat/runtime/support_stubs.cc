@@ -335,9 +335,9 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
   return code;
 }
 
-// Called by the AbstractMethodError. Called by stub code.
-extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* self,
-                                             mirror::AbstractMethod** sp)
+// Called by the abstract method error stub.
+extern "C" void artThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* self,
+                                                    mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if !defined(ART_USE_PORTABLE_COMPILER)
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
@@ -348,6 +348,28 @@ extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thr
   self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
                            "abstract method \"%s\"", PrettyMethod(method).c_str());
   self->QuickDeliverException();
+}
+
+// Used by the JNI dlsym stub to find the native method to invoke if none is registered.
+extern "C" void* artFindNativeMethod(Thread* self) {
+  Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
+  DCHECK(Thread::Current() == self);
+  ScopedObjectAccess soa(self);
+
+  mirror::AbstractMethod* method = self->GetCurrentMethod(NULL);
+  DCHECK(method != NULL);
+
+  // Lookup symbol address for method, on failure we'll return NULL with an
+  // exception set, otherwise we return the address of the method we found.
+  void* native_code = soa.Vm()->FindCodeForNativeMethod(method);
+  if (native_code == NULL) {
+    DCHECK(self->IsExceptionPending());
+    return NULL;
+  } else {
+    // Register so that future calls don't come here
+    method->RegisterNative(self, native_code);
+    return native_code;
+  }
 }
 
 }  // namespace art

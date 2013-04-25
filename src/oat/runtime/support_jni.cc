@@ -27,28 +27,6 @@
 
 namespace art {
 
-// Used by the JNI dlsym stub to find the native method to invoke if none is registered.
-extern void* FindNativeMethod(Thread* self) {
-  Locks::mutator_lock_->AssertNotHeld(self);  // We come here as Native.
-  DCHECK(Thread::Current() == self);
-  ScopedObjectAccess soa(self);
-
-  mirror::AbstractMethod* method = self->GetCurrentMethod(NULL);
-  DCHECK(method != NULL);
-
-  // Lookup symbol address for method, on failure we'll return NULL with an
-  // exception set, otherwise we return the address of the method we found.
-  void* native_code = soa.Vm()->FindCodeForNativeMethod(method);
-  if (native_code == NULL) {
-    DCHECK(self->IsExceptionPending());
-    return NULL;
-  } else {
-    // Register so that future calls don't come here
-    method->RegisterNative(self, native_code);
-    return native_code;
-  }
-}
-
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
 extern uint32_t JniMethodStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
@@ -184,7 +162,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
   // Load expected destination, see Method::RegisterNative
   const void* code = reinterpret_cast<const void*>(jni_method->GetNativeGcMap());
   if (UNLIKELY(code == NULL)) {
-    code = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
+    code = GetJniDlsymLookupStub();
     jni_method->RegisterNative(self, code);
   }
   return code;

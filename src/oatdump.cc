@@ -82,8 +82,6 @@ static void usage() {
 }
 
 const char* image_roots_descriptions_[] = {
-  "kJniStubArray",
-  "kAbstractMethodErrorStubArray",
   "kResolutionMethod",
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",

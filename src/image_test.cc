@@ -127,8 +127,6 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 
-  ASSERT_TRUE(runtime_->GetJniDlsymLookupStub() != NULL);
-
   Heap* heap = Runtime::Current()->GetHeap();
   ASSERT_EQ(2U, heap->GetSpaces().size());
   ASSERT_TRUE(heap->GetSpaces()[0]->IsImageSpace());

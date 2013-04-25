@@ -31,8 +31,11 @@
 #include "thread.h"
 
 extern "C" void art_interpreter_invoke_handler();
+extern "C" void art_jni_dlsym_lookup_stub();
+extern "C" void art_portable_abstract_method_error_stub();
 extern "C" void art_portable_proxy_invoke_handler();
 extern "C" void art_portable_resolution_trampoline();
+extern "C" void art_quick_abstract_method_error_stub();
 extern "C" void art_quick_deoptimize();
 extern "C" void art_quick_instrumentation_entry_from_code(void*);
 extern "C" void art_quick_instrumentation_exit_from_code();
@@ -356,9 +359,29 @@ static inline void* GetResolutionTrampoline() {
 #else
   return GetQuickResolutionTrampoline();
 #endif
+}
+
+static inline void* GetPortableAbstractMethodErrorStub() {
+  return reinterpret_cast<void*>(art_portable_abstract_method_error_stub);
+}
+
+static inline void* GetQuickAbstractMethodErrorStub() {
+  return reinterpret_cast<void*>(art_quick_abstract_method_error_stub);
+}
+
+// Return address of abstract method error stub for defined compiler.
+static inline void* GetAbstractMethodErrorStub() {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return GetPortableAbstractMethodErrorStub();
+#else
+  return GetQuickAbstractMethodErrorStub();
+#endif
+}
+
+static inline void* GetJniDlsymLookupStub() {
+  return reinterpret_cast<void*>(art_jni_dlsym_lookup_stub);
+}
 
 }  // namespace art
-
-}
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

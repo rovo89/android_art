@@ -324,7 +324,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
 bool AbstractMethod::IsRegistered() const {
   void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_method_), false);
   CHECK(native_method != NULL);
-  void* jni_stub = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
+  void* jni_stub = GetJniDlsymLookupStub();
   return native_method != jni_stub;
 }
 
@@ -352,7 +352,7 @@ void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
 void AbstractMethod::UnregisterNative(Thread* self) {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(self, Runtime::Current()->GetJniDlsymLookupStub()->GetData());
+  RegisterNative(self, GetJniDlsymLookupStub());
 }
 
 void AbstractMethod::SetNativeMethod(const void* native_method) {

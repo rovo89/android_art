@@ -1600,7 +1600,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {
-    method->SetCode(runtime->GetAbstractMethodErrorStubArray()->GetData());
+    method->SetCode(GetAbstractMethodErrorStub());
     return;
   }
 

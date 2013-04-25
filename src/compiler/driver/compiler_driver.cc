@@ -28,7 +28,6 @@
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "oat_file.h"
-#include "oat/runtime/stub.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "gc/card_table-inl.h"
@@ -407,36 +406,6 @@ CompilerTls* CompilerDriver::GetTls() {
     CHECK_PTHREAD_CALL(pthread_setspecific, (tls_key_, res), "compiler tls");
   }
   return res;
-}
-
-mirror::ByteArray* CompilerDriver::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateJniDlsymLookupStub();
-    case kMips:
-      return mips::CreateJniDlsymLookupStub();
-    case kX86:
-      return x86::CreateJniDlsymLookupStub();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return NULL;
-  }
-}
-
-mirror::ByteArray* CompilerDriver::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
-  switch (instruction_set) {
-    case kArm:
-    case kThumb2:
-      return arm::CreateAbstractMethodErrorStub();
-    case kMips:
-      return mips::CreateAbstractMethodErrorStub();
-    case kX86:
-      return x86::CreateAbstractMethodErrorStub();
-    default:
-      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
-      return NULL;
-  }
 }
 
 void CompilerDriver::CompileAll(jobject class_loader,

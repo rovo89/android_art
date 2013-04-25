@@ -109,8 +109,6 @@ extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_quick_test_suspend();
 
 // Throw entrypoints.
-extern void ThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* method, Thread* thread,
-                                             mirror::AbstractMethod** sp);
 extern "C" void art_quick_deliver_exception_from_code(void*);
 extern "C" void art_quick_throw_array_bounds_from_code(int32_t index, int32_t limit);
 extern "C" void art_quick_throw_div_zero_from_code();
@@ -156,7 +154,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pHandleFillArrayDataFromCode = art_quick_handle_fill_data_from_code;
 
   // JNI
-  points->pFindNativeMethod = FindNativeMethod;
   points->pJniMethodStart = JniMethodStart;
   points->pJniMethodStartSynchronized = JniMethodStartSynchronized;
   points->pJniMethodEnd = JniMethodEnd;
@@ -210,7 +207,6 @@ void InitEntryPoints(EntryPoints* points) {
 
   // Throws
   points->pDeliverException = art_quick_deliver_exception_from_code;
-  points->pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   points->pThrowArrayBoundsFromCode = art_quick_throw_array_bounds_from_code;
   points->pThrowDivZeroFromCode = art_quick_throw_div_zero_from_code;
   points->pThrowNoSuchMethodFromCode = art_quick_throw_no_such_method_from_code;

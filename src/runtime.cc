@@ -82,8 +82,6 @@ Runtime::Runtime()
       signal_catcher_(NULL),
       java_vm_(NULL),
       pre_allocated_OutOfMemoryError_(NULL),
-      jni_stub_array_(NULL),
-      abstract_method_error_stub_array_(NULL),
       resolution_method_(NULL),
       system_class_loader_(NULL),
       threads_being_born_(0),
@@ -1065,8 +1063,6 @@ void Runtime::VisitNonThreadRoots(RootVisitor* visitor, void* arg) {
   if (pre_allocated_OutOfMemoryError_ != NULL) {
     visitor(pre_allocated_OutOfMemoryError_, arg);
   }
-  visitor(jni_stub_array_, arg);
-  visitor(abstract_method_error_stub_array_, arg);
   visitor(resolution_method_, arg);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_methods_[i], arg);
@@ -1088,19 +1084,6 @@ void Runtime::DirtyRoots() {
 void Runtime::VisitRoots(RootVisitor* visitor, void* arg) {
   VisitConcurrentRoots(visitor, arg);
   VisitNonConcurrentRoots(visitor, arg);
-}
-
-void Runtime::SetJniDlsymLookupStub(mirror::ByteArray* jni_stub_array) {
-  CHECK(jni_stub_array != NULL)  << " jni_stub_array=" << jni_stub_array;
-  CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array)
-      << "jni_stub_array_=" << jni_stub_array_ << " jni_stub_array=" << jni_stub_array;
-  jni_stub_array_ = jni_stub_array;
-}
-
-void Runtime::SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method_error_stub_array) {
-  CHECK(abstract_method_error_stub_array != NULL);
-  CHECK(abstract_method_error_stub_array_ == NULL || abstract_method_error_stub_array_ == abstract_method_error_stub_array);
-  abstract_method_error_stub_array_ = abstract_method_error_stub_array;
 }
 
 mirror::AbstractMethod* Runtime::CreateResolutionMethod() {

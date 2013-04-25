@@ -102,13 +102,6 @@ class CompilerDriver {
 
   CompilerTls* GetTls();
 
-  // Stub to throw AbstractMethodError
-  static mirror::ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static mirror::ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
 

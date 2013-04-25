@@ -307,6 +307,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 DEFINE_FUNCTION art_portable_resolution_trampoline
     PUSH ebp                      // stash %ebp
     movl %esp, %ebp               // save %esp
+    .cfi_def_cfa_register ebp
     subl LITERAL(8), %esp         // align stack
     movl 8(%ebp), %eax            // load the called method* into %eax
     leal 8(%ebp), %edx            // put the called method* address in %edx
@@ -314,7 +315,9 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
     PUSH edx                      // pass called method* address
     PUSH eax                      // pass method*
     call SYMBOL(artPortableResolutionTrampoline)  // (method_idx, sp, Thread*)
-    leave                         // restore the stack
+    leave                         // restore the stack and %ebp
+    .cfi_def_cfa esp, 4
+    .cfi_restore ebp
     cmpl LITERAL(0), %eax         // check if returned method code is null
     je resolve_fail               // if null, jump to return to handle
     jmp *%eax                     // otherwise, tail call to intended method
@@ -330,11 +333,13 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     movl %esp, %ecx               // save stack pointer
     PUSH eax                      // align stack
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
     PUSH ecx                      // pass stack pointer
     PUSH eax                      // pass method*
     call SYMBOL(artQuickResolutionTrampoline)  // (method_idx, sp, Thread*)
     movl %eax, %edi               // save returned code pointer in %edi
     addl LITERAL(16), %esp        // pop arguments
+    .cfi_adjust_cfa_offset -16
     POP eax                       // restore registers
     POP ecx
     POP edx
@@ -1096,6 +1101,57 @@ DEFINE_FUNCTION art_quick_deoptimize
     call SYMBOL(artDeoptimize)    // artDeoptimize(Thread*, SP)
     int3                          // Unreachable.
 END_FUNCTION art_quick_deoptimize
+
+    /*
+     * Portable abstract method error stub. method* is at %esp + 4 on entry.
+     */
+DEFINE_FUNCTION art_portable_abstract_method_error_stub
+    PUSH ebp
+    movl %esp, %ebp               // Remember SP.
+    .cfi_def_cfa_register ebp
+    subl LITERAL(12), %esp        // Align stack.
+    PUSH esp                      // Pass sp (not used).
+    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
+    pushl 8(%ebp)                 // Pass Method*.
+    call SYMBOL(artThrowAbstractMethodErrorFromCode)  // (Method*, Thread*, SP)
+    leave                         // Restore the stack and %ebp.
+    .cfi_def_cfa esp, 4
+    .cfi_restore ebp
+    ret                           // Return to caller to handle pending exception.
+END_FUNCTION art_portable_abstract_method_error_stub
+
+    /*
+     * Quick abstract method error stub. %eax contains method* on entry.
+     */
+DEFINE_FUNCTION art_quick_abstract_method_error_stub
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    movl %esp, %ecx               // Remember SP.
+    PUSH eax                      // Align frame.
+    PUSH ecx                      // Pass SP for Method*.
+    pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
+    .cfi_adjust_cfa_offset 4
+    PUSH eax                      // Pass Method*.
+    call SYMBOL(artThrowAbstractMethodErrorFromCode)  // (Method*, Thread*, SP)
+    int3                          // Unreachable.
+END_FUNCTION art_quick_abstract_method_error_stub
+
+    /*
+     * Portable resolution trampoline.
+     */
+DEFINE_FUNCTION art_jni_dlsym_lookup_stub
+    subl LITERAL(8), %esp         // align stack
+    .cfi_adjust_cfa_offset 8
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    .cfi_adjust_cfa_offset 4
+    call SYMBOL(artFindNativeMethod)  // (Thread*)
+    addl LITERAL(12), %esp        // restore the stack
+    .cfi_adjust_cfa_offset -12
+    cmpl LITERAL(0), %eax         // check if returned method code is null
+    je no_native_code_found       // if null, jump to return to handle
+    jmp *%eax                     // otherwise, tail call to intended method
+no_native_code_found:
+    ret
+END_FUNCTION art_jni_dlsym_lookup_stub
 
     /*
      * String's indexOf.

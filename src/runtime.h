@@ -242,28 +242,6 @@ class Runtime {
   void VisitNonConcurrentRoots(RootVisitor* visitor, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool HasJniDlsymLookupStub() const {
-    return jni_stub_array_ != NULL;
-  }
-
-  mirror::ByteArray* GetJniDlsymLookupStub() const {
-    CHECK(HasJniDlsymLookupStub());
-    return jni_stub_array_;
-  }
-
-  void SetJniDlsymLookupStub(mirror::ByteArray* jni_stub_array);
-
-  bool HasAbstractMethodErrorStubArray() const {
-    return abstract_method_error_stub_array_ != NULL;
-  }
-
-  mirror::ByteArray* GetAbstractMethodErrorStubArray() const {
-    CHECK(abstract_method_error_stub_array_ != NULL);
-    return abstract_method_error_stub_array_;
-  }
-
-  void SetAbstractMethodErrorStubArray(mirror::ByteArray* abstract_method_error_stub_array);
-
   // Returns a special method that calls into a trampoline for runtime method resolution
   mirror::AbstractMethod* GetResolutionMethod() const {
     CHECK(HasResolutionMethod());
@@ -396,10 +374,6 @@ class Runtime {
   JavaVMExt* java_vm_;
 
   mirror::Throwable* pre_allocated_OutOfMemoryError_;
-
-  mirror::ByteArray* jni_stub_array_;
-
-  mirror::ByteArray* abstract_method_error_stub_array_;
 
   mirror::AbstractMethod* callee_save_methods_[kLastCalleeSaveType];
 

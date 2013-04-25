@@ -70,7 +70,6 @@ struct PACKED(4) EntryPoints {
   void (*pHandleFillArrayDataFromCode)(void*, void*);
 
   // JNI
-  void* (*pFindNativeMethod)(Thread* thread);
   uint32_t (*pJniMethodStart)(Thread*);
   uint32_t (*pJniMethodStartSynchronized)(jobject to_lock, Thread* self);
   void (*pJniMethodEnd)(uint32_t cookie, Thread* self);
@@ -125,8 +124,6 @@ struct PACKED(4) EntryPoints {
 
   // Throws
   void (*pDeliverException)(void*);
-  void (*pThrowAbstractMethodErrorFromCode)(mirror::AbstractMethod* m, Thread* thread,
-                                            mirror::AbstractMethod** sp);
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
   void (*pThrowDivZeroFromCode)();
   void (*pThrowNoSuchMethodFromCode)(int32_t);
@@ -135,7 +132,6 @@ struct PACKED(4) EntryPoints {
 };
 
 // JNI entrypoints.
-extern void* FindNativeMethod(Thread* thread) LOCKS_EXCLUDED(Locks::mutator_lock_);
 extern uint32_t JniMethodStart(Thread* self)
     UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)

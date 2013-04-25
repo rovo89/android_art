@@ -408,10 +408,10 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-     /*
+    /*
      * Portable resolution trampoline.
      */
-     .extern artPortableResolutionTrampoline
+    .extern artPortableResolutionTrampoline
 ENTRY art_portable_resolution_trampoline
     GENERATE_GLOBAL_POINTER
     addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
@@ -444,10 +444,10 @@ resolve_fail:
     nop
 END art_portable_resolution_trampoline
 
-     /*
+    /*
      * Quick resolution trampoline.
      */
-     .extern artQuickResolutionTrampoline
+    .extern artQuickResolutionTrampoline
 ENTRY art_quick_resolution_trampoline
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
@@ -482,8 +482,8 @@ END art_quick_resolution_trampoline
      *   [sp + 16] = JValue* result
      *   [sp + 20] = result type char
      */
-     .type art_portable_invoke_stub, %function
-     .global art_portable_invoke_stub
+    .type art_portable_invoke_stub, %function
+    .global art_portable_invoke_stub
 art_portable_invoke_stub:
 ENTRY art_quick_invoke_stub
     GENERATE_GLOBAL_POINTER
@@ -1100,6 +1100,64 @@ ENTRY art_quick_deoptimize
                             # Returns caller method's frame size.
     move     $a1, $sp       # pass $sp
 END art_quick_deoptimize
+
+    /*
+     * Portable abstract method error stub. $a0 contains method* on entry. SP unused in portable.
+     */
+    .extern artThrowAbstractMethodErrorFromCode
+ENTRY art_portable_abstract_method_error_stub
+    GENERATE_GLOBAL_POINTER
+    la       $t9, artThrowAbstractMethodErrorFromCode
+    jr       $t9            # (Method*, Thread*, SP)
+    move     $a1, $s1       # pass Thread::Current
+END art_portable_abstract_method_error_stub
+
+    /*
+     * Quick abstract method error stub. $a0 contains method* on entry.
+     */
+ENTRY art_quick_abstract_method_error_stub
+    GENERATE_GLOBAL_POINTER
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    move     $a1, $s1       # pass Thread::Current
+    la       $t9, artThrowAbstractMethodErrorFromCode
+    jr       $t9            # (Method*, Thread*, SP)
+    move     $a2, $sp       # pass SP
+END art_quick_abstract_method_error_stub
+
+    /*
+     * Jni dlsym lookup stub.
+     */
+    .extern artFindNativeMethod
+ENTRY art_jni_dlsym_lookup_stub
+    GENERATE_GLOBAL_POINTER
+    addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
+    .cfi_adjust_cfa_offset 32
+    sw     $ra, 16($sp)
+    .cfi_rel_offset 31, 16
+    sw     $a3, 12($sp)
+    .cfi_rel_offset 7, 12
+    sw     $a2, 8($sp)
+    .cfi_rel_offset 6, 8
+    sw     $a1, 4($sp)
+    .cfi_rel_offset 5, 4
+    sw     $a0, 0($sp)
+    .cfi_rel_offset 4, 0
+    jal   artFindNativeMethod   # (Thread*)
+    move  $a0, $s1              # pass Thread::Current()
+    lw    $a0, 0($sp)           # restore registers from stack
+    lw    $a1, 4($sp)
+    lw    $a2, 8($sp)
+    lw    $a3, 12($sp)
+    lw    $ra, 16($sp)
+    beq   $v0, $zero, no_native_code_found
+    addiu $sp, $sp, 32          # restore the stack
+    .cfi_adjust_cfa_offset -32
+    jr    $t9                   # leaf call to method's code
+    move  $t9, $v0              # put method code result in $t9
+no_native_code_found:
+    jr    $ra
+    nop
+END art_jni_dlsym_lookup_stub
 
     /*
      * Long integer shift.  This is different from the generic 32/64-bit

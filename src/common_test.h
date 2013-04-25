@@ -234,8 +234,7 @@ class CommonTest : public testing::Test {
     } else {
       const void* method_code;
       if (method->IsAbstract()) {
-        MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
-        method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
+        method_code = GetAbstractMethodErrorStub();
       } else {
         // No code? You must mean to go into the interpreter.
         method_code = GetInterpreterEntryPoint();
@@ -353,8 +352,6 @@ class CommonTest : public testing::Test {
     CompilerBackend compiler_backend = kQuick;
 #endif
 
-    runtime_->SetJniDlsymLookupStub(CompilerDriver::CreateJniDlsymLookupStub(instruction_set));
-    runtime_->SetAbstractMethodErrorStubArray(CompilerDriver::CreateAbstractMethodErrorStub(instruction_set));
     if (!runtime_->HasResolutionMethod()) {
       runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
     }
@@ -487,8 +484,6 @@ class CommonTest : public testing::Test {
     CHECK(method != NULL);
     compiler_driver_->CompileOne(method);
     MakeExecutable(method);
-
-    MakeExecutable(runtime_->GetJniDlsymLookupStub());
   }
 
   void CompileDirectMethod(mirror::ClassLoader* class_loader,
