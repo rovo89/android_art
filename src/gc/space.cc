@@ -498,8 +498,7 @@ ImageSpace* ImageSpace::Create(const std::string& image_file_name) {
   }
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
                                                  file->GetLength(),
-                                                 // TODO: selectively PROT_EXEC stubs
-                                                 PROT_READ | PROT_WRITE | PROT_EXEC,
+                                                 PROT_READ | PROT_WRITE,
                                                  MAP_PRIVATE | MAP_FIXED,
                                                  file->Fd(),
                                                  0,
