@@ -1329,7 +1329,7 @@ void Mir2Lir::GenInvoke(CallInfo* info)
   uintptr_t direct_method;
   bool skip_this;
   bool fast_path = cu_->compiler_driver->ComputeInvokeInfo(
-      dex_method_idx, current_dalvik_offset_, mir_graph_->GetCurrentDexCompilationUnit(), info->type, vtable_idx,
+      dex_method_idx, mir_graph_->GetCurrentDexCompilationUnit(), info->type, vtable_idx,
       direct_code, direct_method) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     if (fast_path) {

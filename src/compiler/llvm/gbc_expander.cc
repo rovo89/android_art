@@ -785,10 +785,8 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   int vtable_idx = -1;
   uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
-  // TODO: pass actual value of dex PC (instead of kDexPCNotready) needed by verifier based
-  // sharpening after LLVM re-factoring is finished.
   bool is_fast_path = driver_->
-      ComputeInvokeInfo(callee_method_idx, art::kDexPCNotReady, dex_compilation_unit_,
+      ComputeInvokeInfo(callee_method_idx, dex_compilation_unit_,
                         invoke_type, vtable_idx, direct_code, direct_method);
 
   // Load the method object
