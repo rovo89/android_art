@@ -71,7 +71,8 @@ class AOTCompilationStats {
         strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
         resolved_types_(0), unresolved_types_(0),
         resolved_instance_fields_(0), unresolved_instance_fields_(0),
-        resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
+        resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
+        type_based_devirtualization_(0) {
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;
@@ -90,6 +91,8 @@ class AOTCompilationStats {
              "static fields resolved");
     DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
              "static fields local to a class");
+    DumpStat(type_based_devirtualization_,virtual_made_direct_[kInterface] + virtual_made_direct_[kVirtual]
+             - type_based_devirtualization_, "sharpened calls based on type information");
 
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       std::ostringstream oss;
@@ -181,6 +184,11 @@ class AOTCompilationStats {
     unresolved_static_fields_++;
   }
 
+  void PreciseTypeDevirtualization() {
+    STATS_LOCK();
+    type_based_devirtualization_++;
+  }
+
   void ResolvedMethod(InvokeType type) {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
@@ -229,6 +237,8 @@ class AOTCompilationStats {
   size_t resolved_local_static_fields_;
   size_t resolved_static_fields_;
   size_t unresolved_static_fields_;
+  // Type based devirtualization for invoke interface and virtual.
+  size_t type_based_devirtualization_;
 
   size_t resolved_methods_[kMaxInvokeType + 1];
   size_t unresolved_methods_[kMaxInvokeType + 1];
@@ -805,15 +815,24 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
   }
 }
 
-bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilationUnit* mUnit,
-                                       InvokeType& type, int& vtable_idx, uintptr_t& direct_code,
+bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx,const uint32_t dex_pc,
+                                       const DexCompilationUnit* mUnit, InvokeType& type,
+                                       int& vtable_idx, uintptr_t& direct_code,
                                        uintptr_t& direct_method) {
   ScopedObjectAccess soa(Thread::Current());
+
+  const bool kEnableVerifierBasedSharpening = true;
+  const CompilerDriver::MethodReference ref_caller(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
+  const CompilerDriver::MethodReference* ref_sharpen = verifier::MethodVerifier::GetDevirtMap(ref_caller, dex_pc);
+  bool can_devirtualize = (dex_pc != art::kDexPCNotReady) && (ref_sharpen != NULL);
+
   vtable_idx = -1;
   direct_code = 0;
   direct_method = 0;
   mirror::AbstractMethod* resolved_method =
       ComputeMethodReferencedFromCompilingMethod(soa, mUnit, method_idx, type);
+
+
   if (resolved_method != NULL) {
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
@@ -836,8 +855,10 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilation
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
+
         vtable_idx = resolved_method->GetMethodIndex();
         const bool kEnableSharpening = true;
+
         // Sharpen a virtual call into a direct call when the target is known.
         bool can_sharpen = type == kVirtual && (resolved_method->IsFinal() ||
             methods_class->IsFinal());
@@ -846,6 +867,7 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilation
             referrer_class->IsSubClass(methods_class) &&
             vtable_idx < methods_class->GetVTable()->GetLength() &&
             methods_class->GetVTable()->Get(vtable_idx) == resolved_method);
+
         if (kEnableSharpening && can_sharpen) {
           stats_->ResolvedMethod(type);
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
@@ -857,7 +879,28 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx, const DexCompilation
                                         direct_code, direct_method);
           type = kDirect;
           return true;
-        } else if (type == kSuper) {
+
+        } else if(can_devirtualize && kEnableSharpening && kEnableVerifierBasedSharpening) {
+            // If traditional sharpening fails, try the sharpening based on type information (Devirtualization)
+            mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*ref_sharpen->first);
+            mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+            mirror::AbstractMethod* concrete_method = mUnit->GetClassLinker()->ResolveMethod(
+                *ref_sharpen->first, ref_sharpen->second, dex_cache, class_loader, NULL, kVirtual);
+            CHECK(concrete_method != NULL);
+            CHECK(!concrete_method->IsAbstract());
+            // TODO: fix breakage in image patching to be able to devirtualize cases with different
+            // resolved and concrete methods.
+            if(resolved_method == concrete_method) {
+              GetCodeAndMethodForDirectCall(type, kDirect, referrer_class, concrete_method, direct_code, direct_method);
+              type = kDirect;
+              stats_->VirtualMadeDirect(type);
+              stats_->PreciseTypeDevirtualization();
+            }
+            stats_->ResolvedMethod(type);
+
+            return true;
+        }
+        else if (type == kSuper) {
           // Unsharpened super calls are suspicious so go slow-path.
         } else {
           stats_->ResolvedMethod(type);
