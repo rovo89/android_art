@@ -179,7 +179,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descr
 
     //To pass the verification, the type should be imprecise,
     // instantiable or an interface with the precise type set to false.
-    CHECK(!precise || klass->IsInstantiable());
+    DCHECK(!precise || klass->IsInstantiable());
 
     // Create a precise type if:
     // 1- Class is final and NOT an interface. a precise interface
@@ -189,10 +189,9 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descr
     RegType* entry;
     // Create an imprecise type if we can't tell for a fact that it is precise.
     if ((klass->IsFinal()) || precise) {
-      CHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
-      CHECK(!klass->IsInterface());
+      DCHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
+      DCHECK(!klass->IsInterface());
       entry = new PreciseReferenceType(klass, descriptor, entries_.size());
-
     } else {
       entry = new ReferenceType(klass, descriptor, entries_.size());
     }
@@ -372,7 +371,7 @@ const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocat
         return *cur_entry;
       }
     }
-    std::string descriptor = "";
+    std::string descriptor("");
     entry = new UninitialisedReferenceType(klass, descriptor, allocation_pc, entries_.size());
   }
   entries_.push_back(entry);
@@ -401,17 +400,34 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
           return *cur_entry;
         }
       }
-      std::string descriptor = "";
+      std::string descriptor("");
       entry = new ReferenceType(klass, descriptor, entries_.size());
     } else {
-      for (size_t i = primitive_count_; i < entries_.size(); i++) {
-        RegType* cur_entry = entries_[i];
-        if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
-          return *cur_entry;
+        std::string descriptor;
+        if (klass->IsFinal()) {
+          if (klass->IsInstantiable()) {
+            for (size_t i = primitive_count_; i < entries_.size(); i++) {
+              RegType* cur_entry = entries_[i];
+              if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
+                return *cur_entry;
+              }
+            }
+            // Precise type was not found , create one !
+            entry = new PreciseReferenceType(klass, descriptor, entries_.size());
+          } else {
+            return Conflict();
+          }
+      } else {
+        // Not a final class, create an imprecise reference. Look up if we have it in the cache first.
+        for (size_t i = primitive_count_; i < entries_.size(); i++) {
+          RegType* cur_entry = entries_[i];
+          if (cur_entry->IsReference() && !(cur_entry->IsPrecise()) &&
+              cur_entry->GetClass() == klass) {
+            return *cur_entry;
+          }
         }
+        entry = new ReferenceType(klass, descriptor, entries_.size());
       }
-      std::string descriptor = "";
-      entry = new PreciseReferenceType(klass, descriptor, entries_.size());
     }
  }
   entries_.push_back(entry);
@@ -447,7 +463,7 @@ const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
         return *cur_entry;
       }
     }
-    std::string descriptor = "";
+    std::string descriptor("");
     entry = new UninitialisedThisReferenceType(klass, descriptor, entries_.size());
   }
   entries_.push_back(entry);

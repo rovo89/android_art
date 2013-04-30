@@ -346,7 +346,7 @@ class MANAGED Class : public StaticStorageBase {
     return !IsPrimitive() && GetSuperClass() == NULL;
   }
   bool IsInstantiable() const {
-    return !IsPrimitive() && !IsInterface() && !IsAbstract();
+    return (!IsPrimitive() && !IsInterface() && !IsAbstract()) || ((IsAbstract()) && IsArrayClass());
   }
 
   bool IsObjectArrayClass() const {

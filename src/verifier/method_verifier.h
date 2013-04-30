@@ -101,7 +101,7 @@ const int kVerifyErrorRefTypeShift = 6;
 // type-precise register analysis).
 enum RegisterTrackingMode {
   kTrackRegsBranches,
-  kTrackRegsGcPoints,
+  kTrackCompilerInterestPoints,
   kTrackRegsAll,
 };
 
@@ -186,6 +186,9 @@ class MethodVerifier {
 
   static const std::vector<uint8_t>* GetDexGcMap(CompilerDriver::MethodReference ref)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
+
+  static const CompilerDriver::MethodReference* GetDevirtMap(CompilerDriver::MethodReference ref, uint32_t pc)
+      LOCKS_EXCLUDED(devirt_maps_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in 'm'.
@@ -577,6 +580,16 @@ class MethodVerifier {
   static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
+
+  // Devirtualization map.
+  typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConreteMethod;
+  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConreteMethod*> DevirtualizationMapTable;
+  MethodVerifier::PcToConreteMethod* GenerateDevirtMap();
+
+  static Mutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static DevirtualizationMapTable* devirt_maps_ GUARDED_BY(devirt_maps_lock_);
+  static void SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConreteMethod* pc_method_map);
+        LOCKS_EXCLUDED(devirt_maps_lock_);
   typedef std::set<CompilerDriver::ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static RejectedClassesTable* rejected_classes_;
