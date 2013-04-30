@@ -59,14 +59,15 @@ class InstructionFlags {
   bool IsBranchTarget() const {
     return (flags_ & (1 << kBranchTarget)) != 0;
   }
-  void SetCompileTimeInfoPoint() {
-    flags_ |= 1 << kCompileTimeInfoPoint;
+
+  void SetGcPoint() {
+    flags_ |= 1 << kGcPoint;
   }
-  void ClearCompileTimeInfoPoint() {
-    flags_ &= ~(1 << kCompileTimeInfoPoint);
+  void ClearGcPoint() {
+    flags_ &= ~(1 << kGcPoint);
   }
-  bool IsCompileTimeInfoPoint() const {
-    return (flags_ & (1 << kCompileTimeInfoPoint)) != 0;
+  bool IsGcPoint() const {
+    return (flags_ & (1 << kGcPoint)) != 0;
   }
 
   void SetVisited() {
@@ -99,8 +100,7 @@ class InstructionFlags {
   enum {
     kInTry,
     kBranchTarget,
-    kCompileTimeInfoPoint,  // Location of interest to the compiler for GC maps and
-                            // verifier based method sharpening.
+    kGcPoint,
     kVisited,
     kChanged,
   };

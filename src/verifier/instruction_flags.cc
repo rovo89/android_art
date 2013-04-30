@@ -29,7 +29,7 @@ std::string InstructionFlags::ToString() const {
     strncpy(encoding, "-----", sizeof(encoding));
     if (IsInTry())        encoding[kInTry] = 'T';
     if (IsBranchTarget()) encoding[kBranchTarget] = 'B';
-    if (IsCompileTimeInfoPoint())  encoding[kCompileTimeInfoPoint] = 'G';
+    if (IsGcPoint())      encoding[kGcPoint] = 'G';
     if (IsVisited())      encoding[kVisited] = 'V';
     if (IsChanged())      encoding[kChanged] = 'C';
   }
