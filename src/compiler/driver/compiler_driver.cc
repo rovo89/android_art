@@ -1314,10 +1314,15 @@ static const char* class_initializer_black_list[] = {
   "Lcom/android/internal/view/menu/ActionMenuItemView;", // Requires TextView.
   "Lcom/android/internal/widget/DialogTitle;", // Requires TextView.
   "Lcom/android/org/bouncycastle/asn1/StreamUtil;", // Calls Runtime.getRuntime().maxMemory().
-  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA1;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA1;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/bouncycastle/crypto/engines/RSABlindedEngine;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lcom/android/org/bouncycastle/jce/provider/CertBlacklist;", // Calls System.getenv -> OsConstants.initConstants.
   "Lcom/android/org/bouncycastle/jce/provider/PKIXCertPathValidatorSpi;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/NativeCrypto;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$MD5;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA1;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA512;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/TrustedCertificateStore;", // Calls System.getenv -> OsConstants.initConstants.
   "Lcom/google/android/gles_jni/EGLContextImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
   "Lcom/google/android/gles_jni/EGLImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
   "Lcom/google/android/gles_jni/GLImpl;", // Calls com.google.android.gles_jni.GLImpl._nativeClassInit.
@@ -1372,11 +1377,6 @@ static const char* class_initializer_black_list[] = {
   "Lorg/apache/harmony/security/x509/Time;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lorg/apache/harmony/security/x509/Validity;", // Requires x509.Time.
   "Lorg/apache/harmony/xml/ExpatParser;", // Calls native ExpatParser.staticInitialize.
-  "Lorg/apache/harmony/xnet/provider/jsse/NativeCrypto;", // Calls native NativeCrypto.clinit().
-  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$MD5;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
-  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$SHA1;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
-  "Lorg/apache/harmony/xnet/provider/jsse/OpenSSLMessageDigestJDK$SHA512;", // Requires org.apache.harmony.xnet.provider.jsse.NativeCrypto.
-  "Lorg/apache/harmony/xnet/provider/jsse/TrustedCertificateStore;", // Calls System.getenv -> OsConstants.initConstants.
   "Lorg/apache/http/conn/params/ConnRouteParams;", // Requires java.util.Locale.
   "Lorg/apache/http/conn/ssl/SSLSocketFactory;", // Calls java.security.Security.getProperty.
   "Lorg/apache/http/conn/util/InetAddressUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
