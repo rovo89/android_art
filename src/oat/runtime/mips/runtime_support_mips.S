@@ -46,7 +46,7 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
-     * callee-save: $s0-$s8 + $ra, 10 total + 4 words
+     * callee-save: $s0-$s8 + $gp + $ra, 11 total + 1 word padding + 4 open words for args
      */
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
@@ -55,30 +55,32 @@
     .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
     .cfi_rel_offset 30, 56
-    sw     $s7, 52($sp)
-    .cfi_rel_offset 23, 52
-    sw     $s6, 48($sp)
-    .cfi_rel_offset 22, 48
-    sw     $s5, 44($sp)
-    .cfi_rel_offset 21, 44
-    sw     $s4, 40($sp)
-    .cfi_rel_offset 20, 40
-    sw     $s3, 36($sp)
-    .cfi_rel_offset 19, 36
-    sw     $s2, 32($sp)
-    .cfi_rel_offset 18, 32
-    sw     $s1, 28($sp)
-    .cfi_rel_offset 17, 28
-    sw     $s0, 24($sp)
-    .cfi_rel_offset 16, 24
-    # 2 words for alignment, 4 open words for args $a0-$a3, bottom will hold Method*
+    sw     $gp, 52($sp)
+    .cfi_rel_offset 28, 52
+    sw     $s7, 48($sp)
+    .cfi_rel_offset 23, 48
+    sw     $s6, 44($sp)
+    .cfi_rel_offset 22, 44
+    sw     $s5, 40($sp)
+    .cfi_rel_offset 21, 40
+    sw     $s4, 36($sp)
+    .cfi_rel_offset 20, 36
+    sw     $s3, 32($sp)
+    .cfi_rel_offset 19, 32
+    sw     $s2, 28($sp)
+    .cfi_rel_offset 18, 28
+    sw     $s1, 24($sp)
+    .cfi_rel_offset 17, 24
+    sw     $s0, 20($sp)
+    .cfi_rel_offset 16, 20
+    # 1 word for alignment, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
      * Does not include rSUSPEND or rSELF
-     * callee-save: $s2-$s8 + $ra, 8 total + 4 words + extra args + gp
+     * callee-save: $s2-$s8 + $gp + $ra, 9 total + 3 words padding + 4 open words for args
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
     addiu  $sp, $sp, -64
@@ -87,31 +89,32 @@
     .cfi_rel_offset 31, 60
     sw     $s8, 56($sp)
     .cfi_rel_offset 30, 56
-    sw     $s7, 52($sp)
-    .cfi_rel_offset 23, 52
-    sw     $s6, 48($sp)
-    .cfi_rel_offset 22, 48
-    sw     $s5, 44($sp)
-    .cfi_rel_offset 21, 44
-    sw     $s4, 40($sp)
-    .cfi_rel_offset 20, 40
-    sw     $s3, 36($sp)
-    .cfi_rel_offset 19, 36
-    sw     $s2, 32($sp)
-    .cfi_rel_offset 18, 32
-    sw     $gp, 28($sp)
-    .cfi_rel_offset 28, 28
+    sw     $gp, 52($sp)
+    .cfi_rel_offset 28, 52
+    sw     $s7, 48($sp)
+    .cfi_rel_offset 23, 48
+    sw     $s6, 44($sp)
+    .cfi_rel_offset 22, 44
+    sw     $s5, 40($sp)
+    .cfi_rel_offset 21, 40
+    sw     $s4, 36($sp)
+    .cfi_rel_offset 20, 36
+    sw     $s3, 32($sp)
+    .cfi_rel_offset 19, 32
+    sw     $s2, 28($sp)
+    .cfi_rel_offset 18, 28
     # 3 words for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    lw     $gp, 28($sp)
+    lw     $gp, 52($sp)
     lw     $ra, 60($sp)
     addiu  $sp, $sp, 64
     .cfi_adjust_cfa_offset -64
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    lw     $gp, 52($sp)
     lw     $ra, 60($sp)
     jr     $ra
     addiu  $sp, $sp, 64
@@ -121,27 +124,29 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes non-moving GC.
-     * $a1-$a3, $s2-$s8, $ra, 11 total + Method*
+     * callee-save: $a1-$a3, $s2-$s8 + $gp + $ra, 12 total + 3 words padding + method*
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    addiu  $sp, $sp, -48
-    .cfi_adjust_cfa_offset 48
-    sw     $ra, 44($sp)
-    .cfi_rel_offset 31, 44
-    sw     $s8, 40($sp)
-    .cfi_rel_offset 30, 40
-    sw     $s7, 36($sp)
-    .cfi_rel_offset 23, 36
-    sw     $s6, 32($sp)
-    .cfi_rel_offset 22, 32
-    sw     $s5, 28($sp)
-    .cfi_rel_offset 21, 28
-    sw     $s4, 24($sp)
-    .cfi_rel_offset 20, 24
-    sw     $s3, 20($sp)
-    .cfi_rel_offset 19, 20
-    sw     $s2, 16($sp)
-    .cfi_rel_offset 18, 16
+    addiu  $sp, $sp, -64
+    .cfi_adjust_cfa_offset 64
+    sw     $ra, 60($sp)
+    .cfi_rel_offset 31, 60
+    sw     $s8, 56($sp)
+    .cfi_rel_offset 30, 56
+    sw     $gp, 52($sp)
+    .cfi_rel_offset 28, 52
+    sw     $s7, 48($sp)
+    .cfi_rel_offset 23, 48
+    sw     $s6, 44($sp)
+    .cfi_rel_offset 22, 44
+    sw     $s5, 40($sp)
+    .cfi_rel_offset 21, 40
+    sw     $s4, 36($sp)
+    .cfi_rel_offset 20, 36
+    sw     $s3, 32($sp)
+    .cfi_rel_offset 19, 32
+    sw     $s2, 28($sp)
+    .cfi_rel_offset 18, 28
     sw     $a3, 12($sp)
     .cfi_rel_offset 7, 12
     sw     $a2, 8($sp)
@@ -152,12 +157,13 @@
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    lw     $ra, 44($sp)           # restore $ra
+    lw     $ra, 60($sp)           # restore $ra
+    lw     $gp, 52($sp)           # restore $gp
     lw     $a1, 4($sp)            # restore non-callee save $a1
     lw     $a2, 8($sp)            # restore non-callee save $a2
     lw     $a3, 12($sp)           # restore non-callee save $a3
-    addiu  $sp, $sp, 48           # strip frame
-    .cfi_adjust_cfa_offset -48
+    addiu  $sp, $sp, 64           # strip frame
+    .cfi_adjust_cfa_offset -64
 .endm
 
     /*
@@ -376,16 +382,14 @@ END art_quick_throw_no_such_method_from_code
 ENTRY \c_name
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
-    lw    $a2, 48($sp)                    # pass caller Method*
+    lw    $a2, 64($sp)                    # pass caller Method*
     move  $t0, $sp                        # save $sp
     addiu $sp, $sp, -32                   # make space for extra args
     .cfi_adjust_cfa_offset 32
     move  $a3, rSELF                      # pass Thread::Current
-    sw    $gp, 20($sp)                    # save $gp
     .cfi_rel_offset 28, 12
     jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
     sw    $t0, 16($sp)                    # pass $sp
-    lw    $gp, 20($sp)                    # restore $gp
     addiu $sp, $sp, 32                    # release out args
     .cfi_adjust_cfa_offset -32
     move  $a0, $v0                        # save target Method*
@@ -459,17 +463,18 @@ ENTRY art_quick_resolution_trampoline
     lw    $a1, 4($sp)
     lw    $a2, 8($sp)
     lw    $a3, 12($sp)
-    lw    $s2, 16($sp)
-    lw    $s3, 20($sp)
-    lw    $s4, 24($sp)
-    lw    $s5, 28($sp)
-    lw    $s6, 32($sp)
-    lw    $s7, 36($sp)
-    lw    $fp, 40($sp)
-    lw    $ra, 44($sp)
+    lw    $s2, 28($sp)
+    lw    $s3, 32($sp)
+    lw    $s4, 36($sp)
+    lw    $s5, 40($sp)
+    lw    $s6, 44($sp)
+    lw    $s7, 48($sp)
+    lw    $gp, 52($sp)
+    lw    $fp, 56($sp)
+    lw    $ra, 60($sp)
     jr    $t9                   # leaf call to method's code
-    addiu $sp, $sp, 48          # restore the stack
-    .cfi_adjust_cfa_offset -48
+    addiu $sp, $sp, 64          # restore the stack
+    .cfi_adjust_cfa_offset -64
 END art_quick_resolution_trampoline
 
     /*
@@ -980,10 +985,10 @@ ENTRY art_portable_proxy_invoke_handler
     move    $a2, rSELF             # pass Thread::Current
     jal     artPortableProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
-    lw      $ra, 44($sp)           # restore $ra
+    lw      $ra, 60($sp)           # restore $ra
     jr      $ra
-    addiu   $sp, $sp, 48           # pop frame
-    .cfi_adjust_cfa_offset -48
+    addiu   $sp, $sp, 64           # pop frame
+    .cfi_adjust_cfa_offset -64
 END art_portable_proxy_invoke_handler
 
     /*
@@ -999,10 +1004,11 @@ ENTRY art_quick_proxy_invoke_handler
     jal     artQuickProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
     move    $a3, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    lw      $ra, 44($sp)           # restore $ra
+    lw      $gp, 52($sp)           # restore $gp
+    lw      $ra, 60($sp)           # restore $ra
     bnez    $t0, 1f
-    addiu   $sp, $sp, 48           # pop frame
-    .cfi_adjust_cfa_offset -48
+    addiu   $sp, $sp, 64           # pop frame
+    .cfi_adjust_cfa_offset -64
     jr      $ra
     nop
 1:
@@ -1018,10 +1024,11 @@ ENTRY art_quick_interpreter_entry
     jal     artInterpreterEntry    # (Method* method, Thread*, SP)
     move    $a2, $sp               # pass $sp
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    lw      $ra, 44($sp)           # restore $ra
+    lw      $gp, 52($sp)           # restore $gp
+    lw      $ra, 60($sp)           # restore $ra
     bnez    $t0, 1f
-    addiu   $sp, $sp, 48           # pop frame
-    .cfi_adjust_cfa_offset -48
+    addiu   $sp, $sp, 64           # pop frame
+    .cfi_adjust_cfa_offset -64
     jr      $ra
     nop
 1:
@@ -1152,8 +1159,9 @@ ENTRY art_jni_dlsym_lookup_stub
     beq   $v0, $zero, no_native_code_found
     addiu $sp, $sp, 32          # restore the stack
     .cfi_adjust_cfa_offset -32
-    jr    $t9                   # leaf call to method's code
     move  $t9, $v0              # put method code result in $t9
+    jr    $t9                   # leaf call to method's code
+    nop
 no_native_code_found:
     jr    $ra
     nop
