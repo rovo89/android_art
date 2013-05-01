@@ -178,10 +178,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
   // | A2         |    arg2
   // | A1         |    arg1
   // | A0/Method* |  <- sp
-  DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
-  mirror::AbstractMethod** caller_sp = reinterpret_cast<mirror::AbstractMethod**>(reinterpret_cast<byte*>(sp) + 48);
+  DCHECK_EQ(64U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+  mirror::AbstractMethod** caller_sp = reinterpret_cast<mirror::AbstractMethod**>(reinterpret_cast<byte*>(sp) + 64);
   uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
-  uint32_t pc_offset = 11;
+  uint32_t pc_offset = 15;
   uintptr_t caller_pc = regs[pc_offset];
 #else
   UNIMPLEMENTED(FATAL);

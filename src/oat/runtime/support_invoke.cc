@@ -95,9 +95,9 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::AbstractMethod* interfa
     // | A2         |    arg2
     // | A1         |    arg1
     // | A0/Method* |  <- sp
-    DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+    DCHECK_EQ(64U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
     uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
-    uintptr_t caller_pc = regs[11];
+    uintptr_t caller_pc = regs[15];
 #else
     UNIMPLEMENTED(FATAL);
     uintptr_t caller_pc = 0;

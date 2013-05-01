@@ -1137,14 +1137,14 @@ mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instructi
   } else if (instruction_set == kMips) {
     uint32_t ref_spills = (1 << art::mips::S2) | (1 << art::mips::S3) | (1 << art::mips::S4) |
                           (1 << art::mips::S5) | (1 << art::mips::S6) | (1 << art::mips::S7) |
-                          (1 << art::mips::FP);
+                          (1 << art::mips::GP) | (1 << art::mips::FP);
     uint32_t arg_spills = (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
     uint32_t all_spills = (1 << art::mips::S0) | (1 << art::mips::S1);
     uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
                            (type == kSaveAll ? all_spills : 0) | (1 << art::mips::RA);
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
-                                 (type == kRefsAndArgs ? 0 : 5) /* reserve arg space */ +
-                                 1 /* Method* */) * kPointerSize, kStackAlignment);
+                                (type == kRefsAndArgs ? 0 : 3) + 1 /* Method* */) *
+                                kPointerSize, kStackAlignment);
     method->SetFrameSizeInBytes(frame_size);
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(0);
