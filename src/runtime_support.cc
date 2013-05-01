@@ -211,7 +211,7 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
         if (fields_class->IsInitialized()) {
           return resolved_field;
         } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true, true)) {
-          // otherwise let's ensure the class is initialized before resolving the field
+          // Otherwise let's ensure the class is initialized before resolving the field.
           return resolved_field;
         } else {
           DCHECK(self->IsExceptionPending());  // Throw exception and unwind

@@ -14,10 +14,10 @@
 # limitations under the License.
 #
 
-ART_LIGHT_MODE := false
-ifneq ($(wildcard art/LIGHT_ART),)
-$(info Enabling ART_LIGHT_MODE because of existence of art/LIGHT_ART)
-ART_LIGHT_MODE := true
+ART_SMALL_MODE := false
+ifneq ($(wildcard art/SMALL_ART),)
+$(info Enabling ART_SMALL_MODE because of existence of art/SMALL_ART)
+ART_SMALL_MODE := true
 endif
 
 ART_USE_PORTABLE_COMPILER := false

@@ -364,7 +364,7 @@ class CommonTest : public testing::Test {
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     image_classes_.reset(new std::set<std::string>);
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false, false,
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false,
                                               image_classes_.get(), true, true));
 
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
