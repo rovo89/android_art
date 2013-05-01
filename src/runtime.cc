@@ -364,6 +364,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = NULL; // We don't call abort(3) by default; see Runtime::Abort.
 
+  parsed->small_mode_ = true;
+  parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
+  parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
+
 //  gLogVerbosity.class_linker = true; // TODO: don't check this in!
 //  gLogVerbosity.compiler = true; // TODO: don't check this in!
 //  gLogVerbosity.heap = true; // TODO: don't check this in!
@@ -571,6 +575,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceWall);
     } else if (option == "-Xprofile:dualclock") {
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
+    } else if (option == "-small") {
+      parsed->small_mode_ = true;
+    } else if (StartsWith(option, "-small-mode-methods-max:")) {
+      parsed->small_mode_method_threshold_ = ParseIntegerOrDie(option);
+    } else if (StartsWith(option, "-small-mode-methods-size-max:")) {
+      parsed->small_mode_method_dex_size_limit_ = ParseIntegerOrDie(option);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
@@ -790,6 +800,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
   is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
+
+  small_mode_ = options->small_mode_;
+  small_mode_method_threshold_ = options->small_mode_method_threshold_;
+  small_mode_method_dex_size_limit_ = options->small_mode_method_dex_size_limit_;
 
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;

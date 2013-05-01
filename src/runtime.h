@@ -61,6 +61,9 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
+  static const size_t kDefaultSmallModeMethodThreshold = 10;
+  static const size_t kDefaultSmallModeMethodDexSizeLimit = 100;
+
   class ParsedOptions {
    public:
     // returns null if problem parsing and ignore_unrecognized is false
@@ -95,6 +98,9 @@ class Runtime {
     void (*hook_exit_)(jint status);
     void (*hook_abort_)();
     std::vector<std::string> properties_;
+    bool small_mode_;
+    size_t small_mode_method_threshold_;
+    size_t small_mode_method_dex_size_limit_;
 
    private:
     ParsedOptions() {}
@@ -114,6 +120,23 @@ class Runtime {
 
   bool IsConcurrentGcEnabled() const {
     return is_concurrent_gc_enabled_;
+  }
+
+  bool IsSmallMode() const {
+      return small_mode_;
+  }
+
+
+  void SetSmallMode(bool small_mode) {
+      small_mode_ = small_mode;
+  }
+
+  size_t GetSmallModeMethodThreshold() const {
+      return small_mode_method_threshold_;
+  }
+
+  size_t GetSmallModeMethodDexSizeLimit() const {
+      return small_mode_method_dex_size_limit_;
   }
 
   const std::string& GetHostPrefix() const {
@@ -338,6 +361,10 @@ class Runtime {
   bool is_compiler_;
   bool is_zygote_;
   bool is_concurrent_gc_enabled_;
+
+  bool small_mode_;
+  size_t small_mode_method_threshold_;
+  size_t small_mode_method_dex_size_limit_;
 
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:

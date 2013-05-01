@@ -137,8 +137,6 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Use a separate --runtime-arg switch for each argument.");
   UsageError("      Example: --runtime-arg -Xms256m");
   UsageError("");
-  UsageError("  --light-mode: compile only if generating image file");
-  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -146,15 +144,14 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, CompilerBackend compiler_backend,
-                     InstructionSet instruction_set, size_t thread_count, bool support_debugging,
-                     bool light_mode)
+                     InstructionSet instruction_set, size_t thread_count, bool support_debugging)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
     }
     *p_dex2oat = new Dex2Oat(Runtime::Current(), compiler_backend, instruction_set, thread_count,
-                             support_debugging, light_mode);
+                             support_debugging);
     return true;
   }
 
@@ -265,7 +262,6 @@ class Dex2Oat {
                                                         image,
                                                         thread_count_,
                                                         support_debugging_,
-                                                        light_mode_,
                                                         image_classes,
                                                         dump_stats,
                                                         dump_timings));
@@ -273,6 +269,7 @@ class Dex2Oat {
     if (compiler_backend_ == kPortable) {
       driver->SetBitcodeFileName(bitcode_filename);
     }
+
 
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
@@ -344,23 +341,14 @@ class Dex2Oat {
     return true;
   }
 
-  void SetLightMode(bool light_mode) {
-    light_mode_ = light_mode;
-  }
-
-  bool GetLightMode() {
-    return light_mode_;
-  }
-
  private:
   explicit Dex2Oat(Runtime* runtime, CompilerBackend compiler_backend, InstructionSet instruction_set,
-                   size_t thread_count, bool support_debugging, bool light_mode)
+                   size_t thread_count, bool support_debugging)
       : compiler_backend_(compiler_backend),
         instruction_set_(instruction_set),
         runtime_(runtime),
         thread_count_(thread_count),
         support_debugging_(support_debugging),
-        light_mode_(light_mode),
         start_ns_(NanoTime()) {
   }
 
@@ -486,7 +474,6 @@ class Dex2Oat {
   Runtime* runtime_;
   size_t thread_count_;
   bool support_debugging_;
-  bool light_mode_;
   uint64_t start_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
@@ -674,7 +661,6 @@ static int dex2oat(int argc, char** argv) {
   std::vector<const char*> runtime_args;
   int thread_count = sysconf(_SC_NPROCESSORS_CONF);
   bool support_debugging = false;
-  bool light_mode = false;
 #if defined(ART_USE_PORTABLE_COMPILER)
   CompilerBackend compiler_backend = kPortable;
 #else
@@ -694,9 +680,6 @@ static int dex2oat(int argc, char** argv) {
   bool dump_timings = kIsDebugBuild;
   bool watch_dog_enabled = !kIsTargetBuild;
 
-#if ART_LIGHT_MODE
-  light_mode = true;
-#endif // ART_LIGHT_MODE
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -726,8 +709,6 @@ static int dex2oat(int argc, char** argv) {
       }
     } else if (option == "-g") {
       support_debugging = true;
-    } else if (option == "--light-mode") {
-      light_mode = true;
     } else if (option == "--watch-dog") {
       watch_dog_enabled = true;
     } else if (option == "--no-watch-dog") {
@@ -932,8 +913,13 @@ static int dex2oat(int argc, char** argv) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
+#if ART_SMALL_MODE
+  options.push_back(std::make_pair("-small", reinterpret_cast<void*>(NULL)));
+#endif // ART_SMALL_MODE
+
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, support_debugging, light_mode)) {
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, 
+                       support_debugging)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
   }
@@ -980,6 +966,21 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
+  // If we're in small mode, but the program is small, turn off small mode.
+  // It doesn't make a difference for the boot image, so let's skip the check
+  // altogether.
+  if (Runtime::Current()->IsSmallMode() && !image) {
+    size_t num_methods = 0;
+    for (size_t i = 0; i != dex_files.size(); ++i) {
+      const DexFile* dex_file = dex_files[i];
+      CHECK(dex_file != NULL);
+      num_methods += dex_file->NumMethodIds();
+    }
+    if (num_methods <= Runtime::Current()->GetSmallModeMethodThreshold()) {
+      Runtime::Current()->SetSmallMode(false);
+      LOG(INFO) << "Below method threshold, compiling anyways";
+    }
+  }
 
   UniquePtr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                   host_prefix.get(),
