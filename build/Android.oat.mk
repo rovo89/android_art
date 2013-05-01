@@ -39,7 +39,7 @@ PRELOADED_CLASSES := frameworks/base/preloaded-classes
 
 ########################################################################
 # A smaller libcore only oat file
-TARGET_CORE_JARS := core core-junit bouncycastle
+TARGET_CORE_JARS := core conscrypt okhttp core-junit bouncycastle
 HOST_CORE_JARS := $(addsuffix -hostdex,$(TARGET_CORE_JARS))
 
 HOST_CORE_DEX_LOCATIONS   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)

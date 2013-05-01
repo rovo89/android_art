@@ -46,16 +46,20 @@ TEST_F(ImageTest, WriteRead) {
       ScopedObjectAccess soa(Thread::Current());
       std::vector<const DexFile*> dex_files;
       dex_files.push_back(java_lang_dex_file_);
+      dex_files.push_back(conscrypt_file_);
       VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
       bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "", *compiler_driver_.get());
       ASSERT_TRUE(success_oat);
 
       // Force all system classes into memory
-      for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); ++i) {
-        const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
-        const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
-        mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
-        EXPECT_TRUE(klass != NULL) << descriptor;
+      for (size_t dex_file_index = 0; dex_file_index < dex_files.size(); ++dex_file_index) {
+        const DexFile* dex_file = dex_files[dex_file_index];
+        for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); ++class_def_index) {
+          const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+          const char* descriptor = dex_file->GetClassDescriptor(class_def);
+          mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
+          EXPECT_TRUE(klass != NULL) << descriptor;
+        }
       }
       bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                     !kIsTargetBuild,

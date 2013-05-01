@@ -26,6 +26,8 @@ TEST_F(DexMethodIteratorTest, Basic) {
   ScopedObjectAccess soa(Thread::Current());
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(DexFile::Open(GetDexFileName("core"), GetDexFileName("core")));
+  dex_files.push_back(DexFile::Open(GetDexFileName("conscrypt"), GetDexFileName("conscrypt")));
+  dex_files.push_back(DexFile::Open(GetDexFileName("okhttp"), GetDexFileName("okhttp")));
   dex_files.push_back(DexFile::Open(GetDexFileName("core-junit"), GetDexFileName("core-junit")));
   dex_files.push_back(DexFile::Open(GetDexFileName("bouncycastle"), GetDexFileName("bouncycastle")));
   DexMethodIterator it(dex_files);
