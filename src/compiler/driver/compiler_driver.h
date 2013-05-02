@@ -39,6 +39,7 @@ class ParallelCompilationManager;
 class DexCompilationUnit;
 class TimingLogger;
 
+const uint32_t kDexPCNotReady = 0xFFFFFF;
 enum CompilerBackend {
   kQuick,
   kPortable,
@@ -145,8 +146,9 @@ class CompilerDriver {
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
-  bool ComputeInvokeInfo(uint32_t method_idx, const DexCompilationUnit* mUnit, InvokeType& type,
-                         int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method)
+  bool ComputeInvokeInfo(uint32_t method_idx, uint32_t dex_pc,
+                         const DexCompilationUnit* mUnit, InvokeType& type, int& vtable_idx,
+                         uintptr_t& direct_code, uintptr_t& direct_method)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Record patch information for later fix up.

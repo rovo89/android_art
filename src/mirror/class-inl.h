@@ -225,7 +225,7 @@ inline AbstractMethod* Class::FindVirtualMethodForInterface(AbstractMethod* meth
 
 inline AbstractMethod* Class::FindVirtualMethodForVirtual(AbstractMethod* method) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(!method->GetDeclaringClass()->IsInterface());
+  DCHECK(!method->GetDeclaringClass()->IsInterface() || method->IsMiranda());
   // The argument method may from a super class.
   // Use the index to a potentially overridden one for this instance's class.
   return GetVTable()->Get(method->GetMethodIndex());
