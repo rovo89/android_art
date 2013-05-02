@@ -61,7 +61,7 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  static const size_t kDefaultSmallModeMethodThreshold = 10;
+  static const size_t kDefaultSmallModeMethodThreshold = 30;
   static const size_t kDefaultSmallModeMethodDexSizeLimit = 100;
 
   class ParsedOptions {
