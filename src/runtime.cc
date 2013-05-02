@@ -364,7 +364,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = NULL; // We don't call abort(3) by default; see Runtime::Abort.
 
-  parsed->small_mode_ = true;
+  parsed->small_mode_ = false;
   parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
   parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
 
