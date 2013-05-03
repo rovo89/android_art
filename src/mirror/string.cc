@@ -17,7 +17,7 @@
 #include "string.h"
 
 #include "array.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "intern_table.h"
 #include "object-inl.h"
 #include "runtime.h"

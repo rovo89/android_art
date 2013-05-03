@@ -26,11 +26,12 @@
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
-#include "gc/large_object_space.h"
-#include "gc/space.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/heap.h"
+#include "gc/space/large_object_space.h"
+#include "gc/space/space-inl.h"
 #include "globals.h"
-#include "heap.h"
 #include "image.h"
 #include "intern_table.h"
 #include "mirror/array-inl.h"
@@ -63,9 +64,6 @@ bool ImageWriter::Write(const std::string& image_filename,
   CHECK_NE(image_begin, 0U);
   image_begin_ = reinterpret_cast<byte*>(image_begin);
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
-
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
   for (size_t i = 0; i < all_dex_caches.size(); i++) {
@@ -92,12 +90,16 @@ bool ImageWriter::Write(const std::string& image_filename,
     ComputeEagerResolvedStrings();
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
-  heap->CollectGarbage(false);  // Remove garbage
-  // Trim size of alloc spaces
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(false);  // Remove garbage.
+  // Trim size of alloc spaces.
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      (*cur)->AsAllocSpace()->Trim();
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+    gc::space::ContinuousSpace* space = *it;
+    if (space->IsDlMallocSpace()) {
+      space->AsDlMallocSpace()->Trim();
     }
   }
 
@@ -137,11 +139,15 @@ bool ImageWriter::Write(const std::string& image_filename,
 }
 
 bool ImageWriter::AllocMemory() {
-  const Spaces& spaces = Runtime::Current()->GetHeap()->GetSpaces();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   size_t size = 0;
-  for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    if ((*it)->IsAllocSpace()) {
-      size += (*it)->Size();
+  // TODO: C++0x auto
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+    gc::space::ContinuousSpace* space = *it;
+    if (space->IsDlMallocSpace()) {
+      size += space->Size();
     }
   }
 
@@ -191,7 +197,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 void ImageWriter::ComputeEagerResolvedStrings()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: Check image spaces only?
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
@@ -267,7 +273,7 @@ void ImageWriter::CheckNonImageClassesRemoved()
     return;
   }
 
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   Thread* self = Thread::Current();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -372,8 +378,8 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   Thread* self = Thread::Current();
   SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
@@ -388,8 +394,11 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
     // TODO: Add InOrderWalk to heap bitmap.
     const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK(heap->GetLargeObjectsSpace()->GetLiveObjects()->IsEmpty());
-    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-      (*it)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
+    // TODO: C++0x auto
+    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+    for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+      gc::space::ContinuousSpace* space = *it;
+      space->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }
     self->EndAssertNoThreadSuspension(old);
@@ -417,7 +426,7 @@ void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?

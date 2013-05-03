@@ -88,7 +88,7 @@ TEST_F(BarrierTest, CheckWait) {
   // at this point.
   EXPECT_EQ(num_threads, count2);
   // Wait for all the threads to finish.
-  thread_pool.Wait(self);
+  thread_pool.Wait(self, true, false);
   // All three counts should be equal to num_threads now.
   EXPECT_EQ(count1, count2);
   EXPECT_EQ(count2, count3);

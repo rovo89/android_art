@@ -68,7 +68,7 @@ TEST_F(ThreadPoolTest, CheckRun) {
   }
   thread_pool.StartWorkers(self);
   // Wait for tasks to complete.
-  thread_pool.Wait(self);
+  thread_pool.Wait(self, true, false);
   // Make sure that we finished all the work.
   EXPECT_EQ(num_tasks, count);
 }
@@ -137,7 +137,7 @@ TEST_F(ThreadPoolTest, RecursiveTest) {
   static const int depth = 8;
   thread_pool.AddTask(self, new TreeTask(&thread_pool, &count, depth));
   thread_pool.StartWorkers(self);
-  thread_pool.Wait(self);
+  thread_pool.Wait(self, true, false);
   EXPECT_EQ((1 << depth) - 1, count);
 }
 

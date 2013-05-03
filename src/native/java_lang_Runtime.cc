@@ -18,7 +18,7 @@
 #include <limits.h>
 #include <unistd.h>
 
-#include "heap.h"
+#include "gc/heap.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "runtime.h"

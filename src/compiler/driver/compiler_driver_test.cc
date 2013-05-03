@@ -23,7 +23,7 @@
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
-#include "heap.h"
+#include "gc/heap.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"

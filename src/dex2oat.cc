@@ -30,6 +30,8 @@
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
+#include "gc/space/image_space.h"
+#include "gc/space/space-inl.h"
 #include "image_writer.h"
 #include "leb128.h"
 #include "mirror/abstract_method-inl.h"
@@ -236,7 +238,7 @@ class Dex2Oat {
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_data_begin = 0;
     if (!driver->IsImage()) {
-      ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
+      gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
           reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());
@@ -456,12 +458,14 @@ class WatchDog {
  private:
   static void* CallBack(void* arg) {
     WatchDog* self = reinterpret_cast<WatchDog*>(arg);
+    ::art::SetThreadName("dex2oat watch dog");
     self->Wait();
     return NULL;
   }
 
   static void Message(char severity, const std::string& message) {
-    // TODO: Remove when we switch to LOG when we can guarantee it won't prevent shutdown in error cases.
+    // TODO: Remove when we switch to LOG when we can guarantee it won't prevent shutdown in error
+    //       cases.
     fprintf(stderr, "dex2oat%s %c %d %d %s\n",
             kIsDebugBuild ? "d" : "",
             severity,
@@ -482,10 +486,13 @@ class WatchDog {
   void Wait() {
     bool warning = true;
     CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
+    // TODO: tune the multiplier for GC verification, the following is just to make the timeout
+    //       large.
+    int64_t multiplier = gc::kDesiredHeapVerification > gc::kVerifyAllFast ? 100 : 1;
     timespec warning_ts;
-    InitTimeSpec(true, CLOCK_REALTIME, kWatchDogWarningSeconds * 1000, 0, &warning_ts);
+    InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogWarningSeconds * 1000, 0, &warning_ts);
     timespec timeout_ts;
-    InitTimeSpec(true, CLOCK_REALTIME, kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
+    InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
     while (!shutting_down_) {
@@ -522,7 +529,7 @@ class WatchDog {
 
   bool is_watch_dog_enabled_;
   bool shutting_down_;
-  // TODO: Switch to Mutex when we can guarantee it won't prevent shutdown in error cases
+  // TODO: Switch to Mutex when we can guarantee it won't prevent shutdown in error cases.
   pthread_mutex_t mutex_;
   pthread_cond_t cond_;
   pthread_attr_t attr_;

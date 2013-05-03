@@ -34,8 +34,10 @@
 #include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/heap.h"
+#include "gc/space/image_space.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
@@ -63,8 +65,6 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
-#include "gc/space_bitmap.h"
 #include "stack_indirect_reference_table.h"
 #include "thread.h"
 #include "UniquePtr.h"
@@ -216,7 +216,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
 
   // java_lang_Class comes first, it's needed for AllocClass
   Thread* self = Thread::Current();
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   SirtRef<mirror::Class>
       java_lang_Class(self,
                       down_cast<mirror::Class*>(heap->AllocObject(self, NULL,
@@ -549,7 +549,7 @@ void ClassLinker::FinishInit() {
   CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
            GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->SetReferenceOffsets(referent->GetOffset(),
                             queue->GetOffset(),
                             queueNext->GetOffset(),
@@ -595,7 +595,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 
   const char* class_path = Runtime::Current()->GetClassPathString().c_str();
 
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option_string("--boot-image=");
   boot_image_option_string += heap->GetImageSpace()->GetImageFilename();
   const char* boot_image_option = boot_image_option_string.c_str();
@@ -680,7 +680,7 @@ void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
   oat_files_.push_back(&oat_file);
 }
 
-OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
+OatFile* ClassLinker::OpenOat(const gc::space::ImageSpace* space) {
   WriterMutexLock mu(Thread::Current(), dex_lock_);
   const Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = space->GetImageHeader();
@@ -947,8 +947,8 @@ void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  ImageSpace* space = heap->GetImageSpace();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  gc::space::ImageSpace* space = heap->GetImageSpace();
   OatFile* oat_file = OpenOat(space);
   CHECK(oat_file != NULL) << "Failed to open oat file for image";
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
@@ -1057,7 +1057,7 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg) {
+void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
   visitor(class_roots_, arg);
   Thread* self = Thread::Current();
   {
@@ -1079,7 +1079,9 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg) {
   }
 
   visitor(array_iftable_, arg);
-  is_dirty_ = false;
+  if (clean_dirty) {
+    is_dirty_ = false;
+  }
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
@@ -1135,7 +1137,7 @@ ClassLinker::~ClassLinker() {
 }
 
 mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_file) {
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   mirror::Class* dex_cache_class = GetClassRoot(kJavaLangDexCache);
   SirtRef<mirror::DexCache> dex_cache(self,
                               down_cast<mirror::DexCache*>(heap->AllocObject(self, dex_cache_class,
@@ -1188,7 +1190,7 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
 mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Class,
                                        size_t class_size) {
   DCHECK_GE(class_size, sizeof(mirror::Class));
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   SirtRef<mirror::Class> klass(self,
                        heap->AllocObject(self, java_lang_Class, class_size)->AsClass());
   klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
@@ -2073,7 +2075,8 @@ mirror::Class* ClassLinker::FindPrimitiveClass(char type) {
   return NULL;
 }
 
-mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::Class* klass, bool image_class) {
+mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::Class* klass,
+                                        bool image_class) {
   if (VLOG_IS_ON(class_linker)) {
     mirror::DexCache* dex_cache = klass->GetDexCache();
     std::string source;
@@ -2086,7 +2089,8 @@ mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::C
   size_t hash = StringPieceHash()(descriptor);
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
-  mirror::Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
+  mirror::Class* existing =
+      LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
   // Check we don't have the class in the other table in error
   Table& other_classes = image_class ? classes_ : image_classes_;
@@ -2095,6 +2099,7 @@ mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::C
   if (existing != NULL) {
     return existing;
   }
+  Runtime::Current()->GetHeap()->VerifyObject(klass);
   classes.insert(std::make_pair(hash, klass));
   Dirty();
   return NULL;

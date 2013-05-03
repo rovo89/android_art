@@ -23,7 +23,7 @@
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "gc/space.h"
+#include "gc/space/space.h"
 #include "mirror/class-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/abstract_method-inl.h"
@@ -36,7 +36,7 @@
 #include "thread.h"
 
 #define LIBCORE_CPP_JNI_HELPERS
-#include <JNIHelp.h> // from libcore
+#include <JNIHelp.h>  // from libcore
 #undef LIBCORE_CPP_JNI_HELPERS
 
 namespace art {

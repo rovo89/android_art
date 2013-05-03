@@ -307,6 +307,10 @@ class ConditionVariable {
   //       pointer copy, thereby defeating annotalysis.
   void Wait(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
   void TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
+  // Variant of Wait that should be used with caution. Doesn't validate that no mutexes are held
+  // when waiting.
+  // TODO: remove this.
+  void WaitHoldingLocks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
   const char* const name_;

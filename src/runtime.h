@@ -27,8 +27,8 @@
 
 #include "base/macros.h"
 #include "base/stringpiece.h"
+#include "gc/heap.h"
 #include "globals.h"
-#include "heap.h"
 #include "instruction_set.h"
 #include "instrumentation.h"
 #include "jobject_comparator.h"
@@ -39,17 +39,19 @@
 
 namespace art {
 
+namespace gc {
+  class Heap;
+}
 namespace mirror {
-class AbstractMethod;
-class ClassLoader;
-template<class T> class PrimitiveArray;
-typedef PrimitiveArray<int8_t> ByteArray;
-class String;
-class Throwable;
+  class AbstractMethod;
+  class ClassLoader;
+  template<class T> class PrimitiveArray;
+  typedef PrimitiveArray<int8_t> ByteArray;
+  class String;
+  class Throwable;
 }  // namespace mirror
 class ClassLinker;
 class DexFile;
-class Heap;
 class InternTable;
 struct JavaVMExt;
 class MonitorList;
@@ -224,7 +226,7 @@ class Runtime {
     return default_stack_size_;
   }
 
-  Heap* GetHeap() const {
+  gc::Heap* GetHeap() const {
     return heap_;
   }
 
@@ -256,14 +258,13 @@ class Runtime {
     return "2.0.0";
   }
 
-  // Force all the roots which can be marked concurrently to be dirty.
-  void DirtyRoots();
-
-  // Visit all the roots.
-  void VisitRoots(RootVisitor* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
+  // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
+  void VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
-  void VisitConcurrentRoots(RootVisitor* visitor, void* arg);
+  void VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
   void VisitNonThreadRoots(RootVisitor* visitor, void* arg);
@@ -392,7 +393,7 @@ class Runtime {
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;
 
-  Heap* heap_;
+  gc::Heap* heap_;
 
   MonitorList* monitor_list_;
 

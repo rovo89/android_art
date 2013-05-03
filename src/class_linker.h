@@ -29,6 +29,11 @@
 #include "oat_file.h"
 
 namespace art {
+namespace gc {
+namespace space {
+  class ImageSpace;
+}  // namespace space
+}  // namespace gc
 namespace mirror {
   class ClassLoader;
   class DexCache;
@@ -37,7 +42,7 @@ namespace mirror {
   template<class T> class ObjectArray;
   class StackTraceElement;
 }  // namespace mirror
-class ImageSpace;
+
 class InternTable;
 class ObjectLock;
 template<class T> class SirtRef;
@@ -219,7 +224,7 @@ class ClassLinker {
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg)
+  void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const
@@ -354,7 +359,7 @@ class ClassLinker {
 
   // Initialize class linker from one or more images.
   void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  OatFile* OpenOat(const ImageSpace* space)
+  OatFile* OpenOat(const gc::space::ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void InitFromImageCallback(mirror::Object* obj, void* arg)

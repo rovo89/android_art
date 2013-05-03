@@ -777,6 +777,11 @@ void ConditionVariable::Signal(Thread* self) {
 }
 
 void ConditionVariable::Wait(Thread* self) {
+  guard_.CheckSafeToWait(self);
+  WaitHoldingLocks(self);
+}
+
+void ConditionVariable::WaitHoldingLocks(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
   guard_.AssertExclusiveHeld(self);
   unsigned int old_recursion_count = guard_.recursion_count_;
@@ -811,6 +816,7 @@ void ConditionVariable::Wait(Thread* self) {
 void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   DCHECK(self == NULL || self == Thread::Current());
   guard_.AssertExclusiveHeld(self);
+  guard_.CheckSafeToWait(self);
   unsigned int old_recursion_count = guard_.recursion_count_;
 #if ART_USE_FUTEXES
   timespec rel_ts;

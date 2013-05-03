@@ -52,6 +52,7 @@ ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \
 	external/gtest/include \
+	external/valgrind/main/include \
 	external/zlib \
 	frameworks/compile/mclinker/include \
 	art/src
@@ -179,20 +180,22 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_arm.cc \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
-	src/dlmalloc.cc \
 	src/elf_file.cc \
 	src/file_output_stream.cc \
-	src/gc/card_table.cc \
-	src/gc/garbage_collector.cc \
-	src/gc/heap_bitmap.cc \
-	src/gc/large_object_space.cc \
-	src/gc/mark_sweep.cc \
-	src/gc/mod_union_table.cc \
-	src/gc/partial_mark_sweep.cc \
-	src/gc/space.cc \
-	src/gc/space_bitmap.cc \
-	src/gc/sticky_mark_sweep.cc \
-	src/heap.cc \
+	src/gc/allocator/dlmalloc.cc \
+	src/gc/accounting/card_table.cc \
+	src/gc/accounting/heap_bitmap.cc \
+	src/gc/accounting/mod_union_table.cc \
+	src/gc/accounting/space_bitmap.cc \
+	src/gc/collector/garbage_collector.cc \
+	src/gc/collector/mark_sweep.cc \
+	src/gc/collector/partial_mark_sweep.cc \
+	src/gc/collector/sticky_mark_sweep.cc \
+	src/gc/heap.cc \
+	src/gc/space/dlmalloc_space.cc \
+	src/gc/space/image_space.cc \
+	src/gc/space/large_object_space.cc \
+	src/gc/space/space.cc \
 	src/hprof/hprof.cc \
 	src/image.cc \
 	src/image_writer.cc \
@@ -372,9 +375,9 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/compiler/dex/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
-	src/gc/gc_type.h \
-	src/gc/space.h \
-	src/heap.h \
+	src/gc/collector/gc_type.h \
+	src/gc/space/space.h \
+	src/gc/heap.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
 	src/invoke_type.h \
@@ -407,10 +410,10 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_method_iterator_test.cc \
 	src/elf_writer_test.cc \
 	src/exception_test.cc \
-	src/gc/space_bitmap_test.cc \
-	src/gc/space_test.cc \
+	src/gc/accounting/space_bitmap_test.cc \
+	src/gc/heap_test.cc \
+	src/gc/space/space_test.cc \
 	src/gtest_test.cc \
-	src/heap_test.cc \
 	src/image_test.cc \
 	src/indenter_test.cc \
 	src/indirect_reference_table_test.cc \

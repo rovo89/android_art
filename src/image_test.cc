@@ -22,7 +22,7 @@
 #include "image_writer.h"
 #include "oat_writer.h"
 #include "signal_catcher.h"
-#include "gc/space.h"
+#include "gc/space/image_space.h"
 #include "UniquePtr.h"
 #include "utils.h"
 #include "vector_output_stream.h"
@@ -83,12 +83,12 @@ TEST_F(ImageTest, WriteRead) {
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
 
-    Heap* heap = Runtime::Current()->GetHeap();
-    ASSERT_EQ(1U, heap->GetSpaces().size());
-    ContinuousSpace* space = heap->GetSpaces().front();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    ASSERT_EQ(1U, heap->GetContinuousSpaces().size());
+    gc::space::ContinuousSpace* space = heap->GetContinuousSpaces().front();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
-    ASSERT_TRUE(space->IsAllocSpace());
+    ASSERT_TRUE(space->IsDlMallocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
 
@@ -125,14 +125,14 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  ASSERT_EQ(2U, heap->GetSpaces().size());
-  ASSERT_TRUE(heap->GetSpaces()[0]->IsImageSpace());
-  ASSERT_FALSE(heap->GetSpaces()[0]->IsAllocSpace());
-  ASSERT_FALSE(heap->GetSpaces()[1]->IsImageSpace());
-  ASSERT_TRUE(heap->GetSpaces()[1]->IsAllocSpace());
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  ASSERT_EQ(2U, heap->GetContinuousSpaces().size());
+  ASSERT_TRUE(heap->GetContinuousSpaces()[0]->IsImageSpace());
+  ASSERT_FALSE(heap->GetContinuousSpaces()[0]->IsDlMallocSpace());
+  ASSERT_FALSE(heap->GetContinuousSpaces()[1]->IsImageSpace());
+  ASSERT_TRUE(heap->GetContinuousSpaces()[1]->IsDlMallocSpace());
 
-  ImageSpace* image_space = heap->GetImageSpace();
+  gc::space::ImageSpace* image_space = heap->GetImageSpace();
   byte* image_begin = image_space->Begin();
   byte* image_end = image_space->End();
   CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));

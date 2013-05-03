@@ -22,7 +22,7 @@
 #include "class_linker-inl.h"
 #include "common_test.h"
 #include "dex_file.h"
-#include "heap.h"
+#include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/field-inl.h"
@@ -333,7 +333,7 @@ class ClassLinkerTest : public CommonTest {
       const char* descriptor = dex->GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
-    class_linker_->VisitRoots(TestRootVisitor, NULL);
+    class_linker_->VisitRoots(TestRootVisitor, NULL, false);
     // Verify the dex cache has resolution methods in all resolved method slots
     DexCache* dex_cache = class_linker_->FindDexCache(*dex);
     ObjectArray<AbstractMethod>* resolved_methods = dex_cache->GetResolvedMethods();

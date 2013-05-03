@@ -34,8 +34,9 @@
 #include "constants_mips.h"
 #include "constants_x86.h"
 #include "debugger.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
+#include "gc/space/space.h"
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
@@ -55,7 +56,6 @@
 #include "signal_catcher.h"
 #include "signal_set.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"
@@ -332,11 +332,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
   parsed->check_jni_ = kIsDebugBuild;
 
-  parsed->heap_initial_size_ = Heap::kDefaultInitialSize;
-  parsed->heap_maximum_size_ = Heap::kDefaultMaximumSize;
-  parsed->heap_min_free_ = Heap::kDefaultMinFree;
-  parsed->heap_max_free_ = Heap::kDefaultMaxFree;
-  parsed->heap_target_utilization_ = Heap::kDefaultTargetUtilization;
+  parsed->heap_initial_size_ = gc::Heap::kDefaultInitialSize;
+  parsed->heap_maximum_size_ = gc::Heap::kDefaultMaximumSize;
+  parsed->heap_min_free_ = gc::Heap::kDefaultMinFree;
+  parsed->heap_max_free_ = gc::Heap::kDefaultMaxFree;
+  parsed->heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
   parsed->stack_size_ = 0; // 0 means default.
 
@@ -810,14 +810,14 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     GetInstrumentation()->ForceInterpretOnly();
   }
 
-  heap_ = new Heap(options->heap_initial_size_,
-                   options->heap_growth_limit_,
-                   options->heap_min_free_,
-                   options->heap_max_free_,
-                   options->heap_target_utilization_,
-                   options->heap_maximum_size_,
-                   options->image_,
-                   options->is_concurrent_gc_enabled_);
+  heap_ = new gc::Heap(options->heap_initial_size_,
+                       options->heap_growth_limit_,
+                       options->heap_min_free_,
+                       options->heap_max_free_,
+                       options->heap_target_utilization_,
+                       options->heap_maximum_size_,
+                       options->image_,
+                       options->is_concurrent_gc_enabled_);
 
   BlockSignals();
   InitPlatformSignalHandlers();
@@ -839,8 +839,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // Now we're attached, we can take the heap lock and validate the heap.
   GetHeap()->EnableObjectValidation();
 
-  CHECK_GE(GetHeap()->GetSpaces().size(), 1U);
-  if (GetHeap()->GetSpaces()[0]->IsImageSpace()) {
+  CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
+  if (GetHeap()->GetContinuousSpaces()[0]->IsImageSpace()) {
     class_linker_ = ClassLinker::CreateFromImage(intern_table_);
   } else {
     CHECK(options->boot_class_path_ != NULL);
@@ -1052,12 +1052,13 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg) {
-  if (intern_table_->IsDirty()) {
-    intern_table_->VisitRoots(visitor, arg);
+void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty,
+                                   bool clean_dirty) {
+  if (!only_dirty || intern_table_->IsDirty()) {
+    intern_table_->VisitRoots(visitor, arg, clean_dirty);
   }
-  if (class_linker_->IsDirty()) {
-    class_linker_->VisitRoots(visitor, arg);
+  if (!only_dirty || class_linker_->IsDirty()) {
+    class_linker_->VisitRoots(visitor, arg, clean_dirty);
   }
 }
 
@@ -1077,15 +1078,8 @@ void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
   VisitNonThreadRoots(visitor, arg);
 }
 
-void Runtime::DirtyRoots() {
-  CHECK(intern_table_ != NULL);
-  intern_table_->Dirty();
-  CHECK(class_linker_ != NULL);
-  class_linker_->Dirty();
-}
-
-void Runtime::VisitRoots(RootVisitor* visitor, void* arg) {
-  VisitConcurrentRoots(visitor, arg);
+void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
+  VisitConcurrentRoots(visitor, arg, only_dirty, clean_dirty);
   VisitNonConcurrentRoots(visitor, arg);
 }
 

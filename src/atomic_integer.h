@@ -71,7 +71,7 @@ class AtomicInteger {
     return success;
   }
  private:
-  int32_t value_;
+  volatile int32_t value_;
 };
 
 }

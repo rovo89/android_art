@@ -15,7 +15,7 @@
  */
 
 #include "common_throws.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
 #include "mirror/class.h"

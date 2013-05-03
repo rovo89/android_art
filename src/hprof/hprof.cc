@@ -44,8 +44,10 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/heap.h"
+#include "gc/space/space.h"
 #include "globals.h"
-#include "heap.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/field.h"
@@ -55,7 +57,6 @@
 #include "os.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "thread_list.h"
 
 namespace art {
@@ -412,7 +413,7 @@ class Hprof {
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
-    Runtime::Current()->VisitRoots(RootVisitor, this);
+    Runtime::Current()->VisitRoots(RootVisitor, this, false, false);
     Thread* self = Thread::Current();
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);

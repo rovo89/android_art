@@ -29,7 +29,7 @@
 #include "mirror/dex_cache.h"
 #include "os.h"
 #include "safe_map.h"
-#include "gc/space.h"
+#include "gc/space/space.h"
 #include "UniquePtr.h"
 
 namespace art {

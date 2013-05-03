@@ -20,7 +20,8 @@
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
-#include "gc/space.h"
+#include "gc/space/image_space.h"
+#include "gc/space/space-inl.h"
 #include "image.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
@@ -248,13 +249,14 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_TRUE;
   }
 
-  Heap* heap = runtime->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
+  gc::Heap* heap = runtime->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsImageSpace()) {
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+    if ((*it)->IsImageSpace()) {
       // TODO: Ensure this works with multiple image spaces.
-      const ImageHeader& image_header = (*cur)->AsImageSpace()->GetImageHeader();
+      const ImageHeader& image_header = (*it)->AsImageSpace()->GetImageHeader();
       if (oat_file->GetOatHeader().GetImageFileLocationOatChecksum() != image_header.GetOatChecksum()) {
         ScopedObjectAccess soa(env);
         LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location

@@ -16,6 +16,7 @@
 
 #include "jni_internal.h"
 
+#include <limits.h>
 #include <cfloat>
 #include <cmath>
 

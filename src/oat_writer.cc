@@ -22,6 +22,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
+#include "gc/space/space.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/array.h"
 #include "mirror/class_loader.h"
@@ -30,7 +31,6 @@
 #include "output_stream.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "verifier/method_verifier.h"
 
 namespace art {

@@ -35,8 +35,9 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
+#include "gc/space/space.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method-inl.h"
@@ -55,7 +56,6 @@
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
 #include "thread-inl.h"
@@ -2198,7 +2198,7 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
 }
 
 static void VerifyObject(const mirror::Object* root, void* arg) {
-  Heap* heap = reinterpret_cast<Heap*>(arg);
+  gc::Heap* heap = reinterpret_cast<gc::Heap*>(arg);
   heap->VerifyObject(root);
 }
 

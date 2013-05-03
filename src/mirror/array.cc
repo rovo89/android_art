@@ -20,7 +20,7 @@
 #include "class-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"
@@ -51,7 +51,7 @@ Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
     return NULL;
   }
 
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   Array* array = down_cast<Array*>(heap->AllocObject(self, array_class, size));
   if (array != NULL) {
     DCHECK(array->IsArrayInstance());

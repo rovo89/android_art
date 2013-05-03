@@ -31,8 +31,9 @@
 #include "oat_file.h"
 #include "object_utils.h"
 #include "runtime.h"
-#include "gc/card_table-inl.h"
-#include "gc/space.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/space/space.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -761,7 +762,7 @@ void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
   // Update image_classes_ with classes for objects created by <clinit> methods.
   Thread* self = Thread::Current();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   // TODO: Image spaces only?
   WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
@@ -1092,7 +1093,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
     }
     stats_->DirectMethodsToBoot(type);
   }
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   if (compiling_boot) {
     if (support_boot_image_fixup_) {
       MethodHelper mh(method);
@@ -1104,7 +1105,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
       }
     }
   } else {
-    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method)->IsImageSpace()) {
+    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace()) {
       direct_method = reinterpret_cast<uintptr_t>(method);
     }
     direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
@@ -1382,7 +1383,7 @@ class ParallelCompilationManager {
     CHECK_NE(self->GetState(), kRunnable);
 
     // Wait for all the worker threads to finish.
-    thread_pool_->Wait(self);
+    thread_pool_->Wait(self, true, false);
   }
 
  private:
@@ -1915,7 +1916,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
   const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   bool can_init_static_fields = compiling_boot &&
       manager->GetCompiler()->IsImageClass(descriptor);
   if (klass != NULL) {
@@ -1925,8 +1926,9 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     // on a second thread the sub-class is initialized (holding its lock) after first initializing
     // its parents, whose locks are acquired. This leads to a parent-to-child and a child-to-parent
     // lock ordering and consequent potential deadlock.
-    static Mutex lock1("Initializer lock", kMonitorLock);
-    MutexLock mu(soa.Self(), lock1);
+    // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
+    // than use a special Object for the purpose we use the Class of java.lang.Class.
+    ObjectLock lock1(soa.Self(), klass->GetClass());
     // The lock required to initialize the class.
     ObjectLock lock2(soa.Self(), klass);
     // Only try to initialize classes that were successfully verified.

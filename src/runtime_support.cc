@@ -18,7 +18,7 @@
 
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/field-inl.h"

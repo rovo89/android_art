@@ -24,9 +24,9 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
-#include "gc/card_table-inl.h"
-#include "gc/large_object_space.h"
-#include "gc/space.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/space/large_object_space.h"
+#include "gc/space/space-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jdwp/object_registry.h"
 #include "mirror/abstract_method-inl.h"
@@ -1691,6 +1691,7 @@ JDWP::JdwpError Dbg::GetThreadStatus(JDWP::ObjectId thread_id, JDWP::JdwpThreadS
     case kWaitingForDebuggerSuspension:   *pThreadStatus = JDWP::TS_WAIT;     break;
     case kWaitingForDebuggerToAttach:     *pThreadStatus = JDWP::TS_WAIT;     break;
     case kWaitingForGcToComplete:         *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForCheckPointsToRun:     *pThreadStatus = JDWP::TS_WAIT;     break;
     case kWaitingForJniOnLoad:            *pThreadStatus = JDWP::TS_WAIT;     break;
     case kWaitingForSignalCatcherOutput:  *pThreadStatus = JDWP::TS_WAIT;     break;
     case kWaitingInMainDebuggerLoop:      *pThreadStatus = JDWP::TS_WAIT;     break;
@@ -3137,7 +3138,7 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
    *     [u4]: current number of objects allocated
    */
   uint8_t heap_count = 1;
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   std::vector<uint8_t> bytes;
   JDWP::Append4BE(bytes, heap_count);
   JDWP::Append4BE(bytes, 1); // Heap id (bogus; we only have one heap).
@@ -3416,17 +3417,16 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
-    // TODO: enable when bionic has moved to dlmalloc 2.8.5
-    // dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
-    UNIMPLEMENTED(WARNING) << "Native heap send heap segments";
+    dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
   } else {
-    Heap* heap = Runtime::Current()->GetHeap();
-    const Spaces& spaces = heap->GetSpaces();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
     Thread* self = Thread::Current();
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-      if ((*cur)->IsAllocSpace()) {
-        (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+    for (It cur = spaces.begin(), end = spaces.end(); cur != end; ++cur) {
+      if ((*cur)->IsDlMallocSpace()) {
+        (*cur)->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }
     // Walk the large objects, these are not in the AllocSpace.

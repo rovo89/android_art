@@ -26,7 +26,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction_visitor.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"

@@ -66,7 +66,7 @@ class InternTable {
 
   size_t Size() const;
 
-  void VisitRoots(RootVisitor* visitor, void* arg);
+  void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty);
 
   void DumpForSigQuit(std::ostream& os) const;
 
