@@ -2109,11 +2109,15 @@ mirror::Class* ClassLinker::LookupClass(const char* descriptor,
   size_t hash = Hash(descriptor);
   MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
-  mirror::Class* klass = LookupClassLocked(descriptor, class_loader, hash, classes_);
+  mirror::Class* klass = NULL;
+  // Use image class only if the class_loader is null.
+  if (class_loader == NULL) {
+    klass = LookupClassLocked(descriptor, class_loader, hash, image_classes_);
+  }
   if (klass != NULL) {
     return klass;
   }
-  return LookupClassLocked(descriptor, class_loader, hash, image_classes_);
+  return LookupClassLocked(descriptor, class_loader, hash, classes_);
 }
 
 mirror::Class* ClassLinker::LookupClassLocked(const char* descriptor,

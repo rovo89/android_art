@@ -114,30 +114,30 @@ const RegType& RegTypeCache::RegTypeFromPrimitiveType(
 }
 
 bool RegTypeCache::MatchDescriptor(size_t idx, std::string& descriptor, bool precise) {
-  ClassHelper kh;
   RegType* cur_entry = entries_[idx];
-  // Check if we have matching descriptors and precision
-  // in cases where the descriptor available
-  if (cur_entry->descriptor_ != "" &&
-      MatchingPrecisionForClass(cur_entry, precise) &&
-      descriptor == cur_entry->descriptor_) {
-    return true;
-  }
-  // check resolved and unresolved references, ignore uninitialized references
   if (cur_entry->HasClass()) {
-    kh.ChangeClass(cur_entry->GetClass());
-    // So we might have cases where we have the class but not the descriptor
-    // for that class we need the class helper to get the descriptor
-    // and match it with the one we are given.
-    if (MatchingPrecisionForClass(cur_entry, precise) &&
-        (strcmp(descriptor.c_str(), kh.GetDescriptor()) == 0)) {
-      return true;
+    // Check the descriptor in the reg_type if available.
+    if(!cur_entry->descriptor_.empty()) {
+      if (descriptor == cur_entry->descriptor_ && MatchingPrecisionForClass(cur_entry, precise)) {
+        return true;
+      }
+    } else {
+      // Descriptor not found in reg_type , maybe available in Class object.
+      // So we might have cases where we have the class but not the descriptor
+      // for that class we need the class helper to get the descriptor
+      // and match it with the one we are given.
+      ClassHelper kh(cur_entry->GetClass());
+      if ((strcmp(descriptor.c_str(), kh.GetDescriptor()) == 0) &&
+          MatchingPrecisionForClass(cur_entry, precise)) {
+        return true;
+      }
     }
   } else if (cur_entry->IsUnresolvedReference() && cur_entry->GetDescriptor() == descriptor) {
     return true;
   }
   return false;
 }
+
 
 mirror::Class* RegTypeCache::ResolveClass(std::string descriptor, mirror::ClassLoader* loader) {
   // Class was not found, must create new type.
@@ -164,28 +164,25 @@ void RegTypeCache::ClearException() {
   }
 }
 const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descriptor, bool precise) {
+
+  // Try looking up the class in the cache first.
+  for (size_t i = primitive_count_; i < entries_.size(); i++) {
+    if (MatchDescriptor(i, descriptor, precise)) {
+      return *(entries_[i]);
+    }
+  }
+  // Class not found in the cache, will create a new type for that.
   // Try resolving class.
   mirror::Class* klass = ResolveClass(descriptor, loader);
   if (klass != NULL) {
     // Class resolved, first look for the class in the list of entries
-    for (size_t i = primitive_count_; i < entries_.size(); i++) {
-      if (entries_[i]->HasClass()) {
-        if (MatchDescriptor(i, descriptor, precise)) {
-          return *(entries_[i]);
-        }
-      }
-    }
     // Class was not found, must create new type.
-
     //To pass the verification, the type should be imprecise,
     // instantiable or an interface with the precise type set to false.
     DCHECK(!precise || klass->IsInstantiable());
-
     // Create a precise type if:
-    // 1- Class is final and NOT an interface. a precise interface
-    //    is meaningless !!
+    // 1- Class is final and NOT an interface. a precise interface is meaningless !!
     // 2- Precise Flag passed as true.
-
     RegType* entry;
     // Create an imprecise type if we can't tell for a fact that it is precise.
     if ((klass->IsFinal()) || precise) {
@@ -201,14 +198,6 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descr
     // We tried loading the class and failed, this might get an exception raised
     // so we want to clear it before we go on.
     ClearException();
-    // Unable to resolve class. Look through unresolved types in the catch and see
-    // if we have it created before.
-    for (size_t i = primitive_count_; i < entries_.size(); i++) {
-      if (entries_[i]->IsUnresolvedReference() &&
-          entries_[i]->descriptor_ == descriptor) {
-        return *(entries_[i]);
-      }
-    }
     if (IsValidDescriptor(descriptor.c_str())) {
       RegType* entry = new UnresolvedReferenceType(descriptor, entries_.size());
       entries_.push_back(entry);
@@ -223,13 +212,12 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, std::string descr
 const RegType& RegTypeCache::FromClass(mirror::Class* klass, bool precise) {
   if (klass->IsPrimitive()) {
     return RegTypeFromPrimitiveType(klass->GetPrimitiveType());
-
   } else {
     // Look for the reference in the list of entries to have.
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
-      if ((cur_entry->HasClass()) &&
-          MatchingPrecisionForClass(cur_entry, precise) && cur_entry->GetClass() == klass) {
+      if ((cur_entry->HasClass()) && cur_entry->GetClass() == klass &&
+          MatchingPrecisionForClass(cur_entry, precise)) {
         return *cur_entry;
       }
     }
