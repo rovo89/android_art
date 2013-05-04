@@ -293,7 +293,7 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                                bool image, size_t thread_count, bool support_debugging,
-                               const std::set<std::string>* image_classes, 
+                               const std::set<std::string>* image_classes,
                                bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
@@ -1271,12 +1271,30 @@ static const char* class_initializer_black_list[] = {
   "Landroid/graphics/SurfaceTexture;", // Calls android.graphics.SurfaceTexture.nativeClassInit().
   "Landroid/graphics/Typeface;", // Calls android.graphics.Typeface.nativeCreate.
   "Landroid/inputmethodservice/ExtractEditText;", // Requires android.widget.TextView.
+  "Landroid/media/AmrInputStream;", // Calls OsConstants.initConstants.
+  "Landroid/media/CamcorderProfile;", // Calls OsConstants.initConstants.
   "Landroid/media/CameraProfile;", // Calls System.loadLibrary.
   "Landroid/media/DecoderCapabilities;", // Calls System.loadLibrary.
+  "Landroid/media/EncoderCapabilities;", // Calls OsConstants.initConstants.
+  "Landroid/media/ExifInterface;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaCodec;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaCodecList;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaCrypto;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaDrm;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaExtractor;", // Calls OsConstants.initConstants.
   "Landroid/media/MediaFile;", // Requires DecoderCapabilities.
+  "Landroid/media/MediaMetadataRetriever;", // Calls OsConstants.initConstants.
+  "Landroid/media/MediaMuxer;", // Calls OsConstants.initConstants.
   "Landroid/media/MediaPlayer;", // Calls System.loadLibrary.
   "Landroid/media/MediaRecorder;", // Calls System.loadLibrary.
   "Landroid/media/MediaScanner;", // Calls System.loadLibrary.
+  "Landroid/media/ResampleInputStream;", // Calls OsConstants.initConstants.
+  "Landroid/media/SoundPool;", // Calls OsConstants.initConstants.
+  "Landroid/media/videoeditor/MediaArtistNativeHelper;", // Calls OsConstants.initConstants.
+  "Landroid/media/videoeditor/VideoEditorProfile;", // Calls OsConstants.initConstants.
+  "Landroid/mtp/MtpDatabase;", // Calls OsConstants.initConstants.
+  "Landroid/mtp/MtpDevice;", // Calls OsConstants.initConstants.
+  "Landroid/mtp/MtpServer;", // Calls OsConstants.initConstants.
   "Landroid/net/NetworkInfo;", // Calls java.util.EnumMap.<init> -> java.lang.Enum.getSharedConstants -> System.identityHashCode.
   "Landroid/net/Proxy;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/net/SSLCertificateSocketFactory;", // Requires javax.net.ssl.HttpsURLConnection.
@@ -1303,6 +1321,8 @@ static const char* class_initializer_black_list[] = {
   "Landroid/os/StrictMode$VmPolicy;", // Requires StrictMode.
   "Landroid/os/Trace;", // Calls android.os.Trace.nativeGetEnabledTags.
   "Landroid/os/UEventObserver;", // Calls Class.getSimpleName -> Class.isAnonymousClass -> Class.getDex.
+  "Landroid/provider/ContactsContract;", // Calls OsConstants.initConstants.
+  "Landroid/provider/Settings$Global;", // Calls OsConstants.initConstants.
   "Landroid/provider/Settings$Secure;", // Requires android.net.Uri.
   "Landroid/provider/Settings$System;", // Requires android.net.Uri.
   "Landroid/renderscript/RenderScript;", // Calls System.loadLibrary.
@@ -1319,17 +1339,25 @@ static const char* class_initializer_black_list[] = {
   "Landroid/text/TextUtils;", // Requires android.util.DisplayMetrics.
   "Landroid/util/DisplayMetrics;", // Calls SystemProperties.native_get_int.
   "Landroid/util/Patterns;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
-  "Landroid/view/animation/Animation;", // Calls SystemProperties.native_get_boolean.
-  "Landroid/view/animation/AlphaAnimation;", // Requires Animation.
   "Landroid/view/Choreographer;", // Calls SystemProperties.native_get_boolean.
-  "Landroid/view/GLES20Canvas;", // Calls android.view.GLES20Canvas.nIsAvailable.
+  "Landroid/util/Patterns;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/view/GLES20Canvas;", // Calls GLES20Canvas.nIsAvailable().
   "Landroid/view/GLES20RecordingCanvas;", // Requires android.view.GLES20Canvas.
-  "Landroid/view/HardwareRenderer$GlRenderer;", // Requires SystemProperties.native_get.
+  "Landroid/view/GestureDetector;", // Calls android.view.GLES20Canvas.nIsAvailable.
   "Landroid/view/HardwareRenderer$Gl20Renderer;", // Requires SystemProperties.native_get.
+  "Landroid/view/HardwareRenderer$GlRenderer;", // Requires SystemProperties.native_get.
   "Landroid/view/InputEventConsistencyVerifier;", // Requires android.os.Build.
   "Landroid/view/Surface;", // Requires SystemProperties.native_get.
+  "Landroid/view/SurfaceControl;", // Calls OsConstants.initConstants.
+  "Landroid/view/animation/AlphaAnimation;", // Requires Animation.
+  "Landroid/view/animation/Animation;", // Calls SystemProperties.native_get_boolean.
+  "Landroid/view/animation/AnimationSet;", // Calls OsConstants.initConstants.
+  "Landroid/view/textservice/SpellCheckerSubtype;", // Calls Class.getDex().
   "Landroid/webkit/JniUtil;", // Calls System.loadLibrary.
+  "Landroid/webkit/PluginManager;", // // Calls OsConstants.initConstants.
   "Landroid/webkit/WebViewCore;", // Calls System.loadLibrary.
+  "Landroid/webkit/WebViewInputDispatcher;", // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Landroid/webkit/URLUtil;", // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/widget/AutoCompleteTextView;", // Requires TextView.
   "Landroid/widget/Button;", // Requires TextView.
   "Landroid/widget/CheckBox;", // Requires TextView.
@@ -1342,6 +1370,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/widget/Switch;", // Requires TextView.
   "Landroid/widget/TextView;", // Calls Paint.<init> -> Paint.native_init.
   "Lcom/android/i18n/phonenumbers/AsYouTypeFormatter;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Lcom/android/i18n/phonenumbers/PhoneNumberMatcher;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Lcom/android/i18n/phonenumbers/PhoneNumberUtil;", // Requires java.util.logging.LogManager.
   "Lcom/android/internal/os/SamplingProfilerIntegration;", // Calls SystemProperties.native_get_int.
   "Lcom/android/internal/policy/impl/PhoneWindow;", // Calls android.os.Binder.init.
@@ -1353,9 +1382,17 @@ static const char* class_initializer_black_list[] = {
   "Lcom/android/org/bouncycastle/jce/provider/CertBlacklist;", // Calls System.getenv -> OsConstants.initConstants.
   "Lcom/android/org/bouncycastle/jce/provider/PKIXCertPathValidatorSpi;", // Calls System.getenv -> OsConstants.initConstants.
   "Lcom/android/org/conscrypt/NativeCrypto;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLECKeyPairGenerator;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/OpenSSLMac$HmacMD5;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA1;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA256;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA384;", // Calls native NativeCrypto.clinit().
+  "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA512;", // Calls native NativeCrypto.clinit().
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$MD5;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA1;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA512;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/OpenSSLX509CertPath;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/OpenSSLX509CertificateFactory;", // Calls OsConstants.initConstants.
   "Lcom/android/org/conscrypt/TrustedCertificateStore;", // Calls System.getenv -> OsConstants.initConstants.
   "Lcom/google/android/gles_jni/EGLContextImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
   "Lcom/google/android/gles_jni/EGLImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
@@ -1375,10 +1412,13 @@ static const char* class_initializer_black_list[] = {
   "Ljava/net/InetAddress;", // Requires libcore.io.OsConstants.
   "Ljava/net/Inet4Address;", // Sub-class of InetAddress.
   "Ljava/net/Inet6Address;", // Sub-class of InetAddress.
+  "Ljava/net/InetUnixAddress;", // Sub-class of InetAddress.
   "Ljava/nio/charset/Charset;", // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
   "Ljava/nio/charset/CharsetICU;", // Sub-class of Charset.
   "Ljava/nio/charset/Charsets;", // Calls Charset.forName.
+  "Ljava/security/KeyPairGenerator;", // Calls OsConstants.initConstants.
   "Ljava/security/Security;", // Tries to do disk IO for "security.properties".
+  "Ljava/sql/Date;", // Calls OsConstants.initConstants.
   "Ljava/util/Date;", // Calls Date.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
   "Ljava/util/Locale;", // Calls System.getProperty -> OsConstants.initConstants.
   "Ljava/util/SimpleTimeZone;", // Sub-class of TimeZone.
