@@ -71,15 +71,28 @@ class ShadowFrame {
   ~ShadowFrame() {}
 
   bool HasReferenceArray() const {
+#if defined(ART_USE_PORTABLE_COMPILER)
     return (number_of_vregs_ & kHasReferenceArray) != 0;
+#else
+    return true;
+#endif
   }
 
   uint32_t NumberOfVRegs() const {
+#if defined(ART_USE_PORTABLE_COMPILER)
     return number_of_vregs_ & ~kHasReferenceArray;
+#else
+    return number_of_vregs_;
+#endif
   }
 
   void SetNumberOfVRegs(uint32_t number_of_vregs) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     number_of_vregs_ = number_of_vregs | (number_of_vregs_ & kHasReferenceArray);
+#else
+    UNUSED(number_of_vregs);
+    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
+#endif
   }
 
   uint32_t GetDexPC() const {
@@ -173,8 +186,13 @@ class ShadowFrame {
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetMethod(mirror::AbstractMethod* method) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     DCHECK_NE(method, static_cast<void*>(NULL));
     method_ = method;
+#else
+    UNUSED(method);
+    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
+#endif
   }
 
   bool Contains(mirror::Object** shadow_frame_entry_obj) const {
@@ -212,9 +230,11 @@ class ShadowFrame {
   ShadowFrame(uint32_t num_vregs, ShadowFrame* link, mirror::AbstractMethod* method,
               uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
-    CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
     if (has_reference_array) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+      CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
       number_of_vregs_ |= kHasReferenceArray;
+#endif
       for (size_t i = 0; i < num_vregs; ++i) {
         SetVRegReference(i, NULL);
       }
@@ -235,14 +255,23 @@ class ShadowFrame {
     return const_cast<mirror::Object**>(const_cast<const ShadowFrame*>(this)->References());
   }
 
+#if defined(ART_USE_PORTABLE_COMPILER)
   enum ShadowFrameFlag {
     kHasReferenceArray = 1ul << 31
   };
-  // TODO: make the majority of these fields const.
+  // TODO: make const in the portable case.
   uint32_t number_of_vregs_;
+#else
+  const uint32_t number_of_vregs_;
+#endif
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
+#if defined(ART_USE_PORTABLE_COMPILER)
+  // TODO: make const in the portable case.
   mirror::AbstractMethod* method_;
+#else
+  mirror::AbstractMethod* const method_;
+#endif
   uint32_t dex_pc_;
   uint32_t vregs_[0];
 
