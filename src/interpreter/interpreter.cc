@@ -42,6 +42,7 @@
 using namespace art::mirror;
 
 namespace art {
+
 namespace interpreter {
 
 static const int32_t kMaxInt = std::numeric_limits<int32_t>::max();
@@ -50,13 +51,13 @@ static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
 static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
 
 static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
-                                   Object* receiver, uint32_t* args, JValue* result)
+                                   ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
   std::string name(PrettyMethod(target_method));
   if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
-    std::string descriptor(DotToDescriptor(reinterpret_cast<Object*>(args[0])->AsString()->ToModifiedUtf8().c_str()));
+    std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
     ClassLoader* class_loader = NULL; // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
     Class* found = Runtime::Current()->GetClassLinker()->FindClass(descriptor.c_str(),
                                                                    class_loader);
@@ -64,7 +65,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
         << PrettyDescriptor(descriptor);
     result->SetL(found);
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
-    Class* klass = receiver->AsClass();
+    Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
     AbstractMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
     CHECK(c != NULL);
     Object* obj = klass->AllocObject(self);
@@ -74,8 +75,8 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
-    Class* klass = receiver->AsClass();
-    String* name = reinterpret_cast<Object*>(args[0])->AsString();
+    Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
+    String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
     Field* found = NULL;
     FieldHelper fh;
     ObjectArray<Field>* fields = klass->GetIFields();
@@ -104,25 +105,25 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     result->SetL(found);
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)") {
     // Special case array copying without initializing System.
-    Class* ctype = reinterpret_cast<Object*>(args[0])->GetClass()->GetComponentType();
-    jint srcPos = args[1];
-    jint dstPos = args[3];
-    jint length = args[4];
+    Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
+    jint srcPos = shadow_frame->GetVReg(arg_offset + 1);
+    jint dstPos = shadow_frame->GetVReg(arg_offset + 3);
+    jint length = shadow_frame->GetVReg(arg_offset + 4);
     if (!ctype->IsPrimitive()) {
-      ObjectArray<Object>* src = reinterpret_cast<Object*>(args[0])->AsObjectArray<Object>();
-      ObjectArray<Object>* dst = reinterpret_cast<Object*>(args[2])->AsObjectArray<Object>();
+      ObjectArray<Object>* src = shadow_frame->GetVRegReference(arg_offset)->AsObjectArray<Object>();
+      ObjectArray<Object>* dst = shadow_frame->GetVRegReference(arg_offset + 2)->AsObjectArray<Object>();
       for (jint i = 0; i < length; ++i) {
         dst->Set(dstPos + i, src->Get(srcPos + i));
       }
     } else if (ctype->IsPrimitiveChar()) {
-      CharArray* src = reinterpret_cast<Object*>(args[0])->AsCharArray();
-      CharArray* dst = reinterpret_cast<Object*>(args[2])->AsCharArray();
+      CharArray* src = shadow_frame->GetVRegReference(arg_offset)->AsCharArray();
+      CharArray* dst = shadow_frame->GetVRegReference(arg_offset + 2)->AsCharArray();
       for (jint i = 0; i < length; ++i) {
         dst->Set(dstPos + i, src->Get(srcPos + i));
       }
     } else if (ctype->IsPrimitiveInt()) {
-      IntArray* src = reinterpret_cast<Object*>(args[0])->AsIntArray();
-      IntArray* dst = reinterpret_cast<Object*>(args[2])->AsIntArray();
+      IntArray* src = shadow_frame->GetVRegReference(arg_offset)->AsIntArray();
+      IntArray* dst = shadow_frame->GetVRegReference(arg_offset + 2)->AsIntArray();
       for (jint i = 0; i < length; ++i) {
         dst->Set(dstPos + i, src->Get(srcPos + i));
       }
@@ -131,7 +132,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    EnterInterpreterFromInvoke(self, target_method, receiver, args, result);
+    result->SetJ(EnterInterpreterFromInterpreter(self, shadow_frame).GetJ());
   }
 }
 
@@ -402,21 +403,65 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     return;
   }
   mh.ChangeMethod(target_method);
-  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
-  if (is_range) {
-    arg_array.BuildArgArray(shadow_frame, receiver, dec_insn.vC + (type != kStatic ? 1 : 0));
+
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  uint16_t num_regs;
+  uint16_t num_ins;
+  if (code_item != NULL) {
+    num_regs = code_item->registers_size_;
+    num_ins = code_item->ins_size_;
+  } else if (target_method->IsAbstract()) {
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
+                             "abstract method \"%s\"", PrettyMethod(target_method).c_str());
+    return;
   } else {
-    arg_array.BuildArgArray(shadow_frame, receiver, dec_insn.arg + (type != kStatic ? 1 : 0));
-  }
-  if (LIKELY(Runtime::Current()->IsStarted())) {
-    target_method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result,
-                          mh.GetShorty()[0]);
-  } else {
-    uint32_t* args = arg_array.GetArray();
-    if (type != kStatic) {
-      args++;
+    DCHECK(target_method->IsNative() || target_method->IsProxyMethod());
+    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    if (!target_method->IsStatic()) {
+      num_regs++;
+      num_ins++;
     }
-    UnstartedRuntimeInvoke(self, target_method, receiver, args, result);
+  }
+
+  Runtime* runtime = Runtime::Current();
+  UniquePtr<ShadowFrame> new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
+                                                              target_method, 0));
+  size_t cur_reg = num_regs - num_ins;
+  if (receiver != NULL) {
+    new_shadow_frame->SetVRegReference(cur_reg, receiver);
+    ++cur_reg;
+  }
+
+  size_t arg_offset = (receiver == NULL) ? 0 : 1;
+  const char* shorty = mh.GetShorty();
+  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
+    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+    size_t arg_pos = is_range ? dec_insn.vC + arg_offset : dec_insn.arg[arg_offset];
+    switch (shorty[shorty_pos + 1]) {
+      case 'L': {
+        Object* o = shadow_frame.GetVRegReference(arg_pos);
+        new_shadow_frame->SetVRegReference(cur_reg, o);
+        break;
+      }
+      case 'J': case 'D': {
+        uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(arg_pos + 1)) << 32) |
+                              static_cast<uint32_t>(shadow_frame.GetVReg(arg_pos));
+        new_shadow_frame->SetVRegLong(cur_reg, wide_value);
+        cur_reg++;
+        arg_offset++;
+        break;
+      }
+      default:
+        new_shadow_frame->SetVReg(cur_reg, shadow_frame.GetVReg(arg_pos));
+        break;
+    }
+  }
+
+  if (LIKELY(runtime->IsStarted())) {
+    result->SetJ((target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame.get()).GetJ());
+  } else {
+    UnstartedRuntimeInvoke(self, target_method, new_shadow_frame.get(), result, num_regs - num_ins);
   }
   mh.ChangeMethod(shadow_frame.GetMethod());
 }
@@ -1923,6 +1968,43 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
   }
 
   return Execute(self, mh, code_item, shadow_frame, JValue());
+}
+
+JValue EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+    ThrowStackOverflowError(self);
+    return JValue();
+  }
+
+  AbstractMethod* method = shadow_frame->GetMethod();
+  if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
+                                                                 true, true)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return JValue();
+    }
+    CHECK(method->GetDeclaringClass()->IsInitializing());
+  }
+
+  self->PushShadowFrame(shadow_frame);
+
+  MethodHelper mh(method);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  JValue result;
+  if (LIKELY(!method->IsNative())) {
+    result = Execute(self, mh, code_item, *shadow_frame, JValue());
+  } else {
+    // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
+    // generated stub) except during testing and image writing.
+    CHECK(!Runtime::Current()->IsStarted());
+    Object* receiver = method->IsStatic() ? NULL : shadow_frame->GetVRegReference(0);
+    uint32_t* args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
+    UnstartedRuntimeJni(self, method, receiver, args, &result);
+  }
+
+  self->PopShadowFrame();
+  return result;
 }
 
 }  // namespace interpreter

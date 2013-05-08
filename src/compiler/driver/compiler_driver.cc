@@ -492,7 +492,7 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
 
 bool CompilerDriver::IsImageClass(const std::string& descriptor) const {
   if (image_classes_ == NULL) {
-    return true;
+    return false;
   }
   return image_classes_->find(descriptor) != image_classes_->end();
 }
@@ -1649,7 +1649,6 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     } else if (code_item->insns_size_in_code_units_ < Runtime::Current()->GetSmallModeMethodDexSizeLimit()) {
     // Do compile small methods.
       dont_compile = false;
-      LOG(INFO) << "Compiling a small method: " << PrettyMethod(method_idx, dex_file);
     }
 
     if (!dont_compile) {

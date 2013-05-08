@@ -471,18 +471,19 @@ struct AbstractMethodOffsets : public CheckOffsets<AbstractMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, dex_cache_strings_),                    "dexCacheStrings"));
 
     // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, access_flags_),        "accessFlags"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_),                "code"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_item_offset_),    "codeItemOffset"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, core_spill_mask_),     "coreSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, fp_spill_mask_),       "fpSpillMask"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, frame_size_in_bytes_), "frameSizeInBytes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_gc_map_),       "gcMap"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, mapping_table_),       "mappingTable"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_dex_index_),    "methodDexIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_index_),        "methodIndex"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_method_),       "nativeMethod"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, vmap_table_),          "vmapTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, access_flags_),                 "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_),                         "code"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, code_item_offset_),             "codeItemOffset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, core_spill_mask_),              "coreSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, entry_point_from_interpreter_), "entryPointFromInterpreter"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, fp_spill_mask_),                "fpSpillMask"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, frame_size_in_bytes_),          "frameSizeInBytes"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, gc_map_),                       "gcMap"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, mapping_table_),                "mappingTable"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_dex_index_),             "methodDexIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, method_index_),                 "methodIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, native_method_),                "nativeMethod"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(AbstractMethod, vmap_table_),                   "vmapTable"));
   };
 };
 

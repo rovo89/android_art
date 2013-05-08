@@ -344,7 +344,7 @@ void AbstractMethod::RegisterNative(Thread* self, const void* native_method) {
 #else
     UNIMPLEMENTED(FATAL);
 #endif
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_),
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);
   }
 }

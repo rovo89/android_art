@@ -145,6 +145,11 @@ class ShadowFrame {
     }
   }
 
+  // Get view of vregs as range of consecutive arguments starting at i.
+  uint32_t* GetVRegArgs(size_t i) {
+    return &vregs_[i];
+  }
+
   void SetVReg(size_t i, int32_t val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];

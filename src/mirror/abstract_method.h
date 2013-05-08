@@ -31,10 +31,13 @@ union JValue;
 struct MethodClassOffsets;
 struct MethodOffsets;
 class StringPiece;
+class ShadowFrame;
 
 namespace mirror {
 
 class StaticStorageBase;
+
+typedef JValue (EntryPointFromInterpreter)(Thread* self, ShadowFrame* shadow_frame);
 
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED AbstractMethod : public Object {
@@ -189,6 +192,14 @@ class MANAGED AbstractMethod : public Object {
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, char result_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  EntryPointFromInterpreter* GetEntryPointFromInterpreter() const {
+    return GetFieldPtr<EntryPointFromInterpreter*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_interpreter_), false);
+  }
+
+  void SetEntryPointFromInterpreter(EntryPointFromInterpreter* entry_point_from_interpreter) {
+    SetFieldPtr<EntryPointFromInterpreter*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_interpreter_), entry_point_from_interpreter, false);
+  }
+
   const void* GetCode() const {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_), false);
   }
@@ -293,11 +304,10 @@ class MANAGED AbstractMethod : public Object {
   void SetOatVmapTableOffset(uint32_t vmap_table_offset);
 
   const uint8_t* GetNativeGcMap() const {
-    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_), false);
+    return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, gc_map_), false);
   }
   void SetNativeGcMap(const uint8_t* data) {
-    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, native_gc_map_), data,
-        false);
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, gc_map_), data, false);
   }
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
@@ -424,6 +434,7 @@ class MANAGED AbstractMethod : public Object {
 
   // Compiled code associated with this method for callers from managed code.
   // May be compiled managed code or a bridge for invoking a native method.
+  // TODO: Break apart this into portable and quick.
   const void* code_;
 
   // Offset to the CodeItem.
@@ -432,14 +443,17 @@ class MANAGED AbstractMethod : public Object {
   // Architecture-dependent register spill mask
   uint32_t core_spill_mask_;
 
+  // Called by the interpreter to execute this method.
+  EntryPointFromInterpreter* entry_point_from_interpreter_;
+
   // Architecture-dependent register spill mask
   uint32_t fp_spill_mask_;
 
   // Total size in bytes of the frame
   size_t frame_size_in_bytes_;
 
-  // Garbage collection map of native PC offsets to reference bitmaps.
-  const uint8_t* native_gc_map_;
+  // Garbage collection map of native PC offsets (quick) or dex PCs (portable) to reference bitmaps.
+  const uint8_t* gc_map_;
 
   // Mapping from native pc to dex pc
   const uint32_t* mapping_table_;

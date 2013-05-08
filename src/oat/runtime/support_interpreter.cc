@@ -18,6 +18,7 @@
 #include "callee_save_frame.h"
 #include "dex_file-inl.h"
 #include "interpreter/interpreter.h"
+#include "invoke_arg_array_builder.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -106,6 +107,21 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   // Pop transition.
   self->PopManagedStackFragment(fragment);
   return result.GetJ();
+}
+
+extern "C" JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::AbstractMethod* method = shadow_frame->GetMethod();
+  MethodHelper mh(method);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+
+  uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
+  ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
+  arg_array.BuildArgArray(shadow_frame, arg_offset);
+  JValue result;
+  method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, mh.GetShorty()[0]);
+
+  return result;
 }
 
 }  // namespace art

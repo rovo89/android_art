@@ -74,6 +74,8 @@
 
 namespace art {
 
+extern "C" JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame);
+
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -1037,6 +1039,12 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
   // Check if object is a method without its code set and point it to the resolution trampoline.
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
+    // Install entry point from interpreter.
+    if (method->GetCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
+      method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
+    } else {
+      method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
+    }
     if (method->GetCode() == NULL) {
       method->SetCode(GetResolutionTrampoline());
     }
@@ -1597,6 +1605,13 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
   oat_method.LinkMethod(method.get());
+
+  // Install entry point from interpreter.
+  if (method->GetCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
+    method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
+  } else {
+    method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
+  }
 
   Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {
@@ -2551,6 +2566,7 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
 #else
   method->SetCode(reinterpret_cast<void*>(art_portable_proxy_invoke_handler));
 #endif
+  method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
 
   return method;
 }

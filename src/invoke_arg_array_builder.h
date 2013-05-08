@@ -162,60 +162,10 @@ class ArgArray {
     }
   }
 
-  void BuildArgArray(const ShadowFrame& shadow_frame, mirror::Object* receiver, uint32_t range_start)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Set receiver if non-null (method is not static)
-    if (receiver != NULL) {
-      Append(reinterpret_cast<int32_t>(receiver));
-    }
-    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++reg_offset) {
-      switch (shorty_[i]) {
-        case 'Z':
-        case 'B':
-        case 'C':
-        case 'S':
-        case 'I':
-        case 'F':
-          Append(shadow_frame.GetVReg(range_start + reg_offset));
-          break;
-        case 'L':
-          Append(reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(range_start + reg_offset)));
-          break;
-        case 'D':
-        case 'J':
-          AppendWide(shadow_frame.GetVRegLong(range_start + reg_offset));
-          reg_offset++;
-          break;
-      }
-    }
-  }
-
-  void BuildArgArray(const ShadowFrame& shadow_frame, mirror::Object* receiver, const uint32_t* arg_regs)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Set receiver if non-null (method is not static)
-    if (receiver != NULL) {
-      Append(reinterpret_cast<int32_t>(receiver));
-    }
-    for (size_t i = 1, reg_offset = 0; i < shorty_len_; ++i, ++reg_offset) {
-      switch (shorty_[i]) {
-        case 'Z':
-        case 'B':
-        case 'C':
-        case 'S':
-        case 'I':
-        case 'F':
-          Append(shadow_frame.GetVReg(arg_regs[reg_offset]));
-          break;
-        case 'L':
-          Append(reinterpret_cast<int32_t>(shadow_frame.GetVRegReference(arg_regs[reg_offset])));
-          break;
-        case 'D':
-        case 'J':
-          AppendWide(shadow_frame.GetVRegLong(arg_regs[reg_offset]));
-          reg_offset++;
-          break;
-      }
-    }
+  void BuildArgArray(ShadowFrame* shadow_frame, uint32_t arg_offset)
+  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    arg_array_ = shadow_frame->GetVRegArgs(arg_offset);
+    num_bytes_ = (shadow_frame->NumberOfVRegs() - arg_offset) * 4;
   }
 
  private:
