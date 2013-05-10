@@ -61,8 +61,13 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  static const size_t kDefaultSmallModeMethodThreshold = 30;
-  static const size_t kDefaultSmallModeMethodDexSizeLimit = 100;
+  // In small mode, apps with fewer than this number of methods will be compiled 
+  // anyways.
+  static const size_t kDefaultSmallModeMethodThreshold = 0;
+
+  // In small mode, methods smaller than this dex op count limit will get compiled
+  // anyways.
+  static const size_t kDefaultSmallModeMethodDexSizeLimit = 0;
 
   class ParsedOptions {
    public:

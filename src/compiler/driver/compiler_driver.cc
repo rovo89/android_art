@@ -1649,11 +1649,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     } else if (code_item->insns_size_in_code_units_ < Runtime::Current()->GetSmallModeMethodDexSizeLimit()) {
     // Do compile small methods.
       dont_compile = false;
+      LOG(INFO) << "Compiling a small method: " << PrettyMethod(method_idx, dex_file);
     }
 
     if (!dont_compile) {
       compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
-          method_idx, class_loader, dex_file);
+                                     method_idx, class_loader, dex_file);
       CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
     }
   }

@@ -58,8 +58,8 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-fstrict-aliasing
 
-ifeq ($(ART_LIGHT_MODE),true)
-  art_cflags += -DART_LIGHT_MODE=1
+ifeq ($(ART_SMALL_MODE),true)
+  art_cflags += -DART_SMALL_MODE=1
 endif
 
 # TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
