@@ -39,7 +39,7 @@ void MIRGraph::SetConstantWide(int ssa_reg, int64_t value)
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }
 
-bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
+void MIRGraph::DoConstantPropogation(BasicBlock* bb)
 {
   MIR* mir;
 
@@ -94,7 +94,6 @@ bool MIRGraph::DoConstantPropogation(BasicBlock* bb)
     }
   }
   /* TODO: implement code to handle arithmetic operations */
-  return true;
 }
 
 void MIRGraph::PropagateConstants()
@@ -848,11 +847,7 @@ void MIRGraph::BasicBlockOptimization()
 {
   if (!(cu_->disable_opt & (1 << kBBOpt))) {
     DCHECK_EQ(cu_->num_compiler_temps, 0);
-    // Mark all blocks as not visited
-    AllNodesIterator iter(this, false /* not iterative */);
-    for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-      ClearVisitedFlag(bb);
-    }
+    ClearAllVisitedFlags();
     PreOrderDfsIterator iter2(this, false /* not iterative */);
     for (BasicBlock* bb = iter2.Next(); bb != NULL; bb = iter2.Next()) {
       BuildExtendedBBList(bb);

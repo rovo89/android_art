@@ -21,6 +21,13 @@
 
 namespace art {
 
+void MIRGraph::ClearAllVisitedFlags() {
+  AllNodesIterator iter(this, false /* not iterative */);
+  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
+    bb->visited = false;
+  }
+}
+
 BasicBlock* MIRGraph::NeedsVisit(BasicBlock* bb) {
   if (bb != NULL) {
     if (bb->visited || bb->hidden) {
@@ -96,10 +103,8 @@ void MIRGraph::ComputeDFSOrders()
   }
 
   // Reset visited flags from all nodes
-  AllNodesIterator iter(this, false /* not iterative */);
-  for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
-    ClearVisitedFlag(bb);
-  }
+  ClearAllVisitedFlags();
+
   // Record dfs orders
   RecordDFSOrders(GetEntryBlock());
 
@@ -158,26 +163,42 @@ void MIRGraph::ComputeDefBlockMatrix()
   }
 }
 
-/* Compute the post-order traversal of the CFG */
-void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb)
-{
-  ArenaBitVector::Iterator bv_iterator(bb->i_dominated);
-
-  /* Iterate through the dominated blocks first */
-  while (true) {
-    //TUNING: hot call to BitVectorIteratorNext
-    int bb_idx = bv_iterator.Next();
-    if (bb_idx == -1) break;
-    BasicBlock* dominated_bb = GetBasicBlock(bb_idx);
-    ComputeDomPostOrderTraversal(dominated_bb);
+void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
+  if (dom_post_order_traversal_ == NULL) {
+    // First time - create the array.
+    dom_post_order_traversal_ =
+        new (arena_) GrowableArray<int>(arena_, num_reachable_blocks_,
+                                        kGrowableArrayDomPostOrderTraversal);
+  } else {
+    dom_post_order_traversal_->Reset();
   }
+  ClearAllVisitedFlags();
+  std::vector<std::pair<BasicBlock*, ArenaBitVector::Iterator*> > work_stack;
+  bb->visited = true;
+  work_stack.push_back(std::make_pair(bb, new (arena_) ArenaBitVector::Iterator(bb->i_dominated)));
+  while (!work_stack.empty()) {
+    std::pair<BasicBlock*, ArenaBitVector::Iterator*> curr = work_stack.back();
+    BasicBlock* curr_bb = curr.first;
+    ArenaBitVector::Iterator* curr_idom_iter = curr.second;
+    int bb_idx = curr_idom_iter->Next();
+    while ((bb_idx != -1) && (NeedsVisit(GetBasicBlock(bb_idx)) == NULL)) {
+      bb_idx = curr_idom_iter->Next();
+    }
+    if (bb_idx != -1) {
+      BasicBlock* new_bb = GetBasicBlock(bb_idx);
+      new_bb->visited = true;
+      work_stack.push_back(
+          std::make_pair(new_bb, new (arena_) ArenaBitVector::Iterator(new_bb->i_dominated)));
+    } else {
+      // no successor/next
+      dom_post_order_traversal_->Insert(curr_bb->id);
+      work_stack.pop_back();
 
-  /* Enter the current block id */
-  dom_post_order_traversal_->Insert(bb->id);
-
-  /* hacky loop detection */
-  if (bb->taken && bb->dominators->IsBitSet(bb->taken->id)) {
-    attributes_ |= METHOD_HAS_LOOP;
+      /* hacky loop detection */
+      if (curr_bb->taken && curr_bb->dominators->IsBitSet(curr_bb->taken->id)) {
+        attributes_ |= METHOD_HAS_LOOP;
+      }
+    }
   }
 }
 
@@ -401,21 +422,8 @@ void MIRGraph::ComputeDominators()
     ComputeBlockDominators(bb);
   }
 
-  /*
-   * Now go ahead and compute the post order traversal based on the
-   * i_dominated sets.
-   */
-  if (dom_post_order_traversal_ == NULL) {
-    dom_post_order_traversal_ =
-        new (arena_) GrowableArray<int>(arena_, num_reachable_blocks, kGrowableArrayDomPostOrderTraversal);
-  } else {
-    dom_post_order_traversal_->Reset();
-  }
-
+  // Compute the dominance frontier for each block.
   ComputeDomPostOrderTraversal(GetEntryBlock());
-  DCHECK_EQ(dom_post_order_traversal_->Size(), num_reachable_blocks_);
-
-  /* Now compute the dominance frontier for each block */
   PostOrderDOMIterator iter5(this, false /* not iterative */);
   for (BasicBlock* bb = iter5.Next(); bb != NULL; bb = iter5.Next()) {
     ComputeDominanceFrontier(bb);
@@ -673,10 +681,7 @@ void MIRGraph::SSATransformation()
   InsertPhiNodes();
 
   /* Rename register names by local defs and phi nodes */
-  AllNodesIterator iter1(this, false /* not iterative */);
-  for (BasicBlock* bb = iter1.Next(); bb != NULL; bb = iter1.Next()) {
-    ClearVisitedFlag(bb);
-  }
+  ClearAllVisitedFlags();
   DoDFSPreOrderSSARename(GetEntryBlock());
 
   /*

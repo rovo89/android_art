@@ -24,27 +24,6 @@
 
 namespace art {
 
-// Type of growable bitmap for memory tuning.
-enum OatBitMapKind {
-  kBitMapMisc = 0,
-  kBitMapUse,
-  kBitMapDef,
-  kBitMapLiveIn,
-  kBitMapBMatrix,
-  kBitMapDominators,
-  kBitMapIDominated,
-  kBitMapDomFrontier,
-  kBitMapPhi,
-  kBitMapTmpBlocks,
-  kBitMapInputBlocks,
-  kBitMapRegisterV,
-  kBitMapTempSSARegisterV,
-  kBitMapNullCheck,
-  kBitMapTmpBlockV,
-  kBitMapPredecessors,
-  kNumBitMapKinds
-};
-
 /*
  * Expanding bitmap, used for tracking resources.  Bits are numbered starting
  * from zero.  All operations on a BitVector are unsynchronized.

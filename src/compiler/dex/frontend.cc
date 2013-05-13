@@ -101,6 +101,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugDumpCheckStats) |
   //(1 << kDebugDumpBitcodeFile) |
   //(1 << kDebugVerifyBitcode) |
+  //(1 << kDebugShowSummaryMemoryUsage) |
   0;
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
@@ -247,6 +248,11 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
       MemStats mem_stats(cu->arena);
       LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
     }
+  }
+
+  if (cu->enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
+    LOG(INFO) << "MEMINFO " << cu->arena.BytesAllocated() << " " << cu->mir_graph->GetNumBlocks()
+              << " " << PrettyMethod(method_idx, dex_file);
   }
 
   return result;

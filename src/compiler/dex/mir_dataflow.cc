@@ -1202,13 +1202,6 @@ void MIRGraph::CompilerInitializeSSAConversion()
   }
 }
 
-/* Clear the visited flag for each BB */
-bool MIRGraph::ClearVisitedFlag(struct BasicBlock* bb)
-{
-  bb->visited = false;
-  return true;
-}
-
 /*
  * This function will make a best guess at whether the invoke will
  * end up using Method*.  It isn't critical to get it exactly right,

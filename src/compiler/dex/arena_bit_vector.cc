@@ -38,7 +38,6 @@ ArenaBitVector::ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits,
      storage_(static_cast<uint32_t*>(arena_->NewMem(storage_size_ * sizeof(uint32_t), true,
                                                     ArenaAllocator::kAllocGrowableBitMap))) {
   DCHECK_EQ(sizeof(storage_[0]), 4U);    // Assuming 32-bit units.
-  // TODO: collect detailed memory usage stats by bit vector kind.
 }
 
 /*

@@ -592,7 +592,7 @@ class MIRGraph {
    void DataFlowSSAFormat35C(MIR* mir);
    void DataFlowSSAFormat3RC(MIR* mir);
    bool FindLocalLiveIn(BasicBlock* bb);
-   bool ClearVisitedFlag(struct BasicBlock* bb);
+   void ClearAllVisitedFlags();
    bool CountUses(struct BasicBlock* bb);
    bool InferTypeAndSize(BasicBlock* bb);
    bool VerifyPredInfo(BasicBlock* bb);
@@ -621,7 +621,7 @@ class MIRGraph {
    bool ComputeBlockLiveIns(BasicBlock* bb);
    bool InsertPhiNodeOperands(BasicBlock* bb);
    bool ComputeDominanceFrontier(BasicBlock* bb);
-   bool DoConstantPropogation(BasicBlock* bb);
+   void DoConstantPropogation(BasicBlock* bb);
    void CountChecks(BasicBlock* bb);
    bool CombineBlocks(BasicBlock* bb);
 

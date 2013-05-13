@@ -387,7 +387,30 @@ enum SelectInstructionKind {
   kSelectGoto
 };
 
-std::ostream& operator<<(std::ostream& os, const OpFeatureFlags& flag);
+std::ostream& operator<<(std::ostream& os, const SelectInstructionKind& kind);
+
+// Type of growable bitmap for memory tuning.
+enum OatBitMapKind {
+  kBitMapMisc = 0,
+  kBitMapUse,
+  kBitMapDef,
+  kBitMapLiveIn,
+  kBitMapBMatrix,
+  kBitMapDominators,
+  kBitMapIDominated,
+  kBitMapDomFrontier,
+  kBitMapPhi,
+  kBitMapTmpBlocks,
+  kBitMapInputBlocks,
+  kBitMapRegisterV,
+  kBitMapTempSSARegisterV,
+  kBitMapNullCheck,
+  kBitMapTmpBlockV,
+  kBitMapPredecessors,
+  kNumBitMapKinds
+};
+
+std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
 
 }  // namespace art
 

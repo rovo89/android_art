@@ -79,26 +79,26 @@ class GrowableArray {
 
     GrowableArray(ArenaAllocator* arena, size_t init_length, OatListKind kind = kGrowableArrayMisc)
       : arena_(arena),
-        num_allocated_(0),
+        num_allocated_(init_length),
         num_used_(0),
         kind_(kind) {
       elem_list_ = static_cast<T*>(arena_->NewMem(sizeof(T) * init_length, true,
-                                                 ArenaAllocator::kAllocGrowableArray));
-      // TODO: Collect detailed memory usage stats by list kind.
+                                                  ArenaAllocator::kAllocGrowableArray));
     };
 
 
     // Expand the list size to at least new length.
     void Resize(size_t new_length) {
       if (new_length <= num_allocated_) return;
-      size_t target_length = (num_allocated_ < 128) ? num_allocated_ << 1 : num_allocated_ + 128;
+      // If it's a small list double the size, else grow 1.5x.
+      size_t target_length =
+          (num_allocated_ < 128) ? num_allocated_ << 1 : num_allocated_ + (num_allocated_ >> 1);
       if (new_length > target_length) {
          target_length = new_length;
       }
       T* new_array = static_cast<T*>(arena_->NewMem(sizeof(T) * target_length, true,
                                                     ArenaAllocator::kAllocGrowableArray));
       memcpy(new_array, elem_list_, sizeof(T) * num_allocated_);
-      // TODO: Collect stats on wasted resize memory.
       num_allocated_ = target_length;
       elem_list_ = new_array;
     };

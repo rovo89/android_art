@@ -24,6 +24,7 @@
 namespace art {
 
 #define ARENA_DEFAULT_BLOCK_SIZE (256 * 1024)
+#define ARENA_HIGH_WATER (16 * 1024)
 
 class ArenaAllocator {
   public:
@@ -65,15 +66,17 @@ class ArenaAllocator {
       char ptr[0];
     };
 
-    ArenaMemBlock* EmptyArena();
+    ArenaMemBlock* EmptyArenaBlock();
 
     size_t default_size_;                    // Smallest size of new allocation block.
     size_t block_size_;                      // Amount of allocatable bytes on a default block.
     ArenaMemBlock* arena_head_;              // Head of linked list of allocation blocks.
-    ArenaMemBlock* current_arena_;           // NOTE: code assumes there's always at least 1 block.
+    ArenaMemBlock* current_block_;           // NOTE: code assumes there's always at least 1 block.
     int num_arena_blocks_;
-    uint32_t malloc_bytes_;                 // Number of actual bytes malloc'd
-    uint32_t alloc_stats_[kNumAllocKinds];  // Bytes used by various allocation kinds.
+    uint32_t malloc_bytes_;                  // Number of actual bytes malloc'd
+    uint32_t alloc_stats_[kNumAllocKinds];   // Bytes used by various allocation kinds.
+    uint32_t lost_bytes_;                    // Lost memory at end of too-small region
+    uint32_t num_allocations_;
 
 };  // ArenaAllocator
 
