@@ -476,18 +476,18 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   // Here we readjust to a pointer relative to oat_begin_
   if (orig->IsAbstract()) {
     // Code for abstract methods is set to the abstract method error stub when we load the image.
-    copy->SetCode(NULL);
+    copy->SetEntryPointFromCompiledCode(NULL);
     return;
   }
 
   if (orig == Runtime::Current()->GetResolutionMethod()) {
     // The resolution method's code is set to the resolution trampoline when we load the image.
-    copy->SetCode(NULL);
+    copy->SetEntryPointFromCompiledCode(NULL);
     return;
   }
 
   // Non-abstract methods have code
-  copy->SetCode(GetOatAddress(orig->GetOatCodeOffset()));
+  copy->SetEntryPointFromCompiledCode(GetOatAddress(orig->GetOatCodeOffset()));
 
   if (orig->IsNative()) {
     // The native method's pointer is set to a stub to lookup via dlsym when we load the image.

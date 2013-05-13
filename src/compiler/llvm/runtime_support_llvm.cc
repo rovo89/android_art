@@ -339,7 +339,7 @@ static mirror::AbstractMethod* FindMethodHelper(uint32_t method_idx, mirror::Obj
     }
   }
   DCHECK(!thread->IsExceptionPending());
-  const void* code = method->GetCode();
+  const void* code = method->GetEntryPointFromCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
   if (UNLIKELY(code == NULL)) {

@@ -82,7 +82,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
     mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetCode();
+      code = called->GetEntryPointFromCompiledCode();
       // TODO: remove this after we solve the link issue.
       { // for lazy link.
         if (code == NULL) {
@@ -96,7 +96,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
         code = linker->GetOatCodeFor(called);
       } else {
         // No trampoline for non-static methods.
-        code = called->GetCode();
+        code = called->GetEntryPointFromCompiledCode();
         // TODO: remove this after we solve the link issue.
         { // for lazy link.
           if (code == NULL) {
@@ -303,7 +303,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
     mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetCode();
+      code = called->GetEntryPointFromCompiledCode();
     } else if (called_class->IsInitializing()) {
       if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
@@ -311,7 +311,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
         code = linker->GetOatCodeFor(called);
       } else {
         // No trampoline for non-static methods.
-        code = called->GetCode();
+        code = called->GetEntryPointFromCompiledCode();
       }
     } else {
       DCHECK(called_class->IsErroneous());

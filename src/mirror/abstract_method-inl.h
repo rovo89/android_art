@@ -76,7 +76,7 @@ inline ObjectArray<StaticStorageBase>* AbstractMethod::GetDexCacheInitializedSta
 
 inline uint32_t AbstractMethod::GetCodeSize() const {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
-  uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
+  uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromCompiledCode());
   if (code == 0) {
     return 0;
   }
@@ -114,27 +114,27 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
     return;
   }
-  if (GetCode() == GetInterpreterEntryPoint()) {
+  if (GetEntryPointFromCompiledCode() == GetInterpreterEntryPoint()) {
     return;
   }
-  if (GetCode() == GetResolutionTrampoline()) {
+  if (GetEntryPointFromCompiledCode() == GetResolutionTrampoline()) {
       return;
   }
   DCHECK(IsWithinCode(pc))
       << PrettyMethod(this)
       << " pc=" << std::hex << pc
-      << " code=" << GetCode()
+      << " code=" << GetEntryPointFromCompiledCode()
       << " size=" << GetCodeSize();
 }
 
 inline uint32_t AbstractMethod::GetOatCodeOffset() const {
   DCHECK(!Runtime::Current()->IsStarted());
-  return reinterpret_cast<uint32_t>(GetCode());
+  return reinterpret_cast<uint32_t>(GetEntryPointFromCompiledCode());
 }
 
 inline void AbstractMethod::SetOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
-  SetCode(reinterpret_cast<void*>(code_offset));
+  SetEntryPointFromCompiledCode(reinterpret_cast<void*>(code_offset));
 }
 
 inline uint32_t AbstractMethod::GetOatMappingTableOffset() const {

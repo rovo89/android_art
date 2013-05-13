@@ -58,11 +58,11 @@ class JniCompilerTest : public CommonTest {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
     ASSERT_TRUE(method != NULL) << method_name << " " << method_sig;
-    if (method->GetCode() != NULL) {
+    if (method->GetEntryPointFromCompiledCode() != NULL) {
       return;
     }
     CompileMethod(method);
-    ASSERT_TRUE(method->GetCode() != NULL) << method_name << " " << method_sig;
+    ASSERT_TRUE(method->GetEntryPointFromCompiledCode() != NULL) << method_name << " " << method_sig;
   }
 
   void SetUpForTest(bool direct, const char* method_name, const char* method_sig,

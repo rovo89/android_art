@@ -409,7 +409,7 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
 
 void OatFile::OatMethod::LinkMethod(mirror::AbstractMethod* method) const {
   CHECK(method != NULL);
-  method->SetCode(GetCode());
+  method->SetEntryPointFromCompiledCode(GetCode());
   method->SetFrameSizeInBytes(frame_size_in_bytes_);
   method->SetCoreSpillMask(core_spill_mask_);
   method->SetFpSpillMask(fp_spill_mask_);

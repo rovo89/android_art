@@ -27,8 +27,8 @@
 #define STRING_OFFSET_OFFSET 20
 #define STRING_DATA_OFFSET 12
 
-// Offset of field Method::code_
-#define METHOD_CODE_OFFSET 32
+// Offset of field Method::entry_point_from_compiled_code_
+#define METHOD_CODE_OFFSET 40
 
 #if defined(__arm__)
 // Register holding suspend check count down.

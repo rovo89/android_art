@@ -75,7 +75,7 @@ TEST_F(ObjectTest, AsmConstants) {
   ASSERT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
   ASSERT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
-  ASSERT_EQ(METHOD_CODE_OFFSET, AbstractMethod::CodeOffset().Int32Value());
+  ASSERT_EQ(METHOD_CODE_OFFSET, AbstractMethod::EntryPointFromCompiledCodeOffset().Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {

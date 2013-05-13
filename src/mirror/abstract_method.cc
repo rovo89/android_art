@@ -271,10 +271,10 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
     bool interpret = runtime->GetInstrumentation()->InterpretOnly() && !IsNative() &&
         !IsProxyMethod();
     const bool kLogInvocationStartAndReturn = false;
-    if (GetCode() != NULL) {
+    if (GetEntryPointFromCompiledCode() != NULL) {
       if (!interpret) {
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
+          LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
         }
 #ifdef ART_USE_PORTABLE_COMPILER
         (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
@@ -292,7 +292,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
           interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
         }
         if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetCode());
+          LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
         }
       } else {
         if (kLogInvocationStartAndReturn) {
@@ -310,7 +310,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this)
-          << "' code=" << reinterpret_cast<const void*>(GetCode());
+          << "' code=" << reinterpret_cast<const void*>(GetEntryPointFromCompiledCode());
       if (result != NULL) {
         result->SetJ(0);
       }
