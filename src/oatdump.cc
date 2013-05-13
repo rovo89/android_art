@@ -879,7 +879,7 @@ class ImageDumper {
 
   const void* GetOatCodeBegin(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const void* code = m->GetCode();
+    const void* code = m->GetEntryPointFromCompiledCode();
     if (code == GetResolutionTrampoline()) {
       code = oat_dumper_->GetOatCode(m);
     }
@@ -990,7 +990,7 @@ class ImageDumper {
         if (first_occurrence) {
           state->stats_.native_to_managed_code_bytes += oat_code_size;
         }
-        if (oat_code != method->GetCode()) {
+        if (oat_code != method->GetEntryPointFromCompiledCode()) {
           indent_os << StringPrintf("OAT CODE: %p\n", oat_code);
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
@@ -998,7 +998,7 @@ class ImageDumper {
         DCHECK(method->GetNativeGcMap() == NULL) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
-        CHECK((method->GetCode() == NULL) || (method->GetNativeGcMap() != NULL));
+        CHECK((method->GetEntryPointFromCompiledCode() == NULL) || (method->GetNativeGcMap() != NULL));
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;

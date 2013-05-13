@@ -119,7 +119,7 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::AbstractMethod* interfa
       return 0;  // Failure.
     }
   }
-  const void* code = method->GetCode();
+  const void* code = method->GetEntryPointFromCompiledCode();
 
 #ifndef NDEBUG
   // When we return, the caller will branch to this address, so it had better not be 0!
@@ -153,7 +153,7 @@ static uint64_t artInvokeCommon(uint32_t method_idx, mirror::Object* this_object
     }
   }
   DCHECK(!self->IsExceptionPending());
-  const void* code = method->GetCode();
+  const void* code = method->GetEntryPointFromCompiledCode();
 
 #ifndef NDEBUG
   // When we return, the caller will branch to this address, so it had better not be 0!

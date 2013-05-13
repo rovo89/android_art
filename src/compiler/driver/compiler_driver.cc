@@ -809,7 +809,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
     if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method)->IsImageSpace()) {
       direct_method = reinterpret_cast<uintptr_t>(method);
     }
-    direct_code = reinterpret_cast<uintptr_t>(method->GetCode());
+    direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
   }
 }
 

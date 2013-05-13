@@ -71,7 +71,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
           new_code = GetInterpreterEntryPoint();
         }
       }
-      method->SetCode(new_code);
+      method->SetEntryPointFromCompiledCode(new_code);
     }
   }
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
@@ -87,7 +87,7 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
           new_code = GetInterpreterEntryPoint();
         }
       }
-      method->SetCode(new_code);
+      method->SetEntryPointFromCompiledCode(new_code);
     }
   }
   return true;
@@ -371,14 +371,14 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
 
 void Instrumentation::UpdateMethodsCode(mirror::AbstractMethod* method, const void* code) const {
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    method->SetCode(code);
+    method->SetEntryPointFromCompiledCode(code);
   }
 }
 
 const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* method) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    const void* code = method->GetCode();
+    const void* code = method->GetEntryPointFromCompiledCode();
     DCHECK(code != NULL);
     if (LIKELY(code != GetResolutionTrampoline())) {
       return code;

@@ -1040,13 +1040,13 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
     // Install entry point from interpreter.
-    if (method->GetCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
+    if (method->GetEntryPointFromCompiledCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
       method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
     } else {
       method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
     }
-    if (method->GetCode() == NULL) {
-      method->SetCode(GetResolutionTrampoline());
+    if (method->GetEntryPointFromCompiledCode() == NULL) {
+      method->SetEntryPointFromCompiledCode(GetResolutionTrampoline());
     }
   }
 }
@@ -1600,14 +1600,15 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
                      uint32_t method_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Method shouldn't have already been linked.
-  DCHECK(method->GetCode() == NULL);
+  DCHECK(method->GetEntryPointFromCompiledCode() == NULL);
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
   oat_method.LinkMethod(method.get());
 
   // Install entry point from interpreter.
-  if (method->GetCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
+  if (method->GetEntryPointFromCompiledCode() == NULL && !method->IsNative() &&
+      !method->IsProxyMethod()) {
     method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
   } else {
     method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
@@ -1615,13 +1616,13 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {
-    method->SetCode(GetAbstractMethodErrorStub());
+    method->SetEntryPointFromCompiledCode(GetAbstractMethodErrorStub());
     return;
   }
 
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
-    method->SetCode(GetResolutionTrampoline());
+    method->SetEntryPointFromCompiledCode(GetResolutionTrampoline());
   }
 
   if (method->IsNative()) {
@@ -1629,13 +1630,14 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
     method->UnregisterNative(Thread::Current());
   }
 
-  if (method->GetCode() == NULL) {
+  if (method->GetEntryPointFromCompiledCode() == NULL) {
     // No code? You must mean to go into the interpreter.
-    method->SetCode(GetInterpreterEntryPoint());
+    method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
   }
 
   // Allow instrumentation its chance to hijack code.
-  runtime->GetInstrumentation()->UpdateMethodsCode(method.get(), method->GetCode());
+  runtime->GetInstrumentation()->UpdateMethodsCode(method.get(),
+                                                   method->GetEntryPointFromCompiledCode());
 }
 
 void ClassLinker::LoadClass(const DexFile& dex_file,
@@ -2562,9 +2564,9 @@ mirror::AbstractMethod* ClassLinker::CreateProxyMethod(Thread* self, SirtRef<mir
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
 #if !defined(ART_USE_PORTABLE_COMPILER)
-  method->SetCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
+  method->SetEntryPointFromCompiledCode(reinterpret_cast<void*>(art_quick_proxy_invoke_handler));
 #else
-  method->SetCode(reinterpret_cast<void*>(art_portable_proxy_invoke_handler));
+  method->SetEntryPointFromCompiledCode(reinterpret_cast<void*>(art_portable_proxy_invoke_handler));
 #endif
   method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
 

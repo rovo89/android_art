@@ -50,8 +50,8 @@ class MANAGED AbstractMethod : public Object {
     return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, declaring_class_));
   }
 
-  static MemberOffset CodeOffset() {
-    return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, code_));
+  static MemberOffset EntryPointFromCompiledCodeOffset() {
+    return MemberOffset(OFFSETOF_MEMBER(AbstractMethod, entry_point_from_compiled_code_));
   }
 
   uint32_t GetAccessFlags() const;
@@ -200,19 +200,19 @@ class MANAGED AbstractMethod : public Object {
     SetFieldPtr<EntryPointFromInterpreter*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_interpreter_), entry_point_from_interpreter, false);
   }
 
-  const void* GetCode() const {
-    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_), false);
+  const void* GetEntryPointFromCompiledCode() const {
+    return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_compiled_code_), false);
   }
 
-  void SetCode(const void* code) {
-    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_), code, false);
+  void SetEntryPointFromCompiledCode(const void* entry_point_from_compiled_code) {
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_compiled_code_), entry_point_from_compiled_code, false);
   }
 
   uint32_t GetCodeSize() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsWithinCode(uintptr_t pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
+    uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromCompiledCode());
     if (code == 0) {
       return pc == 0;
     }
@@ -231,8 +231,8 @@ class MANAGED AbstractMethod : public Object {
 
   void SetOatCodeOffset(uint32_t code_offset);
 
-  static MemberOffset GetCodeOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, code_);
+  static MemberOffset GetEntryPointFromCompiledCodeOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(AbstractMethod, entry_point_from_compiled_code_);
   }
 
   const uint32_t* GetMappingTable() const {
@@ -432,16 +432,16 @@ class MANAGED AbstractMethod : public Object {
   // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;
 
-  // Compiled code associated with this method for callers from managed code.
-  // May be compiled managed code or a bridge for invoking a native method.
-  // TODO: Break apart this into portable and quick.
-  const void* code_;
-
   // Offset to the CodeItem.
   uint32_t code_item_offset_;
 
   // Architecture-dependent register spill mask
   uint32_t core_spill_mask_;
+
+  // Compiled code associated with this method for callers from managed code.
+  // May be compiled managed code or a bridge for invoking a native method.
+  // TODO: Break apart this into portable and quick.
+  const void* entry_point_from_compiled_code_;
 
   // Called by the interpreter to execute this method.
   EntryPointFromInterpreter* entry_point_from_interpreter_;

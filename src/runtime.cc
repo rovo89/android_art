@@ -1109,7 +1109,7 @@ mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
   // When compiling, the code pointer will get set later when the image is loaded.
-  method->SetCode(Runtime::Current()->IsCompiler() ? NULL : GetResolutionTrampoline());
+  method->SetEntryPointFromCompiledCode(Runtime::Current()->IsCompiler() ? NULL : GetResolutionTrampoline());
   return method.get();
 }
 
@@ -1122,7 +1122,7 @@ mirror::AbstractMethod* Runtime::CreateCalleeSaveMethod(InstructionSet instructi
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
-  method->SetCode(NULL);
+  method->SetEntryPointFromCompiledCode(NULL);
   if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |
                           (1 << art::arm::R8) | (1 << art::arm::R10) | (1 << art::arm::R11);
