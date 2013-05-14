@@ -2587,7 +2587,7 @@ Offset JNIEnvExt::SegmentStateOffset() {
 
 // JNI Invocation interface.
 
-extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, void** p_env, void* vm_args) {
+extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   const JavaVMInitArgs* args = static_cast<JavaVMInitArgs*>(vm_args);
   if (IsBadJniVersion(args->version)) {
     LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
