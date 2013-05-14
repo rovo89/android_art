@@ -58,13 +58,23 @@ enum VRegKind {
 //  - JNI - just VRegs, but where every VReg holds a reference.
 class ShadowFrame {
  public:
-  // Create ShadowFrame for interpreter.
+  // Compute size of ShadowFrame in bytes.
+  static size_t ComputeSize(uint32_t num_vregs) {
+    return sizeof(ShadowFrame) + (sizeof(uint32_t) * num_vregs) +
+           (sizeof(mirror::Object*) * num_vregs);
+  }
+
+  // Create ShadowFrame in heap for deoptimization.
   static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
                              mirror::AbstractMethod* method, uint32_t dex_pc) {
-    size_t sz = sizeof(ShadowFrame) +
-                (sizeof(uint32_t) * num_vregs) +
-                (sizeof(mirror::Object*) * num_vregs);
-    uint8_t* memory = new uint8_t[sz];
+    uint8_t* memory = new uint8_t[ComputeSize(num_vregs)];
+    ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
+    return sf;
+  }
+
+  // Create ShadowFrame for interpreter using provided memory.
+  static ShadowFrame* Create(uint32_t num_vregs, ShadowFrame* link,
+                             mirror::AbstractMethod* method, uint32_t dex_pc, void* memory) {
     ShadowFrame* sf = new (memory) ShadowFrame(num_vregs, link, method, dex_pc, true);
     return sf;
   }
