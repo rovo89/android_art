@@ -81,16 +81,17 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
 
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  UniquePtr<ShadowFrame> shadow_frame(ShadowFrame::Create(code_item->registers_size_,
-                                                          NULL, // No last shadow coming from quick.
-                                                          method, 0));
+  uint16_t num_regs = code_item->registers_size_;
+  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
+  ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, NULL, // No last shadow coming from quick.
+                                                method, 0, memory));
   size_t first_arg_reg = code_item->registers_size_ - code_item->ins_size_;
-  BuildShadowFrameVisitor shadow_frame_builder(mh, sp, *shadow_frame.get(), first_arg_reg);
+  BuildShadowFrameVisitor shadow_frame_builder(mh, sp, *shadow_frame, first_arg_reg);
   shadow_frame_builder.VisitArguments();
   // Push a transition back into managed code onto the linked list in thread.
   ManagedStack fragment;
   self->PushManagedStackFragment(&fragment);
-  self->PushShadowFrame(shadow_frame.get());
+  self->PushShadowFrame(shadow_frame);
   self->EndAssertNoThreadSuspension(old_cause);
 
   if (method->IsStatic() && !method->GetDeclaringClass()->IsInitializing()) {
@@ -103,7 +104,7 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
     }
   }
 
-  JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame.get());
+  JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame);
   // Pop transition.
   self->PopManagedStackFragment(fragment);
   return result.GetJ();

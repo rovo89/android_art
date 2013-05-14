@@ -425,9 +425,9 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     }
   }
 
-  Runtime* runtime = Runtime::Current();
-  UniquePtr<ShadowFrame> new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
-                                                              target_method, 0));
+  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
+  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
+                                                    target_method, 0, memory));
   size_t cur_reg = num_regs - num_ins;
   if (receiver != NULL) {
     new_shadow_frame->SetVRegReference(cur_reg, receiver);
@@ -463,10 +463,10 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     }
   }
 
-  if (LIKELY(runtime->IsStarted())) {
-    result->SetJ((target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame.get()).GetJ());
+  if (LIKELY(Runtime::Current()->IsStarted())) {
+    result->SetJ((target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame).GetJ());
   } else {
-    UnstartedRuntimeInvoke(self, target_method, new_shadow_frame.get(), result, num_regs - num_ins);
+    UnstartedRuntimeInvoke(self, target_method, new_shadow_frame, result, num_regs - num_ins);
   }
   mh.ChangeMethod(shadow_frame.GetMethod());
 }
@@ -2135,10 +2135,9 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
   }
   // Set up shadow frame with matching number of reference slots to vregs.
   ShadowFrame* last_shadow_frame = self->GetManagedStack()->GetTopShadowFrame();
-  UniquePtr<ShadowFrame> shadow_frame(ShadowFrame::Create(num_regs,
-                                                          last_shadow_frame,
-                                                          method, 0));
-  self->PushShadowFrame(shadow_frame.get());
+  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
+  ShadowFrame* shadow_frame(ShadowFrame::Create(num_regs, last_shadow_frame, method, 0, memory));
+  self->PushShadowFrame(shadow_frame);
   size_t cur_reg = num_regs - num_ins;
   if (!method->IsStatic()) {
     CHECK(receiver != NULL);
@@ -2176,7 +2175,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     }
   }
   if (LIKELY(!method->IsNative())) {
-    JValue r = Execute(self, mh, code_item, *shadow_frame.get(), JValue());
+    JValue r = Execute(self, mh, code_item, *shadow_frame, JValue());
     if (result != NULL) {
       *result = r;
     }
