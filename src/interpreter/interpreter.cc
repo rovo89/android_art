@@ -385,8 +385,7 @@ static void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
 
 static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
                      const Instruction* inst, InvokeType type, bool is_range,
-                     JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                     JValue* result) {
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver;
   if (type == kStatic) {
@@ -474,7 +473,11 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
 static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                        const Instruction* inst, FindFieldType find_type,
                        Primitive::Type field_type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
+
+static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
+                              const Instruction* inst, FindFieldType find_type,
+                              Primitive::Type field_type) {
   bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -524,7 +527,11 @@ static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
                        const Instruction* inst, FindFieldType find_type,
                        Primitive::Type field_type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
+
+static inline void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
+                              const Instruction* inst, FindFieldType find_type,
+                              Primitive::Type field_type) {
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -572,7 +579,7 @@ static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
-static String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx) {
+static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx) {
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -585,7 +592,7 @@ static String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx
   return mh.ResolveString(string_idx);
 }
 
-static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+static inline void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero(self);
@@ -596,7 +603,7 @@ static void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_r
   }
 }
 
-static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+static inline void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero(self);
@@ -607,7 +614,7 @@ static void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resul
   }
 }
 
-static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+static inline void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero(self);
@@ -618,7 +625,7 @@ static void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_
   }
 }
 
-static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
+static inline void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
     int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero(self);
@@ -629,12 +636,20 @@ static void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t resu
   }
 }
 
-static const Instruction* FindNextInstructionFollowingException(Thread* self,
-                                                                ShadowFrame& shadow_frame,
-                                                                uint32_t dex_pc,
-                                                                const uint16_t* const insns,
-                                                                SirtRef<Object>& this_object_ref,
-                                                                instrumentation::Instrumentation* instrumentation) {
+static inline const Instruction* FindNextInstructionFollowingException(Thread* self,
+                                                                       ShadowFrame& shadow_frame,
+                                                                       uint32_t dex_pc,
+                                                                       const uint16_t* insns,
+                                                                       SirtRef<Object>& this_object_ref,
+                                                                       instrumentation::Instrumentation* instrumentation)
+    ALWAYS_INLINE;
+
+static inline const Instruction* FindNextInstructionFollowingException(Thread* self,
+                                                                       ShadowFrame& shadow_frame,
+                                                                       uint32_t dex_pc,
+                                                                       const uint16_t* insns,
+                                                                       SirtRef<Object>& this_object_ref,
+                                                                       instrumentation::Instrumentation* instrumentation) {
   self->VerifyStack();
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
@@ -670,9 +685,20 @@ static const Instruction* FindNextInstructionFollowingException(Thread* self,
     inst = inst-> next_function (); \
   }
 
+static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
+  __attribute__ ((cold, noreturn, noinline));
+
+static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
+  LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
+  exit(0);  // Unreachable, keep GCC happy.
+}
+
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) __attribute__ ((hot));
+
+static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                      ShadowFrame& shadow_frame, JValue result_register) {
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
     return JValue();
@@ -692,7 +718,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                                       shadow_frame.GetMethod(), 0);
   }
   while (true) {
-    if (self->TestAllFlags()) {
+    if (UNLIKELY(self->TestAllFlags())) {
       CheckSuspend(self);
     }
     const uint32_t dex_pc = inst->GetDexPc(insns);
@@ -1180,12 +1206,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         float val1 = shadow_frame.GetVRegFloat(inst->VRegB_23x());
         float val2 = shadow_frame.GetVRegFloat(inst->VRegC_23x());
         int32_t result;
-        // TODO: we should not test float equality like this. Reorder comparisons
-        // or use a different comparison mechanism.
-        if (val1 == val2) {
-          result = 0;
-        } else if (val1 > val2) {
+        if (val1 > val2) {
           result = 1;
+        } else if (val1 == val2) {
+          result = 0;
         } else {
           result = -1;
         }
@@ -1197,12 +1221,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         float val1 = shadow_frame.GetVRegFloat(inst->VRegB_23x());
         float val2 = shadow_frame.GetVRegFloat(inst->VRegC_23x());
         int32_t result;
-        // TODO: we should not test float equality like this. Reorder comparisons
-        // or use a different comparison mechanism.
-        if (val1 == val2) {
-          result = 0;
-        } else if (val1 < val2) {
+        if (val1 < val2) {
           result = -1;
+        } else if (val1 == val2) {
+          result = 0;
         } else {
           result = 1;
         }
@@ -1214,12 +1236,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         double val1 = shadow_frame.GetVRegDouble(inst->VRegB_23x());
         double val2 = shadow_frame.GetVRegDouble(inst->VRegC_23x());
         int32_t result;
-        // TODO: we should not test double equality like this. Reorder comparisons
-        // or use a different comparison mechanism.
-        if (val1 == val2) {
-          result = 0;
-        } else if (val1 > val2) {
+        if (val1 > val2) {
           result = 1;
+        } else if (val1 == val2) {
+          result = 0;
         } else {
           result = -1;
         }
@@ -1232,12 +1252,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         double val1 = shadow_frame.GetVRegDouble(inst->VRegB_23x());
         double val2 = shadow_frame.GetVRegDouble(inst->VRegC_23x());
         int32_t result;
-        // TODO: we should not test double equality like this. Reorder comparisons
-        // or use a different comparison mechanism.
-        if (val1 == val2) {
-          result = 0;
-        } else if (val1 < val2) {
+        if (val1 < val2) {
           result = -1;
+        } else if (val1 == val2) {
+          result = 0;
         } else {
           result = 1;
         }
@@ -2433,9 +2451,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
                              (inst->VRegC_22b() & 0x1f));
         inst = inst->Next_2xx();
         break;
-      default:
-        LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
-        break;
+      case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
+      case Instruction::UNUSED_E3 ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_73:
+      case Instruction::UNUSED_79:
+      case Instruction::UNUSED_7A:
+	UnexpectedOpcode(inst, mh);
     }
   }
 }

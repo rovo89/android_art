@@ -429,8 +429,7 @@ class MANAGED Class : public StaticStorageBase {
   // downcast would be necessary. Similarly for interfaces, a class that implements (or an interface
   // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
   // to themselves. Classes for primitive types may not assign to each other.
-  bool IsAssignableFrom(const Class* src) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  inline bool IsAssignableFrom(const Class* src) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(src != NULL);
     if (this == src) {
       // Can always assign to things of the same type.

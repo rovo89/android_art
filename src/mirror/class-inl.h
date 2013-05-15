@@ -189,7 +189,7 @@ inline bool Class::IsAssignableFromArray(const Class* src) const {
     // src's super should be java_lang_Object, since it is an array.
     Class* java_lang_Object = src->GetSuperClass();
     DCHECK(java_lang_Object != NULL) << PrettyClass(src);
-     DCHECK(java_lang_Object->GetSuperClass() == NULL) << PrettyClass(src);
+    DCHECK(java_lang_Object->GetSuperClass() == NULL) << PrettyClass(src);
     return this == java_lang_Object;
   }
   return IsArrayAssignableFromArray(src);

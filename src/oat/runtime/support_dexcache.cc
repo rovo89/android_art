@@ -15,7 +15,9 @@
  */
 
 #include "callee_save_frame.h"
+#include "gc/card_table-inl.h"
 #include "class_linker-inl.h"
+#include "dex_file-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"

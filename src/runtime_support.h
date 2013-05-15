@@ -248,10 +248,41 @@ extern mirror::AbstractMethod* FindMethodFromCode(uint32_t method_idx, mirror::O
                                                   Thread* self, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
-                                             const mirror::AbstractMethod* referrer, Thread* self,
-                                             bool can_run_clinit, bool verify_access)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
+                                                    const mirror::AbstractMethod* referrer,
+                                                    Thread* self, bool can_run_clinit,
+                                                    bool verify_access)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  mirror::Class* klass = class_linker->ResolveType(type_idx, referrer);
+  if (UNLIKELY(klass == NULL)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  // Perform access check if necessary.
+  mirror::Class* referring_class = referrer->GetDeclaringClass();
+  if (verify_access && UNLIKELY(!referring_class->CanAccess(klass))) {
+    ThrowIllegalAccessErrorClass(referring_class, klass);
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  // If we're just implementing const-class, we shouldn't call <clinit>.
+  if (!can_run_clinit) {
+    return klass;
+  }
+  // If we are the <clinit> of this class, just return our storage.
+  //
+  // Do not set the DexCache InitializedStaticStorage, since that implies <clinit> has finished
+  // running.
+  if (klass == referring_class && MethodHelper(referrer).IsClassInitializer()) {
+    return klass;
+  }
+  if (!class_linker->EnsureInitialized(klass, true, true)) {
+    CHECK(self->IsExceptionPending());
+    return NULL;  // Failure - Indicate to caller to deliver exception
+  }
+  referrer->GetDexCacheInitializedStaticStorage()->Set(type_idx, klass);
+  return klass;
+}
 
 extern void ThrowStackOverflowError(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
