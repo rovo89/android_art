@@ -17,7 +17,7 @@
 #ifndef ART_SRC_OBJECT_UTILS_H_
 #define ART_SRC_OBJECT_UTILS_H_
 
-#include "class_linker.h"
+#include "class_linker-inl.h"
 #include "dex_file.h"
 #include "monitor.h"
 #include "mirror/abstract_method.h"

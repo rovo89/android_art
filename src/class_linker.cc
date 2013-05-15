@@ -74,7 +74,7 @@
 
 namespace art {
 
-extern "C" JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame);
+JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame);
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))

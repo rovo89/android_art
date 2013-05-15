@@ -110,7 +110,7 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   return result.GetJ();
 }
 
-extern "C" JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame)
+JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::AbstractMethod* method = shadow_frame->GetMethod();
   MethodHelper mh(method);

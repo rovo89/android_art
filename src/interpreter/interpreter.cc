@@ -208,7 +208,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
   if (method->IsStatic()) {
     if (shorty == "L") {
       typedef jobject (fnptr)(JNIEnv*, jclass);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       jobject jresult;
@@ -219,35 +219,35 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "V") {
       typedef void (fnptr)(JNIEnv*, jclass);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get());
     } else if (shorty == "Z") {
       typedef jboolean (fnptr)(JNIEnv*, jclass);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetZ(fn(soa.Env(), klass.get()));
     } else if (shorty == "BI") {
       typedef jbyte (fnptr)(JNIEnv*, jclass, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetB(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "II") {
       typedef jint (fnptr)(JNIEnv*, jclass, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0]));
     } else if (shorty == "LL") {
       typedef jobject (fnptr)(JNIEnv*, jclass, jobject);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -260,14 +260,14 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "IIZ") {
       typedef jint (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "ILI") {
       typedef jint (fnptr)(JNIEnv*, jclass, jobject, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -276,21 +276,21 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetI(fn(soa.Env(), klass.get(), arg0.get(), args[1]));
     } else if (shorty == "SIZ") {
       typedef jshort (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       result->SetS(fn(soa.Env(), klass.get(), args[0], args[1]));
     } else if (shorty == "VIZ") {
       typedef void (fnptr)(JNIEnv*, jclass, jint, jboolean);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), args[0], args[1]);
     } else if (shorty == "ZLL") {
       typedef jboolean (fnptr)(JNIEnv*, jclass, jobject, jobject);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -301,7 +301,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetZ(fn(soa.Env(), klass.get(), arg0.get(), arg1.get()));
     } else if (shorty == "ZILL") {
       typedef jboolean (fnptr)(JNIEnv*, jclass, jint, jobject, jobject);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
@@ -312,7 +312,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetZ(fn(soa.Env(), klass.get(), args[0], arg1.get(), arg2.get()));
     } else if (shorty == "VILII") {
       typedef void (fnptr)(JNIEnv*, jclass, jint, jobject, jint, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg1(soa.Env(),
@@ -321,7 +321,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       fn(soa.Env(), klass.get(), args[0], arg1.get(), args[2], args[3]);
     } else if (shorty == "VLILII") {
       typedef void (fnptr)(JNIEnv*, jclass, jobject, jint, jobject, jint, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jclass> klass(soa.Env(),
                                    soa.AddLocalReference<jclass>(method->GetDeclaringClass()));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -337,7 +337,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
   } else {
     if (shorty == "L") {
       typedef jobject (fnptr)(JNIEnv*, jobject);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       jobject jresult;
@@ -348,7 +348,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       result->SetL(soa.Decode<Object*>(jresult));
     } else if (shorty == "LL") {
       typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedLocalRef<jobject> arg0(soa.Env(),
@@ -363,7 +363,7 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       ScopedThreadStateChange tsc(self, kNative);
     } else if (shorty == "III") {
       typedef jint (fnptr)(JNIEnv*, jobject, jint, jint);
-      fnptr* fn = reinterpret_cast<fnptr*>(method->GetNativeMethod());
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
       ScopedLocalRef<jobject> rcvr(soa.Env(),
                                    soa.AddLocalReference<jobject>(receiver));
       ScopedThreadStateChange tsc(self, kNative);
@@ -668,7 +668,7 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
 
 #define HANDLE_PENDING_EXCEPTION() \
   CHECK(self->IsExceptionPending()); \
-  inst = FindNextInstructionFollowingException(self, shadow_frame, dex_pc, insns, \
+  inst = FindNextInstructionFollowingException(self, shadow_frame, inst->GetDexPc(insns), insns, \
                                                this_object_ref, instrumentation); \
   if (inst == NULL) { \
     return JValue(); /* Handled in caller. */ \
@@ -676,7 +676,7 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
 
 #define POSSIBLY_HANDLE_PENDING_EXCEPTION(next_function) \
   if (UNLIKELY(self->IsExceptionPending())) { \
-    inst = FindNextInstructionFollowingException(self, shadow_frame, dex_pc, insns, \
+    inst = FindNextInstructionFollowingException(self, shadow_frame, inst->GetDexPc(insns), insns, \
                                                  this_object_ref, instrumentation); \
     if (inst == NULL) { \
       return JValue(); /* Handled in caller. */ \
@@ -692,6 +692,9 @@ static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
   LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
   exit(0);  // Unreachable, keep GCC happy.
 }
+
+// Code to run before each dex instruction.
+#define PREAMBLE()
 
 static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
@@ -749,66 +752,80 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
     }
     switch (inst->Opcode()) {
       case Instruction::NOP:
+        PREAMBLE();
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(),
                              shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_FROM16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22x(),
                              shadow_frame.GetVReg(inst->VRegB_22x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MOVE_16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_32x(),
                              shadow_frame.GetVReg(inst->VRegB_32x()));
         inst = inst->Next_3xx();
         break;
       case Instruction::MOVE_WIDE:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_12x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_WIDE_FROM16:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_22x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_22x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MOVE_WIDE_16:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_32x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_32x()));
         inst = inst->Next_3xx();
         break;
       case Instruction::MOVE_OBJECT:
+        PREAMBLE();
         shadow_frame.SetVRegReference(inst->VRegA_12x(),
                                       shadow_frame.GetVRegReference(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_OBJECT_FROM16:
+        PREAMBLE();
         shadow_frame.SetVRegReference(inst->VRegA_22x(),
                                       shadow_frame.GetVRegReference(inst->VRegB_22x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MOVE_OBJECT_16:
+        PREAMBLE();
         shadow_frame.SetVRegReference(inst->VRegA_32x(),
                                       shadow_frame.GetVRegReference(inst->VRegB_32x()));
         inst = inst->Next_3xx();
         break;
       case Instruction::MOVE_RESULT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_11x(), result_register.GetI());
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_RESULT_WIDE:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_11x(), result_register.GetJ());
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_RESULT_OBJECT:
+        PREAMBLE();
         shadow_frame.SetVRegReference(inst->VRegA_11x(), result_register.GetL());
         inst = inst->Next_1xx();
         break;
       case Instruction::MOVE_EXCEPTION: {
+        PREAMBLE();
         Throwable* exception = self->GetException(NULL);
         self->ClearException();
         shadow_frame.SetVRegReference(inst->VRegA_11x(), exception);
@@ -816,35 +833,40 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::RETURN_VOID: {
+        PREAMBLE();
         JValue result;
         instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), dex_pc, result);
+                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
         return result;
       }
       case Instruction::RETURN: {
+        PREAMBLE();
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x()));
         instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), dex_pc, result);
+                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
         return result;
       }
       case Instruction::RETURN_WIDE: {
+        PREAMBLE();
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x()));
         instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), dex_pc, result);
+                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
         return result;
       }
       case Instruction::RETURN_OBJECT: {
+        PREAMBLE();
         JValue result;
         result.SetJ(0);
         result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x()));
         instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), dex_pc, result);
+                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
         return result;
       }
       case Instruction::CONST_4: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_11n();
         int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
         shadow_frame.SetVReg(dst, val);
@@ -855,6 +877,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_16: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_21s();
         int32_t val = static_cast<int16_t>(inst->VRegB_21s());
         shadow_frame.SetVReg(dst, val);
@@ -865,6 +888,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_31i();
         int32_t val = inst->VRegB_31i();
         shadow_frame.SetVReg(dst, val);
@@ -875,6 +899,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_HIGH16: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_21h();
         int32_t val = inst->VRegB_21h() << 16;
         shadow_frame.SetVReg(dst, val);
@@ -885,16 +910,19 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_WIDE_16:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_21s(),
                                  static_cast<int16_t>(inst->VRegB_21s()));
         inst = inst->Next_2xx();
         break;
       case Instruction::CONST_WIDE_32:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_31i(),
                                  static_cast<int32_t>(inst->VRegB_31i()));
         inst = inst->Next_3xx();
         break;
       case Instruction::CONST_WIDE:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_51l(), inst->VRegB_51l());
         inst = inst->Next_51l();
         break;
@@ -904,6 +932,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         inst = inst->Next_2xx();
         break;
       case Instruction::CONST_STRING: {
+        PREAMBLE();
         String* s = ResolveString(self, mh,  inst->VRegB_21c());
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
@@ -914,6 +943,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_STRING_JUMBO: {
+        PREAMBLE();
         String* s = ResolveString(self, mh,  inst->VRegB_31c());
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
@@ -924,6 +954,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CONST_CLASS: {
+        PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
                                           self, false, true);
         if (UNLIKELY(c == NULL)) {
@@ -935,6 +966,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MONITOR_ENTER: {
+        PREAMBLE();
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -945,6 +977,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MONITOR_EXIT: {
+        PREAMBLE();
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -955,6 +988,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CHECK_CAST: {
+        PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
                                           self, false, true);
         if (UNLIKELY(c == NULL)) {
@@ -971,6 +1005,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::INSTANCE_OF: {
+        PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegC_22c(), shadow_frame.GetMethod(),
                                           self, false, true);
         if (UNLIKELY(c == NULL)) {
@@ -983,6 +1018,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ARRAY_LENGTH:  {
+        PREAMBLE();
         Object* array = shadow_frame.GetVRegReference(inst->VRegB_12x());
         if (UNLIKELY(array == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -994,6 +1030,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::NEW_INSTANCE: {
+        PREAMBLE();
         Object* obj = AllocObjectFromCode(inst->VRegB_21c(), shadow_frame.GetMethod(),
                                           self, true);
         if (UNLIKELY(obj == NULL)) {
@@ -1005,6 +1042,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::NEW_ARRAY: {
+        PREAMBLE();
         int32_t length = shadow_frame.GetVReg(inst->VRegB_22c());
         Object* obj = AllocArrayFromCode(inst->VRegC_22c(), shadow_frame.GetMethod(),
                                          length, self, true);
@@ -1017,6 +1055,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILLED_NEW_ARRAY: {
+        PREAMBLE();
         const int32_t length = inst->VRegA_35c();
         CHECK(length <= 5);
         if (UNLIKELY(length < 0)) {
@@ -1065,6 +1104,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILLED_NEW_ARRAY_RANGE: {
+        PREAMBLE();
         int32_t length = inst->VRegA_3rc();
         if (UNLIKELY(length < 0)) {
           ThrowNegativeArraySizeException(length);
@@ -1111,6 +1151,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FILL_ARRAY_DATA: {
+        PREAMBLE();
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_31t());
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerException(NULL, "null array in FILL_ARRAY_DATA");
@@ -1120,7 +1161,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         Array* array = obj->AsArray();
         DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
         const Instruction::ArrayDataPayload* payload =
-            reinterpret_cast<const Instruction::ArrayDataPayload*>(insns + dex_pc + inst->VRegB_31t());
+            reinterpret_cast<const Instruction::ArrayDataPayload*>(insns + inst->GetDexPc(insns) + inst->VRegB_31t());
         if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
           self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
                                    "Ljava/lang/ArrayIndexOutOfBoundsException;",
@@ -1135,6 +1176,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::THROW: {
+        PREAMBLE();
         Object* exception = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(exception == NULL)) {
           ThrowNullPointerException(NULL, "throw with null exception");
@@ -1145,37 +1187,43 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::GOTO: {
-        inst = Instruction::At(insns + dex_pc + inst->VRegA_10t());
+        PREAMBLE();
+        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_10t());
         break;
       }
       case Instruction::GOTO_16: {
-        inst = Instruction::At(insns + dex_pc + inst->VRegA_20t());
+        PREAMBLE();
+        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_20t());
         break;
       }
       case Instruction::GOTO_32: {
-        inst = Instruction::At(insns + dex_pc + inst->VRegA_30t());
+        PREAMBLE();
+        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_30t());
         break;
       }
       case Instruction::PACKED_SWITCH: {
-        const uint16_t* switch_data = insns + dex_pc + inst->VRegB_31t();
+        PREAMBLE();
+        const uint16_t* switch_data = insns + inst->GetDexPc(insns) + inst->VRegB_31t();
         int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
-        CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
+        DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
         uint16_t size = switch_data[1];
-        CHECK_GT(size, 0);
+        DCHECK_GT(size, 0);
         const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
         CHECK(IsAligned<4>(keys));
         int32_t first_key = keys[0];
         const int32_t* targets = reinterpret_cast<const int32_t*>(&switch_data[4]);
-        CHECK(IsAligned<4>(targets));
+        DCHECK(IsAligned<4>(targets));
         int32_t index = test_val - first_key;
         if (index >= 0 && index < size) {
-          inst = Instruction::At(insns + dex_pc + targets[index]);
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + targets[index]);
         } else {
           inst = inst->Next_3xx();
         }
         break;
       }
       case Instruction::SPARSE_SWITCH: {
+        PREAMBLE();
+        uint32_t dex_pc = inst->GetDexPc(insns);
         const uint16_t* switch_data = insns + dex_pc + inst->VRegB_31t();
         int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
         CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
@@ -1203,6 +1251,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CMPL_FLOAT: {
+        PREAMBLE();
         float val1 = shadow_frame.GetVRegFloat(inst->VRegB_23x());
         float val2 = shadow_frame.GetVRegFloat(inst->VRegC_23x());
         int32_t result;
@@ -1218,6 +1267,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CMPG_FLOAT: {
+        PREAMBLE();
         float val1 = shadow_frame.GetVRegFloat(inst->VRegB_23x());
         float val2 = shadow_frame.GetVRegFloat(inst->VRegC_23x());
         int32_t result;
@@ -1233,6 +1283,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CMPL_DOUBLE: {
+        PREAMBLE();
         double val1 = shadow_frame.GetVRegDouble(inst->VRegB_23x());
         double val2 = shadow_frame.GetVRegDouble(inst->VRegC_23x());
         int32_t result;
@@ -1249,6 +1300,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
 
       case Instruction::CMPG_DOUBLE: {
+        PREAMBLE();
         double val1 = shadow_frame.GetVRegDouble(inst->VRegB_23x());
         double val2 = shadow_frame.GetVRegDouble(inst->VRegC_23x());
         int32_t result;
@@ -1264,6 +1316,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::CMP_LONG: {
+        PREAMBLE();
         int64_t val1 = shadow_frame.GetVRegLong(inst->VRegB_23x());
         int64_t val2 = shadow_frame.GetVRegLong(inst->VRegC_23x());
         int32_t result;
@@ -1279,102 +1332,115 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::IF_EQ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) == shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_NE: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) != shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_LT: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) < shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_GE: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) >= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_GT: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) > shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_LE: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) <= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegC_22t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_EQZ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) == 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_NEZ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) != 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_LTZ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) < 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_GEZ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) >= 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_GTZ: {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) > 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::IF_LEZ:  {
+        PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) <= 0) {
-          inst = Instruction::At(insns + dex_pc + inst->VRegB_21t());
+          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
         break;
       }
       case Instruction::AGET_BOOLEAN: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1392,6 +1458,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_BYTE: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1409,6 +1476,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_CHAR: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1426,6 +1494,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_SHORT: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1443,6 +1512,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1460,6 +1530,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_WIDE:  {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1477,6 +1548,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AGET_OBJECT: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1494,6 +1566,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_BOOLEAN: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1512,6 +1585,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_BYTE: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1530,6 +1604,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_CHAR: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1548,6 +1623,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_SHORT: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1566,6 +1642,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1584,6 +1661,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_WIDE: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1602,6 +1680,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::APUT_OBJECT: {
+        PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
@@ -1615,206 +1694,257 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::IGET_BOOLEAN:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimBoolean);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_BYTE:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimByte);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_CHAR:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimChar);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_SHORT:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimShort);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimInt);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_WIDE:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimLong);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_OBJECT:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, InstanceObjectRead, Primitive::kPrimNot);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BOOLEAN:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimBoolean);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BYTE:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimByte);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_CHAR:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimChar);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_SHORT:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimShort);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimInt);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_WIDE:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimLong);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_OBJECT:
+        PREAMBLE();
         DoFieldGet(self, shadow_frame, inst, StaticObjectRead, Primitive::kPrimNot);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BOOLEAN:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimBoolean);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BYTE:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimByte);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_CHAR:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimChar);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_SHORT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimShort);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimInt);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_WIDE:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimLong);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_OBJECT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, InstanceObjectWrite, Primitive::kPrimNot);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BOOLEAN:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimBoolean);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BYTE:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimByte);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_CHAR:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimChar);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_SHORT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimShort);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimInt);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_WIDE:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimLong);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_OBJECT:
+        PREAMBLE();
         DoFieldPut(self, shadow_frame, inst, StaticObjectWrite, Primitive::kPrimNot);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::INVOKE_VIRTUAL:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kVirtual, false, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_VIRTUAL_RANGE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kVirtual, true, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kSuper, false, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER_RANGE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kSuper, true, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kDirect, false, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT_RANGE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kDirect, true, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kInterface, false, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE_RANGE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kInterface, true, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kStatic, false, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC_RANGE:
+        PREAMBLE();
         DoInvoke(self, mh, shadow_frame, inst, kStatic, true, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::NEG_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(), -shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::NOT_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(), ~shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::NEG_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_12x(), -shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::NOT_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_12x(), ~shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::NEG_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_12x(), -shadow_frame.GetVRegFloat(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::NEG_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_12x(), -shadow_frame.GetVRegDouble(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_12x(), shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_12x(), shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_12x(), shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(), shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_12x(), shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::LONG_TO_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_12x(), shadow_frame.GetVRegLong(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::FLOAT_TO_INT: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_12x();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x());
         if (val != val) {
@@ -1830,6 +1960,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FLOAT_TO_LONG: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_12x();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x());
         if (val != val) {
@@ -1845,10 +1976,12 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::FLOAT_TO_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_12x(), shadow_frame.GetVRegFloat(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::DOUBLE_TO_INT: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_12x();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x());
         if (val != val) {
@@ -1864,6 +1997,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DOUBLE_TO_LONG: {
+        PREAMBLE();
         uint32_t dst = inst->VRegA_12x();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x());
         if (val != val) {
@@ -1879,217 +2013,254 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DOUBLE_TO_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_12x(), shadow_frame.GetVRegDouble(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_BYTE:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(),
                              static_cast<int8_t>(shadow_frame.GetVReg(inst->VRegB_12x())));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_CHAR:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(),
                              static_cast<uint16_t>(shadow_frame.GetVReg(inst->VRegB_12x())));
         inst = inst->Next_1xx();
         break;
       case Instruction::INT_TO_SHORT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_12x(),
                              static_cast<int16_t>(shadow_frame.GetVReg(inst->VRegB_12x())));
         inst = inst->Next_1xx();
         break;
       case Instruction::ADD_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) +
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::SUB_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) -
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) *
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT:
+        PREAMBLE();
         DoIntDivide(self, shadow_frame, inst->VRegA_23x(),
                     shadow_frame.GetVReg(inst->VRegB_23x()),
                     shadow_frame.GetVReg(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT:
+        PREAMBLE();
         DoIntRemainder(self, shadow_frame, inst->VRegA_23x(),
                        shadow_frame.GetVReg(inst->VRegB_23x()),
                        shadow_frame.GetVReg(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SHL_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) <<
                              (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x1f));
         inst = inst->Next_2xx();
         break;
       case Instruction::SHR_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) >>
                              (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x1f));
         inst = inst->Next_2xx();
         break;
       case Instruction::USHR_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              static_cast<uint32_t>(shadow_frame.GetVReg(inst->VRegB_23x())) >>
                              (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x1f));
         inst = inst->Next_2xx();
         break;
       case Instruction::AND_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) &
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::OR_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) |
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::XOR_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(),
                              shadow_frame.GetVReg(inst->VRegB_23x()) ^
                              shadow_frame.GetVReg(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::ADD_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) +
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::SUB_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) -
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) *
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_LONG:
+        PREAMBLE();
         DoLongDivide(self, shadow_frame, inst->VRegA_23x(),
                      shadow_frame.GetVRegLong(inst->VRegB_23x()),
                     shadow_frame.GetVRegLong(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_LONG:
+        PREAMBLE();
         DoLongRemainder(self, shadow_frame, inst->VRegA_23x(),
                         shadow_frame.GetVRegLong(inst->VRegB_23x()),
                         shadow_frame.GetVRegLong(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::AND_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) &
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::OR_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) |
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::XOR_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) ^
                                  shadow_frame.GetVRegLong(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::SHL_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) <<
                                  (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x3f));
         inst = inst->Next_2xx();
         break;
       case Instruction::SHR_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  shadow_frame.GetVRegLong(inst->VRegB_23x()) >>
                                  (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x3f));
         inst = inst->Next_2xx();
         break;
       case Instruction::USHR_LONG:
+        PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(),
                                  static_cast<uint64_t>(shadow_frame.GetVRegLong(inst->VRegB_23x())) >>
                                  (shadow_frame.GetVReg(inst->VRegC_23x()) & 0x3f));
         inst = inst->Next_2xx();
         break;
       case Instruction::ADD_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_23x(),
                                   shadow_frame.GetVRegFloat(inst->VRegB_23x()) +
                                   shadow_frame.GetVRegFloat(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::SUB_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_23x(),
                                   shadow_frame.GetVRegFloat(inst->VRegB_23x()) -
                                   shadow_frame.GetVRegFloat(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_23x(),
                                   shadow_frame.GetVRegFloat(inst->VRegB_23x()) *
                                   shadow_frame.GetVRegFloat(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_23x(),
                                   shadow_frame.GetVRegFloat(inst->VRegB_23x()) /
                                   shadow_frame.GetVRegFloat(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::REM_FLOAT:
+        PREAMBLE();
         shadow_frame.SetVRegFloat(inst->VRegA_23x(),
                                   fmodf(shadow_frame.GetVRegFloat(inst->VRegB_23x()),
                                         shadow_frame.GetVRegFloat(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::ADD_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_23x(),
                                    shadow_frame.GetVRegDouble(inst->VRegB_23x()) +
                                    shadow_frame.GetVRegDouble(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::SUB_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_23x(),
                                    shadow_frame.GetVRegDouble(inst->VRegB_23x()) -
                                    shadow_frame.GetVRegDouble(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_23x(),
                                    shadow_frame.GetVRegDouble(inst->VRegB_23x()) *
                                    shadow_frame.GetVRegDouble(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_23x(),
                                    shadow_frame.GetVRegDouble(inst->VRegB_23x()) /
                                    shadow_frame.GetVRegDouble(inst->VRegC_23x()));
         inst = inst->Next_2xx();
         break;
       case Instruction::REM_DOUBLE:
+        PREAMBLE();
         shadow_frame.SetVRegDouble(inst->VRegA_23x(),
                                    fmod(shadow_frame.GetVRegDouble(inst->VRegB_23x()),
                                         shadow_frame.GetVRegDouble(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::ADD_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) +
@@ -2098,6 +2269,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SUB_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) -
@@ -2106,6 +2278,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MUL_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) *
@@ -2114,6 +2287,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::REM_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         DoIntRemainder(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                        shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2121,6 +2295,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SHL_INT_2ADDR:{
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) <<
@@ -2129,6 +2304,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SHR_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) >>
@@ -2137,6 +2313,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::USHR_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              static_cast<uint32_t>(shadow_frame.GetVReg(vregA)) >>
@@ -2145,6 +2322,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AND_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) &
@@ -2153,6 +2331,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::OR_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) |
@@ -2161,6 +2340,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::XOR_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) ^
@@ -2169,6 +2349,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DIV_INT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         DoIntDivide(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                     shadow_frame.GetVReg(inst->VRegB_12x()));
@@ -2176,6 +2357,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ADD_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) +
@@ -2184,6 +2366,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SUB_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) -
@@ -2192,6 +2375,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MUL_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) *
@@ -2200,6 +2384,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DIV_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         DoLongDivide(self, shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                     shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2207,6 +2392,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::REM_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         DoLongRemainder(self, shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                         shadow_frame.GetVRegLong(inst->VRegB_12x()));
@@ -2214,6 +2400,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::AND_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) &
@@ -2222,6 +2409,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::OR_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) |
@@ -2230,6 +2418,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::XOR_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) ^
@@ -2238,6 +2427,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SHL_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) <<
@@ -2246,6 +2436,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SHR_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  shadow_frame.GetVRegLong(vregA) >>
@@ -2254,6 +2445,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::USHR_LONG_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegLong(vregA,
                                  static_cast<uint64_t>(shadow_frame.GetVRegLong(vregA)) >>
@@ -2262,6 +2454,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ADD_FLOAT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) +
@@ -2270,6 +2463,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SUB_FLOAT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) -
@@ -2278,6 +2472,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MUL_FLOAT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) *
@@ -2286,6 +2481,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DIV_FLOAT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   shadow_frame.GetVRegFloat(vregA) /
@@ -2294,6 +2490,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::REM_FLOAT_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegFloat(vregA,
                                   fmodf(shadow_frame.GetVRegFloat(vregA),
@@ -2302,6 +2499,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ADD_DOUBLE_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) +
@@ -2310,6 +2508,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::SUB_DOUBLE_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) -
@@ -2318,6 +2517,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::MUL_DOUBLE_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) *
@@ -2326,6 +2526,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::DIV_DOUBLE_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    shadow_frame.GetVRegDouble(vregA) /
@@ -2334,6 +2535,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::REM_DOUBLE_2ADDR: {
+        PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVRegDouble(vregA,
                                    fmod(shadow_frame.GetVRegDouble(vregA),
@@ -2342,110 +2544,129 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       }
       case Instruction::ADD_INT_LIT16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              shadow_frame.GetVReg(inst->VRegB_22s()) +
                              inst->VRegC_22s());
         inst = inst->Next_2xx();
         break;
       case Instruction::RSUB_INT:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              inst->VRegC_22s() -
                              shadow_frame.GetVReg(inst->VRegB_22s()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT_LIT16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              shadow_frame.GetVReg(inst->VRegB_22s()) *
                              inst->VRegC_22s());
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT_LIT16:
+        PREAMBLE();
         DoIntDivide(self, shadow_frame, inst->VRegA_22s(),
                     shadow_frame.GetVReg(inst->VRegB_22s()), inst->VRegC_22s());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT_LIT16:
+        PREAMBLE();
         DoIntRemainder(self, shadow_frame, inst->VRegA_22s(),
                        shadow_frame.GetVReg(inst->VRegB_22s()), inst->VRegC_22s());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::AND_INT_LIT16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              shadow_frame.GetVReg(inst->VRegB_22s()) &
                              inst->VRegC_22s());
         inst = inst->Next_2xx();
         break;
       case Instruction::OR_INT_LIT16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              shadow_frame.GetVReg(inst->VRegB_22s()) |
                              inst->VRegC_22s());
         inst = inst->Next_2xx();
         break;
       case Instruction::XOR_INT_LIT16:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(),
                              shadow_frame.GetVReg(inst->VRegB_22s()) ^
                              inst->VRegC_22s());
         inst = inst->Next_2xx();
         break;
       case Instruction::ADD_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) +
                              inst->VRegC_22b());
         inst = inst->Next_2xx();
         break;
       case Instruction::RSUB_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              inst->VRegC_22b() -
                              shadow_frame.GetVReg(inst->VRegB_22b()));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) *
                              inst->VRegC_22b());
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT_LIT8:
+        PREAMBLE();
         DoIntDivide(self, shadow_frame, inst->VRegA_22b(),
                     shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT_LIT8:
+        PREAMBLE();
         DoIntRemainder(self, shadow_frame, inst->VRegA_22b(),
                        shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::AND_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) &
                              inst->VRegC_22b());
         inst = inst->Next_2xx();
         break;
       case Instruction::OR_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) |
                              inst->VRegC_22b());
         inst = inst->Next_2xx();
         break;
       case Instruction::XOR_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) ^
                              inst->VRegC_22b());
         inst = inst->Next_2xx();
         break;
       case Instruction::SHL_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) <<
                              (inst->VRegC_22b() & 0x1f));
         inst = inst->Next_2xx();
         break;
       case Instruction::SHR_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              shadow_frame.GetVReg(inst->VRegB_22b()) >>
                              (inst->VRegC_22b() & 0x1f));
         inst = inst->Next_2xx();
         break;
       case Instruction::USHR_INT_LIT8:
+        PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(),
                              static_cast<uint32_t>(shadow_frame.GetVReg(inst->VRegB_22b())) >>
                              (inst->VRegC_22b() & 0x1f));
@@ -2456,7 +2677,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::UNUSED_73:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
-	UnexpectedOpcode(inst, mh);
+        UnexpectedOpcode(inst, mh);
     }
   }
 }
