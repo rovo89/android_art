@@ -169,6 +169,33 @@ class Instruction {
     return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
   }
 
+  // Returns a pointer to the instruction after this 1xx instruction in the stream.
+  const Instruction* Next_1xx() const {
+    DCHECK(FormatOf(Opcode()) >= k10x && FormatOf(Opcode()) <= k10t);
+    size_t current_size_in_bytes = 1 * sizeof(uint16_t);
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
+    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+  }
+
+  // Returns a pointer to the instruction after this 2xx instruction in the stream.
+  const Instruction* Next_2xx() const {
+    DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k22c);
+    size_t current_size_in_bytes = 2 * sizeof(uint16_t);
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
+    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+  }
+
+  // Returns a pointer to the instruction after this 3xx instruction in the stream.
+  const Instruction* Next_3xx() const {
+    DCHECK(FormatOf(Opcode()) >= k32x && FormatOf(Opcode()) <= k3rc);
+    size_t current_size_in_bytes = 3 * sizeof(uint16_t);
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
+    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+  }
+
+  // Returns a pointer to the instruction after this 51l instruction in the stream.
+  const Instruction* Next_51l() const;
+
   // Returns the name of this instruction's opcode.
   const char* Name() const {
     return Instruction::Name(Opcode());

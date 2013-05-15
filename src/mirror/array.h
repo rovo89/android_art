@@ -70,7 +70,6 @@ class MANAGED Array : public Object {
     return reinterpret_cast<const void*>(data);
   }
 
- protected:
   bool IsValidIndex(int32_t index) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(index < 0 || index >= GetLength())) {

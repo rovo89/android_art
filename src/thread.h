@@ -563,6 +563,10 @@ class PACKED(4) Thread {
     return (state_and_flags_.as_struct.flags & flag) != 0;
   }
 
+  bool TestAllFlags() const {
+    return (state_and_flags_.as_struct.flags != 0);
+  }
+
   void AtomicSetFlag(ThreadFlag flag);
 
   void AtomicClearFlag(ThreadFlag flag);

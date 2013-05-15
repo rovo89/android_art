@@ -21,6 +21,13 @@
 
 namespace art {
 
+inline const Instruction* Instruction::Next_51l() const {
+  DCHECK_EQ(FormatOf(Opcode()), k51l);
+  size_t current_size_in_bytes = 5 * sizeof(uint16_t);
+  const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
+  return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+}
+
 //------------------------------------------------------------------------------
 // VRegA
 //------------------------------------------------------------------------------

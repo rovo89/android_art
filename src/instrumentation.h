@@ -166,7 +166,7 @@ class Instrumentation {
   void DexPcMovedEvent(Thread* thread, mirror::Object* this_object,
                        const mirror::AbstractMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (have_dex_pc_listeners_) {
+    if (UNLIKELY(have_dex_pc_listeners_)) {
       DexPcMovedEventImpl(thread, this_object, method, dex_pc);
     }
   }
