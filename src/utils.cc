@@ -1204,7 +1204,9 @@ std::string GetArtCacheOrDie(const char* android_data) {
 
 std::string GetArtCacheFilenameOrDie(const std::string& location) {
   std::string art_cache(GetArtCacheOrDie(GetAndroidData()));
-  CHECK_EQ(location[0], '/') << location;
+  if (location[0] != '/') {
+    LOG(FATAL) << "Expected path in location to be absolute: "<< location;
+  }
   std::string cache_file(location, 1); // skip leading slash
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
   return art_cache + "/" + cache_file;

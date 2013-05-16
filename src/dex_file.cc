@@ -71,6 +71,7 @@ bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
     }
     UniquePtr<ZipEntry> zip_entry(zip_archive->Find(kClassesDex));
     if (zip_entry.get() == NULL) {
+      LOG(ERROR) << "Zip archive '" << filename << "' doesn't contain " << kClassesDex;
       return false;
     }
     checksum = zip_entry->GetCrc32();
@@ -84,6 +85,7 @@ bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
     checksum = dex_file->GetHeader().checksum_;
     return true;
   }
+  LOG(ERROR) << "Expected valid zip or dex file name: " << filename;
   return false;
 }
 
