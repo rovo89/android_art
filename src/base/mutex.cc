@@ -394,7 +394,15 @@ void Mutex::ExclusiveUnlock(Thread* self) {
         }
       }
     } else {
-      LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
+      // Logging acquires the logging lock, avoid infinite recursion in that case.
+      if (this != Locks::logging_lock_) {
+        LOG(FATAL) << "Unexpected state_ in unlock " << cur_state << " for " << name_;
+      } else {
+        LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
+        LogMessage::LogLine(data, StringPrintf("Unexpected state_ %d in unlock for %s",
+                                               cur_state, name_).c_str());
+        _exit(1);
+      }
     }
   } while(!done);
 #else

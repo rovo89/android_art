@@ -170,10 +170,10 @@ struct LogMessageData {
  public:
   LogMessageData(const char* file, int line, LogSeverity severity, int error);
   std::ostringstream buffer;
-  const char* file;
-  int line_number;
-  LogSeverity severity;
-  int error;
+  const char* const file;
+  const int line_number;
+  const LogSeverity severity;
+  const int error;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(LogMessageData);
@@ -190,9 +190,10 @@ class LogMessage {
  private:
   static void LogLine(const LogMessageData& data, const char*);
 
-  LogMessageData* data_;
+  LogMessageData* const data_;
 
   friend void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context);
+  friend class Mutex;
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 
