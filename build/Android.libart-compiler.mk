@@ -71,7 +71,11 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/llvm/runtime_support_builder_thumb2.cc \
 	src/compiler/llvm/runtime_support_builder_x86.cc \
 	src/compiler/llvm/runtime_support_llvm.cc \
-	src/elf_writer.cc
+	src/elf_fixup.cc \
+	src/elf_stripper.cc \
+	src/elf_writer.cc \
+	src/elf_writer_mclinker.cc \
+	src/elf_writer_quick.cc
 
 LIBART_COMPILER_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
