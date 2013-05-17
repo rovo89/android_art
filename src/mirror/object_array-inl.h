@@ -23,6 +23,7 @@
 #include "mirror/class.h"
 #include "mirror/field.h"
 #include "runtime.h"
+#include "thread.h"
 
 namespace art {
 namespace mirror {
@@ -47,17 +48,24 @@ inline T* ObjectArray<T>::Get(int32_t i) const {
 }
 
 template<class T>
-inline void ObjectArray<T>::Set(int32_t i, T* object) {
-  if (LIKELY(IsValidIndex(i))) {
-    if (object != NULL) {
-      Class* element_class = GetClass()->GetComponentType();
-      if (UNLIKELY(!object->InstanceOf(element_class))) {
-        ThrowArrayStoreException(object);
-        return;
-      }
+inline bool ObjectArray<T>::CheckAssignable(T* object) {
+  if (object != NULL) {
+    Class* element_class = GetClass()->GetComponentType();
+    if (UNLIKELY(!object->InstanceOf(element_class))) {
+      ThrowArrayStoreException(object);
+      return false;
     }
+  }
+  return true;
+}
+
+template<class T>
+inline void ObjectArray<T>::Set(int32_t i, T* object) {
+  if (LIKELY(IsValidIndex(i) && CheckAssignable(object))) {
     MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
     SetFieldObject(data_offset, object, false);
+  } else {
+    DCHECK(Thread::Current()->IsExceptionPending());
   }
 }
 

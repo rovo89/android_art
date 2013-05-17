@@ -30,6 +30,10 @@ class MANAGED ObjectArray : public Array {
 
   T* Get(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns true if the object can be stored into the array. If not, throws
+  // an ArrayStoreException and returns false.
+  bool CheckAssignable(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void Set(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set element without bound and element type checks, to be used in limited
