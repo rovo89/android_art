@@ -62,6 +62,7 @@ define build-art-executable
 
   LOCAL_CFLAGS := $(ART_EXECUTABLES_CFLAGS)
   ifeq ($$(art_target_or_host),target)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
@@ -69,6 +70,7 @@ define build-art-executable
       LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
     endif
   else # host
+    LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
