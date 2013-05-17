@@ -242,14 +242,14 @@
   V(0xE0, SHL_INT_LIT8, "shl-int/lit8", k22b, true, kNone, kContinue, kVerifyRegA | kVerifyRegB) \
   V(0xE1, SHR_INT_LIT8, "shr-int/lit8", k22b, true, kNone, kContinue, kVerifyRegA | kVerifyRegB) \
   V(0xE2, USHR_INT_LIT8, "ushr-int/lit8", k22b, true, kNone, kContinue, kVerifyRegA | kVerifyRegB) \
-  V(0xE3, UNUSED_E3, "unused-e3", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE4, UNUSED_E4, "unused-e4", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE5, UNUSED_E5, "unused-e5", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE6, UNUSED_E6, "unused-e6", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE7, UNUSED_E7, "unused-e7", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE8, UNUSED_E8, "unused-e8", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xE9, UNUSED_E9, "unused-e9", k10x, false, kUnknown, 0, kVerifyError) \
-  V(0xEA, UNUSED_EA, "unused-ea", k10x, false, kUnknown, 0, kVerifyError) \
+  V(0xE3, IGET_QUICK, "iget-quick", k22c, true, kFieldRef, kContinue | kThrow, kVerifyRegA | kVerifyRegB) \
+  V(0xE4, IGET_WIDE_QUICK, "iget-wide-quick", k22c, true, kFieldRef, kContinue | kThrow, kVerifyRegAWide | kVerifyRegB) \
+  V(0xE5, IGET_OBJECT_QUICK, "iget-object-quick", k22c, true, kFieldRef, kContinue | kThrow, kVerifyRegA | kVerifyRegB) \
+  V(0xE6, IPUT_QUICK, "iput-quick", k22c, false, kFieldRef, kContinue | kThrow, kVerifyRegA | kVerifyRegB) \
+  V(0xE7, IPUT_WIDE_QUICK, "iput-wide-quick", k22c, false, kFieldRef, kContinue | kThrow, kVerifyRegAWide | kVerifyRegB) \
+  V(0xE8, IPUT_OBJECT_QUICK, "iput-object-quick", k22c, false, kFieldRef, kContinue | kThrow, kVerifyRegA | kVerifyRegB) \
+  V(0xE9, INVOKE_VIRTUAL_QUICK, "invoke-virtual-quick", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArg) \
+  V(0xEA, INVOKE_VIRTUAL_RANGE_QUICK, "invoke-virtual/range-quick", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyVarArgRange) \
   V(0xEB, UNUSED_EB, "unused-eb", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xEC, UNUSED_EC, "unused-ec", k10x, false, kUnknown, 0, kVerifyError) \
   V(0xED, UNUSED_ED, "unused-ed", k10x, false, kUnknown, 0, kVerifyError) \

@@ -153,6 +153,11 @@ void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_locatio
                                               InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
+                                              mirror::AbstractMethod* method,
+                                              InvokeType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

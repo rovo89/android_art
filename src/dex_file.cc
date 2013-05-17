@@ -108,6 +108,28 @@ int DexFile::GetPermissions() const {
   }
 }
 
+bool DexFile::IsReadOnly() const {
+  return GetPermissions() == PROT_READ;
+}
+
+bool DexFile::EnableWrite(uint8_t* addr, size_t length) const {
+  CHECK(IsReadOnly());
+  if (mem_map_.get() == NULL) {
+    return false;
+  } else {
+    return mem_map_->ProtectRegion(addr, length, PROT_READ | PROT_WRITE);
+  }
+}
+
+bool DexFile::DisableWrite(uint8_t* addr, size_t length) const {
+  CHECK(!IsReadOnly());
+  if (mem_map_.get() == NULL) {
+    return false;
+  } else {
+    return mem_map_->ProtectRegion(addr, length, PROT_READ);
+  }
+}
+
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& location,
                                  bool verify) {

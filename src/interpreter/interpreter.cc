@@ -470,6 +470,98 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
+template<bool is_range>
+static void DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
+                                 const Instruction* inst, JValue* result)
+    NO_THREAD_SAFETY_ANALYSIS;
+
+template<bool is_range>
+static void DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
+                                 const Instruction* inst, JValue* result) {
+  uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+  Object* receiver = shadow_frame.GetVRegReference(vregC);
+  if (UNLIKELY(receiver == NULL)) {
+    // We lost the reference to the method index so we cannot get a more
+    // precised exception message.
+    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    return;
+  }
+  uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  AbstractMethod* method = receiver->GetClass()->GetVTable()->Get(vtable_idx);
+  if (UNLIKELY(method == NULL)) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return;
+  }
+  MethodHelper mh(method);
+
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  uint16_t num_regs;
+  uint16_t num_ins;
+  if (code_item != NULL) {
+    num_regs = code_item->registers_size_;
+    num_ins = code_item->ins_size_;
+  } else if (method->IsAbstract()) {
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
+                             "abstract method \"%s\"", PrettyMethod(method).c_str());
+    return;
+  } else {
+    DCHECK(method->IsNative() || method->IsProxyMethod());
+    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    if (!method->IsStatic()) {
+      num_regs++;
+      num_ins++;
+    }
+  }
+
+  void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
+  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
+                                                    method, 0, memory));
+  size_t cur_reg = num_regs - num_ins;
+  if (receiver != NULL) {
+    new_shadow_frame->SetVRegReference(cur_reg, receiver);
+    ++cur_reg;
+  }
+
+  size_t arg_offset = (receiver == NULL) ? 0 : 1;
+  const char* shorty = mh.GetShorty();
+  uint32_t arg[5];
+  if (!is_range) {
+    inst->GetArgs(arg);
+  }
+  for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
+    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+    size_t arg_pos = is_range ? vregC + arg_offset : arg[arg_offset];
+    switch (shorty[shorty_pos + 1]) {
+      case 'L': {
+        Object* o = shadow_frame.GetVRegReference(arg_pos);
+        new_shadow_frame->SetVRegReference(cur_reg, o);
+        break;
+      }
+      case 'J': case 'D': {
+        uint64_t wide_value = (static_cast<uint64_t>(shadow_frame.GetVReg(arg_pos + 1)) << 32) |
+                              static_cast<uint32_t>(shadow_frame.GetVReg(arg_pos));
+        new_shadow_frame->SetVRegLong(cur_reg, wide_value);
+        cur_reg++;
+        arg_offset++;
+        break;
+      }
+      default:
+        new_shadow_frame->SetVReg(cur_reg, shadow_frame.GetVReg(arg_pos));
+        break;
+    }
+  }
+
+  if (LIKELY(Runtime::Current()->IsStarted())) {
+    (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
+  } else {
+    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, num_regs - num_ins);
+  }
+}
+
 // We use template functions to optimize compiler inlining process. Otherwise,
 // some parts of the code (like a switch statement) which depend on a constant
 // parameter would not be inlined while it should be. These constant parameters
@@ -535,6 +627,41 @@ static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
+template<Primitive::Type field_type>
+static void DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
+                       const Instruction* inst)
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
+
+template<Primitive::Type field_type>
+static inline void DoIGetQuick(Thread* self, ShadowFrame& shadow_frame,
+                               const Instruction* inst) {
+  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+  if (UNLIKELY(obj == NULL)) {
+    // We lost the reference to the field index so we cannot get a more
+    // precised exception message.
+    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    return;
+  }
+  MemberOffset field_offset(inst->VRegC_22c());
+  const bool is_volatile = false; // iget-x-quick only on non volatile fields.
+  const uint32_t vregA = inst->VRegA_22c();
+  switch (field_type) {
+    case Primitive::kPrimInt:
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetField32(field_offset, is_volatile)));
+      break;
+    case Primitive::kPrimLong:
+      shadow_frame.SetVRegLong(vregA, static_cast<int64_t>(obj->GetField64(field_offset, is_volatile)));
+      break;
+    case Primitive::kPrimNot:
+      shadow_frame.SetVRegReference(vregA, obj->GetFieldObject<mirror::Object*>(field_offset, is_volatile));
+      break;
+    default:
+      LOG(FATAL) << "Unreachable: " << field_type;
+  }
+}
+
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                        const Instruction* inst)
@@ -585,6 +712,41 @@ static inline void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
       break;
     case Primitive::kPrimNot:
       f->SetObj(obj, shadow_frame.GetVRegReference(vregA));
+      break;
+    default:
+      LOG(FATAL) << "Unreachable: " << field_type;
+  }
+}
+
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
+template<Primitive::Type field_type>
+static void DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
+                       const Instruction* inst)
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
+
+template<Primitive::Type field_type>
+static inline void DoIPutQuick(Thread* self, ShadowFrame& shadow_frame,
+                               const Instruction* inst) {
+  Object* obj = shadow_frame.GetVRegReference(inst->VRegB_22c());
+  if (UNLIKELY(obj == NULL)) {
+    // We lost the reference to the field index so we cannot get a more
+    // precised exception message.
+    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    return;
+  }
+  MemberOffset field_offset(inst->VRegC_22c());
+  const bool is_volatile = false; // iput-x-quick only on non volatile fields.
+  const uint32_t vregA = inst->VRegA_22c();
+  switch (field_type) {
+    case Primitive::kPrimInt:
+      obj->SetField32(field_offset, shadow_frame.GetVReg(vregA), is_volatile);
+      break;
+    case Primitive::kPrimLong:
+      obj->SetField64(field_offset, shadow_frame.GetVRegLong(vregA), is_volatile);
+      break;
+    case Primitive::kPrimNot:
+      obj->SetFieldObject(field_offset, shadow_frame.GetVRegReference(vregA), is_volatile);
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -1770,6 +1932,21 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         DoFieldGet<InstanceObjectRead, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
+      case Instruction::IGET_QUICK:
+        PREAMBLE();
+        DoIGetQuick<Primitive::kPrimInt>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
+      case Instruction::IGET_WIDE_QUICK:
+        PREAMBLE();
+        DoIGetQuick<Primitive::kPrimLong>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
+      case Instruction::IGET_OBJECT_QUICK:
+        PREAMBLE();
+        DoIGetQuick<Primitive::kPrimNot>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
       case Instruction::SGET_BOOLEAN:
         PREAMBLE();
         DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst);
@@ -1838,6 +2015,21 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::IPUT_OBJECT:
         PREAMBLE();
         DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
+      case Instruction::IPUT_QUICK:
+        PREAMBLE();
+        DoIPutQuick<Primitive::kPrimInt>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
+      case Instruction::IPUT_WIDE_QUICK:
+        PREAMBLE();
+        DoIPutQuick<Primitive::kPrimLong>(self, shadow_frame, inst);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        break;
+      case Instruction::IPUT_OBJECT_QUICK:
+        PREAMBLE();
+        DoIPutQuick<Primitive::kPrimNot>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BOOLEAN:
@@ -1923,6 +2115,16 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::INVOKE_STATIC_RANGE:
         PREAMBLE();
         DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, &result_register);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
+        break;
+      case Instruction::INVOKE_VIRTUAL_QUICK:
+        PREAMBLE();
+        DoInvokeVirtualQuick<false>(self, shadow_frame, inst, &result_register);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
+        break;
+      case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
+        PREAMBLE();
+        DoInvokeVirtualQuick<true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::NEG_INT:
@@ -2715,7 +2917,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         inst = inst->Next_2xx();
         break;
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_E3 ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_EB ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_73:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:

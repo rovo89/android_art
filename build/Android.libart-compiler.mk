@@ -44,6 +44,7 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/quick/x86/target_x86.cc \
 	src/compiler/dex/quick/x86/utility_x86.cc \
 	src/compiler/dex/portable/mir_to_gbc.cc \
+	src/compiler/dex/dex_to_dex_compiler.cc \
 	src/compiler/dex/mir_dataflow.cc \
 	src/compiler/dex/mir_optimization.cc \
 	src/compiler/dex/frontend.cc \

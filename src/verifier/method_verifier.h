@@ -197,9 +197,21 @@ class MethodVerifier {
         LOCKS_EXCLUDED(safecast_map_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
-  // to the locks held at 'dex_pc' in 'm'.
+  // to the locks held at 'dex_pc' in method 'm'.
   static void FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
                                std::vector<uint32_t>& monitor_enter_dex_pcs)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns the accessed field corresponding to the quick instruction's field
+  // offset at 'dex_pc' in method 'm'.
+  static mirror::Field* FindAccessedFieldAtDexPc(mirror::AbstractMethod* m,
+                                                 uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns the invoked method corresponding to the quick instruction's vtable
+  // index at 'dex_pc' in method 'm'.
+  static mirror::AbstractMethod* FindInvokedMethodAtDexPc(mirror::AbstractMethod* m,
+                                                          uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -253,6 +265,10 @@ class MethodVerifier {
           SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void FindAccessedFieldAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void FindInvokedMethodAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -484,6 +500,16 @@ class MethodVerifier {
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Perform verification of an iget-quick instruction.
+  void VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
+                       bool is_primitive)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Perform verification of an iput-quick instruction.
+  void VerifyIPutQuick(const Instruction* inst, const RegType& insn_type,
+                       bool is_primitive)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Resolves a class based on an index and performs access checks to ensure the referrer can
   // access the resolved class.
   const RegType& ResolveClassAndCheckAccess(uint32_t class_idx)
@@ -531,6 +557,10 @@ class MethodVerifier {
                                                MethodType method_type,
                                                bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::AbstractMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst,
+                                                       bool is_range)
+  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify that the target instruction is not "move-exception". It's important that the only way
@@ -646,11 +676,18 @@ class MethodVerifier {
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
   UniquePtr<InstructionFlags[]> insn_flags_;
-  // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
+  // The dex PC of a FindLocksAtDexPc, FindAccessedFieldAtDexPc or
+  // FindInvokedMethodAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,
   // NULL if we're not doing FindLocksAtDexPc.
   std::vector<uint32_t>* monitor_enter_dex_pcs_;
+  // The pointer into which FindAccessedFieldAtDexPc should write the accessed field,
+  // NULL if we're not doing FindAccessedFieldAtDexPc.
+  mirror::Field** accessed_field;
+  // The pointer into which FindInvokedMethodAtDexPc should write the invoked method,
+  // NULL if we're not doing FindInvokedMethodAtDexPc.
+  mirror::AbstractMethod** invoked_method;
 
   // The types of any error that occurs.
   std::vector<VerifyError> failures_;

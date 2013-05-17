@@ -354,6 +354,14 @@ std::string Instruction::DumpString(const DexFile* file) const {
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
             break;
           }  // else fall-through
+        case IGET_QUICK:
+        case IGET_OBJECT_QUICK:
+          if (file != NULL) {
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
+               << "// offset@" << field_idx;
+            break;
+          }  // else fall-through
         case IPUT:
         case IPUT_WIDE:
         case IPUT_OBJECT:
@@ -365,6 +373,14 @@ std::string Instruction::DumpString(const DexFile* file) const {
             uint32_t field_idx = VRegC_22c();
             os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
+            break;
+          }  // else fall-through
+        case IPUT_QUICK:
+        case IPUT_OBJECT_QUICK:
+          if (file != NULL) {
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
+               << "// offset@" << field_idx;
             break;
           }  // else fall-through
         case INSTANCE_OF:
@@ -413,6 +429,19 @@ std::string Instruction::DumpString(const DexFile* file) const {
             os << "}, " << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
             break;
           }  // else fall-through
+        case INVOKE_VIRTUAL_QUICK:
+          if (file != NULL) {
+            os << opcode << " {";
+            uint32_t method_idx = VRegB_35c();
+            for (size_t i = 0; i < VRegA_35c(); ++i) {
+              if (i != 0) {
+                os << ", ";
+              }
+              os << "v" << arg[i];
+            }
+            os << "}, // vtable@" << method_idx;
+            break;
+          }  // else fall-through
         default:
           os << opcode << " {v" << arg[0] << ", v" << arg[1] << ", v" << arg[2]
                        << ", v" << arg[3] << ", v" << arg[4] << "}, thing@" << VRegB_35c();
@@ -431,6 +460,13 @@ std::string Instruction::DumpString(const DexFile* file) const {
             uint32_t method_idx = VRegB_3rc();
             os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
                << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
+            break;
+          }  // else fall-through
+        case INVOKE_VIRTUAL_RANGE_QUICK:
+          if (file != NULL) {
+            uint32_t method_idx = VRegB_3rc();
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
+               << "// vtable@" << method_idx;
             break;
           }  // else fall-through
         default:
