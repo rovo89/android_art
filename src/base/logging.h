@@ -184,8 +184,12 @@ class LogMessage {
   LogMessage(const char* file, int line, LogSeverity severity, int error)
     : data_(new LogMessageData(file, line, severity, error)) {
   }
+
   ~LogMessage() LOCKS_EXCLUDED(Locks::logging_lock_);
-  std::ostream& stream();
+
+  std::ostream& stream() {
+    return data_->buffer;
+  }
 
  private:
   static void LogLine(const LogMessageData& data, const char*);
