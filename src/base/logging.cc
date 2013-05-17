@@ -139,10 +139,6 @@ LogMessage::~LogMessage() {
   delete data_;
 }
 
-std::ostream& LogMessage::stream() {
-  return data_->buffer;
-}
-
 HexDump::HexDump(const void* address, size_t byte_count, bool show_actual_addresses)
     : address_(address), byte_count_(byte_count), show_actual_addresses_(show_actual_addresses) {
 }
