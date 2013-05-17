@@ -1687,10 +1687,15 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
           HANDLE_PENDING_EXCEPTION();
           break;
         }
-        Object* val = shadow_frame.GetVRegReference(inst->VRegA_23x());
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        a->AsObjectArray<Object>()->Set(index, val);
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
+        Object* val = shadow_frame.GetVRegReference(inst->VRegA_23x());
+        ObjectArray<Object>* array = a->AsObjectArray<Object>();
+        if (LIKELY(array->IsValidIndex(index) && array->CheckAssignable(val))) {
+          array->SetWithoutChecks(index, val);
+          inst = inst->Next_2xx();
+        } else {
+          HANDLE_PENDING_EXCEPTION();
+        }
         break;
       }
       case Instruction::IGET_BOOLEAN:
