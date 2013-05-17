@@ -113,8 +113,10 @@ define build-libart-compiler
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
   ifeq ($$(art_target_or_host),target)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
+    LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
   endif
 

@@ -60,6 +60,7 @@ define build-art-test
 
   LOCAL_CFLAGS := $(ART_TEST_CFLAGS)
   ifeq ($$(art_target_or_host),target)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz libcutils
     LOCAL_STATIC_LIBRARIES += libgtest
@@ -69,6 +70,7 @@ define build-art-test
     art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
   else # host
+    LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_STATIC_LIBRARIES += libcutils

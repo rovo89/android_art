@@ -33,6 +33,10 @@ endif
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
 
+# Clang build.
+# ART_TARGET_CLANG := true
+# ART_HOST_CLANG := true
+
 # directory used for gtests on device
 ART_NATIVETEST_DIR := /data/nativetest/art
 ART_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
@@ -57,6 +61,13 @@ art_cflags := \
 	-Wextra \
 	-Wstrict-aliasing=3 \
 	-fstrict-aliasing
+
+# Enable thread-safety for GCC 4.6 but not for GCC 4.7 where this feature was removed.
+# Enable GCC 4.6 builds with 'export TARGET_GCC_VERSION_EXP=4.6'
+ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
+  $(info Enabling thread-safety for GCC $(TARGET_GCC_VERSION))
+  art_cflags += -Wthread-safety
+endif
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1

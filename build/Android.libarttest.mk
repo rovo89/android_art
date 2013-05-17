@@ -38,12 +38,14 @@ define build-libarttest
   LOCAL_SHARED_LIBRARIES := libartd
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($$(art_target_or_host),target)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libstlport
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MODULE_PATH := $(ART_TEST_OUT)
     include $(BUILD_SHARED_LIBRARY)
   else # host
+    LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_LDLIBS := -ldl -lpthread
     ifeq ($(HOST_OS),linux)
