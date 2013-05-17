@@ -970,10 +970,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+          HANDLE_PENDING_EXCEPTION();
         } else {
           DoMonitorEnter(self, obj);
+          POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         }
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
       }
       case Instruction::MONITOR_EXIT: {
@@ -981,10 +982,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x());
         if (UNLIKELY(obj == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+          HANDLE_PENDING_EXCEPTION();
         } else {
           DoMonitorExit(self, obj);
+          POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         }
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
       }
       case Instruction::CHECK_CAST: {
