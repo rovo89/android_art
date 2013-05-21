@@ -1558,11 +1558,11 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
     ThrowNewException(throw_location, "Ljava/lang/OutOfMemoryError;", msg);
+    throwing_OutOfMemoryError_ = false;
   } else {
     Dump(LOG(ERROR)); // The pre-allocated OOME has no stack, so help out and log one.
     SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
-  throwing_OutOfMemoryError_ = false;
 }
 
 Thread* Thread::CurrentFromGdb() {
