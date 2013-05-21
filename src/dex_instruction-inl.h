@@ -36,6 +36,11 @@ inline int8_t Instruction::VRegA_10t() const {
   return static_cast<int8_t>(InstAA());
 }
 
+inline uint8_t Instruction::VRegA_10x() const {
+  DCHECK_EQ(FormatOf(Opcode()), k10x);
+  return InstAA();
+}
+
 inline uint4_t Instruction::VRegA_11n() const {
   DCHECK_EQ(FormatOf(Opcode()), k11n);
   return InstA();

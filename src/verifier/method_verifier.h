@@ -448,19 +448,18 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of a new array instruction
-  void VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
-                      bool is_range)
+  void VerifyNewArray(const Instruction* inst, bool is_filled, bool is_range)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
   // aget-object.
-  void VerifyAGet(const DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyAGet(const Instruction* inst, const RegType& insn_type,
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aput instruction.
-  void VerifyAPut(const DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyAPut(const Instruction* inst, const RegType& insn_type,
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup instance field and fail for resolution violations
@@ -471,12 +470,12 @@ class MethodVerifier {
   mirror::Field* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget or sget instruction.
-  void VerifyISGet(const DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyISGet(const Instruction* inst, const RegType& insn_type,
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iput or sput instruction.
-  void VerifyISPut(const DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyISPut(const Instruction* inst, const RegType& insn_type,
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -523,8 +522,9 @@ class MethodVerifier {
    * Returns the resolved method on success, NULL on failure (with *failure
    * set appropriately).
    */
-  mirror::AbstractMethod* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
-                               MethodType method_type, bool is_range, bool is_super)
+  mirror::AbstractMethod* VerifyInvocationArgs(const Instruction* inst,
+                                               MethodType method_type,
+                                               bool is_range, bool is_super)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
