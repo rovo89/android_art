@@ -18,6 +18,7 @@
 
 #include "codegen_mips.h"
 #include "mips_lir.h"
+#include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {

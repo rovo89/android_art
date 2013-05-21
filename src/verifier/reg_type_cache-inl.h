@@ -24,7 +24,7 @@
 namespace art {
 namespace verifier {
 template <class Type>
-Type* RegTypeCache::CreatePrimitiveTypeInstance(mirror::ClassLoader* loader, std::string descriptor) {
+Type* RegTypeCache::CreatePrimitiveTypeInstance(std::string descriptor) {
   mirror::Class* klass = NULL;
   // Try loading the class from linker.
   if (!descriptor.empty()) {

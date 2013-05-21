@@ -16,6 +16,8 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "invoke_type.h"
+#include "mirror/array.h"
+#include "mirror/string.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "x86/codegen_x86.h"
 

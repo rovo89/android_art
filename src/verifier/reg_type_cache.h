@@ -55,7 +55,7 @@ class RegTypeCache {
   const RegType& From(mirror::ClassLoader* loader, std::string descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template <class Type>
-  static Type* CreatePrimitiveTypeInstance(mirror::ClassLoader*, std::string)
+  static Type* CreatePrimitiveTypeInstance(std::string descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FillPrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromClass(mirror::Class* klass, bool precise)

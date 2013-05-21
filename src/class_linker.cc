@@ -726,7 +726,8 @@ const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& 
 
 static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
                                                uint32_t dex_location_checksum,
-                                               const std::string& oat_location) {
+                                               const std::string& oat_location)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL));
   if (oat_file.get() == NULL) {
     return NULL;

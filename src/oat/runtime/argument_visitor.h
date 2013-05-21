@@ -63,7 +63,7 @@ class PortableArgumentVisitor {
 
   virtual void Visit() = 0;
 
-  bool IsParamAReference() const {
+  bool IsParamAReference() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return caller_mh_.IsParamAReference(param_index_);
   }
 
@@ -174,7 +174,7 @@ class QuickArgumentVisitor {
 
   virtual void Visit() = 0;
 
-  bool IsParamAReference() const {
+  bool IsParamAReference() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return caller_mh_.IsParamAReference(param_index_);
   }
 

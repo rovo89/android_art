@@ -212,22 +212,30 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   // Check if we have an oat file next to the dex file.
   std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
   UniquePtr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, NULL));
-  if (oat_file.get() != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
-    uint32_t location_checksum;
-    // If we have no classes.dex checksum such as in a user build, assume up-to-date.
-    if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
-      if (debug_logging) {
-        LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: " << filename.c_str();
-      }
-      return JNI_FALSE;
-    }
+  if (oat_file.get() != NULL) {
     ScopedObjectAccess soa(env);
-    if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
+    const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
+    if (oat_dex_file == NULL) {
       if (debug_logging) {
-        LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << oat_filename
-                  << " is up-to-date checksum compared to " << filename.c_str();
+        LOG(INFO) << "DexFile_isDexOptNeeded GetOatDexFile failed";
       }
-      return JNI_FALSE;
+    } else {
+      uint32_t location_checksum;
+      // If we have no classes.dex checksum such as in a user build, assume up-to-date.
+      if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
+        if (debug_logging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: "
+              << filename.c_str();
+        }
+        return JNI_FALSE;
+      }
+      if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
+        if (debug_logging) {
+          LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << oat_filename
+              << " is up-to-date checksum compared to " << filename.c_str();
+        }
+        return JNI_FALSE;
+      }
     }
   }
 
@@ -265,13 +273,13 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     }
   }
 
+  ScopedObjectAccess soa(env);
   uint32_t location_checksum;
   if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
     LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str();
     return JNI_TRUE;
   }
 
-  ScopedObjectAccess soa(env);
   if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
         << " has out-of-date checksum compared to " << filename.c_str();

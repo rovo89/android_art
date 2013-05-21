@@ -2378,11 +2378,12 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
 // cause suspension if the thread is the current thread.
 class ScopedThreadSuspension {
  public:
-  ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id) :
+  ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
       thread_(NULL),
       error_(JDWP::ERR_NONE),
       self_suspend_(false),
-      other_suspend_(false) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      other_suspend_(false) {
     ScopedObjectAccessUnchecked soa(self);
     {
       MutexLock mu(soa.Self(), *Locks::thread_list_lock_);

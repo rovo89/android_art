@@ -385,7 +385,8 @@ static void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
 
 static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
                      const Instruction* inst, InvokeType type, bool is_range,
-                     JValue* result) {
+                     JValue* result)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver;
   if (type == kStatic) {
@@ -579,7 +580,8 @@ static inline void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
-static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx) {
+static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* java_lang_string_class = String::GetJavaLangString();
   if (UNLIKELY(!java_lang_string_class->IsInitialized())) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -649,7 +651,8 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
                                                                        uint32_t dex_pc,
                                                                        const uint16_t* insns,
                                                                        SirtRef<Object>& this_object_ref,
-                                                                       instrumentation::Instrumentation* instrumentation) {
+                                                                       instrumentation::Instrumentation* instrumentation)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   self->VerifyStack();
   ThrowLocation throw_location;
   mirror::Throwable* exception = self->GetException(&throw_location);
@@ -688,7 +691,8 @@ static inline const Instruction* FindNextInstructionFollowingException(Thread* s
 static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
   __attribute__ ((cold, noreturn, noinline));
 
-static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
+static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(&mh.GetDexFile());
   exit(0);  // Unreachable, keep GCC happy.
 }
