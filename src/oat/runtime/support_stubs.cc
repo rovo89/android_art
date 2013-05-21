@@ -17,7 +17,7 @@
 #include "callee_save_frame.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
@@ -40,35 +40,52 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
-  uint32_t dex_method_idx;
+  bool is_range;
   if (called->IsRuntimeMethod()) {
     const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
     switch (instr_code) {
-      case Instruction::INVOKE_DIRECT:  // Fall-through.
+      case Instruction::INVOKE_DIRECT:
+        invoke_type = kDirect;
+        is_range = false;
+        break;
       case Instruction::INVOKE_DIRECT_RANGE:
         invoke_type = kDirect;
+        is_range = true;
         break;
-      case Instruction::INVOKE_STATIC:  // Fall-through.
+      case Instruction::INVOKE_STATIC:
+        invoke_type = kStatic;
+        is_range = false;
+        break;
       case Instruction::INVOKE_STATIC_RANGE:
         invoke_type = kStatic;
+        is_range = true;
         break;
-      case Instruction::INVOKE_SUPER:  // Fall-through.
+      case Instruction::INVOKE_SUPER:
+        invoke_type = kSuper;
+        is_range = false;
+        break;
       case Instruction::INVOKE_SUPER_RANGE:
         invoke_type = kSuper;
+        is_range = true;
         break;
-      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+      case Instruction::INVOKE_VIRTUAL:
+        invoke_type = kVirtual;
+        is_range = false;
+        break;
       case Instruction::INVOKE_VIRTUAL_RANGE:
         invoke_type = kVirtual;
+        is_range = true;
         break;
       default:
         LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
-        invoke_type = kDirect;  // Avoid used uninitialized warnings.
+        // Avoid used uninitialized warnings.
+        invoke_type = kDirect;
+        is_range = true;
     }
-    DecodedInstruction dec_insn(instr);
-    dex_method_idx = dec_insn.vB;
+    uint32_t dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
     called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
   } else {
     CHECK(called->IsStatic()) << PrettyMethod(called);
@@ -210,29 +227,47 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
+    bool is_range;
     switch (instr_code) {
-      case Instruction::INVOKE_DIRECT:  // Fall-through.
+      case Instruction::INVOKE_DIRECT:
+        invoke_type = kDirect;
+        is_range = false;
+        break;
       case Instruction::INVOKE_DIRECT_RANGE:
         invoke_type = kDirect;
+        is_range = true;
         break;
-      case Instruction::INVOKE_STATIC:  // Fall-through.
+      case Instruction::INVOKE_STATIC:
+        invoke_type = kStatic;
+        is_range = false;
+        break;
       case Instruction::INVOKE_STATIC_RANGE:
         invoke_type = kStatic;
+        is_range = true;
         break;
-      case Instruction::INVOKE_SUPER:  // Fall-through.
+      case Instruction::INVOKE_SUPER:
+        invoke_type = kSuper;
+        is_range = false;
+        break;
       case Instruction::INVOKE_SUPER_RANGE:
         invoke_type = kSuper;
+        is_range = true;
         break;
-      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+      case Instruction::INVOKE_VIRTUAL:
+        invoke_type = kVirtual;
+        is_range = false;
+        break;
       case Instruction::INVOKE_VIRTUAL_RANGE:
         invoke_type = kVirtual;
+        is_range = true;
         break;
       default:
         LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
-        invoke_type = kDirect;  // Avoid used uninitialized warnings.
+        // Avoid used uninitialized warnings.
+        invoke_type = kDirect;
+        is_range = false;
     }
-    DecodedInstruction dec_insn(instr);
-    dex_method_idx = dec_insn.vB;
+    dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
 #if !defined(__i386__)
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
 #endif

@@ -15,7 +15,7 @@
  */
 
 #include "callee_save_frame.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
@@ -110,10 +110,15 @@ extern "C" uint64_t artInvokeInterfaceTrampoline(mirror::AbstractMethod* interfa
     CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
           instr_code == Instruction::INVOKE_INTERFACE_RANGE)
         << "Unexpected call into interface trampoline: " << instr->DumpString(NULL);
-    DecodedInstruction dec_insn(instr);
-    uint32_t dex_method_idx = dec_insn.vB;
+    uint32_t dex_method_idx;
+    if (instr_code == Instruction::INVOKE_INTERFACE) {
+      dex_method_idx = instr->VRegB_35c();
+    } else {
+      DCHECK_EQ(instr_code, Instruction::INVOKE_INTERFACE_RANGE);
+      dex_method_idx = instr->VRegB_3rc();
+    }
     method = FindMethodFromCode(dex_method_idx, this_object, caller_method, self,
-                                                false, kInterface);
+                                false, kInterface);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
       return 0;  // Failure.
