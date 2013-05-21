@@ -19,7 +19,7 @@
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "invoke_type.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
@@ -298,19 +298,24 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
   uint32_t throw_dex_pc = throw_location.GetDexPc();
   CHECK_LT(throw_dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[throw_dex_pc]);
-  DecodedInstruction dec_insn(instr);
   switch (instr->Opcode()) {
     case Instruction::INVOKE_DIRECT:
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kDirect);
+      break;
     case Instruction::INVOKE_DIRECT_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, dec_insn.vB, kDirect);
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kDirect);
       break;
     case Instruction::INVOKE_VIRTUAL:
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kVirtual);
+      break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, dec_insn.vB, kVirtual);
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kVirtual);
       break;
     case Instruction::INVOKE_INTERFACE:
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kInterface);
+      break;
     case Instruction::INVOKE_INTERFACE_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, dec_insn.vB, kInterface);
+      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kInterface);
       break;
     case Instruction::IGET:
     case Instruction::IGET_WIDE:
@@ -320,7 +325,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
       mirror::Field* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC,
+          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
                                                              throw_location.GetMethod(), false);
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
       break;
@@ -333,7 +338,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
       mirror::Field* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC,
+          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
                                                              throw_location.GetMethod(), false);
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
       break;

@@ -262,44 +262,45 @@ std::string Instruction::DumpHex(size_t code_units) const {
 }
 
 std::string Instruction::DumpString(const DexFile* file) const {
-  DecodedInstruction insn(this);
   std::ostringstream os;
-  const char* opcode = kInstructionNames[insn.opcode];
+  const char* opcode = kInstructionNames[Opcode()];
   switch (FormatOf(Opcode())) {
     case k10x:  os << opcode; break;
-    case k12x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
-    case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
-    case k11x:  os << StringPrintf("%s v%d", opcode, insn.vA); break;
-    case k10t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
-    case k20t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
-    case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
-    case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
-    case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
+    case k12x:  os << StringPrintf("%s v%d, v%d", opcode, VRegA_12x(), VRegB_12x()); break;
+    case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, VRegA_11n(), VRegB_11n()); break;
+    case k11x:  os << StringPrintf("%s v%d", opcode, VRegA_11x()); break;
+    case k10t:  os << StringPrintf("%s %+d", opcode, VRegA_10t()); break;
+    case k20t:  os << StringPrintf("%s %+d", opcode, VRegA_20t()); break;
+    case k22x:  os << StringPrintf("%s v%d, v%d", opcode, VRegA_22x(), VRegB_22x()); break;
+    case k21t:  os << StringPrintf("%s v%d, %+d", opcode, VRegA_21t(), VRegB_21t()); break;
+    case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, VRegA_21s(), VRegB_21s()); break;
     case k21h: {
         // op vAA, #+BBBB0000[00000000]
-        if (insn.opcode == CONST_HIGH16) {
-          uint32_t value = insn.vB << 16;
-          os << StringPrintf("%s v%d, #int %+d // 0x%x", opcode, insn.vA, value, value);
+        if (Opcode() == CONST_HIGH16) {
+          uint32_t value = VRegB_21h() << 16;
+          os << StringPrintf("%s v%d, #int %+d // 0x%x", opcode, VRegA_21h(), value, value);
         } else {
-          uint64_t value = static_cast<uint64_t>(insn.vB) << 48;
-          os << StringPrintf("%s v%d, #long %+lld // 0x%llx", opcode, insn.vA, value, value);
+          uint64_t value = static_cast<uint64_t>(VRegB_21h()) << 48;
+          os << StringPrintf("%s v%d, #long %+lld // 0x%llx", opcode, VRegA_21h(), value, value);
         }
       }
       break;
     case k21c: {
-      switch (insn.opcode) {
+      switch (Opcode()) {
         case CONST_STRING:
           if (file != NULL) {
-            os << StringPrintf("const-string v%d, %s // string@%d", insn.vA,
-                               PrintableString(file->StringDataByIdx(insn.vB)).c_str(), insn.vB);
+            uint32_t string_idx = VRegB_21c();
+            os << StringPrintf("const-string v%d, %s // string@%d", VRegA_21c(),
+                               PrintableString(file->StringDataByIdx(string_idx)).c_str(), string_idx);
             break;
           }  // else fall-through
         case CHECK_CAST:
         case CONST_CLASS:
         case NEW_INSTANCE:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", " << PrettyType(insn.vB, *file)
-               << " // type@" << insn.vB;
+            uint32_t type_idx = VRegB_21c();
+            os << opcode << " v" << VRegA_21c() << ", " << PrettyType(type_idx, *file)
+               << " // type@" << type_idx;
             break;
           }  // else fall-through
         case SGET:
@@ -310,8 +311,9 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_CHAR:
         case SGET_SHORT:
           if (file != NULL) {
-            os << opcode << "  v" << insn.vA << ", " << PrettyField(insn.vB, *file, true)
-               << " // field@" << insn.vB;
+            uint32_t field_idx = VRegB_21c();
+            os << opcode << "  v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+               << " // field@" << field_idx;
             break;
           }  // else fall-through
         case SPUT:
@@ -322,22 +324,23 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_CHAR:
         case SPUT_SHORT:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", " << PrettyField(insn.vB, *file, true)
-               << " // field@" << insn.vB;
+            uint32_t field_idx = VRegB_21c();
+            os << opcode << " v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+               << " // field@" << field_idx;
             break;
           }  // else fall-through
         default:
-          os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB);
+          os << StringPrintf("%s v%d, thing@%d", opcode, VRegA_21c(), VRegB_21c());
           break;
       }
       break;
     }
-    case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA, insn.vB, insn.vC); break;
-    case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
-    case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, insn.vA, insn.vB, insn.vC); break;
-    case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, VRegA_23x(), VRegB_23x(), VRegC_23x()); break;
+    case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, VRegA_22b(), VRegB_22b(), VRegC_22b()); break;
+    case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, VRegA_22t(), VRegB_22t(), VRegC_22t()); break;
+    case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, VRegA_22s(), VRegB_22s(), VRegC_22s()); break;
     case k22c: {
-      switch (insn.opcode) {
+      switch (Opcode()) {
         case IGET:
         case IGET_WIDE:
         case IGET_OBJECT:
@@ -346,8 +349,9 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IGET_CHAR:
         case IGET_SHORT:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
-               << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+               << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
             break;
           }  // else fall-through
         case IPUT:
@@ -358,35 +362,40 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IPUT_CHAR:
         case IPUT_SHORT:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
-               << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+               << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
             break;
           }  // else fall-through
         case INSTANCE_OF:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
-               << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
+            uint32_t type_idx = VRegC_22c();
+            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+               << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }
         case NEW_ARRAY:
           if (file != NULL) {
-            os << opcode << " v" << insn.vA << ", v" << insn.vB << ", "
-               << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
+            uint32_t type_idx = VRegC_22c();
+            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+               << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }  // else fall-through
         default:
-          os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA, insn.vB, insn.vC);
+          os << StringPrintf("%s v%d, v%d, thing@%d", opcode, VRegA_22c(), VRegB_22c(), VRegC_22c());
           break;
       }
       break;
     }
-    case k32x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
-    case k30t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
-    case k31t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
-    case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
-    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB); break;
+    case k32x:  os << StringPrintf("%s v%d, v%d", opcode, VRegA_32x(), VRegB_32x()); break;
+    case k30t:  os << StringPrintf("%s %+d", opcode, VRegA_30t()); break;
+    case k31t:  os << StringPrintf("%s v%d, %+d", opcode, VRegA_31t(), VRegB_31t()); break;
+    case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, VRegA_31i(), VRegB_31i()); break;
+    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, VRegA_31c(), VRegB_31c()); break;
     case k35c: {
-      switch (insn.opcode) {
+      uint32_t arg[5];
+      GetArgs(arg);
+      switch (Opcode()) {
         case INVOKE_VIRTUAL:
         case INVOKE_SUPER:
         case INVOKE_DIRECT:
@@ -394,42 +403,44 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INVOKE_INTERFACE:
           if (file != NULL) {
             os << opcode << " {";
-            for (size_t i = 0; i < insn.vA; ++i) {
+            uint32_t method_idx = VRegB_35c();
+            for (size_t i = 0; i < VRegA_35c(); ++i) {
               if (i != 0) {
                 os << ", ";
               }
-              os << "v" << insn.arg[i];
+              os << "v" << arg[i];
             }
-            os << "}, " << PrettyMethod(insn.vB, *file) << " // method@" << insn.vB;
+            os << "}, " << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
             break;
           }  // else fall-through
         default:
-          os << opcode << " {v" << insn.arg[0] << ", v" << insn.arg[1] << ", v" << insn.arg[2]
-                       << ", v" << insn.arg[3] << ", v" << insn.arg[4] << "}, thing@" << insn.vB;
+          os << opcode << " {v" << arg[0] << ", v" << arg[1] << ", v" << arg[2]
+                       << ", v" << arg[3] << ", v" << arg[4] << "}, thing@" << VRegB_35c();
           break;
       }
       break;
     }
     case k3rc: {
-      switch (insn.opcode) {
+      switch (Opcode()) {
         case INVOKE_VIRTUAL_RANGE:
         case INVOKE_SUPER_RANGE:
         case INVOKE_DIRECT_RANGE:
         case INVOKE_STATIC_RANGE:
         case INVOKE_INTERFACE_RANGE:
           if (file != NULL) {
-            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, insn.vC, (insn.vC + insn.vA - 1))
-               << PrettyMethod(insn.vB, *file) << " // method@" << insn.vB;
+            uint32_t method_idx = VRegB_3rc();
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
+               << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
             break;
           }  // else fall-through
         default:
-          os << StringPrintf("%s, {v%d .. v%d}, thing@%d", opcode, insn.vC, (insn.vC + insn.vA - 1),
-                             insn.vB);
+          os << StringPrintf("%s, {v%d .. v%d}, thing@%d", opcode, VRegC_3rc(),
+                             (VRegC_3rc() + VRegA_3rc() - 1), VRegB_3rc());
           break;
       }
       break;
     }
-    case k51l: os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
+    case k51l: os << StringPrintf("%s v%d, #%+lld", opcode, VRegA_51l(), VRegB_51l()); break;
     default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
   return os.str();
