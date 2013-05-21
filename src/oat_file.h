@@ -32,7 +32,7 @@ namespace art {
 class ElfFile;
 class MemMap;
 class OatMethodOffsets;
-struct OatHeader;
+class OatHeader;
 
 class OatFile {
  public:
@@ -197,7 +197,8 @@ class OatFile {
   };
 
   const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
-                                  bool warn_if_not_found = true) const;
+                                  bool exception_if_not_found = true) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
   size_t Size() const {

@@ -29,8 +29,6 @@
 #include "mir_graph.h"
 #include "compiler_ir.h"
 #include "frontend.h"
-#include "gc/card_table.h"
-#include "mirror/dex_cache.h"
 #include "monitor.h"
 #include "thread.h"
 #include "utils.h"

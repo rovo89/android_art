@@ -28,7 +28,7 @@ class ClassLoader;
 class DexCache;
 }  // namespace mirror
 class ClassLinker;
-class CompilationUnit;
+struct CompilationUnit;
 
 class DexCompilationUnit {
  public:

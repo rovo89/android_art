@@ -17,6 +17,7 @@
 /* This file contains codegen for the X86 ISA */
 
 #include "codegen_x86.h"
+#include "mirror/array.h"
 #include "x86_lir.h"
 
 namespace art {

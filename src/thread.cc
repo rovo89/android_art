@@ -839,7 +839,8 @@ struct StackDumpVisitor : public StackVisitor {
   int frame_count;
 };
 
-static bool ShouldShowNativeStack(const Thread* thread) {
+static bool ShouldShowNativeStack(const Thread* thread)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ThreadState state = thread->GetState();
 
   // In native code somewhere in the VM (one of the kWaitingFor* states)? That's interesting.
@@ -923,6 +924,7 @@ void Thread::Shutdown() {
   CHECK(is_started_);
   is_started_ = false;
   CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
+  MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);
   if (resume_cond_ != NULL) {
     delete resume_cond_;
     resume_cond_ = NULL;

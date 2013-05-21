@@ -30,13 +30,13 @@
 
 namespace art {
 namespace mirror {
-class ClassLoader;
-class DexCache;
-class DexCacheTest_Open_Test;
-class IfTable;
-template<class T> class ObjectArray;
-class StackTraceElement;
-}
+  class ClassLoader;
+  class DexCache;
+  class DexCacheTest_Open_Test;
+  class IfTable;
+  template<class T> class ObjectArray;
+  class StackTraceElement;
+}  // namespace mirror
 class ImageSpace;
 class InternTable;
 class ObjectLock;
@@ -247,10 +247,12 @@ class ClassLinker {
   // created oat file.
   const DexFile* FindOrCreateOatFileForDexLocation(const std::string& dex_location,
                                                    const std::string& oat_location)
-      LOCKS_EXCLUDED(dex_lock_);
+      LOCKS_EXCLUDED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const DexFile* FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
                                                          const std::string& oat_location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Find a DexFile within an OatFile given a DexFile location. Note
   // that this returns null if the location checksum of the DexFile
   // does not match the OatFile.
@@ -318,7 +320,8 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method from a method index.
-  const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx);
+  const void* GetOatCodeFor(const DexFile& dex_file, uint32_t method_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.
@@ -404,7 +407,8 @@ class ClassLinker {
   void FixupStaticTrampolines(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the associated oat class for a dex_file and descriptor
-  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor);
+  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Attempts to insert a class into a class table.  Returns NULL if
   // the class was inserted, otherwise returns an existing class with
@@ -482,9 +486,11 @@ class ClassLinker {
   }
 
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file)
-      LOCKS_EXCLUDED(dex_lock_);
+      LOCKS_EXCLUDED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
   const DexFile* VerifyAndOpenDexFileFromOatFile(const OatFile* oat_file,

@@ -116,28 +116,6 @@ byte* DecodeBase64(const char* src, size_t* dst_size) {
   return dst.release();
 }
 
-static inline const DexFile* OpenDexFileBase64(const char* base64,
-                                               const std::string& location) {
-  // decode base64
-  CHECK(base64 != NULL);
-  size_t length;
-  UniquePtr<byte[]> dex_bytes(DecodeBase64(base64, &length));
-  CHECK(dex_bytes.get() != NULL);
-
-  // write to provided file
-  UniquePtr<File> file(OS::OpenFile(location.c_str(), true));
-  CHECK(file.get() != NULL);
-  if (!file->WriteFully(dex_bytes.get(), length)) {
-    PLOG(FATAL) << "Failed to write base64 as dex file";
-  }
-  file.reset();
-
-  // read dex file
-  const DexFile* dex_file = DexFile::Open(location, location);
-  CHECK(dex_file != NULL);
-  return dex_file;
-}
-
 class ScratchFile {
  public:
   ScratchFile() {
@@ -265,11 +243,8 @@ class CommonTest : public testing::Test {
     // Only uses __builtin___clear_cache if GCC >= 4.3.3
 #if GCC_VERSION >= 40303
     __builtin___clear_cache(reinterpret_cast<void*>(base), reinterpret_cast<void*>(base + len));
-#elif defined(__APPLE__)
-    // Currently, only Mac OS builds use GCC 4.2.*. Those host builds do not
-    // need to generate clear_cache on x86.
 #else
-#error unsupported
+   LOG(FATAL) << "UNIMPLEMENTED: cache flush";
 #endif
   }
 
@@ -311,7 +286,13 @@ class CommonTest : public testing::Test {
     ASSERT_EQ(mkdir_result, 0);
 
     java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
+    if (java_lang_dex_file_ == NULL) {
+      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "'\n";
+    }
     conscrypt_file_ = DexFile::Open(GetConscryptFileName(), GetConscryptFileName());
+    if (conscrypt_file_  == NULL) {
+      LOG(FATAL) << "Could not open .dex file '" << GetConscryptFileName() << "'\n";
+    }
     boot_class_path_.push_back(java_lang_dex_file_);
     boot_class_path_.push_back(conscrypt_file_);
 
@@ -440,7 +421,7 @@ class CommonTest : public testing::Test {
     return GetAndroidRoot();
   }
 
-  const DexFile* OpenTestDexFile(const char* name) {
+  const DexFile* OpenTestDexFile(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(name != NULL);
     std::string filename;
     if (IsHost()) {
@@ -458,8 +439,7 @@ class CommonTest : public testing::Test {
     return dex_file;
   }
 
-  jobject LoadDex(const char* dex_name)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject LoadDex(const char* dex_name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* dex_file = OpenTestDexFile(dex_name);
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);
@@ -474,7 +454,8 @@ class CommonTest : public testing::Test {
     return class_loader;
   }
 
-  void CompileClass(mirror::ClassLoader* class_loader, const char* class_name) {
+  void CompileClass(mirror::ClassLoader* class_loader, const char* class_name)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     mirror::Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;

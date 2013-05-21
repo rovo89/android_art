@@ -18,6 +18,7 @@
 
 #include "arm_lir.h"
 #include "codegen_arm.h"
+#include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {

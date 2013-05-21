@@ -151,13 +151,6 @@ class MANAGED String : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
-// TODO: remove? only used in a unit test of itself.
-struct StringHashCode {
-  int32_t operator()(String* string) const {
-    return string->GetHashCode();
-  }
-};
-
 class MANAGED StringClass : public Class {
  private:
   CharArray* ASCII_;

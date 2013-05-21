@@ -442,7 +442,6 @@ TEST_F(ObjectTest, DescriptorCompare) {
   EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 }
 
-
 TEST_F(ObjectTest, StringHashCode) {
   ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> empty(soa.Self(), String::AllocFromModifiedUtf8(soa.Self(), ""));

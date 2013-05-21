@@ -345,7 +345,8 @@ class DexFile {
   // For .dex files, this is the header checksum.
   // For zip files, this is the classes.dex zip entry CRC32 checksum.
   // Return true if the checksum could be found, false otherwise.
-  static bool GetChecksum(const std::string& filename, uint32_t& checksum);
+  static bool GetChecksum(const std::string& filename, uint32_t& checksum)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Opens .dex file, guessing the container format based on file extension
   static const DexFile* Open(const std::string& filename,

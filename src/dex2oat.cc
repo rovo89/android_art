@@ -444,6 +444,8 @@ class Dex2Oat {
   static void OpenClassPathFiles(const std::string& class_path, std::vector<const DexFile*>& dex_files) {
     std::vector<std::string> parsed;
     Split(class_path, ':', parsed);
+    // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.
+    ScopedObjectAccess soa(Thread::Current());
     for (size_t i = 0; i < parsed.size(); ++i) {
       if (DexFilesContains(dex_files, parsed[i])) {
         continue;
@@ -498,7 +500,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
     const char* dex_location = dex_locations[i];
     const DexFile* dex_file = DexFile::Open(dex_filename, dex_location);
     if (dex_file == NULL) {
-      LOG(WARNING) << "could not open .dex from file " << dex_filename;
+      LOG(WARNING) << "Could not open .dex from file '" << dex_filename << "'\n";
       ++failure_count;
     } else {
       dex_files.push_back(dex_file);

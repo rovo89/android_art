@@ -266,18 +266,18 @@ void RegTypeCache::ShutDown() {
 }
 
 void RegTypeCache::CreatePrimitiveTypes() {
-  CreatePrimitiveTypeInstance<UndefinedType>(NULL, "");
-  CreatePrimitiveTypeInstance<ConflictType>(NULL, "");
-  CreatePrimitiveTypeInstance<BooleanType>(NULL, "Z");
-  CreatePrimitiveTypeInstance<ByteType>(NULL, "B");
-  CreatePrimitiveTypeInstance<ShortType>(NULL, "S");
-  CreatePrimitiveTypeInstance<CharType>(NULL, "C");
-  CreatePrimitiveTypeInstance<IntegerType>(NULL, "I");
-  CreatePrimitiveTypeInstance<LongLoType>(NULL, "J");
-  CreatePrimitiveTypeInstance<LongHiType>(NULL, "J");
-  CreatePrimitiveTypeInstance<FloatType>(NULL, "F");
-  CreatePrimitiveTypeInstance<DoubleLoType>(NULL, "D");
-  CreatePrimitiveTypeInstance<DoubleHiType>(NULL, "D");
+  CreatePrimitiveTypeInstance<UndefinedType>("");
+  CreatePrimitiveTypeInstance<ConflictType>("");
+  CreatePrimitiveTypeInstance<BooleanType>("Z");
+  CreatePrimitiveTypeInstance<ByteType>("B");
+  CreatePrimitiveTypeInstance<ShortType>("S");
+  CreatePrimitiveTypeInstance<CharType>("C");
+  CreatePrimitiveTypeInstance<IntegerType>("I");
+  CreatePrimitiveTypeInstance<LongLoType>("J");
+  CreatePrimitiveTypeInstance<LongHiType>("J");
+  CreatePrimitiveTypeInstance<FloatType>("F");
+  CreatePrimitiveTypeInstance<DoubleLoType>("D");
+  CreatePrimitiveTypeInstance<DoubleHiType>("D");
 }
 
 const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegType& right) {
