@@ -74,11 +74,11 @@ LIBART_COMPILER_SRC_FILES := \
 	src/elf_fixup.cc \
 	src/elf_stripper.cc \
 	src/elf_writer.cc \
-	src/elf_writer_mclinker.cc \
 	src/elf_writer_quick.cc
 
 LIBART_COMPILER_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
+  LIBART_COMPILER_SRC_FILES += src/elf_writer_mclinker.cc
   LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
