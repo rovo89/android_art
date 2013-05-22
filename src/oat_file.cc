@@ -346,8 +346,7 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.fp_spill_mask_,
       oat_method_offsets.mapping_table_offset_,
       oat_method_offsets.vmap_table_offset_,
-      oat_method_offsets.gc_map_offset_
-      );
+      oat_method_offsets.gc_map_offset_);
 }
 
 OatFile::OatMethod::OatMethod(const byte* base,
@@ -357,8 +356,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t fp_spill_mask,
                               const uint32_t mapping_table_offset,
                               const uint32_t vmap_table_offset,
-                              const uint32_t gc_map_offset
-                              )
+                              const uint32_t gc_map_offset)
   : begin_(base),
     code_offset_(code_offset),
     frame_size_in_bytes_(frame_size_in_bytes),

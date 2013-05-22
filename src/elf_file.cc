@@ -616,24 +616,28 @@ bool ElfFile::Load() {
     // which either was specified in the file because we already set
     // base_address_ after the first zero segment).
     if (program_header.p_vaddr == 0) {
-        std::string reservation_name("ElfFile reservation for ");
-        reservation_name += file_->GetPath();
-        UniquePtr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                       NULL, GetLoadedSize(), PROT_NONE));
-        CHECK(reserve.get() != NULL) << file_->GetPath();
-        base_address_ = reserve->Begin();
-        segments_.push_back(reserve.release());
+      std::string reservation_name("ElfFile reservation for ");
+      reservation_name += file_->GetPath();
+      UniquePtr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
+                                                     NULL, GetLoadedSize(), PROT_NONE));
+      CHECK(reserve.get() != NULL) << file_->GetPath();
+      base_address_ = reserve->Begin();
+      segments_.push_back(reserve.release());
+    }
+    // empty segment, nothing to map
+    if (program_header.p_memsz == 0) {
+      continue;
     }
     byte* p_vaddr = base_address_ + program_header.p_vaddr;
     int prot = 0;
     if ((program_header.p_flags & llvm::ELF::PF_X) != 0) {
-        prot |= PROT_EXEC;
+      prot |= PROT_EXEC;
     }
     if ((program_header.p_flags & llvm::ELF::PF_W) != 0) {
-        prot |= PROT_WRITE;
+      prot |= PROT_WRITE;
     }
     if ((program_header.p_flags & llvm::ELF::PF_R) != 0) {
-        prot |= PROT_READ;
+      prot |= PROT_READ;
     }
     int flags = MAP_FIXED;
     if (writable_) {
