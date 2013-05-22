@@ -28,8 +28,15 @@
 #include <mcld/Support/TargetSelect.h>
 
 #include "base/unix_file/fd_file.h"
+#include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
+#include "dex_method_iterator.h"
+#include "elf_file.h"
 #include "globals.h"
+#include "mirror/abstract_method.h"
+#include "mirror/abstract_method-inl.h"
+#include "mirror/object-inl.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
