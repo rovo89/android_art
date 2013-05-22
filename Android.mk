@@ -99,6 +99,10 @@ clean-oat-target:
 	adb shell rm system/app/*.oat
 	adb shell rm data/run-test/test-*/art-cache/*.oat
 
+ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
+art_dont_bother := true
+endif
+
 ifneq ($(art_dont_bother),true)
 
 ########################################################################
