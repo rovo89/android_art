@@ -50,12 +50,13 @@ static const int32_t kMinInt = std::numeric_limits<int32_t>::min();
 static const int64_t kMaxLong = std::numeric_limits<int64_t>::max();
 static const int64_t kMinLong = std::numeric_limits<int64_t>::min();
 
-static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
-                                   ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
+                                   const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
+                                   JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
-  std::string name(PrettyMethod(target_method));
+  std::string name(PrettyMethod(shadow_frame->GetMethod()));
   if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
     std::string descriptor(DotToDescriptor(shadow_frame->GetVRegReference(arg_offset)->AsString()->ToModifiedUtf8().c_str()));
     ClassLoader* class_loader = NULL; // shadow_frame.GetMethod()->GetDeclaringClass()->GetClassLoader();
@@ -132,7 +133,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    EnterInterpreterFromInterpreter(self, shadow_frame, result);
+    EnterInterpreterFromInterpreter(self, mh, code_item, shadow_frame, result);
   }
 }
 
@@ -387,47 +388,40 @@ template<InvokeType type, bool is_range>
 static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
                      const Instruction* inst, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
-  Object* receiver;
-  if (type == kStatic) {
-    receiver = NULL;
-  } else {
-    receiver = shadow_frame.GetVRegReference(vregC);
-  }
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  AbstractMethod* target_method = FindMethodFromCode(method_idx, receiver,
-                                                     shadow_frame.GetMethod(),
-                                                     self, true, type);
-  if (UNLIKELY(target_method == NULL)) {
+  uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
+  Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
+  AbstractMethod* method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
+                                              true, type);
+  if (UNLIKELY(method == NULL)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return;
   }
-  MethodHelper target_mh(target_method);
 
-  const DexFile::CodeItem* code_item = target_mh.GetCodeItem();
+  MethodHelper mh(method);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
   uint16_t num_regs;
   uint16_t num_ins;
-  if (code_item != NULL) {
+  if (LIKELY(code_item != NULL)) {
     num_regs = code_item->registers_size_;
     num_ins = code_item->ins_size_;
-  } else if (target_method->IsAbstract()) {
+  } else if (method->IsAbstract()) {
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(target_method).c_str());
+                             "abstract method \"%s\"", PrettyMethod(method).c_str());
     return;
   } else {
-    DCHECK(target_method->IsNative() || target_method->IsProxyMethod());
-    num_regs = num_ins = AbstractMethod::NumArgRegisters(target_mh.GetShorty());
-    if (!target_method->IsStatic()) {
+    DCHECK(method->IsNative() || method->IsProxyMethod());
+    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    if (!method->IsStatic()) {
       num_regs++;
       num_ins++;
     }
   }
 
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame,
-                                                    target_method, 0, memory));
+  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, method, 0, memory));
   size_t cur_reg = num_regs - num_ins;
   if (receiver != NULL) {
     new_shadow_frame->SetVRegReference(cur_reg, receiver);
@@ -435,13 +429,13 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
   }
 
   size_t arg_offset = (receiver == NULL) ? 0 : 1;
-  const char* shorty = target_mh.GetShorty();
+  const char* shorty = mh.GetShorty();
   uint32_t arg[5];
   if (!is_range) {
     inst->GetArgs(arg);
   }
   for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
-    DCHECK_LT(shorty_pos + 1, target_mh.GetShortyLength());
+    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
     size_t arg_pos = is_range ? vregC + arg_offset : arg[arg_offset];
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
@@ -464,9 +458,9 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
   }
 
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    (target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame, result);
+    (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
-    UnstartedRuntimeInvoke(self, target_method, new_shadow_frame, result, num_regs - num_ins);
+    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, num_regs - num_ins);
   }
 }
 
@@ -2701,7 +2695,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* receiver,
                                 uint32_t* args, JValue* result) {
   DCHECK_EQ(self, Thread::Current());
-  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);
     return;
   }
@@ -2805,7 +2799,7 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
                                 ShadowFrame& shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(self, Thread::Current());
-  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);
     return JValue();
   }
@@ -2813,9 +2807,11 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
   return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 
-void EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame, JValue* result)
+void EnterInterpreterFromInterpreter(Thread* self, MethodHelper& mh,
+                                     const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
+                                     JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (__builtin_frame_address(0) < self->GetStackEnd()) {
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);
     return;
   }
@@ -2832,8 +2828,6 @@ void EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame, JV
 
   self->PushShadowFrame(shadow_frame);
 
-  MethodHelper mh(method);
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
   if (LIKELY(!method->IsNative())) {
     result->SetJ(Execute(self, mh, code_item, *shadow_frame, JValue()).GetJ());
   } else {

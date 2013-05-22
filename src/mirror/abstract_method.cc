@@ -268,45 +268,28 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
       result->SetJ(0);
     }
   } else {
-    bool interpret = runtime->GetInstrumentation()->InterpretOnly() && !IsNative() &&
-        !IsProxyMethod();
     const bool kLogInvocationStartAndReturn = false;
     if (GetEntryPointFromCompiledCode() != NULL) {
-      if (!interpret) {
-        if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
-        }
+      if (kLogInvocationStartAndReturn) {
+        LOG(INFO) << StringPrintf("Invoking '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
+      }
 #ifdef ART_USE_PORTABLE_COMPILER
-        (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
+      (*art_portable_invoke_stub)(this, args, args_size, self, result, result_type);
 #else
-        (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
+      (*art_quick_invoke_stub)(this, args, args_size, self, result, result_type);
 #endif
-        if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException(NULL)) == -1)) {
-          // Unusual case where we were running LLVM generated code and an
-          // exception was thrown to force the activations to be removed from the
-          // stack. Continue execution in the interpreter.
-          self->ClearException();
-          ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(result);
-          self->SetTopOfStack(NULL, 0);
-          self->SetTopOfShadowStack(shadow_frame);
-          interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
-        }
-        if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
-        }
-      } else {
-        if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << "Interpreting " << PrettyMethod(this) << "'";
-        }
-        if (this->IsStatic()) {
-          art::interpreter::EnterInterpreterFromInvoke(self, this, NULL, args, result);
-        } else {
-          Object* receiver = reinterpret_cast<Object*>(args[0]);
-          art::interpreter::EnterInterpreterFromInvoke(self, this, receiver, args + 1, result);
-        }
-        if (kLogInvocationStartAndReturn) {
-          LOG(INFO) << "Returned '" << PrettyMethod(this) << "'";
-        }
+      if (UNLIKELY(reinterpret_cast<int32_t>(self->GetException(NULL)) == -1)) {
+        // Unusual case where we were running LLVM generated code and an
+        // exception was thrown to force the activations to be removed from the
+        // stack. Continue execution in the interpreter.
+        self->ClearException();
+        ShadowFrame* shadow_frame = self->GetAndClearDeoptimizationShadowFrame(result);
+        self->SetTopOfStack(NULL, 0);
+        self->SetTopOfShadowStack(shadow_frame);
+        interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
+      }
+      if (kLogInvocationStartAndReturn) {
+        LOG(INFO) << StringPrintf("Returned '%s' code=%p", PrettyMethod(this).c_str(), GetEntryPointFromCompiledCode());
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this)

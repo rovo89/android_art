@@ -74,7 +74,8 @@
 
 namespace art {
 
-void artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame, JValue* result);
+void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                                ShadowFrame* shadow_frame, JValue* result);
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
@@ -1041,7 +1042,9 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
     // Install entry point from interpreter.
-    if (method->GetEntryPointFromCompiledCode() == NULL && !method->IsNative() && !method->IsProxyMethod()) {
+    if (!method->IsNative() && !method->IsProxyMethod() &&
+        (method->GetEntryPointFromCompiledCode() == NULL ||
+         Runtime::Current()->GetInstrumentation()->InterpretOnly())) {
       method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
     } else {
       method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
@@ -1608,14 +1611,15 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
   oat_method.LinkMethod(method.get());
 
   // Install entry point from interpreter.
-  if (method->GetEntryPointFromCompiledCode() == NULL && !method->IsNative() &&
-      !method->IsProxyMethod()) {
+  Runtime* runtime = Runtime::Current();
+  if (!method->IsNative() && !method->IsProxyMethod() &&
+      (method->GetEntryPointFromCompiledCode() == NULL ||
+       runtime->GetInstrumentation()->InterpretOnly())) {
     method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
   } else {
     method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
   }
 
-  Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {
     method->SetEntryPointFromCompiledCode(GetAbstractMethodErrorStub());
     return;
@@ -1631,7 +1635,9 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
     method->UnregisterNative(Thread::Current());
   }
 
-  if (method->GetEntryPointFromCompiledCode() == NULL) {
+  if (method->GetEntryPointFromCompiledCode() == NULL ||
+      (runtime->GetInstrumentation()->InterpretOnly() && !method->IsNative() &&
+       !method->IsProxyMethod())) {
     // No code? You must mean to go into the interpreter.
     method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
   }
