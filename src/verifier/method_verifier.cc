@@ -3168,7 +3168,7 @@ MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
     return NULL;
   }
 
-  PcToConreteMethod* pc_to_concrete_method = new PcToConreteMethod();
+  UniquePtr<PcToConreteMethod> pc_to_concrete_method(new PcToConreteMethod());
   uint32_t dex_pc = 0;
   const uint16_t* insns = code_item_->insns_ ;
   const Instruction* inst = Instruction::At(insns);
@@ -3190,7 +3190,7 @@ MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
     const RegType& reg_type(line->GetRegisterType(dec_insn.vC));
 
     if (!reg_type.IsPreciseReference()) {
-       continue;
+      continue;
     }
 
     CHECK(!(reg_type.GetClass()->IsInterface()));
@@ -3229,13 +3229,12 @@ MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
     // Now Save the current PC and the concrete method reference to be used
     // in compiler driver.
     pc_to_concrete_method->Put(dex_pc, concrete_ref );
-    }
+  }
 
   if (pc_to_concrete_method->size() == 0) {
-    delete pc_to_concrete_method;
     return NULL ;
   }
-  return pc_to_concrete_method;
+  return pc_to_concrete_method.release();
 }
 
 const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
