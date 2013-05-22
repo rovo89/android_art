@@ -47,7 +47,7 @@ extern JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh,
                                        ShadowFrame& shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern JValue EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame)
+extern void EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace interpreter

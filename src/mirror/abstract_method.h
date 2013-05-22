@@ -37,7 +37,7 @@ namespace mirror {
 
 class StaticStorageBase;
 
-typedef JValue (EntryPointFromInterpreter)(Thread* self, ShadowFrame* shadow_frame);
+typedef void (EntryPointFromInterpreter)(Thread* self, ShadowFrame* shadow_frame, JValue* result);
 
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED AbstractMethod : public Object {

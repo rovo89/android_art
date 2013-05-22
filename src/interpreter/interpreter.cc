@@ -132,7 +132,7 @@ static void UnstartedRuntimeInvoke(Thread* self, AbstractMethod* target_method,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    result->SetJ(EnterInterpreterFromInterpreter(self, shadow_frame).GetJ());
+    EnterInterpreterFromInterpreter(self, shadow_frame, result);
   }
 }
 
@@ -403,9 +403,9 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     result->SetJ(0);
     return;
   }
-  mh.ChangeMethod(target_method);
+  MethodHelper target_mh(target_method);
 
-  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  const DexFile::CodeItem* code_item = target_mh.GetCodeItem();
   uint16_t num_regs;
   uint16_t num_ins;
   if (code_item != NULL) {
@@ -418,7 +418,7 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
     return;
   } else {
     DCHECK(target_method->IsNative() || target_method->IsProxyMethod());
-    num_regs = num_ins = AbstractMethod::NumArgRegisters(mh.GetShorty());
+    num_regs = num_ins = AbstractMethod::NumArgRegisters(target_mh.GetShorty());
     if (!target_method->IsStatic()) {
       num_regs++;
       num_ins++;
@@ -435,13 +435,13 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   }
 
   size_t arg_offset = (receiver == NULL) ? 0 : 1;
-  const char* shorty = mh.GetShorty();
+  const char* shorty = target_mh.GetShorty();
   uint32_t arg[5];
   if (!is_range) {
     inst->GetArgs(arg);
   }
   for (size_t shorty_pos = 0; cur_reg < num_regs; ++shorty_pos, cur_reg++, arg_offset++) {
-    DCHECK_LT(shorty_pos + 1, mh.GetShortyLength());
+    DCHECK_LT(shorty_pos + 1, target_mh.GetShortyLength());
     size_t arg_pos = is_range ? vregC + arg_offset : arg[arg_offset];
     switch (shorty[shorty_pos + 1]) {
       case 'L': {
@@ -464,11 +464,10 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   }
 
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    result->SetJ((target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame).GetJ());
+    (target_method->GetEntryPointFromInterpreter())(self, new_shadow_frame, result);
   } else {
     UnstartedRuntimeInvoke(self, target_method, new_shadow_frame, result, num_regs - num_ins);
   }
-  mh.ChangeMethod(shadow_frame.GetMethod());
 }
 
 static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
@@ -2808,11 +2807,11 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
   return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 
-JValue EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame)
+void EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (__builtin_frame_address(0) < self->GetStackEnd()) {
     ThrowStackOverflowError(self);
-    return JValue();
+    return;
   }
 
   AbstractMethod* method = shadow_frame->GetMethod();
@@ -2820,7 +2819,7 @@ JValue EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame)
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(method->GetDeclaringClass(),
                                                                  true, true)) {
       DCHECK(Thread::Current()->IsExceptionPending());
-      return JValue();
+      return;
     }
     CHECK(method->GetDeclaringClass()->IsInitializing());
   }
@@ -2829,20 +2828,19 @@ JValue EnterInterpreterFromInterpreter(Thread* self, ShadowFrame* shadow_frame)
 
   MethodHelper mh(method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  JValue result;
   if (LIKELY(!method->IsNative())) {
-    result = Execute(self, mh, code_item, *shadow_frame, JValue());
+    result->SetJ(Execute(self, mh, code_item, *shadow_frame, JValue()).GetJ());
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
     Object* receiver = method->IsStatic() ? NULL : shadow_frame->GetVRegReference(0);
     uint32_t* args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
-    UnstartedRuntimeJni(self, method, receiver, args, &result);
+    UnstartedRuntimeJni(self, method, receiver, args, result);
   }
 
   self->PopShadowFrame();
-  return result;
+  return;
 }
 
 }  // namespace interpreter

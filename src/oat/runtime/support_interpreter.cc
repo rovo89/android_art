@@ -110,7 +110,7 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   return result.GetJ();
 }
 
-JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame)
+void artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::AbstractMethod* method = shadow_frame->GetMethod();
   MethodHelper mh(method);
@@ -119,10 +119,7 @@ JValue artInterpreterToQuickEntry(Thread* self, ShadowFrame* shadow_frame)
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArray(shadow_frame, arg_offset);
-  JValue result;
-  method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), &result, mh.GetShorty()[0]);
-
-  return result;
+  method->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result, mh.GetShorty()[0]);
 }
 
 }  // namespace art
