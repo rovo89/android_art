@@ -383,9 +383,9 @@ static void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorExit(self);
 }
 
-static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
-                     const Instruction* inst, InvokeType type, bool is_range,
-                     JValue* result)
+template<InvokeType type, bool is_range>
+static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
+                     const Instruction* inst, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver;
@@ -1851,52 +1851,52 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         break;
       case Instruction::INVOKE_VIRTUAL:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kVirtual, false, &result_register);
+        DoInvoke<kVirtual, false>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_VIRTUAL_RANGE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kVirtual, true, &result_register);
+        DoInvoke<kVirtual, true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kSuper, false, &result_register);
+        DoInvoke<kSuper, false>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER_RANGE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kSuper, true, &result_register);
+        DoInvoke<kSuper, true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kDirect, false, &result_register);
+        DoInvoke<kDirect, false>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT_RANGE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kDirect, true, &result_register);
+        DoInvoke<kDirect, true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kInterface, false, &result_register);
+        DoInvoke<kInterface, false>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE_RANGE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kInterface, true, &result_register);
+        DoInvoke<kInterface, true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kStatic, false, &result_register);
+        DoInvoke<kStatic, false>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC_RANGE:
         PREAMBLE();
-        DoInvoke(self, mh, shadow_frame, inst, kStatic, true, &result_register);
+        DoInvoke<kStatic, true>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::NEG_INT:
