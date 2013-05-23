@@ -299,7 +299,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case NEW_INSTANCE:
           if (file != NULL) {
             uint32_t type_idx = VRegB_21c();
-            os << opcode << " v" << VRegA_21c() << ", " << PrettyType(type_idx, *file)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyType(type_idx, *file)
                << " // type@" << type_idx;
             break;
           }  // else fall-through
@@ -312,7 +312,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << "  v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << "  v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
                << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -325,7 +325,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << " v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
                << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -350,7 +350,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IGET_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -363,7 +363,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IPUT_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -377,7 +377,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case NEW_ARRAY:
           if (file != NULL) {
             uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }  // else fall-through
