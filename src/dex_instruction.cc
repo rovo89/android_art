@@ -370,7 +370,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INSTANCE_OF:
           if (file != NULL) {
             uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }
