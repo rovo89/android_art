@@ -470,14 +470,20 @@ static void DoInvoke(Thread* self, MethodHelper& mh, ShadowFrame& shadow_frame,
   }
 }
 
+// We use template functions to optimize compiler inlining process. Otherwise,
+// some parts of the code (like a switch statement) which depend on a constant
+// parameter would not be inlined while it should be. These constant parameters
+// are now part of the template arguments.
+// Note these template functions are static and inlined so they should not be
+// part of the final object file.
+template<FindFieldType find_type, Primitive::Type field_type>
 static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst, FindFieldType find_type,
-                       Primitive::Type field_type)
+                       const Instruction* inst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
 
+template<FindFieldType find_type, Primitive::Type field_type>
 static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
-                              const Instruction* inst, FindFieldType find_type,
-                              Primitive::Type field_type) {
+                              const Instruction* inst) {
   bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -524,14 +530,14 @@ static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
-static void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
-                       const Instruction* inst, FindFieldType find_type,
-                       Primitive::Type field_type)
+template<FindFieldType find_type, Primitive::Type field_type>
+static void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
+                       const Instruction* inst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
 
-static inline void DoFieldPut(Thread* self, ShadowFrame& shadow_frame,
-                              const Instruction* inst, FindFieldType find_type,
-                              Primitive::Type field_type) {
+template<FindFieldType find_type, Primitive::Type field_type>
+static inline void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
+                              const Instruction* inst) {
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
@@ -1705,142 +1711,142 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::IGET_BOOLEAN:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimBoolean);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimBoolean>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_BYTE:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimByte);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimByte>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_CHAR:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimChar);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimChar>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_SHORT:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimShort);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimShort>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimInt);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimInt>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_WIDE:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstancePrimitiveRead, Primitive::kPrimLong);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimLong>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_OBJECT:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, InstanceObjectRead, Primitive::kPrimNot);
+        DoFieldGet<InstanceObjectRead, Primitive::kPrimNot>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BOOLEAN:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimBoolean);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BYTE:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimByte);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_CHAR:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimChar);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_SHORT:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimShort);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimInt);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_WIDE:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticPrimitiveRead, Primitive::kPrimLong);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_OBJECT:
         PREAMBLE();
-        DoFieldGet(self, shadow_frame, inst, StaticObjectRead, Primitive::kPrimNot);
+        DoFieldGet<StaticObjectRead, Primitive::kPrimNot>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BOOLEAN:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimBoolean);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimBoolean>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BYTE:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimByte);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimByte>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_CHAR:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimChar);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimChar>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_SHORT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimShort);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimShort>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimInt);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimInt>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_WIDE:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstancePrimitiveWrite, Primitive::kPrimLong);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimLong>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_OBJECT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, InstanceObjectWrite, Primitive::kPrimNot);
+        DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BOOLEAN:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimBoolean);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimBoolean>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BYTE:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimByte);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimByte>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_CHAR:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimChar);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimChar>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_SHORT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimShort);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimShort>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimInt);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimInt>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_WIDE:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticPrimitiveWrite, Primitive::kPrimLong);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimLong>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_OBJECT:
         PREAMBLE();
-        DoFieldPut(self, shadow_frame, inst, StaticObjectWrite, Primitive::kPrimNot);
+        DoFieldPut<StaticObjectWrite, Primitive::kPrimNot>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::INVOKE_VIRTUAL:
