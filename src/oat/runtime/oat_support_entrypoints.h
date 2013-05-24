@@ -131,24 +131,25 @@ struct PACKED(4) EntryPoints {
   void (*pThrowStackOverflowFromCode)(void*);
 };
 
+
 // JNI entrypoints.
 extern uint32_t JniMethodStart(Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
                                                  Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
                                                              jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 
 // Initialize an entry point data structure.
 void InitEntryPoints(EntryPoints* points);
