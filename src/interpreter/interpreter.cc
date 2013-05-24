@@ -384,10 +384,15 @@ static void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
   ref->MonitorExit(self);
 }
 
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
 template<InvokeType type, bool is_range>
 static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
-                     const Instruction* inst, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+                     const Instruction* inst, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
+
+template<InvokeType type, bool is_range>
+static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
+                     const Instruction* inst, JValue* result) {
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
@@ -470,10 +475,12 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
 // are now part of the template arguments.
 // Note these template functions are static and inlined so they should not be
 // part of the final object file.
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
 template<FindFieldType find_type, Primitive::Type field_type>
 static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                        const Instruction* inst)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<FindFieldType find_type, Primitive::Type field_type>
 static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
@@ -524,10 +531,12 @@ static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
   }
 }
 
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
 template<FindFieldType find_type, Primitive::Type field_type>
 static void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                        const Instruction* inst)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE;
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
 template<FindFieldType find_type, Primitive::Type field_type>
 static inline void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
