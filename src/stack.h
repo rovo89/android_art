@@ -202,6 +202,8 @@ class ShadowFrame {
 
   mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::Object* GetThisObject(uint16_t num_ins) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetMethod(mirror::AbstractMethod* method) {
@@ -254,13 +256,9 @@ class ShadowFrame {
       CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
       number_of_vregs_ |= kHasReferenceArray;
 #endif
-      for (size_t i = 0; i < num_vregs; ++i) {
-        SetVRegReference(i, NULL);
-      }
+      memset(vregs_, 0, num_vregs * (sizeof(uint32_t) + sizeof(mirror::Object*)));
     } else {
-      for (size_t i = 0; i < num_vregs; ++i) {
-        SetVReg(i, 0);
-      }
+      memset(vregs_, 0, num_vregs * sizeof(uint32_t));
     }
   }
 

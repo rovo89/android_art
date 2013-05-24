@@ -42,6 +42,15 @@ mirror::Object* ShadowFrame::GetThisObject() const {
   }
 }
 
+mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
+  mirror::AbstractMethod* m = GetMethod();
+  if (m->IsStatic()) {
+    return NULL;
+  } else {
+    return GetVRegReference(number_of_vregs_ - num_ins);
+  }
+}
+
 ThrowLocation ShadowFrame::GetCurrentLocationForThrow() const {
   return ThrowLocation(GetThisObject(), GetMethod(), GetDexPC());
 }
