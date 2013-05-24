@@ -137,9 +137,9 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #endif
 
 #if defined (__APPLE__)
-  #define HOT_ATTR
+#define HOT_ATTR
 #else
-  #define HOT_ATTR __attribute__ ((hot))
+#define HOT_ATTR __attribute__ ((hot))
 #endif
 
 // bionic and glibc both have TEMP_FAILURE_RETRY, but Mac OS' libc doesn't.
