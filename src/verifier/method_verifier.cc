@@ -3355,14 +3355,15 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodRe
   MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
-    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.second, *ref.first);
+    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
     return NULL;
   }
   CHECK(it->second != NULL);
   return it->second;
 }
 
-const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(CompilerDriver::MethodReference ref, uint32_t pc) {
+const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(const CompilerDriver::MethodReference& ref,
+                                                                    uint32_t dex_pc) {
   MutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::const_iterator it = devirt_maps_->find(ref);
   if (it == devirt_maps_->end()) {
@@ -3370,7 +3371,7 @@ const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(CompilerDriv
   }
 
   // Look up the PC in the map, get the concrete method to execute and return its reference.
-  MethodVerifier::PcToConreteMethod::const_iterator pc_to_concrete_method = it->second->find(pc);
+  MethodVerifier::PcToConreteMethod::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
   if(pc_to_concrete_method != it->second->end()) {
     return &(pc_to_concrete_method->second);
   } else {

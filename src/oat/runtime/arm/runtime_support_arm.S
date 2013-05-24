@@ -258,9 +258,9 @@ ENTRY art_portable_resolution_trampoline
     sub    sp, #12                        @ pad stack pointer to align frame
     .pad #12
     .cfi_adjust_cfa_offset 12
-    mov    r2, r9                         @ pass Thread::Current
-    mov    r1, sp                         @ pass stack pointer
-    blx    artPortableResolutionTrampoline   @ (method_idx, sp, Thread*)
+    mov    r3, r9                         @ pass Thread::Current
+    mov    r2, sp                         @ pass stack pointer
+    blx    artPortableResolutionTrampoline   @ (method, receiver, sp, Thread*)
     mov    r12, r0                        @ save method code pointer result
     add    sp, #12                        @ remove padding from stack pointer
     .cfi_adjust_cfa_offset -12
@@ -277,9 +277,9 @@ END art_portable_resolution_trampoline
      .extern artQuickResolutionTrampoline
 ENTRY art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
-    mov    r2, r9                         @ pass Thread::Current
-    mov    r1, sp                         @ pass stack pointer
-    blx    artQuickResolutionTrampoline   @ (method_idx, sp, Thread*)
+    mov    r3, r9                         @ pass Thread::Current
+    mov    r2, sp                         @ pass stack pointer
+    blx    artQuickResolutionTrampoline   @ (called method, receiver, sp, Thread*)
     mov    r12, r0                        @ save method code pointer result
     add    sp, #4                         @ set up stack pointer
     .cfi_adjust_cfa_offset -4

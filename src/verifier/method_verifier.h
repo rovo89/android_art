@@ -187,7 +187,8 @@ class MethodVerifier {
   static const std::vector<uint8_t>* GetDexGcMap(CompilerDriver::MethodReference ref)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
-  static const CompilerDriver::MethodReference* GetDevirtMap(CompilerDriver::MethodReference ref, uint32_t pc)
+  static const CompilerDriver::MethodReference* GetDevirtMap(const CompilerDriver::MethodReference& ref,
+                                                             uint32_t dex_pc)
       LOCKS_EXCLUDED(devirt_maps_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
@@ -574,7 +575,8 @@ class MethodVerifier {
   InstructionFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
-  typedef SafeMap<const CompilerDriver::MethodReference, const std::vector<uint8_t>*> DexGcMapTable;
+  typedef SafeMap<const CompilerDriver::MethodReference, const std::vector<uint8_t>*,
+      CompilerDriver::MethodReferenceComparator> DexGcMapTable;
   static Mutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
   static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
@@ -583,8 +585,8 @@ class MethodVerifier {
 
   // Devirtualization map.
   typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConreteMethod;
-  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConreteMethod*>
-      DevirtualizationMapTable;
+  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConreteMethod*,
+      CompilerDriver::MethodReferenceComparator> DevirtualizationMapTable;
   MethodVerifier::PcToConreteMethod* GenerateDevirtMap()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

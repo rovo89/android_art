@@ -39,7 +39,6 @@ class ParallelCompilationManager;
 class DexCompilationUnit;
 class TimingLogger;
 
-const uint32_t kDexPCNotReady = 0xFFFFFF;
 enum CompilerBackend {
   kQuick,
   kPortable,
@@ -106,7 +105,22 @@ class CompilerDriver {
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
   // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
-  typedef std::pair<const DexFile*, uint32_t> MethodReference;
+  struct MethodReference {
+    MethodReference(const DexFile* file, uint32_t index) : dex_file(file), dex_method_index(index) {
+    }
+    const DexFile* dex_file;
+    uint32_t dex_method_index;
+  };
+
+  struct MethodReferenceComparator {
+    bool operator()(MethodReference mr1, MethodReference mr2) const {
+      if (mr1.dex_file == mr2.dex_file) {
+        return mr1.dex_method_index < mr2.dex_method_index;
+      } else {
+        return mr1.dex_file < mr2.dex_file;
+      }
+    }
+  };
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
@@ -146,9 +160,9 @@ class CompilerDriver {
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
-  bool ComputeInvokeInfo(uint32_t method_idx, uint32_t dex_pc,
-                         const DexCompilationUnit* mUnit, InvokeType& type, int& vtable_idx,
-                         uintptr_t& direct_code, uintptr_t& direct_method)
+  bool ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
+                         InvokeType& type, MethodReference& target_method, int& vtable_idx,
+                         uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Record patch information for later fix up.
@@ -262,7 +276,8 @@ class CompilerDriver {
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
                                      mirror::Class* referrer_class,
                                      mirror::AbstractMethod* method,
-                                     uintptr_t& direct_code, uintptr_t& direct_method)
+                                     uintptr_t& direct_code, uintptr_t& direct_method,
+                                     bool update_stats)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
@@ -321,7 +336,7 @@ class CompilerDriver {
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
-  typedef SafeMap<const MethodReference, CompiledMethod*> MethodTable;
+  typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
   // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);

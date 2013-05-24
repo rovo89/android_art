@@ -430,9 +430,9 @@ ENTRY art_portable_resolution_trampoline
     .cfi_rel_offset 5, 4
     sw     $a0, 0($sp)
     .cfi_rel_offset 4, 0
-    move  $a2, $s1              # pass Thread::Current()
-    jal   artPortableResolutionTrampoline  # (method_idx, sp, Thread*)
-    move  $a1, $sp              # pass stack pointer
+    move  $a3, $s1              # pass Thread::Current()
+    jal   artPortableResolutionTrampoline  # (method, receiver, sp, Thread*)
+    move  $a2, $sp              # pass stack pointer
     lw    $a0, 0($sp)           # restore registers from stack
     lw    $a1, 4($sp)
     lw    $a2, 8($sp)
@@ -455,9 +455,9 @@ END art_portable_resolution_trampoline
 ENTRY art_quick_resolution_trampoline
     GENERATE_GLOBAL_POINTER
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    move  $a2, $s1              # pass Thread::Current()
-    jal   artQuickResolutionTrampoline  # (method_idx, sp, Thread*)
-    move  $a1, $sp              # pass stack pointer
+    move  $a3, $s1              # pass Thread::Current()
+    jal   artQuickResolutionTrampoline  # (method, receiver, sp, Thread*)
+    move  $a2, $sp              # pass stack pointer
     move  $t9, $v0              # put method code result in $t9
     lw    $a0, 0($sp)           # restore registers from stack
     lw    $a1, 4($sp)

@@ -312,9 +312,10 @@ DEFINE_FUNCTION art_portable_resolution_trampoline
     movl 8(%ebp), %eax            // load the called method* into %eax
     leal 8(%ebp), %edx            // put the called method* address in %edx
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    PUSH edx                      // pass called method* address
-    PUSH eax                      // pass method*
-    call SYMBOL(artPortableResolutionTrampoline)  // (method_idx, sp, Thread*)
+    pushl %edx                    // pass called method* address
+    pushl 12(%ebp)                // pass receiver
+    pushl 8(%ebp)                 // pass method*
+    call SYMBOL(artPortableResolutionTrampoline)  // (method, receiver, sp, Thread*)
     leave                         // restore the stack and %ebp
     .cfi_def_cfa esp, 4
     .cfi_restore ebp
@@ -330,11 +331,11 @@ END_FUNCTION art_portable_resolution_trampoline
      */
 DEFINE_FUNCTION art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    movl %esp, %ecx               // save stack pointer
-    PUSH eax                      // align stack
+    movl %esp, %edx               // save stack pointer
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     .cfi_adjust_cfa_offset 4
-    PUSH ecx                      // pass stack pointer
+    PUSH edx                      // pass stack pointer
+    PUSH ecx                      // pass receiver
     PUSH eax                      // pass method*
     call SYMBOL(artQuickResolutionTrampoline)  // (method_idx, sp, Thread*)
     movl %eax, %edi               // save returned code pointer in %edi

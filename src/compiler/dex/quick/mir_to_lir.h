@@ -24,6 +24,7 @@
 #include "compiler/dex/backend.h"
 #include "compiler/dex/growable_array.h"
 #include "compiler/dex/arena_allocator.h"
+#include "compiler/driver/compiler_driver.h"
 #include "safe_map.h"
 
 namespace art {
@@ -98,7 +99,8 @@ struct RegisterInfo;
 class MIRGraph;
 class Mir2Lir;
 
-typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dex_idx,
+typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
+                            const CompilerDriver::MethodReference& target_method,
                             uint32_t method_idx, uintptr_t direct_code,
                             uintptr_t direct_method, InvokeType type);
 
@@ -462,11 +464,15 @@ class Mir2Lir : public Backend {
     void GenInvoke(CallInfo* info);
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                             NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                             NextCallInsn next_call_insn,
+                             const CompilerDriver::MethodReference& target_method,
+                             uint32_t vtable_idx,
                              uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                              bool skip_this);
     int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                           NextCallInsn next_call_insn,
+                           const CompilerDriver::MethodReference& target_method,
+                           uint32_t vtable_idx,
                            uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                            bool skip_this);
     RegLocation InlineTarget(CallInfo* info);
@@ -486,7 +492,9 @@ class Mir2Lir : public Backend {
                              bool is_volatile, bool is_ordered);
     bool GenIntrinsic(CallInfo* info);
     int LoadArgRegs(CallInfo* info, int call_state,
-                    NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                    NextCallInsn next_call_insn,
+                    const CompilerDriver::MethodReference& target_method,
+                    uint32_t vtable_idx,
                     uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                     bool skip_this);
 

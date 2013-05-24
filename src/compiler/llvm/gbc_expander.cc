@@ -776,7 +776,8 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   art::InvokeType invoke_type =
       static_cast<art::InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
   bool is_static = (invoke_type == art::kStatic);
-  uint32_t callee_method_idx = LV2UInt(call_inst.getArgOperand(1));
+  art::CompilerDriver::MethodReference target_method(dex_compilation_unit_->GetDexFile(),
+                                                     LV2UInt(call_inst.getArgOperand(1)));
 
   // Load *this* actual parameter
   llvm::Value* this_addr = (!is_static) ? call_inst.getArgOperand(3) : NULL;
@@ -785,18 +786,17 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   int vtable_idx = -1;
   uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
-  // TODO: pass actual value of dex PC (instead of kDexPCNotready) needed by verifier based
-  // sharpening after LLVM re-factoring is finished.
-  bool is_fast_path = driver_->
-      ComputeInvokeInfo(callee_method_idx, art::kDexPCNotReady, dex_compilation_unit_,
-                        invoke_type, vtable_idx, direct_code, direct_method);
-
+  bool is_fast_path = driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc,
+                                                 invoke_type, target_method,
+                                                 vtable_idx,
+                                                 direct_code, direct_method,
+                                                 true);
   // Load the method object
   llvm::Value* callee_method_object_addr = NULL;
 
   if (!is_fast_path) {
     callee_method_object_addr =
-        EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
+        EmitCallRuntimeForCalleeMethodObjectAddr(target_method.dex_method_index, invoke_type,
                                                  this_addr, dex_pc, is_fast_path);
   } else {
     switch (invoke_type) {
@@ -809,7 +809,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
                                   irb_.getJObjectTy());
         } else {
           callee_method_object_addr =
-              EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
+              EmitLoadSDCalleeMethodObjectAddr(target_method.dex_method_index);
         }
         break;
 
@@ -826,7 +826,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
 
       case art::kInterface:
         callee_method_object_addr =
-            EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
+            EmitCallRuntimeForCalleeMethodObjectAddr(target_method.dex_method_index,
                                                      invoke_type, this_addr,
                                                      dex_pc, is_fast_path);
         break;
@@ -844,7 +844,7 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
 
   llvm::Value* code_addr;
   llvm::Type* func_type = GetFunctionType(call_inst.getType(),
-                                          callee_method_idx, is_static);
+                                          target_method.dex_method_index, is_static);
   if (direct_code != 0u && direct_code != static_cast<uintptr_t>(-1)) {
     code_addr =
         irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),

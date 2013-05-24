@@ -32,6 +32,7 @@ namespace art {
 
 // Lazily resolve a method for portable. Called by stub code.
 extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* called,
+                                                       mirror::Object* receiver,
                                                        mirror::AbstractMethod** called_addr,
                                                        Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -79,6 +80,14 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
         invoke_type = kVirtual;
         is_range = true;
         break;
+      case Instruction::INVOKE_INTERFACE:
+        invoke_type = kInterface;
+        is_range = false;
+        break;
+      case Instruction::INVOKE_INTERFACE_RANGE:
+        invoke_type = kInterface;
+        is_range = true;
+        break;
       default:
         LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
         // Avoid used uninitialized warnings.
@@ -87,6 +96,12 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
     }
     uint32_t dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
     called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
+    // Refine called method based on receiver.
+    if (invoke_type == kVirtual) {
+      called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
+    } else if (invoke_type == kInterface) {
+      called = receiver->GetClass()->FindVirtualMethodForInterface(called);
+    }
   } else {
     CHECK(called->IsStatic()) << PrettyMethod(called);
     invoke_type = kStatic;
@@ -138,6 +153,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
 
 // Lazily resolve a method for quick. Called by stub code.
 extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* called,
+                                                    mirror::Object* receiver,
                                                     mirror::AbstractMethod** sp, Thread* thread)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__arm__)
@@ -261,6 +277,14 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
         invoke_type = kVirtual;
         is_range = true;
         break;
+      case Instruction::INVOKE_INTERFACE:
+        invoke_type = kInterface;
+        is_range = false;
+        break;
+      case Instruction::INVOKE_INTERFACE_RANGE:
+        invoke_type = kInterface;
+        is_range = true;
+        break;
       default:
         LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
         // Avoid used uninitialized warnings.
@@ -334,6 +358,12 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
   if (LIKELY(!thread->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
+    // Refine called method based on receiver.
+    if (invoke_type == kVirtual) {
+      called = receiver->GetClass()->FindVirtualMethodForVirtual(called);
+    } else if (invoke_type == kInterface) {
+      called = receiver->GetClass()->FindVirtualMethodForInterface(called);
+    }
     // Ensure that the called method's class is initialized.
     mirror::Class* called_class = called->GetDeclaringClass();
     linker->EnsureInitialized(called_class, true, true);

@@ -1237,17 +1237,17 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
       return false;
   }
   DexCompilationUnit m_unit(cu_);
-  // TODO: add a flag so we don't counts the stats for this twice
-  uint32_t dex_method_idx = mir->dalvikInsn.vB;
+  CompilerDriver::MethodReference target_method(cu_->dex_file, mir->dalvikInsn.vB);
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
   uint32_t current_offset = static_cast<uint32_t>(current_offset_);
   bool fast_path =
-      cu_->compiler_driver->ComputeInvokeInfo(dex_method_idx, current_offset,
-                                              &m_unit, type,
-                                              vtable_idx, direct_code,
-                                              direct_method) &&
+      cu_->compiler_driver->ComputeInvokeInfo(&m_unit, current_offset,
+                                              type, target_method,
+                                              vtable_idx,
+                                              direct_code, direct_method,
+                                              false) &&
                                               !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));
