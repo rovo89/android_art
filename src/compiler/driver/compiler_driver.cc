@@ -910,6 +910,7 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
             GetCodeAndMethodForDirectCall(invoke_type, kDirect, referrer_class, called_method,
                                           direct_code, direct_method, update_stats);
             bool compiler_needs_dex_cache =
+                (GetCompilerBackend() == kPortable) ||
                 (GetCompilerBackend() == kQuick && instruction_set_ != kThumb2) ||
                 (direct_code == 0) || (direct_code == static_cast<unsigned int>(-1)) ||
                 (direct_method == 0) || (direct_method == static_cast<unsigned int>(-1));

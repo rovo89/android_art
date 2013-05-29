@@ -373,10 +373,10 @@ const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_kl
   const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t type_idx = GetIndexForTypeId(type);
-  uint32_t lo = 0;
-  uint32_t hi = NumFieldIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumFieldIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::FieldId& field = GetFieldId(mid);
     if (class_idx > field.class_idx_) {
       lo = mid + 1;
@@ -408,10 +408,10 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
   const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t proto_idx = GetIndexForProtoId(signature);
-  uint32_t lo = 0;
-  uint32_t hi = NumMethodIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumMethodIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::MethodId& method = GetMethodId(mid);
     if (class_idx > method.class_idx_) {
       lo = mid + 1;
@@ -437,10 +437,10 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
 }
 
 const DexFile::StringId* DexFile::FindStringId(const std::string& string) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumStringIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringDataAndLength(str_id, &length);
@@ -457,10 +457,10 @@ const DexFile::StringId* DexFile::FindStringId(const std::string& string) const 
 }
 
 const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumTypeIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumTypeIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const TypeId& type_id = GetTypeId(mid);
     if (string_idx > type_id.descriptor_idx_) {
       lo = mid + 1;
@@ -475,10 +475,10 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
 
 const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
                                          const std::vector<uint16_t>& signature_type_idxs) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumProtoIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumProtoIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::ProtoId& proto = GetProtoId(mid);
     int compare = return_type_idx - proto.return_type_idx_;
     if (compare == 0) {
