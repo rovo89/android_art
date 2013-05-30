@@ -114,6 +114,9 @@ endif
 # We build with GCC 4.6 on the host.
 ART_HOST_CFLAGS += -Wthread-safety
 
+# Make host builds easier to debug and profile by not omitting the frame pointer.
+ART_HOST_CFLAGS += -fno-omit-frame-pointer
+
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
 
