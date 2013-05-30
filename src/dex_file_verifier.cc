@@ -369,12 +369,10 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
   }
 
   if (expect_code && code_offset == 0) {
-    LOG(ERROR)<< StringPrintf("Unexpected zero value for class_data_item method code_off"
-        " with access flags %x", access_flags);
+    LOG(ERROR) << StringPrintf("Unexpected zero value for class_data_item method code_off with access flags %x", access_flags);
     return false;
   } else if (!expect_code && code_offset != 0) {
-    LOG(ERROR) << StringPrintf("Unexpected non-zero value %x for class_data_item method code_off"
-        " with access flags %x", code_offset, access_flags);
+    LOG(ERROR) << StringPrintf("Unexpected non-zero value %x for class_data_item method code_off with access flags %x", code_offset, access_flags);
     return false;
   }
 
@@ -546,8 +544,7 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
     }
 
     if (last_idx >= idx && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order annotation_element name_idx: %x then %x",
-          last_idx, idx);
+      LOG(ERROR) << StringPrintf("Out-of-order annotation_element name_idx: %x then %x", last_idx, idx);
       return false;
     }
 
@@ -654,8 +651,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
   uint32_t last_addr = 0;
   while (try_items_size--) {
     if (try_items->start_addr_ < last_addr) {
-      LOG(ERROR) << StringPrintf("Out-of_order try_item with start_addr: %x",
-          try_items->start_addr_);
+      LOG(ERROR) << StringPrintf("Out-of_order try_item with start_addr: %x", try_items->start_addr_);
       return false;
     }
 
@@ -937,8 +933,7 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   last_idx = 0;
   for (uint32_t i = 0; i < method_count; i++) {
     if (last_idx >= method_item->method_idx_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x",
-          last_idx, method_item->method_idx_);
+      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x", last_idx, method_item->method_idx_);
       return false;
     }
     last_idx = method_item->method_idx_;
@@ -949,16 +944,14 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   const DexFile::ParameterAnnotationsItem* parameter_item =
       reinterpret_cast<const DexFile::ParameterAnnotationsItem*>(method_item);
   uint32_t parameter_count = item->parameters_size_;
-  if (!CheckListSize(parameter_item, parameter_count, sizeof(DexFile::ParameterAnnotationsItem),
-      "parameter_annotations list")) {
+  if (!CheckListSize(parameter_item, parameter_count, sizeof(DexFile::ParameterAnnotationsItem), "parameter_annotations list")) {
     return false;
   }
 
   last_idx = 0;
   for (uint32_t i = 0; i < parameter_count; i++) {
     if (last_idx >= parameter_item->method_idx_ && i != 0) {
-      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x",
-          last_idx, parameter_item->method_idx_);
+      LOG(ERROR) << StringPrintf("Out-of-order method_idx for annotation: %x then %x", last_idx, parameter_item->method_idx_);
       return false;
     }
     last_idx = parameter_item->method_idx_;
@@ -1058,8 +1051,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
         uint32_t count = list->size_;
 
         if (!CheckPointerRange(list, list + 1, "annotation_set_ref_list") ||
-            !CheckListSize(item, count, sizeof(DexFile::AnnotationSetRefItem),
-                "annotation_set_ref_list size")) {
+            !CheckListSize(item, count, sizeof(DexFile::AnnotationSetRefItem), "annotation_set_ref_list size")) {
           return false;
         }
         ptr_ = reinterpret_cast<const byte*>(item + count);
@@ -1265,8 +1257,7 @@ bool DexFileVerifier::CheckIntraSection() {
           return false;
         }
         if (section_offset != header_->map_off_) {
-          LOG(ERROR) << StringPrintf("Map not at header-defined offset: %x, expected %x",
-              section_offset, header_->map_off_);
+          LOG(ERROR) << StringPrintf("Map not at header-defined offset: %x, expected %x", section_offset, header_->map_off_);
           return false;
         }
         ptr_ += sizeof(uint32_t) + (map->size_ * sizeof(DexFile::MapItem));
@@ -1306,8 +1297,7 @@ bool DexFileVerifier::CheckOffsetToTypeMap(uint32_t offset, uint16_t type) {
     return false;
   }
   if (it->second != type) {
-    LOG(ERROR) << StringPrintf("Unexpected data map entry @ %x; expected %x, found %x",
-        offset, type, it->second);
+    LOG(ERROR) << StringPrintf("Unexpected data map entry @ %x; expected %x, found %x", offset, type, it->second);
     return false;
   }
   return true;
@@ -1390,8 +1380,7 @@ bool DexFileVerifier::CheckInterTypeIdItem() {
   if (previous_item_ != NULL) {
     const DexFile::TypeId* prev_item = reinterpret_cast<const DexFile::TypeId*>(previous_item_);
     if (prev_item->descriptor_idx_ >= item->descriptor_idx_) {
-      LOG(ERROR) << StringPrintf("Out-of-order type_ids: %x then %x",
-          prev_item->descriptor_idx_, item->descriptor_idx_);
+      LOG(ERROR) << StringPrintf("Out-of-order type_ids: %x then %x", prev_item->descriptor_idx_, item->descriptor_idx_);
       return false;
     }
   }
@@ -1768,8 +1757,7 @@ bool DexFileVerifier::CheckInterAnnotationsDirectoryItem() {
       LOG(ERROR) << "Mismatched defining class for parameter_annotation";
       return false;
     }
-    if (!CheckOffsetToTypeMap(parameter_item->annotations_off_,
-        DexFile::kDexTypeAnnotationSetRefList)) {
+    if (!CheckOffsetToTypeMap(parameter_item->annotations_off_, DexFile::kDexTypeAnnotationSetRefList)) {
       return false;
     }
     parameter_item++;
