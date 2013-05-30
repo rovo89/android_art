@@ -268,9 +268,8 @@ class RegType {
   inline virtual bool IsLong() const {
     return false;
   }
-  bool HasClass() const {
-    return IsReference() || IsPreciseReference() || IsUninitializedReference() ||
-           IsUninitializedThisReference();
+  virtual bool HasClass() const {
+    return false;
   }
   bool IsJavaLangObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -326,7 +325,7 @@ class RegType {
 
   static mirror::Class* ClassJoin(mirror::Class* s, mirror::Class* t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType(mirror::Class* klass, std::string descriptor, uint16_t cache_id)
+  RegType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : descriptor_(descriptor), klass_(klass), cache_id_(cache_id) {
   }
@@ -349,12 +348,13 @@ class ConflictType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static ConflictType* CreateInstance(mirror::Class* klass, std::string& descriptor,
-                                      uint16_t cache_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static ConflictType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
+                                      uint16_t cache_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ConflictType* GetInstance();
   static void Destroy();
  private:
-  ConflictType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  ConflictType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ConflictType* instance_;
 };
@@ -365,13 +365,13 @@ class UndefinedType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static UndefinedType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static UndefinedType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                        uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static UndefinedType* GetInstance();
   static void Destroy();
  private:
-  UndefinedType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  UndefinedType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : RegType(klass, descriptor, cache_id) {
   }
@@ -386,13 +386,13 @@ class IntegerType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static IntegerType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static IntegerType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                      uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static IntegerType* GetInstance();
   static void Destroy();
  private:
-  IntegerType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  IntegerType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static IntegerType* instance_;
 };
@@ -403,13 +403,13 @@ class BooleanType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static BooleanType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static BooleanType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                      uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static BooleanType* GetInstance();
   static void Destroy();
  private:
-  BooleanType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  BooleanType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static BooleanType* instance;
 };
@@ -420,13 +420,13 @@ class ByteType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static ByteType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static ByteType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                   uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ByteType* GetInstance();
   static void Destroy();
  private:
-  ByteType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  ByteType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ByteType* instance_;
 };
@@ -437,13 +437,13 @@ class ShortType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static ShortType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static ShortType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                    uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ShortType* GetInstance();
   static void Destroy();
  private:
-  ShortType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  ShortType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static ShortType* instance_;
 };
@@ -454,13 +454,13 @@ class CharType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static CharType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static CharType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                   uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static CharType* GetInstance();
   static void Destroy();
  private:
-  CharType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  CharType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static CharType* instance_;
 };
@@ -471,13 +471,13 @@ class FloatType : public RegType {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FloatType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static FloatType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                    uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FloatType* GetInstance();
   static void Destroy();
  private:
-  FloatType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  FloatType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FloatType* instance_;
 };
@@ -491,13 +491,13 @@ class LongLoType : public RegType {
   bool IsLong() const {
     return true;
   }
-  static LongLoType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static LongLoType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                     uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
    static LongLoType* GetInstance();
   static void Destroy();
  private:
-  LongLoType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  LongLoType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static LongLoType* instance_;
 };
@@ -508,13 +508,13 @@ class LongHiType : public RegType {
   bool IsLongHi() const {
     return true;
   }
-  static LongHiType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static LongHiType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                     uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static LongHiType* GetInstance();
   static void Destroy();
  private:
-  LongHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  LongHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static LongHiType* instance_;
 };
@@ -528,13 +528,13 @@ class DoubleLoType : public RegType {
   bool IsDouble() const {
     return true;
   }
-  static DoubleLoType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static DoubleLoType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                       uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static DoubleLoType* GetInstance();
   static void Destroy();
  private:
-  DoubleLoType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  DoubleLoType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static DoubleLoType* instance_;
 };
@@ -545,13 +545,13 @@ class DoubleHiType : public RegType {
   virtual bool IsDoubleHi() const {
     return true;
   }
-  static DoubleHiType* CreateInstance(mirror::Class* klass, std::string& descriptor,
+  static DoubleHiType* CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                       uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static DoubleHiType* GetInstance();
   static void Destroy();
  private:
-  DoubleHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  DoubleHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static DoubleHiType* instance_;
 };
@@ -664,7 +664,7 @@ class ImpreciseConstHiType : public ConstantType {
 
 class UninitializedType : public RegType {
  public:
-  UninitializedType(mirror::Class* klass, std::string& descriptor, uint32_t allocation_pc,
+  UninitializedType(mirror::Class* klass, const std::string& descriptor, uint32_t allocation_pc,
                     uint16_t cache_id);
   inline virtual ~UninitializedType() {
   }
@@ -679,12 +679,15 @@ class UninitializedType : public RegType {
   const uint32_t allocation_pc_;
 };
 
-class UninitialisedReferenceType : public UninitializedType {
+class UninitializedReferenceType : public UninitializedType {
  public:
-  UninitialisedReferenceType(mirror::Class* klass, std::string& descriptor, uint32_t allocation_pc,
+  UninitializedReferenceType(mirror::Class* klass, const std::string& descriptor, uint32_t allocation_pc,
                              uint16_t cache_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsUninitializedReference() const {
+    return true;
+  }
+  bool HasClass() const {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -692,7 +695,7 @@ class UninitialisedReferenceType : public UninitializedType {
 
 class UnresolvedUninitializedRefType : public UninitializedType {
  public:
-  UnresolvedUninitializedRefType(std::string& descriptor, uint32_t allocation_pc,
+  UnresolvedUninitializedRefType(const std::string& descriptor, uint32_t allocation_pc,
                                  uint16_t cache_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsUnresolvedAndUninitializedReference() const {
@@ -701,20 +704,23 @@ class UnresolvedUninitializedRefType : public UninitializedType {
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 };
 
-class UninitialisedThisReferenceType : public UninitializedType {
+class UninitializedThisReferenceType : public UninitializedType {
  public:
-  UninitialisedThisReferenceType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  UninitializedThisReferenceType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  inline virtual bool IsUninitializedThisReference() const {
+  virtual bool IsUninitializedThisReference() const {
+    return true;
+  }
+  bool HasClass() const {
     return true;
   }
 };
 
-class UnresolvedUninitialisedThisRefType : public UninitializedType {
+class UnresolvedUninitializedThisRefType : public UninitializedType {
  public:
-  UnresolvedUninitialisedThisRefType(std::string& descriptor, uint16_t cache_id)
+  UnresolvedUninitializedThisRefType(const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CheckInvariants() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -725,9 +731,12 @@ class UnresolvedUninitialisedThisRefType : public UninitializedType {
 
 class ReferenceType : public RegType {
  public:
-  ReferenceType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  ReferenceType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsReference() const {
+    return true;
+  }
+  bool HasClass() const {
     return true;
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -735,17 +744,20 @@ class ReferenceType : public RegType {
 
 class PreciseReferenceType : public RegType {
  public:
-  PreciseReferenceType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+  PreciseReferenceType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsPreciseReference() const {
+    return true;
+  }
+  bool HasClass() const {
     return true;
   }
 };
 
 class UnresolvedReferenceType : public RegType {
  public:
-  UnresolvedReferenceType(std::string& descriptor, uint16_t cache_id)
+  UnresolvedReferenceType(const std::string& descriptor, uint16_t cache_id)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) : RegType(NULL, descriptor, cache_id) {
   }
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

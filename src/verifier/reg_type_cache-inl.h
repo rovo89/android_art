@@ -24,7 +24,7 @@
 namespace art {
 namespace verifier {
 template <class Type>
-Type* RegTypeCache::CreatePrimitiveTypeInstance(std::string descriptor) {
+Type* RegTypeCache::CreatePrimitiveTypeInstance(const std::string& descriptor) {
   mirror::Class* klass = NULL;
   // Try loading the class from linker.
   if (!descriptor.empty()) {
@@ -35,6 +35,12 @@ Type* RegTypeCache::CreatePrimitiveTypeInstance(std::string descriptor) {
   return entry;
 }
 
+inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const {
+  DCHECK_LT(id, entries_.size());
+  RegType* result = entries_[id];
+  DCHECK(result != NULL);
+  return *result;
+}
 }  // namespace verifier
 }  // namespace art
 #endif  // ART_SRC_VERIFIER_REG_TYPE_CACHE_INL_H_

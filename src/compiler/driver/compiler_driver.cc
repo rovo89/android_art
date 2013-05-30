@@ -500,7 +500,7 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
 }
 
-bool CompilerDriver::IsImageClass(const std::string& descriptor) const {
+bool CompilerDriver::IsImageClass(const char* descriptor) const {
   if (image_classes_ == NULL) {
     return false;
   }
@@ -610,9 +610,14 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 }
 
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
+                                                   mirror::DexCache* dex_cache,
                                                    const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  // The passed dex_cache is a hint, sanity check before asking the class linker that will take a
+  // lock.
+  if (dex_cache->GetDexFile() != mUnit->GetDexFile()) {
+    dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  }
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
   const DexFile::MethodId& referrer_method_id = mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
   return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
@@ -649,7 +654,9 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
   mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       bool access_ok = referrer_class->CanAccess(fields_class) &&
@@ -698,7 +705,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
@@ -842,7 +851,9 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   if (resolved_method != NULL) {
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_method->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
     bool icce = resolved_method->CheckIncompatibleClassChange(invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();

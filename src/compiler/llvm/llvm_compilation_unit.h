@@ -81,10 +81,10 @@ class LlvmCompilationUnit {
   void SetCompilerDriver(CompilerDriver* driver) {
     driver_ = driver;
   }
-  const DexCompilationUnit* GetDexCompilationUnit() {
+  DexCompilationUnit* GetDexCompilationUnit() {
     return dex_compilation_unit_;
   }
-  void SetDexCompilationUnit(const DexCompilationUnit* dex_compilation_unit) {
+  void SetDexCompilationUnit(DexCompilationUnit* dex_compilation_unit) {
     dex_compilation_unit_ = dex_compilation_unit;
   }
 
@@ -113,7 +113,7 @@ class LlvmCompilationUnit {
   UniquePtr<IntrinsicHelper> intrinsic_helper_;
   UniquePtr<LLVMInfo> llvm_info_;
   CompilerDriver* driver_;
-  const DexCompilationUnit* dex_compilation_unit_;
+  DexCompilationUnit* dex_compilation_unit_;
 
   std::string bitcode_filename_;
 

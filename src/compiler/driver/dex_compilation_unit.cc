@@ -31,18 +31,17 @@ DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu)
       code_item_(cu->code_item),
       class_def_idx_(cu->class_def_idx),
       dex_method_idx_(cu->method_idx),
-      access_flags_(cu->access_flags),
-      symbol_(StringPrintf("dex_%s", MangleForJni(PrettyMethod(dex_method_idx_, *dex_file_)).c_str())) {
+      access_flags_(cu->access_flags) {
 }
 
-DexCompilationUnit:: DexCompilationUnit(CompilationUnit* cu,
-                                        jobject class_loader,
-                                        ClassLinker* class_linker,
-                                        const DexFile& dex_file,
-                                        const DexFile::CodeItem* code_item,
-                                        uint32_t class_def_idx,
-                                        uint32_t method_idx,
-                                        uint32_t access_flags)
+DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
+                                       jobject class_loader,
+                                       ClassLinker* class_linker,
+                                       const DexFile& dex_file,
+                                       const DexFile::CodeItem* code_item,
+                                       uint32_t class_def_idx,
+                                       uint32_t method_idx,
+                                       uint32_t access_flags)
     : cu_(cu),
       class_loader_(class_loader),
       class_linker_(class_linker),
@@ -50,8 +49,15 @@ DexCompilationUnit:: DexCompilationUnit(CompilationUnit* cu,
       code_item_(code_item),
       class_def_idx_(class_def_idx),
       dex_method_idx_(method_idx),
-      access_flags_(access_flags),
-      symbol_(StringPrintf("dex_%s", MangleForJni(PrettyMethod(dex_method_idx_, *dex_file_)).c_str())) {
+      access_flags_(access_flags) {
+}
+
+const std::string& DexCompilationUnit::GetSymbol() {
+  if (symbol_.empty()) {
+    symbol_ = "dex_";
+    symbol_ += MangleForJni(PrettyMethod(dex_method_idx_, *dex_file_));
+  }
+  return symbol_;
 }
 
 } // namespace art

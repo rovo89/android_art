@@ -955,9 +955,9 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
-  MethodVerifier::PcToConreteMethod* pc_to_conrete_method = GenerateDevirtMap();
-  if(pc_to_conrete_method != NULL ) {
-    SetDevirtMap(ref, pc_to_conrete_method);
+  MethodVerifier::PcToConcreteMethod* pc_to_concrete_method = GenerateDevirtMap();
+  if(pc_to_concrete_method != NULL ) {
+    SetDevirtMap(ref, pc_to_concrete_method);
   }
   return true;
 }
@@ -3160,7 +3160,7 @@ void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bit
   *log2_max_gc_pc = i;
 }
 
-MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
+MethodVerifier::PcToConcreteMethod* MethodVerifier::GenerateDevirtMap() {
 
   // It is risky to rely on reg_types for sharpening in cases of soft
   // verification, we might end up sharpening to a wrong implementation. Just abort.
@@ -3168,7 +3168,7 @@ MethodVerifier::PcToConreteMethod* MethodVerifier::GenerateDevirtMap() {
     return NULL;
   }
 
-  UniquePtr<PcToConreteMethod> pc_to_concrete_method(new PcToConreteMethod());
+  UniquePtr<PcToConcreteMethod> pc_to_concrete_method(new PcToConcreteMethod());
   uint32_t dex_pc = 0;
   const uint16_t* insns = code_item_->insns_ ;
   const Instruction* inst = Instruction::At(insns);
@@ -3338,7 +3338,7 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std:
   CHECK(GetDexGcMap(ref) != NULL);
 }
 
-void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConreteMethod* devirt_map) {
+void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConcreteMethod* devirt_map) {
 
   MutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
@@ -3371,7 +3371,7 @@ const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(const Compil
   }
 
   // Look up the PC in the map, get the concrete method to execute and return its reference.
-  MethodVerifier::PcToConreteMethod::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
+  MethodVerifier::PcToConcreteMethod::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
   if(pc_to_concrete_method != it->second->end()) {
     return &(pc_to_concrete_method->second);
   } else {

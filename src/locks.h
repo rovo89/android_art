@@ -143,7 +143,7 @@ class Locks {
   static Mutex* trace_lock_ ACQUIRED_AFTER(breakpoint_lock_);
 
   // Guards lists of classes within the class linker.
-  static Mutex* classlinker_classes_lock_ ACQUIRED_AFTER(trace_lock_);
+  static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(trace_lock_);
 
   // When declaring any Mutex add DEFAULT_MUTEX_ACQUIRED_AFTER to use annotalysis to check the code
   // doesn't try to hold a higher level Mutex.

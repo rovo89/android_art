@@ -32,7 +32,6 @@
 namespace art {
 namespace verifier {
 
-static const bool kIsDebugBuild = false;
 UndefinedType* UndefinedType::instance_ = NULL;
 ConflictType* ConflictType::instance_ = NULL;
 BooleanType* BooleanType::instance = NULL;
@@ -70,36 +69,44 @@ std::string BooleanType::Dump() const {
 std::string ConflictType::Dump() const {
     return "Conflict";
 }
+
 std::string ByteType::Dump() const {
   return "Byte";
 }
+
 std::string ShortType::Dump() const {
   return "short";
 }
+
 std::string CharType::Dump() const {
   return "Char";
 }
+
 std::string FloatType::Dump() const {
   return "float";
 }
+
 std::string LongLoType::Dump() const {
   return "long (Low Half)";
 }
+
 std::string LongHiType::Dump() const {
   return "long (High Half)";
 }
+
 std::string DoubleLoType::Dump() const {
   return "Double (Low Half)";
 }
+
 std::string DoubleHiType::Dump() const {
   return "Double (High Half)";
 }
+
 std::string IntegerType::Dump() const {
     return "Integer";
 }
 
-
-DoubleHiType* DoubleHiType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+DoubleHiType* DoubleHiType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                            uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new DoubleHiType(klass, descriptor, cache_id);
@@ -119,7 +126,7 @@ void DoubleHiType::Destroy() {
   }
 }
 
-DoubleLoType* DoubleLoType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+DoubleLoType* DoubleLoType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                            uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new DoubleLoType(klass, descriptor, cache_id);
@@ -139,7 +146,7 @@ void DoubleLoType::Destroy() {
   }
 }
 
-LongLoType* LongLoType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+LongLoType* LongLoType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                        uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new LongLoType(klass, descriptor, cache_id);
@@ -147,7 +154,7 @@ LongLoType* LongLoType::CreateInstance(mirror::Class* klass, std::string& descri
   return instance_;
 }
 
-LongHiType* LongHiType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+LongHiType* LongHiType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                        uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new LongHiType(klass, descriptor, cache_id);
@@ -179,9 +186,8 @@ void LongLoType::Destroy() {
   }
 }
 
-FloatType* FloatType::CreateInstance(mirror::Class* klass, std::string& descriptor,
-                                     uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+FloatType* FloatType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+                                     uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new FloatType(klass, descriptor, cache_id);
   }
@@ -199,17 +205,19 @@ void FloatType::Destroy() {
   }
 }
 
-CharType* CharType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+CharType* CharType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                    uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new CharType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 CharType* CharType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void CharType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
@@ -217,81 +225,94 @@ void CharType::Destroy() {
   }
 }
 
-ShortType* ShortType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+ShortType* ShortType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                      uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new ShortType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 ShortType* ShortType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void ShortType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
     instance_ = NULL;
   }
 }
-ByteType* ByteType::CreateInstance(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+
+ByteType* ByteType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
+                                   uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new ByteType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 ByteType* ByteType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void ByteType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
     instance_ = NULL;
   }
 }
-IntegerType* IntegerType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+
+IntegerType* IntegerType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                          uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new IntegerType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 IntegerType* IntegerType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void IntegerType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
     instance_ = NULL;
   }
 }
-ConflictType* ConflictType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+
+ConflictType* ConflictType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                            uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new ConflictType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 ConflictType* ConflictType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void ConflictType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
     instance_ = NULL;
   }
 }
-BooleanType* BooleanType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+
+BooleanType* BooleanType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                          uint16_t cache_id) {
   if (BooleanType::instance == NULL) {
     instance = new BooleanType(klass, descriptor, cache_id);
   }
   return BooleanType::instance;
 }
+
 BooleanType* BooleanType::GetInstance() {
   CHECK(BooleanType::instance != NULL);
   return BooleanType::instance;
@@ -307,23 +328,27 @@ void BooleanType::Destroy() {
 std::string UndefinedType::Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return "Undefined";
 }
-UndefinedType* UndefinedType::CreateInstance(mirror::Class* klass, std::string& descriptor,
+
+UndefinedType* UndefinedType::CreateInstance(mirror::Class* klass, const std::string& descriptor,
                                              uint16_t cache_id) {
   if (instance_ == NULL) {
     instance_ = new UndefinedType(klass, descriptor, cache_id);
   }
   return instance_;
 }
+
 UndefinedType* UndefinedType::GetInstance() {
   CHECK(instance_ != NULL);
   return instance_;
 }
+
 void UndefinedType::Destroy() {
   if (instance_ != NULL) {
     delete instance_;
     instance_ = NULL;
   }
 }
+
 std::string UnresolvedMergedType::Dump() const {
   std::stringstream result;
   std::set<uint16_t> types = GetMergedTypes();
@@ -338,6 +363,7 @@ std::string UnresolvedMergedType::Dump() const {
   result << ")";
   return result.str();
 }
+
 std::string UnresolvedSuperClass::Dump() const {
   std::stringstream result;
   uint16_t super_type_id = GetUnresolvedSuperClassChildId();
@@ -358,7 +384,7 @@ std::string UnresolvedUninitializedRefType::Dump() const {
   return result.str();
 }
 
-std::string UnresolvedUninitialisedThisRefType::Dump() const {
+std::string UnresolvedUninitializedThisRefType::Dump() const {
   std::stringstream result;
   result << "Unresolved And Uninitialized This Reference" << PrettyDescriptor(GetDescriptor());
   return result.str();
@@ -376,13 +402,14 @@ std::string PreciseReferenceType::Dump() const {
   return result.str();
 }
 
-std::string UninitialisedReferenceType::Dump() const {
+std::string UninitializedReferenceType::Dump() const {
   std::stringstream result;
   result << "Uninitialized Reference" << ": " << PrettyDescriptor(GetClass());
   result << " Allocation PC: " << GetAllocationPc();
   return result.str();
 }
-std::string UninitialisedThisReferenceType::Dump() const {
+
+std::string UninitializedThisReferenceType::Dump() const {
   std::stringstream result;
   result << "Uninitialized This Reference" << ": " << PrettyDescriptor(GetClass());
   result << "Allocation PC: " << GetAllocationPc();
@@ -459,76 +486,77 @@ std::string ImpreciseConstHiType::Dump() const {
   return result.str();
 }
 
-BooleanType::BooleanType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
-      : RegType(klass, descriptor, cache_id) {
-}
-
-ConflictType::ConflictType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+BooleanType::BooleanType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-ByteType::ByteType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+ConflictType::ConflictType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-ShortType::ShortType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+ByteType::ByteType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-CharType::CharType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+ShortType::ShortType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-IntegerType::IntegerType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+CharType::CharType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-ConstantType::ConstantType(uint32_t constat, uint16_t cache_id)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_): RegType(NULL, "", cache_id), constant_(constat) {
-}
-
-ReferenceType::ReferenceType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+IntegerType::IntegerType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, std::string& descriptor,
+ConstantType::ConstantType(uint32_t constant, uint16_t cache_id)
+    : RegType(NULL, "", cache_id), constant_(constant) {
+}
+
+ReferenceType::ReferenceType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+}
+
+PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
                                            uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
   DCHECK(klass->IsInstantiable());
 }
 
-UnresolvedUninitialisedThisRefType::UnresolvedUninitialisedThisRefType(std::string& descriptor,
+UnresolvedUninitializedThisRefType::UnresolvedUninitializedThisRefType(const std::string& descriptor,
                                                                        uint16_t cache_id)
     : UninitializedType(NULL, descriptor, 0, cache_id) {
 }
 
-UnresolvedUninitializedRefType::UnresolvedUninitializedRefType( std::string& descriptor,
+UnresolvedUninitializedRefType::UnresolvedUninitializedRefType(const std::string& descriptor,
                                                          uint32_t allocation_pc, uint16_t cache_id)
     : UninitializedType(NULL, descriptor, allocation_pc, cache_id) {
 }
 
-UninitialisedReferenceType::UninitialisedReferenceType(mirror::Class* klass,
-                                std::string& descriptor, uint32_t allocation_pc, uint16_t cache_id)
+UninitializedReferenceType::UninitializedReferenceType(mirror::Class* klass,
+                                                       const std::string& descriptor,
+                                                       uint32_t allocation_pc, uint16_t cache_id)
     : UninitializedType(klass, descriptor, allocation_pc, cache_id) {
 }
 
-LongHiType::LongHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+LongHiType::LongHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-FloatType::FloatType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+FloatType::FloatType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-DoubleLoType::DoubleLoType(mirror::Class* klass,  std::string& descriptor, uint16_t cache_id)
+DoubleLoType::DoubleLoType(mirror::Class* klass,  const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-DoubleHiType::DoubleHiType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+DoubleHiType::DoubleHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
-LongLoType::LongLoType(mirror::Class* klass, std::string& descriptor, uint16_t cache_id)
+LongLoType::LongLoType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id) {
 }
 
@@ -749,10 +777,12 @@ int32_t ConstantType::ConstantValue() const {
   DCHECK(IsConstantTypes());
   return constant_;
 }
+
 int32_t ConstantType::ConstantValueLo() const {
   DCHECK(IsConstantLo());
   return constant_;
 }
+
 int32_t ConstantType::ConstantValueHi() const {
   if (IsConstantHi() || IsPreciseConstantHi() || IsImpreciseConstantHi()) {
     return constant_;
@@ -761,6 +791,7 @@ int32_t ConstantType::ConstantValueHi() const {
     return 0;
   }
 }
+
 static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
   return a.IsConstant() ? b : a;
 }
@@ -951,7 +982,7 @@ void RegType::CheckInvariants() const {
   }
 }
 
-UninitializedType::UninitializedType(mirror::Class* klass, std::string& descriptor,
+UninitializedType::UninitializedType(mirror::Class* klass, const std::string& descriptor,
                                      uint32_t allocation_pc, uint16_t cache_id)
     : RegType(klass, descriptor, cache_id), allocation_pc_(allocation_pc) {
 }
@@ -960,15 +991,15 @@ void UninitializedType::CheckInvariants() const {
   CHECK_EQ(allocation_pc_, 0U) << *this;
 }
 
-void UninitialisedThisReferenceType::CheckInvariants() const {
+void UninitializedThisReferenceType::CheckInvariants() const {
   UninitializedType::CheckInvariants();
 }
 
-UninitialisedThisReferenceType::UninitialisedThisReferenceType(mirror::Class* klass,
-  std::string& descriptor, uint16_t cache_id) : UninitializedType(klass, descriptor, 0, cache_id) {
+UninitializedThisReferenceType::UninitializedThisReferenceType(mirror::Class* klass,
+  const std::string& descriptor, uint16_t cache_id) : UninitializedType(klass, descriptor, 0, cache_id) {
 }
 
-void UnresolvedUninitialisedThisRefType::CheckInvariants() const {
+void UnresolvedUninitializedThisRefType::CheckInvariants() const {
   UninitializedType::CheckInvariants();
   CHECK(!descriptor_.empty()) << *this;
   CHECK(klass_ == NULL) << *this;

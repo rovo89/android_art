@@ -584,15 +584,16 @@ class MethodVerifier {
 
 
   // Devirtualization map.
-  typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConreteMethod;
-  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConreteMethod*,
+  typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConcreteMethod;
+  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConcreteMethod*,
       CompilerDriver::MethodReferenceComparator> DevirtualizationMapTable;
-  MethodVerifier::PcToConreteMethod* GenerateDevirtMap()
+  MethodVerifier::PcToConcreteMethod* GenerateDevirtMap()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Mutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DevirtualizationMapTable* devirt_maps_ GUARDED_BY(devirt_maps_lock_);
-  static void SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConreteMethod* pc_method_map);
+  static void SetDevirtMap(CompilerDriver::MethodReference ref,
+                           const PcToConcreteMethod* pc_method_map)
         LOCKS_EXCLUDED(devirt_maps_lock_);
   typedef std::set<CompilerDriver::ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

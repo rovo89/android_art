@@ -15,6 +15,7 @@
  */
 
 #include "compiler/dex/compiler_ir.h"
+#include "dex_file-inl.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
@@ -1177,6 +1178,10 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     // TODO - add Mips implementation
     return false;
   }
+  if (cu_->instruction_set == kX86 && is_object) {
+    // TODO: fix X86, it exhausts registers for card marking.
+    return false;
+  }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
@@ -1220,8 +1225,10 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
-  std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-  if (tgt_method.find(" java.lang") != std::string::npos) {
+  const char* tgt_methods_declaring_class =
+      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index));
+  if (strstr(tgt_methods_declaring_class, "Ljava/lang") != NULL) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
       return GenInlinedDoubleCvt(info);
     }
@@ -1275,7 +1282,8 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(info);
     }
-  } else if (tgt_method.find(" sun.misc.Unsafe") != std::string::npos) {
+  } else if (strstr(tgt_methods_declaring_class, "Lsun/misc/Unsafe;") != NULL) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
       return GenInlinedCas32(info, false);
     }

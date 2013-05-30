@@ -196,7 +196,7 @@ ClassLinker* ClassLinker::CreateFromImage(InternTable* intern_table) {
 
 ClassLinker::ClassLinker(InternTable* intern_table)
     // dex_lock_ is recursive as it may be used in stack dumping.
-    : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel, true),
+    : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel),
       class_roots_(NULL),
       array_iftable_(NULL),
       init_done_(false),
@@ -663,22 +663,22 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 }
 
 void ClassLinker::RegisterOatFile(const OatFile& oat_file) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), dex_lock_);
   RegisterOatFileLocked(oat_file);
 }
 
 void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
-  dex_lock_.AssertHeld(Thread::Current());
-#ifndef NDEBUG
-  for (size_t i = 0; i < oat_files_.size(); ++i) {
-    CHECK_NE(&oat_file, oat_files_[i]) << oat_file.GetLocation();
+  dex_lock_.AssertExclusiveHeld(Thread::Current());
+  if (kIsDebugBuild) {
+    for (size_t i = 0; i < oat_files_.size(); ++i) {
+      CHECK_NE(&oat_file, oat_files_[i]) << oat_file.GetLocation();
+    }
   }
-#endif
   oat_files_.push_back(&oat_file);
 }
 
 OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), dex_lock_);
   const Runtime* runtime = Runtime::Current();
   const ImageHeader& image_header = space->GetImageHeader();
   // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
@@ -709,7 +709,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
   return FindOpenedOatFileFromDexLocation(dex_file.GetLocation());
 }
 
@@ -755,7 +755,7 @@ static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
 
 const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string& dex_location,
                                                               const std::string& oat_location) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), dex_lock_);
   return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_location);
 }
 
@@ -857,7 +857,7 @@ const DexFile* ClassLinker::VerifyAndOpenDexFileFromOatFile(const OatFile* oat_f
 }
 
 const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::string& dex_location) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), dex_lock_);
 
   const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location);
   if (open_oat_file != NULL) {
@@ -924,7 +924,7 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
   return FindOatFileFromOatLocationLocked(oat_location);
 }
 
@@ -1062,14 +1062,14 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg) {
   visitor(class_roots_, arg);
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, dex_lock_);
+    ReaderMutexLock mu(self, dex_lock_);
     for (size_t i = 0; i < dex_caches_.size(); i++) {
       visitor(dex_caches_[i], arg);
     }
   }
 
   {
-    MutexLock mu(self, *Locks::classlinker_classes_lock_);
+    ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -1084,7 +1084,7 @@ void ClassLinker::VisitRoots(RootVisitor* visitor, void* arg) {
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
     if (!visitor(it->second, arg)) {
@@ -1813,7 +1813,7 @@ void ClassLinker::AppendToBootClassPath(const DexFile& dex_file, SirtRef<mirror:
 }
 
 bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
-  dex_lock_.AssertHeld(Thread::Current());
+  dex_lock_.AssertSharedHeld(Thread::Current());
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i]->GetDexFile() == &dex_file) {
       return true;
@@ -1823,12 +1823,12 @@ bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
 }
 
 bool ClassLinker::IsDexFileRegistered(const DexFile& dex_file) const {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
   return IsDexFileRegisteredLocked(dex_file);
 }
 
 void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache) {
-  dex_lock_.AssertHeld(Thread::Current());
+  dex_lock_.AssertExclusiveHeld(Thread::Current());
   CHECK(dex_cache.get() != NULL) << dex_file.GetLocation();
   CHECK(dex_cache->GetLocation()->Equals(dex_file.GetLocation()));
   dex_caches_.push_back(dex_cache.get());
@@ -1839,7 +1839,7 @@ void ClassLinker::RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror:
 void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, dex_lock_);
+    ReaderMutexLock mu(self, dex_lock_);
     if (IsDexFileRegisteredLocked(dex_file)) {
       return;
     }
@@ -1849,7 +1849,7 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
   // get to a suspend point.
   SirtRef<mirror::DexCache> dex_cache(self, AllocDexCache(self, dex_file));
   {
-    MutexLock mu(self, dex_lock_);
+    WriterMutexLock mu(self, dex_lock_);
     if (IsDexFileRegisteredLocked(dex_file)) {
       return;
     }
@@ -1858,12 +1858,12 @@ void ClassLinker::RegisterDexFile(const DexFile& dex_file) {
 }
 
 void ClassLinker::RegisterDexFile(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache) {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  WriterMutexLock mu(Thread::Current(), dex_lock_);
   RegisterDexFileLocked(dex_file, dex_cache);
 }
 
 mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
   // Search assuming unique-ness of dex file.
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     mirror::DexCache* dex_cache = dex_caches_[i];
@@ -1889,7 +1889,7 @@ mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
 }
 
 void ClassLinker::FixupDexCaches(mirror::AbstractMethod* resolution_method) const {
-  MutexLock mu(Thread::Current(), dex_lock_);
+  ReaderMutexLock mu(Thread::Current(), dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     dex_caches_[i]->Fixup(resolution_method);
   }
@@ -2085,7 +2085,7 @@ mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::C
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
   mirror::Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
@@ -2103,7 +2103,7 @@ mirror::Class* ClassLinker::InsertClass(const StringPiece& descriptor, mirror::C
 
 bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
@@ -2131,7 +2131,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const mirror::ClassLoader*
 mirror::Class* ClassLinker::LookupClass(const char* descriptor,
                                         const mirror::ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
   mirror::Class* klass = NULL;
   // Use image class only if the class_loader is null.
@@ -2171,7 +2171,7 @@ mirror::Class* ClassLinker::LookupClassLocked(const char* descriptor,
 void ClassLinker::LookupClasses(const char* descriptor, std::vector<mirror::Class*>& classes) {
   classes.clear();
   size_t hash = Hash(descriptor);
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
@@ -2505,7 +2505,7 @@ mirror::AbstractMethod* ClassLinker::FindMethodForProxy(const mirror::Class* pro
   mirror::DexCache* dex_cache = NULL;
   {
     mirror::ObjectArray<mirror::Class>* resolved_types = proxy_method->GetDexCacheResolvedTypes();
-    MutexLock mu(Thread::Current(), dex_lock_);
+    ReaderMutexLock mu(Thread::Current(), dex_lock_);
     for (size_t i = 0; i != dex_caches_.size(); ++i) {
       if (dex_caches_[i]->GetResolvedTypes() == resolved_types) {
         dex_cache = dex_caches_[i];
@@ -3885,7 +3885,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
   // lock held, because it might need to resolve a field's type, which would try to take the lock.
   std::vector<mirror::Class*> all_classes;
   {
-    MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+    ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
@@ -3901,13 +3901,13 @@ void ClassLinker::DumpAllClasses(int flags) const {
 }
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) const {
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   os << "Loaded classes: " << image_classes_.size() << " image classes; "
      << classes_.size() << " allocated classes\n";
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   return classes_.size() + image_classes_.size();
 }
 

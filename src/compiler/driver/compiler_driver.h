@@ -267,7 +267,7 @@ class CompilerDriver {
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
-  bool IsImageClass(const std::string& descriptor) const;
+  bool IsImageClass(const char* descriptor) const;
 
   void RecordClassStatus(ClassReference ref, CompiledClass* compiled_class);
 
