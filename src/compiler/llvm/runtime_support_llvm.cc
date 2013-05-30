@@ -24,6 +24,7 @@
 #include "dex_instruction.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"

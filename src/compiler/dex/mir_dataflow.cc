@@ -933,7 +933,7 @@ int MIRGraph::AddNewSReg(int v_reg)
   SetNumSSARegs(ssa_reg + 1);
   ssa_base_vregs_->Insert(v_reg);
   ssa_subscripts_->Insert(subscript);
-  std::string ssa_name = GetSSAName(ssa_reg);
+  std::string ssa_name(GetSSAName(ssa_reg));
   char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, false,
                                                  ArenaAllocator::kAllocDFInfo));
   strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
