@@ -1306,12 +1306,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 #endif
   }
 
-  // We need to ensure the work line is consistent while performing validation. When we spot a
-  // peephole pattern we compute a new line for either the fallthrough instruction or the
-  // branch target.
-  UniquePtr<RegisterLine> branch_line;
-  UniquePtr<RegisterLine> fallthrough_line;
-
   switch (dec_insn.opcode) {
     case Instruction::NOP:
       /*
@@ -1723,53 +1717,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!reg_type.IsReferenceTypes() && !reg_type.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "type " << reg_type << " unexpected as arg to if-eqz/if-nez";
       }
-
-      // Find previous instruction - its existence is a precondition to peephole optimization.
-      uint32_t prev_idx = 0;
-      if (0 != work_insn_idx_) {
-        prev_idx = work_insn_idx_ - 1;
-        while(0 != prev_idx && !insn_flags_[prev_idx].IsOpcode()) {
-          prev_idx--;
-        }
-        CHECK(true == insn_flags_[prev_idx].IsOpcode());
-      } else {
-        break;
-      }
-
-      const Instruction* prev_inst = Instruction::At(code_item_->insns_+prev_idx);
-
-      /* Check for peep-hole pattern of:
-       *    ...;
-       *    instance-of vX, vO, T;
-       *    ifXXX vX, b ;
-       *    ...;
-       * b: INST;
-       *    ...;
-       * and sharpen the type for either the fall-through or the branch case.
-       */
-      if (!CurrentInsnFlags()->IsBranchTarget()) {
-        DecodedInstruction prev_dec_insn(prev_inst);
-        if ((Instruction::INSTANCE_OF == prev_inst->Opcode())
-            && (dec_insn.vA == prev_dec_insn.vA)) {
-          // Check that the we are not attempting conversion to interface types,
-          // which is not done because of the multiple inheritance implications.
-          const RegType& cast_type =
-                    ResolveClassAndCheckAccess(prev_dec_insn.vC);
-
-          if(false == cast_type.GetClass()->IsInterface()) {
-            if (dec_insn.opcode == Instruction::IF_EQZ) {
-              fallthrough_line.reset(new RegisterLine(code_item_->registers_size_, this));
-              fallthrough_line->CopyFromLine(work_line_.get());
-              fallthrough_line->SetRegisterType(prev_dec_insn.vB , cast_type);
-            } else {
-              branch_line.reset(new RegisterLine(code_item_->registers_size_, this));
-              branch_line->CopyFromLine(work_line_.get());
-              branch_line->SetRegisterType(prev_dec_insn.vB , cast_type);
-            }
-          }
-        }
-      }
-
       break;
     }
     case Instruction::IF_LTZ:
@@ -2358,7 +2305,33 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     work_line_->SetResultTypeToUnknown();
   }
 
-
+  /* Handle "continue". Tag the next consecutive instruction. */
+  if ((opcode_flags & Instruction::kContinue) != 0) {
+    uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags()->GetLengthInCodeUnits();
+    if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
+      return false;
+    }
+    // The only way to get to a move-exception instruction is to get thrown there. Make sure the
+    // next instruction isn't one.
+    if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
+      return false;
+    }
+    RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
+    if (next_line != NULL) {
+      // Merge registers into what we have for the next instruction, and set the "changed" flag if
+      // needed.
+      if (!UpdateRegisters(next_insn_idx, work_line_.get())) {
+        return false;
+      }
+    } else {
+      /*
+       * We're not recording register data for the next instruction, so we don't know what the prior
+       * state was. We have to assume that something has changed and re-evaluate it.
+       */
+      insn_flags_[next_insn_idx].SetChanged();
+    }
+  }
 
   /*
    * Handle "branch". Tag the branch target.
@@ -2384,14 +2357,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       return false;
     }
     /* update branch target, set "changed" if appropriate */
-    if (NULL != branch_line.get()) {
-      if (!UpdateRegisters(work_insn_idx_ + branch_target, branch_line.get())) {
-        return false;
-      }
-    } else {
-      if (!UpdateRegisters(work_insn_idx_ + branch_target, work_line_.get())) {
-        return false;
-      }
+    if (!UpdateRegisters(work_insn_idx_ + branch_target, work_line_.get())) {
+      return false;
     }
   }
 
@@ -2473,42 +2440,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
     }
   }
-
-  /* Handle "continue". Tag the next consecutive instruction.
-   *  Note: Keep the code handling "continue" case below the "branch" and "switch" cases,
-   *        because it changes work_line_ when performing peephole optimization
-   *        and this change should not be used in those cases.
-   */
-    if ((opcode_flags & Instruction::kContinue) != 0) {
-      uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags()->GetLengthInCodeUnits();
-      if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
-        return false;
-      }
-      // The only way to get to a move-exception instruction is to get thrown there. Make sure the
-      // next instruction isn't one.
-      if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
-        return false;
-      }
-      RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
-      if (next_line != NULL) {
-        if (NULL != fallthrough_line.get()) {
-          // Make workline consistent with fallthrough computed from peephole optimization.
-          work_line_->CopyFromLine(fallthrough_line.get());
-        }
-        // Merge registers into what we have for the next instruction,
-        // and set the "changed" flag if needed.
-        if (!UpdateRegisters(next_insn_idx, fallthrough_line.get())) {
-          return false;
-        }
-      } else {
-        /*
-         * We're not recording register data for the next instruction, so we don't know what the
-         * prior state was. We have to assume that something has changed and re-evaluate it.
-         */
-        insn_flags_[next_insn_idx].SetChanged();
-      }
-    }
 
   /* If we're returning from the method, make sure monitor stack is empty. */
   if ((opcode_flags & Instruction::kReturn) != 0) {
