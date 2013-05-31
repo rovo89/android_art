@@ -418,6 +418,13 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
                   static_cast<bool*>(arena_->NewMem(sizeof(bool) * 1, false,
                                                     ArenaAllocator::kAllocDFInfo));
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
+              // Match type of uses to def.
+              mir->ssa_rep->fp_use =
+                  static_cast<bool*>(arena_->NewMem(sizeof(bool) * mir->ssa_rep->num_uses, false,
+                                                    ArenaAllocator::kAllocDFInfo));
+              for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+                mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
+              }
               /*
                * There is usually a Phi node in the join block for our two cases.  If the
                * Phi node only contains our two cases as input, we will use the result

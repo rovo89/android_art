@@ -292,18 +292,10 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb)
           is_high |= is_phi && rl_temp.wide && rl_temp.high_word;
         }
         /*
-         * TODO: cleaner fix
-         * We don't normally expect to see a Dalvik register
-         * definition used both as a floating point and core
-         * value.  However, the instruction rewriting that occurs
-         * during verification can eliminate some type information,
-         * leaving us confused.  The real fix here is either to
-         * add explicit type information to Dalvik byte codes,
-         * or to recognize THROW_VERIFICATION_ERROR as
-         * an unconditional branch and support dead code elimination.
-         * As a workaround we can detect this situation and
-         * disable register promotion (which is the only thing that
-         * relies on distinctions between core and fp usages.
+         * We don't normally expect to see a Dalvik register definition used both as a
+         * floating point and core value, though technically it could happen with constants.
+         * Until we have proper typing, detect this situation and disable register promotion
+         * (which relies on the distinction between core a fp usages).
          */
         if ((defined_fp && (defined_core | defined_ref)) &&
             ((cu_->disable_opt & (1 << kPromoteRegs)) == 0)) {
