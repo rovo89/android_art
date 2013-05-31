@@ -21,12 +21,6 @@
 
 namespace art {
 
-bool operator<(const StringPiece& x, const StringPiece& y) {
-  const int r = memcmp(x.data(), y.data(),
-                       std::min(x.size(), y.size()));
-  return ((r < 0) || ((r == 0) && (x.size() < y.size())));
-}
-
 void StringPiece::CopyToString(std::string* target) const {
   target->assign(ptr_, length_);
 }

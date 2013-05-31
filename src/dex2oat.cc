@@ -284,7 +284,8 @@ class Dex2Oat {
     if (heap->GetSpaces().size() > 1) {
       ImageSpace* image_space = heap->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
-      image_file_location_oat_data_begin = reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());
+      image_file_location_oat_data_begin =
+          reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());
       image_file_location = image_space->GetImageFilename();
       if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
         image_file_location = image_file_location.substr(host_prefix->size());
@@ -292,6 +293,13 @@ class Dex2Oat {
     }
 
     std::vector<uint8_t> oat_contents;
+    // TODO: change ElfWriterQuick to not require the creation of oat_contents. The old pre-mclinker
+    //       OatWriter streamed directly to disk. The new could can be adapted to do it as follows:
+    // 1.) use first pass of OatWriter to calculate size of oat structure,
+    // 2.) call ElfWriterQuick with pointer to OatWriter instead of contents,
+    // 3.) have ElfWriterQuick call back to OatWriter to stream generate the output directly in
+    //     place in the elf file.
+    oat_contents.reserve(5 * MB);
     VectorOutputStream vector_output_stream(oat_file->GetPath(), oat_contents);
     if (!OatWriter::Create(vector_output_stream,
                            dex_files,

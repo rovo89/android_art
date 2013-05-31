@@ -26,7 +26,7 @@
 #include "heap.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"

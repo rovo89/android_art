@@ -17,6 +17,7 @@
 #include "register_line.h"
 
 #include "method_verifier.h"
+#include "register_line-inl.h"
 
 namespace art {
 namespace verifier {
@@ -90,12 +91,6 @@ void RegisterLine::SetResultRegisterTypeWide(const RegType& new_type1,
   DCHECK(new_type1.CheckWidePair(new_type2));
   result_[0] = new_type1.GetId();
   result_[1] = new_type2.GetId();
-}
-
-const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
-  // The register index was validated during the static pass, so we don't need to check it here.
-  DCHECK_LT(vsrc, num_regs_);
-  return verifier_->GetRegTypeCache()->GetFromId(line_[vsrc]);
 }
 
 const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_insn) {

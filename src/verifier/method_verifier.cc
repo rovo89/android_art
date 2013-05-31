@@ -32,11 +32,12 @@
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
+#include "register_line-inl.h"
 #include "runtime.h"
 #include "verifier/dex_gc_map.h"
 
@@ -949,9 +950,9 @@ bool MethodVerifier::VerifyCodeFlow() {
     DCHECK_NE(failures_.size(), 0U);
     return false;  // Not a real failure, but a failure to encode
   }
-#ifndef NDEBUG
-  VerifyGcMap(*map);
-#endif
+  if (kIsDebugBuild) {
+    VerifyGcMap(*map);
+  }
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
@@ -3344,6 +3345,7 @@ const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Failed to encode GC map (size=" << table_size << ")";
     return NULL;
   }
+  table->reserve(table_size);
   // Write table header
   table->push_back(format | ((ref_bitmap_bytes >> DexPcToReferenceMap::kRegMapFormatShift) &
                              ~DexPcToReferenceMap::kRegMapFormatMask));
@@ -3404,7 +3406,7 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std:
     }
     dex_gc_maps_->Put(ref, &gc_map);
   }
-  CHECK(GetDexGcMap(ref) != NULL);
+  DCHECK(GetDexGcMap(ref) != NULL);
 }
 
 void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConcreteMethod* devirt_map) {

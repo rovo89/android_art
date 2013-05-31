@@ -17,6 +17,7 @@
 #include "callee_save_frame.h"
 #include "dex_instruction-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"

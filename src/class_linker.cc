@@ -44,7 +44,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/iftable-inl.h"
 #include "mirror/abstract_method.h"
