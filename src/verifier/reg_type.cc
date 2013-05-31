@@ -25,6 +25,7 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "reg_type_cache-inl.h"
+#include "scoped_thread_state_change.h"
 
 #include <limits>
 #include <sstream>
@@ -44,6 +45,41 @@ LongHiType* LongHiType::instance_ = NULL;
 DoubleLoType* DoubleLoType::instance_ = NULL;
 DoubleHiType* DoubleHiType::instance_ = NULL;
 IntegerType* IntegerType::instance_ = NULL;
+
+int32_t RegType::ConstantValue() const {
+  ScopedObjectAccess soa(Thread::Current());
+  LOG(FATAL) << "Unexpected call to ConstantValue: " << *this;
+  return 0;
+}
+
+int32_t RegType::ConstantValueLo() const {
+  ScopedObjectAccess soa(Thread::Current());
+  LOG(FATAL) << "Unexpected call to ConstantValueLo: " << *this;
+  return 0;
+}
+
+int32_t RegType::ConstantValueHi() const {
+  ScopedObjectAccess soa(Thread::Current());
+  LOG(FATAL) << "Unexpected call to ConstantValueHi: " << *this;
+  return 0;
+}
+
+PrimitiveType::PrimitiveType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    : RegType(klass, descriptor, cache_id) {
+  CHECK(klass != NULL);
+  CHECK(!descriptor.empty());
+}
+
+Cat1Type::Cat1Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    : PrimitiveType(klass, descriptor, cache_id) {
+}
+
+Cat2Type::Cat2Type(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    : PrimitiveType(klass, descriptor, cache_id) {
+}
 
 std::string PreciseConstType::Dump() const {
   std::stringstream result;
@@ -349,6 +385,12 @@ void UndefinedType::Destroy() {
   }
 }
 
+PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
+                                           uint16_t cache_id)
+    : RegType(klass, descriptor, cache_id) {
+  DCHECK(klass->IsInstantiable());
+}
+
 std::string UnresolvedMergedType::Dump() const {
   std::stringstream result;
   std::set<uint16_t> types = GetMergedTypes();
@@ -486,78 +528,8 @@ std::string ImpreciseConstHiType::Dump() const {
   return result.str();
 }
 
-BooleanType::BooleanType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-ConflictType::ConflictType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-ByteType::ByteType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-ShortType::ShortType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-CharType::CharType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-IntegerType::IntegerType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
 ConstantType::ConstantType(uint32_t constant, uint16_t cache_id)
     : RegType(NULL, "", cache_id), constant_(constant) {
-}
-
-ReferenceType::ReferenceType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-PreciseReferenceType::PreciseReferenceType(mirror::Class* klass, const std::string& descriptor,
-                                           uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-  DCHECK(klass->IsInstantiable());
-}
-
-UnresolvedUninitializedThisRefType::UnresolvedUninitializedThisRefType(const std::string& descriptor,
-                                                                       uint16_t cache_id)
-    : UninitializedType(NULL, descriptor, 0, cache_id) {
-}
-
-UnresolvedUninitializedRefType::UnresolvedUninitializedRefType(const std::string& descriptor,
-                                                         uint32_t allocation_pc, uint16_t cache_id)
-    : UninitializedType(NULL, descriptor, allocation_pc, cache_id) {
-}
-
-UninitializedReferenceType::UninitializedReferenceType(mirror::Class* klass,
-                                                       const std::string& descriptor,
-                                                       uint32_t allocation_pc, uint16_t cache_id)
-    : UninitializedType(klass, descriptor, allocation_pc, cache_id) {
-}
-
-LongHiType::LongHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-FloatType::FloatType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-DoubleLoType::DoubleLoType(mirror::Class* klass,  const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-DoubleHiType::DoubleHiType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
-}
-
-LongLoType::LongLoType(mirror::Class* klass, const std::string& descriptor, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id) {
 }
 
 const RegType& UndefinedType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const
@@ -603,6 +575,17 @@ Primitive::Type RegType::GetPrimitiveType() const {
   }
 }
 
+bool UninitializedType::IsUninitializedTypes() const {
+  return true;
+}
+
+bool UninitializedType::IsNonZeroReferenceTypes() const {
+  return true;
+}
+
+bool UnresolvedType::IsNonZeroReferenceTypes() const {
+  return true;
+}
 std::set<uint16_t> UnresolvedMergedType::GetMergedTypes() const {
   std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
   const RegType& _left(reg_type_cache_->GetFromId(refs.first));
@@ -640,7 +623,7 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
     if (super_klass != NULL) {
       // A super class of a precise type isn't precise as a precise type indicates the register
       // holds exactly that type.
-      return cache->FromClass(super_klass, false);
+      return cache->FromClass(ClassHelper(super_klass).GetDescriptor(), super_klass, false);
     } else {
       return cache->Zero();
     }
@@ -915,7 +898,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       } else if (c2 == join_class && !incoming_type.IsPreciseReference()) {
         return incoming_type;
       } else {
-        return reg_types->FromClass(join_class, false);
+        return reg_types->FromClass(ClassHelper(join_class).GetDescriptor(), join_class, false);
       }
     }
   } else {
@@ -980,33 +963,22 @@ void RegType::CheckInvariants() const {
     CHECK(descriptor_.empty()) << *this;
     CHECK(klass_ == NULL) << *this;
   }
-}
-
-UninitializedType::UninitializedType(mirror::Class* klass, const std::string& descriptor,
-                                     uint32_t allocation_pc, uint16_t cache_id)
-    : RegType(klass, descriptor, cache_id), allocation_pc_(allocation_pc) {
-}
-
-void UninitializedType::CheckInvariants() const {
-  CHECK_EQ(allocation_pc_, 0U) << *this;
+  if (klass_ != NULL) {
+    CHECK(!descriptor_.empty()) << *this;
+  }
 }
 
 void UninitializedThisReferenceType::CheckInvariants() const {
-  UninitializedType::CheckInvariants();
-}
-
-UninitializedThisReferenceType::UninitializedThisReferenceType(mirror::Class* klass,
-  const std::string& descriptor, uint16_t cache_id) : UninitializedType(klass, descriptor, 0, cache_id) {
+  CHECK_EQ(GetAllocationPc(), 0U) << *this;
 }
 
 void UnresolvedUninitializedThisRefType::CheckInvariants() const {
-  UninitializedType::CheckInvariants();
+  CHECK_EQ(GetAllocationPc(), 0U) << *this;
   CHECK(!descriptor_.empty()) << *this;
   CHECK(klass_ == NULL) << *this;
 }
 
 void UnresolvedUninitializedRefType::CheckInvariants() const {
-  UninitializedType::CheckInvariants();
   CHECK(!descriptor_.empty()) << *this;
   CHECK(klass_ == NULL) << *this;
 }

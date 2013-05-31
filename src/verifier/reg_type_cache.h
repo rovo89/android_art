@@ -39,6 +39,7 @@ const size_t kNumPrimitives = 12;
 class RegTypeCache {
  public:
   explicit RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
+    entries_.reserve(64);
     FillPrimitiveTypes();
   }
   ~RegTypeCache();
@@ -58,7 +59,7 @@ class RegTypeCache {
   static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FillPrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromClass(mirror::Class* klass, bool precise)
+  const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromCat1Const(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

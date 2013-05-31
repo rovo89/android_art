@@ -436,7 +436,7 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
   return NULL;
 }
 
-const DexFile::StringId* DexFile::FindStringId(const std::string& string) const {
+const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   int32_t lo = 0;
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
@@ -444,7 +444,27 @@ const DexFile::StringId* DexFile::FindStringId(const std::string& string) const 
     uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringDataAndLength(str_id, &length);
-    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string.c_str(), str);
+    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
+    if (compare > 0) {
+      lo = mid + 1;
+    } else if (compare < 0) {
+      hi = mid - 1;
+    } else {
+      return &str_id;
+    }
+  }
+  return NULL;
+}
+
+const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
+  int32_t lo = 0;
+  int32_t hi = NumStringIds() - 1;
+  while (hi >= lo) {
+    int32_t mid = (hi + lo) / 2;
+    uint32_t length;
+    const DexFile::StringId& str_id = GetStringId(mid);
+    const char* str = GetStringDataAndLength(str_id, &length);
+    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
     if (compare > 0) {
       lo = mid + 1;
     } else if (compare < 0) {
@@ -544,7 +564,7 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
         descriptor += c;
       } while (c != ';');
     }
-    const DexFile::StringId* string_id = FindStringId(descriptor);
+    const DexFile::StringId* string_id = FindStringId(descriptor.c_str());
     if (string_id == NULL) {
       return false;
     }

@@ -577,7 +577,7 @@ class MethodVerifier {
   // All the GC maps that the verifier has created
   typedef SafeMap<const CompilerDriver::MethodReference, const std::vector<uint8_t>*,
       CompilerDriver::MethodReferenceComparator> DexGcMapTable;
-  static Mutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static ReaderWriterMutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
   static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
@@ -590,7 +590,7 @@ class MethodVerifier {
   MethodVerifier::PcToConcreteMethod* GenerateDevirtMap()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static Mutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static ReaderWriterMutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DevirtualizationMapTable* devirt_maps_ GUARDED_BY(devirt_maps_lock_);
   static void SetDevirtMap(CompilerDriver::MethodReference ref,
                            const PcToConcreteMethod* pc_method_map)
@@ -616,20 +616,20 @@ class MethodVerifier {
   // Storage for the register status we're saving for later.
   UniquePtr<RegisterLine> saved_line_;
 
-  uint32_t dex_method_idx_;  // The method we're working on.
+  const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
-  mirror::AbstractMethod* foo_method_ GUARDED_BY(Locks::mutator_lock_);
-  uint32_t method_access_flags_;  // Method's access flags.
-  const DexFile* dex_file_;  // The dex file containing the method.
+  mirror::AbstractMethod* mirror_method_ GUARDED_BY(Locks::mutator_lock_);
+  const uint32_t method_access_flags_;  // Method's access flags.
+  const DexFile* const dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
   mirror::DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
   mirror::ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
-  uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
-  const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
+  const uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
+  const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
+  const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
   UniquePtr<InstructionFlags[]> insn_flags_;
-
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,

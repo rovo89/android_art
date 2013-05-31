@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "base/logging.h"
+#include "base/mutex-inl.h"
 #include "base/stringpiece.h"
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
@@ -267,13 +268,14 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
     : reg_types_(can_load_classes),
       work_insn_idx_(-1),
       dex_method_idx_(dex_method_idx),
-      foo_method_(method),
+      mirror_method_(method),
       method_access_flags_(method_access_flags),
       dex_file_(dex_file),
       dex_cache_(dex_cache),
       class_loader_(class_loader),
       class_def_idx_(class_def_idx),
       code_item_(code_item),
+      declaring_class_(NULL),
       interesting_dex_pc_(-1),
       monitor_enter_dex_pcs_(NULL),
       have_pending_hard_failure_(false),
@@ -896,6 +898,7 @@ bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
 
 static const std::vector<uint8_t>* CreateLengthPrefixedDexGcMap(const std::vector<uint8_t>& gc_map) {
   std::vector<uint8_t>* length_prefixed_gc_map = new std::vector<uint8_t>;
+  length_prefixed_gc_map->reserve(gc_map.size() + 4);
   length_prefixed_gc_map->push_back((gc_map.size() & 0xff000000) >> 24);
   length_prefixed_gc_map->push_back((gc_map.size() & 0x00ff0000) >> 16);
   length_prefixed_gc_map->push_back((gc_map.size() & 0x0000ff00) >> 8);
@@ -2542,7 +2545,7 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const RegType& referrer = GetDeclaringClass();
   mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType& result =
-      klass != NULL ? reg_types_.FromClass(klass, klass->IsFinal())
+      klass != NULL ? reg_types_.FromClass(descriptor, klass, klass->IsFinal())
                     : reg_types_.FromDescriptor(class_loader_, descriptor, false);
   if (result.IsConflict()) {
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
@@ -2756,7 +2759,8 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const DecodedInstru
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       mirror::Class* klass = res_method->GetDeclaringClass();
-      const RegType& res_method_class = reg_types_.FromClass(klass, klass->IsFinal());
+      const RegType& res_method_class = reg_types_.FromClass(ClassHelper(klass).GetDescriptor(),
+                                                             klass, klass->IsFinal());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
             << "' not instance of '" << res_method_class << "'";
@@ -2935,7 +2939,7 @@ mirror::Field* MethodVerifier::GetStaticField(int field_idx) {
   mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
                                                                        dex_cache_, class_loader_);
   if (field == NULL) {
-    LOG(INFO) << "unable to resolve static field " << field_idx << " ("
+    LOG(INFO) << "Unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
@@ -2970,7 +2974,7 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
   mirror::Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
                                                                        dex_cache_, class_loader_);
   if (field == NULL) {
-    LOG(INFO) << "unable to resolve instance field " << field_idx << " ("
+    LOG(INFO) << "Unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     DCHECK(Thread::Current()->IsExceptionPending());
@@ -2990,7 +2994,9 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
     return field;
   } else {
     mirror::Class* klass = field->GetDeclaringClass();
-    const RegType& field_klass = reg_types_.FromClass(klass, klass->IsFinal());
+    const RegType& field_klass =
+        reg_types_.FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
+                             klass, klass->IsFinal());
     if (obj_type.IsUninitializedTypes() &&
         (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
             !field_klass.Equals(GetDeclaringClass()))) {
@@ -3198,14 +3204,17 @@ const RegType& MethodVerifier::GetMethodReturnType() {
 }
 
 const RegType& MethodVerifier::GetDeclaringClass() {
-  if (foo_method_ != NULL) {
-    mirror::Class* klass = foo_method_->GetDeclaringClass();
-    return reg_types_.FromClass(klass, klass->IsFinal());
-  } else {
+  if (declaring_class_ == NULL) {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx_);
     const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
-    return reg_types_.FromDescriptor(class_loader_, descriptor, false);
+    if (mirror_method_ != NULL) {
+      mirror::Class* klass = mirror_method_->GetDeclaringClass();
+      declaring_class_ = &reg_types_.FromClass(descriptor, klass, klass->IsFinal());
+    } else {
+      declaring_class_ = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
+    }
   }
+  return *declaring_class_;
 }
 
 void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
@@ -3396,9 +3405,10 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref,
+                                 const std::vector<uint8_t>& gc_map) {
   {
-    MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
+    WriterMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
     DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
     if (it != dex_gc_maps_->end()) {
       delete it->second;
@@ -3409,9 +3419,20 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref, const std:
   DCHECK(GetDexGcMap(ref) != NULL);
 }
 
-void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const PcToConcreteMethod* devirt_map) {
+const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
+  ReaderMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
+  DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
+  if (it == dex_gc_maps_->end()) {
+    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
+}
 
-  MutexLock mu(Thread::Current(), *devirt_maps_lock_);
+void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref,
+                                   const PcToConcreteMethod* devirt_map) {
+  WriterMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
   if (it != devirt_maps_->end()) {
     delete it->second;
@@ -3422,20 +3443,9 @@ void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref, const Pc
   CHECK(devirt_maps_->find(ref) != devirt_maps_->end());
 }
 
-const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
-  MutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
-  DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
-  if (it == dex_gc_maps_->end()) {
-    LOG(WARNING) << "Didn't find GC map for: " << PrettyMethod(ref.dex_method_index, *ref.dex_file);
-    return NULL;
-  }
-  CHECK(it->second != NULL);
-  return it->second;
-}
-
 const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(const CompilerDriver::MethodReference& ref,
                                                                     uint32_t dex_pc) {
-  MutexLock mu(Thread::Current(), *devirt_maps_lock_);
+  ReaderMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::const_iterator it = devirt_maps_->find(ref);
   if (it == devirt_maps_->end()) {
     return NULL;
@@ -3494,26 +3504,26 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
   return result;
 }
 
-Mutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
+ReaderWriterMutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
 MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
-Mutex* MethodVerifier::devirt_maps_lock_ = NULL;
+ReaderWriterMutex* MethodVerifier::devirt_maps_lock_ = NULL;
 MethodVerifier::DevirtualizationMapTable* MethodVerifier::devirt_maps_ = NULL;
 
 Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
 MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
 
 void MethodVerifier::Init() {
-  dex_gc_maps_lock_ = new Mutex("verifier GC maps lock");
+  dex_gc_maps_lock_ = new ReaderWriterMutex("verifier GC maps lock");
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, *dex_gc_maps_lock_);
+    WriterMutexLock mu(self, *dex_gc_maps_lock_);
     dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
   }
 
-  devirt_maps_lock_ = new Mutex("verifier Devirtualization lock");
+  devirt_maps_lock_ = new ReaderWriterMutex("verifier Devirtualization lock");
   {
-    MutexLock mu(self, *devirt_maps_lock_);
+    WriterMutexLock mu(self, *devirt_maps_lock_);
     devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();
   }
 
@@ -3528,7 +3538,7 @@ void MethodVerifier::Init() {
 void MethodVerifier::Shutdown() {
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, *dex_gc_maps_lock_);
+    WriterMutexLock mu(self, *dex_gc_maps_lock_);
     STLDeleteValues(dex_gc_maps_);
     delete dex_gc_maps_;
     dex_gc_maps_ = NULL;
@@ -3537,7 +3547,7 @@ void MethodVerifier::Shutdown() {
   dex_gc_maps_lock_ = NULL;
 
   {
-    MutexLock mu(self, *devirt_maps_lock_);
+    WriterMutexLock mu(self, *devirt_maps_lock_);
     STLDeleteValues(devirt_maps_);
     delete devirt_maps_;
     devirt_maps_ = NULL;

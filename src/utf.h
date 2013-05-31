@@ -56,6 +56,12 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
 int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1, const char* utf8_2);
 
 /*
+ * Compare a modified UTF-8 string with a UTF-16 string as code point values in a non-locale
+ * sensitive manner.
+ */
+int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2);
+
+/*
  * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
  * NUL-terminated. You probably need to call CountUtf8Bytes before calling
  * this anyway, so if you want a NUL-terminated string, you know where to

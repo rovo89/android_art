@@ -54,6 +54,7 @@ ART_C_INCLUDES := \
 	art/src
 
 art_cflags := \
+	-fno-rtti \
 	-O2 \
 	-ggdb3 \
 	-Wall \

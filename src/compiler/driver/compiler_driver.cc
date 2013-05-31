@@ -752,9 +752,8 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
           }
           // Search dex file for localized ssb index, may fail if field's class is a parent
           // of the class mentioned in the dex file and there is no dex cache entry.
-          std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
-          mUnit->GetDexFile()->FindStringId(descriptor);
+              mUnit->GetDexFile()->FindStringId(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           if (string_id != NULL) {
             const DexFile::TypeId* type_id =
                mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));

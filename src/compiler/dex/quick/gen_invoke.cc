@@ -1225,9 +1225,9 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
-  const char* tgt_methods_declaring_class =
-      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index));
-  if (strstr(tgt_methods_declaring_class, "Ljava/lang") != NULL) {
+  StringPiece tgt_methods_declaring_class(
+      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index)));
+  if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
       return GenInlinedDoubleCvt(info);
@@ -1235,12 +1235,17 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
     if (tgt_method == "double java.lang.Double.longBitsToDouble(long)") {
       return GenInlinedDoubleCvt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "int java.lang.Float.float_to_raw_int_bits(float)") {
       return GenInlinedFloatCvt(info);
     }
     if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
       return GenInlinedFloatCvt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
+             tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "int java.lang.Math.abs(int)" ||
         tgt_method == "int java.lang.StrictMath.abs(int)") {
       return GenInlinedAbsInt(info);
@@ -1261,6 +1266,8 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
         tgt_method == "double java.lang.StrictMath.sqrt(double)") {
       return GenInlinedSqrt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "char java.lang.String.charAt(int)") {
       return GenInlinedCharAt(info);
     }
@@ -1279,10 +1286,12 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
     if (tgt_method == "int java.lang.String.length()") {
       return GenInlinedStringIsEmptyOrLength(info, false /* is_empty */);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Thread;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(info);
     }
-  } else if (strstr(tgt_methods_declaring_class, "Lsun/misc/Unsafe;") != NULL) {
+  } else if (tgt_methods_declaring_class.starts_with("Lsun/misc/Unsafe;")) {
     std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
       return GenInlinedCas32(info, false);

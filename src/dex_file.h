@@ -436,8 +436,11 @@ class DexFile {
     return StringDataAndLengthByIdx(idx, &unicode_length);
   }
 
-  // Looks up a string id for a given string
-  const StringId* FindStringId(const std::string& string) const;
+  // Looks up a string id for a given modified utf8 string.
+  const StringId* FindStringId(const char* string) const;
+
+  // Looks up a string id for a given utf16 string.
+  const StringId* FindStringId(const uint16_t* string) const;
 
   // Returns the number of type identifiers in the .dex file.
   size_t NumTypeIds() const {
@@ -974,7 +977,7 @@ class ClassDataItemIterator {
   bool HasNext() const {
     return pos_ < EndOfVirtualMethodsPos();
   }
-  void Next() {
+  inline void Next() {
     pos_++;
     if (pos_ < EndOfStaticFieldsPos()) {
       last_idx_ = GetMemberIndex();

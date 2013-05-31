@@ -168,13 +168,13 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
     return;
   }
   String* string = obj->AsString();
-  std::string utf8_string(string->ToModifiedUtf8());
+  const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
   ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = writer->dex_caches_.begin(), end = writer->dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
     const DexFile& dex_file = *dex_cache->GetDexFile();
-    const DexFile::StringId* string_id = dex_file.FindStringId(utf8_string);
+    const DexFile::StringId* string_id = dex_file.FindStringId(utf16_string);
     if (string_id != NULL) {
       // This string occurs in this dex file, assign the dex cache entry.
       uint32_t string_idx = dex_file.GetIndexForStringId(*string_id);

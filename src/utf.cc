@@ -119,6 +119,23 @@ int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1, 
   }
 }
 
+int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2) {
+  for (;;) {
+    if (*utf8_1 == '\0') {
+      return (*utf8_2 == '\0') ? 0 : -1;
+    } else if (*utf8_2 == '\0') {
+      return 1;
+    }
+
+    int c1 = GetUtf16FromUtf8(&utf8_1);
+    int c2 = *utf8_2;
+
+    if (c1 != c2) {
+      return c1 > c2 ? 1 : -1;
+    }
+  }
+}
+
 size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count) {
   size_t result = 0;
   while (char_count--) {
