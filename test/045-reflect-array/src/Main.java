@@ -16,6 +16,7 @@ public class Main {
         testSingle();
         testMultiInt();
         testMulti();
+        testAbstract();
 
         System.out.println("ReflectArrayTest passed");
     }
@@ -254,5 +255,15 @@ public class Main {
         catch (ArrayIndexOutOfBoundsException abe) {
         }
         System.out.println("ReflectArrayTest.testMulti passed");
+    }
+
+    static void testAbstract() {
+        Object arrayOfAbstractClasses = Array.newInstance(Number.class, 1);
+        System.out.println(arrayOfAbstractClasses.getClass().toString() + " modifiers: " +
+                           arrayOfAbstractClasses.getClass().getModifiers());
+        arrayOfAbstractClasses = Array.newInstance(Cloneable.class, 1);
+        System.out.println(arrayOfAbstractClasses.getClass().toString() + " modifiers: " +
+                           arrayOfAbstractClasses.getClass().getModifiers());
+        System.out.println("ReflectArrayTest.testAbstract passed");
     }
 }
