@@ -24,7 +24,7 @@
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "dex_instruction_visitor.h"
 #include "gc/card_table-inl.h"
 #include "indenter.h"
@@ -959,7 +959,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
-  MethodVerifier::PcToConcreteMethod* pc_to_concrete_method = GenerateDevirtMap();
+  MethodVerifier::PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap();
   if(pc_to_concrete_method != NULL ) {
     SetDevirtMap(ref, pc_to_concrete_method);
   }
@@ -3239,7 +3239,7 @@ void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bit
   *log2_max_gc_pc = i;
 }
 
-MethodVerifier::PcToConcreteMethod* MethodVerifier::GenerateDevirtMap() {
+MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
 
   // It is risky to rely on reg_types for sharpening in cases of soft
   // verification, we might end up sharpening to a wrong implementation. Just abort.
@@ -3247,39 +3247,43 @@ MethodVerifier::PcToConcreteMethod* MethodVerifier::GenerateDevirtMap() {
     return NULL;
   }
 
-  UniquePtr<PcToConcreteMethod> pc_to_concrete_method(new PcToConcreteMethod());
-  uint32_t dex_pc = 0;
+  UniquePtr<PcToConcreteMethodMap> pc_to_concrete_method_map;
   const uint16_t* insns = code_item_->insns_ ;
   const Instruction* inst = Instruction::At(insns);
+  const Instruction* end = Instruction::At(insns + code_item_->insns_size_in_code_units_);
 
-  for (; dex_pc < code_item_->insns_size_in_code_units_;
-         dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits(), inst = inst->Next()) {
-
+  for (; inst < end; inst = inst->Next()) {
     bool is_virtual   = (inst->Opcode() == Instruction::INVOKE_VIRTUAL) ||
         (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE);
     bool is_interface = (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
         (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
 
-   if(!(is_interface || is_virtual))
-     continue;
-
-    // Check if vC ("this" pointer in the instruction) has a precise type.
-    RegisterLine* line = reg_table_.GetLine(dex_pc);
-    DecodedInstruction dec_insn(inst);
-    const RegType& reg_type(line->GetRegisterType(dec_insn.vC));
-
-    if (!reg_type.IsPreciseReference()) {
+    if(!is_interface && !is_virtual) {
       continue;
     }
+    // Get reg type for register holding the reference to the object that will be dispatched upon.
+    uint32_t dex_pc = inst->GetDexPc(insns);
+    RegisterLine* line = reg_table_.GetLine(dex_pc);
+    bool is_range = (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
+        (inst->Opcode() ==  Instruction::INVOKE_INTERFACE_RANGE);
+    const RegType&
+        reg_type(line->GetRegisterType(is_range ? inst->VRegC_3rc() : inst->VRegC_35c()));
 
-    CHECK(!(reg_type.GetClass()->IsInterface()));
-    // If the class is an array class, it can be both Abstract and final and so
-    // the reg_type will be created as precise.
-    CHECK(!(reg_type.GetClass()->IsAbstract()) || reg_type.GetClass()->IsArrayClass());
-    // Find the abstract method.
-    // vB has the method index.
-    mirror::AbstractMethod* abstract_method =  NULL ;
-    abstract_method =  dex_cache_->GetResolvedMethod(dec_insn.vB);
+    if (!reg_type.HasClass()) {
+      // We will compute devirtualization information only when we know the Class of the reg type.
+      continue;
+    }
+    mirror::Class* reg_class = reg_type.GetClass();
+    if (reg_class->IsInterface()) {
+      // We can't devirtualize when the known type of the register is an interface.
+      continue;
+    }
+    if (reg_class->IsAbstract() && !reg_class->IsArrayClass()) {
+      // We can't devirtualize abstract classes except on arrays of abstract classes.
+      continue;
+    }
+    mirror::AbstractMethod* abstract_method =
+        dex_cache_->GetResolvedMethod(is_range ? inst->VRegB_3rc() : inst->VRegB_35c());
     if(abstract_method == NULL) {
       // If the method is not found in the cache this means that it was never found
       // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
@@ -3293,27 +3297,24 @@ MethodVerifier::PcToConcreteMethod* MethodVerifier::GenerateDevirtMap() {
     if (is_virtual) {
       concrete_method = reg_type.GetClass()->FindVirtualMethodForVirtual(abstract_method);
     }
-
-    if(concrete_method == NULL) {
-      // In cases where concrete_method is not found continue to the next invoke instead
-      // of crashing.
+    if (concrete_method == NULL || concrete_method->IsAbstract()) {
+      // In cases where concrete_method is not found, or is abstract, continue to the next invoke.
       continue;
     }
-
-    CHECK(!concrete_method->IsAbstract()) << PrettyMethod(concrete_method);
-    // Build method reference.
-    CompilerDriver::MethodReference concrete_ref(
-        concrete_method->GetDeclaringClass()->GetDexCache()->GetDexFile(),
-        concrete_method->GetDexMethodIndex());
-    // Now Save the current PC and the concrete method reference to be used
-    // in compiler driver.
-    pc_to_concrete_method->Put(dex_pc, concrete_ref );
+    if (reg_type.IsPreciseReference() || concrete_method->IsFinal() ||
+        concrete_method->GetDeclaringClass()->IsFinal()) {
+      // If we knew exactly the class being dispatched upon, or if the target method cannot be
+      // overridden record the target to be used in the compiler driver.
+      if (pc_to_concrete_method_map.get() == NULL) {
+        pc_to_concrete_method_map.reset(new PcToConcreteMethodMap());
+      }
+      CompilerDriver::MethodReference concrete_ref(
+          concrete_method->GetDeclaringClass()->GetDexCache()->GetDexFile(),
+          concrete_method->GetDexMethodIndex());
+      pc_to_concrete_method_map->Put(dex_pc, concrete_ref);
+    }
   }
-
-  if (pc_to_concrete_method->size() == 0) {
-    return NULL ;
-  }
-  return pc_to_concrete_method.release();
+  return pc_to_concrete_method_map.release();
 }
 
 const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
@@ -3431,7 +3432,7 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodRe
 }
 
 void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref,
-                                   const PcToConcreteMethod* devirt_map) {
+                                   const PcToConcreteMethodMap* devirt_map) {
   WriterMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
   if (it != devirt_maps_->end()) {
@@ -3452,7 +3453,7 @@ const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(const Compil
   }
 
   // Look up the PC in the map, get the concrete method to execute and return its reference.
-  MethodVerifier::PcToConcreteMethod::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
+  MethodVerifier::PcToConcreteMethodMap::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
   if(pc_to_concrete_method != it->second->end()) {
     return &(pc_to_concrete_method->second);
   } else {

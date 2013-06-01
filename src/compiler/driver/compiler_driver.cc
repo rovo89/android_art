@@ -973,6 +973,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
                   }
                 }
               }
+              // TODO: the stats for direct code and method are off as we failed to find the direct
+              //       method in the referring method's dex cache/file.
             } else {
               if (update_stats) {
                 stats_->ResolvedMethod(invoke_type);
