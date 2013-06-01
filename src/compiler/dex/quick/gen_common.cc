@@ -931,7 +931,6 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
   LoadWordDisp(TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class */
-  LIR* call_inst;
   LIR* branchover = NULL;
   if (cu_->instruction_set == kThumb2) {
     /* Uses conditional nullification */
@@ -940,7 +939,7 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
     OpIT(kCondEq, "EE");   // if-convert the test
     LoadConstant(TargetReg(kArg0), 1);     // .eq case - load true
     OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
-    call_inst = OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+    OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
     FreeTemp(r_tgt);
   } else {
     /* Uses branchovers */
@@ -949,14 +948,13 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
     if (cu_->instruction_set != kX86) {
       int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
-      call_inst = OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+      OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
       FreeTemp(r_tgt);
     } else {
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-      call_inst = OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+      OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
     }
   }
-  MarkSafepointPC(call_inst);
   ClobberCalleeSave();
   /* branch targets here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
