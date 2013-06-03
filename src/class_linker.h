@@ -334,6 +334,14 @@ class ClassLinker {
     is_dirty_ = true;
   }
 
+  const void* GetPortableResolutionTrampoline() const {
+    return portable_resolution_trampoline_;
+  }
+
+  const void* GetQuickResolutionTrampoline() const {
+    return quick_resolution_trampoline_;
+  }
+
  private:
   explicit ClassLinker(InternTable*);
 
@@ -592,6 +600,9 @@ class ClassLinker {
   bool is_dirty_;
 
   InternTable* intern_table_;
+
+  const void* portable_resolution_trampoline_;
+  const void* quick_resolution_trampoline_;
 
   friend class CommonTest;
   friend class ImageWriter;  // for GetClassRoots

@@ -172,6 +172,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiled_method.cc \
 	src/compiler/driver/compiler_driver.cc \
 	src/compiler/llvm/runtime_support_llvm.cc \
+        src/compiler/stubs/portable/stubs.cc \
+        src/compiler/stubs/quick/stubs.cc \
 	src/debugger.cc \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \

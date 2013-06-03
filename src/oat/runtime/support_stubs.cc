@@ -144,7 +144,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* c
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != GetResolutionTrampoline());
+    DCHECK(code != GetResolutionTrampoline(linker));
     // Set up entry into main method
     *called_addr = called;
   }
@@ -393,7 +393,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* call
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != GetResolutionTrampoline());
+    DCHECK(code != GetResolutionTrampoline(linker));
     // Set up entry into main method
     regs[0] = reinterpret_cast<uintptr_t>(called);
   }

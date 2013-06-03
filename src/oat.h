@@ -43,8 +43,20 @@ class PACKED(4) OatHeader {
     return dex_file_count_;
   }
   uint32_t GetExecutableOffset() const;
-  InstructionSet GetInstructionSet() const;
   void SetExecutableOffset(uint32_t executable_offset);
+  const void* GetInterpreterToInterpreterEntry() const;
+  uint32_t GetInterpreterToInterpreterEntryOffset() const;
+  void SetInterpreterToInterpreterEntryOffset(uint32_t offset);
+  const void* GetInterpreterToQuickEntry() const;
+  uint32_t GetInterpreterToQuickEntryOffset() const;
+  void SetInterpreterToQuickEntryOffset(uint32_t offset);
+  const void* GetPortableResolutionTrampoline() const;
+  uint32_t GetPortableResolutionTrampolineOffset() const;
+  void SetPortableResolutionTrampolineOffset(uint32_t offset);
+  const void* GetQuickResolutionTrampoline() const;
+  uint32_t GetQuickResolutionTrampolineOffset() const;
+  void SetQuickResolutionTrampolineOffset(uint32_t offset);
+  InstructionSet GetInstructionSet() const;
   uint32_t GetImageFileLocationOatChecksum() const;
   uint32_t GetImageFileLocationOatDataBegin() const;
   uint32_t GetImageFileLocationSize() const;
@@ -62,6 +74,10 @@ class PACKED(4) OatHeader {
   InstructionSet instruction_set_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
+  uint32_t interpreter_to_interpreter_entry_offset_;
+  uint32_t interpreter_to_quick_entry_offset_;
+  uint32_t portable_resolution_trampoline_offset_;
+  uint32_t quick_resolution_trampoline_offset_;
 
   uint32_t image_file_location_oat_checksum_;
   uint32_t image_file_location_oat_data_begin_;

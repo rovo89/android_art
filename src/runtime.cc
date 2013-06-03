@@ -1109,7 +1109,9 @@ mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
   // When compiling, the code pointer will get set later when the image is loaded.
-  method->SetEntryPointFromCompiledCode(Runtime::Current()->IsCompiler() ? NULL : GetResolutionTrampoline());
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetResolutionTrampoline(cl));
   return method.get();
 }
 

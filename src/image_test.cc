@@ -48,7 +48,8 @@ TEST_F(ImageTest, WriteRead) {
       dex_files.push_back(java_lang_dex_file_);
       dex_files.push_back(conscrypt_file_);
       VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
-      bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "", *compiler_driver_.get());
+      bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "",
+                                           *compiler_driver_.get());
       ASSERT_TRUE(success_oat);
 
       // Force all system classes into memory

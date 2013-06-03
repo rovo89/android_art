@@ -133,7 +133,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    EnterInterpreterFromInterpreter(self, mh, code_item, shadow_frame, result);
+    artInterpreterToInterpreterEntry(self, mh, code_item, shadow_frame, result);
   }
 }
 
@@ -2816,9 +2816,9 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
   return Execute(self, mh, code_item, shadow_frame, JValue());
 }
 
-void EnterInterpreterFromInterpreter(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
-                                     JValue* result)
+void artInterpreterToInterpreterEntry(Thread* self, MethodHelper& mh,
+                                      const DexFile::CodeItem* code_item,
+                                      ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
     ThrowStackOverflowError(self);

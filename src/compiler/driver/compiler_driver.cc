@@ -24,6 +24,7 @@
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
+#include "compiler/stubs/stubs.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
@@ -446,6 +447,66 @@ CompilerTls* CompilerDriver::GetTls() {
     CHECK_PTHREAD_CALL(pthread_setspecific, (tls_key_, res), "compiler tls");
   }
   return res;
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreatePortableResolutionTrampoline();
+    case kMips:
+      return mips::CreatePortableResolutionTrampoline();
+    case kX86:
+      return x86::CreatePortableResolutionTrampoline();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateQuickResolutionTrampoline();
+    case kMips:
+      return mips::CreateQuickResolutionTrampoline();
+    case kX86:
+      return x86::CreateQuickResolutionTrampoline();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterEntry() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateInterpreterToInterpreterEntry();
+    case kMips:
+      return mips::CreateInterpreterToInterpreterEntry();
+    case kX86:
+      return x86::CreateInterpreterToInterpreterEntry();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToQuickEntry() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateInterpreterToQuickEntry();
+    case kMips:
+      return mips::CreateInterpreterToQuickEntry();
+    case kX86:
+      return x86::CreateInterpreterToQuickEntry();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
 }
 
 void CompilerDriver::CompileAll(jobject class_loader,

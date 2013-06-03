@@ -280,9 +280,8 @@ class Dex2Oat {
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_data_begin = 0;
-    Heap* heap = Runtime::Current()->GetHeap();
-    if (heap->GetSpaces().size() > 1) {
-      ImageSpace* image_space = heap->GetImageSpace();
+    if (!driver->IsImage()) {
+      ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
           reinterpret_cast<uint32_t>(image_space->GetImageHeader().GetOatDataBegin());

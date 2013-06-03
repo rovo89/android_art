@@ -39,7 +39,9 @@ class ImageWriter {
  public:
   explicit ImageWriter(std::set<std::string>* image_classes)
       : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
-        oat_data_begin_(NULL) {}
+        oat_data_begin_(NULL), interpreter_to_interpreter_entry_offset_(0),
+        interpreter_to_quick_entry_offset_(0), portable_resolution_trampoline_offset_(0),
+        quick_resolution_trampoline_offset_(0) {}
 
   ~ImageWriter() {}
 
@@ -196,7 +198,13 @@ class ImageWriter {
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
 
-  // DexCaches seen while scanning for fixing up CodeAndDirectMethods.
+  // Offset from oat_data_begin_ to the stubs.
+  uint32_t interpreter_to_interpreter_entry_offset_;
+  uint32_t interpreter_to_quick_entry_offset_;
+  uint32_t portable_resolution_trampoline_offset_;
+  uint32_t quick_resolution_trampoline_offset_;
+
+  // DexCaches seen while scanning for fixing up CodeAndDirectMethods
   typedef std::set<mirror::DexCache*> Set;
   Set dex_caches_;
 };

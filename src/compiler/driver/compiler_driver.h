@@ -98,6 +98,16 @@ class CompilerDriver {
 
   CompilerTls* GetTls();
 
+  // Generate the trampolines that are invoked by unresolved direct methods.
+  const std::vector<uint8_t>* CreatePortableResolutionTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateInterpreterToQuickEntry() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
 

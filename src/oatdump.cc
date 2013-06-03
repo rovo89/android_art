@@ -880,7 +880,7 @@ class ImageDumper {
   const void* GetOatCodeBegin(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* code = m->GetEntryPointFromCompiledCode();
-    if (code == GetResolutionTrampoline()) {
+    if (code == GetResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
       code = oat_dumper_->GetOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {

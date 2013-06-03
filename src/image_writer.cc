@@ -81,6 +81,10 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
   oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
   class_linker->RegisterOatFile(*oat_file_);
+  interpreter_to_interpreter_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToInterpreterEntryOffset();
+  interpreter_to_quick_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToQuickEntryOffset();
+  portable_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
+  quick_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
 
   {
     Thread::Current()->TransitionFromSuspendedToRunnable();
@@ -507,17 +511,34 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   if (orig->IsAbstract()) {
     // Code for abstract methods is set to the abstract method error stub when we load the image.
     copy->SetEntryPointFromCompiledCode(NULL);
+    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+                                       (GetOatAddress(interpreter_to_interpreter_entry_offset_)));
     return;
+  } else {
+    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+                                       (GetOatAddress(interpreter_to_quick_entry_offset_)));
   }
 
   if (orig == Runtime::Current()->GetResolutionMethod()) {
-    // The resolution method's code is set to the resolution trampoline when we load the image.
-    copy->SetEntryPointFromCompiledCode(NULL);
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
     return;
   }
 
-  // Non-abstract methods have code
-  copy->SetEntryPointFromCompiledCode(GetOatAddress(orig->GetOatCodeOffset()));
+  // Use original code if it exists. Otherwise, set the code pointer to the resolution trampoline.
+  const byte* code = GetOatAddress(orig->GetOatCodeOffset());
+  if (code != NULL) {
+    copy->SetEntryPointFromCompiledCode(code);
+  } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
+  }
 
   if (orig->IsNative()) {
     // The native method's pointer is set to a stub to lookup via dlsym when we load the image.

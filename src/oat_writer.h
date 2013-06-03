@@ -83,7 +83,8 @@ class OatWriter {
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
-  size_t InitOatCode(size_t offset);
+  size_t InitOatCode(size_t offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t InitOatCodeDexFiles(size_t offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t InitOatCodeDexFile(size_t offset,
@@ -120,7 +121,7 @@ class OatWriter {
     explicit OatDexFile(size_t offset, const DexFile& dex_file);
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OutputStream& out) const;
+    bool Write(OatWriter* oat_writer, OutputStream& out) const;
 
     // Offset of start of OatDexFile from beginning of OatHeader. It is
     // used to validate file position when writing.
@@ -144,7 +145,7 @@ class OatWriter {
     size_t GetOatMethodOffsetsOffsetFromOatClass(size_t class_def_method_index_) const;
     size_t SizeOf() const;
     void UpdateChecksum(OatHeader& oat_header) const;
-    bool Write(OutputStream& out) const;
+    bool Write(OatWriter* oat_writer, OutputStream& out) const;
 
     // Offset of start of OatClass from beginning of OatHeader. It is
     // used to validate file position when writing. For Portable, it
@@ -175,7 +176,35 @@ class OatWriter {
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
-  uint32_t executable_offset_padding_length_;
+  UniquePtr<const std::vector<uint8_t> > interpreter_to_interpreter_entry_;
+  UniquePtr<const std::vector<uint8_t> > interpreter_to_quick_entry_;
+  UniquePtr<const std::vector<uint8_t> > portable_resolution_trampoline_;
+  UniquePtr<const std::vector<uint8_t> > quick_resolution_trampoline_;
+
+  // output stats
+  uint32_t size_dex_file_alignment_;
+  uint32_t size_executable_offset_alignment_;
+  uint32_t size_oat_header_;
+  uint32_t size_oat_header_image_file_location_;
+  uint32_t size_dex_file_;
+  uint32_t size_interpreter_to_interpreter_entry_;
+  uint32_t size_interpreter_to_quick_entry_;
+  uint32_t size_portable_resolution_trampoline_;
+  uint32_t size_quick_resolution_trampoline_;
+  uint32_t size_stubs_alignment_;
+  uint32_t size_code_size_;
+  uint32_t size_code_;
+  uint32_t size_code_alignment_;
+  uint32_t size_mapping_table_;
+  uint32_t size_vmap_table_;
+  uint32_t size_gc_map_;
+  uint32_t size_oat_dex_file_location_size_;
+  uint32_t size_oat_dex_file_location_data_;
+  uint32_t size_oat_dex_file_location_checksum_;
+  uint32_t size_oat_dex_file_offset_;
+  uint32_t size_oat_dex_file_methods_offsets_;
+  uint32_t size_oat_class_status_;
+  uint32_t size_oat_class_method_offsets_;
 
   template <class T> struct MapCompare {
    public:

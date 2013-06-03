@@ -74,8 +74,9 @@
 
 namespace art {
 
-void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                                ShadowFrame* shadow_frame, JValue* result);
+extern "C" void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh,
+                                           const DexFile::CodeItem* code_item,
+                                           ShadowFrame* shadow_frame, JValue* result);
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
@@ -201,7 +202,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       array_iftable_(NULL),
       init_done_(false),
       is_dirty_(false),
-      intern_table_(intern_table) {
+      intern_table_(intern_table),
+      portable_resolution_trampoline_(NULL),
+      quick_resolution_trampoline_(NULL) {
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
 }
 
@@ -952,6 +955,8 @@ void ClassLinker::InitFromImage() {
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
   CHECK(oat_file->GetOatHeader().GetImageFileLocation().empty());
+  portable_resolution_trampoline_ = oat_file->GetOatHeader().GetPortableResolutionTrampoline();
+  quick_resolution_trampoline_ = oat_file->GetOatHeader().GetQuickResolutionTrampoline();
   mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   mirror::ObjectArray<mirror::DexCache>* dex_caches =
       dex_caches_object->AsObjectArray<mirror::DexCache>();
@@ -1038,19 +1043,12 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
     return;
   }
 
-  // Check if object is a method without its code set and point it to the resolution trampoline.
+  // Set entry points to interpreter for methods in interpreter only mode.
   if (obj->IsMethod()) {
     mirror::AbstractMethod* method = obj->AsMethod();
-    // Install entry point from interpreter.
-    if (!method->IsNative() && !method->IsProxyMethod() &&
-        (method->GetEntryPointFromCompiledCode() == NULL ||
-         Runtime::Current()->GetInstrumentation()->InterpretOnly())) {
-      method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
-    } else {
-      method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
-    }
-    if (method->GetEntryPointFromCompiledCode() == NULL) {
-      method->SetEntryPointFromCompiledCode(GetResolutionTrampoline());
+    if (Runtime::Current()->GetInstrumentation()->InterpretOnly() && !method->IsNative()) {
+      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
+      method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
     }
   }
 }
@@ -1612,10 +1610,11 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   // Install entry point from interpreter.
   Runtime* runtime = Runtime::Current();
-  if (!method->IsNative() && !method->IsProxyMethod() &&
-      (method->GetEntryPointFromCompiledCode() == NULL ||
-       runtime->GetInstrumentation()->InterpretOnly())) {
-    method->SetEntryPointFromInterpreter(interpreter::EnterInterpreterFromInterpreter);
+  bool enter_interpreter = method->GetEntryPointFromCompiledCode() == NULL ||
+                           (runtime->GetInstrumentation()->InterpretOnly() &&
+                           !method->IsNative() && !method->IsProxyMethod());
+  if (enter_interpreter) {
+    method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
   } else {
     method->SetEntryPointFromInterpreter(artInterpreterToQuickEntry);
   }
@@ -1627,7 +1626,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
-    method->SetEntryPointFromCompiledCode(GetResolutionTrampoline());
+    method->SetEntryPointFromCompiledCode(GetResolutionTrampoline(runtime->GetClassLinker()));
   }
 
   if (method->IsNative()) {
@@ -1635,10 +1634,8 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
     method->UnregisterNative(Thread::Current());
   }
 
-  if (method->GetEntryPointFromCompiledCode() == NULL ||
-      (runtime->GetInstrumentation()->InterpretOnly() && !method->IsNative() &&
-       !method->IsProxyMethod())) {
-    // No code? You must mean to go into the interpreter.
+  if (enter_interpreter) {
+    // Set entry point from compiled code if there's no code or in interpreter only mode.
     method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
   }
 

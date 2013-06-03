@@ -1648,6 +1648,8 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pMemcmp16),
   ENTRY_POINT_INFO(pStringCompareTo),
   ENTRY_POINT_INFO(pMemcpy),
+  ENTRY_POINT_INFO(pPortableResolutionTrampolineFromCode),
+  ENTRY_POINT_INFO(pQuickResolutionTrampolineFromCode),
   ENTRY_POINT_INFO(pInvokeDirectTrampolineWithAccessCheck),
   ENTRY_POINT_INFO(pInvokeInterfaceTrampoline),
   ENTRY_POINT_INFO(pInvokeInterfaceTrampolineWithAccessCheck),

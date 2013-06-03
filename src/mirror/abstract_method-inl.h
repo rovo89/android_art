@@ -117,7 +117,8 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (GetEntryPointFromCompiledCode() == GetInterpreterEntryPoint()) {
     return;
   }
-  if (GetEntryPointFromCompiledCode() == GetResolutionTrampoline()) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  if (GetEntryPointFromCompiledCode() == GetResolutionTrampoline(class_linker)) {
       return;
   }
   DCHECK(IsWithinCode(pc))

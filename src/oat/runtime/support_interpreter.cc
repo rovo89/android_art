@@ -110,8 +110,9 @@ extern "C" uint64_t artInterpreterEntry(mirror::AbstractMethod* method, Thread* 
   return result.GetJ();
 }
 
-void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                                ShadowFrame* shadow_frame, JValue* result)
+extern "C" void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh,
+                                           const DexFile::CodeItem* code_item,
+                                           ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::AbstractMethod* method = shadow_frame->GetMethod();
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
