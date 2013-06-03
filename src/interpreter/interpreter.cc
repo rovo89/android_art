@@ -725,7 +725,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
   // As the 'this' object won't change during the execution of current code, we
   // want to cache it in local variables. Nevertheless, in order to let the
   // garbage collector access it, we store it into sirt references.
-  SirtRef<Object> this_object_ref(self, shadow_frame.GetThisObject());
+  SirtRef<Object> this_object_ref(self, shadow_frame.GetThisObject(code_item->ins_size_));
 
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
   if (inst->GetDexPc(insns) == 0) {  // We are entering the method as opposed to deoptimizing..
