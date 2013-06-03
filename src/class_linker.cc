@@ -3548,6 +3548,7 @@ bool ClassLinker::LinkFields(SirtRef<mirror::Class>& klass, bool is_static) {
   } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
+      DCHECK_GE(size, sizeof(mirror::Object)) << ClassHelper(klass.get(), this).GetDescriptor();
       klass->SetObjectSize(size);
     }
   }
