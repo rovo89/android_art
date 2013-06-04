@@ -959,6 +959,11 @@ bool MethodVerifier::VerifyCodeFlow() {
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
+  MethodVerifier::MethodSafeCastSet* method_to_safe_casts = GenerateSafeCastSet();
+  if(method_to_safe_casts != NULL ) {
+    SetSafeCastMap(ref, method_to_safe_casts);
+  }
+
   MethodVerifier::PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap();
   if(pc_to_concrete_method != NULL ) {
     SetDevirtMap(ref, pc_to_concrete_method);
@@ -1308,6 +1313,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     saved_line_->FillWithGarbage();
 #endif
   }
+
 
   // We need to ensure the work line is consistent while performing validation. When we spot a
   // peephole pattern we compute a new line for either the fallthrough instruction or the
@@ -3288,6 +3294,41 @@ void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bit
   *log2_max_gc_pc = i;
 }
 
+MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
+  /*
+   * Walks over the method code and adds any cast instructions in which
+   * the type cast is implicit to a set, which is used in the code generation
+   * to elide these casts.
+   */
+  if (!failure_messages_.empty()) {
+    return NULL;
+  }
+  UniquePtr<MethodSafeCastSet> mscs;
+  uint32_t dex_pc = 0;
+  const Instruction* inst = Instruction::At(code_item_->insns_);
+  const Instruction* end = Instruction::At(code_item_->insns_ +
+      code_item_->insns_size_in_code_units_);
+
+  for (; inst < end; inst = inst->Next()) {
+    if( Instruction::CHECK_CAST != inst->Opcode() )
+      continue;
+
+    RegisterLine* line = reg_table_.GetLine(dex_pc);
+    DecodedInstruction dec_insn(inst);
+    const RegType& reg_type(line->GetRegisterType(dec_insn.vA));
+    const RegType& cast_type = ResolveClassAndCheckAccess(dec_insn.vB);
+    if (cast_type.IsAssignableFrom(reg_type)) {
+      if (mscs.get() == NULL) {
+        mscs.reset(new MethodSafeCastSet());
+      }
+      uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
+      mscs->insert(dex_pc);
+    }
+  }
+
+  return mscs.release();
+}
+
 MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
 
   // It is risky to rely on reg_types for sharpening in cases of soft
@@ -3469,6 +3510,31 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref,
   DCHECK(GetDexGcMap(ref) != NULL);
 }
 
+
+void  MethodVerifier::SetSafeCastMap(CompilerDriver::MethodReference ref, const MethodSafeCastSet* cast_set) {
+  MutexLock mu(Thread::Current(), *safecast_map_lock_);
+  SafeCastMap::iterator it = safecast_map_->find(ref);
+  if (it != safecast_map_->end()) {
+    delete it->second;
+    safecast_map_->erase(it);
+  }
+
+  safecast_map_->Put(ref, cast_set);
+  CHECK(safecast_map_->find(ref) != safecast_map_->end());
+}
+
+bool MethodVerifier::IsSafeCast(CompilerDriver::MethodReference ref, uint32_t pc) {
+  MutexLock mu(Thread::Current(), *safecast_map_lock_);
+  SafeCastMap::const_iterator it = safecast_map_->find(ref);
+  if (it == safecast_map_->end()) {
+    return false;
+  }
+
+  // Look up the cast address in the set of safe casts
+  MethodVerifier::MethodSafeCastSet::const_iterator cast_it = it->second->find(pc);
+  return cast_it != it->second->end();
+}
+
 const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
   ReaderMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
@@ -3557,6 +3623,9 @@ std::vector<int32_t> MethodVerifier::DescribeVRegs(uint32_t dex_pc) {
 ReaderWriterMutex* MethodVerifier::dex_gc_maps_lock_ = NULL;
 MethodVerifier::DexGcMapTable* MethodVerifier::dex_gc_maps_ = NULL;
 
+Mutex* MethodVerifier::safecast_map_lock_ = NULL;
+MethodVerifier::SafeCastMap* MethodVerifier::safecast_map_ = NULL;
+
 ReaderWriterMutex* MethodVerifier::devirt_maps_lock_ = NULL;
 MethodVerifier::DevirtualizationMapTable* MethodVerifier::devirt_maps_ = NULL;
 
@@ -3571,7 +3640,14 @@ void MethodVerifier::Init() {
     dex_gc_maps_ = new MethodVerifier::DexGcMapTable;
   }
 
+  safecast_map_lock_ = new Mutex("verifier Cast Elision lock");
+  {
+    MutexLock mu(self, *safecast_map_lock_);
+    safecast_map_ = new MethodVerifier::SafeCastMap();
+  }
+
   devirt_maps_lock_ = new ReaderWriterMutex("verifier Devirtualization lock");
+
   {
     WriterMutexLock mu(self, *devirt_maps_lock_);
     devirt_maps_ = new MethodVerifier::DevirtualizationMapTable();

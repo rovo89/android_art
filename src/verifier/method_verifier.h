@@ -191,6 +191,11 @@ class MethodVerifier {
                                                              uint32_t dex_pc)
       LOCKS_EXCLUDED(devirt_maps_lock_);
 
+  // Returns true if the cast can statically be verified to be redundant
+  // by using the check-cast elision peephole optimization in the verifier
+  static bool IsSafeCast(CompilerDriver::MethodReference ref, uint32_t pc)
+        LOCKS_EXCLUDED(safecast_map_lock_);
+
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in 'm'.
   static void FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc,
@@ -582,6 +587,17 @@ class MethodVerifier {
   static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
+
+  // Cast elision types.
+  typedef std::set<uint32_t> MethodSafeCastSet;
+  typedef SafeMap<const CompilerDriver::MethodReference, const MethodSafeCastSet*,
+      CompilerDriver::MethodReferenceComparator> SafeCastMap;
+  MethodVerifier::MethodSafeCastSet* GenerateSafeCastSet()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void SetSafeCastMap(CompilerDriver::MethodReference ref, const MethodSafeCastSet* mscs);
+      LOCKS_EXCLUDED(safecast_map_lock_);
+  static Mutex* safecast_map_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  static SafeCastMap* safecast_map_ GUARDED_BY(safecast_map_lock_);
 
   // Devirtualization map.
   typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConcreteMethodMap;

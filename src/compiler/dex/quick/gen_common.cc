@@ -19,6 +19,7 @@
 #include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -966,8 +967,16 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
   }
 }
 
-void Mir2Lir::GenCheckCast(uint32_t type_idx, RegLocation rl_src)
+void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src)
 {
+  DexCompilationUnit* cu = mir_graph_->GetCurrentDexCompilationUnit();
+  const CompilerDriver::MethodReference mr(
+        cu->GetDexFile(),
+        cu->GetDexMethodIndex());
+
+  if (verifier::MethodVerifier::IsSafeCast(mr, insn_idx)) {
+    return;
+  }
   FlushAllRegs();
   // May generate a call - use explicit registers
   LockCallTemps();
