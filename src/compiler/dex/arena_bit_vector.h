@@ -39,7 +39,33 @@ class ArenaBitVector {
             bit_index_(0),
             bit_size_(p_bits_->storage_size_ * sizeof(uint32_t) * 8) {};
 
-        int Next();  // Returns -1 when no next.
+        // Return the position of the next set bit.  -1 means end-of-element reached.
+        int Next() {
+          // Did anything obviously change since we started?
+          DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
+          DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
+
+          if (bit_index_ >= bit_size_) return -1;
+
+          uint32_t word_index = bit_index_ / 32;
+          uint32_t word = bit_storage_[word_index];
+          // Mask out any bits in the first word we've already considered.
+          word >>= bit_index_ & 0x1f;
+          if (word == 0) {
+            bit_index_ &= ~0x1f;
+            do {
+              word_index++;
+              if ((word_index * 32) >= bit_size_) {
+                bit_index_ = bit_size_;
+                return -1;
+              }
+              word = bit_storage_[word_index];
+              bit_index_ += 32;
+            } while (word == 0);
+          }
+          bit_index_ += CTZ(word) + 1;
+          return bit_index_ - 1;
+        }
 
         static void* operator new(size_t size, ArenaAllocator* arena) {
           return arena->NewMem(sizeof(ArenaBitVector::Iterator), true,

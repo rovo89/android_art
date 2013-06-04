@@ -136,43 +136,6 @@ int ArenaBitVector::NumSetBits()
   return count;
 }
 
-// Return the position of the next set bit.  -1 means end-of-element reached.
-// TUNING: Hot function.
-int ArenaBitVector::Iterator::Next()
-{
-  // Did anything obviously change since we started?
-  DCHECK_EQ(bit_size_, p_bits_->GetStorageSize() * sizeof(uint32_t) * 8);
-  DCHECK_EQ(bit_storage_, p_bits_->GetRawStorage());
-
-  if (bit_index_ >= bit_size_) return -1;
-
-  uint32_t word_index = bit_index_ >> 5;
-  uint32_t end_word_index = bit_size_ >> 5;
-  uint32_t word = bit_storage_[word_index++];
-
-  // Mask out any bits in the first word we've already considered.
-  word &= ~((1 << (bit_index_ & 0x1f))-1);
-
-  for (; word_index <= end_word_index;) {
-    uint32_t bit_pos = bit_index_ & 0x1f;
-    if (word == 0) {
-      bit_index_ += (32 - bit_pos);
-      word = bit_storage_[word_index++];
-      continue;
-    }
-    for (; bit_pos < 32; bit_pos++) {
-      if (word & (1 << bit_pos)) {
-        bit_index_++;
-        return bit_index_ - 1;
-      }
-      bit_index_++;
-    }
-    word = bit_storage_[word_index++];
-  }
-  bit_index_ = bit_size_;
-  return -1;
-}
-
 /*
  * Mark specified number of bits as "set". Cannot set all bits like ClearAll
  * since there might be unused bits - setting those to one will confuse the
