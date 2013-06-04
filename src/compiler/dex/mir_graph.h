@@ -452,10 +452,6 @@ class MIRGraph {
     return ssa_subscripts_->Get(ssa_reg);
   }
 
-  const char* GetSSAString(int ssa_reg) const {
-    return ssa_strings_->Get(ssa_reg);
-  }
-
   RegLocation GetRawSrc(MIR* mir, int num)
   {
     DCHECK(num < mir->ssa_rep->num_uses);
@@ -628,7 +624,6 @@ class MIRGraph {
    CompilationUnit* const cu_;
    GrowableArray<int>* ssa_base_vregs_;
    GrowableArray<int>* ssa_subscripts_;
-   GrowableArray<char*>* ssa_strings_;
    // Map original Dalvik virtual reg i to the current SSA name.
    int* vreg_to_ssa_map_;            // length == method->registers_size
    int* ssa_last_defs_;              // length == method->registers_size

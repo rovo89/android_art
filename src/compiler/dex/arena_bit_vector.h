@@ -99,13 +99,19 @@ class ArenaBitVector {
     void Copy(ArenaBitVector* src);
     void Intersect(const ArenaBitVector* src2);
     void Union(const ArenaBitVector* src);
-    bool Equal(const ArenaBitVector* src);
+    // Are we equal to another bit vector?  Note: expandability attributes must also match.
+    bool Equal(const ArenaBitVector* src) {
+      return (storage_size_ == src->GetStorageSize()) &&
+        (expandable_ == src->IsExpandable()) &&
+        (memcmp(storage_, src->GetRawStorage(), storage_size_ * 4) == 0);
+    }
     int NumSetBits();
 
     uint32_t GetStorageSize() const { return storage_size_; }
     bool IsExpandable() const { return expandable_; }
     uint32_t GetRawStorageWord(size_t idx) const { return storage_[idx]; }
     uint32_t* GetRawStorage() { return storage_; }
+    const uint32_t* GetRawStorage() const { return storage_; }
 
   private:
     ArenaAllocator* const arena_;

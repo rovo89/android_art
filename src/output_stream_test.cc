@@ -25,7 +25,7 @@ class OutputStreamTest : public CommonTest {
  protected:
   void CheckOffset(off_t expected) {
     off_t actual = output_stream_->Seek(0, kSeekCurrent);
-    CHECK_EQ(expected, actual);
+    EXPECT_EQ(expected, actual);
   }
 
   void SetOutputStream(OutputStream& output_stream) {
@@ -33,16 +33,16 @@ class OutputStreamTest : public CommonTest {
   }
 
   void GenerateTestOutput() {
-    CHECK_EQ(3, output_stream_->Seek(3, kSeekCurrent));
+    EXPECT_EQ(3, output_stream_->Seek(3, kSeekCurrent));
     CheckOffset(3);
-    CHECK_EQ(2, output_stream_->Seek(2, kSeekSet));
+    EXPECT_EQ(2, output_stream_->Seek(2, kSeekSet));
     CheckOffset(2);
     uint8_t buf[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    CHECK(output_stream_->WriteFully(buf, 2));
+    EXPECT_TRUE(output_stream_->WriteFully(buf, 2));
     CheckOffset(4);
-    CHECK_EQ(6, output_stream_->Seek(2, kSeekEnd));
+    EXPECT_EQ(6, output_stream_->Seek(2, kSeekEnd));
     CheckOffset(6);
-    CHECK(output_stream_->WriteFully(buf, 4));
+    EXPECT_TRUE(output_stream_->WriteFully(buf, 4));
     CheckOffset(10);
   }
 
@@ -50,8 +50,8 @@ class OutputStreamTest : public CommonTest {
     uint8_t expected[] = {
         0, 0, 1, 2, 0, 0, 1, 2, 3, 4
     };
-    CHECK_EQ(sizeof(expected), actual.size());
-    CHECK_EQ(0, memcmp(expected, &actual[0], actual.size()));
+    EXPECT_EQ(sizeof(expected), actual.size());
+    EXPECT_EQ(0, memcmp(expected, &actual[0], actual.size()));
   }
 
   OutputStream* output_stream_;
@@ -63,10 +63,10 @@ TEST_F(OutputStreamTest, File) {
   SetOutputStream(output_stream);
   GenerateTestOutput();
   UniquePtr<File> in(OS::OpenFile(tmp.GetFilename().c_str(), false));
-  CHECK(in.get() != NULL);
+  EXPECT_TRUE(in.get() != NULL);
   std::vector<uint8_t> actual(in->GetLength());
   bool readSuccess = in->ReadFully(&actual[0], actual.size());
-  CHECK(readSuccess);
+  EXPECT_TRUE(readSuccess);
   CheckTestOutput(actual);
 }
 

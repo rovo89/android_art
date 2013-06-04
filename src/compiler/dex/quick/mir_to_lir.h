@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
-#define ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
+#ifndef ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
+#define ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 
 #include "invoke_type.h"
 #include "compiled_method.h"
@@ -314,8 +314,10 @@ class Mir2Lir : public Backend {
     void DumpRegPool(RegisterInfo* p, int num_regs);
     void DumpCoreRegPool();
     void DumpFpRegPool();
-    void ClobberBody(RegisterInfo* p);
-    void Clobber(int reg);
+    /* Mark a temp register as dead.  Does not affect allocation state. */
+    void Clobber(int reg) {
+      ClobberBody(GetRegInfo(reg));
+    }
     void ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg);
     void ClobberSReg(int s_reg);
     int SRegToPMap(int s_reg);
@@ -339,7 +341,6 @@ class Mir2Lir : public Backend {
     RegisterInfo* IsPromoted(int reg);
     bool IsDirty(int reg);
     void LockTemp(int reg);
-    void ResetDefBody(RegisterInfo* p);
     void ResetDef(int reg);
     void NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
@@ -689,11 +690,6 @@ class Mir2Lir : public Backend {
     // Temp workaround
     void Workaround7250540(RegLocation rl_dest, int value);
 
-    // TODO: add accessors for these.
-    LIR* literal_list_;                        // Constants.
-    LIR* method_literal_list_;                 // Method literals requiring patching.
-    LIR* code_literal_list_;                   // Code literals requiring patching.
-
   protected:
     Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -701,6 +697,20 @@ class Mir2Lir : public Backend {
       return cu_;
     }
 
+  private:
+    void ClobberBody(RegisterInfo* p);
+    void ResetDefBody(RegisterInfo* p) {
+      p->def_start = NULL;
+      p->def_end = NULL;
+    }
+
+  public:
+    // TODO: add accessors for these.
+    LIR* literal_list_;                        // Constants.
+    LIR* method_literal_list_;                 // Method literals requiring patching.
+    LIR* code_literal_list_;                   // Code literals requiring patching.
+
+  protected:
     CompilationUnit* const cu_;
     MIRGraph* const mir_graph_;
     GrowableArray<SwitchTable*> switch_tables_;
@@ -757,4 +767,4 @@ class Mir2Lir : public Backend {
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
+#endif  //ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_

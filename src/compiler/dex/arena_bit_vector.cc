@@ -113,18 +113,6 @@ void ArenaBitVector::Union(const ArenaBitVector* src) {
   }
 }
 
-// Are we equal to another bit vector?  Note: expandability attributes must also match.
-bool ArenaBitVector::Equal(const ArenaBitVector* src) {
-  if (storage_size_ != src->GetStorageSize() ||
-      expandable_ != src->IsExpandable())
-    return false;
-
-  for (unsigned int idx = 0; idx < storage_size_; idx++) {
-    if (storage_[idx] != src->GetRawStorageWord(idx)) return false;
-  }
-  return true;
-}
-
 // Count the number of bits that are set.
 int ArenaBitVector::NumSetBits()
 {

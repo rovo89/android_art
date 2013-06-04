@@ -16,6 +16,7 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 

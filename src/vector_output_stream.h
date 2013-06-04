@@ -20,6 +20,7 @@
 #include "output_stream.h"
 
 #include <string>
+#include <string.h>
 #include <vector>
 
 namespace art {
@@ -30,12 +31,28 @@ class VectorOutputStream : public OutputStream {
 
   virtual ~VectorOutputStream() {}
 
-  virtual bool WriteFully(const void* buffer, int64_t byte_count);
+  bool WriteFully(const void* buffer, int64_t byte_count) {
+    if (static_cast<size_t>(offset_) == vector_.size()) {
+      const uint8_t* start = reinterpret_cast<const uint8_t*>(buffer);
+      vector_.insert(vector_.end(), &start[0], &start[byte_count]);
+      offset_ += byte_count;
+    } else {
+      off_t new_offset = offset_ + byte_count;
+      EnsureCapacity(new_offset);
+      memcpy(&vector_[offset_], buffer, byte_count);
+      offset_ = new_offset;
+    }
+    return true;
+  }
 
-  virtual off_t Seek(off_t offset, Whence whence);
+  off_t Seek(off_t offset, Whence whence);
 
  private:
-  void EnsureCapacity(off_t new_offset);
+  void EnsureCapacity(off_t new_offset) {
+    if (new_offset > static_cast<off_t>(vector_.size())) {
+      vector_.resize(new_offset);
+    }
+  }
 
   off_t offset_;
   std::vector<uint8_t>& vector_;

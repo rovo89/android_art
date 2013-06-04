@@ -16,7 +16,7 @@
 
 #include "compiler_internals.h"
 #include "local_value_numbering.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 
 namespace art {
 
@@ -933,11 +933,6 @@ int MIRGraph::AddNewSReg(int v_reg)
   SetNumSSARegs(ssa_reg + 1);
   ssa_base_vregs_->Insert(v_reg);
   ssa_subscripts_->Insert(subscript);
-  std::string ssa_name(GetSSAName(ssa_reg));
-  char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, false,
-                                                 ArenaAllocator::kAllocDFInfo));
-  strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-  ssa_strings_->Insert(name);
   DCHECK_EQ(ssa_base_vregs_->Size(), ssa_subscripts_->Size());
   return ssa_reg;
 }
@@ -1140,8 +1135,6 @@ void MIRGraph::CompilerInitializeSSAConversion()
                                             kGrowableArraySSAtoDalvikMap);
   ssa_subscripts_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
                                             kGrowableArraySSAtoDalvikMap);
-  ssa_strings_ = new (arena_) GrowableArray<char*>(arena_, num_dalvik_reg + GetDefCount() + 128,
-                                           kGrowableArraySSAtoDalvikMap);
   /*
    * Initial number of SSA registers is equal to the number of Dalvik
    * registers.
@@ -1156,11 +1149,6 @@ void MIRGraph::CompilerInitializeSSAConversion()
   for (unsigned int i = 0; i < num_dalvik_reg; i++) {
     ssa_base_vregs_->Insert(i);
     ssa_subscripts_->Insert(0);
-    std::string ssa_name = GetSSAName(i);
-    char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, true,
-                                                   ArenaAllocator::kAllocDFInfo));
-    strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-    ssa_strings_->Insert(name);
   }
 
   /*

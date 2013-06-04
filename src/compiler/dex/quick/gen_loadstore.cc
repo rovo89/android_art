@@ -16,6 +16,7 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "invoke_type.h"
 
 namespace art {

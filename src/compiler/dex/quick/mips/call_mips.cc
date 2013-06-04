@@ -17,6 +17,7 @@
 /* This file contains codegen for the Mips ISA */
 
 #include "codegen_mips.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 

@@ -18,6 +18,7 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
+#include "mir_to_lir-inl.h"
 
 namespace art {
 
@@ -82,28 +83,6 @@ void Mir2Lir::DumpCoreRegPool()
 void Mir2Lir::DumpFpRegPool()
 {
   DumpRegPool(reg_pool_->FPRegs, reg_pool_->num_fp_regs);
-}
-
-/* Mark a temp register as dead.  Does not affect allocation state. */
-void Mir2Lir::ClobberBody(RegisterInfo* p)
-{
-  if (p->is_temp) {
-    DCHECK(!(p->live && p->dirty))  << "Live & dirty temp in clobber";
-    p->live = false;
-    p->s_reg = INVALID_SREG;
-    p->def_start = NULL;
-    p->def_end = NULL;
-    if (p->pair) {
-      p->pair = false;
-      Clobber(p->partner);
-    }
-  }
-}
-
-/* Mark a temp register as dead.  Does not affect allocation state. */
-void Mir2Lir::Clobber(int reg)
-{
-  ClobberBody(GetRegInfo(reg));
 }
 
 void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
@@ -553,12 +532,6 @@ void Mir2Lir::LockTemp(int reg)
     }
   }
   LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
-}
-
-void Mir2Lir::ResetDefBody(RegisterInfo* p)
-{
-  p->def_start = NULL;
-  p->def_end = NULL;
 }
 
 void Mir2Lir::ResetDef(int reg)

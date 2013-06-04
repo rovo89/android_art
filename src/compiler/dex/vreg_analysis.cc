@@ -15,7 +15,7 @@
  */
 
 #include "compiler_internals.h"
-#include "dataflow_iterator.h"
+#include "compiler/dex/dataflow_iterator-inl.h"
 
 namespace art {
 

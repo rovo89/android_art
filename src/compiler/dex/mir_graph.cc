@@ -77,7 +77,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       cu_(cu),
       ssa_base_vregs_(NULL),
       ssa_subscripts_(NULL),
-      ssa_strings_(NULL),
       vreg_to_ssa_map_(NULL),
       ssa_last_defs_(NULL),
       is_constant_v_(NULL),

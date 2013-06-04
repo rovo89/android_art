@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "object_utils.h"
-
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/dataflow_iterator.h"
+#include "compiler/dex/dataflow_iterator-inl.h"
+#include "mir_to_lir-inl.h"
+#include "object_utils.h"
 
 namespace art {
 

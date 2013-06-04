@@ -16,7 +16,7 @@
 
 #include "compiler_internals.h"
 #include "local_value_numbering.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 
 namespace art {
 

@@ -18,7 +18,7 @@
 
 #include "compiler/driver/compiler_driver.h"
 #include "compiler_internals.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 #if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler/llvm/llvm_compilation_unit.h"
 #include "compiler/dex/portable/mir_to_gbc.h"

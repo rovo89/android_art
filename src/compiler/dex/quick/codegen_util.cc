@@ -17,6 +17,7 @@
 #include "compiler/dex/compiler_internals.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
+#include "mir_to_lir-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 
@@ -109,81 +110,6 @@ void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
    * access.
    */
   lir->alias_info = ENCODE_ALIAS_INFO(reg_id, is64bit);
-}
-
-/*
- * Mark the corresponding bit(s).
- */
-void Mir2Lir::SetupRegMask(uint64_t* mask, int reg)
-{
-  *mask |= GetRegMaskCommon(reg);
-}
-
-/*
- * Set up the proper fields in the resource mask
- */
-void Mir2Lir::SetupResourceMasks(LIR* lir)
-{
-  int opcode = lir->opcode;
-
-  if (opcode <= 0) {
-    lir->use_mask = lir->def_mask = 0;
-    return;
-  }
-
-  uint64_t flags = GetTargetInstFlags(opcode);
-
-  if (flags & NEEDS_FIXUP) {
-    lir->flags.pcRelFixup = true;
-  }
-
-  /* Get the starting size of the instruction's template */
-  lir->flags.size = GetInsnSize(lir);
-
-  /* Set up the mask for resources that are updated */
-  if (flags & (IS_LOAD | IS_STORE)) {
-    /* Default to heap - will catch specialized classes later */
-    SetMemRefType(lir, flags & IS_LOAD, kHeapRef);
-  }
-
-  /*
-   * Conservatively assume the branch here will call out a function that in
-   * turn will trash everything.
-   */
-  if (flags & IS_BRANCH) {
-    lir->def_mask = lir->use_mask = ENCODE_ALL;
-    return;
-  }
-
-  if (flags & REG_DEF0) {
-    SetupRegMask(&lir->def_mask, lir->operands[0]);
-  }
-
-  if (flags & REG_DEF1) {
-    SetupRegMask(&lir->def_mask, lir->operands[1]);
-  }
-
-
-  if (flags & SETS_CCODES) {
-    lir->def_mask |= ENCODE_CCODE;
-  }
-
-  if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
-    int i;
-
-    for (i = 0; i < 4; i++) {
-      if (flags & (1 << (kRegUse0 + i))) {
-        SetupRegMask(&lir->use_mask, lir->operands[i]);
-      }
-    }
-  }
-
-  if (flags & USES_CCODES) {
-    lir->use_mask |= ENCODE_CCODE;
-  }
-
-  // Handle target-specific actions
-  SetupTargetResourceMasks(lir);
 }
 
 /*
@@ -359,99 +285,6 @@ void Mir2Lir::CodegenDump()
   // Dump mapping tables
   DumpMappingTable("PC2Dex_MappingTable", descriptor, name, signature, pc2dex_mapping_table_);
   DumpMappingTable("Dex2PC_MappingTable", descriptor, name, signature, dex2pc_mapping_table_);
-}
-
-
-LIR* Mir2Lir::RawLIR(int dalvik_offset, int opcode, int op0,
-                     int op1, int op2, int op3, int op4, LIR* target)
-{
-  LIR* insn = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocLIR));
-  insn->dalvik_offset = dalvik_offset;
-  insn->opcode = opcode;
-  insn->operands[0] = op0;
-  insn->operands[1] = op1;
-  insn->operands[2] = op2;
-  insn->operands[3] = op3;
-  insn->operands[4] = op4;
-  insn->target = target;
-  SetupResourceMasks(insn);
-  if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC) ||
-      (opcode == kPseudoExportedPC)) {
-    // Always make labels scheduling barriers
-    insn->use_mask = insn->def_mask = ENCODE_ALL;
-  }
-  return insn;
-}
-
-/*
- * The following are building blocks to construct low-level IRs with 0 - 4
- * operands.
- */
-LIR* Mir2Lir::NewLIR0(int opcode)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & NO_OPERAND))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode);
-  AppendLIR(insn);
-  return insn;
-}
-
-LIR* Mir2Lir::NewLIR1(int opcode, int dest)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest);
-  AppendLIR(insn);
-  return insn;
-}
-
-LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1);
-  AppendLIR(insn);
-  return insn;
-}
-
-LIR* Mir2Lir::NewLIR3(int opcode, int dest, int src1, int src2)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_TERTIARY_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2);
-  AppendLIR(insn);
-  return insn;
-}
-
-LIR* Mir2Lir::NewLIR4(int opcode, int dest, int src1, int src2, int info)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUAD_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2, info);
-  AppendLIR(insn);
-  return insn;
-}
-
-LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1,
-                      int info2)
-{
-  DCHECK(is_pseudo_opcode(opcode) || (GetTargetInstFlags(opcode) & IS_QUIN_OP))
-      << GetTargetInstName(opcode) << " " << opcode << " "
-      << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
-      << current_dalvik_offset_;
-  LIR* insn = RawLIR(current_dalvik_offset_, opcode, dest, src1, src2, info1, info2);
-  AppendLIR(insn);
-  return insn;
 }
 
 /*

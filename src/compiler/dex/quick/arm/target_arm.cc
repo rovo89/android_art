@@ -19,6 +19,7 @@
 #include "arm_lir.h"
 #include "codegen_arm.h"
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 
 namespace art {
 
