@@ -19,6 +19,9 @@ ifneq ($(wildcard art/SMALL_ART),)
 $(info Enabling ART_SMALL_MODE because of existence of art/SMALL_ART)
 ART_SMALL_MODE := true
 endif
+ifeq ($(WITH_ART_SMALL_MODE), true)
+ART_SMALL_MODE := true
+endif
 
 ART_USE_PORTABLE_COMPILER := false
 ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
