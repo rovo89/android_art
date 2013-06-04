@@ -47,7 +47,7 @@ mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
   if (m->IsStatic()) {
     return NULL;
   } else {
-    return GetVRegReference(number_of_vregs_ - num_ins);
+    return GetVRegReference(NumberOfVRegs() - num_ins);
   }
 }
 
