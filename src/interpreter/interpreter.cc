@@ -1202,22 +1202,22 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::GOTO: {
         PREAMBLE();
-        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_10t());
+        inst = inst->RelativeAt(inst->VRegA_10t());
         break;
       }
       case Instruction::GOTO_16: {
         PREAMBLE();
-        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_20t());
+        inst = inst->RelativeAt(inst->VRegA_20t());
         break;
       }
       case Instruction::GOTO_32: {
         PREAMBLE();
-        inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegA_30t());
+        inst = inst->RelativeAt(inst->VRegA_30t());
         break;
       }
       case Instruction::PACKED_SWITCH: {
         PREAMBLE();
-        const uint16_t* switch_data = insns + inst->GetDexPc(insns) + inst->VRegB_31t();
+        const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
         int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
         DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
         uint16_t size = switch_data[1];
@@ -1229,7 +1229,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         DCHECK(IsAligned<4>(targets));
         int32_t index = test_val - first_key;
         if (index >= 0 && index < size) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + targets[index]);
+          inst = inst->RelativeAt(targets[index]);
         } else {
           inst = inst->Next_3xx();
         }
@@ -1237,8 +1237,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::SPARSE_SWITCH: {
         PREAMBLE();
-        uint32_t dex_pc = inst->GetDexPc(insns);
-        const uint16_t* switch_data = insns + dex_pc + inst->VRegB_31t();
+        const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
         int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
         CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
         uint16_t size = switch_data[1];
@@ -1249,6 +1248,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         CHECK(IsAligned<4>(entries));
         int lo = 0;
         int hi = size - 1;
+        const Instruction* current_inst = inst;
         inst = inst->Next_3xx();
         while (lo <= hi) {
           int mid = (lo + hi) / 2;
@@ -1258,7 +1258,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
           } else if (test_val > foundVal) {
             lo = mid + 1;
           } else {
-            inst = Instruction::At(insns + dex_pc + entries[mid]);
+            inst = current_inst->RelativeAt(entries[mid]);
             break;
           }
         }
@@ -1348,7 +1348,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_EQ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) == shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1357,7 +1357,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_NE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) != shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1366,7 +1366,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_LT: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) < shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1375,7 +1375,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_GE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) >= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1384,7 +1384,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_GT: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) > shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1393,7 +1393,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_LE: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_22t()) <= shadow_frame.GetVReg(inst->VRegB_22t())) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegC_22t());
+          inst = inst->RelativeAt(inst->VRegC_22t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1402,7 +1402,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_EQZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) == 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1411,7 +1411,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_NEZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) != 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1420,7 +1420,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_LTZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) < 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1429,7 +1429,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_GEZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) >= 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1438,7 +1438,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_GTZ: {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) > 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -1447,7 +1447,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::IF_LEZ:  {
         PREAMBLE();
         if (shadow_frame.GetVReg(inst->VRegA_21t()) <= 0) {
-          inst = Instruction::At(insns + inst->GetDexPc(insns) + inst->VRegB_21t());
+          inst = inst->RelativeAt(inst->VRegB_21t());
         } else {
           inst = inst->Next_2xx();
         }
@@ -2305,6 +2305,14 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         inst = inst->Next_1xx();
         break;
       }
+      case Instruction::DIV_INT_2ADDR: {
+        PREAMBLE();
+        uint32_t vregA = inst->VRegA_12x();
+        DoIntDivide(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
+                    shadow_frame.GetVReg(inst->VRegB_12x()));
+        inst = inst->Next_1xx();
+        break;
+      }
       case Instruction::REM_INT_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
@@ -2364,14 +2372,6 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         shadow_frame.SetVReg(vregA,
                              shadow_frame.GetVReg(vregA) ^
                              shadow_frame.GetVReg(inst->VRegB_12x()));
-        inst = inst->Next_1xx();
-        break;
-      }
-      case Instruction::DIV_INT_2ADDR: {
-        PREAMBLE();
-        uint32_t vregA = inst->VRegA_12x();
-        DoIntDivide(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
-                    shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
       }

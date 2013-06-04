@@ -162,39 +162,45 @@ class Instruction {
     }
   }
 
+  // Reads an instruction out of the stream at the specified address.
+  static const Instruction* At(const uint16_t* code) {
+    DCHECK(code != NULL);
+    return reinterpret_cast<const Instruction*>(code);
+  }
+
+  // Reads an instruction out of the stream from the current address plus an offset.
+  const Instruction* RelativeAt(int32_t offset) const {
+    return At(reinterpret_cast<const uint16_t*>(this) + offset);
+  }
+
   // Returns a pointer to the next instruction in the stream.
   const Instruction* Next() const {
-    size_t current_size_in_bytes = SizeInCodeUnits() * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(SizeInCodeUnits());
   }
 
   // Returns a pointer to the instruction after this 1xx instruction in the stream.
   const Instruction* Next_1xx() const {
     DCHECK(FormatOf(Opcode()) >= k10x && FormatOf(Opcode()) <= k10t);
-    size_t current_size_in_bytes = 1 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(1);
   }
 
   // Returns a pointer to the instruction after this 2xx instruction in the stream.
   const Instruction* Next_2xx() const {
     DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k22c);
-    size_t current_size_in_bytes = 2 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(2);
   }
 
   // Returns a pointer to the instruction after this 3xx instruction in the stream.
   const Instruction* Next_3xx() const {
     DCHECK(FormatOf(Opcode()) >= k32x && FormatOf(Opcode()) <= k3rc);
-    size_t current_size_in_bytes = 3 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(3);
   }
 
   // Returns a pointer to the instruction after this 51l instruction in the stream.
-  const Instruction* Next_51l() const;
+  const Instruction* Next_51l() const {
+    DCHECK(FormatOf(Opcode()) == k51l);
+    return RelativeAt(5);
+  }
 
   // Returns the name of this instruction's opcode.
   const char* Name() const {
@@ -270,12 +276,6 @@ class Instruction {
     const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
     int opcode = *insns & 0xFF;
     return static_cast<Code>(opcode);
-  }
-
-  // Reads an instruction out of the stream at the specified address.
-  static const Instruction* At(const uint16_t* code) {
-    CHECK(code != NULL);
-    return reinterpret_cast<const Instruction*>(code);
   }
 
   // Returns the format of the given opcode.
