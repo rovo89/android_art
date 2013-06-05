@@ -577,7 +577,18 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
 }
 
 bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                                uint32_t type_idx) {
+                                                uint32_t type_idx,
+                                                bool* type_known_final, bool* type_known_abstract,
+                                                bool* equals_referrers_class) {
+  if (type_known_final != NULL) {
+    *type_known_final = false;
+  }
+  if (type_known_abstract != NULL) {
+    *type_known_abstract = false;
+  }
+  if (equals_referrers_class != NULL) {
+    *equals_referrers_class = false;
+  }
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier
@@ -587,6 +598,9 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
     return false;  // Unknown class needs access checks.
   }
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+  if (equals_referrers_class != NULL) {
+    *equals_referrers_class = (method_id.class_idx_ == type_idx);
+  }
   mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
   if (referrer_class == NULL) {
     stats_->TypeNeedsAccessCheck();
@@ -597,6 +611,12 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
   bool result = referrer_class->CanAccess(resolved_class);
   if (result) {
     stats_->TypeDoesntNeedAccessCheck();
+    if (type_known_final != NULL) {
+      *type_known_final = resolved_class->IsFinal() && !resolved_class->IsArrayClass();
+    }
+    if (type_known_abstract != NULL) {
+      *type_known_abstract = resolved_class->IsAbstract();
+    }
   } else {
     stats_->TypeNeedsAccessCheck();
   }

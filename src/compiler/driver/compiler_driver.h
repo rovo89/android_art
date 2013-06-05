@@ -138,7 +138,9 @@ class CompilerDriver {
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                  uint32_t type_idx)
+                                  uint32_t type_idx, bool* type_known_final = NULL,
+                                  bool* type_known_abstract = NULL,
+                                  bool* equals_referrers_class = NULL)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?

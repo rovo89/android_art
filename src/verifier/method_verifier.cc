@@ -1253,6 +1253,11 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     if (dead_start >= 0) {
       LogVerifyInfo() << "dead code " << reinterpret_cast<void*>(dead_start) << "-" << reinterpret_cast<void*>(insn_idx - 1);
     }
+    // To dump the state of the verify after a method, do something like:
+    // if (PrettyMethod(dex_method_idx_, *dex_file_) ==
+    //     "boolean java.lang.String.equals(java.lang.Object)") {
+    //   LOG(INFO) << info_messages_.str();
+    // }
   }
   return true;
 }
@@ -2528,12 +2533,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
         return false;
       }
+      if (NULL != fallthrough_line.get()) {
+        // Make workline consistent with fallthrough computed from peephole optimization.
+        work_line_->CopyFromLine(fallthrough_line.get());
+      }
       RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
       if (next_line != NULL) {
-        if (NULL != fallthrough_line.get()) {
-          // Make workline consistent with fallthrough computed from peephole optimization.
-          work_line_->CopyFromLine(fallthrough_line.get());
-        }
         // Merge registers into what we have for the next instruction,
         // and set the "changed" flag if needed.
         if (!UpdateRegisters(next_insn_idx, work_line_.get())) {
