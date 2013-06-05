@@ -165,6 +165,8 @@ class CompilerDriver {
                          uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  bool IsSafeCast(const MethodReference& mr, uint32_t dex_pc);
+
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,
                     uint32_t referrer_method_idx,

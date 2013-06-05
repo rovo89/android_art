@@ -974,7 +974,8 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
         cu->GetDexFile(),
         cu->GetDexMethodIndex());
 
-  if (verifier::MethodVerifier::IsSafeCast(mr, insn_idx)) {
+  if (cu_->compiler_driver->IsSafeCast(mr, insn_idx)) {
+    // Verifier type analysis proved this check cast would never cause an exception.
     return;
   }
   FlushAllRegs();

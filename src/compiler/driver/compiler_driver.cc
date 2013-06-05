@@ -72,7 +72,8 @@ class AOTCompilationStats {
         resolved_types_(0), unresolved_types_(0),
         resolved_instance_fields_(0), unresolved_instance_fields_(0),
         resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
-        type_based_devirtualization_(0) {
+        type_based_devirtualization_(0),
+        safe_casts_(0), not_safe_casts_(0) {
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;
@@ -91,8 +92,14 @@ class AOTCompilationStats {
              "static fields resolved");
     DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
              "static fields local to a class");
-    DumpStat(type_based_devirtualization_,virtual_made_direct_[kInterface] + virtual_made_direct_[kVirtual]
-             - type_based_devirtualization_, "sharpened calls based on type information");
+    DumpStat(safe_casts_, not_safe_casts_, "check-casts removed based on type information");
+    // Note, the code below subtracts the stat value so that when added to the stat value we have
+    // 100% of samples. TODO: clean this up.
+    DumpStat(type_based_devirtualization_,
+             resolved_methods_[kVirtual] + unresolved_methods_[kVirtual] +
+             resolved_methods_[kInterface] + unresolved_methods_[kInterface] -
+             type_based_devirtualization_,
+             "virtual/interface calls made direct based on type information");
 
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       std::ostringstream oss;
@@ -227,6 +234,18 @@ class AOTCompilationStats {
     direct_methods_to_boot_[type]++;
   }
 
+  // A check-cast could be eliminated due to verifier type analysis.
+  void SafeCast() {
+    STATS_LOCK();
+    safe_casts_++;
+  }
+
+  // A check-cast couldn't be eliminated due to verifier type analysis.
+  void NotASafeCast() {
+    STATS_LOCK();
+    not_safe_casts_++;
+  }
+
  private:
   Mutex stats_lock_;
 
@@ -253,6 +272,9 @@ class AOTCompilationStats {
   size_t virtual_made_direct_[kMaxInvokeType + 1];
   size_t direct_calls_to_boot_[kMaxInvokeType + 1];
   size_t direct_methods_to_boot_[kMaxInvokeType + 1];
+
+  size_t safe_casts_;
+  size_t not_safe_casts_;
 
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
@@ -1013,6 +1035,17 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
   }
   return false;  // Incomplete knowledge needs slow path.
 }
+
+bool CompilerDriver::IsSafeCast(const MethodReference& mr, uint32_t dex_pc) {
+  bool result = verifier::MethodVerifier::IsSafeCast(mr, dex_pc);
+  if (result) {
+    stats_->SafeCast();
+  } else {
+    stats_->NotASafeCast();
+  }
+  return result;
+}
+
 
 void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                             uint32_t referrer_method_idx,

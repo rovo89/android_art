@@ -1777,31 +1777,33 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
       /* Check for peep-hole pattern of:
        *    ...;
-       *    instance-of vX, vO, T;
-       *    ifXXX vX, b ;
+       *    instance-of vX, vY, T;
+       *    ifXXX vX, label ;
        *    ...;
-       * b: INST;
+       * label:
        *    ...;
-       * and sharpen the type for either the fall-through or the branch case.
+       * and sharpen the type of vY to be type T.
+       * Note, this pattern can't be if:
+       *  - if there are other branches to this branch,
+       *  - when vX == vY.
        */
-      if (!CurrentInsnFlags()->IsBranchTarget()) {
-        if ((Instruction::INSTANCE_OF == prev_inst->Opcode())
-            && (inst->VRegA_21t() == prev_inst->VRegA_22c())) {
-          // Check that the we are not attempting conversion to interface types,
-          // which is not done because of the multiple inheritance implications.
-          const RegType& cast_type =
-                    ResolveClassAndCheckAccess(prev_inst->VRegC_22c());
+      if (!CurrentInsnFlags()->IsBranchTarget() &&
+          (Instruction::INSTANCE_OF == prev_inst->Opcode()) &&
+          (inst->VRegA_21t() == prev_inst->VRegA_22c()) &&
+          (prev_inst->VRegA_22c() != prev_inst->VRegB_22c())) {
+        // Check that the we are not attempting conversion to interface types,
+        // which is not done because of the multiple inheritance implications.
+        const RegType& cast_type = ResolveClassAndCheckAccess(prev_inst->VRegC_22c());
 
-          if(!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
-            if (inst->Opcode() == Instruction::IF_EQZ) {
-              fallthrough_line.reset(new RegisterLine(code_item_->registers_size_, this));
-              fallthrough_line->CopyFromLine(work_line_.get());
-              fallthrough_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
-            } else {
-              branch_line.reset(new RegisterLine(code_item_->registers_size_, this));
-              branch_line->CopyFromLine(work_line_.get());
-              branch_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
-            }
+        if(!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
+          if (inst->Opcode() == Instruction::IF_EQZ) {
+            fallthrough_line.reset(new RegisterLine(code_item_->registers_size_, this));
+            fallthrough_line->CopyFromLine(work_line_.get());
+            fallthrough_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
+          } else {
+            branch_line.reset(new RegisterLine(code_item_->registers_size_, this));
+            branch_line->CopyFromLine(work_line_.get());
+            branch_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
           }
         }
       }
@@ -3304,24 +3306,22 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
     return NULL;
   }
   UniquePtr<MethodSafeCastSet> mscs;
-  uint32_t dex_pc = 0;
   const Instruction* inst = Instruction::At(code_item_->insns_);
   const Instruction* end = Instruction::At(code_item_->insns_ +
-      code_item_->insns_size_in_code_units_);
+                                           code_item_->insns_size_in_code_units_);
 
   for (; inst < end; inst = inst->Next()) {
-    if( Instruction::CHECK_CAST != inst->Opcode() )
+    if (Instruction::CHECK_CAST != inst->Opcode()) {
       continue;
-
+    }
+    uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
     RegisterLine* line = reg_table_.GetLine(dex_pc);
-    DecodedInstruction dec_insn(inst);
-    const RegType& reg_type(line->GetRegisterType(dec_insn.vA));
-    const RegType& cast_type = ResolveClassAndCheckAccess(dec_insn.vB);
+    const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
+    const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
     if (cast_type.IsAssignableFrom(reg_type)) {
       if (mscs.get() == NULL) {
         mscs.reset(new MethodSafeCastSet());
       }
-      uint32_t dex_pc = inst->GetDexPc(code_item_->insns_);
       mscs->insert(dex_pc);
     }
   }
@@ -3511,7 +3511,8 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref,
 }
 
 
-void  MethodVerifier::SetSafeCastMap(CompilerDriver::MethodReference ref, const MethodSafeCastSet* cast_set) {
+void  MethodVerifier::SetSafeCastMap(CompilerDriver::MethodReference ref,
+                                     const MethodSafeCastSet* cast_set) {
   MutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::iterator it = safecast_map_->find(ref);
   if (it != safecast_map_->end()) {

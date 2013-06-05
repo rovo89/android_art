@@ -739,19 +739,19 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
       } else if (IsJavaLangObject()) {
         return true;  // all reference types can be assigned to Object
       } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
-          return true;  // We allow assignment to any interface, see comment in ClassJoin
-        } else if (IsJavaLangObjectArray()) {
-          return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
-        } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
-                   GetClass()->IsAssignableFrom(src.GetClass())) {
-          // We're assignable from the Class point-of-view
-          return true;
-        } else if (IsUnresolvedTypes()) {
-          // Unresolved types are only assignable for null, Object and equality.
-          return (src.IsZero() || src.IsJavaLangObject());
-        } else {
-          return false;
-        }
+        return true;  // We allow assignment to any interface, see comment in ClassJoin
+      } else if (IsJavaLangObjectArray()) {
+        return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
+      } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
+          GetClass()->IsAssignableFrom(src.GetClass())) {
+        // We're assignable from the Class point-of-view
+        return true;
+      } else if (IsUnresolvedTypes()) {
+        // Unresolved types are only assignable for null, Object and equality.
+        return (src.IsZero() || src.IsJavaLangObject());
+      } else {
+        return false;
+      }
     }
   }
 }
