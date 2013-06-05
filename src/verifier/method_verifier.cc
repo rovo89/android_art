@@ -3325,7 +3325,6 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
       mscs->insert(dex_pc);
     }
   }
-
   return mscs.release();
 }
 

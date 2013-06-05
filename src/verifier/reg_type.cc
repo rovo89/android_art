@@ -747,8 +747,8 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
         // We're assignable from the Class point-of-view
         return true;
       } else if (IsUnresolvedTypes()) {
-        // Unresolved types are only assignable for null, Object and equality.
-        return (src.IsZero() || src.IsJavaLangObject());
+        // Unresolved types are only assignable for null and equality.
+        return src.IsZero();
       } else {
         return false;
       }

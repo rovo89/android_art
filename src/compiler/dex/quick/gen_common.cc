@@ -973,8 +973,10 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   const CompilerDriver::MethodReference mr(
         cu->GetDexFile(),
         cu->GetDexMethodIndex());
-
-  if (cu_->compiler_driver->IsSafeCast(mr, insn_idx)) {
+  bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
+                                                                              *cu_->dex_file,
+                                                                              type_idx);
+  if (!needs_access_check && cu_->compiler_driver->IsSafeCast(mr, insn_idx)) {
     // Verifier type analysis proved this check cast would never cause an exception.
     return;
   }
@@ -983,9 +985,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   LockCallTemps();
   LoadCurrMethodDirect(TargetReg(kArg1));  // kArg1 <= current Method*
   int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*
-  if (!cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
-                                                   *cu_->dex_file,
-                                                   type_idx)) {
+  if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kRet0
     // InitializeTypeAndVerifyAccess(idx, method)
