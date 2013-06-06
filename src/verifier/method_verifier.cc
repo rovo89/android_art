@@ -1767,18 +1767,18 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
 
       // Find previous instruction - its existence is a precondition to peephole optimization.
-      uint32_t prev_idx = 0;
+      uint32_t instance_of_idx = 0;
       if (0 != work_insn_idx_) {
-        prev_idx = work_insn_idx_ - 1;
-        while(0 != prev_idx && !insn_flags_[prev_idx].IsOpcode()) {
-          prev_idx--;
+        instance_of_idx = work_insn_idx_ - 1;
+        while(0 != instance_of_idx && !insn_flags_[instance_of_idx].IsOpcode()) {
+          instance_of_idx--;
         }
-        CHECK(insn_flags_[prev_idx].IsOpcode());
+        CHECK(insn_flags_[instance_of_idx].IsOpcode());
       } else {
         break;
       }
 
-      const Instruction* prev_inst = Instruction::At(code_item_->insns_+prev_idx);
+      const Instruction* instance_of_inst = Instruction::At(code_item_->insns_ + instance_of_idx);
 
       /* Check for peep-hole pattern of:
        *    ...;
@@ -1793,22 +1793,51 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        *  - when vX == vY.
        */
       if (!CurrentInsnFlags()->IsBranchTarget() &&
-          (Instruction::INSTANCE_OF == prev_inst->Opcode()) &&
-          (inst->VRegA_21t() == prev_inst->VRegA_22c()) &&
-          (prev_inst->VRegA_22c() != prev_inst->VRegB_22c())) {
+          (Instruction::INSTANCE_OF == instance_of_inst->Opcode()) &&
+          (inst->VRegA_21t() == instance_of_inst->VRegA_22c()) &&
+          (instance_of_inst->VRegA_22c() != instance_of_inst->VRegB_22c())) {
         // Check that the we are not attempting conversion to interface types,
         // which is not done because of the multiple inheritance implications.
-        const RegType& cast_type = ResolveClassAndCheckAccess(prev_inst->VRegC_22c());
+        const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
 
         if(!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
+          RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
-            fallthrough_line.reset(new RegisterLine(code_item_->registers_size_, this));
-            fallthrough_line->CopyFromLine(work_line_.get());
-            fallthrough_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
+            fallthrough_line.reset(update_line);
           } else {
-            branch_line.reset(new RegisterLine(code_item_->registers_size_, this));
-            branch_line->CopyFromLine(work_line_.get());
-            branch_line->SetRegisterType(prev_inst->VRegB_22c(), cast_type);
+            branch_line.reset(update_line);
+          }
+          update_line->CopyFromLine(work_line_.get());
+          update_line->SetRegisterType(instance_of_inst->VRegB_22c(), cast_type);
+          if (!insn_flags_[instance_of_idx].IsBranchTarget() && 0 != instance_of_idx) {
+            // See if instance-of was preceded by a move-object operation, common due to the small
+            // register encoding space of instance-of, and propagate type information to the source
+            // of the move-object.
+            uint32_t move_idx = instance_of_idx - 1;
+            while(0 != move_idx && !insn_flags_[move_idx].IsOpcode()) {
+              move_idx--;
+            }
+            CHECK(insn_flags_[move_idx].IsOpcode());
+            const Instruction* move_inst = Instruction::At(code_item_->insns_ + move_idx);
+            switch (move_inst->Opcode()) {
+              case Instruction::MOVE_OBJECT:
+                if (move_inst->VRegA_12x() == instance_of_inst->VRegB_22c()) {
+                  update_line->SetRegisterType(move_inst->VRegB_12x(), cast_type);
+                }
+                break;
+              case Instruction::MOVE_OBJECT_FROM16:
+                if (move_inst->VRegA_22x() == instance_of_inst->VRegB_22c()) {
+                  update_line->SetRegisterType(move_inst->VRegB_22x(), cast_type);
+                }
+                break;
+              case Instruction::MOVE_OBJECT_16:
+                if (move_inst->VRegA_32x() == instance_of_inst->VRegB_22c()) {
+                  update_line->SetRegisterType(move_inst->VRegB_32x(), cast_type);
+                }
+                break;
+              default:
+                break;
+            }
           }
         }
       }
