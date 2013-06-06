@@ -2247,7 +2247,6 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
   const DexFile& dex_file = *klass->GetDexCache()->GetDexFile();
   mirror::Class::Status oat_file_class_status(mirror::Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
-  verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
   if (oat_file_class_status == mirror::Class::kStatusError) {
     LOG(WARNING) << "Skipping runtime verification of erroneous class " << PrettyDescriptor(klass)
                  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
@@ -2256,9 +2255,11 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
     klass->SetStatus(mirror::Class::kStatusError);
     return;
   }
+  verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
   std::string error_msg;
   if (!preverified) {
-    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg, Runtime::Current()->IsCompiler());
+    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg,
+                                                             Runtime::Current()->IsCompiler());
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
@@ -2289,6 +2290,15 @@ void ClassLinker::VerifyClass(mirror::Class* klass) {
     self->AssertNoPendingException();
     ThrowVerifyError(klass, "%s", error_msg.c_str());
     klass->SetStatus(mirror::Class::kStatusError);
+  }
+  if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
+    // Class is verified so we don't need to do any access check in its methods.
+    // Let the interpreter know it by setting the kAccPreverified flag onto each
+    // method.
+    // Note: we're going here during compilation and at runtime. When we set the
+    // kAccPreverified flag when compiling image classes, the flag is recorded
+    // in the image and is set when loading the image.
+    klass->SetPreverifiedFlagOnAllMethods();
   }
 }
 

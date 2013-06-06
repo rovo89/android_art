@@ -743,6 +743,9 @@ class MANAGED Class : public StaticStorageBase {
   static void SetClassClass(Class* java_lang_Class);
   static void ResetClass();
 
+  // When class is verified, set the kAccPreverified flag on each method.
+  void SetPreverifiedFlagOnAllMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
