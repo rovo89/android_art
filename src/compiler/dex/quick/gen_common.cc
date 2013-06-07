@@ -1067,13 +1067,17 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest, RegLocation 
 
 void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src)
 {
-  DexCompilationUnit* cu = mir_graph_->GetCurrentDexCompilationUnit();
-  const CompilerDriver::MethodReference mr(
-        cu->GetDexFile(),
-        cu->GetDexMethodIndex());
+  bool type_known_final, type_known_abstract, use_declaring_class;
   bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
                                                                               *cu_->dex_file,
-                                                                              type_idx);
+                                                                              type_idx,
+                                                                              &type_known_final,
+                                                                              &type_known_abstract,
+                                                                              &use_declaring_class);
+  // Note: currently type_known_final is unused, as optimizing will only improve the performance
+  // of the exception throw path.
+  DexCompilationUnit* cu = mir_graph_->GetCurrentDexCompilationUnit();
+  const CompilerDriver::MethodReference mr(cu->GetDexFile(), cu->GetDexMethodIndex());
   if (!needs_access_check && cu_->compiler_driver->IsSafeCast(mr, insn_idx)) {
     // Verifier type analysis proved this check cast would never cause an exception.
     return;
@@ -1090,6 +1094,9 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
     CallRuntimeHelperImmReg(ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
                             type_idx, TargetReg(kArg1), true);
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
+  } else if (use_declaring_class) {
+    LoadWordDisp(TargetReg(kArg1),
+                 mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadWordDisp(TargetReg(kArg1),
@@ -1098,8 +1105,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
         (sizeof(mirror::Class*) * type_idx);
     LoadWordDisp(class_reg, offset_of_type, class_reg);
-    if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(
-        *cu_->dex_file, type_idx)) {
+    if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Not resolved
@@ -1121,25 +1127,18 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
   LoadWordDisp(TargetReg(kArg0), mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg1 now contains object->klass_ */
-  LIR* branch2;
-  if (cu_->instruction_set == kThumb2) {
-    int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pCheckCastFromCode));
-    OpRegReg(kOpCmp, TargetReg(kArg1), class_reg);
-    branch2 = OpCondBranch(kCondEq, NULL); /* If eq, trivial yes */
-    OpRegCopy(TargetReg(kArg0), TargetReg(kArg1));
-    OpRegCopy(TargetReg(kArg1), TargetReg(kArg2));
-    ClobberCalleeSave();
-    LIR* call_inst = OpReg(kOpBlx, r_tgt);
-    MarkSafepointPC(call_inst);
-    FreeTemp(r_tgt);
-  } else {
+  LIR* branch2 = NULL;
+  if (!type_known_abstract) {
     branch2 = OpCmpBranch(kCondEq, TargetReg(kArg1), class_reg, NULL);
-    CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCheckCastFromCode), TargetReg(kArg1), TargetReg(kArg2), true);
   }
+  CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCheckCastFromCode), TargetReg(kArg1), TargetReg(kArg2),
+                          true);
   /* branch target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch1->target = target;
-  branch2->target = target;
+  if (branch2 != NULL) {
+    branch2->target = target;
+  }
 }
 
 void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
