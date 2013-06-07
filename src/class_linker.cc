@@ -1048,7 +1048,9 @@ void ClassLinker::InitFromImageCallback(mirror::Object* obj, void* arg) {
     mirror::AbstractMethod* method = obj->AsMethod();
     if (Runtime::Current()->GetInstrumentation()->InterpretOnly() && !method->IsNative()) {
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
-      method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
+      if (method != Runtime::Current()->GetResolutionMethod()) {
+        method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
+      }
     }
   }
 }
