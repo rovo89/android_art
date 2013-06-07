@@ -3352,7 +3352,7 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
     RegisterLine* line = reg_table_.GetLine(dex_pc);
     const RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
     const RegType& cast_type = ResolveClassAndCheckAccess(inst->VRegB_21c());
-    if (cast_type.IsAssignableFrom(reg_type)) {
+    if (cast_type.IsStrictlyAssignableFrom(reg_type)) {
       if (mscs.get() == NULL) {
         mscs.reset(new MethodSafeCastSet());
       }
