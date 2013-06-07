@@ -708,52 +708,60 @@ ImpreciseConstType::ImpreciseConstType(uint32_t constat, uint16_t cache_id)
   : ConstantType(constat, cache_id) {
 }
 
-bool RegType::IsAssignableFrom(const RegType& src) const {
-  if (Equals(src)) {
+static bool AssignableFrom(const RegType& lhs, const RegType& rhs, bool strict)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (lhs.Equals(rhs)) {
     return true;
   } else {
-    if (IsBoolean()) {
-      return src.IsBooleanTypes();
-    } else if (IsByte()) {
-      return src.IsByteTypes();
-    } else if (IsShort()) {
-      return src.IsShortTypes();
-    } else if (IsChar()) {
-      return src.IsCharTypes();
-    } else if (IsInteger()) {
-      return src.IsIntegralTypes();
-    } else if (IsFloat()) {
-      return src.IsFloatTypes();
-    } else if (IsLongLo()) {
-      return src.IsLongTypes();
-    } else if (IsDoubleLo()) {
-      return src.IsDoubleTypes();
+    if (lhs.IsBoolean()) {
+      return rhs.IsBooleanTypes();
+    } else if (lhs.IsByte()) {
+      return rhs.IsByteTypes();
+    } else if (lhs.IsShort()) {
+      return rhs.IsShortTypes();
+    } else if (lhs.IsChar()) {
+      return rhs.IsCharTypes();
+    } else if (lhs.IsInteger()) {
+      return rhs.IsIntegralTypes();
+    } else if (lhs.IsFloat()) {
+      return rhs.IsFloatTypes();
+    } else if (lhs.IsLongLo()) {
+      return rhs.IsLongTypes();
+    } else if (lhs.IsDoubleLo()) {
+      return rhs.IsDoubleTypes();
     } else {
-      if (!IsReferenceTypes()) {
-        LOG(FATAL) << "Unexpected register type in 4bleFrom: '" << src << "'";
-      }
-      if (src.IsZero()) {
-        return true;  // all reference types can be assigned null
-      } else if (!src.IsReferenceTypes()) {
-        return false;  // expect src to be a reference type
-      } else if (IsJavaLangObject()) {
-        return true;  // all reference types can be assigned to Object
-      } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
-        return true;  // We allow assignment to any interface, see comment in ClassJoin
-      } else if (IsJavaLangObjectArray()) {
-        return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
-      } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
-          GetClass()->IsAssignableFrom(src.GetClass())) {
-        // We're assignable from the Class point-of-view
+      CHECK(lhs.IsReferenceTypes())
+          << "Unexpected register type in IsAssignableFrom: '"
+          << lhs << "' := '" << rhs << "'";
+      if (rhs.IsZero()) {
+        return true;  // All reference types can be assigned null.
+      } else if (!rhs.IsReferenceTypes()) {
+        return false;  // Expect rhs to be a reference type.
+      } else if (lhs.IsJavaLangObject()) {
+        return true;  // All reference types can be assigned to Object.
+      } else if (!strict && !lhs.IsUnresolvedTypes() && lhs.GetClass()->IsInterface()) {
+        // If we're not strict allow assignment to any interface, see comment in ClassJoin.
         return true;
-      } else if (IsUnresolvedTypes()) {
-        // Unresolved types are only assignable for null and equality.
-        return src.IsZero();
+      } else if (lhs.IsJavaLangObjectArray()) {
+        return rhs.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
+      } else if (lhs.HasClass() && rhs.HasClass() &&
+                 lhs.GetClass()->IsAssignableFrom(rhs.GetClass())) {
+        // We're assignable from the Class point-of-view.
+        return true;
       } else {
+        // Unresolved types are only assignable for null and equality.
         return false;
       }
     }
   }
+}
+
+bool RegType::IsAssignableFrom(const RegType& src) const {
+  return AssignableFrom(*this, src, false);
+}
+
+bool RegType::IsStrictlyAssignableFrom(const RegType& src) const {
+  return AssignableFrom(*this, src, true);
 }
 
 int32_t ConstantType::ConstantValue() const {
