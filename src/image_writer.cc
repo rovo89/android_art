@@ -287,7 +287,12 @@ void ImageWriter::FindClinitImageClassesCallback(Object* object, void* arg) {
     return;
   }
   while (!klass->IsObjectClass()) {
-    image_writer->image_classes_->insert(ClassHelper(klass).GetDescriptor());
+    ClassHelper kh(klass);
+    const char* descriptor = kh.GetDescriptor();
+    std::pair<DescriptorSet::iterator, bool> result = image_writer->image_classes_->insert(descriptor);
+    if (result.second) {
+      LOG(INFO) << "Adding " << descriptor << " to image classes";
+    }
     klass = klass->GetSuperClass();
   }
 }
