@@ -536,24 +536,19 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compil
 
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
                                                       uint32_t type_idx) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
-  if (!IsImage()) {
-    stats_->TypeNotInDexCache();
-    return false;
-  }
-  mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-  if (resolved_class == NULL) {
-    stats_->TypeNotInDexCache();
-    return false;
-  }
-  bool result = IsImageClass(ClassHelper(resolved_class).GetDescriptor());
-  if (result) {
+  if (IsImage() && IsImageClass(dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx)))) {
+    if (kIsDebugBuild) {
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
+      mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+      CHECK(resolved_class != NULL);
+    }
     stats_->TypeInDexCache();
+    return true;
   } else {
     stats_->TypeNotInDexCache();
+    return false;
   }
-  return result;
 }
 
 bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
