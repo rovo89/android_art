@@ -222,7 +222,7 @@ class Dex2Oat {
     // We walk the roots looking for classes so that we'll pick up the
     // above classes plus any classes them depend on such super
     // classes, interfaces, and the required ClassLinker roots.
-    UniquePtr<std::set<std::string> > image_classes(new std::set<std::string>());
+    UniquePtr<ImageWriter::DescriptorSet> image_classes(new ImageWriter::DescriptorSet);
     class_linker->VisitClasses(RecordImageClassesVisitor, image_classes.get());
     CHECK_NE(image_classes->size(), 0U);
     return image_classes.release();
@@ -236,7 +236,7 @@ class Dex2Oat {
                                       File* oat_file,
                                       const std::string& bitcode_filename,
                                       bool image,
-                                      const std::set<std::string>* image_classes,
+                                      const ImageWriter::DescriptorSet* image_classes,
                                       bool dump_stats,
                                       bool dump_timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -313,7 +313,7 @@ class Dex2Oat {
 
   bool CreateImageFile(const std::string& image_filename,
                        uintptr_t image_base,
-                       std::set<std::string>* image_classes,
+                       ImageWriter::DescriptorSet* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location,
                        const CompilerDriver& compiler)
@@ -431,7 +431,7 @@ class Dex2Oat {
 
   static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
+    ImageWriter::DescriptorSet* image_classes = reinterpret_cast<ImageWriter::DescriptorSet*>(arg);
     if (klass->IsArrayClass() || klass->IsPrimitive()) {
       return true;
     }
@@ -934,7 +934,7 @@ static int dex2oat(int argc, char** argv) {
   ScopedObjectAccess soa(Thread::Current());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  UniquePtr<std::set<std::string> > image_classes(NULL);
+  UniquePtr<ImageWriter::DescriptorSet> image_classes(NULL);
   if (image_classes_filename != NULL) {
     image_classes.reset(dex2oat->GetImageClassDescriptors(image_classes_filename));
     if (image_classes.get() == NULL) {

@@ -37,7 +37,8 @@ namespace art {
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
  public:
-  explicit ImageWriter(std::set<std::string>* image_classes)
+  typedef std::set<std::string> DescriptorSet;
+  explicit ImageWriter(DescriptorSet* image_classes)
       : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
         oat_data_begin_(NULL) {}
 
@@ -191,7 +192,7 @@ class ImageWriter {
   byte* image_begin_;
 
   // Set of classes to be include in the image, or NULL for all.
-  std::set<std::string>* image_classes_;
+  DescriptorSet* image_classes_;
 
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
