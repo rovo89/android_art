@@ -1223,7 +1223,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         uint16_t size = switch_data[1];
         DCHECK_GT(size, 0);
         const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
-        CHECK(IsAligned<4>(keys));
+        DCHECK(IsAligned<4>(keys));
         int32_t first_key = keys[0];
         const int32_t* targets = reinterpret_cast<const int32_t*>(&switch_data[4]);
         DCHECK(IsAligned<4>(targets));
@@ -1239,13 +1239,13 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         PREAMBLE();
         const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
         int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
-        CHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
+        DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
         uint16_t size = switch_data[1];
-        CHECK_GT(size, 0);
+        DCHECK_GT(size, 0);
         const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
-        CHECK(IsAligned<4>(keys));
+        DCHECK(IsAligned<4>(keys));
         const int32_t* entries = keys + size;
-        CHECK(IsAligned<4>(entries));
+        DCHECK(IsAligned<4>(entries));
         int lo = 0;
         int hi = size - 1;
         const Instruction* current_inst = inst;
