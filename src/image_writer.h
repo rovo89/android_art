@@ -37,7 +37,7 @@ namespace art {
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
  public:
-  explicit ImageWriter(const std::set<std::string>* image_classes)
+  explicit ImageWriter(std::set<std::string>* image_classes)
       : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
         oat_data_begin_(NULL) {}
 
@@ -110,27 +110,36 @@ class ImageWriter {
     return oat_data_begin_ + offset;
   }
 
+  // Returns true if the class was in the original requested image classes list.
   bool IsImageClass(const mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Debug aid that list of requested image classes.
   void DumpImageClasses();
 
+  // Preinitializes some otherwise lazy fields (such as Class name) to avoid runtime image dirtying.
   void ComputeLazyFieldsForImageClasses()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool ComputeLazyFieldsForClassesVisitor(mirror::Class* klass, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Wire dex cache resolved strings to strings in the image to avoid runtime resolution
+  // Wire dex cache resolved strings to strings in the image to avoid runtime resolution.
   void ComputeEagerResolvedStrings();
   static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Verify unwanted classes removed.
   void CheckNonImageClassesRemoved();
   static void CheckNonImageClassesRemovedCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Lays out where the image objects will be at runtime.
   void CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* CreateImageRoots() const
@@ -138,6 +147,7 @@ class ImageWriter {
   static void CalculateNewObjectOffsetsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Creates the contiguous image in memory and adjusts pointers.
   void CopyAndFixupObjects();
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -158,32 +168,35 @@ class ImageWriter {
                    bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Patches references in OatFile to expect runtime addresses.
   void PatchOatCodeAndMethods(const CompilerDriver& compiler)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+
+  // Map of Object to where it will be at runtime.
   SafeMap<const mirror::Object*, size_t> offsets_;
 
   // oat file with code for this image
   OatFile* oat_file_;
 
-  // memory mapped for generating the image
+  // Memory mapped for generating the image.
   UniquePtr<MemMap> image_;
 
-  // Offset to the free space in image_
+  // Offset to the free space in image_.
   size_t image_end_;
 
-  // Beginning target image address for the output image
+  // Beginning target image address for the output image.
   byte* image_begin_;
 
   // Set of classes to be include in the image, or NULL for all.
-  const std::set<std::string>* image_classes_;
+  std::set<std::string>* image_classes_;
 
-  // Beginning target oat address for the pointers from the output image to its oat file
+  // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
 
-  // DexCaches seen while scanning for fixing up CodeAndDirectMethods
+  // DexCaches seen while scanning for fixing up CodeAndDirectMethods.
   typedef std::set<mirror::DexCache*> Set;
   Set dex_caches_;
 };

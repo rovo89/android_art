@@ -162,7 +162,7 @@ class Dex2Oat {
 
 
   // Make a list of descriptors for classes to include in the image
-  const std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
+  std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
     if (image_classes_file.get() == NULL) {
@@ -321,7 +321,7 @@ class Dex2Oat {
 
   bool CreateImageFile(const std::string& image_filename,
                        uintptr_t image_base,
-                       const std::set<std::string>* image_classes,
+                       std::set<std::string>* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location,
                        const CompilerDriver& compiler)
@@ -942,7 +942,7 @@ static int dex2oat(int argc, char** argv) {
   ScopedObjectAccess soa(Thread::Current());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  UniquePtr<const std::set<std::string> > image_classes(NULL);
+  UniquePtr<std::set<std::string> > image_classes(NULL);
   if (image_classes_filename != NULL) {
     image_classes.reset(dex2oat->GetImageClassDescriptors(image_classes_filename));
     if (image_classes.get() == NULL) {

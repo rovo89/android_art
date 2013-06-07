@@ -221,17 +221,30 @@ void ImageWriter::PruneNonImageClasses() {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
 
+  // Update image_classes_ with classes for objects created by <clinit> methods.
+  Thread* self = Thread::Current();
+  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
+  Heap* heap = Runtime::Current()->GetHeap();
+  // TODO: Image spaces only?
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  heap->FlushAllocStack();
+  heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
+  self->EndAssertNoThreadSuspension(old_cause);
+
+  // Make a list of classes we would like to prune.
   std::set<std::string> non_image_classes;
   NonImageClasses context;
   context.image_writer = this;
   context.non_image_classes = &non_image_classes;
   class_linker->VisitClasses(NonImageClassesVisitor, &context);
 
+  // Remove the undesired classes from the class roots.
   typedef std::set<std::string>::const_iterator ClassIt;  // TODO: C++0x auto
   for (ClassIt it = non_image_classes.begin(), end = non_image_classes.end(); it != end; ++it) {
     class_linker->RemoveClass((*it).c_str(), NULL);
   }
 
+  // Clear references to removed classes from the DexCaches.
   AbstractMethod* resolution_method = runtime->GetResolutionMethod();
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
@@ -255,6 +268,23 @@ void ImageWriter::PruneNonImageClasses() {
         dex_cache->SetResolvedField(i, NULL);
       }
     }
+  }
+}
+
+void ImageWriter::FindClinitImageClassesCallback(Object* object, void* arg) {
+  DCHECK(object != NULL);
+  DCHECK(arg != NULL);
+  ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
+  Class* klass = object->GetClass();
+  while (klass->IsArrayClass()) {
+    klass = klass->GetComponentType();
+  }
+  if (klass->IsPrimitive()) {
+    return;
+  }
+  while (!klass->IsObjectClass()) {
+    image_writer->image_classes_->insert(ClassHelper(klass).GetDescriptor());
+    klass = klass->GetSuperClass();
   }
 }
 
