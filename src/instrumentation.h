@@ -137,12 +137,24 @@ class Instrumentation {
     return instrumentation_stubs_installed_;
   }
 
+  bool HasMethodEntryListeners() const {
+    return have_method_entry_listeners_;
+  }
+
+  bool HasMethodExitListeners() const {
+    return have_method_exit_listeners_;
+  }
+
+  bool HasDexPcListeners() const {
+    return have_dex_pc_listeners_;
+  }
+
   // Inform listeners that a method has been entered. A dex PC is provided as we may install
   // listeners into executing code and get method enter events for methods already on the stack.
   void MethodEnterEvent(Thread* thread, mirror::Object* this_object,
                         const mirror::AbstractMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (have_method_entry_listeners_) {
+    if (UNLIKELY(HasMethodEntryListeners())) {
       MethodEnterEventImpl(thread, this_object, method, dex_pc);
     }
   }
@@ -152,7 +164,7 @@ class Instrumentation {
                        const mirror::AbstractMethod* method, uint32_t dex_pc,
                        const JValue& return_value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (have_method_exit_listeners_) {
+    if (UNLIKELY(HasMethodExitListeners())) {
       MethodExitEventImpl(thread, this_object, method, dex_pc, return_value);
     }
   }
@@ -166,7 +178,7 @@ class Instrumentation {
   void DexPcMovedEvent(Thread* thread, mirror::Object* this_object,
                        const mirror::AbstractMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(have_dex_pc_listeners_)) {
+    if (UNLIKELY(HasDexPcListeners())) {
       DexPcMovedEventImpl(thread, this_object, method, dex_pc);
     }
   }

@@ -729,8 +729,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
 
   const Instruction* inst = Instruction::At(insns + shadow_frame.GetDexPC());
   if (inst->GetDexPc(insns) == 0) {  // We are entering the method as opposed to deoptimizing..
-    instrumentation->MethodEnterEvent(self, this_object_ref.get(),
-                                      shadow_frame.GetMethod(), 0);
+    if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
+      instrumentation->MethodEnterEvent(self, this_object_ref.get(),
+                                        shadow_frame.GetMethod(), 0);
+    }
   }
   while (true) {
     if (UNLIKELY(self->TestAllFlags())) {
@@ -738,8 +740,10 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
     }
     const uint32_t dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
-    instrumentation->DexPcMovedEvent(self, this_object_ref.get(),
-                                     shadow_frame.GetMethod(), dex_pc);
+    if (instrumentation->HasDexPcListeners()) {
+      instrumentation->DexPcMovedEvent(self, this_object_ref.get(),
+                                       shadow_frame.GetMethod(), dex_pc);
+    }
     const bool kTracing = false;
     if (kTracing) {
 #define TRACE_LOG std::cerr
@@ -847,8 +851,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::RETURN_VOID: {
         PREAMBLE();
         JValue result;
-        instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
+        if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
+          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+                                           shadow_frame.GetMethod(), inst->GetDexPc(insns),
+                                           result);
+        }
         return result;
       }
       case Instruction::RETURN: {
@@ -856,16 +863,22 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         JValue result;
         result.SetJ(0);
         result.SetI(shadow_frame.GetVReg(inst->VRegA_11x()));
-        instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
+        if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
+          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+                                           shadow_frame.GetMethod(), inst->GetDexPc(insns),
+                                           result);
+        }
         return result;
       }
       case Instruction::RETURN_WIDE: {
         PREAMBLE();
         JValue result;
         result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x()));
-        instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
+        if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
+          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+                                           shadow_frame.GetMethod(), inst->GetDexPc(insns),
+                                           result);
+        }
         return result;
       }
       case Instruction::RETURN_OBJECT: {
@@ -873,8 +886,11 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         JValue result;
         result.SetJ(0);
         result.SetL(shadow_frame.GetVRegReference(inst->VRegA_11x()));
-        instrumentation->MethodExitEvent(self, this_object_ref.get(),
-                                         shadow_frame.GetMethod(), inst->GetDexPc(insns), result);
+        if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
+          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+                                           shadow_frame.GetMethod(), inst->GetDexPc(insns),
+                                           result);
+        }
         return result;
       }
       case Instruction::CONST_4: {
