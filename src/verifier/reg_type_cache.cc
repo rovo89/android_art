@@ -31,7 +31,17 @@ uint16_t RegTypeCache::primitive_count_ = 0;
 
 static bool MatchingPrecisionForClass(RegType* entry, bool precise)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return (entry->IsPreciseReference() == precise) || (entry->GetClass()->IsFinal() && !precise);
+  if (entry->IsPreciseReference() == precise) {
+    // We were or weren't looking for a precise reference and we found what we need.
+    return true;
+  } else {
+    if (!precise && entry->GetClass()->CannotBeAssignedFromOtherTypes()) {
+      // We weren't looking for a precise reference, as we're looking up based on a descriptor, but
+      // we found a matching entry based on the descriptor. Return the precise entry in that case.
+      return true;
+    }
+    return false;
+  }
 }
 
 void RegTypeCache::FillPrimitiveTypes() {
@@ -112,10 +122,13 @@ bool RegTypeCache::MatchDescriptor(size_t idx, const char* descriptor, bool prec
   if (entry->descriptor_ != descriptor) {
     return false;
   }
-  if (entry->HasClass() && MatchingPrecisionForClass(entry, precise)) {
-    return true;
+  if (entry->HasClass()) {
+    return MatchingPrecisionForClass(entry, precise);
   }
-  return entry->IsUnresolvedReference();
+  // There is no notion of precise unresolved references, the precise information is just dropped
+  // on the floor.
+  DCHECK(entry->IsUnresolvedReference());
+  return true;
 }
 
 mirror::Class* RegTypeCache::ResolveClass(const char* descriptor, mirror::ClassLoader* loader) {
@@ -166,7 +179,7 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
     // 2- Precise Flag passed as true.
     RegType* entry;
     // Create an imprecise type if we can't tell for a fact that it is precise.
-    if ((klass->IsFinal()) || precise) {
+    if (klass->CannotBeAssignedFromOtherTypes() || precise) {
       DCHECK(!(klass->IsAbstract()) || klass->IsArrayClass());
       DCHECK(!klass->IsInterface());
       entry = new PreciseReferenceType(klass, descriptor, entries_.size());
@@ -193,6 +206,8 @@ const RegType& RegTypeCache::From(mirror::ClassLoader* loader, const char* descr
 
 const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* klass, bool precise) {
   if (klass->IsPrimitive()) {
+    // Note: precise isn't used for primitive classes. A char is assignable to an int. All
+    // primitive classes are final.
     return RegTypeFromPrimitiveType(klass->GetPrimitiveType());
   } else {
     // Look for the reference in the list of entries to have.
@@ -362,8 +377,9 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
     entry = new UnresolvedReferenceType(descriptor.c_str(), entries_.size());
   } else {
     mirror::Class* klass = uninit_type.GetClass();
+    DCHECK(!klass->IsArrayClass());
     if(uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
-      // For uninitialized this reference look for reference types that are not precise.
+      // For uninitialized "this reference" look for reference types that are not precise.
       for (size_t i = primitive_count_; i < entries_.size(); i++) {
         RegType* cur_entry = entries_[i];
         if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
@@ -372,21 +388,22 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
       }
       entry = new ReferenceType(klass, "", entries_.size());
     } else {
-        if (klass->IsFinal()) {
-          if (klass->IsInstantiable()) {
-            for (size_t i = primitive_count_; i < entries_.size(); i++) {
-              RegType* cur_entry = entries_[i];
-              if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
-                return *cur_entry;
-              }
+      if (klass->IsFinal()) {
+        if (klass->IsInstantiable()) {
+          for (size_t i = primitive_count_; i < entries_.size(); i++) {
+            RegType* cur_entry = entries_[i];
+            if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
+              return *cur_entry;
             }
-            // Precise type was not found , create one !
-            entry = new PreciseReferenceType(klass, "", entries_.size());
-          } else {
-            return Conflict();
           }
+          // Precise type was not found , create one !
+          entry = new PreciseReferenceType(klass, "", entries_.size());
+        } else {
+          return Conflict();
+        }
       } else {
-        // Not a final class, create an imprecise reference. Look up if we have it in the cache first.
+        // Not a final class, create an imprecise reference. Look up if we have it in the cache
+        // first.
         for (size_t i = primitive_count_; i < entries_.size(); i++) {
           RegType* cur_entry = entries_[i];
           if (cur_entry->IsReference() && !(cur_entry->IsPrecise()) &&
@@ -504,7 +521,8 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, mirror::Clas
     return FromDescriptor(loader, component.c_str(), false);
   } else {
     mirror::Class* klass = array.GetClass()->GetComponentType();
-    return FromClass(ClassHelper(klass).GetDescriptor(), klass, klass->IsFinal());
+    return FromClass(ClassHelper(klass).GetDescriptor(), klass,
+                     klass->CannotBeAssignedFromOtherTypes());
   }
 }
 

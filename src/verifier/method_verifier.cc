@@ -2613,7 +2613,8 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const RegType& referrer = GetDeclaringClass();
   mirror::Class* klass = dex_cache_->GetResolvedType(class_idx);
   const RegType& result =
-      klass != NULL ? reg_types_.FromClass(descriptor, klass, klass->IsFinal())
+      klass != NULL ? reg_types_.FromClass(descriptor, klass,
+                                           klass->CannotBeAssignedFromOtherTypes())
                     : reg_types_.FromDescriptor(class_loader_, descriptor, false);
   if (result.IsConflict()) {
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
@@ -2829,8 +2830,9 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* 
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       mirror::Class* klass = res_method->GetDeclaringClass();
-      const RegType& res_method_class = reg_types_.FromClass(ClassHelper(klass).GetDescriptor(),
-                                                             klass, klass->IsFinal());
+      const RegType& res_method_class =
+          reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
+                               klass->CannotBeAssignedFromOtherTypes());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
             << "' not instance of '" << res_method_class << "'";
@@ -3085,7 +3087,7 @@ mirror::Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int fie
     mirror::Class* klass = field->GetDeclaringClass();
     const RegType& field_klass =
         reg_types_.FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
-                             klass, klass->IsFinal());
+                             klass, klass->CannotBeAssignedFromOtherTypes());
     if (obj_type.IsUninitializedTypes() &&
         (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
             !field_klass.Equals(GetDeclaringClass()))) {
@@ -3300,7 +3302,8 @@ const RegType& MethodVerifier::GetDeclaringClass() {
     const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
     if (mirror_method_ != NULL) {
       mirror::Class* klass = mirror_method_->GetDeclaringClass();
-      declaring_class_ = &reg_types_.FromClass(descriptor, klass, klass->IsFinal());
+      declaring_class_ = &reg_types_.FromClass(descriptor, klass,
+                                               klass->CannotBeAssignedFromOtherTypes());
     } else {
       declaring_class_ = &reg_types_.FromDescriptor(class_loader_, descriptor, false);
     }

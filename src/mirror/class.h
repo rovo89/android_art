@@ -235,6 +235,23 @@ class MANAGED Class : public StaticStorageBase {
     return (GetAccessFlags() & kAccClassIsPhantomReference) != 0;
   }
 
+  // Can references of this type be assigned to by things of another type? For non-array types
+  // this is a matter of whether sub-classes may exist - which they can't if the type is final.
+  // For array classes, where all the classes are final due to there being no sub-classes, an
+  // Object[] may be assigned to by a String[] but a String[] may not be assigned to by other
+  // types as the component is final.
+  bool CannotBeAssignedFromOtherTypes() const {
+    if (!IsArrayClass()) {
+      return IsFinal();
+    } else {
+      Class* component = GetComponentType();
+      if (component->IsPrimitive()) {
+        return false;
+      } else {
+        return component->CannotBeAssignedFromOtherTypes();
+      }
+    }
+  }
 
   String* GetName() const;  // Returns the cached name.
   void SetName(String* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);  // Sets the cached name.
