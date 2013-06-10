@@ -465,57 +465,40 @@ bool OatWriter::Write(OutputStream& out) {
     return false;
   }
 
-  LOG(INFO) << "size_dex_file_alignment_=" << size_dex_file_alignment_;
-  LOG(INFO) << "size_executable_offset_alignment_=" << size_executable_offset_alignment_;
-  LOG(INFO) << "size_oat_header_=" << size_oat_header_;
-  LOG(INFO) << "size_oat_header_image_file_location_=" << size_oat_header_image_file_location_;
-  LOG(INFO) << "size_dex_file_=" << size_dex_file_;
-  LOG(INFO) << "size_interpreter_to_interpreter_entry_=" << size_interpreter_to_interpreter_entry_;
-  LOG(INFO) << "size_interpreter_to_quick_entry_=" << size_interpreter_to_quick_entry_;
-  LOG(INFO) << "size_portable_resolution_trampoline_=" << size_portable_resolution_trampoline_;
-  LOG(INFO) << "size_quick_resolution_trampoline_=" << size_quick_resolution_trampoline_;
-  LOG(INFO) << "size_stubs_alignment_=" << size_stubs_alignment_;
-  LOG(INFO) << "size_code_size_=" << size_code_size_;
-  LOG(INFO) << "size_code_=" << size_code_;
-  LOG(INFO) << "size_code_alignment_=" << size_code_alignment_;
-  LOG(INFO) << "size_mapping_table_=" << size_mapping_table_;
-  LOG(INFO) << "size_vmap_table_=" << size_vmap_table_;
-  LOG(INFO) << "size_gc_map_=" << size_gc_map_;
-  LOG(INFO) << "size_oat_dex_file_location_size_=" << size_oat_dex_file_location_size_;
-  LOG(INFO) << "size_oat_dex_file_location_data=" << size_oat_dex_file_location_data_;
-  LOG(INFO) << "size_oat_dex_file_location_checksum_=" << size_oat_dex_file_location_checksum_;
-  LOG(INFO) << "size_oat_dex_file_offset_=" << size_oat_dex_file_offset_;
-  LOG(INFO) << "size_oat_dex_file_methods_offsets_=" << size_oat_dex_file_methods_offsets_;
-  LOG(INFO) << "size_oat_class_status_=" << size_oat_class_status_;
-  LOG(INFO) << "size_oat_class_method_offsets=" << size_oat_class_method_offsets_;
+  if (kIsDebugBuild) {
+    uint32_t size_total = 0;
+    #define DO_STAT(x) \
+      LOG(INFO) << #x "=" << PrettySize(x) << " (" << x << "B)"; \
+      size_total += x;
 
-  uint32_t size_total =
-      size_dex_file_alignment_ +
-      size_executable_offset_alignment_ +
-      size_oat_header_ +
-      size_oat_header_image_file_location_ +
-      size_dex_file_ +
-      size_interpreter_to_interpreter_entry_ +
-      size_interpreter_to_quick_entry_ +
-      size_portable_resolution_trampoline_ +
-      size_quick_resolution_trampoline_ +
-      size_stubs_alignment_ +
-      size_code_size_ +
-      size_code_ +
-      size_code_alignment_ +
-      size_mapping_table_ +
-      size_vmap_table_ +
-      size_gc_map_ +
-      size_oat_dex_file_location_size_ +
-      size_oat_dex_file_location_data_ +
-      size_oat_dex_file_location_checksum_ +
-      size_oat_dex_file_offset_ +
-      size_oat_dex_file_methods_offsets_ +
-      size_oat_class_status_ +
-      size_oat_class_method_offsets_;
+    DO_STAT(size_dex_file_alignment_);
+    DO_STAT(size_executable_offset_alignment_);
+    DO_STAT(size_oat_header_);
+    DO_STAT(size_oat_header_image_file_location_);
+    DO_STAT(size_dex_file_);
+    DO_STAT(size_interpreter_to_interpreter_entry_);
+    DO_STAT(size_interpreter_to_quick_entry_);
+    DO_STAT(size_portable_resolution_trampoline_);
+    DO_STAT(size_quick_resolution_trampoline_);
+    DO_STAT(size_stubs_alignment_);
+    DO_STAT(size_code_size_);
+    DO_STAT(size_code_);
+    DO_STAT(size_code_alignment_);
+    DO_STAT(size_mapping_table_);
+    DO_STAT(size_vmap_table_);
+    DO_STAT(size_gc_map_);
+    DO_STAT(size_oat_dex_file_location_size_);
+    DO_STAT(size_oat_dex_file_location_data_);
+    DO_STAT(size_oat_dex_file_location_checksum_);
+    DO_STAT(size_oat_dex_file_offset_);
+    DO_STAT(size_oat_dex_file_methods_offsets_);
+    DO_STAT(size_oat_class_status_);
+    DO_STAT(size_oat_class_method_offsets_);
+    #undef DO_STAT
 
-  LOG(INFO) << "size_total=" << size_total;
-  DCHECK_EQ(size_total, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
+    LOG(INFO) << "size_total=" << PrettySize(size_total) << " (" << size_total << "B)"; \
+    CHECK_EQ(size_total, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
+  }
 
   return true;
 }
