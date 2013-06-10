@@ -146,7 +146,7 @@ InstructionSet LlvmCompilationUnit::GetInstructionSet() const {
 
 static std::string DumpDirectory() {
   if (kIsTargetBuild) {
-    return GetArtCacheOrDie(GetAndroidData());
+    return GetDalvikCacheOrDie(GetAndroidData());
   }
   return "/tmp";
 }

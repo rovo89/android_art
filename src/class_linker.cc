@@ -884,9 +884,9 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
       return dex_file;
     }
   }
-  // Look for an existing file in the art-cache, validating the result if found
-  // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
-  std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
+  // Look for an existing file in the dalvik-cache, validating the result if found
+  // not found in /foo/bar/baz.oat? try /data/dalvik-cache/foo@bar@baz.oat
+  std::string cache_location(GetDalvikCacheFilenameOrDie(oat_filename));
   oat_file = FindOatFileFromOatLocationLocked(cache_location);
   if (oat_file != NULL) {
     uint32_t dex_location_checksum;
@@ -907,7 +907,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   LOG(INFO) << "Failed to open oat file from " << oat_filename << " or " << cache_location << ".";
 
   // Try to generate oat file if it wasn't found or was obsolete.
-  std::string oat_cache_filename(GetArtCacheFilenameOrDie(oat_filename));
+  std::string oat_cache_filename(GetDalvikCacheFilenameOrDie(oat_filename));
   return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_cache_filename);
 }
 

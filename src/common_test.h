@@ -265,8 +265,8 @@ class CommonTest : public testing::Test {
       setenv("LD_LIBRARY_PATH", ":", 0);  // Required by java.lang.System.<clinit>.
     }
 
-    // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of art-cache
-    android_data = (IsHost() ? "/tmp/art-data-XXXXXX" : "/data/art-cache/art-data-XXXXXX");
+    // On target, Cannot use /mnt/sdcard because it is mounted noexec, so use subdir of dalvik-cache
+    android_data = (IsHost() ? "/tmp/art-data-XXXXXX" : "/data/dalvik-cache/art-data-XXXXXX");
     if (mkdtemp(&android_data[0]) == NULL) {
       PLOG(FATAL) << "mkdtemp(\"" << &android_data[0] << "\") failed";
     }
@@ -280,9 +280,9 @@ class CommonTest : public testing::Test {
 
   virtual void SetUp() {
     SetEnvironmentVariables(android_data_);
-    art_cache_.append(android_data_.c_str());
-    art_cache_.append("/art-cache");
-    int mkdir_result = mkdir(art_cache_.c_str(), 0700);
+    dalvik_cache_.append(android_data_.c_str());
+    dalvik_cache_.append("/dalvik-cache");
+    int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
     java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
@@ -360,21 +360,21 @@ class CommonTest : public testing::Test {
   virtual void TearDown() {
     const char* android_data = getenv("ANDROID_DATA");
     ASSERT_TRUE(android_data != NULL);
-    DIR* dir = opendir(art_cache_.c_str());
+    DIR* dir = opendir(dalvik_cache_.c_str());
     ASSERT_TRUE(dir != NULL);
     dirent* e;
     while ((e = readdir(dir)) != NULL) {
       if ((strcmp(e->d_name, ".") == 0) || (strcmp(e->d_name, "..") == 0)) {
         continue;
       }
-      std::string filename(art_cache_);
+      std::string filename(dalvik_cache_);
       filename.push_back('/');
       filename.append(e->d_name);
       int unlink_result = unlink(filename.c_str());
       ASSERT_EQ(0, unlink_result);
     }
     closedir(dir);
-    int rmdir_cache_result = rmdir(art_cache_.c_str());
+    int rmdir_cache_result = rmdir(dalvik_cache_.c_str());
     ASSERT_EQ(0, rmdir_cache_result);
     int rmdir_data_result = rmdir(android_data_.c_str());
     ASSERT_EQ(0, rmdir_data_result);
@@ -514,7 +514,7 @@ class CommonTest : public testing::Test {
   }
 
   std::string android_data_;
-  std::string art_cache_;
+  std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
   const DexFile* conscrypt_file_;  // owned by runtime_
   std::vector<const DexFile*> boot_class_path_;

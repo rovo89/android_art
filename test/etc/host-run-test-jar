@@ -66,7 +66,7 @@ done
 
 msg "------------------------------"
 
-mkdir $DEX_LOCATION/art-cache
+mkdir $DEX_LOCATION/dalvik-cache
 [[ $? -ne 0 ]] && exit
 
 export ANDROID_PRINTF_LOG=brief

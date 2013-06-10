@@ -240,7 +240,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   }
 
   // Check if we have an oat file in the cache
-  std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
+  std::string cache_location(GetDalvikCacheFilenameOrDie(oat_filename));
   oat_file.reset(OatFile::Open(cache_location, oat_filename, NULL));
   if (oat_file.get() == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location

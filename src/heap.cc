@@ -211,10 +211,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       // If the /system file exists, it should be up-to-date, don't try to generate
       image_space = ImageSpace::Create(image_file_name);
     } else {
-      // If the /system file didn't exist, we need to use one from the art-cache.
+      // If the /system file didn't exist, we need to use one from the dalvik-cache.
       // If the cache file exists, try to open, but if it fails, regenerate.
       // If it does not exist, generate.
-      image_file_name = GetArtCacheFilenameOrDie(image_file_name);
+      image_file_name = GetDalvikCacheFilenameOrDie(image_file_name);
       if (OS::FileExists(image_file_name.c_str())) {
         image_space = ImageSpace::Create(image_file_name);
       }

@@ -128,7 +128,7 @@ fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
-cmdline="cd $DEX_LOCATION && mkdir art-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
+cmdline="cd $DEX_LOCATION && mkdir dalvik-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
     $INVOKE_WITH $gdb $OATEXEC $gdbargs $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"

@@ -90,7 +90,7 @@ static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --oat-location=<oat-name>: specifies a symbolic name for the file corresponding");
   UsageError("      to the file descriptor specified by --oat-fd.");
-  UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
+  UsageError("      Example: --oat-location=/data/dalvik-cache/system@app@Calculator.apk.oat");
   UsageError("");
   UsageError("  --oat-symbols=<file.oat>: specifies the oat output destination with full symbols.");
   UsageError("      Example: --oat-symbols=/symbols/system/framework/boot.oat");

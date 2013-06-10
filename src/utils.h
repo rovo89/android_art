@@ -338,11 +338,11 @@ const char* GetAndroidRoot();
 // Find $ANDROID_DATA, /data, or abort
 const char* GetAndroidData();
 
-// Returns the art-cache location, or dies trying.
-std::string GetArtCacheOrDie(const char* android_data);
+// Returns the dalvik-cache location, or dies trying.
+std::string GetDalvikCacheOrDie(const char* android_data);
 
-// Returns the art-cache location for a DexFile or OatFile, or dies trying.
-std::string GetArtCacheFilenameOrDie(const std::string& location);
+// Returns the dalvik-cache location for a DexFile or OatFile, or dies trying.
+std::string GetDalvikCacheFilenameOrDie(const std::string& location);
 
 // Check whether the given filename has a valid extension
 bool IsValidZipFilename(const std::string& filename);
