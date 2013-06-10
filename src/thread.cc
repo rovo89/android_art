@@ -1644,6 +1644,8 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pShlLong),
   ENTRY_POINT_INFO(pShrLong),
   ENTRY_POINT_INFO(pUshrLong),
+  ENTRY_POINT_INFO(pInterpreterToInterpreterEntry),
+  ENTRY_POINT_INFO(pInterpreterToQuickEntry),
   ENTRY_POINT_INFO(pIndexOf),
   ENTRY_POINT_INFO(pMemcmp16),
   ENTRY_POINT_INFO(pStringCompareTo),
