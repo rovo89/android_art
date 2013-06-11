@@ -2882,8 +2882,7 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* 
   }
 }
 
-void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled,
-                                    bool is_range) {
+void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled, bool is_range) {
   uint32_t type_idx;
   if (!is_filled) {
     DCHECK_EQ(inst->Opcode(), Instruction::NEW_ARRAY);
@@ -2906,7 +2905,8 @@ void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled,
       /* make sure "size" register is valid type */
       work_line_->VerifyRegisterType(inst->VRegB_22c(), reg_types_.Integer());
       /* set register type to array class */
-      work_line_->SetRegisterType(inst->VRegA_22c(), res_type);
+      const RegType& precise_type = reg_types_.FromUninitialized(res_type);
+      work_line_->SetRegisterType(inst->VRegA_22c(), precise_type);
     } else {
       // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
       // the list and fail. It's legal, if silly, for arg_count to be zero.
@@ -2924,7 +2924,8 @@ void MethodVerifier::VerifyNewArray(const Instruction* inst, bool is_filled,
         }
       }
       // filled-array result goes into "result" register
-      work_line_->SetResultRegisterType(res_type);
+      const RegType& precise_type = reg_types_.FromUninitialized(res_type);
+      work_line_->SetResultRegisterType(precise_type);
     }
   }
 }

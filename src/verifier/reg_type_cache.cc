@@ -377,7 +377,6 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
     entry = new UnresolvedReferenceType(descriptor.c_str(), entries_.size());
   } else {
     mirror::Class* klass = uninit_type.GetClass();
-    DCHECK(!klass->IsArrayClass());
     if(uninit_type.IsUninitializedThisReference() && !klass->IsFinal()) {
       // For uninitialized "this reference" look for reference types that are not precise.
       for (size_t i = primitive_count_; i < entries_.size(); i++) {
@@ -387,32 +386,18 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
         }
       }
       entry = new ReferenceType(klass, "", entries_.size());
-    } else {
-      if (klass->IsFinal()) {
-        if (klass->IsInstantiable()) {
-          for (size_t i = primitive_count_; i < entries_.size(); i++) {
-            RegType* cur_entry = entries_[i];
-            if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
-              return *cur_entry;
-            }
-          }
-          // Precise type was not found , create one !
-          entry = new PreciseReferenceType(klass, "", entries_.size());
-        } else {
-          return Conflict();
+    } else if (klass->IsInstantiable()) {
+      // We're uninitialized because of allocation, look or create a precise type as allocations
+      // may only create objects of that type.
+      for (size_t i = primitive_count_; i < entries_.size(); i++) {
+        RegType* cur_entry = entries_[i];
+        if (cur_entry->IsPreciseReference() && cur_entry->GetClass() == klass) {
+          return *cur_entry;
         }
-      } else {
-        // Not a final class, create an imprecise reference. Look up if we have it in the cache
-        // first.
-        for (size_t i = primitive_count_; i < entries_.size(); i++) {
-          RegType* cur_entry = entries_[i];
-          if (cur_entry->IsReference() && !(cur_entry->IsPrecise()) &&
-              cur_entry->GetClass() == klass) {
-            return *cur_entry;
-          }
-        }
-        entry = new ReferenceType(klass, "", entries_.size());
       }
+      entry = new PreciseReferenceType(klass, uninit_type.GetDescriptor(), entries_.size());
+    } else {
+      return Conflict();
     }
  }
   entries_.push_back(entry);
@@ -447,8 +432,7 @@ const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
     mirror::Class* klass = type.GetClass();
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUninitializedThisReference() &&
-          cur_entry->GetClass() == klass) {
+      if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
         return *cur_entry;
       }
     }
