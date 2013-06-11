@@ -210,29 +210,18 @@ void Runtime::Abort() {
     LOG(INTERNAL_FATAL) << "Unexpectedly returned from abort hook!";
   }
 
-#if defined(__BIONIC__)
-  // TODO: finish merging patches to fix abort(3) in bionic, then lose this!
-  // Bionic doesn't implement POSIX semantics for abort(3) in a multi-threaded
-  // process, so if we call abort(3) on a device, all threads in the process
-  // receive SIGABRT.  debuggerd dumps the stack trace of the main
-  // thread, whether or not that was the thread that failed.  By
-  // stuffing a value into a bogus address, we cause a segmentation
-  // fault in the current thread, and get a useful log from debuggerd.
-  // We can also trivially tell the difference between a crash and
-  // a deliberate abort by looking at the fault address.
-  *reinterpret_cast<char*>(0xdeadd00d) = 38;
-#elif defined(__APPLE__)
-  // TODO: check that this actually gives good stack traces on the Mac!
-  pthread_kill(pthread_self(), SIGABRT);
-#else
+#if defined(__GLIBC__)
   // TODO: we ought to be able to use pthread_kill(3) here (or abort(3),
   // which POSIX defines in terms of raise(3), which POSIX defines in terms
   // of pthread_kill(3)). On Linux, though, libcorkscrew can't unwind through
   // libpthread, which means the stacks we dump would be useless. Calling
   // tgkill(2) directly avoids that.
   syscall(__NR_tgkill, getpid(), GetTid(), SIGABRT);
-  // TODO: LLVM installs it's own SIGABRT handler so exit to be safe... Can we disable that?
+  // TODO: LLVM installs it's own SIGABRT handler so exit to be safe... Can we disable that in LLVM?
+  // If not, we could use sigaction(3) before calling tgkill(2) and lose this call to exit(3).
   exit(1);
+#else
+  abort();
 #endif
   // notreached
 }
