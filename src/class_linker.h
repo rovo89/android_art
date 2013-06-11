@@ -500,6 +500,12 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       SHARED_LOCKS_REQUIRED(dex_lock_);
+  const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
+                                          uint32_t dex_location_checksum,
+                                          const std::string& oat_location)
+      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile* VerifyAndOpenDexFileFromOatFile(const OatFile* oat_file,
                                                  const std::string& dex_location,
                                                  uint32_t dex_location_checksum)
