@@ -247,7 +247,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread doesn't have exclusive access to the ReaderWriterMutex.
   void AssertNotExclusiveHeld(const Thread* self) {
     if (kDebugLocking) {
-      CHECK(!IsExclusiveHeld(self));
+      CHECK(!IsExclusiveHeld(self)) << *this;
     }
   }
   void AssertNotWriterHeld(const Thread* self) { AssertNotExclusiveHeld(self); }
