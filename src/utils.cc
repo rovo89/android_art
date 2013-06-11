@@ -1184,32 +1184,32 @@ const char* GetAndroidData() {
   return android_data;
 }
 
-std::string GetArtCacheOrDie(const char* android_data) {
-  std::string art_cache(StringPrintf("%s/art-cache", android_data));
+std::string GetDalvikCacheOrDie(const char* android_data) {
+  std::string dalvik_cache(StringPrintf("%s/dalvik-cache", android_data));
 
-  if (!OS::DirectoryExists(art_cache.c_str())) {
-    if (StartsWith(art_cache, "/tmp/")) {
-      int result = mkdir(art_cache.c_str(), 0700);
+  if (!OS::DirectoryExists(dalvik_cache.c_str())) {
+    if (StartsWith(dalvik_cache, "/tmp/")) {
+      int result = mkdir(dalvik_cache.c_str(), 0700);
       if (result != 0) {
-        LOG(FATAL) << "Failed to create art-cache directory " << art_cache;
+        LOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache;
         return "";
       }
     } else {
-      LOG(FATAL) << "Failed to find art-cache directory " << art_cache;
+      LOG(FATAL) << "Failed to find dalvik-cache directory " << dalvik_cache;
       return "";
     }
   }
-  return art_cache;
+  return dalvik_cache;
 }
 
-std::string GetArtCacheFilenameOrDie(const std::string& location) {
-  std::string art_cache(GetArtCacheOrDie(GetAndroidData()));
+std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
+  std::string dalvik_cache(GetDalvikCacheOrDie(GetAndroidData()));
   if (location[0] != '/') {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
   std::string cache_file(location, 1); // skip leading slash
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
-  return art_cache + "/" + cache_file;
+  return dalvik_cache + "/" + cache_file;
 }
 
 bool IsValidZipFilename(const std::string& filename) {

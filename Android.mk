@@ -73,8 +73,8 @@ clean-oat-host:
 	rm -f $(ART_NATIVETEST_OUT)/*.art
 	rm -f $(ART_TEST_OUT)/*.oat
 	rm -f $(ART_TEST_OUT)/*.art
-	rm -f $(ART_CACHE_OUT)/*.oat
-	rm -f $(ART_CACHE_OUT)/*.art
+	rm -f $(DALVIK_CACHE_OUT)/*.oat
+	rm -f $(DALVIK_CACHE_OUT)/*.art
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
@@ -83,7 +83,7 @@ clean-oat-host:
 	rm -f $(TARGET_OUT_APPS)/*.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.apk.oat
-	rm -rf /tmp/test-*/art-cache/*.oat
+	rm -rf /tmp/test-*/dalvik-cache/*.oat
 
 .PHONY: clean-oat-target
 clean-oat-target:
@@ -92,12 +92,12 @@ clean-oat-target:
 	adb shell rm $(ART_NATIVETEST_DIR)/*.art
 	adb shell rm $(ART_TEST_DIR)/*.oat
 	adb shell rm $(ART_TEST_DIR)/*.art
-	adb shell rm $(ART_CACHE_DIR)/*.oat
-	adb shell rm $(ART_CACHE_DIR)/*.art
+	adb shell rm $(DALVIK_CACHE_DIR)/*.oat
+	adb shell rm $(DALVIK_CACHE_DIR)/*.art
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
 	adb shell rm system/app/*.oat
-	adb shell rm data/run-test/test-*/art-cache/*.oat
+	adb shell rm data/run-test/test-*/dalvik-cache/*.oat
 
 ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
 art_dont_bother := true
@@ -266,7 +266,7 @@ OAT_TARGET_TARGETS :=
 # $(1): input jar or apk target location
 define declare-oat-target-target
 ifneq (,$(filter $(1),$(addprefix system/app/,$(addsuffix .apk,$(PRODUCT_DEX_PREOPT_PACKAGES_IN_DATA)))))
-OUT_OAT_FILE := $(call art-cache-out,$(1).oat)
+OUT_OAT_FILE := $(call dalvik-cache-out,$(1).oat)
 else
 OUT_OAT_FILE := $(PRODUCT_OUT)/$(1).oat
 endif
