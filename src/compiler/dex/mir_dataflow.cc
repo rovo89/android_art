@@ -70,7 +70,7 @@ const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_DA | DF_REF_A,
 
   // 0D MOVE_EXCEPTION vAA
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 0E RETURN_VOID
   DF_NOP,
@@ -109,13 +109,13 @@ const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 1A CONST_STRING vAA, string@BBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1B CONST_STRING_JUMBO vAA, string@BBBBBBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1C CONST_CLASS vAA, type@BBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1D MONITOR_ENTER vAA
   DF_UA | DF_NULL_CHK_0 | DF_REF_A,
