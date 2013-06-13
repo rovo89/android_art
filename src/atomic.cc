@@ -130,20 +130,9 @@ bool QuasiAtomic::Cas64(int64_t old_value, int64_t new_value, volatile int64_t* 
   } while (__builtin_expect(status != 0, 0));
   return prev == old_value;
 #elif defined(__i386__)
-  // cmpxchg8b implicitly uses %ebx which is also the PIC register.
-  int8_t status;
-  __asm__ __volatile__ (
-      "pushl          %%ebx\n"
-      "movl           (%3), %%ebx\n"
-      "movl           4(%3), %%ecx\n"
-      "lock cmpxchg8b %1\n"
-      "sete           %0\n"
-      "popl           %%ebx"
-      : "=R" (status), "+m" (*addr)
-      : "A"(old_value), "D" (&new_value)
-      : "%ecx"
-      );
-  return status != 0;
+  // The compiler does the right job and works better than inline assembly, especially with -O0
+  // compilation.
+  return __sync_bool_compare_and_swap(addr, old_value, new_value);
 #else
 #error Unexpected architecture
 #endif

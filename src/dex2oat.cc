@@ -640,6 +640,8 @@ class WatchDog {
   pthread_attr_t attr_;
   pthread_t pthread_;
 };
+const unsigned int WatchDog::kWatchDogWarningSeconds;
+const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 static int dex2oat(int argc, char** argv) {
   InitLogging(argv);
