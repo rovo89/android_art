@@ -422,7 +422,9 @@ bool MarkSweep::MarkLargeObject(const Object* obj) {
     ++large_object_test_;
   }
   if (UNLIKELY(!large_objects->Test(obj))) {
-    if (!large_object_space->Contains(obj)) {
+    // TODO: mark may be called holding the JNI global references lock, Contains will hold the
+    // large object space lock causing a lock level violation. Bug: 9414652;
+    if (!kDebugLocking && !large_object_space->Contains(obj)) {
       LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
       LOG(ERROR) << "Attempting see if it's a bad root";
       VerifyRoots();
