@@ -466,10 +466,8 @@ void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
     all_threads_are_daemons = true;
     MutexLock mu(self, *Locks::thread_list_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-      // TODO: there's a race here with thread exit that's being worked around by checking if the
-      // thread has a peer.
       Thread* thread = *it;
-      if (thread != self && thread->HasPeer() && !thread->IsDaemon()) {
+      if (thread != self && !thread->IsDaemon()) {
         all_threads_are_daemons = false;
         break;
       }

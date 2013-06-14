@@ -63,11 +63,13 @@ class Runtime {
 
   // In small mode, apps with fewer than this number of methods will be compiled 
   // anyways.
+  // TODO: come up with a reasonable default.
   static const size_t kDefaultSmallModeMethodThreshold = 0;
 
   // In small mode, methods smaller than this dex op count limit will get compiled
   // anyways.
-  static const size_t kDefaultSmallModeMethodDexSizeLimit = 0;
+  // TODO: come up with a reasonable default.
+  static const size_t kDefaultSmallModeMethodDexSizeLimit = 300;
 
   class ParsedOptions {
    public:
