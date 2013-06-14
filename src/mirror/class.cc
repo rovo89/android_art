@@ -604,5 +604,22 @@ Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
   return NULL;
 }
 
+static void SetPreverifiedFlagOnMethods(mirror::ObjectArray<mirror::AbstractMethod>* methods)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (methods != NULL) {
+    for (int32_t index = 0, end = methods->GetLength(); index < end; ++index) {
+      mirror::AbstractMethod* method = methods->GetWithoutChecks(index);
+      DCHECK(method != NULL);
+      method->SetPreverified();
+    }
+  }
+}
+
+void Class::SetPreverifiedFlagOnAllMethods() {
+  DCHECK(IsVerified());
+  SetPreverifiedFlagOnMethods(GetDirectMethods());
+  SetPreverifiedFlagOnMethods(GetVirtualMethods());
+}
+
 }  // namespace mirror
 }  // namespace art

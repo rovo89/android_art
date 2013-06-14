@@ -34,7 +34,7 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx,
     return field->Get32(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int32_t), true);
   if (LIKELY(field != NULL)) {
     return field->Get32(field->GetDeclaringClass());
   }
@@ -50,7 +50,7 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx,
     return field->Get64(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveRead, sizeof(int64_t), true);
   if (LIKELY(field != NULL)) {
     return field->Get64(field->GetDeclaringClass());
   }
@@ -67,7 +67,7 @@ extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
     return field->GetObj(field->GetDeclaringClass());
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectRead, sizeof(mirror::Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectRead, sizeof(mirror::Object*), true);
   if (LIKELY(field != NULL)) {
     return field->GetObj(field->GetDeclaringClass());
   }
@@ -83,7 +83,7 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object*
     return field->Get32(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -104,7 +104,7 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object*
     return field->Get64(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -126,7 +126,7 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror:
     return field->GetObj(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(mirror::Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(mirror::Object*), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -148,7 +148,7 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int32_t), true);
   if (LIKELY(field != NULL)) {
     field->Set32(field->GetDeclaringClass(), new_value);
     return 0;  // success
@@ -165,7 +165,7 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const mirror::Abstract
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticPrimitiveWrite, sizeof(int64_t), true);
   if (LIKELY(field != NULL)) {
     field->Set64(field->GetDeclaringClass(), new_value);
     return 0;  // success
@@ -186,7 +186,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, mirror::Object* new_v
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectWrite, sizeof(mirror::Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, StaticObjectWrite, sizeof(mirror::Object*), true);
   if (LIKELY(field != NULL)) {
     field->SetObj(field->GetDeclaringClass(), new_value);
     return 0;  // success
@@ -204,7 +204,7 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -231,7 +231,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   }
   *sp = callee_save;
   self->SetTopOfStack(sp, 0);
-  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -257,7 +257,7 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectWrite,
-                            sizeof(mirror::Object*));
+                            sizeof(mirror::Object*), true);
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();

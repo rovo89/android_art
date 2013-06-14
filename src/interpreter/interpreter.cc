@@ -386,18 +386,18 @@ static void DoMonitorExit(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
-template<InvokeType type, bool is_range>
+template<InvokeType type, bool is_range, bool do_access_check>
 static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
                      const Instruction* inst, JValue* result) NO_THREAD_SAFETY_ANALYSIS;
 
-template<InvokeType type, bool is_range>
+template<InvokeType type, bool is_range, bool do_access_check>
 static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
                      const Instruction* inst, JValue* result) {
   uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? NULL : shadow_frame.GetVRegReference(vregC);
   AbstractMethod* method = FindMethodFromCode(method_idx, receiver, shadow_frame.GetMethod(), self,
-                                              true, type);
+                                              do_access_check, type);
   if (UNLIKELY(method == NULL)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
@@ -477,18 +477,19 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
 // part of the final object file.
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
-template<FindFieldType find_type, Primitive::Type field_type>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                        const Instruction* inst)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
-template<FindFieldType find_type, Primitive::Type field_type>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
                               const Instruction* inst) {
   bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                               find_type, Primitive::FieldSize(field_type));
+                               find_type, Primitive::FieldSize(field_type),
+                               do_access_check);
   if (UNLIKELY(f == NULL)) {
     CHECK(self->IsExceptionPending());
     return;
@@ -533,18 +534,19 @@ static inline void DoFieldGet(Thread* self, ShadowFrame& shadow_frame,
 
 // TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
 // specialization.
-template<FindFieldType find_type, Primitive::Type field_type>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                        const Instruction* inst)
     NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
 
-template<FindFieldType find_type, Primitive::Type field_type>
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 static inline void DoFieldPut(Thread* self, const ShadowFrame& shadow_frame,
                               const Instruction* inst) {
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   Field* f = FindFieldFromCode(field_idx, shadow_frame.GetMethod(), self,
-                               find_type, Primitive::FieldSize(field_type));
+                               find_type, Primitive::FieldSize(field_type),
+                               do_access_check);
   if (UNLIKELY(f == NULL)) {
     CHECK(self->IsExceptionPending());
     return;
@@ -708,11 +710,15 @@ static void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
 // Code to run before each dex instruction.
 #define PREAMBLE()
 
-static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
+template<bool do_access_check>
+static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) __attribute__ ((hot));
+    NO_THREAD_SAFETY_ANALYSIS __attribute__ ((hot));
 
-static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+template<bool do_access_check>
+static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                       ShadowFrame& shadow_frame, JValue result_register) {
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
     LOG(FATAL) << "Invalid shadow frame for interpreter use";
@@ -984,7 +990,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::CONST_CLASS: {
         PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
-                                          self, false, true);
+                                          self, false, do_access_check);
         if (UNLIKELY(c == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -1020,7 +1026,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::CHECK_CAST: {
         PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame.GetMethod(),
-                                          self, false, true);
+                                          self, false, do_access_check);
         if (UNLIKELY(c == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -1037,7 +1043,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::INSTANCE_OF: {
         PREAMBLE();
         Class* c = ResolveVerifyAndClinit(inst->VRegC_22c(), shadow_frame.GetMethod(),
-                                          self, false, true);
+                                          self, false, do_access_check);
         if (UNLIKELY(c == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -1062,7 +1068,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::NEW_INSTANCE: {
         PREAMBLE();
         Object* obj = AllocObjectFromCode(inst->VRegB_21c(), shadow_frame.GetMethod(),
-                                          self, true);
+                                          self, do_access_check);
         if (UNLIKELY(obj == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -1075,7 +1081,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
         PREAMBLE();
         int32_t length = shadow_frame.GetVReg(inst->VRegB_22c());
         Object* obj = AllocArrayFromCode(inst->VRegC_22c(), shadow_frame.GetMethod(),
-                                         length, self, true);
+                                         length, self, do_access_check);
         if (UNLIKELY(obj == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -1094,7 +1100,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
           break;
         }
         Class* arrayClass = ResolveVerifyAndClinit(inst->VRegB_35c(), shadow_frame.GetMethod(),
-                                                   self, false, true);
+                                                   self, false, do_access_check);
         if (UNLIKELY(arrayClass == NULL)) {
           HANDLE_PENDING_EXCEPTION();
           break;
@@ -1142,7 +1148,7 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
           break;
         }
         Class* arrayClass = ResolveVerifyAndClinit(inst->VRegB_3rc(), shadow_frame.GetMethod(),
-                                                   self, false, true);
+                                                   self, false, do_access_check);
         if (UNLIKELY(arrayClass == NULL)) {
           HANDLE_PENDING_EXCEPTION();
           break;
@@ -1730,192 +1736,192 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       }
       case Instruction::IGET_BOOLEAN:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimBoolean>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_BYTE:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimByte>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_CHAR:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimChar>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_SHORT:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimShort>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimInt>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_WIDE:
         PREAMBLE();
-        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimLong>(self, shadow_frame, inst);
+        DoFieldGet<InstancePrimitiveRead, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IGET_OBJECT:
         PREAMBLE();
-        DoFieldGet<InstanceObjectRead, Primitive::kPrimNot>(self, shadow_frame, inst);
+        DoFieldGet<InstanceObjectRead, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BOOLEAN:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_BYTE:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_CHAR:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_SHORT:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_WIDE:
         PREAMBLE();
-        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong>(self, shadow_frame, inst);
+        DoFieldGet<StaticPrimitiveRead, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SGET_OBJECT:
         PREAMBLE();
-        DoFieldGet<StaticObjectRead, Primitive::kPrimNot>(self, shadow_frame, inst);
+        DoFieldGet<StaticObjectRead, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BOOLEAN:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimBoolean>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_BYTE:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimByte>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_CHAR:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimChar>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_SHORT:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimShort>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimInt>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_WIDE:
         PREAMBLE();
-        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimLong>(self, shadow_frame, inst);
+        DoFieldPut<InstancePrimitiveWrite, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::IPUT_OBJECT:
         PREAMBLE();
-        DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot>(self, shadow_frame, inst);
+        DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BOOLEAN:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimBoolean>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_BYTE:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimByte>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimByte, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_CHAR:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimChar>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimChar, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_SHORT:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimShort>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimShort, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimInt>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimInt, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_WIDE:
         PREAMBLE();
-        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimLong>(self, shadow_frame, inst);
+        DoFieldPut<StaticPrimitiveWrite, Primitive::kPrimLong, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::SPUT_OBJECT:
         PREAMBLE();
-        DoFieldPut<StaticObjectWrite, Primitive::kPrimNot>(self, shadow_frame, inst);
+        DoFieldPut<StaticObjectWrite, Primitive::kPrimNot, do_access_check>(self, shadow_frame, inst);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::INVOKE_VIRTUAL:
         PREAMBLE();
-        DoInvoke<kVirtual, false>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kVirtual, false, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_VIRTUAL_RANGE:
         PREAMBLE();
-        DoInvoke<kVirtual, true>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kVirtual, true, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER:
         PREAMBLE();
-        DoInvoke<kSuper, false>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kSuper, false, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_SUPER_RANGE:
         PREAMBLE();
-        DoInvoke<kSuper, true>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kSuper, true, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT:
         PREAMBLE();
-        DoInvoke<kDirect, false>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kDirect, false, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_DIRECT_RANGE:
         PREAMBLE();
-        DoInvoke<kDirect, true>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kDirect, true, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE:
         PREAMBLE();
-        DoInvoke<kInterface, false>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kInterface, false, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_INTERFACE_RANGE:
         PREAMBLE();
-        DoInvoke<kInterface, true>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kInterface, true, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC:
         PREAMBLE();
-        DoInvoke<kStatic, false>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kStatic, false, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::INVOKE_STATIC_RANGE:
         PREAMBLE();
-        DoInvoke<kStatic, true>(self, shadow_frame, inst, &result_register);
+        DoInvoke<kStatic, true, do_access_check>(self, shadow_frame, inst, &result_register);
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_3xx);
         break;
       case Instruction::NEG_INT:
@@ -2714,6 +2720,21 @@ static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* c
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, mh);
     }
+  }
+}
+
+static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                      ShadowFrame& shadow_frame, JValue result_register)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+                             ShadowFrame& shadow_frame, JValue result_register) {
+  if (shadow_frame.GetMethod()->IsPreverified()) {
+    // Enter the "without access check" interpreter.
+    return ExecuteImpl<false>(self, mh, code_item, shadow_frame, result_register);
+  } else {
+    // Enter the "with access check" interpreter.
+    return ExecuteImpl<true>(self, mh, code_item, shadow_frame, result_register);
   }
 }
 

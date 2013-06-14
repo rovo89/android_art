@@ -283,7 +283,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
   Field* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
-                                   sizeof(Object*));
+                                   sizeof(Object*), true);
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 

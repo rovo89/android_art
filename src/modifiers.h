@@ -46,7 +46,9 @@ static const uint32_t kAccConstructor = 0x00010000;  // method (dex only) <init>
 static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (dex only)
 static const uint32_t kAccClassIsProxy = 0x00040000;  // class (dex only)
 // TODO: JACK CLASS ACCESS (HACK TO BE REMOVED)
-static const uint32_t kAccClassJack = 0x000080000;  // class (dex only)
+static const uint32_t kAccClassJack = 0x00080000;  // class (dex only)
+
+static const uint32_t kAccPreverified = 0x00100000;  // method (dex only)
 
 // Special runtime-only flags.
 // Note: if only kAccClassIsReference is set, we have a soft reference.

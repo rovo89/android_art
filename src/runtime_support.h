@@ -144,7 +144,8 @@ enum FindFieldType {
 
 // Slow field find that can initialize classes and may throw exceptions.
 extern mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
-                                        Thread* self, FindFieldType type, size_t expected_size)
+                                        Thread* self, FindFieldType type, size_t expected_size,
+                                        bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.

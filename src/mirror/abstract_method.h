@@ -123,6 +123,14 @@ class MANAGED AbstractMethod : public Object {
 
   bool IsProxyMethod() const;
 
+  bool IsPreverified() const {
+    return (GetAccessFlags() & kAccPreverified) != 0;
+  }
+
+  void SetPreverified() {
+    SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
+
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint16_t GetMethodIndex() const;
