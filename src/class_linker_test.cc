@@ -90,6 +90,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetVTable() == NULL);
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
+    EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
   }
 
   void AssertArrayClass(const std::string& array_descriptor,
@@ -100,6 +101,7 @@ class ClassLinkerTest : public CommonTest {
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
+    EXPECT_EQ(kAccFinal | kAccAbstract, (array->GetAccessFlags() & (kAccFinal | kAccAbstract)));
     AssertArrayClass(array_descriptor, array);
   }
 

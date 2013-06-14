@@ -1,10 +1,12 @@
 import otherpackage.OtherPackageClass;
 
+import java.io.Serializable;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 
@@ -21,7 +23,72 @@ public class ClassAttrs {
         cinner.showMe();
     }
 
+    public class PublicInnerClass {
+    }
+
+    protected class ProtectedInnerClass {
+    }
+
+    private class PrivateInnerClass {
+    }
+
+    class PackagePrivateInnerClass {
+    }
+
+    public interface PublicInnerInterface {
+    }
+
+    protected interface ProtectedInnerInterface {
+    }
+
+    private interface PrivateInnerInterface {
+    }
+
+    interface PackagePrivateInnerInterface {
+    }
+
+    private static void showModifiers(Class<?> c) {
+        System.out.println(Modifier.toString(c.getModifiers()) + " " + c.getName());
+    }
+
+    // https://code.google.com/p/android/issues/detail?id=56267
+    private static void test56267() {
+        // Primitive classes.
+        showModifiers(int.class);
+        showModifiers(int[].class);
+
+        // Regular classes.
+        showModifiers(Object.class);
+        showModifiers(Object[].class);
+
+        // Inner classes.
+        showModifiers(PublicInnerClass.class);
+        showModifiers(PublicInnerClass[].class);
+        showModifiers(ProtectedInnerClass.class);
+        showModifiers(ProtectedInnerClass[].class);
+        showModifiers(PrivateInnerClass.class);
+        showModifiers(PrivateInnerClass[].class);
+        showModifiers(PackagePrivateInnerClass.class);
+        showModifiers(PackagePrivateInnerClass[].class);
+
+        // Regular interfaces.
+        showModifiers(Serializable.class);
+        showModifiers(Serializable[].class);
+
+        // Inner interfaces.
+        showModifiers(PublicInnerInterface.class);
+        showModifiers(PublicInnerInterface[].class);
+        showModifiers(ProtectedInnerInterface.class);
+        showModifiers(ProtectedInnerInterface[].class);
+        showModifiers(PrivateInnerInterface.class);
+        showModifiers(PrivateInnerInterface[].class);
+        showModifiers(PackagePrivateInnerInterface.class);
+        showModifiers(PackagePrivateInnerInterface[].class);
+    }
+
     public static void main() {
+        test56267();
+
         printClassAttrs(ClassAttrs.class);
         printClassAttrs(OtherClass.class);
         printClassAttrs(OtherPackageClass.class);

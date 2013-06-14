@@ -1,3 +1,25 @@
+public abstract final int
+public abstract final [I
+public java.lang.Object
+public abstract final [Ljava.lang.Object;
+public ClassAttrs$PublicInnerClass
+public abstract final [LClassAttrs$PublicInnerClass;
+protected ClassAttrs$ProtectedInnerClass
+protected abstract final [LClassAttrs$ProtectedInnerClass;
+private ClassAttrs$PrivateInnerClass
+private abstract final [LClassAttrs$PrivateInnerClass;
+ ClassAttrs$PackagePrivateInnerClass
+abstract final [LClassAttrs$PackagePrivateInnerClass;
+public abstract interface java.io.Serializable
+public abstract final [Ljava.io.Serializable;
+public abstract static interface ClassAttrs$PublicInnerInterface
+public abstract final [LClassAttrs$PublicInnerInterface;
+protected abstract static interface ClassAttrs$ProtectedInnerInterface
+protected abstract final [LClassAttrs$ProtectedInnerInterface;
+private abstract static interface ClassAttrs$PrivateInnerInterface
+private abstract final [LClassAttrs$PrivateInnerInterface;
+abstract static interface ClassAttrs$PackagePrivateInnerInterface
+abstract final [LClassAttrs$PackagePrivateInnerInterface;
 ***** class ClassAttrs:
   name: ClassAttrs
   canonical: ClassAttrs
@@ -11,8 +33,8 @@
   enclosingMeth: null
   modifiers: 1
   package: null
-  declaredClasses: [2] class ClassAttrs$PublicMemberClass, class ClassAttrs$MemberClass
-  member classes: [1] class ClassAttrs$PublicMemberClass
+  declaredClasses: [10] class ClassAttrs$PublicMemberClass, class ClassAttrs$MemberClass, interface ClassAttrs$PackagePrivateInnerInterface, interface ClassAttrs$PrivateInnerInterface, interface ClassAttrs$ProtectedInnerInterface, interface ClassAttrs$PublicInnerInterface, class ClassAttrs$PackagePrivateInnerClass, class ClassAttrs$PrivateInnerClass, class ClassAttrs$ProtectedInnerClass, class ClassAttrs$PublicInnerClass
+  member classes: [3] class ClassAttrs$PublicMemberClass, interface ClassAttrs$PublicInnerInterface, class ClassAttrs$PublicInnerClass
   isAnnotation: false
   isAnonymous: false
   isArray: false
