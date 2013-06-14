@@ -2021,15 +2021,16 @@ mirror::Class* ClassLinker::CreateArrayClass(const std::string& descriptor,
   CHECK(array_iftable_ != NULL);
   new_class->SetIfTable(array_iftable_);
 
-  // Inherit access flags from the component type.  Arrays can't be
-  // used as a superclass or interface, so we want to add "final"
+  // Inherit access flags from the component type.
+  int access_flags = new_class->GetComponentType()->GetAccessFlags();
+  // Lose any implementation detail flags; in particular, arrays aren't finalizable.
+  access_flags &= kAccJavaFlagsMask;
+  // Arrays can't be used as a superclass or interface, so we want to add "abstract final"
   // and remove "interface".
-  //
-  // Don't inherit any non-standard flags (e.g., kAccFinal)
-  // from component_type.  We assume that the array class does not
-  // override finalize().
-  new_class->SetAccessFlags(((new_class->GetComponentType()->GetAccessFlags() &
-                             ~kAccInterface) | kAccFinal) & kAccJavaFlagsMask);
+  access_flags |= kAccAbstract | kAccFinal;
+  access_flags &= ~kAccInterface;
+
+  new_class->SetAccessFlags(access_flags);
 
   mirror::Class* existing = InsertClass(descriptor, new_class.get(), false);
   if (existing == NULL) {
