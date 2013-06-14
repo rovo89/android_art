@@ -346,9 +346,11 @@ class CommonTest : public testing::Test {
       }
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-    image_classes_.reset(new std::set<std::string>);
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false,
-                                              image_classes_.get(), true, true));
+    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
+                                              true, new CompilerDriver::DescriptorSet,
+                                              2, false, true, true));
+    // We typically don't generate an image in unit tests, disable this optimization by default.
+    compiler_driver_->SetSupportBootImageFixup(false);
 
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
     // pool is created by the runtime.
@@ -389,7 +391,6 @@ class CommonTest : public testing::Test {
     (*icu_cleanup_fn)();
 
     compiler_driver_.reset();
-    image_classes_.reset();
     STLDeleteElements(&opened_dex_files_);
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
@@ -522,7 +523,6 @@ class CommonTest : public testing::Test {
   // Owned by the runtime
   ClassLinker* class_linker_;
   UniquePtr<CompilerDriver> compiler_driver_;
-  UniquePtr<std::set<std::string> > image_classes_;
 
  private:
   std::vector<const DexFile*> opened_dex_files_;

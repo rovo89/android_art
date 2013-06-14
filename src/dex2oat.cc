@@ -161,18 +161,15 @@ class Dex2Oat {
   }
 
 
-  // Make a list of descriptors for classes to include in the image
-  std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Reads the class names (java.lang.Object) and returns as set of class descriptors (Ljava/lang/Object;)
+  CompilerDriver::DescriptorSet* ReadImageClasses(const char* image_classes_filename) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
     if (image_classes_file.get() == NULL) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return NULL;
     }
 
-    // Load all the classes specified in the file
-    ClassLinker* class_linker = runtime_->GetClassLinker();
-    Thread* self = Thread::Current();
+    UniquePtr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
     while (image_classes_file->good()) {
       std::string dot;
       std::getline(*image_classes_file.get(), dot);
@@ -180,51 +177,9 @@ class Dex2Oat {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
-      SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
-      if (klass.get() == NULL) {
-        LOG(WARNING) << "Failed to find class " << descriptor;
-        Thread::Current()->ClearException();
-      }
+      image_classes->insert(descriptor);
     }
     image_classes_file->close();
-
-    // Resolve exception classes referenced by the loaded classes. The catch logic assumes
-    // exceptions are resolved by the verifier when there is a catch block in an interested method.
-    // Do this here so that exception classes appear to have been specified image classes.
-    std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
-    SirtRef<mirror::Class> java_lang_Throwable(self,
-                                       class_linker->FindSystemClass("Ljava/lang/Throwable;"));
-    do {
-      unresolved_exception_types.clear();
-      class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
-                                 &unresolved_exception_types);
-      typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
-      for (It it = unresolved_exception_types.begin(),
-           end = unresolved_exception_types.end();
-           it != end; ++it) {
-        uint16_t exception_type_idx = it->first;
-        const DexFile* dex_file = it->second;
-        mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
-        mirror:: ClassLoader* class_loader = NULL;
-        SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
-                                                                     dex_cache, class_loader));
-        if (klass.get() == NULL) {
-          const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
-          const char* descriptor = dex_file->GetTypeDescriptor(type_id);
-          LOG(FATAL) << "Failed to resolve class " << descriptor;
-        }
-        DCHECK(java_lang_Throwable->IsAssignableFrom(klass.get()));
-      }
-      // Resolving exceptions may load classes that reference more exceptions, iterate until no
-      // more are found
-    } while (!unresolved_exception_types.empty());
-
-    // We walk the roots looking for classes so that we'll pick up the
-    // above classes plus any classes them depend on such super
-    // classes, interfaces, and the required ClassLinker roots.
-    UniquePtr<ImageWriter::DescriptorSet> image_classes(new ImageWriter::DescriptorSet);
-    class_linker->VisitClasses(RecordImageClassesVisitor, image_classes.get());
-    CHECK_NE(image_classes->size(), 0U);
     return image_classes.release();
   }
 
@@ -236,7 +191,7 @@ class Dex2Oat {
                                       File* oat_file,
                                       const std::string& bitcode_filename,
                                       bool image,
-                                      const ImageWriter::DescriptorSet* image_classes,
+                                      UniquePtr<CompilerDriver::DescriptorSet>& image_classes,
                                       bool dump_stats,
                                       bool dump_timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -260,9 +215,9 @@ class Dex2Oat {
     UniquePtr<CompilerDriver> driver(new CompilerDriver(compiler_backend_,
                                                         instruction_set_,
                                                         image,
+                                                        image_classes.release(),
                                                         thread_count_,
                                                         support_debugging_,
-                                                        image_classes,
                                                         dump_stats,
                                                         dump_timings));
 
@@ -320,7 +275,6 @@ class Dex2Oat {
 
   bool CreateImageFile(const std::string& image_filename,
                        uintptr_t image_base,
-                       ImageWriter::DescriptorSet* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location,
                        const CompilerDriver& compiler)
@@ -328,8 +282,8 @@ class Dex2Oat {
     uintptr_t oat_data_begin;
     {
       // ImageWriter is scoped so it can free memory before doing FixupElf
-      ImageWriter image_writer(image_classes);
-      if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
+      ImageWriter image_writer(compiler);
+      if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location)) {
         LOG(ERROR) << "Failed to create image file " << image_filename;
         return false;
       }
@@ -377,72 +331,6 @@ class Dex2Oat {
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
-    return true;
-  }
-
-  static void ResolveExceptionsForMethod(MethodHelper* mh,
-                           std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::CodeItem* code_item = mh->GetCodeItem();
-    if (code_item == NULL) {
-      return;  // native or abstract method
-    }
-    if (code_item->tries_size_ == 0) {
-      return;  // nothing to process
-    }
-    const byte* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
-    size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
-    for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
-      int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
-      bool has_catch_all = false;
-      if (encoded_catch_handler_size <= 0) {
-        encoded_catch_handler_size = -encoded_catch_handler_size;
-        has_catch_all = true;
-      }
-      for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
-        uint16_t encoded_catch_handler_handlers_type_idx =
-            DecodeUnsignedLeb128(&encoded_catch_handler_list);
-        // Add to set of types to resolve if not already in the dex cache resolved types
-        if (!mh->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
-          exceptions_to_resolve.insert(
-              std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
-                                                  &mh->GetDexFile()));
-        }
-        // ignore address associated with catch handler
-        DecodeUnsignedLeb128(&encoded_catch_handler_list);
-      }
-      if (has_catch_all) {
-        // ignore catch all address
-        DecodeUnsignedLeb128(&encoded_catch_handler_list);
-      }
-    }
-  }
-
-  static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
-        reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
-    MethodHelper mh;
-    for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-      mirror::AbstractMethod* m = c->GetVirtualMethod(i);
-      mh.ChangeMethod(m);
-      ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
-    }
-    for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-      mirror::AbstractMethod* m = c->GetDirectMethod(i);
-      mh.ChangeMethod(m);
-      ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
-    }
-    return true;
-  }
-
-  static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ImageWriter::DescriptorSet* image_classes = reinterpret_cast<ImageWriter::DescriptorSet*>(arg);
-    if (klass->IsArrayClass() || klass->IsPrimitive()) {
-      return true;
-    }
-    image_classes->insert(ClassHelper(klass).GetDescriptor());
     return true;
   }
 
@@ -929,7 +817,7 @@ static int dex2oat(int argc, char** argv) {
 #endif // ART_SMALL_MODE
 
   Dex2Oat* p_dex2oat;
-  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count, 
+  if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count,
                        support_debugging)) {
     LOG(ERROR) << "Failed to create dex2oat";
     return EXIT_FAILURE;
@@ -943,9 +831,9 @@ static int dex2oat(int argc, char** argv) {
   ScopedObjectAccess soa(Thread::Current());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  UniquePtr<ImageWriter::DescriptorSet> image_classes(NULL);
+  UniquePtr<CompilerDriver::DescriptorSet> image_classes(NULL);
   if (image_classes_filename != NULL) {
-    image_classes.reset(dex2oat->GetImageClassDescriptors(image_classes_filename));
+    image_classes.reset(dex2oat->ReadImageClasses(image_classes_filename));
     if (image_classes.get() == NULL) {
       LOG(ERROR) << "Failed to create list of image classes from " << image_classes_filename;
       return EXIT_FAILURE;
@@ -1001,7 +889,7 @@ static int dex2oat(int argc, char** argv) {
                                                                   oat_file.get(),
                                                                   bitcode_filename,
                                                                   image,
-                                                                  image_classes.get(),
+                                                                  image_classes,
                                                                   dump_stats,
                                                                   dump_timings));
 
@@ -1066,7 +954,6 @@ static int dex2oat(int argc, char** argv) {
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
     bool image_creation_success = dex2oat->CreateImageFile(image_filename,
                                                            image_base,
-                                                           image_classes.get(),
                                                            oat_unstripped,
                                                            oat_location,
                                                            *compiler.get());

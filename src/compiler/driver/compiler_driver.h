@@ -61,14 +61,16 @@ class CompilerTls {
 
 class CompilerDriver {
  public:
+  typedef std::set<std::string> DescriptorSet;
+
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
+  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                          bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool support_debugging,
-                          const std::set<std::string>* image_classes, 
                           bool dump_stats, bool dump_timings);
 
   ~CompilerDriver();
@@ -94,6 +96,10 @@ class CompilerDriver {
 
   bool IsImage() const {
     return image_;
+  }
+
+  DescriptorSet* GetImageClasses() const {
+    return image_classes_.get();
   }
 
   CompilerTls* GetTls();
@@ -197,6 +203,15 @@ class CompilerDriver {
 
   void SetBitcodeFileName(std::string const& filename);
 
+  bool GetSupportBootImageFixup() const {
+    return support_boot_image_fixup_;
+  }
+
+  void SetSupportBootImageFixup(bool support_boot_image_fixup) {
+    support_boot_image_fixup_ = support_boot_image_fixup;
+  }
+
+
   // TODO: remove these Elf wrappers when libart links against LLVM (when separate compiler library is gone)
   bool WriteElf(const std::string& android_root,
                 bool is_host,
@@ -298,6 +313,8 @@ class CompilerDriver {
                   ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  void LoadImageClasses(TimingLogger& timings);
+
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
@@ -320,6 +337,10 @@ class CompilerDriver {
   void InitializeClasses(jobject class_loader, const DexFile& dex_file,
                          ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
+
+  void UpdateImageClasses(TimingLogger& timings);
+  static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                ThreadPool& thread_pool, TimingLogger& timings);
@@ -355,7 +376,13 @@ class CompilerDriver {
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
-  bool image_;
+  const bool image_;
+
+  // If image_ is true, specifies the classes that will be included in
+  // the image. Note if image_classes_ is NULL, all classes are
+  // included in the image.
+  UniquePtr<DescriptorSet> image_classes_;
+
   size_t thread_count_;
   bool support_debugging_;
   uint64_t start_ns_;
@@ -364,8 +391,6 @@ class CompilerDriver {
 
   bool dump_stats_;
   bool dump_timings_;
-
-  const std::set<std::string>* image_classes_;
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
@@ -394,6 +419,8 @@ class CompilerDriver {
   typedef const void* (*CompilerGetMethodCodeAddrFn)
       (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
+
+  bool support_boot_image_fixup_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

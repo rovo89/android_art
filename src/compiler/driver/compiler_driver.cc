@@ -324,8 +324,8 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
 }
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
-                               bool image, size_t thread_count, bool support_debugging,
-                               const std::set<std::string>* image_classes,
+                               bool image, DescriptorSet* image_classes,
+                               size_t thread_count, bool support_debugging,
                                bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
@@ -333,19 +333,20 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       image_(image),
+      image_classes_(image_classes),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
       start_ns_(0),
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),
       dump_timings_(dump_timings),
-      image_classes_(image_classes),
       compiler_library_(NULL),
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
       compiler_enable_auto_elf_loading_(NULL),
-      compiler_get_method_code_addr_(NULL)
+      compiler_get_method_code_addr_(NULL),
+      support_boot_image_fixup_(true)
 {
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -380,7 +381,7 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
-    CHECK(image_classes_ == NULL);
+    CHECK(image_classes_.get() == NULL);
   }
 }
 
@@ -576,18 +577,197 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                                 ThreadPool& thread_pool, TimingLogger& timings) {
+  LoadImageClasses(timings);
+
   Resolve(class_loader, dex_files, thread_pool, timings);
 
   Verify(class_loader, dex_files, thread_pool, timings);
 
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
+
+  UpdateImageClasses(timings);
 }
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
-  if (image_classes_ == NULL) {
-    return false;
+  DCHECK(descriptor != NULL);
+  if (image_classes_.get() == NULL) {
+    return true;
   }
   return image_classes_->find(descriptor) != image_classes_->end();
+}
+
+static void ResolveExceptionsForMethod(MethodHelper* mh,
+    std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile::CodeItem* code_item = mh->GetCodeItem();
+  if (code_item == NULL) {
+    return;  // native or abstract method
+  }
+  if (code_item->tries_size_ == 0) {
+    return;  // nothing to process
+  }
+  const byte* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
+  size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
+  for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
+    int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
+    bool has_catch_all = false;
+    if (encoded_catch_handler_size <= 0) {
+      encoded_catch_handler_size = -encoded_catch_handler_size;
+      has_catch_all = true;
+    }
+    for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
+      uint16_t encoded_catch_handler_handlers_type_idx =
+          DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      // Add to set of types to resolve if not already in the dex cache resolved types
+      if (!mh->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+        exceptions_to_resolve.insert(
+            std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
+                                                &mh->GetDexFile()));
+      }
+      // ignore address associated with catch handler
+      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    }
+    if (has_catch_all) {
+      // ignore catch all address
+      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    }
+  }
+}
+
+static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
+      reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
+  MethodHelper mh;
+  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    mirror::AbstractMethod* m = c->GetVirtualMethod(i);
+    mh.ChangeMethod(m);
+    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+  }
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    mirror::AbstractMethod* m = c->GetDirectMethod(i);
+    mh.ChangeMethod(m);
+    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+  }
+  return true;
+}
+
+static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CompilerDriver::DescriptorSet* image_classes =
+      reinterpret_cast<CompilerDriver::DescriptorSet*>(arg);
+  image_classes->insert(ClassHelper(klass).GetDescriptor());
+  return true;
+}
+
+// Make a list of descriptors for classes to include in the image
+void CompilerDriver::LoadImageClasses(TimingLogger& timings)
+      LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  if (image_classes_.get() == NULL) {
+    return;
+  }
+
+  // Make a first class to load all classes explicitly listed in the file
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  typedef DescriptorSet::iterator It;  // TODO: C++0x auto
+  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
+    std::string descriptor(*it);
+    SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
+    if (klass.get() == NULL) {
+      image_classes_->erase(it++);
+      LOG(WARNING) << "Failed to find class " << descriptor;
+      Thread::Current()->ClearException();
+    } else {
+      ++it;
+    }
+  }
+
+  // Resolve exception classes referenced by the loaded classes. The catch logic assumes
+  // exceptions are resolved by the verifier when there is a catch block in an interested method.
+  // Do this here so that exception classes appear to have been specified image classes.
+  std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
+  SirtRef<mirror::Class> java_lang_Throwable(self,
+                                     class_linker->FindSystemClass("Ljava/lang/Throwable;"));
+  do {
+    unresolved_exception_types.clear();
+    class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
+                               &unresolved_exception_types);
+    typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
+    for (It it = unresolved_exception_types.begin(),
+         end = unresolved_exception_types.end();
+         it != end; ++it) {
+      uint16_t exception_type_idx = it->first;
+      const DexFile* dex_file = it->second;
+      mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
+      mirror:: ClassLoader* class_loader = NULL;
+      SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
+                                                                   dex_cache, class_loader));
+      if (klass.get() == NULL) {
+        const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
+        const char* descriptor = dex_file->GetTypeDescriptor(type_id);
+        LOG(FATAL) << "Failed to resolve class " << descriptor;
+      }
+      DCHECK(java_lang_Throwable->IsAssignableFrom(klass.get()));
+    }
+    // Resolving exceptions may load classes that reference more exceptions, iterate until no
+    // more are found
+  } while (!unresolved_exception_types.empty());
+
+  // We walk the roots looking for classes so that we'll pick up the
+  // above classes plus any classes them depend on such super
+  // classes, interfaces, and the required ClassLinker roots.
+  class_linker->VisitClasses(RecordImageClassesVisitor, image_classes_.get());
+
+  CHECK_NE(image_classes_->size(), 0U);
+  timings.AddSplit("LoadImageClasses");
+}
+
+static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::DescriptorSet* image_classes)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  while (!klass->IsObjectClass()) {
+    ClassHelper kh(klass);
+    const char* descriptor = kh.GetDescriptor();
+    std::pair<CompilerDriver::DescriptorSet::iterator, bool> result =
+        image_classes->insert(descriptor);
+    if (result.second) {
+      LOG(INFO) << "Adding " << descriptor << " to image classes";
+    } else {
+      return;
+    }
+    for (size_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      MaybeAddToImageClasses(kh.GetDirectInterface(i), image_classes);
+    }
+    if (klass->IsArrayClass()) {
+      MaybeAddToImageClasses(klass->GetComponentType(), image_classes);
+    }
+    klass = klass->GetSuperClass();
+  }
+}
+
+void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void* arg) {
+  DCHECK(object != NULL);
+  DCHECK(arg != NULL);
+  CompilerDriver* compiler_driver = reinterpret_cast<CompilerDriver*>(arg);
+  MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
+}
+
+void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
+  if (image_classes_.get() == NULL) {
+    return;
+  }
+
+  // Update image_classes_ with classes for objects created by <clinit> methods.
+  Thread* self = Thread::Current();
+  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
+  Heap* heap = Runtime::Current()->GetHeap();
+  // TODO: Image spaces only?
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  heap->FlushAllocStack();
+  heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
+  self->EndAssertNoThreadSuspension(old_cause);
+  timings.AddSplit("UpdateImageClasses");
 }
 
 void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
@@ -914,8 +1094,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
   }
   bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
   if (compiling_boot) {
-    const bool kSupportBootImageFixup = true;
-    if (kSupportBootImageFixup) {
+    if (support_boot_image_fixup_) {
       MethodHelper mh(method);
       if (IsImageClass(mh.GetDeclaringClassDescriptor())) {
         // We can only branch directly to Methods that are resolved in the DexCache.
@@ -1617,10 +1796,13 @@ static const char* class_initializer_black_list[] = {
   "Ljava/io/ObjectStreamClass;",  // Calls to Class.forName -> java.io.FileDescriptor.
   "Ljava/io/ObjectStreamConstants;", // Instance of non-image class SerializablePermission.
   "Ljava/lang/ClassLoader$SystemClassLoader;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/lang/HexStringParser;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Ljava/lang/ProcessManager;", // Calls Thread.currentThread.
   "Ljava/lang/Runtime;", // Calls System.getProperty -> OsConstants.initConstants.
   "Ljava/lang/System;", // Calls OsConstants.initConstants.
   "Ljava/math/BigDecimal;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/math/BigInteger;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Ljava/math/Primality;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/math/Multiplication;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/net/InetAddress;", // Requires libcore.io.OsConstants.
   "Ljava/net/Inet4Address;", // Sub-class of InetAddress.
@@ -1629,23 +1811,57 @@ static const char* class_initializer_black_list[] = {
   "Ljava/nio/charset/Charset;", // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
   "Ljava/nio/charset/CharsetICU;", // Sub-class of Charset.
   "Ljava/nio/charset/Charsets;", // Calls Charset.forName.
+  "Ljava/security/AlgorithmParameterGenerator;", // Calls OsConstants.initConstants.
+  "Ljava/security/KeyPairGenerator$KeyPairGeneratorImpl;", // Calls OsConstants.initConstants.
   "Ljava/security/KeyPairGenerator;", // Calls OsConstants.initConstants.
   "Ljava/security/Security;", // Tries to do disk IO for "security.properties".
+  "Ljava/security/spec/RSAKeyGenParameterSpec;", // java.math.NativeBN.BN_new()
   "Ljava/sql/Date;", // Calls OsConstants.initConstants.
+  "Ljava/sql/DriverManager;", // Calls OsConstants.initConstants.
+  "Ljava/sql/Time;", // Calls OsConstants.initConstants.
+  "Ljava/sql/Timestamp;", // Calls OsConstants.initConstants.
   "Ljava/util/Date;", // Calls Date.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
+  "Ljava/util/ListResourceBundle;", // Calls OsConstants.initConstants.
   "Ljava/util/Locale;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/util/PropertyResourceBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/ResourceBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/ResourceBundle$MissingBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/Scanner;", // regex.Pattern.compileImpl.
   "Ljava/util/SimpleTimeZone;", // Sub-class of TimeZone.
   "Ljava/util/TimeZone;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Ljava/util/concurrent/ConcurrentHashMap$Segment;", // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ConcurrentSkipListMap;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/Exchanger;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ForkJoinPool;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/LinkedTransferQueue;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/Phaser;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ScheduledThreadPoolExecutor;", // Calls AtomicLong.VMSupportsCS8()
+  "Ljava/util/concurrent/SynchronousQueue;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/atomic/AtomicLong;", // Calls AtomicLong.VMSupportsCS8()
   "Ljava/util/logging/LogManager;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/util/prefs/AbstractPreferences;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/FilePreferencesImpl;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/FilePreferencesFactoryImpl;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/Preferences;", // Calls OsConstants.initConstants.
+  "Ljavax/crypto/KeyAgreement;", // Calls OsConstants.initConstants.
+  "Ljavax/crypto/KeyGenerator;", // Calls OsConstants.initConstants.
+  "Ljavax/security/cert/X509Certificate;", // Calls VMClassLoader.getBootClassPathSize.
+  "Ljavax/security/cert/X509Certificate$1;", // Calls VMClassLoader.getBootClassPathSize.
   "Ljavax/microedition/khronos/egl/EGL10;", // Requires EGLContext.
   "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
   "Ljavax/net/ssl/HttpsURLConnection;", // Calls SSLSocketFactory.getDefault -> java.security.Security.getProperty.
+  "Ljavax/xml/datatype/DatatypeConstants;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/datatype/FactoryFinder;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/namespace/QName;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/validation/SchemaFactoryFinder;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/xpath/XPathConstants;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/xpath/XPathFactoryFinder;", // Calls OsConstants.initConstants.
   "Llibcore/icu/LocaleData;", // Requires java.util.Locale.
   "Llibcore/icu/TimeZoneNames;", // Requires java.util.TimeZone.
   "Llibcore/io/IoUtils;",  // Calls Random.<init> -> System.currentTimeMillis -> FileDescriptor -> OsConstants.initConstants.
   "Llibcore/io/OsConstants;", // Platform specific.
   "Llibcore/net/MimeUtils;", // Calls libcore.net.MimeUtils.getContentTypesPropertiesStream -> System.getProperty.
+  "Llibcore/reflect/Types;", // Calls OsConstants.initConstants.
   "Llibcore/util/ZoneInfo;", // Sub-class of TimeZone.
   "Llibcore/util/ZoneInfoDB;", // Calls System.getenv -> OsConstants.initConstants.
   "Lorg/apache/commons/logging/LogFactory;", // Calls System.getProperty.
@@ -1653,17 +1869,40 @@ static const char* class_initializer_black_list[] = {
   "Lorg/apache/harmony/security/provider/cert/X509CertFactoryImpl;", // Requires java.nio.charsets.Charsets.
   "Lorg/apache/harmony/security/provider/crypto/RandomBitsSupplier;", // Requires java.io.File.
   "Lorg/apache/harmony/security/utils/AlgNameMapper;", // Requires java.util.Locale.
+  "Lorg/apache/harmony/security/pkcs10/CertificationRequest;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs10/CertificationRequestInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/AuthenticatedAttributes;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/SignedData;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/SignerInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs8/PrivateKeyInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/provider/crypto/SHA1PRNG_SecureRandomImpl;", // Calls OsConstants.initConstants.
   "Lorg/apache/harmony/security/x501/AttributeTypeAndValue;", // Calls IntegralToString.convertInt -> Thread.currentThread.
   "Lorg/apache/harmony/security/x501/DirectoryString;", // Requires BigInteger.
   "Lorg/apache/harmony/security/x501/Name;", // Requires org.apache.harmony.security.x501.AttributeTypeAndValue.
+  "Lorg/apache/harmony/security/x509/AccessDescription;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/AuthorityKeyIdentifier;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/CRLDistributionPoints;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/security/x509/Certificate;", // Requires org.apache.harmony.security.x509.TBSCertificate.
-  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
+  "Lorg/apache/harmony/security/x509/CertificateIssuer;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/CertificateList;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/DistributionPoint;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/DistributionPointName;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/security/x509/EDIPartyName;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lorg/apache/harmony/security/x509/GeneralName;", // Requires org.apache.harmony.security.x501.Name.
   "Lorg/apache/harmony/security/x509/GeneralNames;", // Requires GeneralName.
+  "Lorg/apache/harmony/security/x509/GeneralSubtree;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/GeneralSubtrees;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/InfoAccessSyntax;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/IssuingDistributionPoint;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/NameConstraints;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/TBSCertList$RevokedCertificate;", // Calls NativeBN.BN_new().
+  "Lorg/apache/harmony/security/x509/TBSCertList;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
   "Lorg/apache/harmony/security/x509/Time;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lorg/apache/harmony/security/x509/Validity;", // Requires x509.Time.
+  "Lorg/apache/harmony/security/x509/tsp/TSTInfo;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/xml/ExpatParser;", // Calls native ExpatParser.staticInitialize.
+  "Lorg/apache/harmony/xml/ExpatParser$EntityParser;", // Calls ExpatParser.staticInitialize.
   "Lorg/apache/http/conn/params/ConnRouteParams;", // Requires java.util.Locale.
   "Lorg/apache/http/conn/ssl/SSLSocketFactory;", // Calls java.security.Security.getProperty.
   "Lorg/apache/http/conn/util/InetAddressUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
@@ -1693,6 +1932,9 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       manager->GetClassLinker()->EnsureInitialized(klass, false, can_init_static_fields);
+      if (soa.Self()->IsExceptionPending()) {
+        soa.Self()->GetException(NULL)->Dump();
+      }
       if (!klass->IsInitialized()) {
         if (can_init_static_fields) {
           bool is_black_listed = false;
@@ -1730,7 +1972,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       compiled_class = new CompiledClass(status);
       manager->GetCompiler()->RecordClassStatus(ref, compiled_class);
     } else {
-      DCHECK_EQ(status, compiled_class->GetStatus());
+      DCHECK_GE(status, compiled_class->GetStatus()) << descriptor;
     }
   }
   // Clear any class not found or verification exceptions.
@@ -1854,7 +2096,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     // In small mode we only compile image classes.
-    bool dont_compile = Runtime::Current()->IsSmallMode() && ((image_classes_ == NULL) || (image_classes_->size() == 0));
+    bool dont_compile = (Runtime::Current()->IsSmallMode() &&
+                         ((image_classes_.get() == NULL) || (image_classes_->size() == 0)));
 
     // Don't compile class initializers, ever.
     if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
