@@ -1215,7 +1215,10 @@ class CheckJNI {
   }
 
   static void FatalError(JNIEnv* env, const char* msg) {
-    CHECK_JNI_ENTRY(kFlag_NullableUtf, "Eu", env, msg);
+    // The JNI specification doesn't say it's okay to call FatalError with a pending exception,
+    // but you're about to abort anyway, and it's quite likely that you have a pending exception,
+    // and it's not unimaginable that you don't know that you do. So we allow it.
+    CHECK_JNI_ENTRY(kFlag_ExcepOkay | kFlag_NullableUtf, "Eu", env, msg);
     baseEnv(env)->FatalError(env, msg);
     CHECK_JNI_EXIT_VOID();
   }
