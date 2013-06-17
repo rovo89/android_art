@@ -1223,7 +1223,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         args << Rt << ", [" << Rn << ", #" << imm5 << "]";
       }
     } else if (opcode1 >= 0x34 && opcode1 <= 0x37) {  // 1101xx
-      uint32_t imm8 = instr & 0xFF;
+      int8_t imm8 = instr & 0xFF;
       uint32_t cond = (instr >> 8) & 0xF;
       opcode << "b";
       DumpCond(opcode, cond);
