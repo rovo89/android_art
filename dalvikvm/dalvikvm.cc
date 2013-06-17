@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,17 @@
  * limitations under the License.
  */
 
+#include <dlfcn.h>
 #include <signal.h>
 
-#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <string>
 
-#include "base/logging.h"
 #include "jni.h"
-#include "modifiers.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"
 #include "UniquePtr.h"
-#include "well_known_classes.h"
 
 namespace art {
 
@@ -40,14 +37,19 @@ static bool IsMethodPublic(JNIEnv* env, jclass c, jmethodID method_id) {
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
-  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_reflect_AbstractMethod,
-                                   "getModifiers", "()I");
+  jclass method_class = env->FindClass("java/lang/reflect/Method");
+  if (method_class == NULL) {
+    fprintf(stderr, "Failed to find class java.lang.reflect.Method\n");
+    return false;
+  }
+  jmethodID mid = env->GetMethodID(method_class, "getModifiers", "()I");
   if (mid == NULL) {
     fprintf(stderr, "Failed to find java.lang.reflect.Method.getModifiers\n");
     return false;
   }
   int modifiers = env->CallIntMethod(reflected.get(), mid);
-  if ((modifiers & kAccPublic) == 0) {
+  static const int PUBLIC = 0x0001;  // java.lang.reflect.Modifiers.PUBLIC
+  if ((modifiers & PUBLIC) == 0) {
     return false;
   }
   return true;
@@ -102,8 +104,7 @@ static int InvokeMain(JNIEnv* env, char** argv) {
 
 // Parse arguments.  Most of it just gets passed through to the runtime.
 // The JNI spec defines a handful of standard arguments.
-static int oatexec(int argc, char** argv) {
-  InitLogging(argv);
+static int dalvikvm(int argc, char** argv) {
   setvbuf(stdout, NULL, _IONBF, 0);
 
   // Skip over argv[0].
@@ -123,12 +124,19 @@ static int oatexec(int argc, char** argv) {
   //
   // [Do we need to catch & handle "-jar" here?]
   bool need_extra = false;
+  const char* lib = "libdvm.so";
+  const char* debug = NULL;
   const char* what = NULL;
   int curr_opt, arg_idx;
   for (curr_opt = arg_idx = 0; arg_idx < argc; arg_idx++) {
     if (argv[arg_idx][0] != '-' && !need_extra) {
       break;
     }
+    if (strncmp(argv[arg_idx], "-XXlib:", strlen("-XXlib:")) == 0) {
+      lib = argv[arg_idx] + strlen("-XXlib:");
+      continue;
+    }
+
     options[curr_opt++].optionString = argv[arg_idx];
 
     // Some options require an additional argument.
@@ -152,7 +160,30 @@ static int oatexec(int argc, char** argv) {
 
   // insert additional internal options here
 
-  DCHECK_LE(curr_opt, option_count);
+  if (curr_opt >= option_count) {
+    fprintf(stderr, "curr_opt(%d) >= option_count(%d)\n", curr_opt, option_count);
+    abort();
+    return EXIT_FAILURE;
+  }
+
+  // Find the JNI_CreateJavaVM implementation.
+  std::string library(lib);
+  if (debug != NULL) {
+    library += debug;
+  }
+  void* handle = dlopen(library.c_str(), RTLD_NOW);
+  if (handle == NULL) {
+    fprintf(stderr, "Failed to dlopen library %s: %s\n", library.c_str(), dlerror());
+    return EXIT_FAILURE;
+  }
+  const char* symbol = "JNI_CreateJavaVM";
+  void* sym = dlsym(handle, symbol);
+  if (handle == NULL) {
+    fprintf(stderr, "Failed to find symbol %s: %s\n", symbol, dlerror());
+    return EXIT_FAILURE;
+  }
+  typedef int (*Fn)(JavaVM** p_vm, JNIEnv** p_env, void* vm_args);
+  Fn JNI_CreateJavaVM = reinterpret_cast<Fn>(sym);
 
   JavaVMInitArgs init_args;
   init_args.version = JNI_VERSION_1_6;
@@ -164,7 +195,7 @@ static int oatexec(int argc, char** argv) {
   JavaVM* vm = NULL;
   JNIEnv* env = NULL;
   if (JNI_CreateJavaVM(&vm, &env, &init_args) != JNI_OK) {
-    fprintf(stderr, "runtime failed to initialize (check log for details)\n");
+    fprintf(stderr, "Failed to initialize runtime (check log for details)\n");
     return EXIT_FAILURE;
   }
 
@@ -190,5 +221,5 @@ static int oatexec(int argc, char** argv) {
 } // namespace art
 
 int main(int argc, char** argv) {
-  return art::oatexec(argc, argv);
+  return art::dalvikvm(argc, argv);
 }

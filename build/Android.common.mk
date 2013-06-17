@@ -137,9 +137,6 @@ DEX2OAT_SRC_FILES := \
 OATDUMP_SRC_FILES := \
 	src/oatdump.cc
 
-OATEXEC_SRC_FILES := \
-	src/oatexec.cc
-
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
 	src/barrier.cc \

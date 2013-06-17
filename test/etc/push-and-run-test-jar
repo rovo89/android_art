@@ -9,9 +9,9 @@ msg() {
     fi
 }
 
-OATEXEC="oatexecd"
+LIB="libartd.so"
 GDB="n"
-DEBUG="n"
+DEBUGGER="n"
 INTERPRETER="n"
 VERIFY="y"
 OPTIMIZE="y"
@@ -24,11 +24,14 @@ while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
         shift
+    elif [ "x$1" = "x-lib" ]; then
+        shift
+        LIB="$1"
     elif [ "x$1" = "x-O" ]; then
-        OATEXEC="oatexec"
+        LIB="libart.so"
         shift
     elif [ "x$1" = "x--debug" ]; then
-        DEBUG="y"
+        DEBUGGER="y"
         shift
     elif [ "x$1" = "x--gdb" ]; then
         GDB="y"
@@ -105,16 +108,16 @@ else
   adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
 fi
 
-if [ "$DEBUG" = "y" ]; then
+if [ "$DEBUGGER" = "y" ]; then
   # Use this instead for ddms and connect by running 'ddms':
-  # DEBUG_OPTS="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
+  # DEBUGGER_OPTS="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
   # TODO: add a separate --ddms option?
 
   PORT=12345
   msg "Waiting for jdb to connect:"
   msg "    adb forward tcp:$PORT tcp:$PORT"
   msg "    jdb -attach localhost:$PORT"
-  DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
+  DEBUGGER_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
 if [ "$GDB" = "y" ]; then
@@ -129,7 +132,7 @@ fi
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 cmdline="cd $DEX_LOCATION && mkdir dalvik-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb $OATEXEC $gdbargs $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $gdb dalvikvm $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $INT_OPTS $DEBUGGER_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

@@ -28,9 +28,9 @@ LogVerbosity gLogVerbosity;
 unsigned int gAborting = 0;
 
 static LogSeverity gMinimumLogSeverity = INFO;
-static std::string* gCmdLine;
-static std::string* gProgramInvocationName;
-static std::string* gProgramInvocationShortName;
+static std::string* gCmdLine = NULL;
+static std::string* gProgramInvocationName = NULL;
+static std::string* gProgramInvocationShortName = NULL;
 
 const char* GetCmdLine() {
   return (gCmdLine != NULL) ? gCmdLine->c_str() : NULL;
@@ -53,21 +53,28 @@ const char* ProgramInvocationShortName() {
 // and a letter indicating the minimum priority level we're expected to log.
 // This can be used to reveal or conceal logs with specific tags.
 void InitLogging(char* argv[]) {
+  if (gCmdLine != NULL) {
+    return;
+  }
   // TODO: Move this to a more obvious InitART...
   Locks::Init();
 
   // Stash the command line for later use. We can use /proc/self/cmdline on Linux to recover this,
   // but we don't have that luxury on the Mac, and there are a couple of argv[0] variants that are
   // commonly used.
-  gCmdLine = new std::string(argv[0]);
-  for (size_t i = 1; argv[i] != NULL; ++i) {
-    gCmdLine->append(" ");
-    gCmdLine->append(argv[i]);
+  if (argv != NULL) {
+    gCmdLine = new std::string(argv[0]);
+    for (size_t i = 1; argv[i] != NULL; ++i) {
+      gCmdLine->append(" ");
+      gCmdLine->append(argv[i]);
+    }
+    gProgramInvocationName = new std::string(argv[0]);
+    const char* last_slash = strrchr(argv[0], '/');
+    gProgramInvocationShortName = new std::string((last_slash != NULL) ? last_slash + 1 : argv[0]);
+  } else {
+    // TODO: fall back to /proc/self/cmdline when argv is NULL on Linux
+    gCmdLine = new std::string("<unset>");
   }
-  gProgramInvocationName = new std::string(argv[0]);
-  const char* last_slash = strrchr(argv[0], '/');
-  gProgramInvocationShortName = new std::string((last_slash != NULL) ? last_slash + 1 : argv[0]);
-
   const char* tags = getenv("ANDROID_LOG_TAGS");
   if (tags == NULL) {
     return;

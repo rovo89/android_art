@@ -89,6 +89,8 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libstlport
   endif
 
+  LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.executable.mk
+
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
     ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
@@ -102,12 +104,10 @@ endef
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,ndebug))
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),target,ndebug))
-  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),target,debug))
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),target,debug))
-  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),target,debug))
 endif
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
@@ -120,9 +120,7 @@ endif
 
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),host,ndebug))
-  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),host,ndebug))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),host,debug))
-  $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),host,debug))
 endif
