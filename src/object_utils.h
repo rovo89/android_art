@@ -282,13 +282,13 @@ class FieldHelper {
       return field_index == 0 ? "interfaces" : "throws";
     }
   }
-  mirror::Class* GetType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Class* GetType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
       mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
-      if (type == NULL) {
+      if (resolve && (type == NULL)) {
         type = GetClassLinker()->ResolveType(field_id.type_idx_, field_);
         CHECK(type != NULL || Thread::Current()->IsExceptionPending());
       }

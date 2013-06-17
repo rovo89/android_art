@@ -853,7 +853,13 @@ class ImageDumper {
       if (value == NULL) {
         os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
       } else {
-        PrettyObjectValue(os, fh.GetType(), value);
+        // Grab the field type without causing resolution.
+        mirror::Class* field_type = fh.GetType(false);
+        if (field_type != NULL) {
+          PrettyObjectValue(os, field_type, value);
+        } else {
+          os << StringPrintf("%p   %s\n", value, PrettyDescriptor(descriptor).c_str());
+        }
       }
     }
   }
