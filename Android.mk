@@ -99,8 +99,10 @@ clean-oat-target:
 	adb shell rm system/app/*.oat
 	adb shell rm data/run-test/test-*/dalvik-cache/*.oat
 
+# we aren't building most of art on darwin right now, but we do need to build new dalvikvm
 ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
 art_dont_bother := true
+include $(LOCAL_PATH)/dalvikvm/Android.mk
 endif
 
 ifneq ($(art_dont_bother),true)
