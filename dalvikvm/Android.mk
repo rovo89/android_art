@@ -27,6 +27,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 include external/stlport/libstlport.mk
 include $(BUILD_EXECUTABLE)
 
+ifeq ($(WITH_HOST_DALVIK),true)
 include $(CLEAR_VARS)
 LOCAL_MODULE := dalvikvm
 LOCAL_MODULE_TAGS := optional
@@ -37,3 +38,4 @@ LOCAL_SHARED_LIBRARIES := libnativehelper
 LOCAL_LDFLAGS := -ldl
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 include $(BUILD_HOST_EXECUTABLE)
+endif
