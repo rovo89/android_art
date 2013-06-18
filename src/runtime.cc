@@ -596,7 +596,7 @@ bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != NULL) {
     return false;
   }
-  Locks::Init();
+  InitLogging(NULL); // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     delete instance_;
