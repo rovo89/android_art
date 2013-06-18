@@ -215,6 +215,7 @@ static int dalvikvm(int argc, char** argv) {
     rc = EXIT_FAILURE;
   }
 
+  dlclose(handle);
   return rc;
 }
 
