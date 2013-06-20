@@ -813,12 +813,12 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
   if (oat_dex_file == NULL) {
-    LOG(ERROR) << ".oat file " << oat_file->GetLocation()
+    LOG(ERROR) << "oat file " << oat_file->GetLocation()
                << " does not contain contents for " << dex_location;
     std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
-      LOG(ERROR) << ".oat file " << oat_file->GetLocation()
+      LOG(ERROR) << "oat file " << oat_file->GetLocation()
                  << " contains contents for " << oat_dex_file->GetDexFileLocation();
     }
     return false;
@@ -832,14 +832,14 @@ bool ClassLinker::VerifyOatFileChecksums(const OatFile* oat_file,
   if (!image_check) {
     std::string image_file(image_header.GetImageRoot(
         ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8());
-    LOG(WARNING) << ".oat file " << oat_file->GetLocation()
+    LOG(WARNING) << "oat file " << oat_file->GetLocation()
                  << " mismatch ( " << std::hex << oat_file->GetOatHeader().GetImageFileLocationOatChecksum()
                  << ", " << oat_file->GetOatHeader().GetImageFileLocationOatDataBegin()
                  << ") with " << image_file
                  << " (" << image_oat_checksum << ", " << std::hex << image_oat_data_begin << ")";
   }
   if (!dex_check) {
-    LOG(WARNING) << ".oat file " << oat_file->GetLocation()
+    LOG(WARNING) << "oat file " << oat_file->GetLocation()
                  << " mismatch ( " << std::hex << oat_dex_file->GetDexFileLocationChecksum()
                  << ") with " << dex_location
                  << " (" << std::hex << dex_location_checksum << ")";
@@ -867,16 +867,16 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   }
 
   // Look for an existing file next to dex. for example, for
-  // /foo/bar/baz.jar, look for /foo/bar/baz.jar.oat.
-  std::string oat_filename(OatFile::DexFilenameToOatFilename(dex_location));
-  const OatFile* oat_file = FindOatFileFromOatLocationLocked(oat_filename);
+  // /foo/bar/baz.jar, look for /foo/bar/baz.odex.
+  std::string odex_filename(OatFile::DexFilenameToOdexFilename(dex_location));
+  const OatFile* oat_file = FindOatFileFromOatLocationLocked(odex_filename);
   if (oat_file != NULL) {
     uint32_t dex_location_checksum;
     if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
       // If no classes.dex found in dex_location, it has been stripped, assume oat is up-to-date.
       // This is the common case in user builds for jar's and apk's in the /system directory.
       const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
-      CHECK(oat_dex_file != NULL) << oat_filename << " " << dex_location;
+      CHECK(oat_dex_file != NULL) << odex_filename << " " << dex_location;
       RegisterOatFileLocked(*oat_file);
       return oat_dex_file->OpenDexFile();
     }
@@ -888,8 +888,8 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
     }
   }
   // Look for an existing file in the dalvik-cache, validating the result if found
-  // not found in /foo/bar/baz.oat? try /data/dalvik-cache/foo@bar@baz.oat
-  std::string cache_location(GetDalvikCacheFilenameOrDie(oat_filename));
+  // not found in /foo/bar/baz.odex? try /data/dalvik-cache/foo@bar@baz.jar@classes.dex
+  std::string cache_location(GetDalvikCacheFilenameOrDie(dex_location));
   oat_file = FindOatFileFromOatLocationLocked(cache_location);
   if (oat_file != NULL) {
     uint32_t dex_location_checksum;
@@ -904,13 +904,13 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
       return dex_file;
     }
     if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
-      PLOG(FATAL) << "Failed to remove obsolete .oat file " << oat_file->GetLocation();
+      PLOG(FATAL) << "Failed to remove obsolete oat file " << oat_file->GetLocation();
     }
   }
-  LOG(INFO) << "Failed to open oat file from " << oat_filename << " or " << cache_location << ".";
+  LOG(INFO) << "Failed to open oat file from " << odex_filename << " or " << cache_location << ".";
 
   // Try to generate oat file if it wasn't found or was obsolete.
-  std::string oat_cache_filename(GetDalvikCacheFilenameOrDie(oat_filename));
+  std::string oat_cache_filename(GetDalvikCacheFilenameOrDie(dex_location));
   return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_cache_filename);
 }
 

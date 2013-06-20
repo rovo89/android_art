@@ -1208,6 +1208,10 @@ std::string GetDalvikCacheFilenameOrDie(const std::string& location) {
     LOG(FATAL) << "Expected path in location to be absolute: "<< location;
   }
   std::string cache_file(location, 1); // skip leading slash
+  if (!IsValidDexFilename(location)) {
+    cache_file += "/";
+    cache_file += DexFile::kClassesDex;
+  }
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
   return dalvik_cache + "/" + cache_file;
 }
@@ -1225,7 +1229,9 @@ bool IsValidDexFilename(const std::string& filename) {
 }
 
 bool IsValidOatFilename(const std::string& filename) {
-  return EndsWith(filename, ".oat");
+  return (EndsWith(filename, ".odex") ||
+          EndsWith(filename, ".oat") ||
+          EndsWith(filename, DexFile::kClassesDex));
 }
 
 }  // namespace art
