@@ -31,11 +31,13 @@
 
 namespace art {
 
-std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
+std::string OatFile::DexFilenameToOdexFilename(const std::string& location) {
   CHECK(IsValidDexFilename(location) || IsValidZipFilename(location));
-  std::string oat_location(location);
-  oat_location += ".oat";
-  return oat_location;
+  std::string odex_location(location);
+  odex_location.resize(odex_location.size() - 3);  // 3=dex or zip or apk
+  CHECK_EQ('.', odex_location[odex_location.size()-1]);
+  odex_location += "odex";
+  return odex_location;
 }
 
 void OatFile::CheckLocation(const std::string& location) {
@@ -59,17 +61,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base) {
   CHECK(!filename.empty()) << location;
-  CheckLocation(location);
-  /*
-   * TODO: Reenable dlopen when it works again on MIPS. It may have broken from this change:
-   * commit 818d98eb563ad5d7293b8b5c40f3dabf745e611f
-   * Author: Brian Carlstrom <bdc@google.com>
-   * Date:   Sun Feb 10 21:38:12 2013 -0800
-   *
-   *    Fix MIPS to use standard kPageSize=0x1000 section alignment for ELF sections
-   *
-   *    Change-Id: I905f0c5f75921a65bd7426a54d6258c780d85d0e
-   */
+  CheckLocation(filename);
   OatFile* result = OpenDlopen(filename, location, requested_base);
   if (result != NULL) {
     return result;

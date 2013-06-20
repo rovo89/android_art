@@ -36,8 +36,9 @@ class OatHeader;
 
 class OatFile {
  public:
-  // Returns an OatFile name based on a DexFile location
-  static std::string DexFilenameToOatFilename(const std::string& location);
+  // Returns an .odex file name next adjacent to the dex location.
+  // For example, for "/foo/bar/baz.jar", return "/foo/bar/baz.odex".
+  static std::string DexFilenameToOdexFilename(const std::string& location);
 
   // Open an oat file. Returns NULL on failure.  Requested base can
   // optionally be used to request where the file should be loaded.

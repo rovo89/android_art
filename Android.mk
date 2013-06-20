@@ -69,35 +69,44 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
+	rm -f $(ART_NATIVETEST_OUT)/*.dex
 	rm -f $(ART_NATIVETEST_OUT)/*.oat
 	rm -f $(ART_NATIVETEST_OUT)/*.art
+	rm -f $(ART_TEST_OUT)/*.dex
 	rm -f $(ART_TEST_OUT)/*.oat
 	rm -f $(ART_TEST_OUT)/*.art
+	rm -f $(DALVIK_CACHE_OUT)/*@classes.dex
 	rm -f $(DALVIK_CACHE_OUT)/*.oat
 	rm -f $(DALVIK_CACHE_OUT)/*.art
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.dex
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.dex
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.dex
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
-	rm -f $(TARGET_OUT_APPS)/*.oat
-	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
-	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.apk.oat
-	rm -rf /tmp/test-*/dalvik-cache/*.oat
+	rm -f $(TARGET_OUT_APPS)/*.dex
+	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
+	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
+	rm -rf /tmp/test-*/dalvik-cache/*@classes.dex
 
 .PHONY: clean-oat-target
 clean-oat-target:
 	adb remount
+	adb shell rm $(ART_NATIVETEST_DIR)/*.odex
 	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
 	adb shell rm $(ART_NATIVETEST_DIR)/*.art
+	adb shell rm $(ART_TEST_DIR)/*.odex
 	adb shell rm $(ART_TEST_DIR)/*.oat
 	adb shell rm $(ART_TEST_DIR)/*.art
+	adb shell rm $(DALVIK_CACHE_DIR)/*.dex
 	adb shell rm $(DALVIK_CACHE_DIR)/*.oat
 	adb shell rm $(DALVIK_CACHE_DIR)/*.art
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
-	adb shell rm system/app/*.oat
-	adb shell rm data/run-test/test-*/dalvik-cache/*.oat
+	adb shell rm system/app/*.odex
+	adb shell rm data/run-test/test-*/dalvik-cache/*@classes.dex
 
 # we aren't building most of art on darwin right now, but we do need to build new dalvikvm
 ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
@@ -339,7 +348,7 @@ endif
 
 .PHONY: dump-oat-Calculator
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.apk.oat $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
+dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --oat-file=$< --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 endif

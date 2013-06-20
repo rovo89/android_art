@@ -209,9 +209,9 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     }
   }
 
-  // Check if we have an oat file next to the dex file.
-  std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
-  UniquePtr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, NULL));
+  // Check if we have an odex file next to the dex file.
+  std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename.c_str()));
+  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL));
   if (oat_file.get() != NULL) {
     ScopedObjectAccess soa(env);
     const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
@@ -231,7 +231,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
       }
       if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
         if (debug_logging) {
-          LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << oat_filename
+          LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << odex_filename
               << " is up-to-date checksum compared to " << filename.c_str();
         }
         return JNI_FALSE;
@@ -240,8 +240,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   }
 
   // Check if we have an oat file in the cache
-  std::string cache_location(GetDalvikCacheFilenameOrDie(oat_filename));
-  oat_file.reset(OatFile::Open(cache_location, oat_filename, NULL));
+  std::string cache_location(GetDalvikCacheFilenameOrDie(filename.c_str()));
+  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL));
   if (oat_file.get() == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " does not exist for " << filename.c_str();
