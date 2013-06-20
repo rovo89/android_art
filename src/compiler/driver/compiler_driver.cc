@@ -851,7 +851,7 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
       *type_known_final = resolved_class->IsFinal() && !resolved_class->IsArrayClass();
     }
     if (type_known_abstract != NULL) {
-      *type_known_abstract = resolved_class->IsAbstract();
+      *type_known_abstract = resolved_class->IsAbstract() && !resolved_class->IsArrayClass();
     }
   } else {
     stats_->TypeNeedsAccessCheck();
