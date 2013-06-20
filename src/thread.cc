@@ -53,6 +53,7 @@
 #include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
 #include "sirt_ref.h"
 #include "gc/space.h"
 #include "stack.h"
@@ -605,10 +606,22 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
     Thread* thread;
     {
       ScopedObjectAccess soa(Thread::Current());
-      MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+      Thread* self = soa.Self();
+      MutexLock mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == NULL) {
-        LOG(WARNING) << "No such thread for suspend: " << peer;
+        JNIEnv* env = self->GetJniEnv();
+        ScopedLocalRef<jstring> scoped_name_string(env,
+                                                   (jstring)env->GetObjectField(peer,
+                                                              WellKnownClasses::java_lang_Thread_name));
+        ScopedUtfChars scoped_name_chars(env,scoped_name_string.get());
+        if (scoped_name_chars.c_str() == NULL) {
+            LOG(WARNING) << "No such thread for suspend: " << peer;
+            env->ExceptionClear();
+        } else {
+            LOG(WARNING) << "No such thread for suspend: " << peer << ":" << scoped_name_chars.c_str();
+        }
+
         return NULL;
       }
       {
