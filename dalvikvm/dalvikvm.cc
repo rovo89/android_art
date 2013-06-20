@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <dlfcn.h>
 #include <signal.h>
 
 #include <cstdio>
@@ -22,6 +21,7 @@
 #include <string>
 
 #include "jni.h"
+#include "JniInvocation.h"
 #include "ScopedLocalRef.h"
 #include "toStringArray.h"
 #include "UniquePtr.h"
@@ -125,7 +125,6 @@ static int dalvikvm(int argc, char** argv) {
   // [Do we need to catch & handle "-jar" here?]
   bool need_extra = false;
   const char* lib = "libdvm.so";
-  const char* debug = NULL;
   const char* what = NULL;
   int curr_opt, arg_idx;
   for (curr_opt = arg_idx = 0; arg_idx < argc; arg_idx++) {
@@ -167,23 +166,11 @@ static int dalvikvm(int argc, char** argv) {
   }
 
   // Find the JNI_CreateJavaVM implementation.
-  std::string library(lib);
-  if (debug != NULL) {
-    library += debug;
-  }
-  void* handle = dlopen(library.c_str(), RTLD_NOW);
-  if (handle == NULL) {
-    fprintf(stderr, "Failed to dlopen library %s: %s\n", library.c_str(), dlerror());
+  JniInvocation jni_invocation;
+  if (!jni_invocation.Init(lib)) {
+    fprintf(stderr, "Failed to initialize JNI invocation API from %s\n", lib);
     return EXIT_FAILURE;
   }
-  const char* symbol = "JNI_CreateJavaVM";
-  void* sym = dlsym(handle, symbol);
-  if (handle == NULL) {
-    fprintf(stderr, "Failed to find symbol %s: %s\n", symbol, dlerror());
-    return EXIT_FAILURE;
-  }
-  typedef int (*Fn)(JavaVM** p_vm, JNIEnv** p_env, void* vm_args);
-  Fn JNI_CreateJavaVM = reinterpret_cast<Fn>(sym);
 
   JavaVMInitArgs init_args;
   init_args.version = JNI_VERSION_1_6;
@@ -215,7 +202,6 @@ static int dalvikvm(int argc, char** argv) {
     rc = EXIT_FAILURE;
   }
 
-  dlclose(handle);
   return rc;
 }
 
