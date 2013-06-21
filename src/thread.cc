@@ -170,7 +170,7 @@ void* Thread::CreateCallback(void* arg) {
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa,
                                   mirror::Object* thread_peer) {
-  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
@@ -276,9 +276,9 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   child_thread->jpeer_ = env->NewGlobalRef(java_peer);
   stack_size = FixStackSize(stack_size);
 
-  // Thread.start is synchronized, so we know that vmData is 0, and know that we're not racing to
+  // Thread.start is synchronized, so we know that nativePeer is 0, and know that we're not racing to
   // assign it.
-  env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_vmData,
+  env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer,
                    reinterpret_cast<jint>(child_thread));
 
   pthread_t new_pthread;
@@ -301,7 +301,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     delete child_thread;
     child_thread = NULL;
     // TODO: remove from thread group?
-    env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_vmData, 0);
+    env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
     {
       std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
                                    PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
@@ -406,7 +406,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
-  jni_env_->SetIntField(peer.get(), WellKnownClasses::java_lang_Thread_vmData,
+  jni_env_->SetIntField(peer.get(), WellKnownClasses::java_lang_Thread_nativePeer,
                         reinterpret_cast<jint>(self));
 
   ScopedObjectAccess soa(self);
@@ -1027,8 +1027,8 @@ void Thread::Destroy() {
     HandleUncaughtExceptions(soa);
     RemoveFromThreadGroup(soa);
 
-    // this.vmData = 0;
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData)->SetInt(opeer_, 0);
+    // this.nativePeer = 0;
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetInt(opeer_, 0);
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
