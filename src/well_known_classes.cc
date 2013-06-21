@@ -77,7 +77,7 @@ jfieldID WellKnownClasses::java_lang_Thread_lock;
 jfieldID WellKnownClasses::java_lang_Thread_name;
 jfieldID WellKnownClasses::java_lang_Thread_priority;
 jfieldID WellKnownClasses::java_lang_Thread_uncaughtHandler;
-jfieldID WellKnownClasses::java_lang_Thread_vmData;
+jfieldID WellKnownClasses::java_lang_Thread_nativePeer;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_name;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
@@ -172,7 +172,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
   java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
   java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
-  java_lang_Thread_vmData = CacheField(env, java_lang_Thread, false, "vmData", "I");
+  java_lang_Thread_nativePeer = CacheField(env, java_lang_Thread, false, "nativePeer", "I");
   java_lang_ThreadGroup_mainThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
   java_lang_ThreadGroup_systemThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
