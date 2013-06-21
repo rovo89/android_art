@@ -76,6 +76,11 @@ LIBART_COMPILER_SRC_FILES := \
 	src/elf_writer.cc \
 	src/elf_writer_quick.cc
 
+ifeq ($(ART_SEA_IR_MODE),true)
+LIBART_COMPILER_SRC_FILES += \
+	src/compiler/sea_ir/frontend.cc
+endif
+
 LIBART_COMPILER_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_COMPILER_SRC_FILES += src/elf_writer_mclinker.cc

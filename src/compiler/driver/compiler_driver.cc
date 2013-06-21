@@ -374,6 +374,11 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
 
   dex_to_dex_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileDEX");
 
+  sea_ir_compiler_ = NULL;
+  if (Runtime::Current()->IsSeaIRMode()) {
+    sea_ir_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "SeaIrCompileMethod");
+  }
+
   init_compiler_context(*this);
 
   if (compiler_backend_ == kPortable) {
@@ -2149,10 +2154,22 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     // Do compile small methods.
       dont_compile = false;
     }
-
     if (!dont_compile) {
-      compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+      bool use_sea = false;
+
+      if (Runtime::Current()->IsSeaIRMode()) {
+        use_sea = true;
+      }
+      if (use_sea) {
+        use_sea = (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+      }
+      if (!use_sea) {
+        compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
                                      method_idx, class_loader, dex_file);
+      } else {
+        compiled_method = (*sea_ir_compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+                                             method_idx, class_loader, dex_file);
+      }
       CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
     } else if (allow_dex_to_dex_compilation) {
       // TODO: add a mode to disable DEX-to-DEX compilation ?

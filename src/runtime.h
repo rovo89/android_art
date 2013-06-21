@@ -108,8 +108,11 @@ class Runtime {
     void (*hook_abort_)();
     std::vector<std::string> properties_;
     bool small_mode_;
+
     size_t small_mode_method_threshold_;
     size_t small_mode_method_dex_size_limit_;
+
+    bool sea_ir_mode_;
 
    private:
     ParsedOptions() {}
@@ -129,6 +132,14 @@ class Runtime {
 
   bool IsConcurrentGcEnabled() const {
     return is_concurrent_gc_enabled_;
+  }
+
+  bool IsSeaIRMode() const {
+    return sea_ir_mode_;
+  }
+
+  void SetSeaIRMode(bool sea_ir_mode) {
+    sea_ir_mode_ = sea_ir_mode;
   }
 
   bool IsSmallMode() const {
@@ -373,6 +384,8 @@ class Runtime {
   bool small_mode_;
   size_t small_mode_method_threshold_;
   size_t small_mode_method_dex_size_limit_;
+
+  bool sea_ir_mode_;
 
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:

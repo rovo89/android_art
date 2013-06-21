@@ -29,6 +29,8 @@
 #include "backend.h"
 #include "base/logging.h"
 
+
+
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
   pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
@@ -103,6 +105,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugVerifyBitcode) |
   //(1 << kDebugShowSummaryMemoryUsage) |
   0;
+
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
@@ -276,6 +279,8 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
 #endif
                        );
 }
+
+
 
 }  // namespace art
 
