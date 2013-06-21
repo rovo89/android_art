@@ -55,6 +55,11 @@ TEST_COMMON_SRC_FILES := \
 	src/verifier/reg_type_test.cc \
 	src/zip_archive_test.cc
 
+ifeq ($(ART_SEA_IR_MODE),true)
+TEST_COMMON_SRC_FILES += \
+	src/compiler/utils/scoped_hashtable_test.cc
+endif
+
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)
 

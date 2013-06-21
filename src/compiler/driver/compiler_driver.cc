@@ -2268,7 +2268,7 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
       CompilerFn compiler = compiler_;
 #ifdef ART_SEA_IR_MODE
       bool use_sea = Runtime::Current()->IsSeaIRMode();
-      use_sea &&= (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+      use_sea = use_sea && (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
       if (use_sea) {
         compiler = sea_ir_compiler_;
       }
