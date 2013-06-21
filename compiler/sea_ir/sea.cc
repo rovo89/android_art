@@ -14,19 +14,42 @@
  * limitations under the License.
  */
 
-#include "sea.h"
-
 #include "file_output_stream.h"
 #include "instruction_tools.h"
-
+#include "sea.h"
+#include "code_gen.h"
 
 #define MAX_REACHING_DEF_ITERERATIONS (10)
+// TODO: When development is done, this define should not
+// be needed, it is currently used as a cutoff
+// for cases where the iterative fixed point algorithm
+// does not reach a fixed point because of a bug.
 
 namespace sea_ir {
 
 SeaGraph SeaGraph::graph_;
 int SeaNode::current_max_node_id_ = 0;
 
+void IRVisitor::Traverse(Region* region) {
+  std::vector<PhiInstructionNode*>* phis = region->GetPhiNodes();
+  for (std::vector<PhiInstructionNode*>::const_iterator cit = phis->begin();
+      cit != phis->end(); cit++) {
+    (*cit)->Accept(this);
+  }
+
+  std::vector<InstructionNode*>* instructions = region->GetInstructions();
+  for (std::vector<InstructionNode*>::const_iterator cit = instructions->begin();
+      cit != instructions->end(); cit++) {
+    (*cit)->Accept(this);
+  }
+}
+
+void IRVisitor::Traverse(SeaGraph* graph) {
+  for (std::vector<Region*>::const_iterator cit = ordered_regions_.begin();
+          cit != ordered_regions_.end(); cit++ ) {
+    (*cit)->Accept(this);
+  }
+}
 
 SeaGraph* SeaGraph::GetCurrentGraph() {
   return &sea_ir::SeaGraph::graph_;
@@ -169,7 +192,10 @@ void SeaGraph::ComputeReachingDefs() {
 
 
 void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
-    const art::DexFile& dex_file) {
+    const art::DexFile& dex_file, uint32_t class_def_idx, uint32_t method_idx) {
+  class_def_idx_ = class_def_idx;
+  method_idx_ = method_idx;
+
   const uint16_t* code = code_item->insns_;
   const size_t size_in_code_units = code_item->insns_size_in_code_units_;
   // This maps target instruction pointers to their corresponding region objects.
@@ -194,42 +220,53 @@ void SeaGraph::BuildMethodSeaGraph(const art::DexFile::CodeItem* code_item,
     }
     i += inst->SizeInCodeUnits();
   }
+
+
+  Region* r = GetNewRegion();
+  // Insert one SignatureNode per function argument,
+  // to serve as placeholder definitions in dataflow analysis.
+  for (unsigned int crt_offset = 0; crt_offset < code_item->ins_size_; crt_offset++) {
+    SignatureNode* parameter_def_node =
+        new sea_ir::SignatureNode(code_item->registers_size_ - 1 - crt_offset);
+    AddParameterNode(parameter_def_node);
+    r->AddChild(parameter_def_node);
+  }
   // Pass: Assign instructions to region nodes and
   //         assign branches their control flow successors.
   i = 0;
-  Region* r = GetNewRegion();
-  SignatureNode* parameter_def_node = new sea_ir::SignatureNode(code_item->registers_size_-1,
-        code_item->ins_size_);
-  r->AddChild(parameter_def_node);
   sea_ir::InstructionNode* last_node = NULL;
   sea_ir::InstructionNode* node = NULL;
   while (i < size_in_code_units) {
-    const art::Instruction* inst = art::Instruction::At(&code[i]); //TODO: find workaround for this
-    last_node = node;
-    node = new sea_ir::InstructionNode(inst);
+    const art::Instruction* inst = art::Instruction::At(&code[i]);
+    std::vector<InstructionNode*> sea_instructions_for_dalvik = sea_ir::InstructionNode::Create(inst);
+    for (std::vector<InstructionNode*>::const_iterator cit = sea_instructions_for_dalvik.begin();
+        sea_instructions_for_dalvik.end() != cit; ++cit) {
+      last_node = node;
+      node = *cit;
 
-    if (inst->IsBranch() || inst->IsUnconditional()) {
-      int32_t offset = inst->GetTargetOffset();
-      std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i + offset]);
-      DCHECK(it != target_regions.end());
-      AddEdge(r, it->second); // Add edge to branch target.
-    }
-
-    std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i]);
-    if (target_regions.end() != it) {
-      // Get the already created region because this is a branch target.
-      Region* nextRegion = it->second;
-      if (last_node->GetInstruction()->IsBranch()
-          && last_node->GetInstruction()->CanFlowThrough()) {
-        AddEdge(r, it->second); // Add flow-through edge.
+      if (inst->IsBranch() || inst->IsUnconditional()) {
+        int32_t offset = inst->GetTargetOffset();
+        std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i + offset]);
+        DCHECK(it != target_regions.end());
+        AddEdge(r, it->second); // Add edge to branch target.
       }
-      r = nextRegion;
-    }
-    bool definesRegister = (0 != InstructionTools::instruction_attributes_[inst->Opcode()]
-        && (1 << kDA));
-    LOG(INFO)<< inst->GetDexPc(code) << "*** " << inst->DumpString(&dex_file)
-    << " region:" <<r->StringId() << "Definition?" << definesRegister << std::endl;
-    r->AddChild(node);
+
+      std::map<const uint16_t*, Region*>::iterator it = target_regions.find(&code[i]);
+      if (target_regions.end() != it) {
+        // Get the already created region because this is a branch target.
+        Region* nextRegion = it->second;
+        if (last_node->GetInstruction()->IsBranch()
+            && last_node->GetInstruction()->CanFlowThrough()) {
+          AddEdge(r, it->second); // Add flow-through edge.
+        }
+        r = nextRegion;
+      }
+      bool definesRegister = (0 != InstructionTools::instruction_attributes_[inst->Opcode()]
+          && (1 << kDA));
+      LOG(INFO)<< inst->GetDexPc(code) << "*** " << inst->DumpString(&dex_file)
+      << " region:" <<r->StringId() << "Definition?" << definesRegister << std::endl;
+      r->AddChild(node);
+      }
     i += inst->SizeInCodeUnits();
   }
 }
@@ -255,7 +292,6 @@ void SeaGraph::RenameAsSSA() {
       RenameAsSSA(*region_it, &scoped_table);
     }
   }
-
   scoped_table.CloseScope();
 }
 
@@ -366,10 +402,25 @@ void SeaGraph::RenameAsSSA(Region* crt_region,
   scoped_table->CloseScope();
 }
 
+void SeaGraph::GenerateLLVM() {
+  // Pass: Generate LLVM IR.
+  CodeGenPrepassVisitor code_gen_prepass_visitor;
+  std::cout << "Generating code..." << std::endl;
+  std::cout << "=== PRE VISITING ===" << std::endl;
+  Accept(&code_gen_prepass_visitor);
+  CodeGenVisitor code_gen_visitor(code_gen_prepass_visitor.GetData());
+  std::cout << "=== VISITING ===" << std::endl;
+  Accept(&code_gen_visitor);
+  std::cout << "=== POST VISITING ===" << std::endl;
+  CodeGenPostpassVisitor code_gen_postpass_visitor(code_gen_visitor.GetData());
+  Accept(&code_gen_postpass_visitor);
+  code_gen_postpass_visitor.Write(std::string("my_file.llvm"));
+}
+
 void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
   uint32_t class_def_idx, uint32_t method_idx, const art::DexFile& dex_file) {
   // Two passes: Builds the intermediate structure (non-SSA) of the sea-ir for the function.
-  BuildMethodSeaGraph(code_item, dex_file);
+  BuildMethodSeaGraph(code_item, dex_file, class_def_idx, method_idx);
   //Pass: Compute reverse post-order of regions.
   ComputeRPO();
   // Multiple passes: compute immediate dominators.
@@ -382,8 +433,9 @@ void SeaGraph::CompileMethod(const art::DexFile::CodeItem* code_item,
   ComputeDominanceFrontier();
   // Two Passes: Phi node insertion.
   ConvertToSSA();
+  // Pass: Generate LLVM IR.
+  GenerateLLVM();
 }
-
 
 void SeaGraph::ComputeDominanceFrontier() {
   for (std::vector<Region*>::iterator region_it = regions_.begin();
@@ -413,6 +465,7 @@ void SeaGraph::AddRegion(Region* r) {
   regions_.push_back(r);
 }
 
+/*
 void SeaNode::AddSuccessor(Region* successor) {
   DCHECK(successor) << "Tried to add NULL successor to SEA node.";
   successors_.push_back(successor);
@@ -423,10 +476,11 @@ void SeaNode::AddPredecessor(Region* predecessor) {
   DCHECK(predecessor) << "Tried to add NULL predecessor to SEA node.";
   predecessors_.push_back(predecessor);
 }
-
+*/
 void Region::AddChild(sea_ir::InstructionNode* instruction) {
   DCHECK(instruction) << "Tried to add NULL instruction to region node.";
   instructions_.push_back(instruction);
+  instruction->SetRegion(this);
 }
 
 SeaNode* Region::GetLastChild() const {
@@ -582,6 +636,7 @@ bool Region::InsertPhiFor(int reg_no) {
   if (!ContainsPhiFor(reg_no)) {
     phi_set_.insert(reg_no);
     PhiInstructionNode* new_phi = new PhiInstructionNode(reg_no);
+    new_phi->SetRegion(this);
     phi_instructions_.push_back(new_phi);
     return true;
   }
@@ -606,8 +661,47 @@ void Region::SetPhiDefinitionsForUses(
   }
 }
 
+std::vector<InstructionNode*> InstructionNode::Create(const art::Instruction* in) {
+  std::vector<InstructionNode*> sea_instructions;
+  switch (in->Opcode()) {
+    case art::Instruction::CONST_4:
+      sea_instructions.push_back(new ConstInstructionNode(in));
+      break;
+    case art::Instruction::RETURN:
+      sea_instructions.push_back(new ReturnInstructionNode(in));
+      break;
+    case art::Instruction::IF_NE:
+      sea_instructions.push_back(new IfNeInstructionNode(in));
+      break;
+    case art::Instruction::ADD_INT_LIT8:
+      sea_instructions.push_back(new UnnamedConstInstructionNode(in, in->VRegB_22b()));
+      sea_instructions.push_back(new AddIntLitInstructionNode(in));
+      break;
+    case art::Instruction::MOVE_RESULT:
+      sea_instructions.push_back(new MoveResultInstructionNode(in));
+      break;
+    case art::Instruction::INVOKE_STATIC:
+      sea_instructions.push_back(new InvokeStaticInstructionNode(in));
+      break;
+    case art::Instruction::ADD_INT:
+      sea_instructions.push_back(new AddIntInstructionNode(in));
+      break;
+    case art::Instruction::GOTO:
+      sea_instructions.push_back(new GotoInstructionNode(in));
+      break;
+    case art::Instruction::IF_EQZ:
+      sea_instructions.push_back(new IfEqzInstructionNode(in));
+      break;
+    default:
+      // Default, generic IR instruction node; default case should never be reached
+      // when support for all instructions ahs been added.
+      sea_instructions.push_back(new InstructionNode(in));
+  }
+  return sea_instructions;
+}
+
 void InstructionNode::ToDot(std::string& result) const {
-  result += "// Instruction: \n" + StringId() +
+  result += "// Instruction ("+StringId()+"): \n" + StringId() +
       " [label=\"" + instruction_->DumpString(NULL) + "\"";
   if (de_def_) {
     result += "style=bold";
@@ -631,7 +725,7 @@ void InstructionNode::MarkAsDEDef() {
 }
 
 int InstructionNode::GetResultRegister() const {
-  if (instruction_->HasVRegA()) {
+  if (instruction_->HasVRegA() && InstructionTools::IsDefinition(instruction_)) {
     return instruction_->VRegA();
   }
   return NO_REGISTER;
@@ -651,7 +745,6 @@ std::vector<int> InstructionNode::GetDefinitions() const {
 
 std::vector<int> InstructionNode::GetUses() {
   std::vector<int> uses; // Using vector<> instead of set<> because order matters.
-
   if (!InstructionTools::IsDefinition(instruction_) && (instruction_->HasVRegA())) {
     int vA = instruction_->VRegA();
     uses.push_back(vA);
@@ -664,7 +757,6 @@ std::vector<int> InstructionNode::GetUses() {
     int vC = instruction_->VRegC();
     uses.push_back(vC);
   }
-  // TODO: Add support for function argument registers.
   return uses;
 }
 
@@ -677,24 +769,16 @@ void PhiInstructionNode::ToDot(std::string& result) const {
   result += ")\"";
   result += "];\n";
 
-  for (std::vector<std::map<int, InstructionNode*>*>::const_iterator pred_it = definition_edges_.begin();
+  for (std::vector<std::vector<InstructionNode*>*>::const_iterator pred_it = definition_edges_.begin();
       pred_it != definition_edges_.end(); pred_it++) {
-    std::map<int, InstructionNode*>* defs_from_pred = *pred_it;
-    for (std::map<int, InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
+    std::vector<InstructionNode*>* defs_from_pred = *pred_it;
+    for (std::vector<InstructionNode* >::const_iterator def_it = defs_from_pred->begin();
         def_it != defs_from_pred->end(); def_it++) {
-      if (NULL != def_it->second) {
-        result += def_it->second->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
+        result += (*def_it)->StringId() + " -> " + StringId() +"[color=red,label=\"vR = ";
         std::stringstream ss;
-        ss << def_it->first;
+        ss << GetRegisterNumber();
         result.append(ss.str());
         result += "\"] ; // phi-ssa edge\n";
-      } else {
-        result += StringId() + " -> " + StringId() +"[color=blue,label=\"vR = ";
-        std::stringstream ss;
-        ss << def_it->first;
-        result.append(ss.str());
-        result += "\"] ; // empty phi-ssa edge\n";
-      }
     }
   }
 }
