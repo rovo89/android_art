@@ -29,8 +29,6 @@
 #include "backend.h"
 #include "base/logging.h"
 
-
-
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
   pthread_once_t llvm_multi_init = PTHREAD_ONCE_INIT;
@@ -106,7 +104,6 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugShowSummaryMemoryUsage) |
   0;
 
-
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
                                      const DexFile::CodeItem* code_item,
@@ -116,8 +113,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
 #if defined(ART_USE_PORTABLE_COMPILER)
                                      , llvm::LlvmCompilationUnit* llvm_compilation_unit
 #endif
-)
-{
+) {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -270,8 +266,7 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
                                  uint32_t method_idx,
                                  jobject class_loader,
                                  const DexFile& dex_file,
-                                 llvm::LlvmCompilationUnit* llvm_compilation_unit)
-{
+                                 llvm::LlvmCompilationUnit* llvm_compilation_unit) {
   return CompileMethod(compiler, backend, code_item, access_flags, invoke_type, class_def_idx,
                        method_idx, class_loader, dex_file
 #if defined(ART_USE_PORTABLE_COMPILER)
@@ -280,8 +275,6 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
                        );
 }
 
-
-
 }  // namespace art
 
 extern "C" art::CompiledMethod*
@@ -289,8 +282,7 @@ extern "C" art::CompiledMethod*
                           const art::DexFile::CodeItem* code_item,
                           uint32_t access_flags, art::InvokeType invoke_type,
                           uint32_t class_def_idx, uint32_t method_idx, jobject class_loader,
-                          const art::DexFile& dex_file)
-{
+                          const art::DexFile& dex_file) {
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use build default
   art::CompilerBackend backend = compiler.GetCompilerBackend();
   return art::CompileOneMethod(compiler, backend, code_item, access_flags, invoke_type,

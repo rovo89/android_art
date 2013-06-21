@@ -122,6 +122,38 @@ int32_t Instruction::VRegB() const {
   return 0;
 }
 
+int32_t Instruction::VRegA() const {
+  switch (FormatOf(Opcode())) {
+    case k10t: return VRegA_10t();
+    case k10x: return VRegA_10x();
+    case k11n: return VRegA_11n();
+    case k11x: return VRegA_11x();
+    case k12x: return VRegA_12x();
+    case k20t: return VRegA_20t();
+    case k21c: return VRegA_21c();
+    case k21h: return VRegA_21h();
+    case k21s: return VRegA_21s();
+    case k21t: return VRegA_21t();
+    case k22b: return VRegA_22b();
+    case k22c: return VRegA_22c();
+    case k22s: return VRegA_22s();
+    case k22t: return VRegA_22t();
+    case k22x: return VRegA_22x();
+    case k23x: return VRegA_23x();
+    case k30t: return VRegA_30t();
+    case k31c: return VRegA_31c();
+    case k31i: return VRegA_31i();
+    case k31t: return VRegA_31t();
+    case k32x: return VRegA_32x();
+    case k35c: return VRegA_35c();
+    case k3rc: return VRegA_3rc();
+    case k51l: return VRegA_51l();
+    default: LOG(FATAL) << "Tried to access vA of instruction "<< Name() <<
+        " which has no A operand.";
+  }
+  return 0;
+}
+
 int32_t Instruction::GetTargetOffset() const {
   switch (FormatOf(Opcode())) {
     // Cases for conditional branches follow.
