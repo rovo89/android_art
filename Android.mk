@@ -69,24 +69,24 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
-	rm -f $(ART_NATIVETEST_OUT)/*.dex
+	rm -f $(ART_NATIVETEST_OUT)/*.odex
 	rm -f $(ART_NATIVETEST_OUT)/*.oat
 	rm -f $(ART_NATIVETEST_OUT)/*.art
-	rm -f $(ART_TEST_OUT)/*.dex
+	rm -f $(ART_TEST_OUT)/*.odex
 	rm -f $(ART_TEST_OUT)/*.oat
 	rm -f $(ART_TEST_OUT)/*.art
 	rm -f $(DALVIK_CACHE_OUT)/*@classes.dex
 	rm -f $(DALVIK_CACHE_OUT)/*.oat
 	rm -f $(DALVIK_CACHE_OUT)/*.art
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.dex
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.odex
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.dex
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.odex
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.dex
+	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.oat
-	rm -f $(TARGET_OUT_APPS)/*.dex
+	rm -f $(TARGET_OUT_APPS)/*.odex
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
 	rm -rf /tmp/test-*/dalvik-cache/*@classes.dex
@@ -277,9 +277,9 @@ OAT_TARGET_TARGETS :=
 # $(1): input jar or apk target location
 define declare-oat-target-target
 ifneq (,$(filter $(1),$(addprefix system/app/,$(addsuffix .apk,$(PRODUCT_DEX_PREOPT_PACKAGES_IN_DATA)))))
-OUT_OAT_FILE := $(call dalvik-cache-out,$(1).oat)
+OUT_OAT_FILE := $(call dalvik-cache-out,$(1)/classes.dex)
 else
-OUT_OAT_FILE := $(PRODUCT_OUT)/$(1).oat
+OUT_OAT_FILE := $(PRODUCT_OUT)/$(basename $(1)).odex
 endif
 
 ifeq ($(ONE_SHOT_MAKEFILE),)
