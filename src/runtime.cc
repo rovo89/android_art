@@ -591,6 +591,16 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     }
   }
 
+  // If a reference to the dalvik core.jar snuck in, replace it with
+  // the art specific version. This can happen with on device
+  // boot.art/boot.oat generation by GenerateImage which relies on the
+  // value of BOOTCLASSPATH.
+  std::string core_jar("/core.jar");
+  size_t core_jar_pos = parsed->boot_class_path_string_.find(core_jar);
+  if (core_jar_pos != std::string::npos) {
+    parsed->boot_class_path_string_.replace(core_jar_pos, core_jar.size(), "/core-libart.jar");
+  }
+
   if (!parsed->is_compiler_ && parsed->image_.empty()) {
     parsed->image_ += GetAndroidRoot();
     parsed->image_ += "/framework/boot.art";
