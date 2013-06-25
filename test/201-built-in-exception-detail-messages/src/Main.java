@@ -286,10 +286,19 @@ public class Main {
     }
   }
 
+  // Defeat the fact that null's are untyped for precise detail message creation with quickening.
+  private static Object returnNullObject() {
+    return null;
+  }
+
+  private static A returnNullA() {
+    return null;
+  }
+
   private static void nullPointers() throws Exception {
     // Invoke method.
     try {
-      Object o = null;
+      Object o = returnNullObject();
       o.hashCode();
       fail();
     } catch (NullPointerException ex) {
@@ -298,7 +307,7 @@ public class Main {
 
     // Read field.
     try {
-      A a = null;
+      A a = returnNullA();
       int i = a.i;
       fail();
     } catch (NullPointerException ex) {
@@ -307,7 +316,7 @@ public class Main {
 
     // Write field.
     try {
-      A a = null;
+      A a = returnNullA();
       a.i = 1;
       fail();
     } catch (NullPointerException ex) {
@@ -332,7 +341,7 @@ public class Main {
       assertEquals("Attempt to write to null array", ex.getMessage());
     }
 
-    // Invoke method.
+    // Array length.
     try {
       int[] is = null;
       int i = is.length;

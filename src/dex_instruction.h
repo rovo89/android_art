@@ -278,6 +278,30 @@ class Instruction {
     return static_cast<Code>(opcode);
   }
 
+  void SetOpcode(Code opcode) {
+    DCHECK_LT(static_cast<uint16_t>(opcode), 256u);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[0] = (insns[0] & 0xff00) | static_cast<uint16_t>(opcode);
+  }
+
+  void SetVRegB_3rc(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k3rc);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
+  void SetVRegB_35c(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k35c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
+  void SetVRegC_22c(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k22c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
   // Returns the format of the given opcode.
   static Format FormatOf(Code opcode) {
     return kInstructionFormats[opcode];

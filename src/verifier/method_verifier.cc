@@ -278,6 +278,8 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, mirror::DexCache* dex_ca
       declaring_class_(NULL),
       interesting_dex_pc_(-1),
       monitor_enter_dex_pcs_(NULL),
+      accessed_field(NULL),
+      invoked_method(NULL),
       have_pending_hard_failure_(false),
       have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
@@ -299,6 +301,54 @@ void MethodVerifier::FindLocksAtDexPc(mirror::AbstractMethod* m, uint32_t dex_pc
 
 void MethodVerifier::FindLocksAtDexPc() {
   CHECK(monitor_enter_dex_pcs_ != NULL);
+  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+
+  // Strictly speaking, we ought to be able to get away with doing a subset of the full method
+  // verification. In practice, the phase we want relies on data structures set up by all the
+  // earlier passes, so we just run the full method verification and bail out early when we've
+  // got what we wanted.
+  Verify();
+}
+
+mirror::Field* MethodVerifier::FindAccessedFieldAtDexPc(mirror::AbstractMethod* m,
+                                                        uint32_t dex_pc) {
+  MethodHelper mh(m);
+  MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
+                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          m, m->GetAccessFlags(), false, true);
+  mirror::Field* field = NULL;
+  verifier.interesting_dex_pc_ = dex_pc;
+  verifier.accessed_field = &field;
+  verifier.FindAccessedFieldAtDexPc();
+  return field;
+}
+
+void MethodVerifier::FindAccessedFieldAtDexPc() {
+  CHECK(accessed_field != NULL);
+  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+
+  // Strictly speaking, we ought to be able to get away with doing a subset of the full method
+  // verification. In practice, the phase we want relies on data structures set up by all the
+  // earlier passes, so we just run the full method verification and bail out early when we've
+  // got what we wanted.
+  Verify();
+}
+
+mirror::AbstractMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::AbstractMethod* m,
+                                                                 uint32_t dex_pc) {
+  MethodHelper mh(m);
+  MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
+                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          m, m->GetAccessFlags(), false, true);
+  mirror::AbstractMethod* method = NULL;
+  verifier.interesting_dex_pc_ = dex_pc;
+  verifier.invoked_method = &method;
+  verifier.FindInvokedMethodAtDexPc();
+  return method;
+}
+
+void MethodVerifier::FindInvokedMethodAtDexPc() {
+  CHECK(invoked_method != NULL);
   CHECK(code_item_ != NULL); // This only makes sense for methods with code.
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
@@ -2361,10 +2411,63 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->CheckLiteralOp(inst, reg_types_.Integer(), reg_types_.Integer(), true, false);
       break;
 
+    // Special instructions.
+    //
+    // Note: the following instructions encode offsets derived from class linking.
+    // As such they use Class*/Field*/AbstractMethod* as these offsets only have
+    // meaning if the class linking and resolution were successful.
+    case Instruction::IGET_QUICK:
+      VerifyIGetQuick(inst, reg_types_.Integer(), true);
+      break;
+    case Instruction::IGET_WIDE_QUICK:
+      VerifyIGetQuick(inst, reg_types_.LongLo(), true);
+      break;
+    case Instruction::IGET_OBJECT_QUICK:
+      VerifyIGetQuick(inst, reg_types_.JavaLangObject(false), false);
+      break;
+    case Instruction::IPUT_QUICK:
+      VerifyIPutQuick(inst, reg_types_.Integer(), true);
+      break;
+    case Instruction::IPUT_WIDE_QUICK:
+      VerifyIPutQuick(inst, reg_types_.LongLo(), true);
+      break;
+    case Instruction::IPUT_OBJECT_QUICK:
+      VerifyIPutQuick(inst, reg_types_.JavaLangObject(false), false);
+      break;
+    case Instruction::INVOKE_VIRTUAL_QUICK:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
+      bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
+      mirror::AbstractMethod* called_method = VerifyInvokeVirtualQuickArgs(inst, is_range);
+      if (called_method != NULL) {
+        const char* descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
+        if (!return_type.IsLowHalf()) {
+          work_line_->SetResultRegisterType(return_type);
+        } else {
+          work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+        }
+        just_set_result = true;
+      }
+      break;
+    }
+
     /* These should never appear during verification. */
+    case Instruction::UNUSED_3E:
+    case Instruction::UNUSED_3F:
+    case Instruction::UNUSED_40:
+    case Instruction::UNUSED_41:
+    case Instruction::UNUSED_42:
+    case Instruction::UNUSED_43:
+    case Instruction::UNUSED_73:
+    case Instruction::UNUSED_79:
+    case Instruction::UNUSED_7A:
+    case Instruction::UNUSED_EB:
+    case Instruction::UNUSED_EC:
     case Instruction::UNUSED_ED:
     case Instruction::UNUSED_EE:
     case Instruction::UNUSED_EF:
+    case Instruction::UNUSED_F0:
+    case Instruction::UNUSED_F1:
     case Instruction::UNUSED_F2:
     case Instruction::UNUSED_F3:
     case Instruction::UNUSED_F4:
@@ -2375,30 +2478,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_F9:
     case Instruction::UNUSED_FA:
     case Instruction::UNUSED_FB:
-    case Instruction::UNUSED_F0:
-    case Instruction::UNUSED_F1:
-    case Instruction::UNUSED_E3:
-    case Instruction::UNUSED_E8:
-    case Instruction::UNUSED_E7:
-    case Instruction::UNUSED_E4:
-    case Instruction::UNUSED_E9:
     case Instruction::UNUSED_FC:
-    case Instruction::UNUSED_E5:
-    case Instruction::UNUSED_EA:
     case Instruction::UNUSED_FD:
-    case Instruction::UNUSED_E6:
-    case Instruction::UNUSED_EB:
     case Instruction::UNUSED_FE:
-    case Instruction::UNUSED_3E:
-    case Instruction::UNUSED_3F:
-    case Instruction::UNUSED_40:
-    case Instruction::UNUSED_41:
-    case Instruction::UNUSED_42:
-    case Instruction::UNUSED_43:
-    case Instruction::UNUSED_73:
-    case Instruction::UNUSED_79:
-    case Instruction::UNUSED_7A:
-    case Instruction::UNUSED_EC:
     case Instruction::UNUSED_FF:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
       break;
@@ -2802,7 +2884,7 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* 
     }
   }
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
-  // match the call to the signature. Also, we might might be calling through an abstract method
+  // match the call to the signature. Also, we might be calling through an abstract method
   // definition (which doesn't have register count values).
   const size_t expected_args = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
   /* caught by static verifier */
@@ -2876,6 +2958,121 @@ mirror::AbstractMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* 
   if (actual_args != expected_args) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
         << " expected " << expected_args << " arguments, found " << actual_args;
+    return NULL;
+  } else {
+    return res_method;
+  }
+}
+
+mirror::AbstractMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
+                                                                     bool is_range) {
+  DCHECK(Runtime::Current()->IsStarted());
+  CHECK(invoked_method != NULL || accessed_field != NULL)
+      << "We should not be verifying " << inst->Name();
+  const RegType& actual_arg_type = work_line_->GetInvocationThis(inst, is_range);
+  if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
+    return NULL;
+  }
+  mirror::Class* this_class = NULL;
+  if (!actual_arg_type.IsUnresolvedTypes()) {
+    this_class = actual_arg_type.GetClass();
+  } else {
+    const std::string& descriptor(actual_arg_type.GetDescriptor());
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    this_class = class_linker->FindClass(descriptor.c_str(), class_loader_);
+    if (this_class == NULL) {
+      Thread::Current()->ClearException();
+      // Look for a system class
+      this_class = class_linker->FindClass(descriptor.c_str(), NULL);
+    }
+  }
+  CHECK(this_class != NULL) << "Cannot get Class* for type " << actual_arg_type;
+  mirror::ObjectArray<mirror::AbstractMethod>* vtable = this_class->GetVTable();
+  CHECK(vtable != NULL);
+  uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
+  CHECK(vtable_index < vtable->GetLength());
+  mirror::AbstractMethod* res_method = vtable->Get(vtable_index);
+  CHECK(!Thread::Current()->IsExceptionPending());
+  // TODO: we should move the code below to FindInvokedMethodAtDexPc. Once the
+  // method is verified, we could access the information we need from register
+  // lines for the dex pc we are looking for.
+  if (invoked_method != NULL && work_insn_idx_ == interesting_dex_pc_) {
+    // We've been requested to tell which method is invoked at this dex pc.
+    *invoked_method = res_method;
+  }
+  if (res_method == NULL) {
+    return NULL;
+  }
+  CHECK(!res_method->IsDirect() && !res_method->IsStatic());
+
+  // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
+  // match the call to the signature. Also, we might be calling through an abstract method
+  // definition (which doesn't have register count values).
+  const size_t expected_args = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
+  /* caught by static verifier */
+  DCHECK(is_range || expected_args <= 5);
+  if (expected_args > code_item_->outs_size_) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
+        << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
+    return NULL;
+  }
+
+  /*
+   * Check the "this" argument, which must be an instance of the class that declared the method.
+   * For an interface class, we don't do the full interface merge (see JoinClass), so we can't do a
+   * rigorous check here (which is okay since we have to do it at runtime).
+   */
+  if (actual_arg_type.IsUninitializedReference() && !res_method->IsConstructor()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
+    return NULL;
+  }
+  if (!actual_arg_type.IsZero()) {
+    mirror::Class* klass = res_method->GetDeclaringClass();
+    const RegType& res_method_class =
+        reg_types_.FromClass(ClassHelper(klass).GetDescriptor(), klass,
+                             klass->CannotBeAssignedFromOtherTypes());
+    if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
+      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
+          << "' not instance of '" << res_method_class << "'";
+      return NULL;
+    }
+  }
+  /*
+   * Process the target method's signature. This signature may or may not
+   * have been verified, so we can't assume it's properly formed.
+   */
+  MethodHelper mh(res_method);
+  const DexFile::TypeList* params = mh.GetParameterTypeList();
+  size_t params_size = params == NULL ? 0 : params->Size();
+  uint32_t arg[5];
+  if (!is_range) {
+    inst->GetArgs(arg);
+  }
+  size_t actual_args = 1;
+  for (size_t param_index = 0; param_index < params_size; param_index++) {
+    if (actual_args >= expected_args) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invalid call to '" << PrettyMethod(res_method)
+                << "'. Expected " << expected_args << " arguments, processing argument " << actual_args
+                << " (where longs/doubles count twice).";
+      return NULL;
+    }
+    const char* descriptor =
+        mh.GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
+    if (descriptor == NULL) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
+                << " missing signature component";
+      return NULL;
+    }
+    const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor, false);
+    uint32_t get_reg = is_range ? inst->VRegC_3rc() + actual_args : arg[actual_args];
+    if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
+      return res_method;
+    }
+    actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
+  }
+  if (actual_args != expected_args) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
+              << " expected " << expected_args << " arguments, found " << actual_args;
     return NULL;
   } else {
     return res_method;
@@ -3238,6 +3435,185 @@ void MethodVerifier::VerifyISPut(const Instruction* inst, const RegType& insn_ty
                                         << " to be compatible with type '" << insn_type
                                         << "' but found type '" << field_type
                                         << "' in put-object";
+      return;
+    }
+    work_line_->VerifyRegisterType(vregA, field_type);
+  }
+}
+
+// Look for an instance field with this offset.
+// TODO: we may speed up the search if offsets are sorted by doing a quick search.
+static mirror::Field* FindInstanceFieldWithOffset(mirror::Class* klass,
+                                                  uint32_t field_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::ObjectArray<mirror::Field>* instance_fields = klass->GetIFields();
+  if (instance_fields != NULL) {
+    for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
+      mirror::Field* field = instance_fields->Get(i);
+      if (field->GetOffset().Uint32Value() == field_offset) {
+        return field;
+      }
+    }
+  }
+  if (klass->GetSuperClass() != NULL) {
+    return FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset);
+  } else {
+    return NULL;
+  }
+}
+
+void MethodVerifier::VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
+                                     bool is_primitive) {
+  DCHECK(Runtime::Current()->IsStarted());
+  CHECK(accessed_field != NULL || invoked_method != NULL)
+        << "We should not be verifying " << inst->Name();
+  const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
+  mirror::Class* object_class = NULL;
+  if (!object_type.IsUnresolvedTypes()) {
+    object_class = object_type.GetClass();
+  } else {
+    // We need to resolve the class from its descriptor.
+    const std::string& descriptor(object_type.GetDescriptor());
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    object_class = class_linker->FindClass(descriptor.c_str(), class_loader_);
+    if (object_class == NULL) {
+      Thread::Current()->ClearException();
+      // Look for a system class
+      object_class = class_linker->FindClass(descriptor.c_str(), NULL);
+    }
+  }
+  CHECK(object_class != NULL) << "Cannot get Class* for type " << object_type;
+  uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
+  mirror::Field* field = FindInstanceFieldWithOffset(object_class, field_offset);
+  CHECK(field != NULL);
+  // TODO: we should move the code below to FindAccessedFieldAtDexPc. Once the
+  // method is verified, we could access the information we need from register
+  // lines for the dex pc we are looking for.
+  if (accessed_field != NULL && work_insn_idx_ == interesting_dex_pc_) {
+    // We've been requested to tell which field is accessed at this dex pc.
+    *accessed_field = field;
+  }
+  const char* descriptor = FieldHelper(field).GetTypeDescriptor();
+  mirror::ClassLoader* loader = field->GetDeclaringClass()->GetClassLoader();
+  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  const uint32_t vregA = inst->VRegA_22c();
+  if (is_primitive) {
+    if (field_type.Equals(insn_type) ||
+        (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
+        (field_type.IsDouble() && insn_type.IsLongTypes())) {
+      // expected that read is of the correct primitive type or that int reads are reading
+      // floats or long reads are reading doubles
+    } else {
+      // This is a global failure rather than a class change failure as the instructions and
+      // the descriptors for the type should have been consistent within the same file at
+      // compile time
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                              << " to be of type '" << insn_type
+                                              << "' but found type '" << field_type << "' in get";
+      return;
+    }
+  } else {
+    if (!insn_type.IsAssignableFrom(field_type)) {
+      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                              << " to be compatible with type '" << insn_type
+                                              << "' but found type '" << field_type
+                                              << "' in get-object";
+      work_line_->SetRegisterType(vregA, reg_types_.Conflict());
+      return;
+    }
+  }
+  if (!field_type.IsLowHalf()) {
+    work_line_->SetRegisterType(vregA, field_type);
+  } else {
+    work_line_->SetRegisterTypeWide(vregA, field_type, field_type.HighHalf(&reg_types_));
+  }
+}
+
+void MethodVerifier::VerifyIPutQuick(const Instruction* inst, const RegType& insn_type,
+                                     bool is_primitive) {
+  DCHECK(Runtime::Current()->IsStarted());
+  CHECK(accessed_field != NULL || invoked_method != NULL)
+    << "We should not be verifying " << inst->Name();
+  const RegType& object_type = work_line_->GetRegisterType(inst->VRegB_22c());
+  mirror::Class* object_class = NULL;
+  if (!object_type.IsUnresolvedTypes()) {
+    object_class = object_type.GetClass();
+  } else {
+    // We need to resolve the class from its descriptor.
+    const std::string& descriptor(object_type.GetDescriptor());
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    object_class = class_linker->FindClass(descriptor.c_str(), class_loader_);
+    if (object_class == NULL) {
+      Thread::Current()->ClearException();
+      // Look for a system class
+      object_class = class_linker->FindClass(descriptor.c_str(), NULL);
+    }
+  }
+  CHECK(object_class != NULL) << "Cannot get Class* for type " << object_type;
+  uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
+  mirror::Field* field = FindInstanceFieldWithOffset(object_class, field_offset);
+  CHECK(field != NULL);
+  // TODO: like VerifyIGetQuick, we should move the code below to
+  // FindAccessedFieldAtDexPc.
+  if (accessed_field != NULL && work_insn_idx_ == interesting_dex_pc_) {
+    // We've been requested to tell which field is accessed at this dex pc.
+    *accessed_field = field;
+  }
+  const char* descriptor = FieldHelper(field).GetTypeDescriptor();
+  mirror::ClassLoader* loader = field->GetDeclaringClass()->GetClassLoader();
+  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor, false);
+  if (field != NULL) {
+    if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
+      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
+                                            << " from other class " << GetDeclaringClass();
+      return;
+    }
+  }
+  const uint32_t vregA = inst->VRegA_22c();
+  if (is_primitive) {
+    // Primitive field assignability rules are weaker than regular assignability rules
+    bool instruction_compatible;
+    bool value_compatible;
+    const RegType& value_type = work_line_->GetRegisterType(vregA);
+    if (field_type.IsIntegralTypes()) {
+      instruction_compatible = insn_type.IsIntegralTypes();
+      value_compatible = value_type.IsIntegralTypes();
+    } else if (field_type.IsFloat()) {
+      instruction_compatible = insn_type.IsInteger();  // no [is]put-float, so expect [is]put-int
+      value_compatible = value_type.IsFloatTypes();
+    } else if (field_type.IsLong()) {
+      instruction_compatible = insn_type.IsLong();
+      value_compatible = value_type.IsLongTypes();
+    } else if (field_type.IsDouble()) {
+      instruction_compatible = insn_type.IsLong();  // no [is]put-double, so expect [is]put-long
+      value_compatible = value_type.IsDoubleTypes();
+    } else {
+      instruction_compatible = false;  // reference field with primitive store
+      value_compatible = false;  // unused
+    }
+    if (!instruction_compatible) {
+      // This is a global failure rather than a class change failure as the instructions and
+      // the descriptors for the type should have been consistent within the same file at
+      // compile time
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                              << " to be of type '" << insn_type
+                                              << "' but found type '" << field_type
+                                              << "' in put";
+      return;
+    }
+    if (!value_compatible) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << vregA
+          << " of type " << value_type
+          << " but expected " << field_type
+          << " for store to " << PrettyField(field) << " in put";
+      return;
+    }
+  } else {
+    if (!insn_type.IsAssignableFrom(field_type)) {
+      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                              << " to be compatible with type '" << insn_type
+                                              << "' but found type '" << field_type
+                                              << "' in put-object";
       return;
     }
     work_line_->VerifyRegisterType(vregA, field_type);

@@ -349,7 +349,8 @@ class CompilerDriver {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
-                     jobject class_loader, const DexFile& dex_file)
+                     jobject class_loader, const DexFile& dex_file,
+                     bool allow_dex_to_dex_compilation)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
@@ -403,6 +404,8 @@ class CompilerDriver {
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
   CompilerFn compiler_;
+
+  CompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
 
