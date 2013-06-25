@@ -266,9 +266,11 @@ class MethodVerifier {
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FindAccessedFieldAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::Field* FindAccessedFieldAtDexPc(uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FindInvokedMethodAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::AbstractMethod* FindInvokedMethodAtDexPc(uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -500,6 +502,11 @@ class MethodVerifier {
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns the access field of a quick field access (iget/iput-quick) or NULL
+  // if it cannot be found.
+  mirror::Field* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Perform verification of an iget-quick instruction.
   void VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
                        bool is_primitive)
@@ -556,6 +563,11 @@ class MethodVerifier {
   mirror::AbstractMethod* VerifyInvocationArgs(const Instruction* inst,
                                                MethodType method_type,
                                                bool is_range, bool is_super)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::AbstractMethod* GetQuickInvokedMethod(const Instruction* inst,
+                                                RegisterLine* reg_line,
+                                                bool is_range)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::AbstractMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst,
@@ -676,18 +688,11 @@ class MethodVerifier {
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
   UniquePtr<InstructionFlags[]> insn_flags_;
-  // The dex PC of a FindLocksAtDexPc, FindAccessedFieldAtDexPc or
-  // FindInvokedMethodAtDexPc request, -1 otherwise.
+  // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,
   // NULL if we're not doing FindLocksAtDexPc.
   std::vector<uint32_t>* monitor_enter_dex_pcs_;
-  // The pointer into which FindAccessedFieldAtDexPc should write the accessed field,
-  // NULL if we're not doing FindAccessedFieldAtDexPc.
-  mirror::Field** accessed_field;
-  // The pointer into which FindInvokedMethodAtDexPc should write the invoked method,
-  // NULL if we're not doing FindInvokedMethodAtDexPc.
-  mirror::AbstractMethod** invoked_method;
 
   // The types of any error that occurs.
   std::vector<VerifyError> failures_;
