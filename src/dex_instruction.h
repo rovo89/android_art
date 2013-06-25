@@ -46,6 +46,7 @@ class Instruction {
     const uint16_t case_count;
     const int32_t first_key;
     const int32_t targets[];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(PackedSwitchPayload);
   };
@@ -73,6 +74,7 @@ class Instruction {
     const uint16_t element_width;
     const uint32_t element_count;
     const uint8_t data[];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ArrayDataPayload);
   };
@@ -239,6 +241,7 @@ class Instruction {
   uint8_t VRegA_51l() const;
 
   // VRegB
+  int32_t VRegB() const;
   int4_t VRegB_11n() const;
   uint4_t VRegB_12x() const;
   uint16_t VRegB_21c() const;
@@ -257,9 +260,10 @@ class Instruction {
   uint16_t VRegB_32x() const;
   uint16_t VRegB_35c() const;
   uint16_t VRegB_3rc() const;
-  uint64_t VRegB_51l() const; // vB_wide
+  uint64_t VRegB_51l() const;  // vB_wide
 
   // VRegC
+  int32_t VRegC() const;
   int8_t VRegC_22b() const;
   uint16_t VRegC_22c() const;
   int16_t VRegC_22s() const;
@@ -321,6 +325,12 @@ class Instruction {
   bool IsUnconditional() const {
     return (kInstructionFlags[Opcode()] & kUnconditional) != 0;
   }
+
+  // Returns the branch offset if this instruction is a branch.
+  int32_t GetTargetOffset() const;
+
+  // Returns true if the instruction allows control flow to go to the following instruction.
+  bool CanFlowThrough() const;
 
   // Returns true if this instruction is a switch.
   bool IsSwitch() const {

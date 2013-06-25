@@ -82,6 +82,68 @@ static inline uint32_t fetch_uint32_impl(uint32_t offset, const uint16_t* insns)
   return insns[offset] | ((uint32_t) insns[offset+1] << 16);
 }
 
+int32_t Instruction::VRegC() const {
+  switch (FormatOf(Opcode())) {
+    case k22b: return VRegC_22b();
+    case k22c: return VRegC_22c();
+    case k22s: return VRegC_22s();
+    case k22t: return VRegC_22t();
+    case k23x: return VRegC_23x();
+    case k35c: return VRegC_35c();
+    case k3rc: return VRegC_3rc();
+    default: LOG(FATAL) << "Tried to access vC of instruction " << Name() <<
+        " which has no C operand.";
+  }
+  return 0;
+}
+
+int32_t Instruction::VRegB() const {
+  switch (FormatOf(Opcode())) {
+    case k11n: return VRegB_11n();
+    case k12x: return VRegB_12x();
+    case k21c: return VRegB_21c();
+    case k21h: return VRegB_21h();
+    case k21t: return VRegB_21t();
+    case k22b: return VRegB_22b();
+    case k22c: return VRegB_22c();
+    case k22s: return VRegB_22s();
+    case k22t: return VRegB_22t();
+    case k22x: return VRegB_22x();
+    case k31c: return VRegB_31c();
+    case k31i: return VRegB_31i();
+    case k31t: return VRegB_31t();
+    case k32x: return VRegB_32x();
+    case k35c: return VRegB_35c();
+    case k3rc: return VRegB_3rc();
+    case k51l: return VRegB_51l();
+    default: LOG(FATAL) << "Tried to access vB of instruction " << Name() <<
+        " which has no B operand.";
+  }
+  return 0;
+}
+
+int32_t Instruction::GetTargetOffset() const {
+  switch (FormatOf(Opcode())) {
+    // Cases for conditional branches follow.
+    case k22t: return VRegC_22t();
+    case k21t: return VRegB_21t();
+    // Cases for unconditional branches follow.
+    case k10t: return VRegA_10t();
+    case k20t: return VRegA_20t();
+    case k30t: return VRegA_30t();
+    default: LOG(FATAL) << "Tried to access the branch offset of an instruction " << Name() <<
+        " which does not have a target operand.";
+  }
+  return 0;
+}
+
+bool Instruction::CanFlowThrough() const {
+  const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
+  uint16_t insn = *insns;
+  Code opcode = static_cast<Code>(insn & 0xFF);
+  return  FlagsOf(opcode) & Instruction::kContinue;
+}
+
 void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
   uint16_t insn = *insns;
