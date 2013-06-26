@@ -398,7 +398,7 @@ class CommonTest : public testing::Test {
   }
 
   std::string GetLibCoreDexFileName() {
-    return GetDexFileName("core");
+    return GetDexFileName("core-libart");
   }
 
   std::string GetConscryptFileName() {
