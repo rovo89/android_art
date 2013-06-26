@@ -364,6 +364,30 @@ cpplint-art:
 	    $(ANDROID_BUILD_TOP)/art/src/*.h $(ANDROID_BUILD_TOP)/art/src/*.cc
 
 ########################################################################
+# targets to switch back and forth from libdvm to libart
+
+.PHONY: use-art
+use-art:
+	adb root && sleep 3
+	adb shell "echo dalvik.vm.lib=libart.so > /data/local.prop"
+	adb shell chmod 644 /data/local.prop
+	adb reboot
+
+.PHONY: use-artd
+use-artd:
+	adb root && sleep 3
+	adb shell "echo dalvik.vm.lib=libartd.so > /data/local.prop"
+	adb shell chmod 644 /data/local.prop
+	adb reboot
+
+.PHONY: use-dalvik
+use-dalvik:
+	adb root && sleep 3
+	adb shell "echo dalvik.vm.lib=libdvm.so > /data/local.prop"
+	adb shell chmod 644 /data/local.prop
+	adb reboot
+
+########################################################################
 
 include $(call all-makefiles-under,$(LOCAL_PATH))
 
