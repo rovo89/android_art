@@ -67,7 +67,7 @@ extern "C" void artThrowDivZeroFromCode(Thread* self,
                                         mirror::AbstractMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  ThrowArithmeticExceptionDivideByZero(self);
+  ThrowArithmeticExceptionDivideByZero();
   self->QuickDeliverException();
 }
 

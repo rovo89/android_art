@@ -767,10 +767,11 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
   return mh.ResolveString(string_idx);
 }
 
-static inline void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
-    int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
+                               int32_t dividend, int32_t divisor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    ThrowArithmeticExceptionDivideByZero(self);
+    ThrowArithmeticExceptionDivideByZero();
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
     shadow_frame.SetVReg(result_reg, kMinInt);
   } else {
@@ -778,10 +779,11 @@ static inline void DoIntDivide(Thread* self, ShadowFrame& shadow_frame, size_t r
   }
 }
 
-static inline void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
-    int32_t dividend, int32_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
+                                  int32_t dividend, int32_t divisor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    ThrowArithmeticExceptionDivideByZero(self);
+    ThrowArithmeticExceptionDivideByZero();
   } else if (UNLIKELY(dividend == kMinInt && divisor == -1)) {
     shadow_frame.SetVReg(result_reg, 0);
   } else {
@@ -789,10 +791,11 @@ static inline void DoIntRemainder(Thread* self, ShadowFrame& shadow_frame, size_
   }
 }
 
-static inline void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
-    int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void DoLongDivide(ShadowFrame& shadow_frame, size_t result_reg,
+                                int64_t dividend, int64_t divisor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    ThrowArithmeticExceptionDivideByZero(self);
+    ThrowArithmeticExceptionDivideByZero();
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
     shadow_frame.SetVRegLong(result_reg, kMinLong);
   } else {
@@ -800,10 +803,11 @@ static inline void DoLongDivide(Thread* self, ShadowFrame& shadow_frame, size_t 
   }
 }
 
-static inline void DoLongRemainder(Thread* self, ShadowFrame& shadow_frame, size_t result_reg,
-    int64_t dividend, int64_t divisor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static inline void DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
+                                   int64_t dividend, int64_t divisor)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(divisor == 0)) {
-    ThrowArithmeticExceptionDivideByZero(self);
+    ThrowArithmeticExceptionDivideByZero();
   } else if (UNLIKELY(dividend == kMinLong && divisor == -1)) {
     shadow_frame.SetVRegLong(result_reg, 0);
   } else {
@@ -2302,14 +2306,14 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::DIV_INT:
         PREAMBLE();
-        DoIntDivide(self, shadow_frame, inst->VRegA_23x(),
+        DoIntDivide(shadow_frame, inst->VRegA_23x(),
                     shadow_frame.GetVReg(inst->VRegB_23x()),
                     shadow_frame.GetVReg(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT:
         PREAMBLE();
-        DoIntRemainder(self, shadow_frame, inst->VRegA_23x(),
+        DoIntRemainder(shadow_frame, inst->VRegA_23x(),
                        shadow_frame.GetVReg(inst->VRegB_23x()),
                        shadow_frame.GetVReg(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
@@ -2379,14 +2383,14 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::DIV_LONG:
         PREAMBLE();
-        DoLongDivide(self, shadow_frame, inst->VRegA_23x(),
+        DoLongDivide(shadow_frame, inst->VRegA_23x(),
                      shadow_frame.GetVRegLong(inst->VRegB_23x()),
                     shadow_frame.GetVRegLong(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_LONG:
         PREAMBLE();
-        DoLongRemainder(self, shadow_frame, inst->VRegA_23x(),
+        DoLongRemainder(shadow_frame, inst->VRegA_23x(),
                         shadow_frame.GetVRegLong(inst->VRegB_23x()),
                         shadow_frame.GetVRegLong(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
@@ -2533,7 +2537,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::DIV_INT_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
-        DoIntDivide(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
+        DoIntDivide(shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                     shadow_frame.GetVReg(inst->VRegB_12x()));
         inst = inst->Next_1xx();
         break;
@@ -2541,7 +2545,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::REM_INT_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
-        DoIntRemainder(self, shadow_frame, vregA, shadow_frame.GetVReg(vregA),
+        DoIntRemainder(shadow_frame, vregA, shadow_frame.GetVReg(vregA),
                        shadow_frame.GetVReg(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
@@ -2630,7 +2634,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::DIV_LONG_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
-        DoLongDivide(self, shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
+        DoLongDivide(shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                     shadow_frame.GetVRegLong(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
@@ -2638,7 +2642,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::REM_LONG_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
-        DoLongRemainder(self, shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
+        DoLongRemainder(shadow_frame, vregA, shadow_frame.GetVRegLong(vregA),
                         shadow_frame.GetVRegLong(inst->VRegB_12x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
@@ -2810,13 +2814,13 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::DIV_INT_LIT16:
         PREAMBLE();
-        DoIntDivide(self, shadow_frame, inst->VRegA_22s(),
+        DoIntDivide(shadow_frame, inst->VRegA_22s(),
                     shadow_frame.GetVReg(inst->VRegB_22s()), inst->VRegC_22s());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT_LIT16:
         PREAMBLE();
-        DoIntRemainder(self, shadow_frame, inst->VRegA_22s(),
+        DoIntRemainder(shadow_frame, inst->VRegA_22s(),
                        shadow_frame.GetVReg(inst->VRegB_22s()), inst->VRegC_22s());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
@@ -2864,13 +2868,13 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::DIV_INT_LIT8:
         PREAMBLE();
-        DoIntDivide(self, shadow_frame, inst->VRegA_22b(),
+        DoIntDivide(shadow_frame, inst->VRegA_22b(),
                     shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;
       case Instruction::REM_INT_LIT8:
         PREAMBLE();
-        DoIntRemainder(self, shadow_frame, inst->VRegA_22b(),
+        DoIntRemainder(shadow_frame, inst->VRegA_22b(),
                        shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b());
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_2xx);
         break;

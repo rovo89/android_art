@@ -177,7 +177,7 @@ bool art_portable_is_exception_pending_from_code() {
 }
 
 void art_portable_throw_div_zero_from_code() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ThrowArithmeticExceptionDivideByZero(Thread::Current());
+  ThrowArithmeticExceptionDivideByZero();
 }
 
 void art_portable_throw_array_bounds_from_code(int32_t index, int32_t length)

@@ -32,7 +32,7 @@ class ThrowLocation;
 
 // ArithmeticException
 
-void ThrowArithmeticExceptionDivideByZero(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+void ThrowArithmeticExceptionDivideByZero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // ArrayIndexOutOfBoundsException
 
