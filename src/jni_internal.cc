@@ -2870,7 +2870,8 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     self->SetClassLoaderOverride(old_class_loader);
 
     if (IsBadJniVersion(version)) {
-      LOG(ERROR) << "Bad JNI version returned from JNI_OnLoad in \"" << path << "\": " << version;
+      StringAppendF(&detail, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
+                    path.c_str(), version);
       // It's unwise to call dlclose() here, but we can mark it
       // as bad and ensure that future load attempts will fail.
       // We don't know how far JNI_OnLoad got, so there could
@@ -2878,10 +2879,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
       // newly-registered native method calls.  We could try to
       // unregister them, but that doesn't seem worthwhile.
       result = false;
-    } else {
-      VLOG(jni) << "[Returned " << (result ? "successfully" : "failure")
-                << " from JNI_OnLoad in \"" << path << "\"]";
     }
+    VLOG(jni) << "[Returned " << (result ? "successfully" : "failure")
+              << " from JNI_OnLoad in \"" << path << "\"]";
   }
 
   library->SetResult(result);

@@ -66,6 +66,8 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
     return NULL;
   }
 
+  // Don't let a pending exception from JNI_OnLoad cause a CheckJNI issue with NewStringUTF.
+  env->ExceptionClear();
   return env->NewStringUTF(detail.c_str());
 }
 
