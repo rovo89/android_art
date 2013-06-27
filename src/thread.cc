@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
 #include "thread.h"
 
+#include <cutils/trace.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -574,6 +577,13 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   }
 }
 
+void Thread::RunCheckpointFunction() {
+  CHECK(checkpoint_function_ != NULL);
+  ATRACE_BEGIN("Checkpoint function");
+  checkpoint_function_->Run(this);
+  ATRACE_END();
+}
+
 bool Thread::RequestCheckpoint(Closure* function) {
   CHECK(!ReadFlag(kCheckpointRequest)) << "Already have a pending checkpoint request";
   checkpoint_function_ = function;
@@ -589,10 +599,12 @@ bool Thread::RequestCheckpoint(Closure* function) {
 
 void Thread::FullSuspendCheck() {
   VLOG(threads) << this << " self-suspending";
+  ATRACE_BEGIN("Full suspend check");
   // Make thread appear suspended to other threads, release mutator_lock_.
   TransitionFromRunnableToSuspended(kSuspended);
   // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
   TransitionFromSuspendedToRunnable();
+  ATRACE_END();
   VLOG(threads) << this << " self-reviving";
 }
 

@@ -554,10 +554,7 @@ class PACKED(4) Thread {
     held_mutexes_[level] = mutex;
   }
 
-  void RunCheckpointFunction() {
-    CHECK(checkpoint_function_ != NULL);
-    checkpoint_function_->Run(this);
-  }
+  void RunCheckpointFunction();
 
   bool ReadFlag(ThreadFlag flag) const {
     return (state_and_flags_.as_struct.flags & flag) != 0;

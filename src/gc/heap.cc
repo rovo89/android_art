@@ -16,6 +16,8 @@
 
 #include "heap.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include <cutils/trace.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -1121,6 +1123,19 @@ void Heap::UnMarkAllocStack(accounting::SpaceBitmap* bitmap, accounting::SpaceSe
 collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCause gc_cause,
                                                bool clear_soft_references) {
   Thread* self = Thread::Current();
+
+  switch (gc_cause) {
+    case kGcCauseForAlloc:
+      ATRACE_BEGIN("GC (alloc)");
+      break;
+    case kGcCauseBackground:
+      ATRACE_BEGIN("GC (background)");
+      break;
+    case kGcCauseExplicit:
+      ATRACE_BEGIN("GC (explicit)");
+      break;
+  }
+
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
 
@@ -1234,6 +1249,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     gc_complete_cond_->Broadcast(self);
   }
   // Inform DDMS that a GC completed.
+  ATRACE_END();
   Dbg::GcDidFinish();
   return gc_type;
 }
@@ -1632,6 +1648,7 @@ void Heap::PostGcVerification(collector::GarbageCollector* gc) {
 collector::GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
   collector::GcType last_gc_type = collector::kGcTypeNone;
   if (concurrent_gc_) {
+    ATRACE_BEGIN("GC: Wait For Concurrent");
     bool do_wait;
     uint64_t wait_start = NanoTime();
     {
@@ -1656,6 +1673,7 @@ collector::GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
         LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
       }
     }
+    ATRACE_END();
   }
   return last_gc_type;
 }

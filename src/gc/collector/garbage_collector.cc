@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
+#include <stdio.h>
+#include <cutils/trace.h>
+
 #include "garbage_collector.h"
 
 #include "base/logging.h"
@@ -68,10 +73,12 @@ void GarbageCollector::Run() {
   if (!IsConcurrent()) {
     // Pause is the entire length of the GC.
     uint64_t pause_start = NanoTime();
+    ATRACE_BEGIN("Application threads suspended");
     thread_list->SuspendAll();
     MarkingPhase();
     ReclaimPhase();
     thread_list->ResumeAll();
+    ATRACE_END();
     uint64_t pause_end = NanoTime();
     pause_times_.push_back(pause_end - pause_start);
   } else {
@@ -82,9 +89,11 @@ void GarbageCollector::Run() {
     bool done = false;
     while (!done) {
       uint64_t pause_start = NanoTime();
+      ATRACE_BEGIN("Application threads suspended");
       thread_list->SuspendAll();
       done = HandleDirtyObjectsPhase();
       thread_list->ResumeAll();
+      ATRACE_END();
       uint64_t pause_end = NanoTime();
       pause_times_.push_back(pause_end - pause_start);
     }
