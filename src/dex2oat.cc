@@ -823,6 +823,12 @@ static int dex2oat(int argc, char** argv) {
   options.push_back(std::make_pair("-small", reinterpret_cast<void*>(NULL)));
 #endif // ART_SMALL_MODE
 
+
+#ifdef ART_SEA_IR_MODE
+  options.push_back(std::make_pair("-sea_ir", reinterpret_cast<void*>(NULL)));
+#endif
+
+
   Dex2Oat* p_dex2oat;
   if (!Dex2Oat::Create(&p_dex2oat, options, compiler_backend, instruction_set, thread_count,
                        support_debugging)) {

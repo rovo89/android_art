@@ -357,6 +357,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
   parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
 
+  parsed->sea_ir_mode_ = false;
 //  gLogVerbosity.class_linker = true; // TODO: don't check this in!
 //  gLogVerbosity.compiler = true; // TODO: don't check this in!
 //  gLogVerbosity.heap = true; // TODO: don't check this in!
@@ -566,6 +567,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (option == "-small") {
       parsed->small_mode_ = true;
+    }else if (option == "-sea_ir") {
+      parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-small-mode-methods-max:")) {
       parsed->small_mode_method_threshold_ = ParseIntegerOrDie(option);
     } else if (StartsWith(option, "-small-mode-methods-size-max:")) {
@@ -804,6 +807,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   small_mode_method_threshold_ = options->small_mode_method_threshold_;
   small_mode_method_dex_size_limit_ = options->small_mode_method_dex_size_limit_;
 
+  sea_ir_mode_ = options->sea_ir_mode_;
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;

@@ -404,6 +404,7 @@ class CompilerDriver {
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
   CompilerFn compiler_;
+  CompilerFn sea_ir_compiler_;
 
   CompilerFn dex_to_dex_compiler_;
 

@@ -23,6 +23,15 @@ ifeq ($(WITH_ART_SMALL_MODE), true)
 ART_SMALL_MODE := true
 endif
 
+ART_SEA_IR_MODE := false
+ifneq ($(wildcard art/SEA_IR_ART),)
+$(info Enabling ART_SEA_IR_MODE because of existence of art/SEA_IR_ART)
+ART_SEA_IR_MODE := true
+endif
+ifeq ($(WITH_ART_SEA_IR_MODE), true)
+ART_SEA_IR_MODE := true
+endif
+
 ART_USE_PORTABLE_COMPILER := false
 ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
 $(info Enabling ART_USE_PORTABLE_COMPILER because of existence of art/USE_PORTABLE_COMPILER)
@@ -69,6 +78,10 @@ art_cflags := \
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
+endif
+
+ifeq ($(ART_SEA_IR_MODE),true)
+  art_cflags += -DART_SEA_IR_MODE=1
 endif
 
 # TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
@@ -301,6 +314,11 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_thread.cc \
 	src/oat/runtime/support_throw.cc \
 	src/oat/runtime/support_interpreter.cc
+
+ifeq ($(ART_SEA_IR_MODE),true)
+LIBART_COMMON_SRC_FILES += \
+	src/compiler/sea_ir/sea.cc
+endif
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
