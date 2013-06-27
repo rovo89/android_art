@@ -68,7 +68,7 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
 
 // ArithmeticException
 
-void ThrowArithmeticExceptionDivideByZero(Thread* self) {
+void ThrowArithmeticExceptionDivideByZero() {
   ThrowException(NULL, "Ljava/lang/ArithmeticException;", NULL, "divide by zero");
 }
 
