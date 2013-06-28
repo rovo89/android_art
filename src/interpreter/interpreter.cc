@@ -891,6 +891,35 @@ static inline bool DoFilledNewArray(const Instruction* inst,
   return true;
 }
 
+static inline const Instruction* DoSparseSwitch(const Instruction* inst,
+                                                const ShadowFrame& shadow_frame)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(inst->Opcode() == Instruction::SPARSE_SWITCH);
+  const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
+  int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
+  DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
+  uint16_t size = switch_data[1];
+  DCHECK_GT(size, 0);
+  const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
+  DCHECK(IsAligned<4>(keys));
+  const int32_t* entries = keys + size;
+  DCHECK(IsAligned<4>(entries));
+  int lo = 0;
+  int hi = size - 1;
+  while (lo <= hi) {
+    int mid = (lo + hi) / 2;
+    int32_t foundVal = keys[mid];
+    if (test_val < foundVal) {
+      hi = mid - 1;
+    } else if (test_val > foundVal) {
+      lo = mid + 1;
+    } else {
+      return inst->RelativeAt(entries[mid]);
+    }
+  }
+  return inst->Next_3xx();
+}
+
 static inline const Instruction* FindNextInstructionFollowingException(Thread* self,
                                                                        ShadowFrame& shadow_frame,
                                                                        uint32_t dex_pc,
@@ -1427,31 +1456,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::SPARSE_SWITCH: {
         PREAMBLE();
-        const uint16_t* switch_data = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
-        int32_t test_val = shadow_frame.GetVReg(inst->VRegA_31t());
-        DCHECK_EQ(switch_data[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
-        uint16_t size = switch_data[1];
-        DCHECK_GT(size, 0);
-        const int32_t* keys = reinterpret_cast<const int32_t*>(&switch_data[2]);
-        DCHECK(IsAligned<4>(keys));
-        const int32_t* entries = keys + size;
-        DCHECK(IsAligned<4>(entries));
-        int lo = 0;
-        int hi = size - 1;
-        const Instruction* current_inst = inst;
-        inst = inst->Next_3xx();
-        while (lo <= hi) {
-          int mid = (lo + hi) / 2;
-          int32_t foundVal = keys[mid];
-          if (test_val < foundVal) {
-            hi = mid - 1;
-          } else if (test_val > foundVal) {
-            lo = mid + 1;
-          } else {
-            inst = current_inst->RelativeAt(entries[mid]);
-            break;
-          }
-        }
+        inst = DoSparseSwitch(inst, shadow_frame);
         break;
       }
       case Instruction::CMPL_FLOAT: {
