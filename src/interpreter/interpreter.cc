@@ -1136,6 +1136,17 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         }
         return result;
       }
+      case Instruction::RETURN_VOID_BARRIER: {
+        PREAMBLE();
+        ANDROID_MEMBAR_STORE();
+        JValue result;
+        if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
+          instrumentation->MethodExitEvent(self, this_object_ref.get(),
+                                           shadow_frame.GetMethod(), inst->GetDexPc(insns),
+                                           result);
+        }
+        return result;
+      }
       case Instruction::RETURN: {
         PREAMBLE();
         JValue result;
@@ -2932,7 +2943,6 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
       case Instruction::UNUSED_EB ... Instruction::UNUSED_FF:
-      case Instruction::UNUSED_73:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, mh);

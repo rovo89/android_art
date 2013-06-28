@@ -2412,7 +2412,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
 
     // Special instructions.
-    //
+    case Instruction::RETURN_VOID_BARRIER:
+      DCHECK(Runtime::Current()->IsStarted());
+      if (!IsConstructor()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-barrier not expected";
+      }
+      break;
     // Note: the following instructions encode offsets derived from class linking.
     // As such they use Class*/Field*/AbstractMethod* as these offsets only have
     // meaning if the class linking and resolution were successful.
@@ -2458,7 +2463,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_41:
     case Instruction::UNUSED_42:
     case Instruction::UNUSED_43:
-    case Instruction::UNUSED_73:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
     case Instruction::UNUSED_EB:

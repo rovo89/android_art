@@ -55,8 +55,25 @@ class DexCompiler {
     return *const_cast<DexFile*>(unit_.GetDexFile());
   }
 
+  // Compiles a RETURN-VOID into a RETURN-VOID-BARRIER within a constructor where
+  // a barrier is required.
+  void CompileReturnVoid(Instruction* inst, uint32_t dex_pc);
+
+  // Compiles a field access into a quick field access.
+  // The field index is replaced by an offset within an Object where we can read
+  // from / write to this field. Therefore, this does not involve any resolution
+  // at runtime.
+  // Since the field index is encoded with 16 bits, we can replace it only if the
+  // field offset can be encoded with 16 bits too.
   void CompileInstanceFieldAccess(Instruction* inst, uint32_t dex_pc,
                                   Instruction::Code new_opcode, bool is_put);
+
+  // Compiles a virtual method invocation into a quick virtual method invocation.
+  // The method index is replaced by the vtable index where the corresponding
+  // AbstractMethod can be found. Therefore, this does not involve any resolution
+  // at runtime.
+  // Since the method index is encoded with 16 bits, we can replace it only if the
+  // vtable index can be encoded with 16 bits too.
   void CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
                             Instruction::Code new_opcode, bool is_range);
 
@@ -124,9 +141,14 @@ void DexCompiler::Compile() {
   for (uint32_t dex_pc = 0; dex_pc < insns_size;
        inst = const_cast<Instruction*>(inst->Next()), dex_pc = inst->GetDexPc(insns)) {
     switch (inst->Opcode()) {
+      case Instruction::RETURN_VOID:
+        CompileReturnVoid(inst, dex_pc);
+        break;
+
       case Instruction::IGET:
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_QUICK, false);
         break;
+
       case Instruction::IGET_WIDE:
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_WIDE_QUICK, false);
         break;
@@ -162,10 +184,32 @@ void DexCompiler::Compile() {
         break;
 
       default:
-        // No optimization.
+        // Nothing to do.
         break;
     }
   }
+}
+
+void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
+  DCHECK(inst->Opcode() == Instruction::RETURN_VOID);
+  // Are we compiling a constructor ?
+  if ((unit_.GetAccessFlags() & kAccConstructor) == 0) {
+    return;
+  }
+  // Do we need a constructor barrier ?
+  if (!driver_.RequiresConstructorBarrier(Thread::Current(), unit_.GetDexFile(),
+                                         unit_.GetClassDefIndex())) {
+    return;
+  }
+  // Replace RETURN_VOID by RETURN_VOID_BARRIER.
+  if (kEnableLogging) {
+    LOG(INFO) << "Replacing " << Instruction::Name(inst->Opcode())
+    << " by " << Instruction::Name(Instruction::RETURN_VOID_BARRIER)
+    << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
+    << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+  }
+  ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 2u);
+  inst->SetOpcode(Instruction::RETURN_VOID_BARRIER);
 }
 
 void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
