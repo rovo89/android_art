@@ -310,7 +310,12 @@ void StackVisitor::WalkStack(bool include_transitions) {
             instrumentation::InstrumentationStackFrame instrumentation_frame =
                 GetInstrumentationStackFrame(instrumentation_stack_depth);
             instrumentation_stack_depth++;
-            if (instrumentation_frame.method_ != GetMethod()) {
+            if (instrumentation_frame.interpreter_entry_) {
+              mirror::AbstractMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+              if (GetMethod() != callee) {
+                LOG(FATAL) << "Expected: " << callee << " Found: " << PrettyMethod(GetMethod());
+              }
+            } else if (instrumentation_frame.method_ != GetMethod()) {
               LOG(FATAL)  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
                 << " Found: " << PrettyMethod(GetMethod());
             }

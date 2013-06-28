@@ -131,7 +131,8 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
       uintptr_t return_pc = GetReturnPc();
       CHECK_NE(return_pc, instrumentation_exit_pc_);
       CHECK_NE(return_pc, 0U);
-      InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, return_pc, GetFrameId());
+      InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, return_pc, GetFrameId(),
+                                                      false);
       if (kVerboseInstrumentation) {
         LOG(INFO) << "Pushing frame " << instrumentation_frame.Dump();
       }
@@ -209,7 +210,11 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
           if (kVerboseInstrumentation) {
             LOG(INFO) << "  Removing exit stub in " << DescribeLocation();
           }
-          CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
+          if (instrumentation_frame.interpreter_entry_) {
+            CHECK(m == Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
+          } else {
+            CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
+          }
           SetReturnPc(instrumentation_frame.return_pc_);
           // Create the method exit events. As the methods didn't really exit the result is 0.
           instrumentation_->MethodExitEvent(thread_, instrumentation_frame.this_object_, m,
@@ -222,7 +227,6 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       if (!removed_stub) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  No exit stub in " << DescribeLocation();
-          DescribeStack(thread_);
         }
       }
       return true;  // Continue.
@@ -463,7 +467,7 @@ static void CheckStackDepth(Thread* self, const InstrumentationStackFrame& instr
 
 void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
                                                     mirror::AbstractMethod* method,
-                                                    uintptr_t lr) {
+                                                    uintptr_t lr, bool interpreter_entry) {
   // We have a callee-save frame meaning this value is guaranteed to never be 0.
   size_t frame_id = StackVisitor::ComputeNumFrames(self);
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
@@ -471,7 +475,7 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object
     LOG(INFO) << "Entering " << PrettyMethod(method) << " from PC " << (void*)lr;
   }
   instrumentation::InstrumentationStackFrame instrumentation_frame(this_object, method, lr,
-                                                                   frame_id);
+                                                                   frame_id, interpreter_entry);
   stack->push_front(instrumentation_frame);
 
   MethodEnterEvent(self, this_object, method, 0);

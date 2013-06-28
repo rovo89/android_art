@@ -439,8 +439,7 @@ class MethodHelper {
     return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, GetDexCache());
   }
 
-  const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* result = shorty_;
     if (result == NULL) {
       const DexFile& dex_file = GetDexFile();
