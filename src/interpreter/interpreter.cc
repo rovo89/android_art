@@ -815,6 +815,82 @@ static inline void DoLongRemainder(ShadowFrame& shadow_frame, size_t result_reg,
   }
 }
 
+// TODO: should be SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) which is failing due to template
+// specialization.
+// Returns true on success, otherwise throws an exception and returns false.
+template <bool is_range, bool do_access_check>
+static bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
+                             Thread* self, JValue* result)
+    NO_THREAD_SAFETY_ANALYSIS ALWAYS_INLINE;
+
+template <bool is_range, bool do_access_check>
+static inline bool DoFilledNewArray(const Instruction* inst,
+                                    const ShadowFrame& shadow_frame,
+                                    Thread* self, JValue* result) {
+  DCHECK(inst->Opcode() == Instruction::FILLED_NEW_ARRAY ||
+         inst->Opcode() == Instruction::FILLED_NEW_ARRAY_RANGE);
+  const int32_t length = is_range ? inst->VRegA_3rc() : inst->VRegA_35c();
+  if (!is_range) {
+    // Checks FILLED_NEW_ARRAY's length does not exceed 5 arguments.
+    CHECK_LE(length, 5);
+  }
+  if (UNLIKELY(length < 0)) {
+    ThrowNegativeArraySizeException(length);
+    return false;
+  }
+  uint16_t type_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
+  Class* arrayClass = ResolveVerifyAndClinit(type_idx, shadow_frame.GetMethod(),
+                                             self, false, do_access_check);
+  if (UNLIKELY(arrayClass == NULL)) {
+    DCHECK(self->IsExceptionPending());
+    return false;
+  }
+  CHECK(arrayClass->IsArrayClass());
+  Class* componentClass = arrayClass->GetComponentType();
+  if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
+    if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
+      ThrowRuntimeException("Bad filled array request for type %s",
+                            PrettyDescriptor(componentClass).c_str());
+    } else {
+      self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
+                               "Ljava/lang/InternalError;",
+                               "Found type %s; filled-new-array not implemented for anything but \'int\'",
+                               PrettyDescriptor(componentClass).c_str());
+    }
+    return false;
+  }
+  Object* newArray = Array::Alloc(self, arrayClass, length);
+  if (UNLIKELY(newArray == NULL)) {
+    DCHECK(self->IsExceptionPending());
+    return false;
+  }
+  if (is_range) {
+    uint32_t vregC = inst->VRegC_3rc();
+    const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
+    for (int32_t i = 0; i < length; ++i) {
+      if (is_primitive_int_component) {
+        newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(vregC + i));
+      } else {
+        newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(vregC + i));
+      }
+    }
+  } else {
+    uint32_t arg[5];
+    inst->GetArgs(arg);
+    const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
+    for (int32_t i = 0; i < length; ++i) {
+      if (is_primitive_int_component) {
+        newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(arg[i]));
+      } else {
+        newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(arg[i]));
+      }
+    }
+  }
+
+  result->SetL(newArray);
+  return true;
+}
+
 static inline const Instruction* FindNextInstructionFollowingException(Thread* self,
                                                                        ShadowFrame& shadow_frame,
                                                                        uint32_t dex_pc,
@@ -1259,97 +1335,23 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::FILLED_NEW_ARRAY: {
         PREAMBLE();
-        const int32_t length = inst->VRegA_35c();
-        CHECK(length <= 5);
-        if (UNLIKELY(length < 0)) {
-          ThrowNegativeArraySizeException(length);
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        Class* arrayClass = ResolveVerifyAndClinit(inst->VRegB_35c(), shadow_frame.GetMethod(),
-                                                   self, false, do_access_check);
-        if (UNLIKELY(arrayClass == NULL)) {
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        CHECK(arrayClass->IsArrayClass());
-        Class* componentClass = arrayClass->GetComponentType();
-        if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
-          if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
-            ThrowRuntimeException("Bad filled array request for type %s",
-                                  PrettyDescriptor(componentClass).c_str());
-          } else {
-            self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
-                                     "Ljava/lang/InternalError;",
-                                     "Found type %s; filled-new-array not implemented for anything but \'int\'",
-                                     PrettyDescriptor(componentClass).c_str());
-          }
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        Object* newArray = Array::Alloc(self, arrayClass, length);
-        if (UNLIKELY(newArray == NULL)) {
-          HANDLE_PENDING_EXCEPTION();
-        } else {
-          uint32_t arg[5];
-          inst->GetArgs(arg);
-          const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
-          for (int32_t i = 0; i < length; ++i) {
-            if (is_primitive_int_component) {
-              newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(arg[i]));
-            } else {
-              newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(arg[i]));
-            }
-          }
-          result_register.SetL(newArray);
+        bool success = DoFilledNewArray<false, do_access_check>(inst, shadow_frame,
+                                                                self, &result_register);
+        if (LIKELY(success)) {
           inst = inst->Next_3xx();
+        } else {
+          HANDLE_PENDING_EXCEPTION();
         }
         break;
       }
       case Instruction::FILLED_NEW_ARRAY_RANGE: {
         PREAMBLE();
-        int32_t length = inst->VRegA_3rc();
-        if (UNLIKELY(length < 0)) {
-          ThrowNegativeArraySizeException(length);
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        Class* arrayClass = ResolveVerifyAndClinit(inst->VRegB_3rc(), shadow_frame.GetMethod(),
-                                                   self, false, do_access_check);
-        if (UNLIKELY(arrayClass == NULL)) {
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        CHECK(arrayClass->IsArrayClass());
-        Class* componentClass = arrayClass->GetComponentType();
-        if (UNLIKELY(componentClass->IsPrimitive() && !componentClass->IsPrimitiveInt())) {
-          if (componentClass->IsPrimitiveLong() || componentClass->IsPrimitiveDouble()) {
-            ThrowRuntimeException("Bad filled array request for type %s",
-                                  PrettyDescriptor(componentClass).c_str());
-          } else {
-            self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
-                                     "Ljava/lang/InternalError;",
-                                     "Found type %s; filled-new-array not implemented for anything but \'int\'",
-                                     PrettyDescriptor(componentClass).c_str());
-          }
-          HANDLE_PENDING_EXCEPTION();
-          break;
-        }
-        Object* newArray = Array::Alloc(self, arrayClass, length);
-        if (UNLIKELY(newArray == NULL)) {
-          HANDLE_PENDING_EXCEPTION();
-        } else {
-          uint32_t vregC = inst->VRegC_3rc();
-          const bool is_primitive_int_component = componentClass->IsPrimitiveInt();
-          for (int32_t i = 0; i < length; ++i) {
-            if (is_primitive_int_component) {
-              newArray->AsIntArray()->Set(i, shadow_frame.GetVReg(vregC + i));
-            } else {
-              newArray->AsObjectArray<Object>()->Set(i, shadow_frame.GetVRegReference(vregC + i));
-            }
-          }
-          result_register.SetL(newArray);
+        bool success = DoFilledNewArray<true, do_access_check>(inst, shadow_frame,
+                                                               self, &result_register);
+        if (LIKELY(success)) {
           inst = inst->Next_3xx();
+        } else {
+          HANDLE_PENDING_EXCEPTION();
         }
         break;
       }
