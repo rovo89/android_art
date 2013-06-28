@@ -1069,7 +1069,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::CONST_4: {
         PREAMBLE();
         uint32_t dst = inst->VRegA_11n();
-        int32_t val = static_cast<int32_t>(inst->VRegB_11n() << 28) >> 28;
+        int32_t val = inst->VRegB_11n();
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
           shadow_frame.SetVRegReference(dst, NULL);
@@ -1080,7 +1080,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::CONST_16: {
         PREAMBLE();
         uint32_t dst = inst->VRegA_21s();
-        int32_t val = static_cast<int16_t>(inst->VRegB_21s());
+        int32_t val = inst->VRegB_21s();
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
           shadow_frame.SetVRegReference(dst, NULL);
@@ -1102,7 +1102,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       case Instruction::CONST_HIGH16: {
         PREAMBLE();
         uint32_t dst = inst->VRegA_21h();
-        int32_t val = inst->VRegB_21h() << 16;
+        int32_t val = static_cast<int32_t>(inst->VRegB_21h() << 16);
         shadow_frame.SetVReg(dst, val);
         if (val == 0) {
           shadow_frame.SetVRegReference(dst, NULL);
@@ -1112,14 +1112,12 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
       }
       case Instruction::CONST_WIDE_16:
         PREAMBLE();
-        shadow_frame.SetVRegLong(inst->VRegA_21s(),
-                                 static_cast<int16_t>(inst->VRegB_21s()));
+        shadow_frame.SetVRegLong(inst->VRegA_21s(), inst->VRegB_21s());
         inst = inst->Next_2xx();
         break;
       case Instruction::CONST_WIDE_32:
         PREAMBLE();
-        shadow_frame.SetVRegLong(inst->VRegA_31i(),
-                                 static_cast<int32_t>(inst->VRegB_31i()));
+        shadow_frame.SetVRegLong(inst->VRegA_31i(), inst->VRegB_31i());
         inst = inst->Next_3xx();
         break;
       case Instruction::CONST_WIDE:
@@ -1226,10 +1224,10 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         if (UNLIKELY(array == NULL)) {
           ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
           HANDLE_PENDING_EXCEPTION();
-          break;
+        } else {
+          shadow_frame.SetVReg(inst->VRegA_12x(), array->AsArray()->GetLength());
+          inst = inst->Next_1xx();
         }
-        shadow_frame.SetVReg(inst->VRegA_12x(), array->AsArray()->GetLength());
-        inst = inst->Next_1xx();
         break;
       }
       case Instruction::NEW_INSTANCE: {
@@ -1363,8 +1361,9 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         }
         Array* array = obj->AsArray();
         DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
+        const uint16_t* payload_addr = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
         const Instruction::ArrayDataPayload* payload =
-            reinterpret_cast<const Instruction::ArrayDataPayload*>(insns + inst->GetDexPc(insns) + inst->VRegB_31t());
+            reinterpret_cast<const Instruction::ArrayDataPayload*>(payload_addr);
         if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
           self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
                                    "Ljava/lang/ArrayIndexOutOfBoundsException;",
@@ -2193,33 +2192,35 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::FLOAT_TO_INT: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_12x();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x());
+        int32_t result;
         if (val != val) {
-          shadow_frame.SetVReg(dst, 0);
+          result = 0;
         } else if (val > static_cast<float>(kMaxInt)) {
-          shadow_frame.SetVReg(dst, kMaxInt);
+          result = kMaxInt;
         } else if (val < static_cast<float>(kMinInt)) {
-          shadow_frame.SetVReg(dst, kMinInt);
+          result = kMinInt;
         } else {
-          shadow_frame.SetVReg(dst, val);
+          result = val;
         }
+        shadow_frame.SetVReg(inst->VRegA_12x(), result);
         inst = inst->Next_1xx();
         break;
       }
       case Instruction::FLOAT_TO_LONG: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_12x();
         float val = shadow_frame.GetVRegFloat(inst->VRegB_12x());
+        int64_t result;
         if (val != val) {
-          shadow_frame.SetVRegLong(dst, 0);
+          result = 0;
         } else if (val > static_cast<float>(kMaxLong)) {
-          shadow_frame.SetVRegLong(dst, kMaxLong);
+          result = kMaxLong;
         } else if (val < static_cast<float>(kMinLong)) {
-          shadow_frame.SetVRegLong(dst, kMinLong);
+          result = kMinLong;
         } else {
-          shadow_frame.SetVRegLong(dst, val);
+          result = val;
         }
+        shadow_frame.SetVRegLong(inst->VRegA_12x(), result);
         inst = inst->Next_1xx();
         break;
       }
@@ -2230,33 +2231,35 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         break;
       case Instruction::DOUBLE_TO_INT: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_12x();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x());
+        int32_t result;
         if (val != val) {
-          shadow_frame.SetVReg(dst, 0);
+          result = 0;
         } else if (val > static_cast<double>(kMaxInt)) {
-          shadow_frame.SetVReg(dst, kMaxInt);
+          result = kMaxInt;
         } else if (val < static_cast<double>(kMinInt)) {
-          shadow_frame.SetVReg(dst, kMinInt);
+          result = kMinInt;
         } else {
-          shadow_frame.SetVReg(dst, val);
+          result = val;
         }
+        shadow_frame.SetVReg(inst->VRegA_12x(), result);
         inst = inst->Next_1xx();
         break;
       }
       case Instruction::DOUBLE_TO_LONG: {
         PREAMBLE();
-        uint32_t dst = inst->VRegA_12x();
         double val = shadow_frame.GetVRegDouble(inst->VRegB_12x());
+        int64_t result;
         if (val != val) {
-          shadow_frame.SetVRegLong(dst, 0);
+          result = 0;
         } else if (val > static_cast<double>(kMaxLong)) {
-          shadow_frame.SetVRegLong(dst, kMaxLong);
+          result = kMaxLong;
         } else if (val < static_cast<double>(kMinLong)) {
-          shadow_frame.SetVRegLong(dst, kMinLong);
+          result = kMinLong;
         } else {
-          shadow_frame.SetVRegLong(dst, val);
+          result = val;
         }
+        shadow_frame.SetVRegLong(inst->VRegA_12x(), result);
         inst = inst->Next_1xx();
         break;
       }
