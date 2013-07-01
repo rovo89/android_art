@@ -134,14 +134,12 @@ Array* Array::CreateMultiArray(Thread* self, Class* element_class, IntArray* dim
   return new_array;
 }
 
-bool Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
+void Array::ThrowArrayIndexOutOfBoundsException(int32_t index) const {
   art::ThrowArrayIndexOutOfBoundsException(index, GetLength());
-  return false;
 }
 
-bool Array::ThrowArrayStoreException(Object* object) const {
+void Array::ThrowArrayStoreException(Object* object) const {
   art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
-  return false;
 }
 
 template<typename T>
