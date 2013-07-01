@@ -369,22 +369,19 @@ cpplint-art:
 .PHONY: use-art
 use-art:
 	adb root && sleep 3
-	adb shell "echo dalvik.vm.lib=libart.so > /data/local.prop"
-	adb shell chmod 644 /data/local.prop
+	adb shell setprop persist.sys.dalvik.vm.lib libart.so
 	adb reboot
 
 .PHONY: use-artd
 use-artd:
 	adb root && sleep 3
-	adb shell "echo dalvik.vm.lib=libartd.so > /data/local.prop"
-	adb shell chmod 644 /data/local.prop
+	adb shell setprop persist.sys.dalvik.vm.lib libartd.so
 	adb reboot
 
 .PHONY: use-dalvik
 use-dalvik:
 	adb root && sleep 3
-	adb shell "echo dalvik.vm.lib=libdvm.so > /data/local.prop"
-	adb shell chmod 644 /data/local.prop
+	adb shell setprop persist.sys.dalvik.vm.lib libdvm.so
 	adb reboot
 
 ########################################################################

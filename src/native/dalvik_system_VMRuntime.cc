@@ -126,6 +126,10 @@ static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
+static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {
+  return env->NewStringUTF(kIsDebugBuild ? "libartd.so" : "libart.so");
+}
+
 #if !defined(ART_USE_PORTABLE_COMPILER)
 static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
@@ -209,6 +213,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, startJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
+  NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
