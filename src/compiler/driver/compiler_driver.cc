@@ -1850,6 +1850,7 @@ static const char* class_initializer_black_list[] = {
   "Ljava/nio/charset/Charset;", // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
   "Ljava/nio/charset/CharsetICU;", // Sub-class of Charset.
   "Ljava/nio/charset/Charsets;", // Calls Charset.forName.
+  "Ljava/nio/charset/StandardCharsets;", // Calls OsConstants.initConstants.
   "Ljava/security/AlgorithmParameterGenerator;", // Calls OsConstants.initConstants.
   "Ljava/security/KeyPairGenerator$KeyPairGeneratorImpl;", // Calls OsConstants.initConstants.
   "Ljava/security/KeyPairGenerator;", // Calls OsConstants.initConstants.
