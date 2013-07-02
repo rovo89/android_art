@@ -163,13 +163,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       reference_queue_lock_(NULL),
       is_gc_running_(false),
       last_gc_type_(collector::kGcTypeNone),
+      next_gc_type_(collector::kGcTypePartial),
       capacity_(capacity),
       growth_limit_(growth_limit),
       max_allowed_footprint_(initial_size),
       concurrent_start_bytes_(concurrent_gc ? initial_size - (kMinConcurrentRemainingBytes)
                                             :  std::numeric_limits<size_t>::max()),
-      sticky_gc_count_(0),
-      sticky_to_partial_gc_ratio_(10),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
       large_object_threshold_(3 * kPageSize),
@@ -533,7 +532,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
   size_t size = 0;
   uint64_t allocation_start = 0;
   if (measure_allocation_time_) {
-    allocation_start = NanoTime();
+    allocation_start = NanoTime() / kTimeAdjust;
   }
 
   // We need to have a zygote space or else our newly allocated large object can end up in the
@@ -577,7 +576,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
     VerifyObject(obj);
 
     if (measure_allocation_time_) {
-      total_allocation_time_ += (NanoTime() - allocation_start) / kTimeAdjust;
+      total_allocation_time_ += NanoTime() / kTimeAdjust - allocation_start;
     }
 
     return obj;
@@ -1166,20 +1165,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
 
-  // We need to do partial GCs every now and then to avoid the heap growing too much and
-  // fragmenting.
-  // TODO: if sticky GCs are failing to free memory then we should lower the
-  // sticky_to_partial_gc_ratio_, if they are successful we can increase it.
-  if (gc_type == collector::kGcTypeSticky) {
-    ++sticky_gc_count_;
-    if (sticky_gc_count_ >= sticky_to_partial_gc_ratio_) {
-      gc_type = have_zygote_space_ ? collector::kGcTypePartial : collector::kGcTypeFull;
-      sticky_gc_count_ = 0;
-    }
-  } else {
-    sticky_gc_count_ = 0;
-  }
-
   uint64_t gc_start_time_ns = NanoTime();
   uint64_t gc_start_size = GetBytesAllocated();
   // Approximate allocation rate in bytes / second.
@@ -1190,6 +1175,11 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   if (ms_delta != 0) {
     allocation_rate_ = ((gc_start_size - last_gc_size_) * 1000) / ms_delta;
     VLOG(heap) << "Allocation rate: " << PrettySize(allocation_rate_) << "/s";
+  }
+
+  if (gc_type == collector::kGcTypeSticky &&
+      alloc_space_->Size() < min_alloc_space_size_for_sticky_gc_) {
+    gc_type = collector::kGcTypePartial;
   }
 
   DCHECK_LT(gc_type, collector::kGcTypeMax);
@@ -1697,20 +1687,39 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   max_allowed_footprint_ = max_allowed_footprint;
 }
 
-void Heap::GrowForUtilization(uint64_t gc_duration) {
+void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
   const size_t bytes_allocated = GetBytesAllocated();
   last_gc_size_ = bytes_allocated;
   last_gc_time_ns_ = NanoTime();
 
-  size_t target_size = bytes_allocated / GetTargetHeapUtilization();
-  if (target_size > bytes_allocated + max_free_) {
-    target_size = bytes_allocated + max_free_;
-  } else if (target_size < bytes_allocated + min_free_) {
-    target_size = bytes_allocated + min_free_;
-  }
+  size_t target_size;
+  if (gc_type != collector::kGcTypeSticky) {
+    // Grow the heap for non sticky GC.
+    target_size = bytes_allocated / GetTargetHeapUtilization();
+    if (target_size > bytes_allocated + max_free_) {
+      target_size = bytes_allocated + max_free_;
+    } else if (target_size < bytes_allocated + min_free_) {
+      target_size = bytes_allocated + min_free_;
+    }
+    next_gc_type_ = collector::kGcTypeSticky;
+  } else {
+    // Based on how close the current heap size is to the target size, decide
+    // whether or not to do a partial or sticky GC next.
+    if (bytes_allocated + min_free_ <= max_allowed_footprint_) {
+      next_gc_type_ = collector::kGcTypeSticky;
+    } else {
+      next_gc_type_ = collector::kGcTypePartial;
+    }
 
+    // If we have freed enough memory, shrink the heap back down.
+    if (bytes_allocated + max_free_ < max_allowed_footprint_) {
+      target_size = bytes_allocated + max_free_;
+    } else {
+      target_size = std::max(bytes_allocated, max_allowed_footprint_);
+    }
+  }
   SetIdealFootprint(target_size);
 
   // Calculate when to perform the next ConcurrentGC.
@@ -1887,11 +1896,7 @@ void Heap::ConcurrentGC(Thread* self) {
 
   // Wait for any GCs currently running to finish.
   if (WaitForConcurrentGcToComplete(self) == collector::kGcTypeNone) {
-    if (alloc_space_->Size() > min_alloc_space_size_for_sticky_gc_) {
-      CollectGarbageInternal(collector::kGcTypeSticky, kGcCauseBackground, false);
-    } else {
-      CollectGarbageInternal(collector::kGcTypePartial, kGcCauseBackground, false);
-    }
+    CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false);
   }
 }
 

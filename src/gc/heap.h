@@ -424,7 +424,7 @@ class Heap {
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
   // collection.
-  void GrowForUtilization(uint64_t gc_duration);
+  void GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration);
 
   size_t GetPercentFree();
 
@@ -488,6 +488,7 @@ class Heap {
 
   // Last Gc type we ran. Used by WaitForConcurrentGc to know which Gc was waited on.
   volatile collector::GcType last_gc_type_ GUARDED_BY(gc_complete_lock_);
+  collector::GcType next_gc_type_;
 
   // Maximum size that the heap can reach.
   const size_t capacity_;
@@ -501,12 +502,6 @@ class Heap {
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
   size_t concurrent_start_bytes_;
-
-  // Number of back-to-back sticky mark sweep collections.
-  size_t sticky_gc_count_;
-
-  // After how many sticky GCs we force to do a partial GC instead of sticky mark bits GC.
-  const size_t sticky_to_partial_gc_ratio_;
 
   // Since the heap was created, how many bytes have been freed.
   size_t total_bytes_freed_ever_;

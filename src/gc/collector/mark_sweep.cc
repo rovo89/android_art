@@ -58,7 +58,7 @@ namespace collector {
 
 // Performance options.
 static const bool kParallelMarkStack = true;
-static const bool kDisableFinger = kParallelMarkStack;
+static const bool kDisableFinger = true; // TODO: Fix, bit rotten.
 static const bool kUseMarkStackPrefetch = true;
 
 // Profiling and information flags.
@@ -1477,7 +1477,7 @@ void MarkSweep::FinishPhase() {
   heap->PostGcVerification(this);
 
   timings_.NewSplit("GrowForUtilization");
-  heap->GrowForUtilization(GetDurationNs());
+  heap->GrowForUtilization(GetGcType(), GetDurationNs());
 
   timings_.NewSplit("RequestHeapTrim");
   heap->RequestHeapTrim();
