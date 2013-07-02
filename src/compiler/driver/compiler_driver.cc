@@ -1787,6 +1787,7 @@ static const char* class_initializer_black_list[] = {
   "Landroid/webkit/JniUtil;", // Calls System.loadLibrary.
   "Landroid/webkit/PluginManager;", // // Calls OsConstants.initConstants.
   "Landroid/webkit/WebViewCore;", // Calls System.loadLibrary.
+  "Landroid/webkit/WebViewFactory$Preloader;",  // Calls to Class.forName.
   "Landroid/webkit/WebViewInputDispatcher;", // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/webkit/URLUtil;", // Calls Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Landroid/widget/AutoCompleteTextView;", // Requires TextView.
@@ -1801,19 +1802,62 @@ static const char* class_initializer_black_list[] = {
   "Landroid/widget/Switch;", // Requires TextView.
   "Landroid/widget/TextView;", // Calls Paint.<init> -> Paint.native_init.
   "Lcom/android/i18n/phonenumbers/AsYouTypeFormatter;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Lcom/android/i18n/phonenumbers/MetadataManager;", // Calls OsConstants.initConstants.
   "Lcom/android/i18n/phonenumbers/PhoneNumberMatcher;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Lcom/android/i18n/phonenumbers/PhoneNumberUtil;", // Requires java.util.logging.LogManager.
+  "Lcom/android/i18n/phonenumbers/geocoding/AreaCodeMap;", // Calls OsConstants.initConstants.
+  "Lcom/android/i18n/phonenumbers/geocoding/PhoneNumberOfflineGeocoder;", // Calls OsConstants.initConstants.
   "Lcom/android/internal/os/SamplingProfilerIntegration;", // Calls SystemProperties.native_get_int.
   "Lcom/android/internal/policy/impl/PhoneWindow;", // Calls android.os.Binder.init.
   "Lcom/android/internal/view/menu/ActionMenuItemView;", // Requires TextView.
   "Lcom/android/internal/widget/DialogTitle;", // Requires TextView.
   "Lcom/android/org/bouncycastle/asn1/StreamUtil;", // Calls Runtime.getRuntime().maxMemory().
+  "Lcom/android/org/bouncycastle/asn1/pkcs/MacData;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/asn1/pkcs/RSASSAPSSparams;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/asn1/cms/SignedData;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/asn1/x509/GeneralSubtree;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/asn1/x9/X9ECParameters;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$MD5;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA1;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA256;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA384;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/bouncycastle/crypto/digests/OpenSSLDigest$SHA512;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/bouncycastle/crypto/engines/RSABlindedEngine;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/generators/DHKeyGeneratorHelper;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/generators/DHParametersGenerator;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/generators/DHParametersHelper;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/crypto/generators/DSAKeyPairGenerator;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/generators/DSAParametersGenerator;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/crypto/generators/RSAKeyPairGenerator;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/dh/KeyPairGeneratorSpi;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/dsa/KeyPairGeneratorSpi;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$EC;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDH;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDHC;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECDSA;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi$ECMQV;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/ec/KeyPairGeneratorSpi;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/BCRSAPrivateCrtKey;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/BCRSAPrivateKey;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/jcajce/provider/asymmetric/rsa/KeyPairGeneratorSpi;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jcajce/provider/keystore/pkcs12/PKCS12KeyStoreSpi$BCPKCS12KeyStore;", // Calls Thread.currentThread.
+  "Lcom/android/org/bouncycastle/jcajce/provider/keystore/pkcs12/PKCS12KeyStoreSpi;", // Calls Thread.currentThread.
+  "Lcom/android/org/bouncycastle/jce/PKCS10CertificationRequest;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lcom/android/org/bouncycastle/jce/provider/CertBlacklist;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/jce/provider/JCERSAPrivateCrtKey;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/jce/provider/JCERSAPrivateKey;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lcom/android/org/bouncycastle/jce/provider/PKIXCertPathValidatorSpi;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/org/bouncycastle/math/ec/ECConstants;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/math/ec/Tnaf;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/util/BigIntegers;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/bouncycastle/x509/X509Util;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Lcom/android/org/conscrypt/CipherSuite;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/FileClientSessionCache$CacheFile;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/HandshakeIODataStream;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/Logger;", // Calls OsConstants.initConstants.
   "Lcom/android/org/conscrypt/NativeCrypto;", // Calls native NativeCrypto.clinit().
   "Lcom/android/org/conscrypt/OpenSSLECKeyPairGenerator;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/OpenSSLEngine;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLMac$HmacMD5;", // Calls native NativeCrypto.clinit().
   "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA1;", // Calls native NativeCrypto.clinit().
   "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA256;", // Calls native NativeCrypto.clinit().
@@ -1821,13 +1865,99 @@ static const char* class_initializer_black_list[] = {
   "Lcom/android/org/conscrypt/OpenSSLMac$HmacSHA512;", // Calls native NativeCrypto.clinit().
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$MD5;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA1;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA256;", // Requires com.android.org.conscrypt.NativeCrypto.
+  "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA384;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLMessageDigestJDK$SHA512;", // Requires com.android.org.conscrypt.NativeCrypto.
   "Lcom/android/org/conscrypt/OpenSSLX509CertPath;", // Calls OsConstants.initConstants.
   "Lcom/android/org/conscrypt/OpenSSLX509CertificateFactory;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/PRF;", // Calls OsConstants.initConstants.
+  "Lcom/android/org/conscrypt/SSLSessionImpl;", // Calls OsConstants.initConstants.
   "Lcom/android/org/conscrypt/TrustedCertificateStore;", // Calls System.getenv -> OsConstants.initConstants.
+  "Lcom/android/okhttp/ConnectionPool;", // Calls OsConstants.initConstants.
+  "Lcom/android/okhttp/OkHttpClient;", // Calls OsConstants.initConstants.
+  "Lcom/android/okhttp/internal/DiskLruCache;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Lcom/android/okhttp/internal/Util;", // Calls OsConstants.initConstants.
+  "Lcom/android/okhttp/internal/http/HttpsURLConnectionImpl;", // Calls VMClassLoader.getBootClassPathSize.
+  "Lcom/android/okhttp/internal/spdy/SpdyConnection;", // Calls OsConstants.initConstants.
+  "Lcom/android/okhttp/internal/spdy/SpdyReader;", // Calls OsConstants.initConstants.
+  "Lcom/android/okhttp/internal/tls/OkHostnameVerifier;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Lcom/google/android/gles_jni/EGLContextImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
   "Lcom/google/android/gles_jni/EGLImpl;", // Calls com.google.android.gles_jni.EGLImpl._nativeClassInit.
   "Lcom/google/android/gles_jni/GLImpl;", // Calls com.google.android.gles_jni.GLImpl._nativeClassInit.
+  "Lgov/nist/core/GenericObject;", // Calls OsConstants.initConstants.
+  "Lgov/nist/core/Host;", // Calls OsConstants.initConstants.
+  "Lgov/nist/core/HostPort;", // Calls OsConstants.initConstants.
+  "Lgov/nist/core/NameValue;", // Calls OsConstants.initConstants.
+  "Lgov/nist/core/net/DefaultNetworkLayer;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/Utils;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/AddressImpl;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/Authority;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/GenericURI;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/NetObject;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/SipUri;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/TelephoneNumber;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/address/UserInfo;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Accept;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AcceptEncoding;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AcceptLanguage;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AddressParametersHeader;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AlertInfoList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AllowEvents;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AllowEventsList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/AuthenticationInfo;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Authorization;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/CSeq;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/CallIdentifier;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Challenge;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ContactList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ContentEncoding;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ContentEncodingList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ContentLanguageList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ContentType;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Credentials;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ErrorInfoList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Expires;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/From;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/MimeVersion;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/NameMap;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Priority;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Protocol;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ProxyAuthenticate;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ProxyAuthenticateList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ProxyAuthorizationList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ProxyRequire;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ProxyRequireList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/RSeq;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/RecordRoute;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ReferTo;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/RequestLine;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Require;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/RetryAfter;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/SIPETag;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/SIPHeader;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/SIPHeaderNamesCache;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/StatusLine;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/SubscriptionState;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/TimeStamp;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/UserAgent;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Unsupported;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/Warning;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ViaList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/extensions/Join;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/extensions/References;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/extensions/Replaces;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PAccessNetworkInfo;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PAssertedIdentity;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PAssertedIdentityList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PAssociatedURI;",  // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PCalledPartyID;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PChargingVector;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PPreferredIdentity;",  // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PVisitedNetworkIDList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/PathList;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/SecurityAgree;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/SecurityClient;", // Calls OsConstants.initConstants.
+  "Lgov/nist/javax/sip/header/ims/ServiceRoute;", // Calls OsConstants.initConstants.
   "Ljava/io/Console;", // Has FileDescriptor(s).
   "Ljava/io/File;", // Calls to Random.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
   "Ljava/io/FileDescriptor;", // Requires libcore.io.OsConstants.
@@ -1905,6 +2035,7 @@ static const char* class_initializer_black_list[] = {
   "Llibcore/util/ZoneInfo;", // Sub-class of TimeZone.
   "Llibcore/util/ZoneInfoDB;", // Calls System.getenv -> OsConstants.initConstants.
   "Lorg/apache/commons/logging/LogFactory;", // Calls System.getProperty.
+  "Lorg/apache/commons/logging/impl/LogFactoryImpl;", // Calls OsConstants.initConstants.
   "Lorg/apache/harmony/security/fortress/Services;", // Calls ClassLoader.getSystemClassLoader -> System.getProperty.
   "Lorg/apache/harmony/security/provider/cert/X509CertFactoryImpl;", // Requires java.nio.charsets.Charsets.
   "Lorg/apache/harmony/security/provider/crypto/RandomBitsSupplier;", // Requires java.io.File.
