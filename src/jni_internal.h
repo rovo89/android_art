@@ -48,7 +48,6 @@ class Libraries;
 class ScopedObjectAccess;
 class Thread;
 
-void SetJniGlobalsMax(size_t max);
 void JniAbortF(const char* jni_function_name, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)));
 void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,

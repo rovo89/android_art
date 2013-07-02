@@ -62,17 +62,10 @@ static const size_t kPinTableInitial = 16; // Arbitrary.
 static const size_t kPinTableMax = 1024; // Arbitrary sanity check.
 
 static size_t gGlobalsInitial = 512; // Arbitrary.
-static size_t gGlobalsMax = 51200; // Arbitrary sanity check.
+static size_t gGlobalsMax = 51200; // Arbitrary sanity check. (Must fit in 16 bits.)
 
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
-static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
-
-void SetJniGlobalsMax(size_t max) {
-  if (max != 0) {
-    gGlobalsMax = max;
-    gGlobalsInitial = std::min(gGlobalsInitial, gGlobalsMax);
-  }
-}
+static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check. (Must fit in 16 bits.)
 
 static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

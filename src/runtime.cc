@@ -345,7 +345,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->interpreter_only_ = false;
   parsed->is_concurrent_gc_enabled_ = true;
 
-  parsed->jni_globals_max_ = 0;
   parsed->lock_profiling_threshold_ = 0;
   parsed->hook_is_sensitive_thread_ = NULL;
 
@@ -535,7 +534,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         }
       }
     } else if (StartsWith(option, "-Xjnigreflimit:")) {
-      parsed->jni_globals_max_ = ParseIntegerOrDie(option);
+      // Silently ignored for backwards compatibility.
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
     } else if (StartsWith(option, "-Xstacktracefile:")) {
@@ -791,7 +790,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   QuasiAtomic::Startup();
 
-  SetJniGlobalsMax(options->jni_globals_max_);
   Monitor::Init(options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
   host_prefix_ = options->host_prefix_;

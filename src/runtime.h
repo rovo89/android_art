@@ -63,7 +63,7 @@ class Runtime {
  public:
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
-  // In small mode, apps with fewer than this number of methods will be compiled 
+  // In small mode, apps with fewer than this number of methods will be compiled
   // anyways.
   // TODO: come up with a reasonable default.
   static const size_t kDefaultSmallModeMethodThreshold = 0;
@@ -96,7 +96,6 @@ class Runtime {
     size_t heap_max_free_;
     double heap_target_utilization_;
     size_t stack_size_;
-    size_t jni_globals_max_;
     size_t lock_profiling_threshold_;
     std::string stack_trace_file_;
     bool method_trace_;
