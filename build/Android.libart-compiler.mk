@@ -78,7 +78,8 @@ LIBART_COMPILER_SRC_FILES := \
 
 ifeq ($(ART_SEA_IR_MODE),true)
 LIBART_COMPILER_SRC_FILES += \
-	src/compiler/sea_ir/frontend.cc
+	src/compiler/sea_ir/frontend.cc \
+	src/compiler/sea_ir/instruction_tools.cc
 endif
 
 LIBART_COMPILER_CFLAGS :=

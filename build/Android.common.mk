@@ -317,7 +317,8 @@ LIBART_COMMON_SRC_FILES += \
 
 ifeq ($(ART_SEA_IR_MODE),true)
 LIBART_COMMON_SRC_FILES += \
-	src/compiler/sea_ir/sea.cc
+	src/compiler/sea_ir/sea.cc \
+	src/compiler/sea_ir/instruction_tools.cc
 endif
 
 LIBART_TARGET_SRC_FILES := \

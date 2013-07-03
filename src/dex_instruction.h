@@ -215,6 +215,7 @@ class Instruction {
   }
 
   // VRegA
+  int32_t VRegA() const;
   int8_t VRegA_10t() const;
   uint8_t VRegA_10x() const;
   uint4_t VRegA_11n() const;
