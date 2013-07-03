@@ -30,8 +30,8 @@ namespace optimizer {
 
 // Controls quickening activation.
 const bool kEnableQuickening = true;
-// Controls logging.
-const bool kEnableLogging = false;
+// Control check-cast elision.
+const bool kEnableCheckCastEllision = true;
 
 class DexCompiler {
  public:
@@ -58,6 +58,11 @@ class DexCompiler {
   // Compiles a RETURN-VOID into a RETURN-VOID-BARRIER within a constructor where
   // a barrier is required.
   void CompileReturnVoid(Instruction* inst, uint32_t dex_pc);
+
+  // Compiles a CHECK-CAST into 2 NOP instructions if it is known to be safe. In
+  // this case, returns the second NOP instruction pointer. Otherwise, returns
+  // the given "inst".
+  Instruction* CompileCheckCast(Instruction* inst, uint32_t dex_pc);
 
   // Compiles a field access into a quick field access.
   // The field index is replaced by an offset within an Object where we can read
@@ -145,6 +150,10 @@ void DexCompiler::Compile() {
         CompileReturnVoid(inst, dex_pc);
         break;
 
+      case Instruction::CHECK_CAST:
+        inst = CompileCheckCast(inst, dex_pc);
+        break;
+
       case Instruction::IGET:
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_QUICK, false);
         break;
@@ -202,14 +211,42 @@ void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
     return;
   }
   // Replace RETURN_VOID by RETURN_VOID_BARRIER.
-  if (kEnableLogging) {
-    LOG(INFO) << "Replacing " << Instruction::Name(inst->Opcode())
-    << " by " << Instruction::Name(Instruction::RETURN_VOID_BARRIER)
-    << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-    << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-  }
+  VLOG(compiler) << "Replacing " << Instruction::Name(inst->Opcode())
+                 << " by " << Instruction::Name(Instruction::RETURN_VOID_BARRIER)
+                 << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
+                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
   ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 2u);
   inst->SetOpcode(Instruction::RETURN_VOID_BARRIER);
+}
+
+Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
+  if (!kEnableCheckCastEllision) {
+    return inst;
+  }
+  MethodReference referrer(&GetDexFile(), unit_.GetDexMethodIndex());
+  if (!driver_.IsSafeCast(referrer, dex_pc)) {
+    return inst;
+  }
+  // Ok, this is a safe cast. Since the "check-cast" instruction size is 2 code
+  // units and a "nop" instruction size is 1 code unit, we need to replace it by
+  // 2 consecutive NOP instructions.
+  // Because the caller loops over instructions by calling Instruction::Next onto
+  // the current instruction, we need to return the 2nd NOP instruction. Indeed,
+  // its next instruction is the former check-cast's next instruction.
+  VLOG(compiler) << "Removing " << Instruction::Name(inst->Opcode())
+                 << " by replacing it with 2 NOPs at dex pc "
+                 << StringPrintf("0x%x", dex_pc) << " in method "
+                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+  // We are modifying 4 consecutive bytes.
+  ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
+  inst->SetOpcode(Instruction::NOP);
+  inst->SetVRegA_10x(0u); // keep compliant with verifier.
+  // Get to next instruction which is the second half of check-cast and replace
+  // it by a NOP.
+  inst = const_cast<Instruction*>(inst->Next());
+  inst->SetOpcode(Instruction::NOP);
+  inst->SetVRegA_10x(0u); // keep compliant with verifier.
+  return inst;
 }
 
 void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
@@ -225,15 +262,12 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, field_offset,
                                                     is_volatile, is_put);
   if (fast_path && !is_volatile && IsUint(16, field_offset)) {
-    // TODO: use VLOG ?
-    if (kEnableLogging) {
-      LOG(INFO) << "Quickening " << Instruction::Name(inst->Opcode())
-                << " to " << Instruction::Name(new_opcode)
-                << " by replacing field index " << field_idx
-                << " by field offset " << field_offset
-                << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-    }
+    VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
+                   << " to " << Instruction::Name(new_opcode)
+                   << " by replacing field index " << field_idx
+                   << " by field offset " << field_offset
+                   << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
+                   << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
     // We are modifying 4 consecutive bytes.
     ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
     inst->SetOpcode(new_opcode);
@@ -263,16 +297,13 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
   // TODO: support devirtualization.
   if (fast_path && original_invoke_type == invoke_type) {
     if (vtable_idx >= 0 && IsUint(16, vtable_idx)) {
-      // TODO: use VLOG ?
-      if (kEnableLogging) {
-        LOG(INFO) << "Quickening " << Instruction::Name(inst->Opcode())
-                  << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
-                  << " to " << Instruction::Name(new_opcode)
-                  << " by replacing method index " << method_idx
-                  << " by vtable index " << vtable_idx
-                  << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                  << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-      }
+      VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
+                     << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
+                     << " to " << Instruction::Name(new_opcode)
+                     << " by replacing method index " << method_idx
+                     << " by vtable index " << vtable_idx
+                     << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
+                     << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
       // We are modifying 4 consecutive bytes.
       ScopedDexWriteAccess sdwa(GetModifiableDexFile(), inst, 4u);
       inst->SetOpcode(new_opcode);

@@ -292,6 +292,12 @@ class Instruction {
     insns[0] = (insns[0] & 0xff00) | static_cast<uint16_t>(opcode);
   }
 
+  void SetVRegA_10x(uint8_t val) {
+    DCHECK(FormatOf(Opcode()) == k10x);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[0] = (val << 8) | (insns[0] & 0x00ff);
+  }
+
   void SetVRegB_3rc(uint16_t val) {
     DCHECK(FormatOf(Opcode()) == k3rc);
     uint16_t* insns = reinterpret_cast<uint16_t*>(this);
