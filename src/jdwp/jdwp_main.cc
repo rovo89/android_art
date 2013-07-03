@@ -36,7 +36,7 @@ static void* StartJdwpThread(void* arg);
  * JdwpNetStateBase class implementation
  */
 JdwpNetStateBase::JdwpNetStateBase(JdwpState* state)
-    : state_(state), socket_lock_("JdwpNetStateBase lock") {
+    : state_(state), socket_lock_("JdwpNetStateBase lock", kJdwpSerialSocketLock) {
   clientSock = -1;
   wake_pipe_[0] = -1;
   wake_pipe_[1] = -1;
@@ -211,7 +211,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       attach_lock_("JDWP attach lock", kJdwpAttachLock),
       attach_cond_("JDWP attach condition variable", attach_lock_),
       last_activity_time_ms_(0),
-      serial_lock_("JDWP serial lock", kJdwpSerialLock),
+      serial_lock_("JDWP serial lock", kJdwpSerialSocketLock),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
       event_list_lock_("JDWP event list lock", kJdwpEventListLock),
