@@ -130,7 +130,7 @@
   V(0x70, INVOKE_DIRECT, "invoke-direct", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
   V(0x71, INVOKE_STATIC, "invoke-static", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
   V(0x72, INVOKE_INTERFACE, "invoke-interface", k35c, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArg) \
-  V(0x73, UNUSED_73, "unused-73", k10x, false, kUnknown, 0, kVerifyError) \
+  V(0x73, RETURN_VOID_BARRIER, "return-void-barrier", k10x, false, kNone, kReturn, kVerifyNone) \
   V(0x74, INVOKE_VIRTUAL_RANGE, "invoke-virtual/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
   V(0x75, INVOKE_SUPER_RANGE, "invoke-super/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
   V(0x76, INVOKE_DIRECT_RANGE, "invoke-direct/range", k3rc, false, kMethodRef, kContinue | kThrow | kInvoke, kVerifyRegBMethod | kVerifyVarArgRange) \
