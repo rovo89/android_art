@@ -192,7 +192,8 @@ class Instrumentation {
   // Called when an instrumented method is entered. The intended link register (lr) is saved so
   // that returning causes a branch to the method exit stub. Generates method enter events.
   void PushInstrumentationStackFrame(Thread* self, mirror::Object* this_object,
-                                     mirror::AbstractMethod* method, uintptr_t lr)
+                                     mirror::AbstractMethod* method, uintptr_t lr,
+                                     bool interpreter_entry)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called when an instrumented method is exited. Removes the pushed instrumentation frame
@@ -272,8 +273,9 @@ class Instrumentation {
 // An element in the instrumentation side stack maintained in art::Thread.
 struct InstrumentationStackFrame {
   InstrumentationStackFrame(mirror::Object* this_object, mirror::AbstractMethod* method,
-                            uintptr_t return_pc, size_t frame_id)
-      : this_object_(this_object), method_(method), return_pc_(return_pc), frame_id_(frame_id) {
+                            uintptr_t return_pc, size_t frame_id, bool interpreter_entry)
+      : this_object_(this_object), method_(method), return_pc_(return_pc), frame_id_(frame_id),
+        interpreter_entry_(interpreter_entry) {
   }
 
   std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -282,6 +284,7 @@ struct InstrumentationStackFrame {
   mirror::AbstractMethod* method_;
   const uintptr_t return_pc_;
   const size_t frame_id_;
+  bool interpreter_entry_;
 };
 
 }  // namespace instrumentation

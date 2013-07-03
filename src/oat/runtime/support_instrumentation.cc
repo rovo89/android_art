@@ -31,9 +31,10 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::AbstractMet
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? NULL : this_object,
-                                                 method, lr);
   const void* result = instrumentation->GetQuickCodeFor(method);
+  bool interpreter_entry = (result == GetInterpreterEntryPoint());
+  instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? NULL : this_object,
+                                                 method, lr, interpreter_entry);
   CHECK(result != NULL) << PrettyMethod(method);
   return result;
 }

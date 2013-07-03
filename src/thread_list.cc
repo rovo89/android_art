@@ -140,14 +140,6 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout(Thread* self) NO_THREAD_SAF
   ss << "Thread suspend timeout\n";
   runtime->DumpLockHolders(ss);
   ss << "\n";
-  Locks::mutator_lock_->SharedTryLock(self);
-  if (!Locks::mutator_lock_->IsSharedHeld(self)) {
-    LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
-  }
-  Locks::thread_list_lock_->TryLock(self);
-  if (!Locks::thread_list_lock_->IsExclusiveHeld(self)) {
-    LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
-  }
   runtime->GetThreadList()->DumpLocked(ss);
   LOG(FATAL) << ss.str();
 }
