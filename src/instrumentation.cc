@@ -384,7 +384,8 @@ const void* Instrumentation::GetQuickCodeFor(const mirror::AbstractMethod* metho
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromCompiledCode();
     DCHECK(code != NULL);
-    if (LIKELY(code != GetResolutionTrampoline(runtime->GetClassLinker()))) {
+    if (LIKELY(code != GetResolutionTrampoline(runtime->GetClassLinker()) &&
+               code != GetInterpreterEntryPoint())) {
       return code;
     }
   }
