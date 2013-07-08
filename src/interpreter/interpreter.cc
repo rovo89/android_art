@@ -348,6 +348,13 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
         jresult = fn(soa.Env(), rcvr.get());
       }
       result->SetL(soa.Decode<Object*>(jresult));
+    } else if (shorty == "V") {
+      typedef void (fnptr)(JNIEnv*, jobject);
+      const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());
+      ScopedLocalRef<jobject> rcvr(soa.Env(),
+                                   soa.AddLocalReference<jobject>(receiver));
+      ScopedThreadStateChange tsc(self, kNative);
+      fn(soa.Env(), rcvr.get());
     } else if (shorty == "LL") {
       typedef jobject (fnptr)(JNIEnv*, jobject, jobject);
       const fnptr* fn = reinterpret_cast<const fnptr*>(method->GetNativeMethod());

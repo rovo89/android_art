@@ -29,6 +29,7 @@
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
+#include "interpreter/interpreter.h"
 #include "invoke_arg_array_builder.h"
 #include "jni.h"
 #include "mirror/class-inl.h"
@@ -130,10 +131,25 @@ static void CheckMethodArguments(AbstractMethod* m, uint32_t* args)
 void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
                         ArgArray* arg_array, JValue* result, char result_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
-    CheckMethodArguments(method, arg_array->GetArray());
+    CheckMethodArguments(method, args);
   }
-  method->Invoke(soa.Self(), arg_array->GetArray(), arg_array->GetNumBytes(), result, result_type);
+  // Check interpreter only mode for methods invoked through JNI.
+  // TODO: Check that this catches all remaining paths to invoke.
+  // TODO: Move check up a level to avoid building arg array and then shadow frame?
+  if (Runtime::Current()->GetInstrumentation()->InterpretOnly()) {
+    Object* receiver = method->IsStatic() ? NULL : reinterpret_cast<Object*>(args[0]);
+    if (!method->IsStatic()) {
+      args++;
+    }
+    ManagedStack fragment;
+    soa.Self()->PushManagedStackFragment(&fragment);
+    art::interpreter::EnterInterpreterFromInvoke(soa.Self(), method, receiver, args, result);
+    soa.Self()->PopManagedStackFragment(fragment);
+  } else {
+    method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, result_type);
+  }
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
