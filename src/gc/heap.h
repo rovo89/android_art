@@ -126,6 +126,10 @@ class Heap {
   mirror::Object* AllocObject(Thread* self, mirror::Class* klass, size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void RegisterNativeAllocation(int bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void RegisterNativeFree(int bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // The given reference is believed to be to an object in the Java heap, check the soundness of it.
   void VerifyObjectImpl(const mirror::Object* o);
   void VerifyObject(const mirror::Object* o) {
@@ -403,6 +407,7 @@ class Heap {
 
   void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+  bool IsGCRequestPending() const;
 
   void RecordAllocation(size_t size, mirror::Object* object)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
@@ -420,6 +425,10 @@ class Heap {
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PostGcVerification(collector::GarbageCollector* gc);
+
+  // Update the watermark for the native allocated bytes based on the current number of native
+  // bytes allocated and the target utilization ratio.
+  void UpdateMaxNativeFootprint();
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
@@ -498,6 +507,10 @@ class Heap {
   // When the number of bytes allocated exceeds the footprint TryAllocate returns NULL indicating
   // a GC should be triggered.
   size_t max_allowed_footprint_;
+  // The watermark at which a concurrent GC is requested by registerNativeAllocation.
+  size_t native_footprint_gc_watermark_;
+  // The watermark at which a GC is performed inside of registerNativeAllocation.
+  size_t native_footprint_limit_;
 
   // When num_bytes_allocated_ exceeds this amount then a concurrent GC should be requested so that
   // it completes ahead of an allocation failing.
@@ -514,6 +527,9 @@ class Heap {
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   AtomicInteger num_bytes_allocated_;
+
+  // Bytes which are allocated and managed by native code but still need to be accounted for.
+  AtomicInteger native_bytes_allocated_;
 
   // Heap verification flags.
   const bool verify_missing_card_marks_;

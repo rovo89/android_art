@@ -165,6 +165,24 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
   }
 }
 
+static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes) {
+  ScopedObjectAccess soa(env);
+  if (bytes < 0) {
+    ThrowRuntimeException("allocation size negative %d", bytes);
+    return;
+  }
+  Runtime::Current()->GetHeap()->RegisterNativeAllocation(bytes);
+}
+
+static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
+  ScopedObjectAccess soa(env);
+  if (bytes < 0) {
+    ThrowRuntimeException("allocation size negative %d", bytes);
+    return;
+  }
+  Runtime::Current()->GetHeap()->RegisterNativeFree(bytes);
+}
+
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   uint64_t start_ns = NanoTime();
 
@@ -210,10 +228,13 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, newNonMovableArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
   NATIVE_METHOD(VMRuntime, properties, "()[Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, setTargetSdkVersion, "(I)V"),
+  NATIVE_METHOD(VMRuntime, registerNativeAllocation, "(I)V"),
+  NATIVE_METHOD(VMRuntime, registerNativeFree, "(I)V"),
   NATIVE_METHOD(VMRuntime, startJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
+
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

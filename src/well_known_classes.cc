@@ -37,6 +37,7 @@ jclass WellKnownClasses::java_lang_reflect_AbstractMethod;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_RuntimeException;
 jclass WellKnownClasses::java_lang_StackOverflowError;
+jclass WellKnownClasses::java_lang_System;
 jclass WellKnownClasses::java_lang_Thread;
 jclass WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler;
 jclass WellKnownClasses::java_lang_ThreadGroup;
@@ -63,6 +64,7 @@ jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
+jmethodID WellKnownClasses::java_lang_System_runFinalization = NULL;
 jmethodID WellKnownClasses::java_lang_Thread_init;
 jmethodID WellKnownClasses::java_lang_Thread_run;
 jmethodID WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
@@ -105,7 +107,7 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static, const char* na
   return fid;
 }
 
-static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
+jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
   jmethodID mid = is_static ? env->GetStaticMethodID(c, name, signature) : env->GetMethodID(c, name, signature);
   if (mid == NULL) {
     LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\"";
@@ -132,6 +134,7 @@ void WellKnownClasses::InitClasses(JNIEnv* env) {
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
   java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
+  java_lang_System = CacheClass(env, "java/lang/System");
   java_lang_Thread = CacheClass(env, "java/lang/Thread");
   java_lang_Thread$UncaughtExceptionHandler = CacheClass(env, "java/lang/Thread$UncaughtExceptionHandler");
   java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");

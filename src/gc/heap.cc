@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "base/stl_util.h"
+#include "common_throws.h"
 #include "cutils/sched_policy.h"
 #include "debugger.h"
 #include "gc/accounting/atomic_stack.h"
@@ -170,12 +171,15 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       capacity_(capacity),
       growth_limit_(growth_limit),
       max_allowed_footprint_(initial_size),
+      native_footprint_gc_watermark_(initial_size),
+      native_footprint_limit_(2 * initial_size),
       concurrent_start_bytes_(concurrent_gc ? initial_size - (kMinConcurrentRemainingBytes)
                                             :  std::numeric_limits<size_t>::max()),
       total_bytes_freed_ever_(0),
       total_objects_freed_ever_(0),
       large_object_threshold_(3 * kPageSize),
       num_bytes_allocated_(0),
+      native_bytes_allocated_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(false),
@@ -569,9 +573,6 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
       Dbg::RecordAllocation(c, byte_count);
     }
     if (static_cast<size_t>(num_bytes_allocated_) >= concurrent_start_bytes_) {
-      // We already have a request pending, no reason to start more until we update
-      // concurrent_start_bytes_.
-      concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
       SirtRef<mirror::Object> ref(self, obj);
       RequestConcurrentGC(self);
@@ -1690,6 +1691,19 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   max_allowed_footprint_ = max_allowed_footprint;
 }
 
+void Heap::UpdateMaxNativeFootprint() {
+  size_t native_size = native_bytes_allocated_;
+  // TODO: Tune the native heap utilization to be a value other than the java heap utilization.
+  size_t target_size = native_size / GetTargetHeapUtilization();
+  if (target_size > native_size + max_free_) {
+    target_size = native_size + max_free_;
+  } else if (target_size < native_size + min_free_) {
+    target_size = native_size + min_free_;
+  }
+  native_footprint_gc_watermark_ = target_size;
+  native_footprint_limit_ = 2 * target_size - native_size;
+}
+
 void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
   // We know what our utilization is at this moment.
   // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
@@ -1746,6 +1760,8 @@ void Heap::GrowForUtilization(collector::GcType gc_type, uint64_t gc_duration) {
     DCHECK_LE(concurrent_start_bytes_, max_allowed_footprint_);
     DCHECK_LE(max_allowed_footprint_, growth_limit_);
   }
+
+  UpdateMaxNativeFootprint();
 }
 
 void Heap::ClearGrowthLimit() {
@@ -1881,6 +1897,10 @@ void Heap::RequestConcurrentGC(Thread* self) {
     return;
   }
 
+  // We already have a request pending, no reason to start more until we update
+  // concurrent_start_bytes_.
+  concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+
   JNIEnv* env = self->GetJniEnv();
   DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
   DCHECK(WellKnownClasses::java_lang_Daemons_requestGC != NULL);
@@ -1956,6 +1976,65 @@ void Heap::RequestHeapTrim() {
 size_t Heap::Trim() {
   // Handle a requested heap trim on a thread outside of the main GC thread.
   return alloc_space_->Trim();
+}
+
+bool Heap::IsGCRequestPending() const {
+  return concurrent_start_bytes_ != std::numeric_limits<size_t>::max();
+}
+
+void Heap::RegisterNativeAllocation(int bytes) {
+  // Total number of native bytes allocated.
+  native_bytes_allocated_ += bytes;
+  Thread* self = Thread::Current();
+  if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
+    // The second watermark is higher than the gc watermark. If you hit this it means you are
+    // allocating native objects faster than the GC can keep up with.
+    if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
+        JNIEnv* env = self->GetJniEnv();
+        // Can't do this in WellKnownClasses::Init since System is not properly set up at that
+        // point.
+        if (WellKnownClasses::java_lang_System_runFinalization == NULL) {
+          DCHECK(WellKnownClasses::java_lang_System != NULL);
+          WellKnownClasses::java_lang_System_runFinalization =
+              CacheMethod(env, WellKnownClasses::java_lang_System, true, "runFinalization", "()V");
+          assert(WellKnownClasses::java_lang_System_runFinalization != NULL);
+        }
+        if (WaitForConcurrentGcToComplete(self) != collector::kGcTypeNone) {
+          // Just finished a GC, attempt to run finalizers.
+          env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
+                                    WellKnownClasses::java_lang_System_runFinalization);
+          CHECK(!env->ExceptionCheck());
+        }
+
+        // If we still are over the watermark, attempt a GC for alloc and run finalizers.
+        if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_limit_) {
+          CollectGarbageInternal(collector::kGcTypePartial, kGcCauseForAlloc, false);
+          env->CallStaticVoidMethod(WellKnownClasses::java_lang_System,
+                                    WellKnownClasses::java_lang_System_runFinalization);
+          CHECK(!env->ExceptionCheck());
+        }
+        // We have just run finalizers, update the native watermark since it is very likely that
+        // finalizers released native managed allocations.
+        UpdateMaxNativeFootprint();
+    } else {
+      if (!IsGCRequestPending()) {
+        RequestConcurrentGC(self);
+      }
+    }
+  }
+}
+
+void Heap::RegisterNativeFree(int bytes) {
+  int expected_size, new_size;
+  do {
+      expected_size = native_bytes_allocated_.get();
+      new_size = expected_size - bytes;
+      if (new_size < 0) {
+        ThrowRuntimeException("attempted to free %d native bytes with only %d native bytes registered as allocated",
+                              bytes, expected_size);
+        break;
+      }
+  } while (!native_bytes_allocated_.CompareAndSwap(expected_size, new_size));
 }
 
 }  // namespace gc
