@@ -1560,6 +1560,18 @@ const void* ClassLinker::GetOatCodeFor(const DexFile& dex_file, uint32_t method_
   return oat_class->GetOatMethod(oat_method_idx).GetCode();
 }
 
+// Returns true if the method must run with interpreter, false otherwise.
+static bool NeedsInterpreter(const mirror::AbstractMethod* method, const void* code) {
+  if (code == NULL) {
+    // No code: need interpreter.
+    return true;
+  }
+  // If interpreter mode is enabled, every method (except native and proxy) must
+  // be run with interpreter.
+  return Runtime::Current()->GetInstrumentation()->InterpretOnly() &&
+         !method->IsNative() && !method->IsProxyMethod();
+}
+
 void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   ClassHelper kh(klass);
   const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
@@ -1584,19 +1596,20 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   while (it.HasNextInstanceField()) {
     it.Next();
   }
-  size_t method_index = 0;
   // Link the code of methods skipped by LinkCode
-  for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
-    mirror::AbstractMethod* method = klass->GetDirectMethod(i);
-    if (method->IsStatic()) {
-      const void* code = oat_class->GetOatMethod(method_index).GetCode();
-      if (code == NULL) {
-        // No code? You must mean to go into the interpreter.
-        code = GetInterpreterEntryPoint();
-      }
-      runtime->GetInstrumentation()->UpdateMethodsCode(method, code);
+  for (size_t method_index = 0; it.HasNextDirectMethod(); ++method_index, it.Next()) {
+    mirror::AbstractMethod* method = klass->GetDirectMethod(method_index);
+    if (!method->IsStatic()) {
+      // Only update static methods.
+      continue;
     }
-    method_index++;
+    const void* code = oat_class->GetOatMethod(method_index).GetCode();
+    const bool enter_interpreter = NeedsInterpreter(method, code);
+    if (enter_interpreter) {
+      // Use interpreter entry point.
+      code = GetInterpreterEntryPoint();
+    }
+    runtime->GetInstrumentation()->UpdateMethodsCode(method, code);
   }
   // Ignore virtual methods on the iterator.
 }
@@ -1613,9 +1626,7 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   // Install entry point from interpreter.
   Runtime* runtime = Runtime::Current();
-  bool enter_interpreter = method->GetEntryPointFromCompiledCode() == NULL ||
-                           (runtime->GetInstrumentation()->InterpretOnly() &&
-                           !method->IsNative() && !method->IsProxyMethod());
+  bool enter_interpreter = NeedsInterpreter(method.get(), method->GetEntryPointFromCompiledCode());
   if (enter_interpreter) {
     method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterEntry);
   } else {
@@ -1629,17 +1640,17 @@ static void LinkCode(SirtRef<mirror::AbstractMethod>& method, const OatFile::Oat
 
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
+    // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
+    // after initializing class (see ClassLinker::InitializeClass method).
     method->SetEntryPointFromCompiledCode(GetResolutionTrampoline(runtime->GetClassLinker()));
+  } else if (enter_interpreter) {
+    // Set entry point from compiled code if there's no code or in interpreter only mode.
+    method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
   }
 
   if (method->IsNative()) {
     // Unregistering restores the dlsym lookup stub.
     method->UnregisterNative(Thread::Current());
-  }
-
-  if (enter_interpreter) {
-    // Set entry point from compiled code if there's no code or in interpreter only mode.
-    method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
   }
 
   // Allow instrumentation its chance to hijack code.
