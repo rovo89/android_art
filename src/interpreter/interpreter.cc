@@ -420,9 +420,7 @@ static void DoInvoke(Thread* self, ShadowFrame& shadow_frame,
     num_regs = code_item->registers_size_;
     num_ins = code_item->ins_size_;
   } else if (method->IsAbstract()) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(method).c_str());
+    ThrowAbstractMethodError(method);
     return;
   } else {
     DCHECK(method->IsNative() || method->IsProxyMethod());
@@ -511,9 +509,7 @@ static void DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     num_regs = code_item->registers_size_;
     num_ins = code_item->ins_size_;
   } else if (method->IsAbstract()) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(method).c_str());
+    ThrowAbstractMethodError(method);
     return;
   } else {
     DCHECK(method->IsNative() || method->IsProxyMethod());
@@ -2988,9 +2984,7 @@ void EnterInterpreterFromInvoke(Thread* self, AbstractMethod* method, Object* re
     num_regs =  code_item->registers_size_;
     num_ins = code_item->ins_size_;
   } else if (method->IsAbstract()) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
-                             "abstract method \"%s\"", PrettyMethod(method).c_str());
+    ThrowAbstractMethodError(method);
     return;
   } else {
     DCHECK(method->IsNative());

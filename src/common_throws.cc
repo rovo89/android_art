@@ -66,6 +66,14 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
   }
 }
 
+// AbstractMethodError
+
+void ThrowAbstractMethodError(const mirror::AbstractMethod* method) {
+  ThrowException(NULL, "Ljava/lang/AbstractMethodError;", NULL,
+                 StringPrintf("abstract method \"%s\"",
+                              PrettyMethod(method).c_str()).c_str());
+}
+
 // ArithmeticException
 
 void ThrowArithmeticExceptionDivideByZero() {

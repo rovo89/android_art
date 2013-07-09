@@ -409,9 +409,7 @@ extern "C" void artThrowAbstractMethodErrorFromCode(mirror::AbstractMethod* meth
 #else
   UNUSED(sp);
 #endif
-  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  self->ThrowNewExceptionF(throw_location, "Ljava/lang/AbstractMethodError;",
-                           "abstract method \"%s\"", PrettyMethod(method).c_str());
+  ThrowAbstractMethodError(method);
   self->QuickDeliverException();
 }
 

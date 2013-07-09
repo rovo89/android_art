@@ -30,6 +30,11 @@ class Object;
 class StringPiece;
 class ThrowLocation;
 
+// AbstractMethodError
+
+void ThrowAbstractMethodError(const mirror::AbstractMethod* method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 // ArithmeticException
 
 void ThrowArithmeticExceptionDivideByZero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
