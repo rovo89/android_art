@@ -135,21 +135,7 @@ void InvokeWithArgArray(const ScopedObjectAccess& soa, AbstractMethod* method,
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, args);
   }
-  // Check interpreter only mode for methods invoked through JNI.
-  // TODO: Check that this catches all remaining paths to invoke.
-  // TODO: Move check up a level to avoid building arg array and then shadow frame?
-  if (Runtime::Current()->GetInstrumentation()->InterpretOnly()) {
-    Object* receiver = method->IsStatic() ? NULL : reinterpret_cast<Object*>(args[0]);
-    if (!method->IsStatic()) {
-      args++;
-    }
-    ManagedStack fragment;
-    soa.Self()->PushManagedStackFragment(&fragment);
-    art::interpreter::EnterInterpreterFromInvoke(soa.Self(), method, receiver, args, result);
-    soa.Self()->PopManagedStackFragment(fragment);
-  } else {
-    method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, result_type);
-  }
+  method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, result_type);
 }
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
