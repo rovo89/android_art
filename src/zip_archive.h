@@ -37,7 +37,8 @@ class MemMap;
 class ZipEntry {
  public:
   bool ExtractToFile(File& file);
-  bool ExtractToMemory(MemMap& mem_map);
+  bool ExtractToMemory(uint8_t* begin, size_t size);
+  MemMap* ExtractToMemMap(const char* entry_filename);
 
   uint32_t GetUncompressedLength();
   uint32_t GetCrc32();

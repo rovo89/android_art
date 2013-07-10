@@ -109,7 +109,10 @@ static bool GenerateImage(const std::string& image_file_name) {
   std::string base_option_string(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
   arg_vector.push_back(strdup(base_option_string.c_str()));
 
-  if (!kIsTargetBuild) {
+  if (kIsTargetBuild) {
+    arg_vector.push_back(strdup("--image-classes-zip=/system/framework/framework.jar"));
+    arg_vector.push_back(strdup("--image-classes=preloaded-classes"));
+  } else {
     arg_vector.push_back(strdup("--host"));
   }
 

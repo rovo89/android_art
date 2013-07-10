@@ -206,26 +206,15 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
   CHECK(!location.empty());
   UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex));
   if (zip_entry.get() == NULL) {
-    LOG(ERROR) << "Failed to find classes.dex within " << location;
+    LOG(ERROR) << "Failed to find classes.dex within '" << location << "'";
     return NULL;
   }
 
-  uint32_t length = zip_entry->GetUncompressedLength();
-  std::string name("classes.dex extracted in memory from ");
-  name += location;
-  UniquePtr<MemMap> map(MemMap::MapAnonymous(name.c_str(), NULL, length, PROT_READ | PROT_WRITE));
+  UniquePtr<MemMap> map(zip_entry->ExtractToMemMap(kClassesDex));
   if (map.get() == NULL) {
-    LOG(ERROR) << "mmap classes.dex for \"" << location << "\" failed";
+    LOG(ERROR) << "Failed to extract '" << kClassesDex << "' from '" << location << "'";
     return NULL;
   }
-
-  // Extract classes.dex
-  bool success = zip_entry->ExtractToMemory(*map.get());
-  if (!success) {
-    LOG(ERROR) << "Failed to extract classes.dex from '" << location << "' to memory";
-    return NULL;
-  }
-
   const DexFile* dex_file = OpenMemory(location, zip_entry->GetCrc32(), map.release());
   if (dex_file == NULL) {
     LOG(ERROR) << "Failed to open dex file '" << location << "' from memory";
