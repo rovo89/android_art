@@ -2169,7 +2169,7 @@ class JNI {
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
-    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress));
+    return reinterpret_cast<void*>(env->GetLongField(java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
