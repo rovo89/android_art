@@ -19,6 +19,18 @@ ifneq ($(wildcard art/SMALL_ART),)
 $(info Enabling ART_SMALL_MODE because of existence of art/SMALL_ART)
 ART_SMALL_MODE := true
 endif
+ifeq ($(WITH_ART_SMALL_MODE), true)
+ART_SMALL_MODE := true
+endif
+
+ART_SEA_IR_MODE := false
+ifneq ($(wildcard art/SEA_IR_ART),)
+$(info Enabling ART_SEA_IR_MODE because of existence of art/SEA_IR_ART)
+ART_SEA_IR_MODE := true
+endif
+ifeq ($(WITH_ART_SEA_IR_MODE), true)
+ART_SEA_IR_MODE := true
+endif
 
 ART_USE_PORTABLE_COMPILER := false
 ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
@@ -49,11 +61,13 @@ ART_CPP_EXTENSION := .cc
 
 ART_C_INCLUDES := \
 	external/gtest/include \
+	external/valgrind/main/include \
 	external/zlib \
 	frameworks/compile/mclinker/include \
 	art/src
 
 art_cflags := \
+	-fno-rtti \
 	-O2 \
 	-ggdb3 \
 	-Wall \
@@ -62,15 +76,12 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-fstrict-aliasing
 
-# Enable thread-safety for GCC 4.6 but not for GCC 4.7 where this feature was removed.
-# Enable GCC 4.6 builds with 'export TARGET_GCC_VERSION_EXP=4.6'
-ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
-  $(info Enabling thread-safety for GCC $(TARGET_GCC_VERSION))
-  art_cflags += -Wthread-safety
-endif
-
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
+endif
+
+ifeq ($(ART_SEA_IR_MODE),true)
+  art_cflags += -DART_SEA_IR_MODE=1
 endif
 
 # TODO: enable -std=gnu++0x for auto support when on Ubuntu 12.04 LTS (Precise Pangolin)
@@ -107,6 +118,22 @@ ifeq ($(TARGET_CPU_SMP),true)
 else
   ART_TARGET_CFLAGS += -DANDROID_SMP=0
 endif
+
+# Enable thread-safety for GCC 4.6 on the target but not for GCC 4.7 where this feature was removed.
+ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
+  ART_TARGET_CFLAGS += -Wthread-safety
+else
+  # Warn if not using GCC 4.6 for target builds when not doing a top-level or 'mma' build.
+  ifneq ($(ONE_SHOT_MAKEFILE),)
+    # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
+    $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
+  endif
+endif
+# We build with GCC 4.6 on the host.
+ART_HOST_CFLAGS += -Wthread-safety
+
+# Make host builds easier to debug and profile by not omitting the frame pointer.
+ART_HOST_CFLAGS += -fno-omit-frame-pointer
 
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
@@ -156,6 +183,8 @@ LIBART_COMMON_SRC_FILES := \
 	src/compiled_method.cc \
 	src/compiler/driver/compiler_driver.cc \
 	src/compiler/llvm/runtime_support_llvm.cc \
+        src/compiler/stubs/portable/stubs.cc \
+        src/compiler/stubs/quick/stubs.cc \
 	src/debugger.cc \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \
@@ -164,20 +193,22 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_arm.cc \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
-	src/dlmalloc.cc \
 	src/elf_file.cc \
 	src/file_output_stream.cc \
-	src/gc/card_table.cc \
-	src/gc/garbage_collector.cc \
-	src/gc/heap_bitmap.cc \
-	src/gc/large_object_space.cc \
-	src/gc/mark_sweep.cc \
-	src/gc/mod_union_table.cc \
-	src/gc/partial_mark_sweep.cc \
-	src/gc/space.cc \
-	src/gc/space_bitmap.cc \
-	src/gc/sticky_mark_sweep.cc \
-	src/heap.cc \
+	src/gc/allocator/dlmalloc.cc \
+	src/gc/accounting/card_table.cc \
+	src/gc/accounting/heap_bitmap.cc \
+	src/gc/accounting/mod_union_table.cc \
+	src/gc/accounting/space_bitmap.cc \
+	src/gc/collector/garbage_collector.cc \
+	src/gc/collector/mark_sweep.cc \
+	src/gc/collector/partial_mark_sweep.cc \
+	src/gc/collector/sticky_mark_sweep.cc \
+	src/gc/heap.cc \
+	src/gc/space/dlmalloc_space.cc \
+	src/gc/space/image_space.cc \
+	src/gc/space/large_object_space.cc \
+	src/gc/space/space.cc \
 	src/hprof/hprof.cc \
 	src/image.cc \
 	src/image_writer.cc \
@@ -284,6 +315,11 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_throw.cc \
 	src/oat/runtime/support_interpreter.cc
 
+ifeq ($(ART_SEA_IR_MODE),true)
+LIBART_COMMON_SRC_FILES += \
+	src/compiler/sea_ir/sea.cc
+endif
+
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/base/logging_android.cc \
@@ -357,9 +393,9 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/compiler/dex/compiler_enums.h \
 	src/dex_file.h \
 	src/dex_instruction.h \
-	src/gc/gc_type.h \
-	src/gc/space.h \
-	src/heap.h \
+	src/gc/collector/gc_type.h \
+	src/gc/space/space.h \
+	src/gc/heap.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
 	src/invoke_type.h \
@@ -392,10 +428,10 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_method_iterator_test.cc \
 	src/elf_writer_test.cc \
 	src/exception_test.cc \
-	src/gc/space_bitmap_test.cc \
-	src/gc/space_test.cc \
+	src/gc/accounting/space_bitmap_test.cc \
+	src/gc/heap_test.cc \
+	src/gc/space/space_test.cc \
 	src/gtest_test.cc \
-	src/heap_test.cc \
 	src/image_test.cc \
 	src/indenter_test.cc \
 	src/indirect_reference_table_test.cc \

@@ -16,22 +16,12 @@
 
 #include "vector_output_stream.h"
 
-#include <string.h>
-
 #include "base/logging.h"
 
 namespace art {
 
 VectorOutputStream::VectorOutputStream(const std::string& location, std::vector<uint8_t>& vector)
   : OutputStream(location), offset_(vector.size()), vector_(vector) {}
-
-bool VectorOutputStream::WriteFully(const void* buffer, int64_t byte_count) {
-  off_t new_offset = offset_ + byte_count;
-  EnsureCapacity(new_offset);
-  memcpy(&vector_[offset_], buffer, byte_count);
-  offset_ = new_offset;
-  return true;
-}
 
 off_t VectorOutputStream::Seek(off_t offset, Whence whence) {
   CHECK(whence == kSeekSet || whence == kSeekCurrent || whence == kSeekEnd) << whence;
@@ -53,12 +43,6 @@ off_t VectorOutputStream::Seek(off_t offset, Whence whence) {
   EnsureCapacity(new_offset);
   offset_ = new_offset;
   return offset_;
-}
-
-void VectorOutputStream::EnsureCapacity(off_t new_offset) {
-  if (new_offset > static_cast<off_t>(vector_.size())) {
-    vector_.resize(new_offset);
-  }
 }
 
 }  // namespace art

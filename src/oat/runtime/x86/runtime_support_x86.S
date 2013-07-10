@@ -301,55 +301,6 @@ INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvok
 INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-     /*
-     * Portable resolution trampoline.
-     */
-DEFINE_FUNCTION art_portable_resolution_trampoline
-    PUSH ebp                      // stash %ebp
-    movl %esp, %ebp               // save %esp
-    .cfi_def_cfa_register ebp
-    subl LITERAL(8), %esp         // align stack
-    movl 8(%ebp), %eax            // load the called method* into %eax
-    leal 8(%ebp), %edx            // put the called method* address in %edx
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    PUSH edx                      // pass called method* address
-    PUSH eax                      // pass method*
-    call SYMBOL(artPortableResolutionTrampoline)  // (method_idx, sp, Thread*)
-    leave                         // restore the stack and %ebp
-    .cfi_def_cfa esp, 4
-    .cfi_restore ebp
-    cmpl LITERAL(0), %eax         // check if returned method code is null
-    je resolve_fail               // if null, jump to return to handle
-    jmp *%eax                     // otherwise, tail call to intended method
-resolve_fail:
-    ret
-END_FUNCTION art_portable_resolution_trampoline
-
-    /*
-     * Quick resolution trampoline.
-     */
-DEFINE_FUNCTION art_quick_resolution_trampoline
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    movl %esp, %ecx               // save stack pointer
-    PUSH eax                      // align stack
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    .cfi_adjust_cfa_offset 4
-    PUSH ecx                      // pass stack pointer
-    PUSH eax                      // pass method*
-    call SYMBOL(artQuickResolutionTrampoline)  // (method_idx, sp, Thread*)
-    movl %eax, %edi               // save returned code pointer in %edi
-    addl LITERAL(16), %esp        // pop arguments
-    .cfi_adjust_cfa_offset -16
-    POP eax                       // restore registers
-    POP ecx
-    POP edx
-    POP ebx
-    POP ebp
-    POP esi
-    xchgl %edi, (%esp)            // swap %edi and code pointer
-    ret                           // tail call to intended method
-END_FUNCTION art_quick_resolution_trampoline
-
     /*
      * Portable invocation stub.
      * On entry:

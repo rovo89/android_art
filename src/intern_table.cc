@@ -38,13 +38,15 @@ void InternTable::DumpForSigQuit(std::ostream& os) const {
      << image_strong_interns_.size() << " image strong\n";
 }
 
-void InternTable::VisitRoots(RootVisitor* visitor, void* arg) {
+void InternTable::VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty) {
   MutexLock mu(Thread::Current(), intern_table_lock_);
   typedef Table::const_iterator It; // TODO: C++0x auto
   for (It it = strong_interns_.begin(), end = strong_interns_.end(); it != end; ++it) {
     visitor(it->second, arg);
   }
-  is_dirty_ = false;
+  if (clean_dirty) {
+    is_dirty_ = false;
+  }
   // Note: we deliberately don't visit the weak_interns_ table and the immutable image roots.
 }
 

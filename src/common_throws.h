@@ -32,7 +32,7 @@ class ThrowLocation;
 
 // ArithmeticException
 
-void ThrowArithmeticExceptionDivideByZero(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+void ThrowArithmeticExceptionDivideByZero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // ArrayIndexOutOfBoundsException
 
@@ -150,6 +150,11 @@ void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location
 
 void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
                                               uint32_t method_idx,
+                                              InvokeType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
+                                              mirror::AbstractMethod* method,
                                               InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

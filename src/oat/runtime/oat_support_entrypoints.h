@@ -17,6 +17,7 @@
 #ifndef ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
 #define ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
 
+#include "dex_file-inl.h"
 #include "runtime.h"
 
 #define ENTRYPOINT_OFFSET(x) \
@@ -30,6 +31,8 @@ class Class;
 class Object;
 }  // namespace mirror
 class DvmDex;
+class MethodHelper;
+class ShadowFrame;
 class Thread;
 
 struct PACKED(4) EntryPoints {
@@ -104,6 +107,14 @@ struct PACKED(4) EntryPoints {
   uint64_t (*pShrLong)(uint64_t, uint32_t);
   uint64_t (*pUshrLong)(uint64_t, uint32_t);
 
+  // Interpreter
+  void (*pInterpreterToInterpreterEntry)(Thread* self, MethodHelper& mh,
+                                         const DexFile::CodeItem* code_item,
+                                         ShadowFrame* shadow_frame, JValue* result);
+  void (*pInterpreterToQuickEntry)(Thread* self, MethodHelper& mh,
+                                   const DexFile::CodeItem* code_item,
+                                   ShadowFrame* shadow_frame, JValue* result);
+
   // Intrinsics
   int32_t (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
   int32_t (*pMemcmp16)(void*, void*, int32_t);
@@ -111,6 +122,10 @@ struct PACKED(4) EntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
+  const void* (*pPortableResolutionTrampolineFromCode)(mirror::AbstractMethod*, mirror::Object*,
+                                                       mirror::AbstractMethod**, Thread*);
+  const void* (*pQuickResolutionTrampolineFromCode)(mirror::AbstractMethod*, mirror::Object*,
+                                                    mirror::AbstractMethod**, Thread*);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
@@ -131,24 +146,25 @@ struct PACKED(4) EntryPoints {
   void (*pThrowStackOverflowFromCode)(void*);
 };
 
+
 // JNI entrypoints.
 extern uint32_t JniMethodStart(Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    UNLOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
                                                  Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
                                                              jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) __attribute__ ((hot));
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) HOT_ATTR;
 
 // Initialize an entry point data structure.
 void InitEntryPoints(EntryPoints* points);

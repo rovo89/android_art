@@ -19,7 +19,7 @@
 #include "abstract_method-inl.h"
 #include "class-inl.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_array.h"
 #include "object_array-inl.h"

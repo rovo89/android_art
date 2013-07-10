@@ -154,17 +154,22 @@ Task* ThreadPool::TryGetTaskLocked(Thread* self) {
   return NULL;
 }
 
-void ThreadPool::Wait(Thread* self, bool do_work) {
-  Task* task = NULL;
-  while ((task = TryGetTask(self)) != NULL) {
-    task->Run(self);
-    task->Finalize();
+void ThreadPool::Wait(Thread* self, bool do_work, bool may_hold_locks) {
+  if (do_work) {
+    Task* task = NULL;
+    while ((task = TryGetTask(self)) != NULL) {
+      task->Run(self);
+      task->Finalize();
+    }
   }
-
   // Wait until each thread is waiting and the task list is empty.
   MutexLock mu(self, task_queue_lock_);
   while (!shutting_down_ && (waiting_count_ != GetThreadCount() || !tasks_.empty())) {
-    completion_condition_.Wait(self);
+    if (!may_hold_locks) {
+      completion_condition_.Wait(self);
+    } else {
+      completion_condition_.WaitHoldingLocks(self);
+    }
   }
 }
 

@@ -27,6 +27,7 @@
 #include "mirror/object_array-inl.h"
 #include "object_utils.h"
 #include "thread.h"
+#include "verifier/method_verifier.h"
 
 #include <sstream>
 
@@ -67,7 +68,7 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
 
 // ArithmeticException
 
-void ThrowArithmeticExceptionDivideByZero(Thread* self) {
+void ThrowArithmeticExceptionDivideByZero() {
   ThrowException(NULL, "Ljava/lang/ArithmeticException;", NULL, "divide by zero");
 }
 
@@ -283,14 +284,32 @@ void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location
   ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location, uint32_t method_idx,
-                                              InvokeType type) {
-  mirror::DexCache* dex_cache = throw_location.GetMethod()->GetDeclaringClass()->GetDexCache();
-  const DexFile& dex_file = *dex_cache->GetDexFile();
+static void ThrowNullPointerExceptionForMethodAccessImpl(const ThrowLocation& throw_location,
+                                                         uint32_t method_idx,
+                                                         const DexFile& dex_file,
+                                                         InvokeType type)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
       << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";
   ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
+}
+
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location, uint32_t method_idx,
+                                              InvokeType type) {
+  mirror::DexCache* dex_cache = throw_location.GetMethod()->GetDeclaringClass()->GetDexCache();
+  const DexFile& dex_file = *dex_cache->GetDexFile();
+  ThrowNullPointerExceptionForMethodAccessImpl(throw_location, method_idx,
+                                               dex_file, type);
+}
+
+void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
+                                              mirror::AbstractMethod* method,
+                                              InvokeType type) {
+  mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+  const DexFile& dex_file = *dex_cache->GetDexFile();
+  ThrowNullPointerExceptionForMethodAccessImpl(throw_location, method->GetDexMethodIndex(),
+                                               dex_file, type);
 }
 
 void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
@@ -317,6 +336,23 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::INVOKE_INTERFACE_RANGE:
       ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kInterface);
       break;
+    case Instruction::INVOKE_VIRTUAL_QUICK:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
+      // Since we replaced the method index, we ask the verifier to tell us which
+      // method is invoked at this location.
+      mirror::AbstractMethod* method =
+          verifier::MethodVerifier::FindInvokedMethodAtDexPc(throw_location.GetMethod(),
+                                                             throw_location.GetDexPc());
+      if (method != NULL) {
+        // NPE with precise message.
+        ThrowNullPointerExceptionForMethodAccess(throw_location, method, kVirtual);
+      } else {
+        // NPE with imprecise message.
+        ThrowNullPointerException(&throw_location,
+                                  "Attempt to invoke a virtual method on a null object reference");
+      }
+      break;
+    }
     case Instruction::IGET:
     case Instruction::IGET_WIDE:
     case Instruction::IGET_OBJECT:
@@ -330,6 +366,24 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
       break;
     }
+    case Instruction::IGET_QUICK:
+    case Instruction::IGET_WIDE_QUICK:
+    case Instruction::IGET_OBJECT_QUICK: {
+      // Since we replaced the field index, we ask the verifier to tell us which
+      // field is accessed at this location.
+      mirror::Field* field =
+          verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
+                                                             throw_location.GetDexPc());
+      if (field != NULL) {
+        // NPE with precise message.
+        ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
+      } else {
+        // NPE with imprecise message.
+        ThrowNullPointerException(&throw_location,
+                                  "Attempt to read from a field on a null object reference");
+      }
+      break;
+    }
     case Instruction::IPUT:
     case Instruction::IPUT_WIDE:
     case Instruction::IPUT_OBJECT:
@@ -341,6 +395,24 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
           Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
                                                              throw_location.GetMethod(), false);
       ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
+      break;
+    }
+    case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_WIDE_QUICK:
+    case Instruction::IPUT_OBJECT_QUICK: {
+      // Since we replaced the field index, we ask the verifier to tell us which
+      // field is accessed at this location.
+      mirror::Field* field =
+          verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
+                                                             throw_location.GetDexPc());
+      if (field != NULL) {
+        // NPE with precise message.
+        ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
+      } else {
+        // NPE with imprecise message.
+        ThrowNullPointerException(&throw_location,
+                                  "Attempt to write to a field on a null object reference");
+      }
       break;
     }
     case Instruction::AGET:

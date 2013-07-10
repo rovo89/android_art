@@ -39,6 +39,7 @@ const size_t kNumPrimitives = 12;
 class RegTypeCache {
  public:
   explicit RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
+    entries_.reserve(64);
     FillPrimitiveTypes();
   }
   ~RegTypeCache();
@@ -52,13 +53,13 @@ class RegTypeCache {
   }
   static void ShutDown();
   const art::verifier::RegType& GetFromId(uint16_t id) const;
-  const RegType& From(mirror::ClassLoader* loader, std::string descriptor, bool precise)
+  const RegType& From(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template <class Type>
-  static Type* CreatePrimitiveTypeInstance(std::string descriptor)
+  static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FillPrimitiveTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& FromClass(mirror::Class* klass, bool precise)
+  const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromCat1Const(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -152,10 +153,10 @@ class RegTypeCache {
   // Whether or not we're allowed to load classes.
   const bool can_load_classes_;
   DISALLOW_COPY_AND_ASSIGN(RegTypeCache);
-  mirror::Class* ResolveClass(std::string descriptor, mirror::ClassLoader* loader)
+  mirror::Class* ResolveClass(const char* descriptor, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ClearException();
-  bool MatchDescriptor(size_t idx, std::string& descriptor, bool precise)
+  bool MatchDescriptor(size_t idx, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 };
 

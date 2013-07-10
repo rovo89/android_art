@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "object_utils.h"
-
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/dataflow_iterator.h"
+#include "compiler/dex/dataflow_iterator-inl.h"
+#include "mir_to_lir-inl.h"
+#include "object_utils.h"
 
 namespace art {
 
@@ -184,10 +184,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenMonitorExit(opt_flags, rl_src[0]);
       break;
 
-    case Instruction::CHECK_CAST:
-      GenCheckCast(vB, rl_src[0]);
+    case Instruction::CHECK_CAST: {
+      GenCheckCast(mir->offset, vB, rl_src[0]);
       break;
-
+    }
     case Instruction::INSTANCE_OF:
       GenInstanceof(vC, rl_dest, rl_src[0]);
       break;

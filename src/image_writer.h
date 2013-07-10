@@ -29,7 +29,7 @@
 #include "mirror/dex_cache.h"
 #include "os.h"
 #include "safe_map.h"
-#include "gc/space.h"
+#include "gc/space/space.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -37,18 +37,18 @@ namespace art {
 // Write a Space built during compilation for use during execution.
 class ImageWriter {
  public:
-  typedef std::set<std::string> DescriptorSet;
-  explicit ImageWriter(DescriptorSet* image_classes)
-      : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
-        oat_data_begin_(NULL) {}
+  explicit ImageWriter(const CompilerDriver& compiler_driver)
+      : compiler_driver_(compiler_driver), oat_file_(NULL), image_end_(0), image_begin_(NULL),
+        oat_data_begin_(NULL), interpreter_to_interpreter_entry_offset_(0),
+        interpreter_to_quick_entry_offset_(0), portable_resolution_trampoline_offset_(0),
+        quick_resolution_trampoline_offset_(0) {}
 
   ~ImageWriter() {}
 
   bool Write(const std::string& image_filename,
              uintptr_t image_begin,
              const std::string& oat_filename,
-             const std::string& oat_location,
-             const CompilerDriver& compiler_driver)
+             const std::string& oat_location)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   uintptr_t GetOatDataBegin() {
@@ -130,8 +130,6 @@ class ImageWriter {
 
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -170,11 +168,13 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
-  void PatchOatCodeAndMethods(const CompilerDriver& compiler)
+  void PatchOatCodeAndMethods()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetPatchLocation(const CompilerDriver::PatchInformation* patch, uint32_t value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+
+  const CompilerDriver& compiler_driver_;
 
   // Map of Object to where it will be at runtime.
   SafeMap<const mirror::Object*, size_t> offsets_;
@@ -191,13 +191,16 @@ class ImageWriter {
   // Beginning target image address for the output image.
   byte* image_begin_;
 
-  // Set of classes to be include in the image, or NULL for all.
-  DescriptorSet* image_classes_;
-
   // Beginning target oat address for the pointers from the output image to its oat file.
   const byte* oat_data_begin_;
 
-  // DexCaches seen while scanning for fixing up CodeAndDirectMethods.
+  // Offset from oat_data_begin_ to the stubs.
+  uint32_t interpreter_to_interpreter_entry_offset_;
+  uint32_t interpreter_to_quick_entry_offset_;
+  uint32_t portable_resolution_trampoline_offset_;
+  uint32_t quick_resolution_trampoline_offset_;
+
+  // DexCaches seen while scanning for fixing up CodeAndDirectMethods
   typedef std::set<mirror::DexCache*> Set;
   Set dex_caches_;
 };

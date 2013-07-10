@@ -18,6 +18,7 @@
 #define ART_SRC_MIRROR_METHOD_H_
 
 #include "class.h"
+#include "dex_file.h"
 #include "invoke_type.h"
 #include "locks.h"
 #include "modifiers.h"
@@ -29,6 +30,7 @@ struct AbstractMethodOffsets;
 struct ConstructorMethodOffsets;
 union JValue;
 struct MethodClassOffsets;
+class MethodHelper;
 struct MethodOffsets;
 class StringPiece;
 class ShadowFrame;
@@ -37,7 +39,8 @@ namespace mirror {
 
 class StaticStorageBase;
 
-typedef void (EntryPointFromInterpreter)(Thread* self, ShadowFrame* shadow_frame, JValue* result);
+typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
+    const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame, JValue* result);
 
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED AbstractMethod : public Object {
@@ -119,6 +122,14 @@ class MANAGED AbstractMethod : public Object {
   }
 
   bool IsProxyMethod() const;
+
+  bool IsPreverified() const {
+    return (GetAccessFlags() & kAccPreverified) != 0;
+  }
+
+  void SetPreverified() {
+    SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
 
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

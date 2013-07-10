@@ -17,7 +17,7 @@
 #include "field.h"
 
 #include "field-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "object-inl.h"
 #include "object_utils.h"
 #include "runtime.h"

@@ -24,17 +24,19 @@
 #include "base/stl_util.h"
 #include "base/timing_logger.h"
 #include "class_linker.h"
+#include "compiler/stubs/stubs.h"
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "runtime.h"
-#include "gc/card_table-inl.h"
-#include "gc/space.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/space/space.h"
 #include "mirror/class_loader.h"
 #include "mirror/class-inl.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
@@ -72,7 +74,8 @@ class AOTCompilationStats {
         resolved_types_(0), unresolved_types_(0),
         resolved_instance_fields_(0), unresolved_instance_fields_(0),
         resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
-        type_based_devirtualization_(0) {
+        type_based_devirtualization_(0),
+        safe_casts_(0), not_safe_casts_(0) {
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;
@@ -91,8 +94,14 @@ class AOTCompilationStats {
              "static fields resolved");
     DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
              "static fields local to a class");
-    DumpStat(type_based_devirtualization_,virtual_made_direct_[kInterface] + virtual_made_direct_[kVirtual]
-             - type_based_devirtualization_, "sharpened calls based on type information");
+    DumpStat(safe_casts_, not_safe_casts_, "check-casts removed based on type information");
+    // Note, the code below subtracts the stat value so that when added to the stat value we have
+    // 100% of samples. TODO: clean this up.
+    DumpStat(type_based_devirtualization_,
+             resolved_methods_[kVirtual] + unresolved_methods_[kVirtual] +
+             resolved_methods_[kInterface] + unresolved_methods_[kInterface] -
+             type_based_devirtualization_,
+             "virtual/interface calls made direct based on type information");
 
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       std::ostringstream oss;
@@ -184,38 +193,59 @@ class AOTCompilationStats {
     unresolved_static_fields_++;
   }
 
+  // Indicate that type information from the verifier led to devirtualization.
   void PreciseTypeDevirtualization() {
     STATS_LOCK();
     type_based_devirtualization_++;
   }
+
+  // Indicate that a method of the given type was resolved at compile time.
   void ResolvedMethod(InvokeType type) {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
     resolved_methods_[type]++;
   }
 
+  // Indicate that a method of the given type was unresolved at compile time as it was in an
+  // unknown dex file.
   void UnresolvedMethod(InvokeType type) {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
     unresolved_methods_[type]++;
   }
 
+  // Indicate that a type of virtual method dispatch has been converted into a direct method
+  // dispatch.
   void VirtualMadeDirect(InvokeType type) {
-    DCHECK_LE(type, kMaxInvokeType);
+    DCHECK(type == kVirtual || type == kInterface || type == kSuper);
     STATS_LOCK();
     virtual_made_direct_[type]++;
   }
 
+  // Indicate that a method of the given type was able to call directly into boot.
   void DirectCallsToBoot(InvokeType type) {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
     direct_calls_to_boot_[type]++;
   }
 
+  // Indicate that a method of the given type was able to be resolved directly from boot.
   void DirectMethodsToBoot(InvokeType type) {
     DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
     direct_methods_to_boot_[type]++;
+  }
+
+  // A check-cast could be eliminated due to verifier type analysis.
+  void SafeCast() {
+    STATS_LOCK();
+    safe_casts_++;
+  }
+
+  // A check-cast couldn't be eliminated due to verifier type analysis.
+  void NotASafeCast() {
+    STATS_LOCK();
+    not_safe_casts_++;
   }
 
  private:
@@ -244,6 +274,9 @@ class AOTCompilationStats {
   size_t virtual_made_direct_[kMaxInvokeType + 1];
   size_t direct_calls_to_boot_[kMaxInvokeType + 1];
   size_t direct_methods_to_boot_[kMaxInvokeType + 1];
+
+  size_t safe_casts_;
+  size_t not_safe_casts_;
 
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
@@ -292,8 +325,8 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
 }
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
-                               bool image, size_t thread_count, bool support_debugging,
-                               const std::set<std::string>* image_classes,
+                               bool image, DescriptorSet* image_classes,
+                               size_t thread_count, bool support_debugging,
                                bool dump_stats, bool dump_timings)
     : compiler_backend_(compiler_backend),
       instruction_set_(instruction_set),
@@ -301,18 +334,20 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       image_(image),
+      image_classes_(image_classes),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
       start_ns_(0),
       stats_(new AOTCompilationStats),
       dump_stats_(dump_stats),
       dump_timings_(dump_timings),
-      image_classes_(image_classes),
       compiler_library_(NULL),
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      compiler_get_method_code_addr_(NULL)
+      compiler_enable_auto_elf_loading_(NULL),
+      compiler_get_method_code_addr_(NULL),
+      support_boot_image_fixup_(true)
 {
   std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -337,6 +372,13 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
     compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtQuickCompileMethod");
   }
 
+  dex_to_dex_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileDEX");
+
+  sea_ir_compiler_ = NULL;
+  if (Runtime::Current()->IsSeaIRMode()) {
+    sea_ir_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "SeaIrCompileMethod");
+  }
+
   init_compiler_context(*this);
 
   if (compiler_backend_ == kPortable) {
@@ -347,7 +389,7 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
-    CHECK(image_classes_ == NULL);
+    CHECK(image_classes_.get() == NULL);
   }
 }
 
@@ -416,6 +458,66 @@ CompilerTls* CompilerDriver::GetTls() {
   return res;
 }
 
+const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreatePortableResolutionTrampoline();
+    case kMips:
+      return mips::CreatePortableResolutionTrampoline();
+    case kX86:
+      return x86::CreatePortableResolutionTrampoline();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateQuickResolutionTrampoline() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateQuickResolutionTrampoline();
+    case kMips:
+      return mips::CreateQuickResolutionTrampoline();
+    case kX86:
+      return x86::CreateQuickResolutionTrampoline();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToInterpreterEntry() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateInterpreterToInterpreterEntry();
+    case kMips:
+      return mips::CreateInterpreterToInterpreterEntry();
+    case kX86:
+      return x86::CreateInterpreterToInterpreterEntry();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
+const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToQuickEntry() const {
+  switch (instruction_set_) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateInterpreterToQuickEntry();
+    case kMips:
+      return mips::CreateInterpreterToQuickEntry();
+    case kX86:
+      return x86::CreateInterpreterToQuickEntry();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set_;
+      return NULL;
+  }
+}
+
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
@@ -436,10 +538,33 @@ void CompilerDriver::CompileAll(jobject class_loader,
   }
 }
 
+static bool IsDexToDexCompilationAllowed(mirror::ClassLoader* class_loader,
+                                         const DexFile& dex_file,
+                                         const DexFile::ClassDef& class_def)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Do not allow DEX-to-DEX compilation of image classes. This is to prevent the
+  // verifier from passing on "quick" instruction at compilation time. It must
+  // only pass on quick instructions at runtime.
+  if (class_loader == NULL) {
+    return false;
+  }
+  const char* descriptor = dex_file.GetClassDescriptor(class_def);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  mirror::Class* klass = class_linker->FindClass(descriptor, class_loader);
+  if (klass == NULL) {
+    Thread* self = Thread::Current();
+    CHECK(self->IsExceptionPending());
+    self->ClearException();
+    return false;
+  }
+  // DEX-to-DEX compilation is only allowed on preverified classes.
+  return klass->IsVerified();
+}
+
 void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
   DCHECK(!Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
-  jobject class_loader;
+  jobject jclass_loader;
   const DexFile* dex_file;
   uint32_t class_def_idx;
   {
@@ -447,7 +572,7 @@ void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
     ScopedLocalRef<jobject>
       local_class_loader(soa.Env(),
                     soa.AddLocalReference<jobject>(method->GetDeclaringClass()->GetClassLoader()));
-    class_loader = soa.Env()->NewGlobalRef(local_class_loader.get());
+    jclass_loader = soa.Env()->NewGlobalRef(local_class_loader.get());
     // Find the dex_file
     MethodHelper mh(method);
     dex_file = &mh.GetDexFile();
@@ -460,14 +585,22 @@ void CompilerDriver::CompileOne(const mirror::AbstractMethod* method) {
 
   UniquePtr<ThreadPool> thread_pool(new ThreadPool(1U));
   TimingLogger timings("CompileOne", false);
-  PreCompile(class_loader, dex_files, *thread_pool.get(), timings);
+  PreCompile(jclass_loader, dex_files, *thread_pool.get(), timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
+  // Can we run DEX-to-DEX compiler on this class ?
+  bool allow_dex_compilation;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
+    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+    allow_dex_compilation = IsDexToDexCompilationAllowed(class_loader, *dex_file, class_def);
+  }
   CompileMethod(code_item, method->GetAccessFlags(), method->GetInvokeType(),
-                class_def_idx, method_idx, class_loader, *dex_file);
+                class_def_idx, method_idx, jclass_loader, *dex_file, allow_dex_compilation);
 
-  self->GetJniEnv()->DeleteGlobalRef(class_loader);
+  self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
 
   self->TransitionFromSuspendedToRunnable();
 }
@@ -483,18 +616,197 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                                 ThreadPool& thread_pool, TimingLogger& timings) {
+  LoadImageClasses(timings);
+
   Resolve(class_loader, dex_files, thread_pool, timings);
 
   Verify(class_loader, dex_files, thread_pool, timings);
 
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
+
+  UpdateImageClasses(timings);
 }
 
-bool CompilerDriver::IsImageClass(const std::string& descriptor) const {
-  if (image_classes_ == NULL) {
-    return false;
+bool CompilerDriver::IsImageClass(const char* descriptor) const {
+  DCHECK(descriptor != NULL);
+  if (image_classes_.get() == NULL) {
+    return true;
   }
   return image_classes_->find(descriptor) != image_classes_->end();
+}
+
+static void ResolveExceptionsForMethod(MethodHelper* mh,
+    std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile::CodeItem* code_item = mh->GetCodeItem();
+  if (code_item == NULL) {
+    return;  // native or abstract method
+  }
+  if (code_item->tries_size_ == 0) {
+    return;  // nothing to process
+  }
+  const byte* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
+  size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
+  for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
+    int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
+    bool has_catch_all = false;
+    if (encoded_catch_handler_size <= 0) {
+      encoded_catch_handler_size = -encoded_catch_handler_size;
+      has_catch_all = true;
+    }
+    for (int32_t j = 0; j < encoded_catch_handler_size; j++) {
+      uint16_t encoded_catch_handler_handlers_type_idx =
+          DecodeUnsignedLeb128(&encoded_catch_handler_list);
+      // Add to set of types to resolve if not already in the dex cache resolved types
+      if (!mh->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+        exceptions_to_resolve.insert(
+            std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
+                                                &mh->GetDexFile()));
+      }
+      // ignore address associated with catch handler
+      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    }
+    if (has_catch_all) {
+      // ignore catch all address
+      DecodeUnsignedLeb128(&encoded_catch_handler_list);
+    }
+  }
+}
+
+static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
+      reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
+  MethodHelper mh;
+  for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    mirror::AbstractMethod* m = c->GetVirtualMethod(i);
+    mh.ChangeMethod(m);
+    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+  }
+  for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
+    mirror::AbstractMethod* m = c->GetDirectMethod(i);
+    mh.ChangeMethod(m);
+    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+  }
+  return true;
+}
+
+static bool RecordImageClassesVisitor(mirror::Class* klass, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CompilerDriver::DescriptorSet* image_classes =
+      reinterpret_cast<CompilerDriver::DescriptorSet*>(arg);
+  image_classes->insert(ClassHelper(klass).GetDescriptor());
+  return true;
+}
+
+// Make a list of descriptors for classes to include in the image
+void CompilerDriver::LoadImageClasses(TimingLogger& timings)
+      LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  if (image_classes_.get() == NULL) {
+    return;
+  }
+
+  // Make a first class to load all classes explicitly listed in the file
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  typedef DescriptorSet::iterator It;  // TODO: C++0x auto
+  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end;) {
+    std::string descriptor(*it);
+    SirtRef<mirror::Class> klass(self, class_linker->FindSystemClass(descriptor.c_str()));
+    if (klass.get() == NULL) {
+      image_classes_->erase(it++);
+      LOG(WARNING) << "Failed to find class " << descriptor;
+      Thread::Current()->ClearException();
+    } else {
+      ++it;
+    }
+  }
+
+  // Resolve exception classes referenced by the loaded classes. The catch logic assumes
+  // exceptions are resolved by the verifier when there is a catch block in an interested method.
+  // Do this here so that exception classes appear to have been specified image classes.
+  std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
+  SirtRef<mirror::Class> java_lang_Throwable(self,
+                                     class_linker->FindSystemClass("Ljava/lang/Throwable;"));
+  do {
+    unresolved_exception_types.clear();
+    class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
+                               &unresolved_exception_types);
+    typedef std::set<std::pair<uint16_t, const DexFile*> >::const_iterator It;  // TODO: C++0x auto
+    for (It it = unresolved_exception_types.begin(),
+         end = unresolved_exception_types.end();
+         it != end; ++it) {
+      uint16_t exception_type_idx = it->first;
+      const DexFile* dex_file = it->second;
+      mirror::DexCache* dex_cache = class_linker->FindDexCache(*dex_file);
+      mirror:: ClassLoader* class_loader = NULL;
+      SirtRef<mirror::Class> klass(self, class_linker->ResolveType(*dex_file, exception_type_idx,
+                                                                   dex_cache, class_loader));
+      if (klass.get() == NULL) {
+        const DexFile::TypeId& type_id = dex_file->GetTypeId(exception_type_idx);
+        const char* descriptor = dex_file->GetTypeDescriptor(type_id);
+        LOG(FATAL) << "Failed to resolve class " << descriptor;
+      }
+      DCHECK(java_lang_Throwable->IsAssignableFrom(klass.get()));
+    }
+    // Resolving exceptions may load classes that reference more exceptions, iterate until no
+    // more are found
+  } while (!unresolved_exception_types.empty());
+
+  // We walk the roots looking for classes so that we'll pick up the
+  // above classes plus any classes them depend on such super
+  // classes, interfaces, and the required ClassLinker roots.
+  class_linker->VisitClasses(RecordImageClassesVisitor, image_classes_.get());
+
+  CHECK_NE(image_classes_->size(), 0U);
+  timings.AddSplit("LoadImageClasses");
+}
+
+static void MaybeAddToImageClasses(mirror::Class* klass, CompilerDriver::DescriptorSet* image_classes)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  while (!klass->IsObjectClass()) {
+    ClassHelper kh(klass);
+    const char* descriptor = kh.GetDescriptor();
+    std::pair<CompilerDriver::DescriptorSet::iterator, bool> result =
+        image_classes->insert(descriptor);
+    if (result.second) {
+      LOG(INFO) << "Adding " << descriptor << " to image classes";
+    } else {
+      return;
+    }
+    for (size_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      MaybeAddToImageClasses(kh.GetDirectInterface(i), image_classes);
+    }
+    if (klass->IsArrayClass()) {
+      MaybeAddToImageClasses(klass->GetComponentType(), image_classes);
+    }
+    klass = klass->GetSuperClass();
+  }
+}
+
+void CompilerDriver::FindClinitImageClassesCallback(mirror::Object* object, void* arg) {
+  DCHECK(object != NULL);
+  DCHECK(arg != NULL);
+  CompilerDriver* compiler_driver = reinterpret_cast<CompilerDriver*>(arg);
+  MaybeAddToImageClasses(object->GetClass(), compiler_driver->image_classes_.get());
+}
+
+void CompilerDriver::UpdateImageClasses(TimingLogger& timings) {
+  if (image_classes_.get() == NULL) {
+    return;
+  }
+
+  // Update image_classes_ with classes for objects created by <clinit> methods.
+  Thread* self = Thread::Current();
+  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // TODO: Image spaces only?
+  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  heap->FlushAllocStack();
+  heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
+  self->EndAssertNoThreadSuspension(old_cause);
+  timings.AddSplit("UpdateImageClasses");
 }
 
 void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compiled_class) {
@@ -504,24 +816,19 @@ void CompilerDriver::RecordClassStatus(ClassReference ref, CompiledClass* compil
 
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file,
                                                       uint32_t type_idx) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
-  if (!IsImage()) {
-    stats_->TypeNotInDexCache();
-    return false;
-  }
-  mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-  if (resolved_class == NULL) {
-    stats_->TypeNotInDexCache();
-    return false;
-  }
-  bool result = IsImageClass(ClassHelper(resolved_class).GetDescriptor());
-  if (result) {
+  if (IsImage() && IsImageClass(dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx)))) {
+    if (kIsDebugBuild) {
+      ScopedObjectAccess soa(Thread::Current());
+      mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
+      mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+      CHECK(resolved_class != NULL);
+    }
     stats_->TypeInDexCache();
+    return true;
   } else {
     stats_->TypeNotInDexCache();
+    return false;
   }
-  return result;
 }
 
 bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
@@ -545,7 +852,18 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
 }
 
 bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                                uint32_t type_idx) {
+                                                uint32_t type_idx,
+                                                bool* type_known_final, bool* type_known_abstract,
+                                                bool* equals_referrers_class) {
+  if (type_known_final != NULL) {
+    *type_known_final = false;
+  }
+  if (type_known_abstract != NULL) {
+    *type_known_abstract = false;
+  }
+  if (equals_referrers_class != NULL) {
+    *equals_referrers_class = false;
+  }
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   // Get type from dex cache assuming it was populated by the verifier
@@ -555,6 +873,9 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
     return false;  // Unknown class needs access checks.
   }
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+  if (equals_referrers_class != NULL) {
+    *equals_referrers_class = (method_id.class_idx_ == type_idx);
+  }
   mirror::Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
   if (referrer_class == NULL) {
     stats_->TypeNeedsAccessCheck();
@@ -565,6 +886,12 @@ bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const Dex
   bool result = referrer_class->CanAccess(resolved_class);
   if (result) {
     stats_->TypeDoesntNeedAccessCheck();
+    if (type_known_final != NULL) {
+      *type_known_final = resolved_class->IsFinal() && !resolved_class->IsArrayClass();
+    }
+    if (type_known_abstract != NULL) {
+      *type_known_abstract = resolved_class->IsAbstract() && !resolved_class->IsArrayClass();
+    }
   } else {
     stats_->TypeNeedsAccessCheck();
   }
@@ -600,9 +927,14 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 }
 
 static mirror::Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
+                                                   mirror::DexCache* dex_cache,
                                                    const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  // The passed dex_cache is a hint, sanity check before asking the class linker that will take a
+  // lock.
+  if (dex_cache->GetDexFile() != mUnit->GetDexFile()) {
+    dex_cache = mUnit->GetClassLinker()->FindDexCache(*mUnit->GetDexFile());
+  }
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
   const DexFile::MethodId& referrer_method_id = mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
   return mUnit->GetClassLinker()->ResolveType(*mUnit->GetDexFile(), referrer_method_id.class_idx_,
@@ -639,7 +971,9 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
   mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && !resolved_field->IsStatic()) {
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       bool access_ok = referrer_class->CanAccess(fields_class) &&
@@ -688,7 +1022,9 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
   mirror::Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
   if (resolved_field != NULL && resolved_field->IsStatic()) {
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_field->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
     if (referrer_class != NULL) {
       mirror::Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
@@ -733,9 +1069,8 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
           }
           // Search dex file for localized ssb index, may fail if field's class is a parent
           // of the class mentioned in the dex file and there is no dex cache entry.
-          std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
-          mUnit->GetDexFile()->FindStringId(descriptor);
+              mUnit->GetDexFile()->FindStringId(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           if (string_id != NULL) {
             const DexFile::TypeId* type_id =
                mUnit->GetDexFile()->FindTypeId(mUnit->GetDexFile()->GetIndexForStringId(*string_id));
@@ -764,7 +1099,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
                                                    mirror::Class* referrer_class,
                                                    mirror::AbstractMethod* method,
                                                    uintptr_t& direct_code,
-                                                   uintptr_t& direct_method) {
+                                                   uintptr_t& direct_method,
+                                                   bool update_stats) {
   // For direct and static methods compute possible direct_code and direct_method values, ie
   // an address for the Method* being invoked and an address of the code for that Method*.
   // For interface calls compute a value for direct_method that is the interface method being
@@ -789,14 +1125,15 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
     // Ensure we run the clinit trampoline unless we are invoking a static method in the same class.
     return;
   }
-  if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
-    stats_->DirectCallsToBoot(type);
+  if (update_stats) {
+    if (sharp_type != kInterface) {  // Interfaces always go via a trampoline.
+      stats_->DirectCallsToBoot(type);
+    }
+    stats_->DirectMethodsToBoot(type);
   }
-  stats_->DirectMethodsToBoot(type);
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   if (compiling_boot) {
-    const bool kSupportBootImageFixup = true;
-    if (kSupportBootImageFixup) {
+    if (support_boot_image_fixup_) {
       MethodHelper mh(method);
       if (IsImageClass(mh.GetDeclaringClassDescriptor())) {
         // We can only branch directly to Methods that are resolved in the DexCache.
@@ -806,33 +1143,33 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType s
       }
     }
   } else {
-    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method)->IsImageSpace()) {
+    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method, false)->IsImageSpace()) {
       direct_method = reinterpret_cast<uintptr_t>(method);
     }
     direct_code = reinterpret_cast<uintptr_t>(method->GetEntryPointFromCompiledCode());
   }
 }
 
-bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx,const uint32_t dex_pc,
-                                       const DexCompilationUnit* mUnit, InvokeType& type,
-                                       int& vtable_idx, uintptr_t& direct_code,
-                                       uintptr_t& direct_method) {
+bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
+                                       InvokeType& invoke_type,
+                                       MethodReference& target_method,
+                                       int& vtable_idx,
+                                       uintptr_t& direct_code, uintptr_t& direct_method,
+                                       bool update_stats) {
   ScopedObjectAccess soa(Thread::Current());
-
-  const bool kEnableVerifierBasedSharpening = true;
-  const CompilerDriver::MethodReference ref_caller(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
-  const CompilerDriver::MethodReference* ref_sharpen = verifier::MethodVerifier::GetDevirtMap(ref_caller, dex_pc);
-  bool can_devirtualize = (dex_pc != art::kDexPCNotReady) && (ref_sharpen != NULL);
   vtable_idx = -1;
   direct_code = 0;
   direct_method = 0;
   mirror::AbstractMethod* resolved_method =
-      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, method_idx, type);
+      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, target_method.dex_method_index,
+                                                 invoke_type);
   if (resolved_method != NULL) {
     // Don't try to fast-path if we don't understand the caller's class or this appears to be an
     // Incompatible Class Change Error.
-    mirror::Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
-    bool icce = resolved_method->CheckIncompatibleClassChange(type);
+    mirror::Class* referrer_class =
+        ComputeCompilingMethodsClass(soa, resolved_method->GetDeclaringClass()->GetDexCache(),
+                                     mUnit);
+    bool icce = resolved_method->CheckIncompatibleClassChange(invoke_type);
     if (referrer_class != NULL && !icce) {
       mirror::Class* methods_class = resolved_method->GetDeclaringClass();
       if (!referrer_class->CanAccess(methods_class) ||
@@ -842,73 +1179,167 @@ bool CompilerDriver::ComputeInvokeInfo(uint32_t method_idx,const uint32_t dex_pc
         // protected method being made public by implementing an interface that re-declares the
         // method public. Resort to the dex file to determine the correct class for the access
         // check.
-        const DexFile& dex_file = *referrer_class->GetDexCache()->GetDexFile();
-        methods_class =
-            mUnit->GetClassLinker()->ResolveType(dex_file,
-                                                 dex_file.GetMethodId(method_idx).class_idx_,
-                                                 referrer_class);
+        uint16_t class_idx =
+            target_method.dex_file->GetMethodId(target_method.dex_method_index).class_idx_;
+        methods_class = mUnit->GetClassLinker()->ResolveType(*target_method.dex_file,
+                                                             class_idx, referrer_class);
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class, resolved_method->GetAccessFlags())) {
-        vtable_idx = resolved_method->GetMethodIndex();
-        const bool kEnableSharpening = true;
-        // Sharpen a virtual call into a direct call when the target is known.
-        bool can_sharpen = type == kVirtual && (resolved_method->IsFinal() ||
-            methods_class->IsFinal());
-        // Ensure the vtable index will be correct to dispatch in the vtable of the super class.
-        can_sharpen = can_sharpen || (type == kSuper && referrer_class != methods_class &&
-            referrer_class->IsSubClass(methods_class) &&
-            vtable_idx < methods_class->GetVTable()->GetLength() &&
-            methods_class->GetVTable()->Get(vtable_idx) == resolved_method);
+        const bool kEnableFinalBasedSharpening = true;
+        // Sharpen a virtual call into a direct call when the target is known not to have been
+        // overridden (ie is final).
+        bool can_sharpen_virtual_based_on_type =
+            (invoke_type == kVirtual) && (resolved_method->IsFinal() || methods_class->IsFinal());
+        // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
+        // the super class.
+        bool can_sharpen_super_based_on_type = (invoke_type == kSuper) &&
+            (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
+            resolved_method->GetMethodIndex() < methods_class->GetVTable()->GetLength() &&
+            (methods_class->GetVTable()->Get(resolved_method->GetMethodIndex()) == resolved_method);
 
-        if (kEnableSharpening && can_sharpen) {
-          stats_->ResolvedMethod(type);
+        if (kEnableFinalBasedSharpening && (can_sharpen_virtual_based_on_type ||
+                                            can_sharpen_super_based_on_type)) {
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
-          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
-              << PrettyMethod(resolved_method);
-          stats_->VirtualMadeDirect(type);
-          GetCodeAndMethodForDirectCall(type, kDirect, referrer_class, resolved_method,
-                                        direct_code, direct_method);
-          type = kDirect;
+          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method.dex_method_index) ==
+                resolved_method) << PrettyMethod(resolved_method);
+          if (update_stats) {
+            stats_->ResolvedMethod(invoke_type);
+            stats_->VirtualMadeDirect(invoke_type);
+          }
+          GetCodeAndMethodForDirectCall(invoke_type, kDirect, referrer_class, resolved_method,
+                                        direct_code, direct_method, update_stats);
+          invoke_type = kDirect;
           return true;
-        } else if(can_devirtualize && kEnableSharpening && kEnableVerifierBasedSharpening) {
-            // If traditional sharpening fails, try the sharpening based on type information (Devirtualization)
-            mirror::DexCache* dex_cache = mUnit->GetClassLinker()->FindDexCache(*ref_sharpen->first);
-            mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
-            mirror::AbstractMethod* concrete_method = mUnit->GetClassLinker()->ResolveMethod(
-                *ref_sharpen->first, ref_sharpen->second, dex_cache, class_loader, NULL, kVirtual);
-            CHECK(concrete_method != NULL);
-            CHECK(!concrete_method->IsAbstract());
-            // TODO: fix breakage in image patching to be able to devirtualize cases with different
-            // resolved and concrete methods.
-            if(resolved_method == concrete_method) {
-              GetCodeAndMethodForDirectCall(type, kDirect, referrer_class, concrete_method, direct_code, direct_method);
-              stats_->VirtualMadeDirect(type);
-              type = kDirect;
-              stats_->PreciseTypeDevirtualization();
-            }
-            stats_->ResolvedMethod(type);
-            return true;
         }
-        else if (type == kSuper) {
+        const bool kEnableVerifierBasedSharpening = true;
+        if (kEnableVerifierBasedSharpening && (invoke_type == kVirtual ||
+                                               invoke_type == kInterface)) {
+          // Did the verifier record a more precise invoke target based on its type information?
+          const CompilerDriver::MethodReference caller_method(mUnit->GetDexFile(),
+                                                              mUnit->GetDexMethodIndex());
+          const CompilerDriver::MethodReference* devirt_map_target =
+              verifier::MethodVerifier::GetDevirtMap(caller_method, dex_pc);
+          if (devirt_map_target != NULL) {
+            mirror::DexCache* target_dex_cache =
+                mUnit->GetClassLinker()->FindDexCache(*devirt_map_target->dex_file);
+            mirror::ClassLoader* class_loader =
+                soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+            mirror::AbstractMethod* called_method =
+                mUnit->GetClassLinker()->ResolveMethod(*devirt_map_target->dex_file,
+                                                       devirt_map_target->dex_method_index,
+                                                       target_dex_cache, class_loader, NULL,
+                                                       kVirtual);
+            CHECK(called_method != NULL);
+            CHECK(!called_method->IsAbstract());
+            GetCodeAndMethodForDirectCall(invoke_type, kDirect, referrer_class, called_method,
+                                          direct_code, direct_method, update_stats);
+            bool compiler_needs_dex_cache =
+                (GetCompilerBackend() == kPortable) ||
+                (GetCompilerBackend() == kQuick && instruction_set_ != kThumb2) ||
+                (direct_code == 0) || (direct_code == static_cast<unsigned int>(-1)) ||
+                (direct_method == 0) || (direct_method == static_cast<unsigned int>(-1));
+            if ((devirt_map_target->dex_file != target_method.dex_file) &&
+                compiler_needs_dex_cache) {
+              // We need to use the dex cache to find either the method or code, and the dex file
+              // containing the method isn't the one expected for the target method. Try to find
+              // the method within the expected target dex file.
+              // TODO: the -1 could be handled as direct code if the patching new the target dex
+              //       file.
+              // TODO: quick only supports direct pointers with Thumb2.
+              // TODO: the following should be factored into a common helper routine to find
+              //       one dex file's method within another.
+              const DexFile* dexfile = target_method.dex_file;
+              const DexFile* cm_dexfile =
+                  called_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+              const DexFile::MethodId& cm_method_id =
+                  cm_dexfile->GetMethodId(called_method->GetDexMethodIndex());
+              const char* cm_descriptor = cm_dexfile->StringByTypeIdx(cm_method_id.class_idx_);
+              const DexFile::StringId* descriptor = dexfile->FindStringId(cm_descriptor);
+              if (descriptor != NULL) {
+                const DexFile::TypeId* type_id =
+                    dexfile->FindTypeId(dexfile->GetIndexForStringId(*descriptor));
+                if (type_id != NULL) {
+                  const char* cm_name = cm_dexfile->GetMethodName(cm_method_id);
+                  const DexFile::StringId* name = dexfile->FindStringId(cm_name);
+                  if (name != NULL) {
+                    uint16_t return_type_idx;
+                    std::vector<uint16_t> param_type_idxs;
+                    bool success = dexfile->CreateTypeList(&return_type_idx, &param_type_idxs,
+                                                           cm_dexfile->GetMethodSignature(cm_method_id));
+                    if (success) {
+                      const DexFile::ProtoId* sig =
+                          dexfile->FindProtoId(return_type_idx, param_type_idxs);
+                      if (sig != NULL) {
+                        const  DexFile::MethodId* method_id = dexfile->FindMethodId(*type_id,
+                                                                                    *name, *sig);
+                        if (method_id != NULL) {
+                          if (update_stats) {
+                            stats_->ResolvedMethod(invoke_type);
+                            stats_->VirtualMadeDirect(invoke_type);
+                            stats_->PreciseTypeDevirtualization();
+                          }
+                          target_method.dex_method_index = dexfile->GetIndexForMethodId(*method_id);
+                          invoke_type = kDirect;
+                          return true;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              // TODO: the stats for direct code and method are off as we failed to find the direct
+              //       method in the referring method's dex cache/file.
+            } else {
+              if (update_stats) {
+                stats_->ResolvedMethod(invoke_type);
+                stats_->VirtualMadeDirect(invoke_type);
+                stats_->PreciseTypeDevirtualization();
+              }
+              target_method = *devirt_map_target;
+              invoke_type = kDirect;
+              return true;
+            }
+          }
+        }
+        if (invoke_type == kSuper) {
           // Unsharpened super calls are suspicious so go slow-path.
         } else {
-          stats_->ResolvedMethod(type);
-          GetCodeAndMethodForDirectCall(type, type, referrer_class, resolved_method,
-                                        direct_code, direct_method);
+          // Sharpening failed so generate a regular resolved method dispatch.
+          if (update_stats) {
+            stats_->ResolvedMethod(invoke_type);
+          }
+          if (invoke_type == kVirtual || invoke_type == kSuper) {
+            vtable_idx = resolved_method->GetMethodIndex();
+          }
+          GetCodeAndMethodForDirectCall(invoke_type, invoke_type, referrer_class, resolved_method,
+                                        direct_code, direct_method, update_stats);
           return true;
         }
       }
     }
   }
-  // Clean up any exception left by method/type resolution
+  // Clean up any exception left by method/invoke_type resolution
   if (soa.Self()->IsExceptionPending()) {
       soa.Self()->ClearException();
   }
-  stats_->UnresolvedMethod(type);
+  if (update_stats) {
+    stats_->UnresolvedMethod(invoke_type);
+  }
   return false;  // Incomplete knowledge needs slow path.
 }
+
+bool CompilerDriver::IsSafeCast(const MethodReference& mr, uint32_t dex_pc) {
+  bool result = verifier::MethodVerifier::IsSafeCast(mr, dex_pc);
+  if (result) {
+    stats_->SafeCast();
+  } else {
+    stats_->NotASafeCast();
+  }
+  return result;
+}
+
 
 void CompilerDriver::AddCodePatch(const DexFile* dex_file,
                             uint32_t referrer_method_idx,
@@ -990,7 +1421,7 @@ class ParallelCompilationManager {
     CHECK_NE(self->GetState(), kRunnable);
 
     // Wait for all the worker threads to finish.
-    thread_pool_->Wait(self);
+    thread_pool_->Wait(self, true, false);
   }
 
  private:
@@ -1404,10 +1835,13 @@ static const char* class_initializer_black_list[] = {
   "Ljava/io/ObjectStreamClass;",  // Calls to Class.forName -> java.io.FileDescriptor.
   "Ljava/io/ObjectStreamConstants;", // Instance of non-image class SerializablePermission.
   "Ljava/lang/ClassLoader$SystemClassLoader;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/lang/HexStringParser;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
+  "Ljava/lang/ProcessManager;", // Calls Thread.currentThread.
   "Ljava/lang/Runtime;", // Calls System.getProperty -> OsConstants.initConstants.
   "Ljava/lang/System;", // Calls OsConstants.initConstants.
   "Ljava/math/BigDecimal;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/math/BigInteger;", // Calls native ... -> java.math.NativeBN.BN_new().
+  "Ljava/math/Primality;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/math/Multiplication;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Ljava/net/InetAddress;", // Requires libcore.io.OsConstants.
   "Ljava/net/Inet4Address;", // Sub-class of InetAddress.
@@ -1416,23 +1850,58 @@ static const char* class_initializer_black_list[] = {
   "Ljava/nio/charset/Charset;", // Calls Charset.getDefaultCharset -> System.getProperty -> OsConstants.initConstants.
   "Ljava/nio/charset/CharsetICU;", // Sub-class of Charset.
   "Ljava/nio/charset/Charsets;", // Calls Charset.forName.
+  "Ljava/nio/charset/StandardCharsets;", // Calls OsConstants.initConstants.
+  "Ljava/security/AlgorithmParameterGenerator;", // Calls OsConstants.initConstants.
+  "Ljava/security/KeyPairGenerator$KeyPairGeneratorImpl;", // Calls OsConstants.initConstants.
   "Ljava/security/KeyPairGenerator;", // Calls OsConstants.initConstants.
   "Ljava/security/Security;", // Tries to do disk IO for "security.properties".
+  "Ljava/security/spec/RSAKeyGenParameterSpec;", // java.math.NativeBN.BN_new()
   "Ljava/sql/Date;", // Calls OsConstants.initConstants.
+  "Ljava/sql/DriverManager;", // Calls OsConstants.initConstants.
+  "Ljava/sql/Time;", // Calls OsConstants.initConstants.
+  "Ljava/sql/Timestamp;", // Calls OsConstants.initConstants.
   "Ljava/util/Date;", // Calls Date.<init> -> System.currentTimeMillis -> OsConstants.initConstants.
+  "Ljava/util/ListResourceBundle;", // Calls OsConstants.initConstants.
   "Ljava/util/Locale;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/util/PropertyResourceBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/ResourceBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/ResourceBundle$MissingBundle;", // Calls OsConstants.initConstants.
+  "Ljava/util/Scanner;", // regex.Pattern.compileImpl.
   "Ljava/util/SimpleTimeZone;", // Sub-class of TimeZone.
   "Ljava/util/TimeZone;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
   "Ljava/util/concurrent/ConcurrentHashMap$Segment;", // Calls Runtime.getRuntime().availableProcessors().
+  "Ljava/util/concurrent/ConcurrentSkipListMap;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/Exchanger;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ForkJoinPool;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/LinkedTransferQueue;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/Phaser;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/ScheduledThreadPoolExecutor;", // Calls AtomicLong.VMSupportsCS8()
+  "Ljava/util/concurrent/SynchronousQueue;", // Calls OsConstants.initConstants.
+  "Ljava/util/concurrent/atomic/AtomicLong;", // Calls AtomicLong.VMSupportsCS8()
   "Ljava/util/logging/LogManager;", // Calls System.getProperty -> OsConstants.initConstants.
+  "Ljava/util/prefs/AbstractPreferences;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/FilePreferencesImpl;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/FilePreferencesFactoryImpl;", // Calls OsConstants.initConstants.
+  "Ljava/util/prefs/Preferences;", // Calls OsConstants.initConstants.
+  "Ljavax/crypto/KeyAgreement;", // Calls OsConstants.initConstants.
+  "Ljavax/crypto/KeyGenerator;", // Calls OsConstants.initConstants.
+  "Ljavax/security/cert/X509Certificate;", // Calls VMClassLoader.getBootClassPathSize.
+  "Ljavax/security/cert/X509Certificate$1;", // Calls VMClassLoader.getBootClassPathSize.
   "Ljavax/microedition/khronos/egl/EGL10;", // Requires EGLContext.
   "Ljavax/microedition/khronos/egl/EGLContext;", // Requires com.google.android.gles_jni.EGLImpl.
   "Ljavax/net/ssl/HttpsURLConnection;", // Calls SSLSocketFactory.getDefault -> java.security.Security.getProperty.
+  "Ljavax/xml/datatype/DatatypeConstants;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/datatype/FactoryFinder;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/namespace/QName;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/validation/SchemaFactoryFinder;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/xpath/XPathConstants;", // Calls OsConstants.initConstants.
+  "Ljavax/xml/xpath/XPathFactoryFinder;", // Calls OsConstants.initConstants.
   "Llibcore/icu/LocaleData;", // Requires java.util.Locale.
   "Llibcore/icu/TimeZoneNames;", // Requires java.util.TimeZone.
   "Llibcore/io/IoUtils;",  // Calls Random.<init> -> System.currentTimeMillis -> FileDescriptor -> OsConstants.initConstants.
   "Llibcore/io/OsConstants;", // Platform specific.
   "Llibcore/net/MimeUtils;", // Calls libcore.net.MimeUtils.getContentTypesPropertiesStream -> System.getProperty.
+  "Llibcore/reflect/Types;", // Calls OsConstants.initConstants.
   "Llibcore/util/ZoneInfo;", // Sub-class of TimeZone.
   "Llibcore/util/ZoneInfoDB;", // Calls System.getenv -> OsConstants.initConstants.
   "Lorg/apache/commons/logging/LogFactory;", // Calls System.getProperty.
@@ -1440,17 +1909,40 @@ static const char* class_initializer_black_list[] = {
   "Lorg/apache/harmony/security/provider/cert/X509CertFactoryImpl;", // Requires java.nio.charsets.Charsets.
   "Lorg/apache/harmony/security/provider/crypto/RandomBitsSupplier;", // Requires java.io.File.
   "Lorg/apache/harmony/security/utils/AlgNameMapper;", // Requires java.util.Locale.
+  "Lorg/apache/harmony/security/pkcs10/CertificationRequest;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs10/CertificationRequestInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/AuthenticatedAttributes;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/SignedData;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs7/SignerInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/pkcs8/PrivateKeyInfo;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/provider/crypto/SHA1PRNG_SecureRandomImpl;", // Calls OsConstants.initConstants.
   "Lorg/apache/harmony/security/x501/AttributeTypeAndValue;", // Calls IntegralToString.convertInt -> Thread.currentThread.
   "Lorg/apache/harmony/security/x501/DirectoryString;", // Requires BigInteger.
   "Lorg/apache/harmony/security/x501/Name;", // Requires org.apache.harmony.security.x501.AttributeTypeAndValue.
+  "Lorg/apache/harmony/security/x509/AccessDescription;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/AuthorityKeyIdentifier;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/CRLDistributionPoints;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/security/x509/Certificate;", // Requires org.apache.harmony.security.x509.TBSCertificate.
-  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
+  "Lorg/apache/harmony/security/x509/CertificateIssuer;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/CertificateList;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/DistributionPoint;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/DistributionPointName;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/security/x509/EDIPartyName;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lorg/apache/harmony/security/x509/GeneralName;", // Requires org.apache.harmony.security.x501.Name.
   "Lorg/apache/harmony/security/x509/GeneralNames;", // Requires GeneralName.
+  "Lorg/apache/harmony/security/x509/GeneralSubtree;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/GeneralSubtrees;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/InfoAccessSyntax;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/IssuingDistributionPoint;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/NameConstraints;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/TBSCertList$RevokedCertificate;", // Calls NativeBN.BN_new().
+  "Lorg/apache/harmony/security/x509/TBSCertList;", // Calls Thread.currentThread.
+  "Lorg/apache/harmony/security/x509/TBSCertificate;",  // Requires org.apache.harmony.security.x501.Name.
   "Lorg/apache/harmony/security/x509/Time;", // Calls native ... -> java.math.NativeBN.BN_new().
   "Lorg/apache/harmony/security/x509/Validity;", // Requires x509.Time.
+  "Lorg/apache/harmony/security/x509/tsp/TSTInfo;", // Calls Thread.currentThread.
   "Lorg/apache/harmony/xml/ExpatParser;", // Calls native ExpatParser.staticInitialize.
+  "Lorg/apache/harmony/xml/ExpatParser$EntityParser;", // Calls ExpatParser.staticInitialize.
   "Lorg/apache/http/conn/params/ConnRouteParams;", // Requires java.util.Locale.
   "Lorg/apache/http/conn/ssl/SSLSocketFactory;", // Calls java.security.Security.getProperty.
   "Lorg/apache/http/conn/util/InetAddressUtils;", // Calls regex.Pattern.compile -..-> regex.Pattern.compileImpl.
@@ -1463,7 +1955,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
   mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
   const char* descriptor = manager->GetDexFile()->GetClassDescriptor(class_def);
   mirror::Class* klass = manager->GetClassLinker()->FindClass(descriptor, class_loader);
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetContinuousSpaces().size() == 1;
   bool can_init_static_fields = compiling_boot &&
       manager->GetCompiler()->IsImageClass(descriptor);
   if (klass != NULL) {
@@ -1473,13 +1965,17 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     // on a second thread the sub-class is initialized (holding its lock) after first initializing
     // its parents, whose locks are acquired. This leads to a parent-to-child and a child-to-parent
     // lock ordering and consequent potential deadlock.
-    static Mutex lock1("Initializer lock", kMonitorLock);
-    MutexLock mu(soa.Self(), lock1);
+    // We need to use an ObjectLock due to potential suspension in the interpreting code. Rather
+    // than use a special Object for the purpose we use the Class of java.lang.Class.
+    ObjectLock lock1(soa.Self(), klass->GetClass());
     // The lock required to initialize the class.
     ObjectLock lock2(soa.Self(), klass);
     // Only try to initialize classes that were successfully verified.
     if (klass->IsVerified()) {
       manager->GetClassLinker()->EnsureInitialized(klass, false, can_init_static_fields);
+      if (soa.Self()->IsExceptionPending()) {
+        soa.Self()->GetException(NULL)->Dump();
+      }
       if (!klass->IsInitialized()) {
         if (can_init_static_fields) {
           bool is_black_listed = false;
@@ -1517,7 +2013,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
       compiled_class = new CompiledClass(status);
       manager->GetCompiler()->RecordClassStatus(ref, compiled_class);
     } else {
-      DCHECK_EQ(status, compiled_class->GetStatus());
+      DCHECK_GE(status, compiled_class->GetStatus()) << descriptor;
     }
   }
   // Clear any class not found or verification exceptions.
@@ -1558,12 +2054,12 @@ void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFi
 }
 
 void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, size_t class_def_index) {
-  jobject class_loader = manager->GetClassLoader();
+  jobject jclass_loader = manager->GetClassLoader();
   const DexFile& dex_file = *manager->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(manager->GetClassLoader());
+    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
     if (SkipClass(class_loader, dex_file, class_def)) {
       return;
     }
@@ -1577,6 +2073,13 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   if (class_data == NULL) {
     // empty class, probably a marker interface
     return;
+  }
+  // Can we run DEX-to-DEX compiler on this class ?
+  bool allow_dex_compilation;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    mirror::ClassLoader* class_loader = soa.Decode<mirror::ClassLoader*>(jclass_loader);
+    allow_dex_compilation = IsDexToDexCompilationAllowed(class_loader, dex_file, class_def);
   }
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
@@ -1599,7 +2102,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     previous_direct_method_idx = method_idx;
     manager->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
                                           it.GetMethodInvokeType(class_def), class_def_index,
-                                          method_idx, class_loader, dex_file);
+                                          method_idx, jclass_loader, dex_file, allow_dex_compilation);
     it.Next();
   }
   // Compile virtual methods
@@ -1615,7 +2118,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     previous_virtual_method_idx = method_idx;
     manager->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
                                           it.GetMethodInvokeType(class_def), class_def_index,
-                                          method_idx, class_loader, dex_file);
+                                          method_idx, jclass_loader, dex_file, allow_dex_compilation);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -1631,7 +2134,8 @@ void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_fil
 void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                                    InvokeType invoke_type, uint32_t class_def_idx,
                                    uint32_t method_idx, jobject class_loader,
-                                   const DexFile& dex_file) {
+                                   const DexFile& dex_file,
+                                   bool allow_dex_to_dex_compilation) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
 
@@ -1641,7 +2145,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     // In small mode we only compile image classes.
-    bool dont_compile = Runtime::Current()->IsSmallMode() && ((image_classes_ == NULL) || (image_classes_->size() == 0));
+    bool dont_compile = (Runtime::Current()->IsSmallMode() &&
+                         ((image_classes_.get() == NULL) || (image_classes_->size() == 0)));
 
     // Don't compile class initializers, ever.
     if (((access_flags & kAccConstructor) != 0) && ((access_flags & kAccStatic) != 0)) {
@@ -1650,11 +2155,30 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     // Do compile small methods.
       dont_compile = false;
     }
-
     if (!dont_compile) {
-      compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+      bool use_sea = false;
+
+      if (Runtime::Current()->IsSeaIRMode()) {
+        use_sea = true;
+      }
+      if (use_sea) {
+        use_sea = (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+      }
+      if (!use_sea) {
+        compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
                                      method_idx, class_loader, dex_file);
+      } else {
+        compiled_method = (*sea_ir_compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
+                                             method_idx, class_loader, dex_file);
+      }
       CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
+    } else if (allow_dex_to_dex_compilation) {
+      // TODO: add a mode to disable DEX-to-DEX compilation ?
+      compiled_method = (*dex_to_dex_compiler_)(*this, code_item, access_flags,
+                                                invoke_type, class_def_idx,
+                                                method_idx, class_loader, dex_file);
+      // No native code is generated.
+      CHECK(compiled_method == NULL) << PrettyMethod(method_idx, dex_file);
     }
   }
   uint64_t duration_ns = NanoTime() - start_ns;

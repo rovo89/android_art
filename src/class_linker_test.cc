@@ -22,7 +22,7 @@
 #include "class_linker-inl.h"
 #include "common_test.h"
 #include "dex_file.h"
-#include "heap.h"
+#include "gc/heap.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
 #include "mirror/field-inl.h"
@@ -90,6 +90,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(primitive->GetVTable() == NULL);
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
+    EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
   }
 
   void AssertArrayClass(const std::string& array_descriptor,
@@ -100,6 +101,7 @@ class ClassLinkerTest : public CommonTest {
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
     EXPECT_EQ(class_loader, array->GetClassLoader());
+    EXPECT_EQ(kAccFinal | kAccAbstract, (array->GetAccessFlags() & (kAccFinal | kAccAbstract)));
     AssertArrayClass(array_descriptor, array);
   }
 
@@ -331,7 +333,7 @@ class ClassLinkerTest : public CommonTest {
       const char* descriptor = dex->GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
-    class_linker_->VisitRoots(TestRootVisitor, NULL);
+    class_linker_->VisitRoots(TestRootVisitor, NULL, false);
     // Verify the dex cache has resolution methods in all resolved method slots
     DexCache* dex_cache = class_linker_->FindDexCache(*dex);
     ObjectArray<AbstractMethod>* resolved_methods = dex_cache->GetResolvedMethods();

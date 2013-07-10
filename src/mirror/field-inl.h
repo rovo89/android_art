@@ -20,7 +20,7 @@
 #include "field.h"
 
 #include "base/logging.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
 #include "object-inl.h"
 #include "object_utils.h"

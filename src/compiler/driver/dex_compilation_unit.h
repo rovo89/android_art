@@ -92,9 +92,7 @@ class DexCompilationUnit {
     return ((access_flags_ & kAccSynchronized) != 0);
   }
 
-  const std::string& GetSymbol() const {
-    return symbol_;
-  }
+  const std::string& GetSymbol();
 
  private:
   CompilationUnit* const cu_;
@@ -110,7 +108,7 @@ class DexCompilationUnit {
   const uint32_t dex_method_idx_;
   const uint32_t access_flags_;
 
-  const std::string symbol_;
+  std::string symbol_;
 };
 
 } // namespace art

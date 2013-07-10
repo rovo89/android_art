@@ -44,8 +44,8 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/quick/x86/target_x86.cc \
 	src/compiler/dex/quick/x86/utility_x86.cc \
 	src/compiler/dex/portable/mir_to_gbc.cc \
+	src/compiler/dex/dex_to_dex_compiler.cc \
 	src/compiler/dex/mir_dataflow.cc \
-	src/compiler/dex/dataflow_iterator.cc \
 	src/compiler/dex/mir_optimization.cc \
 	src/compiler/dex/frontend.cc \
 	src/compiler/dex/mir_graph.cc \
@@ -75,6 +75,11 @@ LIBART_COMPILER_SRC_FILES := \
 	src/elf_stripper.cc \
 	src/elf_writer.cc \
 	src/elf_writer_quick.cc
+
+ifeq ($(ART_SEA_IR_MODE),true)
+LIBART_COMPILER_SRC_FILES += \
+	src/compiler/sea_ir/frontend.cc
+endif
 
 LIBART_COMPILER_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)

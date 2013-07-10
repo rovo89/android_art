@@ -61,6 +61,8 @@ class MemMap {
 
   bool Protect(int prot);
 
+  bool ProtectRegion(uint8_t* addr, size_t length, int prot);
+
   int GetProtect() const {
     return prot_;
   }

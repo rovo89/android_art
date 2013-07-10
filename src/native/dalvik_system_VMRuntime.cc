@@ -20,13 +20,14 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc/allocator/dlmalloc.h"
+#include "gc/space/dlmalloc_space.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "object_utils.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "toStringArray.h"
@@ -125,6 +126,10 @@ static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
+static jstring VMRuntime_vmLibrary(JNIEnv* env, jobject) {
+  return env->NewStringUTF(kIsDebugBuild ? "libartd.so" : "libart.so");
+}
+
 #if !defined(ART_USE_PORTABLE_COMPILER)
 static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
@@ -164,11 +169,11 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   uint64_t start_ns = NanoTime();
 
   // Trim the managed heap.
-  Heap* heap = Runtime::Current()->GetHeap();
-  DlMallocSpace* alloc_space = heap->GetAllocSpace();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  gc::space::DlMallocSpace* alloc_space = heap->GetAllocSpace();
   size_t alloc_space_size = alloc_space->Size();
   float managed_utilization =
-      static_cast<float>(alloc_space->GetNumBytesAllocated()) / alloc_space_size;
+      static_cast<float>(alloc_space->GetBytesAllocated()) / alloc_space_size;
   size_t managed_reclaimed = heap->Trim();
 
   uint64_t gc_heap_end_ns = NanoTime();
@@ -176,7 +181,7 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   // Trim the native heap.
   dlmalloc_trim(0);
   size_t native_reclaimed = 0;
-  dlmalloc_inspect_all(MspaceMadviseCallback, &native_reclaimed);
+  dlmalloc_inspect_all(DlmallocMadviseCallback, &native_reclaimed);
 
   uint64_t end_ns = NanoTime();
 
@@ -208,6 +213,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, startJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
+  NATIVE_METHOD(VMRuntime, vmLibrary, "()Ljava/lang/String;"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

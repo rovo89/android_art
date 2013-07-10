@@ -15,9 +15,11 @@
  */
 
 #include "compiler/dex/compiler_ir.h"
+#include "dex_file-inl.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
+#include "mir_to_lir-inl.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "x86/codegen_x86.h"
 
@@ -311,7 +313,8 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method)
  * emit the next instruction in static & direct invoke sequences.
  */
 static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
-                          int state, uint32_t dex_idx, uint32_t unused,
+                          int state, const CompilerDriver::MethodReference& target_method,
+                          uint32_t unused,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type)
 {
@@ -327,9 +330,11 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code != static_cast<unsigned int>(-1)) {
         cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
       } else {
-        LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_, dex_idx, 0);
+        CHECK_EQ(cu->dex_file, target_method.dex_file);
+        LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
+                                               target_method.dex_method_index, 0);
         if (data_target == NULL) {
-          data_target = cg->AddWordData(&cg->code_literal_list_, dex_idx);
+          data_target = cg->AddWordData(&cg->code_literal_list_, target_method.dex_method_index);
           data_target->operands[1] = type;
         }
         LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kInvokeTgt), data_target);
@@ -339,9 +344,11 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_method != static_cast<unsigned int>(-1)) {
         cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
       } else {
-        LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_, dex_idx, 0);
+        CHECK_EQ(cu->dex_file, target_method.dex_file);
+        LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_,
+                                               target_method.dex_method_index, 0);
         if (data_target == NULL) {
-          data_target = cg->AddWordData(&cg->method_literal_list_, dex_idx);
+          data_target = cg->AddWordData(&cg->method_literal_list_, target_method.dex_method_index);
           data_target->operands[1] = type;
         }
         LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kArg0), data_target);
@@ -366,9 +373,11 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
         if (direct_code != static_cast<unsigned int>(-1)) {
           cg->LoadConstant(cg->TargetReg(kInvokeTgt), direct_code);
         } else {
-          LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_, dex_idx, 0);
+          CHECK_EQ(cu->dex_file, target_method.dex_file);
+          LIR* data_target = cg->ScanLiteralPool(cg->code_literal_list_,
+                                                 target_method.dex_method_index, 0);
           if (data_target == NULL) {
-            data_target = cg->AddWordData(&cg->code_literal_list_, dex_idx);
+            data_target = cg->AddWordData(&cg->code_literal_list_, target_method.dex_method_index);
             data_target->operands[1] = type;
           }
           LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kInvokeTgt), data_target);
@@ -378,8 +387,10 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       }
       break;
     case 2:  // Grab target method*
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
       cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() + dex_idx * 4,
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+                           (target_method.dex_method_index * 4),
                        cg-> TargetReg(kArg0));
       break;
     case 3:  // Grab the code from the method*
@@ -407,8 +418,9 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
  * kArg1 here rather than the standard LoadArgRegs.
  */
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
-                         int state, uint32_t dex_idx, uint32_t method_idx,
-                         uintptr_t unused, uintptr_t unused2, InvokeType unused3)
+                         int state, const CompilerDriver::MethodReference& target_method,
+                         uint32_t method_idx, uintptr_t unused, uintptr_t unused2,
+                         InvokeType unused3)
 {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
@@ -455,7 +467,8 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
  * which will locate the target and continue on via a tail call.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
-                                 uint32_t dex_idx, uint32_t unused, uintptr_t unused2,
+                                 const CompilerDriver::MethodReference& target_method,
+                                 uint32_t unused, uintptr_t unused2,
                                  uintptr_t direct_method, InvokeType unused4)
 {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
@@ -476,9 +489,12 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
         if (direct_method != static_cast<unsigned int>(-1)) {
           cg->LoadConstant(cg->TargetReg(kArg0), direct_method);
         } else {
-          LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_, dex_idx, 0);
+          CHECK_EQ(cu->dex_file, target_method.dex_file);
+          LIR* data_target = cg->ScanLiteralPool(cg->method_literal_list_,
+                                                 target_method.dex_method_index, 0);
           if (data_target == NULL) {
-            data_target = cg->AddWordData(&cg->method_literal_list_, dex_idx);
+            data_target = cg->AddWordData(&cg->method_literal_list_,
+                                          target_method.dex_method_index);
             data_target->operands[1] = kInterface;
           }
           LIR* load_pc_rel = cg->OpPcRelLoad(cg->TargetReg(kArg0), data_target);
@@ -505,8 +521,10 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                        cg->TargetReg(kArg0));
       break;
     case 2:  // Grab target method* [set/use kArg0]
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
       cg->LoadWordDisp(cg->TargetReg(kArg0),
-                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() + dex_idx * 4,
+                       mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value() +
+                           (target_method.dex_method_index * 4),
                        cg->TargetReg(kArg0));
       break;
     default:
@@ -517,7 +535,8 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 }
 
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
-                            int state, uint32_t dex_idx, uint32_t method_idx)
+                            int state, const CompilerDriver::MethodReference& target_method,
+                            uint32_t method_idx)
 {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
@@ -530,58 +549,66 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
       cg->LoadWordDisp(cg->TargetReg(kSelf), trampoline, cg->TargetReg(kInvokeTgt));
     }
     // Load kArg0 with method index
-    cg->LoadConstant(cg->TargetReg(kArg0), dex_idx);
+    CHECK_EQ(cu->dex_file, target_method.dex_file);
+    cg->LoadConstant(cg->TargetReg(kArg0), target_method.dex_method_index);
     return 1;
   }
   return -1;
 }
 
 static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
-                                int state, uint32_t dex_idx, uint32_t method_idx,
+                                int state,
+                                const CompilerDriver::MethodReference& target_method,
+                                uint32_t method_idx,
                                 uintptr_t unused, uintptr_t unused2,
-                         InvokeType unused3)
+                                InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
-  return NextInvokeInsnSP(cu, info, trampoline, state, dex_idx, 0);
+  return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                                uint32_t dex_idx, uint32_t method_idx, uintptr_t unused,
+                                const CompilerDriver::MethodReference& target_method,
+                                uint32_t method_idx, uintptr_t unused,
                                 uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
-  return NextInvokeInsnSP(cu, info, trampoline, state, dex_idx, 0);
+  return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                               uint32_t dex_idx, uint32_t method_idx, uintptr_t unused,
-                        uintptr_t unused2, InvokeType unused3)
+                               const CompilerDriver::MethodReference& target_method,
+                               uint32_t method_idx, uintptr_t unused,
+                               uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
-  return NextInvokeInsnSP(cu, info, trampoline, state, dex_idx, 0);
+  return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                           uint32_t dex_idx, uint32_t method_idx, uintptr_t unused,
+                           const CompilerDriver::MethodReference& target_method,
+                           uint32_t method_idx, uintptr_t unused,
                            uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
-  return NextInvokeInsnSP(cu, info, trampoline, state, dex_idx, 0);
+  return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 CallInfo* info, int state,
-                                         uint32_t dex_idx, uint32_t unused,
-                                         uintptr_t unused2, uintptr_t unused3,
-                                         InvokeType unused4)
+                                                const CompilerDriver::MethodReference& target_method,
+                                                uint32_t unused,
+                                                uintptr_t unused2, uintptr_t unused3,
+                                                InvokeType unused4)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
-  return NextInvokeInsnSP(cu, info, trampoline, state, dex_idx, 0);
+  return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
 
 int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
-                         NextCallInsn next_call_insn, uint32_t dex_idx,
-                         uint32_t method_idx, uintptr_t direct_code,
+                         NextCallInsn next_call_insn,
+                         const CompilerDriver::MethodReference& target_method,
+                         uint32_t vtable_idx, uintptr_t direct_code,
                          uintptr_t direct_method, InvokeType type, bool skip_this)
 {
   int last_arg_reg = TargetReg(kArg3);
@@ -605,8 +632,8 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
       }
       LoadValueDirectFixed(rl_arg, next_reg);
     }
-    call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
-                 direct_code, direct_method, type);
+    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                                direct_code, direct_method, type);
   }
   return call_state;
 }
@@ -620,7 +647,8 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
  */
 int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                   int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
-                                  uint32_t dex_idx, uint32_t method_idx, uintptr_t direct_code,
+                                  const CompilerDriver::MethodReference& target_method,
+                                  uint32_t vtable_idx, uintptr_t direct_code,
                                   uintptr_t direct_method, InvokeType type, bool skip_this)
 {
   RegLocation rl_arg;
@@ -629,8 +657,8 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
   if (info->num_arg_words == 0)
     return call_state;
 
-  call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
-                           direct_code, direct_method, type);
+  call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                              direct_code, direct_method, type);
 
   DCHECK_LE(info->num_arg_words, 5);
   if (info->num_arg_words > 3) {
@@ -650,13 +678,13 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
         // kArg2 & rArg3 can safely be used here
         reg = TargetReg(kArg3);
         LoadWordDisp(TargetReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
-        call_state = next_call_insn(cu_, info, call_state, dex_idx,
-                                 method_idx, direct_code, direct_method, type);
+        call_state = next_call_insn(cu_, info, call_state, target_method,
+                                    vtable_idx, direct_code, direct_method, type);
       }
       StoreBaseDisp(TargetReg(kSp), (next_use + 1) * 4, reg, kWord);
       StoreBaseDisp(TargetReg(kSp), 16 /* (3+1)*4 */, reg, kWord);
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
-                               direct_code, direct_method, type);
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                                  direct_code, direct_method, type);
       next_use++;
     }
     // Loop through the rest
@@ -676,8 +704,8 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
         } else {
           LoadValueDirectFixed(rl_arg, low_reg);
         }
-        call_state = next_call_insn(cu_, info, call_state, dex_idx,
-                                 method_idx, direct_code, direct_method, type);
+        call_state = next_call_insn(cu_, info, call_state, target_method,
+                                    vtable_idx, direct_code, direct_method, type);
       }
       int outs_offset = (next_use + 1) * 4;
       if (rl_arg.wide) {
@@ -687,14 +715,14 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
         StoreWordDisp(TargetReg(kSp), outs_offset, low_reg);
         next_use++;
       }
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
     }
   }
 
   call_state = LoadArgRegs(info, call_state, next_call_insn,
-                          dex_idx, method_idx, direct_code, direct_method,
-                          type, skip_this);
+                           target_method, vtable_idx, direct_code, direct_method,
+                           type, skip_this);
 
   if (pcrLabel) {
     *pcrLabel = GenNullCheck(info->args[0].s_reg_low, TargetReg(kArg1), info->opt_flags);
@@ -718,15 +746,16 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
  *
  */
 int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
-                                LIR** pcrLabel, NextCallInsn next_call_insn, uint32_t dex_idx,
-                                uint32_t method_idx, uintptr_t direct_code, uintptr_t direct_method,
+                                LIR** pcrLabel, NextCallInsn next_call_insn,
+                                const CompilerDriver::MethodReference& target_method,
+                                uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
                                 InvokeType type, bool skip_this)
 {
 
   // If we can treat it as non-range (Jumbo ops will use range form)
   if (info->num_arg_words <= 5)
     return GenDalvikArgsNoRange(info, call_state, pcrLabel,
-                                next_call_insn, dex_idx, method_idx,
+                                next_call_insn, target_method, vtable_idx,
                                 direct_code, direct_method, type, skip_this);
   /*
    * First load the non-register arguments.  Both forms expect all
@@ -772,31 +801,31 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     } else {
       // Use vldm/vstm pair using kArg3 as a temp
       int regs_left = std::min(info->num_arg_words - 3, 16);
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
       OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), start_offset);
       LIR* ld = OpVldm(TargetReg(kArg3), regs_left);
       //TUNING: loosen barrier
       ld->def_mask = ENCODE_ALL;
       SetMemRefType(ld, true /* is_load */, kDalvikReg);
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
       OpRegRegImm(kOpAdd, TargetReg(kArg3), TargetReg(kSp), 4 /* Method* */ + (3 * 4));
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
       LIR* st = OpVstm(TargetReg(kArg3), regs_left);
       SetMemRefType(st, false /* is_load */, kDalvikReg);
       st->def_mask = ENCODE_ALL;
-      call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                                direct_code, direct_method, type);
     }
   }
 
   call_state = LoadArgRegs(info, call_state, next_call_insn,
-                          dex_idx, method_idx, direct_code, direct_method,
-                          type, skip_this);
+                           target_method, vtable_idx, direct_code, direct_method,
+                           type, skip_this);
 
-  call_state = next_call_insn(cu_, info, call_state, dex_idx, method_idx,
+  call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
   if (pcrLabel) {
     *pcrLabel = GenNullCheck(info->args[0].s_reg_low, TargetReg(kArg1), info->opt_flags);
@@ -1150,6 +1179,10 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     // TODO - add Mips implementation
     return false;
   }
+  if (cu_->instruction_set == kX86 && is_object) {
+    // TODO: fix X86, it exhausts registers for card marking.
+    return false;
+  }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
   RegLocation rl_src_obj = info->args[1];  // Object
   RegLocation rl_src_offset = info->args[2];  // long low
@@ -1193,20 +1226,27 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
-  std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
-  if (tgt_method.find(" java.lang") != std::string::npos) {
+  StringPiece tgt_methods_declaring_class(
+      cu_->dex_file->GetMethodDeclaringClassDescriptor(cu_->dex_file->GetMethodId(info->index)));
+  if (tgt_methods_declaring_class.starts_with("Ljava/lang/Double;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "long java.lang.Double.doubleToRawLongBits(double)") {
       return GenInlinedDoubleCvt(info);
     }
     if (tgt_method == "double java.lang.Double.longBitsToDouble(long)") {
       return GenInlinedDoubleCvt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Float;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "int java.lang.Float.float_to_raw_int_bits(float)") {
       return GenInlinedFloatCvt(info);
     }
     if (tgt_method == "float java.lang.Float.intBitsToFloat(int)") {
       return GenInlinedFloatCvt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Math;") ||
+             tgt_methods_declaring_class.starts_with("Ljava/lang/StrictMath;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "int java.lang.Math.abs(int)" ||
         tgt_method == "int java.lang.StrictMath.abs(int)") {
       return GenInlinedAbsInt(info);
@@ -1227,6 +1267,8 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
         tgt_method == "double java.lang.StrictMath.sqrt(double)") {
       return GenInlinedSqrt(info);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/String;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "char java.lang.String.charAt(int)") {
       return GenInlinedCharAt(info);
     }
@@ -1245,10 +1287,13 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
     if (tgt_method == "int java.lang.String.length()") {
       return GenInlinedStringIsEmptyOrLength(info, false /* is_empty */);
     }
+  } else if (tgt_methods_declaring_class.starts_with("Ljava/lang/Thread;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "java.lang.Thread java.lang.Thread.currentThread()") {
       return GenInlinedCurrentThread(info);
     }
-  } else if (tgt_method.find(" sun.misc.Unsafe") != std::string::npos) {
+  } else if (tgt_methods_declaring_class.starts_with("Lsun/misc/Unsafe;")) {
+    std::string tgt_method(PrettyMethod(info->index, *cu_->dex_file));
     if (tgt_method == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
       return GenInlinedCas32(info, false);
     }
@@ -1327,20 +1372,24 @@ void Mir2Lir::GenInvoke(CallInfo* info)
   // Explicit register usage
   LockCallTemps();
 
-  uint32_t dex_method_idx = info->index;
+  DexCompilationUnit* cUnit = mir_graph_->GetCurrentDexCompilationUnit();
+  CompilerDriver::MethodReference target_method(cUnit->GetDexFile(), info->index);
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
   bool skip_this;
-  bool fast_path = cu_->compiler_driver->ComputeInvokeInfo(
-      dex_method_idx, current_dalvik_offset_, mir_graph_->GetCurrentDexCompilationUnit(), info->type, vtable_idx,
-      direct_code, direct_method) && !SLOW_INVOKE_PATH;
+  bool fast_path =
+      cu_->compiler_driver->ComputeInvokeInfo(mir_graph_->GetCurrentDexCompilationUnit(),
+                                              current_dalvik_offset_,
+                                              info->type, target_method,
+                                              vtable_idx,
+                                              direct_code, direct_method,
+                                              true) && !SLOW_INVOKE_PATH;
   if (info->type == kInterface) {
     if (fast_path) {
       p_null_ck = &null_ck;
     }
-    next_call_insn = fast_path ? NextInterfaceCallInsn
-                            : NextInterfaceCallInsnWithAccessCheck;
+    next_call_insn = fast_path ? NextInterfaceCallInsn : NextInterfaceCallInsnWithAccessCheck;
     skip_this = false;
   } else if (info->type == kDirect) {
     if (fast_path) {
@@ -1362,20 +1411,20 @@ void Mir2Lir::GenInvoke(CallInfo* info)
   }
   if (!info->is_range) {
     call_state = GenDalvikArgsNoRange(info, call_state, p_null_ck,
-                                     next_call_insn, dex_method_idx,
-                                     vtable_idx, direct_code, direct_method,
-                                     original_type, skip_this);
+                                      next_call_insn, target_method,
+                                      vtable_idx, direct_code, direct_method,
+                                      original_type, skip_this);
   } else {
     call_state = GenDalvikArgsRange(info, call_state, p_null_ck,
-                                   next_call_insn, dex_method_idx, vtable_idx,
-                                   direct_code, direct_method, original_type,
-                                   skip_this);
+                                    next_call_insn, target_method, vtable_idx,
+                                    direct_code, direct_method, original_type,
+                                    skip_this);
   }
   // Finish up any of the call sequence not interleaved in arg loading
   while (call_state >= 0) {
-    call_state = next_call_insn(cu_, info, call_state, dex_method_idx,
-                             vtable_idx, direct_code, direct_method,
-                             original_type);
+    call_state = next_call_insn(cu_, info, call_state, target_method,
+                                vtable_idx, direct_code, direct_method,
+                                original_type);
   }
   LIR* call_inst;
   if (cu_->instruction_set != kX86) {

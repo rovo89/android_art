@@ -74,7 +74,6 @@ TEST_F(RegTypeTest, Pairs) {
 }
 
 TEST_F(RegTypeTest, Primitives) {
-
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
 
@@ -108,6 +107,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(bool_reg_type.IsLongTypes());
   EXPECT_FALSE(bool_reg_type.IsDoubleTypes());
   EXPECT_TRUE(bool_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(bool_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& byte_reg_type = cache.Byte();
   EXPECT_FALSE(byte_reg_type.IsUndefined());
@@ -139,6 +139,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(byte_reg_type.IsLongTypes());
   EXPECT_FALSE(byte_reg_type.IsDoubleTypes());
   EXPECT_TRUE(byte_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(byte_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& char_reg_type = cache.Char();
   EXPECT_FALSE(char_reg_type.IsUndefined());
@@ -170,6 +171,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(char_reg_type.IsLongTypes());
   EXPECT_FALSE(char_reg_type.IsDoubleTypes());
   EXPECT_TRUE(char_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(char_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& short_reg_type = cache.Short();
   EXPECT_FALSE(short_reg_type.IsUndefined());
@@ -201,6 +203,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(short_reg_type.IsLongTypes());
   EXPECT_FALSE(short_reg_type.IsDoubleTypes());
   EXPECT_TRUE(short_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(short_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& int_reg_type = cache.Integer();
   EXPECT_FALSE(int_reg_type.IsUndefined());
@@ -232,6 +235,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(int_reg_type.IsLongTypes());
   EXPECT_FALSE(int_reg_type.IsDoubleTypes());
   EXPECT_TRUE(int_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(int_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& long_reg_type = cache.LongLo();
   EXPECT_FALSE(long_reg_type.IsUndefined());
@@ -263,6 +267,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(long_reg_type.IsLongTypes());
   EXPECT_FALSE(long_reg_type.IsDoubleTypes());
   EXPECT_FALSE(long_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(long_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& float_reg_type = cache.Float();
   EXPECT_FALSE(float_reg_type.IsUndefined());
@@ -294,6 +299,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(float_reg_type.IsLongTypes());
   EXPECT_FALSE(float_reg_type.IsDoubleTypes());
   EXPECT_FALSE(float_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(float_reg_type.IsNonZeroReferenceTypes());
 
   const RegType& double_reg_type = cache.DoubleLo();
   EXPECT_FALSE(double_reg_type.IsUndefined());
@@ -325,6 +331,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(double_reg_type.IsLongTypes());
   EXPECT_TRUE(double_reg_type.IsDoubleTypes());
   EXPECT_FALSE(double_reg_type.IsArrayIndexTypes());
+  EXPECT_FALSE(double_reg_type.IsNonZeroReferenceTypes());
 }
 
 
@@ -352,12 +359,14 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
   RegTypeCache cache(true);
   const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
+  EXPECT_TRUE(ref_type_0.IsNonZeroReferenceTypes());
 
   const RegType& ref_type_1 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type_1));
 
   const RegType& unresolved_super_class =  cache.FromUnresolvedSuperClass(ref_type_0);
   EXPECT_TRUE(unresolved_super_class.IsUnresolvedSuperClass());
+  EXPECT_TRUE(unresolved_super_class.IsNonZeroReferenceTypes());
 }
 
 TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
@@ -372,6 +381,7 @@ TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
   const RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
   EXPECT_TRUE(unresolved_unintialised.IsUninitializedTypes());
+  EXPECT_TRUE(unresolved_unintialised.IsNonZeroReferenceTypes());
   // Create an uninitialized type of this unresolved type with different  PC
   const RegType& ref_type_unresolved_unintialised_1 =  cache.Uninitialized(ref_type, 1102ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());

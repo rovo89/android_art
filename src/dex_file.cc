@@ -108,6 +108,28 @@ int DexFile::GetPermissions() const {
   }
 }
 
+bool DexFile::IsReadOnly() const {
+  return GetPermissions() == PROT_READ;
+}
+
+bool DexFile::EnableWrite(uint8_t* addr, size_t length) const {
+  CHECK(IsReadOnly());
+  if (mem_map_.get() == NULL) {
+    return false;
+  } else {
+    return mem_map_->ProtectRegion(addr, length, PROT_READ | PROT_WRITE);
+  }
+}
+
+bool DexFile::DisableWrite(uint8_t* addr, size_t length) const {
+  CHECK(!IsReadOnly());
+  if (mem_map_.get() == NULL) {
+    return false;
+  } else {
+    return mem_map_->ProtectRegion(addr, length, PROT_READ);
+  }
+}
+
 const DexFile* DexFile::OpenFile(const std::string& filename,
                                  const std::string& location,
                                  bool verify) {
@@ -373,10 +395,10 @@ const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_kl
   const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t type_idx = GetIndexForTypeId(type);
-  uint32_t lo = 0;
-  uint32_t hi = NumFieldIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumFieldIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::FieldId& field = GetFieldId(mid);
     if (class_idx > field.class_idx_) {
       lo = mid + 1;
@@ -408,10 +430,10 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
   const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
   const uint16_t proto_idx = GetIndexForProtoId(signature);
-  uint32_t lo = 0;
-  uint32_t hi = NumMethodIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumMethodIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::MethodId& method = GetMethodId(mid);
     if (class_idx > method.class_idx_) {
       lo = mid + 1;
@@ -436,15 +458,35 @@ const DexFile::MethodId* DexFile::FindMethodId(const DexFile::TypeId& declaring_
   return NULL;
 }
 
-const DexFile::StringId* DexFile::FindStringId(const std::string& string) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumStringIds() - 1;
+const DexFile::StringId* DexFile::FindStringId(const char* string) const {
+  int32_t lo = 0;
+  int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringDataAndLength(str_id, &length);
-    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string.c_str(), str);
+    int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string, str);
+    if (compare > 0) {
+      lo = mid + 1;
+    } else if (compare < 0) {
+      hi = mid - 1;
+    } else {
+      return &str_id;
+    }
+  }
+  return NULL;
+}
+
+const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
+  int32_t lo = 0;
+  int32_t hi = NumStringIds() - 1;
+  while (hi >= lo) {
+    int32_t mid = (hi + lo) / 2;
+    uint32_t length;
+    const DexFile::StringId& str_id = GetStringId(mid);
+    const char* str = GetStringDataAndLength(str_id, &length);
+    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
     if (compare > 0) {
       lo = mid + 1;
     } else if (compare < 0) {
@@ -457,10 +499,10 @@ const DexFile::StringId* DexFile::FindStringId(const std::string& string) const 
 }
 
 const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumTypeIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumTypeIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const TypeId& type_id = GetTypeId(mid);
     if (string_idx > type_id.descriptor_idx_) {
       lo = mid + 1;
@@ -475,10 +517,10 @@ const DexFile::TypeId* DexFile::FindTypeId(uint32_t string_idx) const {
 
 const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
                                          const std::vector<uint16_t>& signature_type_idxs) const {
-  uint32_t lo = 0;
-  uint32_t hi = NumProtoIds() - 1;
+  int32_t lo = 0;
+  int32_t hi = NumProtoIds() - 1;
   while (hi >= lo) {
-    uint32_t mid = (hi + lo) / 2;
+    int32_t mid = (hi + lo) / 2;
     const DexFile::ProtoId& proto = GetProtoId(mid);
     int compare = return_type_idx - proto.return_type_idx_;
     if (compare == 0) {
@@ -544,7 +586,7 @@ bool DexFile::CreateTypeList(uint16_t* return_type_idx, std::vector<uint16_t>* p
         descriptor += c;
       } while (c != ';');
     }
-    const DexFile::StringId* string_id = FindStringId(descriptor);
+    const DexFile::StringId* string_id = FindStringId(descriptor.c_str());
     if (string_id == NULL) {
       return false;
     }

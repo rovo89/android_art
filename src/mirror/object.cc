@@ -22,8 +22,8 @@
 #include "class_linker-inl.h"
 #include "field.h"
 #include "field-inl.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
 #include "iftable-inl.h"
 #include "monitor.h"
 #include "object-inl.h"
@@ -44,7 +44,7 @@ Object* Object::Clone(Thread* self) {
   // Object::SizeOf gets the right size even if we're an array.
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   SirtRef<Object> copy(self, heap->AllocObject(self, c, num_bytes));
   if (copy.get() == NULL) {
     return NULL;

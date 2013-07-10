@@ -29,6 +29,11 @@
 #include "oat_file.h"
 
 namespace art {
+namespace gc {
+namespace space {
+  class ImageSpace;
+}  // namespace space
+}  // namespace gc
 namespace mirror {
   class ClassLoader;
   class DexCache;
@@ -37,7 +42,7 @@ namespace mirror {
   template<class T> class ObjectArray;
   class StackTraceElement;
 }  // namespace mirror
-class ImageSpace;
+
 class InternTable;
 class ObjectLock;
 template<class T> class SirtRef;
@@ -219,7 +224,7 @@ class ClassLinker {
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
-  void VisitRoots(RootVisitor* visitor, void* arg)
+  void VisitRoots(RootVisitor* visitor, void* arg, bool clean_dirty)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   mirror::DexCache* FindDexCache(const DexFile& dex_file) const
@@ -240,7 +245,7 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_);
 
   const OatFile* FindOatFileFromOatLocationLocked(const std::string& location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+      SHARED_LOCKS_REQUIRED(dex_lock_);
 
   // Finds the oat file for a dex location, generating the oat file if
   // it is missing or out of date. Returns the DexFile from within the
@@ -334,6 +339,14 @@ class ClassLinker {
     is_dirty_ = true;
   }
 
+  const void* GetPortableResolutionTrampoline() const {
+    return portable_resolution_trampoline_;
+  }
+
+  const void* GetQuickResolutionTrampoline() const {
+    return quick_resolution_trampoline_;
+  }
+
  private:
   explicit ClassLinker(InternTable*);
 
@@ -346,7 +359,7 @@ class ClassLinker {
 
   // Initialize class linker from one or more images.
   void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  OatFile* OpenOat(const ImageSpace* space)
+  OatFile* OpenOat(const gc::space::ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void InitFromImageCallback(mirror::Object* obj, void* arg)
@@ -420,7 +433,7 @@ class ClassLinker {
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<mirror::DexCache>& dex_cache)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const SHARED_LOCKS_REQUIRED(dex_lock_);
   void RegisterOatFileLocked(const OatFile& oat_file) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
@@ -489,10 +502,15 @@ class ClassLinker {
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
+  const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
+      SHARED_LOCKS_REQUIRED(dex_lock_);
+  const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
+                                          uint32_t dex_location_checksum,
+                                          const std::string& oat_location)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
-      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+
   const DexFile* VerifyAndOpenDexFileFromOatFile(const OatFile* oat_file,
                                                  const std::string& dex_location,
                                                  uint32_t dex_location_checksum)
@@ -508,7 +526,7 @@ class ClassLinker {
 
   std::vector<const DexFile*> boot_class_path_;
 
-  mutable Mutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<mirror::DexCache*> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
@@ -522,8 +540,7 @@ class ClassLinker {
 
   mirror::Class* LookupClassLocked(const char* descriptor, const mirror::ClassLoader* class_loader,
                                    size_t hash, const Table& classes)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::classlinker_classes_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::classlinker_classes_lock_);
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.
@@ -594,6 +611,9 @@ class ClassLinker {
   bool is_dirty_;
 
   InternTable* intern_table_;
+
+  const void* portable_resolution_trampoline_;
+  const void* quick_resolution_trampoline_;
 
   friend class CommonTest;
   friend class ImageWriter;  // for GetClassRoots

@@ -46,6 +46,7 @@ class Instruction {
     const uint16_t case_count;
     const int32_t first_key;
     const int32_t targets[];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(PackedSwitchPayload);
   };
@@ -73,6 +74,7 @@ class Instruction {
     const uint16_t element_width;
     const uint32_t element_count;
     const uint8_t data[];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ArrayDataPayload);
   };
@@ -162,39 +164,45 @@ class Instruction {
     }
   }
 
+  // Reads an instruction out of the stream at the specified address.
+  static const Instruction* At(const uint16_t* code) {
+    DCHECK(code != NULL);
+    return reinterpret_cast<const Instruction*>(code);
+  }
+
+  // Reads an instruction out of the stream from the current address plus an offset.
+  const Instruction* RelativeAt(int32_t offset) const {
+    return At(reinterpret_cast<const uint16_t*>(this) + offset);
+  }
+
   // Returns a pointer to the next instruction in the stream.
   const Instruction* Next() const {
-    size_t current_size_in_bytes = SizeInCodeUnits() * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(SizeInCodeUnits());
   }
 
   // Returns a pointer to the instruction after this 1xx instruction in the stream.
   const Instruction* Next_1xx() const {
     DCHECK(FormatOf(Opcode()) >= k10x && FormatOf(Opcode()) <= k10t);
-    size_t current_size_in_bytes = 1 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(1);
   }
 
   // Returns a pointer to the instruction after this 2xx instruction in the stream.
   const Instruction* Next_2xx() const {
     DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k22c);
-    size_t current_size_in_bytes = 2 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(2);
   }
 
   // Returns a pointer to the instruction after this 3xx instruction in the stream.
   const Instruction* Next_3xx() const {
     DCHECK(FormatOf(Opcode()) >= k32x && FormatOf(Opcode()) <= k3rc);
-    size_t current_size_in_bytes = 3 * sizeof(uint16_t);
-    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(this);
-    return reinterpret_cast<const Instruction*>(ptr + current_size_in_bytes);
+    return RelativeAt(3);
   }
 
   // Returns a pointer to the instruction after this 51l instruction in the stream.
-  const Instruction* Next_51l() const;
+  const Instruction* Next_51l() const {
+    DCHECK(FormatOf(Opcode()) == k51l);
+    return RelativeAt(5);
+  }
 
   // Returns the name of this instruction's opcode.
   const char* Name() const {
@@ -208,6 +216,7 @@ class Instruction {
 
   // VRegA
   int8_t VRegA_10t() const;
+  uint8_t VRegA_10x() const;
   uint4_t VRegA_11n() const;
   uint8_t VRegA_11x() const;
   uint4_t VRegA_12x() const;
@@ -232,6 +241,7 @@ class Instruction {
   uint8_t VRegA_51l() const;
 
   // VRegB
+  int32_t VRegB() const;
   int4_t VRegB_11n() const;
   uint4_t VRegB_12x() const;
   uint16_t VRegB_21c() const;
@@ -250,9 +260,10 @@ class Instruction {
   uint16_t VRegB_32x() const;
   uint16_t VRegB_35c() const;
   uint16_t VRegB_3rc() const;
-  uint64_t VRegB_51l() const; // vB_wide
+  uint64_t VRegB_51l() const;  // vB_wide
 
   // VRegC
+  int32_t VRegC() const;
   int8_t VRegC_22b() const;
   uint16_t VRegC_22c() const;
   int16_t VRegC_22s() const;
@@ -271,10 +282,28 @@ class Instruction {
     return static_cast<Code>(opcode);
   }
 
-  // Reads an instruction out of the stream at the specified address.
-  static const Instruction* At(const uint16_t* code) {
-    CHECK(code != NULL);
-    return reinterpret_cast<const Instruction*>(code);
+  void SetOpcode(Code opcode) {
+    DCHECK_LT(static_cast<uint16_t>(opcode), 256u);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[0] = (insns[0] & 0xff00) | static_cast<uint16_t>(opcode);
+  }
+
+  void SetVRegB_3rc(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k3rc);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
+  void SetVRegB_35c(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k35c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
+  }
+
+  void SetVRegC_22c(uint16_t val) {
+    DCHECK(FormatOf(Opcode()) == k22c);
+    uint16_t* insns = reinterpret_cast<uint16_t*>(this);
+    insns[1] = val;
   }
 
   // Returns the format of the given opcode.
@@ -296,6 +325,12 @@ class Instruction {
   bool IsUnconditional() const {
     return (kInstructionFlags[Opcode()] & kUnconditional) != 0;
   }
+
+  // Returns the branch offset if this instruction is a branch.
+  int32_t GetTargetOffset() const;
+
+  // Returns true if the instruction allows control flow to go to the following instruction.
+  bool CanFlowThrough() const;
 
   // Returns true if this instruction is a switch.
   bool IsSwitch() const {

@@ -188,7 +188,11 @@ inline bool operator!=(const StringPiece& x, const StringPiece& y) {
   return !(x == y);
 }
 
-bool operator<(const StringPiece& x, const StringPiece& y);
+inline bool operator<(const StringPiece& x, const StringPiece& y) {
+  const int r = memcmp(x.data(), y.data(),
+                       std::min(x.size(), y.size()));
+  return ((r < 0) || ((r == 0) && (x.size() < y.size())));
+}
 
 inline bool operator>(const StringPiece& x, const StringPiece& y) {
   return y < x;

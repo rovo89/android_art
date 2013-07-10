@@ -16,7 +16,7 @@
 
 #include "compiler_internals.h"
 #include "local_value_numbering.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 
 namespace art {
 
@@ -418,6 +418,13 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb)
                   static_cast<bool*>(arena_->NewMem(sizeof(bool) * 1, false,
                                                     ArenaAllocator::kAllocDFInfo));
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
+              // Match type of uses to def.
+              mir->ssa_rep->fp_use =
+                  static_cast<bool*>(arena_->NewMem(sizeof(bool) * mir->ssa_rep->num_uses, false,
+                                                    ArenaAllocator::kAllocDFInfo));
+              for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
+                mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
+              }
               /*
                * There is usually a Phi node in the join block for our two cases.  If the
                * Phi node only contains our two cases as input, we will use the result
@@ -634,8 +641,29 @@ bool MIRGraph::EliminateNullChecks(struct BasicBlock* bb)
       int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
       temp_ssa_register_v_->SetBit(this_reg);
     }
+  } else if (bb->predecessors->Size() == 1) {
+    BasicBlock* pred_bb = bb->predecessors->Get(0);
+    temp_ssa_register_v_->Copy(pred_bb->data_flow_info->ending_null_check_v);
+    if (pred_bb->block_type == kDalvikByteCode) {
+      // Check to see if predecessor had an explicit null-check.
+      MIR* last_insn = pred_bb->last_mir_insn;
+      Instruction::Code last_opcode = last_insn->dalvikInsn.opcode;
+      if (last_opcode == Instruction::IF_EQZ) {
+        if (pred_bb->fall_through == bb) {
+          // The fall-through of a block following a IF_EQZ, set the vA of the IF_EQZ to show that
+          // it can't be null.
+          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+        }
+      } else if (last_opcode == Instruction::IF_NEZ) {
+        if (pred_bb->taken == bb) {
+          // The taken block following a IF_NEZ, set the vA of the IF_NEZ to show that it can't be
+          // null.
+          temp_ssa_register_v_->SetBit(last_insn->ssa_rep->uses[0]);
+        }
+      }
+    }
   } else {
-    // Starting state is intesection of all incoming arcs
+    // Starting state is intersection of all incoming arcs
     GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
     BasicBlock* pred_bb = iter.Next();
     DCHECK(pred_bb != NULL);

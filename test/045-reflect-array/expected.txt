@@ -6,4 +6,7 @@ ReflectArrayTest.testSingle passed
 ReflectArrayTest.testMultiInt passed
 zero one two ++
 ReflectArrayTest.testMulti passed
+class [Ljava.lang.Number; modifiers: 1041
+class [Ljava.lang.Cloneable; modifiers: 1041
+ReflectArrayTest.testAbstract passed
 ReflectArrayTest passed

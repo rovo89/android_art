@@ -16,6 +16,7 @@
 
 #include "codegen_mips.h"
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
 
 #include <string>

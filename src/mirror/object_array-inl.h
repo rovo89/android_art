@@ -19,7 +19,7 @@
 
 #include "object_array.h"
 
-#include "heap.h"
+#include "gc/heap.h"
 #include "mirror/class.h"
 #include "mirror/field.h"
 #include "runtime.h"
@@ -101,7 +101,7 @@ inline void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
     MemberOffset src_offset(DataOffset(sizeof(Object*)).Int32Value() + src_pos * sizeof(Object*));
     MemberOffset dst_offset(DataOffset(sizeof(Object*)).Int32Value() + dst_pos * sizeof(Object*));
     Class* array_class = dst->GetClass();
-    Heap* heap = Runtime::Current()->GetHeap();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
     if (array_class == src->GetClass()) {
       // No need for array store checks if arrays are of the same type
       for (size_t i = 0; i < length; i++) {

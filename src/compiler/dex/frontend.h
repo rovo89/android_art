@@ -20,6 +20,11 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 
+
+
+
+
+
 namespace llvm {
   class Module;
   class LLVMContext;
@@ -115,5 +120,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
                                                  uint32_t method_idx,
                                                  jobject class_loader,
                                                  const art::DexFile& dex_file);
+
+
 
 #endif // ART_SRC_COMPILER_DEX_COMPILER_H_

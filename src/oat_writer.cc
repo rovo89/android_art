@@ -22,6 +22,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
+#include "gc/space/space.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/array.h"
 #include "mirror/class_loader.h"
@@ -30,7 +31,6 @@
 #include "output_stream.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "gc/space.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
@@ -54,13 +54,35 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_oat_begin,
                      const std::string& image_file_location,
                      const CompilerDriver* compiler)
-    : compiler_driver_(compiler) {
-  image_file_location_oat_checksum_ = image_file_location_oat_checksum;
-  image_file_location_oat_begin_ = image_file_location_oat_begin;
-  image_file_location_ = image_file_location;
-  dex_files_ = &dex_files;
-  oat_header_ = NULL;
-  executable_offset_padding_length_ = 0;
+  : compiler_driver_(compiler),
+    dex_files_(&dex_files),
+    image_file_location_oat_checksum_(image_file_location_oat_checksum),
+    image_file_location_oat_begin_(image_file_location_oat_begin),
+    image_file_location_(image_file_location),
+    oat_header_(NULL),
+    size_dex_file_alignment_(0),
+    size_executable_offset_alignment_(0),
+    size_oat_header_(0),
+    size_oat_header_image_file_location_(0),
+    size_dex_file_(0),
+    size_interpreter_to_interpreter_entry_(0),
+    size_interpreter_to_quick_entry_(0),
+    size_portable_resolution_trampoline_(0),
+    size_quick_resolution_trampoline_(0),
+    size_stubs_alignment_(0),
+    size_code_size_(0),
+    size_code_(0),
+    size_code_alignment_(0),
+    size_mapping_table_(0),
+    size_vmap_table_(0),
+    size_gc_map_(0),
+    size_oat_dex_file_location_size_(0),
+    size_oat_dex_file_location_data_(0),
+    size_oat_dex_file_location_checksum_(0),
+    size_oat_dex_file_offset_(0),
+    size_oat_dex_file_methods_offsets_(0),
+    size_oat_class_status_(0),
+    size_oat_class_method_offsets_(0) {
 
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
@@ -70,6 +92,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   offset = InitOatCodeDexFiles(offset);
 
   CHECK_EQ(dex_files_->size(), oat_dex_files_.size());
+  CHECK(image_file_location.empty() == compiler->IsImage());
 }
 
 OatWriter::~OatWriter() {
@@ -106,7 +129,9 @@ size_t OatWriter::InitDexFiles(size_t offset) {
   // calculate the offsets within OatDexFiles to the DexFiles
   for (size_t i = 0; i != dex_files_->size(); ++i) {
     // dex files are required to be 4 byte aligned
+    size_t original_offset = offset;
     offset = RoundUp(offset, 4);
+    size_dex_file_alignment_ += offset - original_offset;
 
     // set offset in OatDexFile to DexFile
     oat_dex_files_[i]->dex_file_offset_ = offset;
@@ -162,7 +187,33 @@ size_t OatWriter::InitOatCode(size_t offset) {
   // required to be on a new page boundary
   offset = RoundUp(offset, kPageSize);
   oat_header_->SetExecutableOffset(offset);
-  executable_offset_padding_length_ = offset - old_offset;
+  size_executable_offset_alignment_ = offset - old_offset;
+  if (compiler_driver_->IsImage()) {
+    InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
+    oat_header_->SetInterpreterToInterpreterEntryOffset(offset);
+    interpreter_to_interpreter_entry_.reset(compiler_driver_->CreateInterpreterToInterpreterEntry());
+    offset += interpreter_to_interpreter_entry_->size();
+
+    offset = CompiledCode::AlignCode(offset, instruction_set);
+    oat_header_->SetInterpreterToQuickEntryOffset(offset);
+    interpreter_to_quick_entry_.reset(compiler_driver_->CreateInterpreterToQuickEntry());
+    offset += interpreter_to_quick_entry_->size();
+
+    offset = CompiledCode::AlignCode(offset, instruction_set);
+    oat_header_->SetPortableResolutionTrampolineOffset(offset);
+    portable_resolution_trampoline_.reset(compiler_driver_->CreatePortableResolutionTrampoline());
+    offset += portable_resolution_trampoline_->size();
+
+    offset = CompiledCode::AlignCode(offset, instruction_set);
+    oat_header_->SetQuickResolutionTrampolineOffset(offset);
+    quick_resolution_trampoline_.reset(compiler_driver_->CreateQuickResolutionTrampoline());
+    offset += quick_resolution_trampoline_->size();
+  } else {
+    oat_header_->SetInterpreterToInterpreterEntryOffset(0);
+    oat_header_->SetInterpreterToQuickEntryOffset(0);
+    oat_header_->SetPortableResolutionTrampolineOffset(0);
+    oat_header_->SetQuickResolutionTrampolineOffset(0);
+  }
   return offset;
 }
 
@@ -389,11 +440,13 @@ bool OatWriter::Write(OutputStream& out) {
     PLOG(ERROR) << "Failed to write oat header to " << out.GetLocation();
     return false;
   }
+  size_oat_header_ += sizeof(*oat_header_);
 
   if (!out.WriteFully(image_file_location_.data(), image_file_location_.size())) {
     PLOG(ERROR) << "Failed to write oat header image file location to " << out.GetLocation();
     return false;
   }
+  size_oat_header_image_file_location_ += image_file_location_.size();
 
   if (!WriteTables(out)) {
     LOG(ERROR) << "Failed to write oat tables to " << out.GetLocation();
@@ -412,12 +465,47 @@ bool OatWriter::Write(OutputStream& out) {
     return false;
   }
 
+  if (kIsDebugBuild) {
+    uint32_t size_total = 0;
+    #define DO_STAT(x) \
+      LOG(INFO) << #x "=" << PrettySize(x) << " (" << x << "B)"; \
+      size_total += x;
+
+    DO_STAT(size_dex_file_alignment_);
+    DO_STAT(size_executable_offset_alignment_);
+    DO_STAT(size_oat_header_);
+    DO_STAT(size_oat_header_image_file_location_);
+    DO_STAT(size_dex_file_);
+    DO_STAT(size_interpreter_to_interpreter_entry_);
+    DO_STAT(size_interpreter_to_quick_entry_);
+    DO_STAT(size_portable_resolution_trampoline_);
+    DO_STAT(size_quick_resolution_trampoline_);
+    DO_STAT(size_stubs_alignment_);
+    DO_STAT(size_code_size_);
+    DO_STAT(size_code_);
+    DO_STAT(size_code_alignment_);
+    DO_STAT(size_mapping_table_);
+    DO_STAT(size_vmap_table_);
+    DO_STAT(size_gc_map_);
+    DO_STAT(size_oat_dex_file_location_size_);
+    DO_STAT(size_oat_dex_file_location_data_);
+    DO_STAT(size_oat_dex_file_location_checksum_);
+    DO_STAT(size_oat_dex_file_offset_);
+    DO_STAT(size_oat_dex_file_methods_offsets_);
+    DO_STAT(size_oat_class_status_);
+    DO_STAT(size_oat_class_method_offsets_);
+    #undef DO_STAT
+
+    LOG(INFO) << "size_total=" << PrettySize(size_total) << " (" << size_total << "B)"; \
+    CHECK_EQ(size_total, static_cast<uint32_t>(out.Seek(0, kSeekCurrent)));
+  }
+
   return true;
 }
 
 bool OatWriter::WriteTables(OutputStream& out) {
   for (size_t i = 0; i != oat_dex_files_.size(); ++i) {
-    if (!oat_dex_files_[i]->Write(out)) {
+    if (!oat_dex_files_[i]->Write(this, out)) {
       PLOG(ERROR) << "Failed to write oat dex information to " << out.GetLocation();
       return false;
     }
@@ -436,9 +524,10 @@ bool OatWriter::WriteTables(OutputStream& out) {
       PLOG(ERROR) << "Failed to write dex file " << dex_file->GetLocation() << " to " << out.GetLocation();
       return false;
     }
+    size_dex_file_ += dex_file->GetHeader().file_size_;
   }
   for (size_t i = 0; i != oat_classes_.size(); ++i) {
-    if (!oat_classes_[i]->Write(out)) {
+    if (!oat_classes_[i]->Write(this, out)) {
       PLOG(ERROR) << "Failed to write oat methods information to " << out.GetLocation();
       return false;
     }
@@ -448,13 +537,59 @@ bool OatWriter::WriteTables(OutputStream& out) {
 
 size_t OatWriter::WriteCode(OutputStream& out) {
   uint32_t offset = oat_header_->GetExecutableOffset();
-  off_t new_offset = out.Seek(executable_offset_padding_length_, kSeekCurrent);
+  off_t new_offset = out.Seek(size_executable_offset_alignment_, kSeekCurrent);
   if (static_cast<uint32_t>(new_offset) != offset) {
     PLOG(ERROR) << "Failed to seek to oat code section. Actual: " << new_offset
                 << " Expected: " << offset << " File: " << out.GetLocation();
     return 0;
   }
   DCHECK_OFFSET();
+  if (compiler_driver_->IsImage()) {
+    InstructionSet instruction_set = compiler_driver_->GetInstructionSet();
+    if (!out.WriteFully(&(*interpreter_to_interpreter_entry_)[0], interpreter_to_interpreter_entry_->size())) {
+      PLOG(ERROR) << "Failed to write interpreter to interpreter entry to " << out.GetLocation();
+      return false;
+    }
+    size_interpreter_to_interpreter_entry_ += interpreter_to_interpreter_entry_->size();
+    offset += interpreter_to_interpreter_entry_->size();
+    DCHECK_OFFSET();
+
+    uint32_t aligned_offset = CompiledCode::AlignCode(offset, instruction_set);
+    uint32_t alignment_padding = aligned_offset - offset;
+    out.Seek(alignment_padding, kSeekCurrent);
+    size_stubs_alignment_ += alignment_padding;
+    if (!out.WriteFully(&(*interpreter_to_quick_entry_)[0], interpreter_to_quick_entry_->size())) {
+      PLOG(ERROR) << "Failed to write interpreter to quick entry to " << out.GetLocation();
+      return false;
+    }
+    size_interpreter_to_quick_entry_ += interpreter_to_quick_entry_->size();
+    offset += alignment_padding + interpreter_to_quick_entry_->size();
+    DCHECK_OFFSET();
+
+    aligned_offset = CompiledCode::AlignCode(offset, instruction_set);
+    alignment_padding = aligned_offset - offset;
+    out.Seek(alignment_padding, kSeekCurrent);
+    size_stubs_alignment_ += alignment_padding;
+    if (!out.WriteFully(&(*portable_resolution_trampoline_)[0], portable_resolution_trampoline_->size())) {
+      PLOG(ERROR) << "Failed to write portable resolution trampoline to " << out.GetLocation();
+      return false;
+    }
+    size_portable_resolution_trampoline_ += portable_resolution_trampoline_->size();
+    offset += alignment_padding + portable_resolution_trampoline_->size();
+    DCHECK_OFFSET();
+
+    aligned_offset = CompiledCode::AlignCode(offset, instruction_set);
+    alignment_padding = aligned_offset - offset;
+    out.Seek(alignment_padding, kSeekCurrent);
+    size_stubs_alignment_ += alignment_padding;
+    if (!out.WriteFully(&(*quick_resolution_trampoline_)[0], quick_resolution_trampoline_->size())) {
+      PLOG(ERROR) << "Failed to write quick resolution trampoline to " << out.GetLocation();
+      return false;
+    }
+    size_quick_resolution_trampoline_ += quick_resolution_trampoline_->size();
+    offset += alignment_padding + quick_resolution_trampoline_->size();
+    DCHECK_OFFSET();
+  }
   return offset;
 }
 
@@ -547,6 +682,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
     uint32_t aligned_code_delta = aligned_offset - offset;
     if (aligned_code_delta != 0) {
       off_t new_offset = out.Seek(aligned_code_delta, kSeekCurrent);
+      size_code_alignment_ += aligned_code_delta;
       if (static_cast<uint32_t>(new_offset) != aligned_offset) {
         PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
                     << " Expected: " << aligned_offset << " File: " << out.GetLocation();
@@ -572,12 +708,14 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
         ReportWriteFailure("method code size", method_idx, dex_file, out);
         return 0;
       }
+      size_code_size_ += sizeof(code_size);
       offset += sizeof(code_size);
       DCHECK_OFFSET();
       if (!out.WriteFully(&code[0], code_size)) {
         ReportWriteFailure("method code", method_idx, dex_file, out);
         return 0;
       }
+      size_code_ += code_size;
       offset += code_size;
     }
     DCHECK_OFFSET();
@@ -602,6 +740,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
         ReportWriteFailure("mapping table", method_idx, dex_file, out);
         return 0;
       }
+      size_mapping_table_ += mapping_table_size;
       offset += mapping_table_size;
     }
     DCHECK_OFFSET();
@@ -625,6 +764,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
         ReportWriteFailure("vmap table", method_idx, dex_file, out);
         return 0;
       }
+      size_vmap_table_ += vmap_table_size;
       offset += vmap_table_size;
     }
     DCHECK_OFFSET();
@@ -648,6 +788,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
         ReportWriteFailure("GC map", method_idx, dex_file, out);
         return 0;
       }
+      size_gc_map_ += gc_map_size;
       offset += gc_map_size;
     }
     DCHECK_OFFSET();
@@ -683,29 +824,35 @@ void OatWriter::OatDexFile::UpdateChecksum(OatHeader& oat_header) const {
                             sizeof(methods_offsets_[0]) * methods_offsets_.size());
 }
 
-bool OatWriter::OatDexFile::Write(OutputStream& out) const {
+bool OatWriter::OatDexFile::Write(OatWriter* oat_writer, OutputStream& out) const {
   DCHECK_OFFSET_();
   if (!out.WriteFully(&dex_file_location_size_, sizeof(dex_file_location_size_))) {
     PLOG(ERROR) << "Failed to write dex file location length to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_dex_file_location_size_ += sizeof(dex_file_location_size_);
   if (!out.WriteFully(dex_file_location_data_, dex_file_location_size_)) {
     PLOG(ERROR) << "Failed to write dex file location data to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_dex_file_location_data_ += dex_file_location_size_;
   if (!out.WriteFully(&dex_file_location_checksum_, sizeof(dex_file_location_checksum_))) {
     PLOG(ERROR) << "Failed to write dex file location checksum to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_dex_file_location_checksum_ += sizeof(dex_file_location_checksum_);
   if (!out.WriteFully(&dex_file_offset_, sizeof(dex_file_offset_))) {
     PLOG(ERROR) << "Failed to write dex file offset to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_dex_file_offset_ += sizeof(dex_file_offset_);
   if (!out.WriteFully(&methods_offsets_[0],
                       sizeof(methods_offsets_[0]) * methods_offsets_.size())) {
     PLOG(ERROR) << "Failed to write methods offsets to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_dex_file_methods_offsets_ +=
+      sizeof(methods_offsets_[0]) * methods_offsets_.size();
   return true;
 }
 
@@ -736,12 +883,13 @@ void OatWriter::OatClass::UpdateChecksum(OatHeader& oat_header) const {
                             sizeof(method_offsets_[0]) * method_offsets_.size());
 }
 
-bool OatWriter::OatClass::Write(OutputStream& out) const {
+bool OatWriter::OatClass::Write(OatWriter* oat_writer, OutputStream& out) const {
   DCHECK_OFFSET_();
   if (!out.WriteFully(&status_, sizeof(status_))) {
     PLOG(ERROR) << "Failed to write class status to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_class_status_ += sizeof(status_);
   DCHECK_EQ(static_cast<off_t>(GetOatMethodOffsetsOffsetFromOatHeader(0)),
             out.Seek(0, kSeekCurrent));
   if (!out.WriteFully(&method_offsets_[0],
@@ -749,6 +897,7 @@ bool OatWriter::OatClass::Write(OutputStream& out) const {
     PLOG(ERROR) << "Failed to write method offsets to " << out.GetLocation();
     return false;
   }
+  oat_writer->size_oat_class_method_offsets_ += sizeof(method_offsets_[0]) * method_offsets_.size();
   DCHECK_EQ(static_cast<off_t>(GetOatMethodOffsetsOffsetFromOatHeader(method_offsets_.size())),
             out.Seek(0, kSeekCurrent));
   return true;

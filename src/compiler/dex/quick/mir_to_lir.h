@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
-#define ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
+#ifndef ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
+#define ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 
 #include "invoke_type.h"
 #include "compiled_method.h"
@@ -24,6 +24,7 @@
 #include "compiler/dex/backend.h"
 #include "compiler/dex/growable_array.h"
 #include "compiler/dex/arena_allocator.h"
+#include "compiler/driver/compiler_driver.h"
 #include "safe_map.h"
 
 namespace art {
@@ -98,7 +99,8 @@ struct RegisterInfo;
 class MIRGraph;
 class Mir2Lir;
 
-typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dex_idx,
+typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
+                            const CompilerDriver::MethodReference& target_method,
                             uint32_t method_idx, uintptr_t direct_code,
                             uintptr_t direct_method, InvokeType type);
 
@@ -312,8 +314,10 @@ class Mir2Lir : public Backend {
     void DumpRegPool(RegisterInfo* p, int num_regs);
     void DumpCoreRegPool();
     void DumpFpRegPool();
-    void ClobberBody(RegisterInfo* p);
-    void Clobber(int reg);
+    /* Mark a temp register as dead.  Does not affect allocation state. */
+    void Clobber(int reg) {
+      ClobberBody(GetRegInfo(reg));
+    }
     void ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg);
     void ClobberSReg(int s_reg);
     int SRegToPMap(int s_reg);
@@ -337,7 +341,6 @@ class Mir2Lir : public Backend {
     RegisterInfo* IsPromoted(int reg);
     bool IsDirty(int reg);
     void LockTemp(int reg);
-    void ResetDefBody(RegisterInfo* p);
     void ResetDef(int reg);
     void NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
@@ -410,7 +413,8 @@ class Mir2Lir : public Backend {
     void GenThrow(RegLocation rl_src);
     void GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
                        RegLocation rl_src);
-    void GenCheckCast(uint32_t type_idx, RegLocation rl_src);
+    void GenCheckCast(uint32_t insn_idx, uint32_t type_idx,
+                      RegLocation rl_src);
     void GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
                       RegLocation rl_src1, RegLocation rl_src2);
     void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
@@ -462,11 +466,15 @@ class Mir2Lir : public Backend {
     void GenInvoke(CallInfo* info);
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                             NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                             NextCallInsn next_call_insn,
+                             const CompilerDriver::MethodReference& target_method,
+                             uint32_t vtable_idx,
                              uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                              bool skip_this);
     int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                           NextCallInsn next_call_insn,
+                           const CompilerDriver::MethodReference& target_method,
+                           uint32_t vtable_idx,
                            uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                            bool skip_this);
     RegLocation InlineTarget(CallInfo* info);
@@ -486,7 +494,9 @@ class Mir2Lir : public Backend {
                              bool is_volatile, bool is_ordered);
     bool GenIntrinsic(CallInfo* info);
     int LoadArgRegs(CallInfo* info, int call_state,
-                    NextCallInsn next_call_insn, uint32_t dex_idx, uint32_t method_idx,
+                    NextCallInsn next_call_insn,
+                    const CompilerDriver::MethodReference& target_method,
+                    uint32_t vtable_idx,
                     uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                     bool skip_this);
 
@@ -681,11 +691,6 @@ class Mir2Lir : public Backend {
     // Temp workaround
     void Workaround7250540(RegLocation rl_dest, int value);
 
-    // TODO: add accessors for these.
-    LIR* literal_list_;                        // Constants.
-    LIR* method_literal_list_;                 // Method literals requiring patching.
-    LIR* code_literal_list_;                   // Code literals requiring patching.
-
   protected:
     Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -693,6 +698,28 @@ class Mir2Lir : public Backend {
       return cu_;
     }
 
+  private:
+    void GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
+                            RegLocation rl_src);
+    void GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                    bool type_known_abstract, bool use_declaring_class,
+                                    bool can_assume_type_is_in_dex_cache,
+                                    uint32_t type_idx, RegLocation rl_dest,
+                                    RegLocation rl_src);
+
+    void ClobberBody(RegisterInfo* p);
+    void ResetDefBody(RegisterInfo* p) {
+      p->def_start = NULL;
+      p->def_end = NULL;
+    }
+
+  public:
+    // TODO: add accessors for these.
+    LIR* literal_list_;                        // Constants.
+    LIR* method_literal_list_;                 // Method literals requiring patching.
+    LIR* code_literal_list_;                   // Code literals requiring patching.
+
+  protected:
     CompilationUnit* const cu_;
     MIRGraph* const mir_graph_;
     GrowableArray<SwitchTable*> switch_tables_;
@@ -749,4 +776,4 @@ class Mir2Lir : public Backend {
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_QUICK_CODEGEN_H_
+#endif  //ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_H_

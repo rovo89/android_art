@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
 #include "thread.h"
 
+#include <cutils/trace.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -35,8 +38,9 @@
 #include "debugger.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
+#include "gc/space/space.h"
 #include "invoke_arg_array_builder.h"
 #include "jni_internal.h"
 #include "mirror/abstract_method-inl.h"
@@ -53,8 +57,8 @@
 #include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
 #include "thread-inl.h"
@@ -169,7 +173,7 @@ void* Thread::CreateCallback(void* arg) {
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa,
                                   mirror::Object* thread_peer) {
-  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  mirror::Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer);
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
@@ -275,9 +279,9 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   child_thread->jpeer_ = env->NewGlobalRef(java_peer);
   stack_size = FixStackSize(stack_size);
 
-  // Thread.start is synchronized, so we know that vmData is 0, and know that we're not racing to
+  // Thread.start is synchronized, so we know that nativePeer is 0, and know that we're not racing to
   // assign it.
-  env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_vmData,
+  env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer,
                    reinterpret_cast<jint>(child_thread));
 
   pthread_t new_pthread;
@@ -300,7 +304,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     delete child_thread;
     child_thread = NULL;
     // TODO: remove from thread group?
-    env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_vmData, 0);
+    env->SetIntField(java_peer, WellKnownClasses::java_lang_Thread_nativePeer, 0);
     {
       std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
                                    PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
@@ -405,7 +409,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   Thread* self = this;
   DCHECK_EQ(self, Thread::Current());
-  jni_env_->SetIntField(peer.get(), WellKnownClasses::java_lang_Thread_vmData,
+  jni_env_->SetIntField(peer.get(), WellKnownClasses::java_lang_Thread_nativePeer,
                         reinterpret_cast<jint>(self));
 
   ScopedObjectAccess soa(self);
@@ -573,6 +577,13 @@ void Thread::ModifySuspendCount(Thread* self, int delta, bool for_debugger) {
   }
 }
 
+void Thread::RunCheckpointFunction() {
+  CHECK(checkpoint_function_ != NULL);
+  ATRACE_BEGIN("Checkpoint function");
+  checkpoint_function_->Run(this);
+  ATRACE_END();
+}
+
 bool Thread::RequestCheckpoint(Closure* function) {
   CHECK(!ReadFlag(kCheckpointRequest)) << "Already have a pending checkpoint request";
   checkpoint_function_ = function;
@@ -588,10 +599,12 @@ bool Thread::RequestCheckpoint(Closure* function) {
 
 void Thread::FullSuspendCheck() {
   VLOG(threads) << this << " self-suspending";
+  ATRACE_BEGIN("Full suspend check");
   // Make thread appear suspended to other threads, release mutator_lock_.
   TransitionFromRunnableToSuspended(kSuspended);
   // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
   TransitionFromSuspendedToRunnable();
+  ATRACE_END();
   VLOG(threads) << this << " self-reviving";
 }
 
@@ -605,10 +618,22 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
     Thread* thread;
     {
       ScopedObjectAccess soa(Thread::Current());
-      MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
+      Thread* self = soa.Self();
+      MutexLock mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == NULL) {
-        LOG(WARNING) << "No such thread for suspend: " << peer;
+        JNIEnv* env = self->GetJniEnv();
+        ScopedLocalRef<jstring> scoped_name_string(env,
+                                                   (jstring)env->GetObjectField(peer,
+                                                              WellKnownClasses::java_lang_Thread_name));
+        ScopedUtfChars scoped_name_chars(env,scoped_name_string.get());
+        if (scoped_name_chars.c_str() == NULL) {
+            LOG(WARNING) << "No such thread for suspend: " << peer;
+            env->ExceptionClear();
+        } else {
+            LOG(WARNING) << "No such thread for suspend: " << peer << ":" << scoped_name_chars.c_str();
+        }
+
         return NULL;
       }
       {
@@ -865,9 +890,10 @@ void Thread::DumpStack(std::ostream& os) const {
   // TODO: we call this code when dying but may not have suspended the thread ourself. The
   //       IsSuspended check is therefore racy with the use for dumping (normally we inhibit
   //       the race with the thread_suspend_count_lock_).
-  if (this == Thread::Current() || IsSuspended()) {
+  bool dump_for_abort = (gAborting > 0);
+  if (this == Thread::Current() || IsSuspended() || dump_for_abort) {
     // If we're currently in native code, dump that stack before dumping the managed stack.
-    if (ShouldShowNativeStack(this)) {
+    if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
       DumpNativeStack(os, GetTid(), "  native: ", false);
     }
@@ -1013,8 +1039,8 @@ void Thread::Destroy() {
     HandleUncaughtExceptions(soa);
     RemoveFromThreadGroup(soa);
 
-    // this.vmData = 0;
-    soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData)->SetInt(opeer_, 0);
+    // this.nativePeer = 0;
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_nativePeer)->SetInt(opeer_, 0);
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
@@ -1643,10 +1669,14 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pShlLong),
   ENTRY_POINT_INFO(pShrLong),
   ENTRY_POINT_INFO(pUshrLong),
+  ENTRY_POINT_INFO(pInterpreterToInterpreterEntry),
+  ENTRY_POINT_INFO(pInterpreterToQuickEntry),
   ENTRY_POINT_INFO(pIndexOf),
   ENTRY_POINT_INFO(pMemcmp16),
   ENTRY_POINT_INFO(pStringCompareTo),
   ENTRY_POINT_INFO(pMemcpy),
+  ENTRY_POINT_INFO(pPortableResolutionTrampolineFromCode),
+  ENTRY_POINT_INFO(pQuickResolutionTrampolineFromCode),
   ENTRY_POINT_INFO(pInvokeDirectTrampolineWithAccessCheck),
   ENTRY_POINT_INFO(pInvokeInterfaceTrampoline),
   ENTRY_POINT_INFO(pInvokeInterfaceTrampolineWithAccessCheck),
@@ -2180,7 +2210,7 @@ void Thread::VisitRoots(RootVisitor* visitor, void* arg) {
 }
 
 static void VerifyObject(const mirror::Object* root, void* arg) {
-  Heap* heap = reinterpret_cast<Heap*>(arg);
+  gc::Heap* heap = reinterpret_cast<gc::Heap*>(arg);
   heap->VerifyObject(root);
 }
 

@@ -15,6 +15,7 @@
  */
 
 #include "codegen_x86.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "x86_lir.h"
 
 namespace art {

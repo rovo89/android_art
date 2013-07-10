@@ -27,8 +27,8 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "field-inl.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
 #include "iftable-inl.h"
 #include "abstract_method-inl.h"
 #include "object-inl.h"
@@ -283,7 +283,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   uint32_t field_idx = dex_file->GetIndexForFieldId(*field_id);
 
   Field* field = FindFieldFromCode(field_idx, clinit, Thread::Current(), StaticObjectRead,
-                                   sizeof(Object*));
+                                   sizeof(Object*), true);
   Object* s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != NULL);
 

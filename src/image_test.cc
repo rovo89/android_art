@@ -22,7 +22,7 @@
 #include "image_writer.h"
 #include "oat_writer.h"
 #include "signal_catcher.h"
-#include "gc/space.h"
+#include "gc/space/image_space.h"
 #include "UniquePtr.h"
 #include "utils.h"
 #include "vector_output_stream.h"
@@ -43,27 +43,19 @@ TEST_F(ImageTest, WriteRead) {
   {
     std::vector<uint8_t> oat_contents;
     {
+      jobject class_loader = NULL;
+      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+      compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
+
       ScopedObjectAccess soa(Thread::Current());
-      std::vector<const DexFile*> dex_files;
-      dex_files.push_back(java_lang_dex_file_);
-      dex_files.push_back(conscrypt_file_);
       VectorOutputStream output_stream(tmp_elf.GetFilename(), oat_contents);
-      bool success_oat = OatWriter::Create(output_stream, dex_files, 0, 0, "", *compiler_driver_.get());
+      bool success_oat = OatWriter::Create(output_stream, class_linker->GetBootClassPath(),
+                                           0, 0, "", *compiler_driver_.get());
       ASSERT_TRUE(success_oat);
 
-      // Force all system classes into memory
-      for (size_t dex_file_index = 0; dex_file_index < dex_files.size(); ++dex_file_index) {
-        const DexFile* dex_file = dex_files[dex_file_index];
-        for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); ++class_def_index) {
-          const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-          const char* descriptor = dex_file->GetClassDescriptor(class_def);
-          mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
-          EXPECT_TRUE(klass != NULL) << descriptor;
-        }
-      }
       bool success_elf = compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                                     !kIsTargetBuild,
-                                                    dex_files,
+                                                    class_linker->GetBootClassPath(),
                                                     oat_contents,
                                                     tmp_elf.GetFile());
       ASSERT_TRUE(success_elf);
@@ -76,10 +68,9 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
   {
-    ImageWriter writer(NULL);
+    ImageWriter writer(*compiler_driver_.get());
     bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
-                                      tmp_oat->GetPath(), tmp_oat->GetPath(),
-                                      *compiler_driver_.get());
+                                      tmp_oat->GetPath(), tmp_oat->GetPath());
     ASSERT_TRUE(success_image);
     bool success_fixup = compiler_driver_->FixupElf(tmp_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
@@ -92,14 +83,17 @@ TEST_F(ImageTest, WriteRead) {
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
 
-    Heap* heap = Runtime::Current()->GetHeap();
-    ASSERT_EQ(1U, heap->GetSpaces().size());
-    ContinuousSpace* space = heap->GetSpaces().front();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    ASSERT_EQ(1U, heap->GetContinuousSpaces().size());
+    gc::space::ContinuousSpace* space = heap->GetContinuousSpaces().front();
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
-    ASSERT_TRUE(space->IsAllocSpace());
+    ASSERT_TRUE(space->IsDlMallocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->GetLength()));
   }
+
+  ASSERT_TRUE(compiler_driver_->GetImageClasses() != NULL);
+  CompilerDriver::DescriptorSet image_classes(*compiler_driver_->GetImageClasses());
 
   // Need to delete the compiler since it has worker threads which are attached to runtime.
   compiler_driver_.reset();
@@ -131,14 +125,14 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  ASSERT_EQ(2U, heap->GetSpaces().size());
-  ASSERT_TRUE(heap->GetSpaces()[0]->IsImageSpace());
-  ASSERT_FALSE(heap->GetSpaces()[0]->IsAllocSpace());
-  ASSERT_FALSE(heap->GetSpaces()[1]->IsImageSpace());
-  ASSERT_TRUE(heap->GetSpaces()[1]->IsAllocSpace());
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  ASSERT_EQ(2U, heap->GetContinuousSpaces().size());
+  ASSERT_TRUE(heap->GetContinuousSpaces()[0]->IsImageSpace());
+  ASSERT_FALSE(heap->GetContinuousSpaces()[0]->IsDlMallocSpace());
+  ASSERT_FALSE(heap->GetContinuousSpaces()[1]->IsImageSpace());
+  ASSERT_TRUE(heap->GetContinuousSpaces()[1]->IsDlMallocSpace());
 
-  ImageSpace* image_space = heap->GetImageSpace();
+  gc::space::ImageSpace* image_space = heap->GetImageSpace();
   byte* image_begin = image_space->Begin();
   byte* image_end = image_space->End();
   CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));
@@ -148,7 +142,13 @@ TEST_F(ImageTest, WriteRead) {
     mirror::Class* klass = class_linker_->FindSystemClass(descriptor);
     EXPECT_TRUE(klass != NULL) << descriptor;
     EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
-    EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
+    if (image_classes.find(descriptor) != image_classes.end()) {
+      // image classes should be located before the end of the image.
+      EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
+    } else {
+      // non image classes should be in a space after the image.
+      EXPECT_GT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
+    }
     EXPECT_EQ(*klass->GetRawLockWordAddress(), 0);  // address should have been removed from monitor
   }
 }

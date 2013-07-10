@@ -15,7 +15,7 @@
  */
 
 #include "atomic.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"

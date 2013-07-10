@@ -22,7 +22,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '0', '5', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '0', '6', '\0' };
 
 OatHeader::OatHeader() {
   memset(this, 0, sizeof(*this));
@@ -57,6 +57,10 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   UpdateChecksum(image_file_location.data(), image_file_location_size_);
 
   executable_offset_ = 0;
+  interpreter_to_interpreter_entry_offset_ = 0;
+  interpreter_to_quick_entry_offset_ = 0;
+  portable_resolution_trampoline_offset_ = 0;
+  quick_resolution_trampoline_offset_ = 0;
 }
 
 bool OatHeader::IsValid() const {
@@ -97,6 +101,92 @@ uint32_t OatHeader::GetExecutableOffset() const {
   return executable_offset_;
 }
 
+void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
+  DCHECK_ALIGNED(executable_offset, kPageSize);
+  CHECK_GT(executable_offset, sizeof(OatHeader));
+  DCHECK(IsValid());
+  DCHECK_EQ(executable_offset_, 0U);
+
+  executable_offset_ = executable_offset;
+  UpdateChecksum(&executable_offset_, sizeof(executable_offset));
+}
+
+const void* OatHeader::GetInterpreterToInterpreterEntry() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToInterpreterEntryOffset();
+}
+
+uint32_t OatHeader::GetInterpreterToInterpreterEntryOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(interpreter_to_interpreter_entry_offset_, executable_offset_);
+  return interpreter_to_interpreter_entry_offset_;
+}
+
+void OatHeader::SetInterpreterToInterpreterEntryOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= executable_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(interpreter_to_interpreter_entry_offset_, 0U) << offset;
+
+  interpreter_to_interpreter_entry_offset_ = offset;
+  UpdateChecksum(&interpreter_to_interpreter_entry_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetInterpreterToQuickEntry() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetInterpreterToQuickEntryOffset();
+}
+
+uint32_t OatHeader::GetInterpreterToQuickEntryOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(interpreter_to_quick_entry_offset_, interpreter_to_interpreter_entry_offset_);
+  return interpreter_to_quick_entry_offset_;
+}
+
+void OatHeader::SetInterpreterToQuickEntryOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= interpreter_to_interpreter_entry_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(interpreter_to_quick_entry_offset_, 0U) << offset;
+
+  interpreter_to_quick_entry_offset_ = offset;
+  UpdateChecksum(&interpreter_to_quick_entry_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetPortableResolutionTrampoline() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetPortableResolutionTrampolineOffset();
+}
+
+uint32_t OatHeader::GetPortableResolutionTrampolineOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(portable_resolution_trampoline_offset_, interpreter_to_quick_entry_offset_);
+  return portable_resolution_trampoline_offset_;
+}
+
+void OatHeader::SetPortableResolutionTrampolineOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= interpreter_to_quick_entry_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(portable_resolution_trampoline_offset_, 0U) << offset;
+
+  portable_resolution_trampoline_offset_ = offset;
+  UpdateChecksum(&portable_resolution_trampoline_offset_, sizeof(offset));
+}
+
+const void* OatHeader::GetQuickResolutionTrampoline() const {
+  return reinterpret_cast<const uint8_t*>(this) + GetQuickResolutionTrampolineOffset();
+}
+
+uint32_t OatHeader::GetQuickResolutionTrampolineOffset() const {
+  DCHECK(IsValid());
+  CHECK_GE(quick_resolution_trampoline_offset_, portable_resolution_trampoline_offset_);
+  return quick_resolution_trampoline_offset_;
+}
+
+void OatHeader::SetQuickResolutionTrampolineOffset(uint32_t offset) {
+  CHECK(offset == 0 || offset >= portable_resolution_trampoline_offset_);
+  DCHECK(IsValid());
+  DCHECK_EQ(quick_resolution_trampoline_offset_, 0U) << offset;
+
+  quick_resolution_trampoline_offset_ = offset;
+  UpdateChecksum(&quick_resolution_trampoline_offset_, sizeof(offset));
+}
+
 uint32_t OatHeader::GetImageFileLocationOatChecksum() const {
   CHECK(IsValid());
   return image_file_location_oat_checksum_;
@@ -121,16 +211,6 @@ std::string OatHeader::GetImageFileLocation() const {
   CHECK(IsValid());
   return std::string(reinterpret_cast<const char*>(GetImageFileLocationData()),
                      GetImageFileLocationSize());
-}
-
-void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
-  DCHECK_ALIGNED(executable_offset, kPageSize);
-  CHECK_GT(executable_offset, sizeof(OatHeader));
-  DCHECK(IsValid());
-  DCHECK_EQ(executable_offset_, 0U);
-
-  executable_offset_ = executable_offset;
-  UpdateChecksum(&executable_offset_, sizeof(executable_offset));
 }
 
 OatMethodOffsets::OatMethodOffsets()

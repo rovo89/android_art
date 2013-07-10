@@ -90,7 +90,7 @@ struct WellKnownClasses {
   static jfieldID java_lang_Thread_name;
   static jfieldID java_lang_Thread_priority;
   static jfieldID java_lang_Thread_uncaughtHandler;
-  static jfieldID java_lang_Thread_vmData;
+  static jfieldID java_lang_Thread_nativePeer;
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
   static jfieldID java_lang_ThreadGroup_systemThreadGroup;

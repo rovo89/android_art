@@ -17,6 +17,7 @@
 /* This file contains codegen for the Mips ISA */
 
 #include "codegen_mips.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 
@@ -319,7 +320,7 @@ void MipsMir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
   int reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   LoadWordDisp(rMIPS_SELF, Thread::CardTableOffset().Int32Value(), reg_card_base);
-  OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, CardTable::kCardShift);
+  OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0,
                    kUnsignedByte);
   LIR* target = NewLIR0(kPseudoTargetLabel);

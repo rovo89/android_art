@@ -28,7 +28,7 @@
 #include "base/stringpiece.h"
 #include "class_linker.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "invoke_arg_array_builder.h"
 #include "jni.h"
 #include "mirror/class-inl.h"

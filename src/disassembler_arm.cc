@@ -1223,7 +1223,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         args << Rt << ", [" << Rn << ", #" << imm5 << "]";
       }
     } else if (opcode1 >= 0x34 && opcode1 <= 0x37) {  // 1101xx
-      uint32_t imm8 = instr & 0xFF;
+      int8_t imm8 = instr & 0xFF;
       uint32_t cond = (instr >> 8) & 0xF;
       opcode << "b";
       DumpCond(opcode, cond);
@@ -1260,7 +1260,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           uint16_t imm5 = (instr >> 3) & 0x1F;
           ThumbRegister Rn(instr, 0);
           opcode << (op != 0 ? "cbnz" : "cbz");
-          uint32_t imm32 = (i << 7) | (imm5 << 1);
+          uint32_t imm32 = (i << 6) | (imm5 << 1);
           args << Rn << ", ";
           DumpBranchTarget(args, instr_ptr + 4, imm32);
           break;

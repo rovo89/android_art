@@ -26,17 +26,18 @@
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
-#include "gc/large_object_space.h"
-#include "gc/space.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/accounting/heap_bitmap.h"
+#include "gc/heap.h"
+#include "gc/space/large_object_space.h"
+#include "gc/space/space-inl.h"
 #include "globals.h"
-#include "heap.h"
 #include "image.h"
 #include "intern_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
+#include "mirror/dex_cache-inl.h"
 #include "mirror/field-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
@@ -57,15 +58,11 @@ namespace art {
 bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
-                        const std::string& oat_location,
-                        const CompilerDriver& compiler_driver) {
+                        const std::string& oat_location) {
   CHECK(!image_filename.empty());
 
   CHECK_NE(image_begin, 0U);
   image_begin_ = reinterpret_cast<byte*>(image_begin);
-
-  Heap* heap = Runtime::Current()->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
@@ -81,6 +78,10 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
   oat_file_ = OatFile::OpenWritable(oat_file.get(), oat_location);
   class_linker->RegisterOatFile(*oat_file_);
+  interpreter_to_interpreter_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToInterpreterEntryOffset();
+  interpreter_to_quick_entry_offset_ = oat_file_->GetOatHeader().GetInterpreterToQuickEntryOffset();
+  portable_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
+  quick_resolution_trampoline_offset_ = oat_file_->GetOatHeader().GetQuickResolutionTrampolineOffset();
 
   {
     Thread::Current()->TransitionFromSuspendedToRunnable();
@@ -89,12 +90,16 @@ bool ImageWriter::Write(const std::string& image_filename,
     ComputeEagerResolvedStrings();
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
-  heap->CollectGarbage(false);  // Remove garbage
-  // Trim size of alloc spaces
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  heap->CollectGarbage(false);  // Remove garbage.
+  // Trim size of alloc spaces.
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      (*cur)->AsAllocSpace()->Trim();
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+    gc::space::ContinuousSpace* space = *it;
+    if (space->IsDlMallocSpace()) {
+      space->AsDlMallocSpace()->Trim();
     }
   }
 
@@ -110,10 +115,10 @@ bool ImageWriter::Write(const std::string& image_filename,
   Thread::Current()->TransitionFromSuspendedToRunnable();
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
-  compiler_driver.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
+  compiler_driver_.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
   CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
-  PatchOatCodeAndMethods(compiler_driver);
+  PatchOatCodeAndMethods();
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
 
   UniquePtr<File> image_file(OS::OpenFile(image_filename.c_str(), true));
@@ -134,11 +139,15 @@ bool ImageWriter::Write(const std::string& image_filename,
 }
 
 bool ImageWriter::AllocMemory() {
-  const Spaces& spaces = Runtime::Current()->GetHeap()->GetSpaces();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   size_t size = 0;
-  for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-    if ((*it)->IsAllocSpace()) {
-      size += (*it)->Size();
+  // TODO: C++0x auto
+  typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+  for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+    gc::space::ContinuousSpace* space = *it;
+    if (space->IsDlMallocSpace()) {
+      size += space->Size();
     }
   }
 
@@ -168,13 +177,13 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
     return;
   }
   String* string = obj->AsString();
-  std::string utf8_string(string->ToModifiedUtf8());
+  const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
   ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = writer->dex_caches_.begin(), end = writer->dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
     const DexFile& dex_file = *dex_cache->GetDexFile();
-    const DexFile::StringId* string_id = dex_file.FindStringId(utf8_string);
+    const DexFile::StringId* string_id = dex_file.FindStringId(utf16_string);
     if (string_id != NULL) {
       // This string occurs in this dex file, assign the dex cache entry.
       uint32_t string_idx = dex_file.GetIndexForStringId(*string_id);
@@ -188,26 +197,15 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 void ImageWriter::ComputeEagerResolvedStrings()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: Check image spaces only?
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
 
 bool ImageWriter::IsImageClass(const Class* klass) {
-  if (image_classes_ == NULL) {
-    return true;
-  }
-  while (klass->IsArrayClass()) {
-    klass = klass->GetComponentType();
-  }
-  if (klass->IsPrimitive()) {
-    return true;
-  }
-  const std::string descriptor(ClassHelper(klass).GetDescriptor());
-  return image_classes_->find(descriptor) != image_classes_->end();
+  return compiler_driver_.IsImageClass(ClassHelper(klass).GetDescriptor());
 }
-
 
 struct NonImageClasses {
   ImageWriter* image_writer;
@@ -215,21 +213,11 @@ struct NonImageClasses {
 };
 
 void ImageWriter::PruneNonImageClasses() {
-  if (image_classes_ == NULL) {
+  if (compiler_driver_.GetImageClasses() == NULL) {
     return;
   }
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-
-  // Update image_classes_ with classes for objects created by <clinit> methods.
-  Thread* self = Thread::Current();
-  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
-  Heap* heap = Runtime::Current()->GetHeap();
-  // TODO: Image spaces only?
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-  heap->FlushAllocStack();
-  heap->GetLiveBitmap()->Walk(FindClinitImageClassesCallback, this);
-  self->EndAssertNoThreadSuspension(old_cause);
 
   // Make a list of classes we would like to prune.
   std::set<std::string> non_image_classes;
@@ -271,28 +259,6 @@ void ImageWriter::PruneNonImageClasses() {
   }
 }
 
-void ImageWriter::FindClinitImageClassesCallback(Object* object, void* arg) {
-  DCHECK(object != NULL);
-  DCHECK(arg != NULL);
-  ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
-  Class* klass = object->GetClass();
-  while (klass->IsArrayClass()) {
-    klass = klass->GetComponentType();
-  }
-  if (klass->IsPrimitive()) {
-    return;
-  }
-  while (!klass->IsObjectClass()) {
-    ClassHelper kh(klass);
-    const char* descriptor = kh.GetDescriptor();
-    std::pair<DescriptorSet::iterator, bool> result = image_writer->image_classes_->insert(descriptor);
-    if (result.second) {
-      LOG(INFO) << "Adding " << descriptor << " to image classes";
-    }
-    klass = klass->GetSuperClass();
-  }
-}
-
 bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   NonImageClasses* context = reinterpret_cast<NonImageClasses*>(arg);
   if (!context->image_writer->IsImageClass(klass)) {
@@ -303,11 +269,11 @@ bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
 
 void ImageWriter::CheckNonImageClassesRemoved()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (image_classes_ == NULL) {
+  if (compiler_driver_.GetImageClasses() == NULL) {
     return;
   }
 
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   Thread* self = Thread::Current();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -332,8 +298,10 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
 }
 
 void ImageWriter::DumpImageClasses() {
+  CompilerDriver::DescriptorSet* image_classes = compiler_driver_.GetImageClasses();
+  CHECK(image_classes != NULL);
   typedef std::set<std::string>::const_iterator It;  // TODO: C++0x auto
-  for (It it = image_classes_->begin(), end = image_classes_->end(); it != end; ++it) {
+  for (It it = image_classes->begin(), end = image_classes->end(); it != end; ++it) {
     LOG(INFO) << " " << *it;
   }
 }
@@ -410,8 +378,8 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   Thread* self = Thread::Current();
   SirtRef<ObjectArray<Object> > image_roots(self, CreateImageRoots());
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
   DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
@@ -426,8 +394,11 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
     // TODO: Add InOrderWalk to heap bitmap.
     const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK(heap->GetLargeObjectsSpace()->GetLiveObjects()->IsEmpty());
-    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-      (*it)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
+    // TODO: C++0x auto
+    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+    for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+      gc::space::ContinuousSpace* space = *it;
+      space->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }
     self->EndAssertNoThreadSuspension(old);
@@ -455,7 +426,7 @@ void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
@@ -512,17 +483,34 @@ void ImageWriter::FixupMethod(const AbstractMethod* orig, AbstractMethod* copy) 
   if (orig->IsAbstract()) {
     // Code for abstract methods is set to the abstract method error stub when we load the image.
     copy->SetEntryPointFromCompiledCode(NULL);
+    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+                                       (GetOatAddress(interpreter_to_interpreter_entry_offset_)));
     return;
+  } else {
+    copy->SetEntryPointFromInterpreter(reinterpret_cast<EntryPointFromInterpreter*>
+                                       (GetOatAddress(interpreter_to_quick_entry_offset_)));
   }
 
   if (orig == Runtime::Current()->GetResolutionMethod()) {
-    // The resolution method's code is set to the resolution trampoline when we load the image.
-    copy->SetEntryPointFromCompiledCode(NULL);
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
     return;
   }
 
-  // Non-abstract methods have code
-  copy->SetEntryPointFromCompiledCode(GetOatAddress(orig->GetOatCodeOffset()));
+  // Use original code if it exists. Otherwise, set the code pointer to the resolution trampoline.
+  const byte* code = GetOatAddress(orig->GetOatCodeOffset());
+  if (code != NULL) {
+    copy->SetEntryPointFromCompiledCode(code);
+  } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(portable_resolution_trampoline_offset_));
+#else
+    copy->SetEntryPointFromCompiledCode(GetOatAddress(quick_resolution_trampoline_offset_));
+#endif
+  }
 
   if (orig->IsNative()) {
     // The native method's pointer is set to a stub to lookup via dlsym when we load the image.
@@ -638,13 +626,13 @@ static AbstractMethod* GetTargetMethod(const CompilerDriver::PatchInformation* p
   return method;
 }
 
-void ImageWriter::PatchOatCodeAndMethods(const CompilerDriver& compiler) {
+void ImageWriter::PatchOatCodeAndMethods() {
   Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
 
   typedef std::vector<const CompilerDriver::PatchInformation*> Patches;
-  const Patches& code_to_patch = compiler.GetCodeToPatch();
+  const Patches& code_to_patch = compiler_driver_.GetCodeToPatch();
   for (size_t i = 0; i < code_to_patch.size(); i++) {
     const CompilerDriver::PatchInformation* patch = code_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);
@@ -654,7 +642,7 @@ void ImageWriter::PatchOatCodeAndMethods(const CompilerDriver& compiler) {
     SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetOatAddress(code_offset)));
   }
 
-  const Patches& methods_to_patch = compiler.GetMethodsToPatch();
+  const Patches& methods_to_patch = compiler_driver_.GetMethodsToPatch();
   for (size_t i = 0; i < methods_to_patch.size(); i++) {
     const CompilerDriver::PatchInformation* patch = methods_to_patch[i];
     AbstractMethod* target = GetTargetMethod(patch);

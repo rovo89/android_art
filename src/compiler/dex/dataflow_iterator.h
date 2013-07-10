@@ -71,7 +71,7 @@ namespace art {
             idx_(0),
             changed_(false) {}
 
-      virtual BasicBlock* NextBody(bool had_change);
+      virtual BasicBlock* NextBody(bool had_change) ALWAYS_INLINE;
 
       MIRGraph* const mir_graph_;
       const bool is_iterative_;
@@ -86,7 +86,6 @@ namespace art {
 
   class ReachableNodesIterator : public DataflowIterator {
     public:
-
       ReachableNodesIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0,
                              mir_graph->GetNumReachableBlocks(), false) {
@@ -97,7 +96,6 @@ namespace art {
 
   class PreOrderDfsIterator : public DataflowIterator {
     public:
-
       PreOrderDfsIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0,
                              mir_graph->GetNumReachableBlocks(), false) {
@@ -119,7 +117,6 @@ namespace art {
 
   class ReversePostOrderDfsIterator : public DataflowIterator {
     public:
-
       ReversePostOrderDfsIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative,
                              mir_graph->GetNumReachableBlocks() -1, 0, true) {
@@ -130,7 +127,6 @@ namespace art {
 
   class PostOrderDOMIterator : public DataflowIterator {
     public:
-
       PostOrderDOMIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0,
                              mir_graph->GetNumReachableBlocks(), false) {
@@ -141,18 +137,17 @@ namespace art {
 
   class AllNodesIterator : public DataflowIterator {
     public:
-
       AllNodesIterator(MIRGraph* mir_graph, bool is_iterative)
           : DataflowIterator(mir_graph, is_iterative, 0, 0, false) {
         all_nodes_iterator_ =
             new (mir_graph->GetArena()) GrowableArray<BasicBlock*>::Iterator (mir_graph->GetBlockList());
       }
 
-      virtual void Reset() {
+      void Reset() {
         all_nodes_iterator_->Reset();
       }
 
-      virtual BasicBlock* NextBody(bool had_change);
+      BasicBlock* NextBody(bool had_change) ALWAYS_INLINE;
 
     private:
       GrowableArray<BasicBlock*>::Iterator* all_nodes_iterator_;

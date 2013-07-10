@@ -28,7 +28,7 @@
 #include <llvm/Support/ToolOutputFile.h>
 
 #include "compiler/dex/compiler_internals.h"
-#include "compiler/dex/dataflow_iterator.h"
+#include "compiler/dex/dataflow_iterator-inl.h"
 #include "compiler/dex/frontend.h"
 #include "mir_to_gbc.h"
 
@@ -1964,7 +1964,7 @@ void MirConverter::MethodMIR2Bitcode()
       ::llvm::Constant* imm_value = mir_graph_->reg_location_[i].wide ?
          irb_->getJLong(0) : irb_->getJInt(0);
       val = EmitConst(imm_value, mir_graph_->reg_location_[i]);
-      val->setName(mir_graph_->GetSSAString(i));
+      val->setName(mir_graph_->GetSSAName(i));
       llvm_values_.Insert(val);
     } else {
       // Recover previously-created argument values

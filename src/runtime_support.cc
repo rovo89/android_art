@@ -18,7 +18,7 @@
 
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "gc/card_table-inl.h"
+#include "gc/accounting/card_table-inl.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/field-inl.h"
@@ -142,7 +142,8 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::AbstractMet
 }
 
 mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMethod* referrer,
-                                 Thread* self, FindFieldType type, size_t expected_size) {
+                                 Thread* self, FindFieldType type, size_t expected_size,
+                                 bool access_check) {
   bool is_primitive;
   bool is_set;
   bool is_static;
@@ -162,12 +163,13 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
   if (UNLIKELY(resolved_field == NULL)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return NULL;  // Failure.
-  } else {
+  }
+  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  if (access_check) {
     if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
       ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
       return NULL;
     }
-    mirror::Class* fields_class = resolved_field->GetDeclaringClass();
     mirror::Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
                  !referring_class->CanAccessMember(fields_class,
@@ -203,21 +205,22 @@ mirror::Field* FindFieldFromCode(uint32_t field_idx, const mirror::AbstractMetho
                                  is_primitive ? "primitive" : "non-primitive",
                                  PrettyField(resolved_field, true).c_str());
         return NULL;  // failure
-      } else if (!is_static) {
-        // instance fields must be being accessed on an initialized class
-        return resolved_field;
-      } else {
-        // If the class is initialized we're done.
-        if (fields_class->IsInitialized()) {
-          return resolved_field;
-        } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true, true)) {
-          // Otherwise let's ensure the class is initialized before resolving the field.
-          return resolved_field;
-        } else {
-          DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-          return NULL;  // failure
-        }
       }
+    }
+  }
+  if (!is_static) {
+    // instance fields must be being accessed on an initialized class
+    return resolved_field;
+  } else {
+    // If the class is initialized we're done.
+    if (fields_class->IsInitialized()) {
+      return resolved_field;
+    } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true, true)) {
+      // Otherwise let's ensure the class is initialized before resolving the field.
+      return resolved_field;
+    } else {
+      DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+      return NULL;  // failure
     }
   }
 }

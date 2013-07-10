@@ -68,16 +68,16 @@ TEST_F(OatTest, WriteRead) {
   const bool compile = false;  // DISABLED_ due to the time to compile libcore
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
+  // TODO: make selectable
+#if defined(ART_USE_PORTABLE_COMPILER)
+  CompilerBackend compiler_backend = kPortable;
+#else
+  CompilerBackend compiler_backend = kQuick;
+#endif
+  compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, NULL, 2, false,
+                                            true, true));
   jobject class_loader = NULL;
   if (compile) {
-    // TODO: make selectable
-#if defined(ART_USE_PORTABLE_COMPILER)
-    CompilerBackend compiler_backend = kPortable;
-#else
-    CompilerBackend compiler_backend = kQuick;
-#endif
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, kThumb2, false, 2, false,
-                                              NULL, true, true));
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
 
@@ -143,7 +143,7 @@ TEST_F(OatTest, WriteRead) {
 TEST_F(OatTest, OatHeaderSizeCheck) {
   // If this test is failing and you have to update these constants,
   // it is time to update OatHeader::kOatVersion
-  EXPECT_EQ(36U, sizeof(OatHeader));
+  EXPECT_EQ(52U, sizeof(OatHeader));
   EXPECT_EQ(28U, sizeof(OatMethodOffsets));
 }
 

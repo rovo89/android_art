@@ -34,8 +34,9 @@
 #include "constants_mips.h"
 #include "constants_x86.h"
 #include "debugger.h"
-#include "gc/card_table-inl.h"
-#include "heap.h"
+#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
+#include "gc/space/space.h"
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
@@ -55,7 +56,6 @@
 #include "signal_catcher.h"
 #include "signal_set.h"
 #include "sirt_ref.h"
-#include "gc/space.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "trace.h"
@@ -210,29 +210,18 @@ void Runtime::Abort() {
     LOG(INTERNAL_FATAL) << "Unexpectedly returned from abort hook!";
   }
 
-#if defined(__BIONIC__)
-  // TODO: finish merging patches to fix abort(3) in bionic, then lose this!
-  // Bionic doesn't implement POSIX semantics for abort(3) in a multi-threaded
-  // process, so if we call abort(3) on a device, all threads in the process
-  // receive SIGABRT.  debuggerd dumps the stack trace of the main
-  // thread, whether or not that was the thread that failed.  By
-  // stuffing a value into a bogus address, we cause a segmentation
-  // fault in the current thread, and get a useful log from debuggerd.
-  // We can also trivially tell the difference between a crash and
-  // a deliberate abort by looking at the fault address.
-  *reinterpret_cast<char*>(0xdeadd00d) = 38;
-#elif defined(__APPLE__)
-  // TODO: check that this actually gives good stack traces on the Mac!
-  pthread_kill(pthread_self(), SIGABRT);
-#else
+#if defined(__GLIBC__)
   // TODO: we ought to be able to use pthread_kill(3) here (or abort(3),
   // which POSIX defines in terms of raise(3), which POSIX defines in terms
   // of pthread_kill(3)). On Linux, though, libcorkscrew can't unwind through
   // libpthread, which means the stacks we dump would be useless. Calling
   // tgkill(2) directly avoids that.
   syscall(__NR_tgkill, getpid(), GetTid(), SIGABRT);
-  // TODO: LLVM installs it's own SIGABRT handler so exit to be safe... Can we disable that?
+  // TODO: LLVM installs it's own SIGABRT handler so exit to be safe... Can we disable that in LLVM?
+  // If not, we could use sigaction(3) before calling tgkill(2) and lose this call to exit(3).
   exit(1);
+#else
+  abort();
 #endif
   // notreached
 }
@@ -343,11 +332,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
   parsed->check_jni_ = kIsDebugBuild;
 
-  parsed->heap_initial_size_ = Heap::kDefaultInitialSize;
-  parsed->heap_maximum_size_ = Heap::kDefaultMaximumSize;
-  parsed->heap_min_free_ = Heap::kDefaultMinFree;
-  parsed->heap_max_free_ = Heap::kDefaultMaxFree;
-  parsed->heap_target_utilization_ = Heap::kDefaultTargetUtilization;
+  parsed->heap_initial_size_ = gc::Heap::kDefaultInitialSize;
+  parsed->heap_maximum_size_ = gc::Heap::kDefaultMaximumSize;
+  parsed->heap_min_free_ = gc::Heap::kDefaultMinFree;
+  parsed->heap_max_free_ = gc::Heap::kDefaultMaxFree;
+  parsed->heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
   parsed->stack_size_ = 0; // 0 means default.
 
@@ -368,6 +357,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->small_mode_method_threshold_ = Runtime::kDefaultSmallModeMethodThreshold;
   parsed->small_mode_method_dex_size_limit_ = Runtime::kDefaultSmallModeMethodDexSizeLimit;
 
+  parsed->sea_ir_mode_ = false;
 //  gLogVerbosity.class_linker = true; // TODO: don't check this in!
 //  gLogVerbosity.compiler = true; // TODO: don't check this in!
 //  gLogVerbosity.heap = true; // TODO: don't check this in!
@@ -577,6 +567,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else if (option == "-small") {
       parsed->small_mode_ = true;
+    }else if (option == "-sea_ir") {
+      parsed->sea_ir_mode_ = true;
     } else if (StartsWith(option, "-small-mode-methods-max:")) {
       parsed->small_mode_method_threshold_ = ParseIntegerOrDie(option);
     } else if (StartsWith(option, "-small-mode-methods-size-max:")) {
@@ -815,6 +807,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   small_mode_method_threshold_ = options->small_mode_method_threshold_;
   small_mode_method_dex_size_limit_ = options->small_mode_method_dex_size_limit_;
 
+  sea_ir_mode_ = options->sea_ir_mode_;
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
   abort_ = options->hook_abort_;
@@ -831,14 +824,14 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     GetInstrumentation()->ForceInterpretOnly();
   }
 
-  heap_ = new Heap(options->heap_initial_size_,
-                   options->heap_growth_limit_,
-                   options->heap_min_free_,
-                   options->heap_max_free_,
-                   options->heap_target_utilization_,
-                   options->heap_maximum_size_,
-                   options->image_,
-                   options->is_concurrent_gc_enabled_);
+  heap_ = new gc::Heap(options->heap_initial_size_,
+                       options->heap_growth_limit_,
+                       options->heap_min_free_,
+                       options->heap_max_free_,
+                       options->heap_target_utilization_,
+                       options->heap_maximum_size_,
+                       options->image_,
+                       options->is_concurrent_gc_enabled_);
 
   BlockSignals();
   InitPlatformSignalHandlers();
@@ -860,8 +853,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // Now we're attached, we can take the heap lock and validate the heap.
   GetHeap()->EnableObjectValidation();
 
-  CHECK_GE(GetHeap()->GetSpaces().size(), 1U);
-  if (GetHeap()->GetSpaces()[0]->IsImageSpace()) {
+  CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
+  if (GetHeap()->GetContinuousSpaces()[0]->IsImageSpace()) {
     class_linker_ = ClassLinker::CreateFromImage(intern_table_);
   } else {
     CHECK(options->boot_class_path_ != NULL);
@@ -1073,12 +1066,13 @@ void Runtime::DetachCurrentThread() {
   thread_list_->Unregister(self);
 }
 
-void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg) {
-  if (intern_table_->IsDirty()) {
-    intern_table_->VisitRoots(visitor, arg);
+void Runtime::VisitConcurrentRoots(RootVisitor* visitor, void* arg, bool only_dirty,
+                                   bool clean_dirty) {
+  if (!only_dirty || intern_table_->IsDirty()) {
+    intern_table_->VisitRoots(visitor, arg, clean_dirty);
   }
-  if (class_linker_->IsDirty()) {
-    class_linker_->VisitRoots(visitor, arg);
+  if (!only_dirty || class_linker_->IsDirty()) {
+    class_linker_->VisitRoots(visitor, arg, clean_dirty);
   }
 }
 
@@ -1098,15 +1092,8 @@ void Runtime::VisitNonConcurrentRoots(RootVisitor* visitor, void* arg) {
   VisitNonThreadRoots(visitor, arg);
 }
 
-void Runtime::DirtyRoots() {
-  CHECK(intern_table_ != NULL);
-  intern_table_->Dirty();
-  CHECK(class_linker_ != NULL);
-  class_linker_->Dirty();
-}
-
-void Runtime::VisitRoots(RootVisitor* visitor, void* arg) {
-  VisitConcurrentRoots(visitor, arg);
+void Runtime::VisitRoots(RootVisitor* visitor, void* arg, bool only_dirty, bool clean_dirty) {
+  VisitConcurrentRoots(visitor, arg, only_dirty, clean_dirty);
   VisitNonConcurrentRoots(visitor, arg);
 }
 
@@ -1119,7 +1106,9 @@ mirror::AbstractMethod* Runtime::CreateResolutionMethod() {
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex16);
   // When compiling, the code pointer will get set later when the image is loaded.
-  method->SetEntryPointFromCompiledCode(Runtime::Current()->IsCompiler() ? NULL : GetResolutionTrampoline());
+  Runtime* r = Runtime::Current();
+  ClassLinker* cl = r->GetClassLinker();
+  method->SetEntryPointFromCompiledCode(r->IsCompiler() ? NULL : GetResolutionTrampoline(cl));
   return method.get();
 }
 

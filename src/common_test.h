@@ -28,8 +28,8 @@
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
+#include "gc/heap.h"
 #include "gtest/gtest.h"
-#include "heap.h"
 #include "instruction_set.h"
 #include "mirror/class_loader.h"
 #include "oat_file.h"
@@ -296,8 +296,8 @@ class CommonTest : public testing::Test {
     boot_class_path_.push_back(java_lang_dex_file_);
     boot_class_path_.push_back(conscrypt_file_);
 
-    std::string min_heap_string(StringPrintf("-Xms%zdm", Heap::kDefaultInitialSize / MB));
-    std::string max_heap_string(StringPrintf("-Xmx%zdm", Heap::kDefaultMaximumSize / MB));
+    std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
+    std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
 
     Runtime::Options options;
     options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
@@ -313,47 +313,50 @@ class CommonTest : public testing::Test {
     // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
     // give it away now and then switch to a more managable ScopedObjectAccess.
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-    // Whilst we're in native take the opportunity to initialize well known classes.
-    WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
-    ScopedObjectAccess soa(Thread::Current());
-    ASSERT_TRUE(runtime_.get() != NULL);
-    class_linker_ = runtime_->GetClassLinker();
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      ASSERT_TRUE(runtime_.get() != NULL);
+      class_linker_ = runtime_->GetClassLinker();
 
-    InstructionSet instruction_set = kNone;
+      InstructionSet instruction_set = kNone;
 #if defined(__arm__)
-    instruction_set = kThumb2;
+      instruction_set = kThumb2;
 #elif defined(__mips__)
-    instruction_set = kMips;
+      instruction_set = kMips;
 #elif defined(__i386__)
-    instruction_set = kX86;
+      instruction_set = kX86;
 #endif
 
-    // TODO: make selectable
+      // TODO: make selectable
 #if defined(ART_USE_PORTABLE_COMPILER)
-    CompilerBackend compiler_backend = kPortable;
+      CompilerBackend compiler_backend = kPortable;
 #else
-    CompilerBackend compiler_backend = kQuick;
+      CompilerBackend compiler_backend = kQuick;
 #endif
 
-    if (!runtime_->HasResolutionMethod()) {
-      runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
-    }
-    for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-      Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
-      if (!runtime_->HasCalleeSaveMethod(type)) {
-        runtime_->SetCalleeSaveMethod(
-            runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
+      if (!runtime_->HasResolutionMethod()) {
+        runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
       }
+      for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
+        Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
+        if (!runtime_->HasCalleeSaveMethod(type)) {
+          runtime_->SetCalleeSaveMethod(
+              runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
+        }
+      }
+      class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
+      compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set,
+                                                true, new CompilerDriver::DescriptorSet,
+                                                2, false, true, true));
     }
-    class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-    image_classes_.reset(new std::set<std::string>);
-    compiler_driver_.reset(new CompilerDriver(compiler_backend, instruction_set, true, 2, false,
-                                              image_classes_.get(), true, true));
+    // We typically don't generate an image in unit tests, disable this optimization by default.
+    compiler_driver_->SetSupportBootImageFixup(false);
 
+    // We're back in native, take the opportunity to initialize well known classes.
+    WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
     // Create the heap thread pool so that the GC runs in parallel for tests. Normally, the thread
     // pool is created by the runtime.
     runtime_->GetHeap()->CreateThreadPool();
-
     runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   }
 
@@ -389,7 +392,6 @@ class CommonTest : public testing::Test {
     (*icu_cleanup_fn)();
 
     compiler_driver_.reset();
-    image_classes_.reset();
     STLDeleteElements(&opened_dex_files_);
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
@@ -522,7 +524,6 @@ class CommonTest : public testing::Test {
   // Owned by the runtime
   ClassLinker* class_linker_;
   UniquePtr<CompilerDriver> compiler_driver_;
-  UniquePtr<std::set<std::string> > image_classes_;
 
  private:
   std::vector<const DexFile*> opened_dex_files_;

@@ -53,7 +53,7 @@ namespace art {
 class ScopedContentionRecorder;
 class Thread;
 
-const bool kDebugLocking = kIsDebugBuild;
+const bool kDebugLocking = true || kIsDebugBuild;
 
 // Base class for all Mutex implementations
 class BaseMutex {
@@ -141,7 +141,7 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // Assert that the Mutex is exclusively held by the current thread.
   void AssertExclusiveHeld(const Thread* self) {
-    if (kDebugLocking && !gAborting) {
+    if (kDebugLocking && (gAborting == 0)) {
       CHECK(IsExclusiveHeld(self)) << *this;
     }
   }
@@ -149,7 +149,7 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // Assert that the Mutex is not held by the current thread.
   void AssertNotHeldExclusive(const Thread* self) {
-    if (kDebugLocking) {
+    if (kDebugLocking && (gAborting == 0)) {
       CHECK(!IsExclusiveHeld(self)) << *this;
     }
   }
@@ -238,7 +238,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread has exclusive access to the ReaderWriterMutex.
   void AssertExclusiveHeld(const Thread* self) {
-    if (kDebugLocking) {
+    if (kDebugLocking & (gAborting == 0)) {
       CHECK(IsExclusiveHeld(self)) << *this;
     }
   }
@@ -246,8 +246,8 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread doesn't have exclusive access to the ReaderWriterMutex.
   void AssertNotExclusiveHeld(const Thread* self) {
-    if (kDebugLocking) {
-      CHECK(!IsExclusiveHeld(self));
+    if (kDebugLocking & (gAborting == 0)) {
+      CHECK(!IsExclusiveHeld(self)) << *this;
     }
   }
   void AssertNotWriterHeld(const Thread* self) { AssertNotExclusiveHeld(self); }
@@ -257,7 +257,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread has shared access to the ReaderWriterMutex.
   void AssertSharedHeld(const Thread* self) {
-    if (kDebugLocking) {
+    if (kDebugLocking  & (gAborting == 0)) {
       // TODO: we can only assert this well when self != NULL.
       CHECK(IsSharedHeld(self) || self == NULL) << *this;
     }
@@ -267,7 +267,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread doesn't hold this ReaderWriterMutex either in shared or exclusive
   // mode.
   void AssertNotHeld(const Thread* self) {
-    if (kDebugLocking) {
+    if (kDebugLocking && (gAborting == 0)) {
       CHECK(!IsSharedHeld(self)) << *this;
     }
   }
@@ -307,6 +307,10 @@ class ConditionVariable {
   //       pointer copy, thereby defeating annotalysis.
   void Wait(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
   void TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
+  // Variant of Wait that should be used with caution. Doesn't validate that no mutexes are held
+  // when waiting.
+  // TODO: remove this.
+  void WaitHoldingLocks(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
 
  private:
   const char* const name_;

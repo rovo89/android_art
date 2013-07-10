@@ -18,7 +18,7 @@
 
 #include "compiler/driver/compiler_driver.h"
 #include "compiler_internals.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 #if defined(ART_USE_PORTABLE_COMPILER)
 #include "compiler/llvm/llvm_compilation_unit.h"
 #include "compiler/dex/portable/mir_to_gbc.h"
@@ -28,6 +28,8 @@
 #include "runtime.h"
 #include "backend.h"
 #include "base/logging.h"
+
+
 
 namespace {
 #if !defined(ART_USE_PORTABLE_COMPILER)
@@ -103,6 +105,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugVerifyBitcode) |
   //(1 << kDebugShowSummaryMemoryUsage) |
   0;
+
 
 static CompiledMethod* CompileMethod(CompilerDriver& compiler,
                                      const CompilerBackend compiler_backend,
@@ -276,6 +279,8 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
 #endif
                        );
 }
+
+
 
 }  // namespace art
 

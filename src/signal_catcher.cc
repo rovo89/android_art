@@ -27,7 +27,7 @@
 
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
-#include "heap.h"
+#include "gc/heap.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"

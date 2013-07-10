@@ -125,7 +125,7 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
 }
 
 inline void Thread::VerifyStack() {
-  Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
   if (heap->IsObjectValidationEnabled()) {
     VerifyStackImpl();
   }

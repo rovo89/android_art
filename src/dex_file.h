@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "base/stringpiece.h"
 #include "globals.h"
 #include "invoke_type.h"
@@ -384,6 +385,10 @@ class DexFile {
     return *header_;
   }
 
+  Mutex& GetModificationLock() {
+    return modification_lock;
+  }
+
   // Decode the dex magic version
   uint32_t GetVersion() const;
 
@@ -436,8 +441,11 @@ class DexFile {
     return StringDataAndLengthByIdx(idx, &unicode_length);
   }
 
-  // Looks up a string id for a given string
-  const StringId* FindStringId(const std::string& string) const;
+  // Looks up a string id for a given modified utf8 string.
+  const StringId* FindStringId(const char* string) const;
+
+  // Looks up a string id for a given utf16 string.
+  const StringId* FindStringId(const uint16_t* string) const;
 
   // Returns the number of type identifiers in the .dex file.
   size_t NumTypeIds() const {
@@ -795,6 +803,12 @@ class DexFile {
 
   int GetPermissions() const;
 
+  bool IsReadOnly() const;
+
+  bool EnableWrite(uint8_t* addr, size_t size) const;
+
+  bool DisableWrite(uint8_t* addr, size_t size) const;
+
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
@@ -827,6 +841,7 @@ class DexFile {
         location_checksum_(location_checksum),
         mem_map_(mem_map),
         dex_object_(NULL),
+        modification_lock("DEX modification lock"),
         header_(0),
         string_ids_(0),
         type_ids_(0),
@@ -886,6 +901,11 @@ class DexFile {
   // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
   // TODO: this is mutable as it shouldn't be here. We should move it to the dex cache or similar.
   mutable jobject dex_object_;
+
+  // The DEX-to-DEX compiler uses this lock to ensure thread safety when
+  // enabling write access to a read-only DEX file.
+  // TODO: move to Locks::dex_file_modification_lock.
+  Mutex modification_lock;
 
   // Points to the header section.
   const Header* header_;
@@ -974,7 +994,7 @@ class ClassDataItemIterator {
   bool HasNext() const {
     return pos_ < EndOfVirtualMethodsPos();
   }
-  void Next() {
+  inline void Next() {
     pos_++;
     if (pos_ < EndOfStaticFieldsPos()) {
       last_idx_ = GetMemberIndex();

@@ -80,7 +80,7 @@ class ThreadPool {
   virtual ~ThreadPool();
 
   // Wait for all tasks currently on queue to get completed.
-  void Wait(Thread* self, bool do_work = true);
+  void Wait(Thread* self, bool do_work, bool may_hold_locks);
 
   size_t GetTaskCount(Thread* self);
 

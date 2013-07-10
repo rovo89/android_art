@@ -82,6 +82,68 @@ static inline uint32_t fetch_uint32_impl(uint32_t offset, const uint16_t* insns)
   return insns[offset] | ((uint32_t) insns[offset+1] << 16);
 }
 
+int32_t Instruction::VRegC() const {
+  switch (FormatOf(Opcode())) {
+    case k22b: return VRegC_22b();
+    case k22c: return VRegC_22c();
+    case k22s: return VRegC_22s();
+    case k22t: return VRegC_22t();
+    case k23x: return VRegC_23x();
+    case k35c: return VRegC_35c();
+    case k3rc: return VRegC_3rc();
+    default: LOG(FATAL) << "Tried to access vC of instruction " << Name() <<
+        " which has no C operand.";
+  }
+  return 0;
+}
+
+int32_t Instruction::VRegB() const {
+  switch (FormatOf(Opcode())) {
+    case k11n: return VRegB_11n();
+    case k12x: return VRegB_12x();
+    case k21c: return VRegB_21c();
+    case k21h: return VRegB_21h();
+    case k21t: return VRegB_21t();
+    case k22b: return VRegB_22b();
+    case k22c: return VRegB_22c();
+    case k22s: return VRegB_22s();
+    case k22t: return VRegB_22t();
+    case k22x: return VRegB_22x();
+    case k31c: return VRegB_31c();
+    case k31i: return VRegB_31i();
+    case k31t: return VRegB_31t();
+    case k32x: return VRegB_32x();
+    case k35c: return VRegB_35c();
+    case k3rc: return VRegB_3rc();
+    case k51l: return VRegB_51l();
+    default: LOG(FATAL) << "Tried to access vB of instruction " << Name() <<
+        " which has no B operand.";
+  }
+  return 0;
+}
+
+int32_t Instruction::GetTargetOffset() const {
+  switch (FormatOf(Opcode())) {
+    // Cases for conditional branches follow.
+    case k22t: return VRegC_22t();
+    case k21t: return VRegB_21t();
+    // Cases for unconditional branches follow.
+    case k10t: return VRegA_10t();
+    case k20t: return VRegA_20t();
+    case k30t: return VRegA_30t();
+    default: LOG(FATAL) << "Tried to access the branch offset of an instruction " << Name() <<
+        " which does not have a target operand.";
+  }
+  return 0;
+}
+
+bool Instruction::CanFlowThrough() const {
+  const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
+  uint16_t insn = *insns;
+  Code opcode = static_cast<Code>(insn & 0xFF);
+  return  FlagsOf(opcode) & Instruction::kContinue;
+}
+
 void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
   uint16_t insn = *insns;
@@ -299,7 +361,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case NEW_INSTANCE:
           if (file != NULL) {
             uint32_t type_idx = VRegB_21c();
-            os << opcode << " v" << VRegA_21c() << ", " << PrettyType(type_idx, *file)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyType(type_idx, *file)
                << " // type@" << type_idx;
             break;
           }  // else fall-through
@@ -312,7 +374,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << "  v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << "  v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
                << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -325,7 +387,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << " v" << VRegA_21c() << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
                << " // field@" << field_idx;
             break;
           }  // else fall-through
@@ -350,8 +412,16 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IGET_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
+            break;
+          }  // else fall-through
+        case IGET_QUICK:
+        case IGET_OBJECT_QUICK:
+          if (file != NULL) {
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
+               << "// offset@" << field_idx;
             break;
           }  // else fall-through
         case IPUT:
@@ -363,21 +433,29 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IPUT_SHORT:
           if (file != NULL) {
             uint32_t field_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
+            break;
+          }  // else fall-through
+        case IPUT_QUICK:
+        case IPUT_OBJECT_QUICK:
+          if (file != NULL) {
+            uint32_t field_idx = VRegC_22c();
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
+               << "// offset@" << field_idx;
             break;
           }  // else fall-through
         case INSTANCE_OF:
           if (file != NULL) {
             uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }
         case NEW_ARRAY:
           if (file != NULL) {
             uint32_t type_idx = VRegC_22c();
-            os << opcode << " v" << VRegA_22c() << ", v" << VRegB_22c() << ", "
+            os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
                << PrettyType(type_idx, *file) << " // type@" << type_idx;
             break;
           }  // else fall-through
@@ -413,6 +491,19 @@ std::string Instruction::DumpString(const DexFile* file) const {
             os << "}, " << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
             break;
           }  // else fall-through
+        case INVOKE_VIRTUAL_QUICK:
+          if (file != NULL) {
+            os << opcode << " {";
+            uint32_t method_idx = VRegB_35c();
+            for (size_t i = 0; i < VRegA_35c(); ++i) {
+              if (i != 0) {
+                os << ", ";
+              }
+              os << "v" << arg[i];
+            }
+            os << "}, // vtable@" << method_idx;
+            break;
+          }  // else fall-through
         default:
           os << opcode << " {v" << arg[0] << ", v" << arg[1] << ", v" << arg[2]
                        << ", v" << arg[3] << ", v" << arg[4] << "}, thing@" << VRegB_35c();
@@ -431,6 +522,13 @@ std::string Instruction::DumpString(const DexFile* file) const {
             uint32_t method_idx = VRegB_3rc();
             os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
                << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
+            break;
+          }  // else fall-through
+        case INVOKE_VIRTUAL_RANGE_QUICK:
+          if (file != NULL) {
+            uint32_t method_idx = VRegB_3rc();
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
+               << "// vtable@" << method_idx;
             break;
           }  // else fall-through
         default:

@@ -30,8 +30,9 @@
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "gc_map.h"
-#include "gc/large_object_space.h"
-#include "gc/space.h"
+#include "gc/space/image_space.h"
+#include "gc/space/large_object_space.h"
+#include "gc/space/space-inl.h"
 #include "image.h"
 #include "indenter.h"
 #include "mirror/abstract_method-inl.h"
@@ -679,7 +680,7 @@ class OatDumper {
 class ImageDumper {
  public:
   explicit ImageDumper(std::ostream* os, const std::string& image_filename,
-                       const std::string& host_prefix, Space& image_space,
+                       const std::string& host_prefix, gc::space::ImageSpace& image_space,
                        const ImageHeader& image_header)
       : os_(os), image_filename_(image_filename), host_prefix_(host_prefix),
         image_space_(image_space), image_header_(image_header) {}
@@ -763,8 +764,8 @@ class ImageDumper {
     os << "OBJECTS:\n" << std::flush;
 
     // Loop through all the image spaces and dump their objects.
-    Heap* heap = Runtime::Current()->GetHeap();
-    const Spaces& spaces = heap->GetSpaces();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
     Thread* self = Thread::Current();
     {
       WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -777,10 +778,11 @@ class ImageDumper {
       os_ = &indent_os;
       ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
       // TODO: C++0x auto
-      for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
-        Space* space = *it;
+      typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
+      for (It it = spaces.begin(), end = spaces.end(); it != end; ++it) {
+        gc::space::Space* space = *it;
         if (space->IsImageSpace()) {
-          ImageSpace* image_space = space->AsImageSpace();
+          gc::space::ImageSpace* image_space = space->AsImageSpace();
           image_space->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
           indent_os << "\n";
         }
@@ -853,7 +855,13 @@ class ImageDumper {
       if (value == NULL) {
         os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
       } else {
-        PrettyObjectValue(os, fh.GetType(), value);
+        // Grab the field type without causing resolution.
+        mirror::Class* field_type = fh.GetType(false);
+        if (field_type != NULL) {
+          PrettyObjectValue(os, field_type, value);
+        } else {
+          os << StringPrintf("%p   %s\n", value, PrettyDescriptor(descriptor).c_str());
+        }
       }
     }
   }
@@ -880,7 +888,7 @@ class ImageDumper {
   const void* GetOatCodeBegin(mirror::AbstractMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* code = m->GetEntryPointFromCompiledCode();
-    if (code == GetResolutionTrampoline()) {
+    if (code == GetResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
       code = oat_dumper_->GetOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {
@@ -1337,7 +1345,7 @@ class ImageDumper {
   std::ostream* os_;
   const std::string image_filename_;
   const std::string host_prefix_;
-  Space& image_space_;
+  gc::space::ImageSpace& image_space_;
   const ImageHeader& image_header_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
@@ -1448,8 +1456,8 @@ static int oatdump(int argc, char** argv) {
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   ScopedObjectAccess soa(Thread::Current());
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  ImageSpace* image_space = heap->GetImageSpace();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  gc::space::ImageSpace* image_space = heap->GetImageSpace();
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {

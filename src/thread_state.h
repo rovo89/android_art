@@ -28,6 +28,7 @@ enum ThreadState {
   kBlocked,                        // BLOCKED        TS_MONITOR   blocked on a monitor
   kWaiting,                        // WAITING        TS_WAIT      in Object.wait()
   kWaitingForGcToComplete,         // WAITING        TS_WAIT      blocked waiting for GC
+  kWaitingForCheckPointsToRun,     // WAITING        TS_WAIT      GC waiting for checkpoints to run
   kWaitingPerformingGc,            // WAITING        TS_WAIT      performing GC
   kWaitingForDebuggerSend,         // WAITING        TS_WAIT      blocked waiting for events to be sent
   kWaitingForDebuggerToAttach,     // WAITING        TS_WAIT      blocked waiting for debugger to attach

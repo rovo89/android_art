@@ -75,6 +75,14 @@ extern "C" uint64_t art_quick_lshl_from_code(uint64_t, uint32_t);
 extern "C" uint64_t art_quick_lshr_from_code(uint64_t, uint32_t);
 extern "C" uint64_t art_quick_lushr_from_code(uint64_t, uint32_t);
 
+// Interpreter entrypoints.
+extern "C" void artInterpreterToInterpreterEntry(Thread* self, MethodHelper& mh,
+                                                 const DexFile::CodeItem* code_item,
+                                                 ShadowFrame* shadow_frame, JValue* result);
+extern "C" void artInterpreterToQuickEntry(Thread* self, MethodHelper& mh,
+                                           const DexFile::CodeItem* code_item,
+                                           ShadowFrame* shadow_frame, JValue* result);
+
 // Intrinsic entrypoints.
 extern "C" int32_t art_quick_memcmp16(void*, void*, int32_t);
 extern "C" int32_t art_quick_indexof(void*, uint32_t, uint32_t, uint32_t);
@@ -82,6 +90,12 @@ extern "C" int32_t art_quick_string_compareto(void*, void*);
 extern "C" void* art_quick_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
+extern "C" const void* artPortableResolutionTrampoline(mirror::AbstractMethod* called,
+                                                       mirror::Object* receiver,
+                                                       mirror::AbstractMethod** sp, Thread* thread);
+extern "C" const void* artQuickResolutionTrampoline(mirror::AbstractMethod* called,
+                                                    mirror::Object* receiver,
+                                                    mirror::AbstractMethod** sp, Thread* thread);
 extern "C" void art_quick_invoke_direct_trampoline_with_access_check(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline(uint32_t, void*);
 extern "C" void art_quick_invoke_interface_trampoline_with_access_check(uint32_t, void*);
@@ -171,6 +185,10 @@ void InitEntryPoints(EntryPoints* points) {
   points->pShrLong = art_quick_lshr_from_code;
   points->pUshrLong = art_quick_lushr_from_code;
 
+  // Interpreter
+  points->pInterpreterToInterpreterEntry = artInterpreterToInterpreterEntry;
+  points->pInterpreterToQuickEntry = artInterpreterToQuickEntry;
+
   // Intrinsics
   points->pIndexOf = art_quick_indexof;
   points->pMemcmp16 = art_quick_memcmp16;
@@ -178,6 +196,8 @@ void InitEntryPoints(EntryPoints* points) {
   points->pMemcpy = art_quick_memcpy;
 
   // Invocation
+  points->pPortableResolutionTrampolineFromCode = artPortableResolutionTrampoline;
+  points->pQuickResolutionTrampolineFromCode = artQuickResolutionTrampoline;
   points->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
   points->pInvokeInterfaceTrampoline = art_quick_invoke_interface_trampoline;
   points->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;

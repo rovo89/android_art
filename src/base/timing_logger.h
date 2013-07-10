@@ -45,6 +45,10 @@ class TimingLogger {
   friend class CumulativeLogger;
 };
 
+namespace base {
+  class NewTimingLogger;
+}  // namespace base
+
 class CumulativeLogger {
 
  public:
@@ -61,6 +65,7 @@ class CumulativeLogger {
   // parent class that is unable to determine the "name" of a sub-class.
   void SetName(const std::string& name);
   void AddLogger(const TimingLogger& logger) LOCKS_EXCLUDED(lock_);
+  void AddNewLogger(const base::NewTimingLogger& logger) LOCKS_EXCLUDED(lock_);
 
  private:
 
@@ -79,6 +84,59 @@ class CumulativeLogger {
   DISALLOW_COPY_AND_ASSIGN(CumulativeLogger);
 };
 
+namespace base {
+
+// A replacement to timing logger that know when a split starts for the purposes of logging.
+// TODO: replace uses of TimingLogger with base::NewTimingLogger.
+class NewTimingLogger {
+ public:
+  explicit NewTimingLogger(const char* name, bool precise, bool verbose);
+
+  // Clears current splits and labels.
+  void Reset();
+
+  // Starts a split, a split shouldn't be in progress.
+  void StartSplit(const char* new_split_label);
+
+  // Ends the current split and starts the one given by the label.
+  void NewSplit(const char* new_split_label);
+
+  // Ends the current split and records the end time.
+  void EndSplit();
+
+  uint64_t GetTotalNs() const;
+
+  void Dump(std::ostream& os) const;
+
+  const std::vector<std::pair<uint64_t, const char*> >& GetSplits() const {
+    return splits_;
+  }
+
+ protected:
+  // The name of the timing logger.
+  const std::string name_;
+
+  // Do we want to print the exactly recorded split (true) or round down to the time unit being
+  // used (false).
+  const bool precise_;
+
+  // Verbose logging.
+  const bool verbose_;
+
+  // The name of the current split.
+  const char* current_split_;
+
+  // The nanosecond time the current split started on.
+  uint64_t current_split_start_ns_;
+
+  // Splits are nanosecond times and split names.
+  std::vector<std::pair<uint64_t, const char*> > splits_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NewTimingLogger);
+};
+
+}  // namespace base
 }  // namespace art
 
 #endif  // ART_SRC_TIMING_LOGGER_H_

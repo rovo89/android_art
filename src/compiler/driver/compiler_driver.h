@@ -39,7 +39,6 @@ class ParallelCompilationManager;
 class DexCompilationUnit;
 class TimingLogger;
 
-const uint32_t kDexPCNotReady = 0xFFFFFF;
 enum CompilerBackend {
   kQuick,
   kPortable,
@@ -62,14 +61,16 @@ class CompilerTls {
 
 class CompilerDriver {
  public:
+  typedef std::set<std::string> DescriptorSet;
+
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set, bool image,
+  explicit CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
+                          bool image, DescriptorSet* image_classes,
                           size_t thread_count, bool support_debugging,
-                          const std::set<std::string>* image_classes, 
                           bool dump_stats, bool dump_timings);
 
   ~CompilerDriver();
@@ -97,7 +98,21 @@ class CompilerDriver {
     return image_;
   }
 
+  DescriptorSet* GetImageClasses() const {
+    return image_classes_.get();
+  }
+
   CompilerTls* GetTls();
+
+  // Generate the trampolines that are invoked by unresolved direct methods.
+  const std::vector<uint8_t>* CreatePortableResolutionTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateQuickResolutionTrampoline() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateInterpreterToInterpreterEntry() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const std::vector<uint8_t>* CreateInterpreterToQuickEntry() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
@@ -106,7 +121,22 @@ class CompilerDriver {
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
   // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
-  typedef std::pair<const DexFile*, uint32_t> MethodReference;
+  struct MethodReference {
+    MethodReference(const DexFile* file, uint32_t index) : dex_file(file), dex_method_index(index) {
+    }
+    const DexFile* dex_file;
+    uint32_t dex_method_index;
+  };
+
+  struct MethodReferenceComparator {
+    bool operator()(MethodReference mr1, MethodReference mr2) const {
+      if (mr1.dex_file == mr2.dex_file) {
+        return mr1.dex_method_index < mr2.dex_method_index;
+      } else {
+        return mr1.dex_file < mr2.dex_file;
+      }
+    }
+  };
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
@@ -124,7 +154,9 @@ class CompilerDriver {
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                  uint32_t type_idx)
+                                  uint32_t type_idx, bool* type_known_final = NULL,
+                                  bool* type_known_abstract = NULL,
+                                  bool* equals_referrers_class = NULL)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
@@ -146,10 +178,12 @@ class CompilerDriver {
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
-  bool ComputeInvokeInfo(uint32_t method_idx, uint32_t dex_pc,
-                         const DexCompilationUnit* mUnit, InvokeType& type, int& vtable_idx,
-                         uintptr_t& direct_code, uintptr_t& direct_method)
+  bool ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
+                         InvokeType& type, MethodReference& target_method, int& vtable_idx,
+                         uintptr_t& direct_code, uintptr_t& direct_method, bool update_stats)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  bool IsSafeCast(const MethodReference& mr, uint32_t dex_pc);
 
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,
@@ -168,6 +202,15 @@ class CompilerDriver {
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   void SetBitcodeFileName(std::string const& filename);
+
+  bool GetSupportBootImageFixup() const {
+    return support_boot_image_fixup_;
+  }
+
+  void SetSupportBootImageFixup(bool support_boot_image_fixup) {
+    support_boot_image_fixup_ = support_boot_image_fixup;
+  }
+
 
   // TODO: remove these Elf wrappers when libart links against LLVM (when separate compiler library is gone)
   bool WriteElf(const std::string& android_root,
@@ -253,7 +296,7 @@ class CompilerDriver {
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
-  bool IsImageClass(const std::string& descriptor) const;
+  bool IsImageClass(const char* descriptor) const;
 
   void RecordClassStatus(ClassReference ref, CompiledClass* compiled_class);
 
@@ -262,12 +305,15 @@ class CompilerDriver {
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,
                                      mirror::Class* referrer_class,
                                      mirror::AbstractMethod* method,
-                                     uintptr_t& direct_code, uintptr_t& direct_method)
+                                     uintptr_t& direct_code, uintptr_t& direct_method,
+                                     bool update_stats)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                   ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  void LoadImageClasses(TimingLogger& timings);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
@@ -292,6 +338,10 @@ class CompilerDriver {
                          ThreadPool& thread_pool, TimingLogger& timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
+  void UpdateImageClasses(TimingLogger& timings);
+  static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                ThreadPool& thread_pool, TimingLogger& timings);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file,
@@ -299,7 +349,8 @@ class CompilerDriver {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
-                     jobject class_loader, const DexFile& dex_file)
+                     jobject class_loader, const DexFile& dex_file,
+                     bool allow_dex_to_dex_compilation)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
@@ -321,12 +372,18 @@ class CompilerDriver {
   mutable Mutex compiled_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
-  typedef SafeMap<const MethodReference, CompiledMethod*> MethodTable;
+  typedef SafeMap<const MethodReference, CompiledMethod*, MethodReferenceComparator> MethodTable;
   // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
-  bool image_;
+  const bool image_;
+
+  // If image_ is true, specifies the classes that will be included in
+  // the image. Note if image_classes_ is NULL, all classes are
+  // included in the image.
+  UniquePtr<DescriptorSet> image_classes_;
+
   size_t thread_count_;
   bool support_debugging_;
   uint64_t start_ns_;
@@ -335,8 +392,6 @@ class CompilerDriver {
 
   bool dump_stats_;
   bool dump_timings_;
-
-  const std::set<std::string>* image_classes_;
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
@@ -349,6 +404,9 @@ class CompilerDriver {
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
   CompilerFn compiler_;
+  CompilerFn sea_ir_compiler_;
+
+  CompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
 
@@ -365,6 +423,8 @@ class CompilerDriver {
   typedef const void* (*CompilerGetMethodCodeAddrFn)
       (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::AbstractMethod* method);
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
+
+  bool support_boot_image_fixup_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

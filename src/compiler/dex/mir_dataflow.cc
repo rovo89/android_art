@@ -16,7 +16,7 @@
 
 #include "compiler_internals.h"
 #include "local_value_numbering.h"
-#include "dataflow_iterator.h"
+#include "dataflow_iterator-inl.h"
 
 namespace art {
 
@@ -70,7 +70,7 @@ const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_DA | DF_REF_A,
 
   // 0D MOVE_EXCEPTION vAA
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 0E RETURN_VOID
   DF_NOP,
@@ -109,13 +109,13 @@ const int MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 1A CONST_STRING vAA, string@BBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1B CONST_STRING_JUMBO vAA, string@BBBBBBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1C CONST_CLASS vAA, type@BBBB
-  DF_DA | DF_REF_A,
+  DF_DA | DF_REF_A | DF_NON_NULL_DST,
 
   // 1D MONITOR_ENTER vAA
   DF_UA | DF_NULL_CHK_0 | DF_REF_A,
@@ -933,11 +933,6 @@ int MIRGraph::AddNewSReg(int v_reg)
   SetNumSSARegs(ssa_reg + 1);
   ssa_base_vregs_->Insert(v_reg);
   ssa_subscripts_->Insert(subscript);
-  std::string ssa_name = GetSSAName(ssa_reg);
-  char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, false,
-                                                 ArenaAllocator::kAllocDFInfo));
-  strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-  ssa_strings_->Insert(name);
   DCHECK_EQ(ssa_base_vregs_->Size(), ssa_subscripts_->Size());
   return ssa_reg;
 }
@@ -1140,8 +1135,6 @@ void MIRGraph::CompilerInitializeSSAConversion()
                                             kGrowableArraySSAtoDalvikMap);
   ssa_subscripts_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
                                             kGrowableArraySSAtoDalvikMap);
-  ssa_strings_ = new (arena_) GrowableArray<char*>(arena_, num_dalvik_reg + GetDefCount() + 128,
-                                           kGrowableArraySSAtoDalvikMap);
   /*
    * Initial number of SSA registers is equal to the number of Dalvik
    * registers.
@@ -1156,11 +1149,6 @@ void MIRGraph::CompilerInitializeSSAConversion()
   for (unsigned int i = 0; i < num_dalvik_reg; i++) {
     ssa_base_vregs_->Insert(i);
     ssa_subscripts_->Insert(0);
-    std::string ssa_name = GetSSAName(i);
-    char* name = static_cast<char*>(arena_->NewMem(ssa_name.length() + 1, true,
-                                                   ArenaAllocator::kAllocDFInfo));
-    strncpy(name, ssa_name.c_str(), ssa_name.length() + 1);
-    ssa_strings_->Insert(name);
   }
 
   /*
@@ -1237,17 +1225,17 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
       return false;
   }
   DexCompilationUnit m_unit(cu_);
-  // TODO: add a flag so we don't counts the stats for this twice
-  uint32_t dex_method_idx = mir->dalvikInsn.vB;
+  CompilerDriver::MethodReference target_method(cu_->dex_file, mir->dalvikInsn.vB);
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;
   uint32_t current_offset = static_cast<uint32_t>(current_offset_);
   bool fast_path =
-      cu_->compiler_driver->ComputeInvokeInfo(dex_method_idx, current_offset,
-                                              &m_unit, type,
-                                              vtable_idx, direct_code,
-                                              direct_method) &&
+      cu_->compiler_driver->ComputeInvokeInfo(&m_unit, current_offset,
+                                              type, target_method,
+                                              vtable_idx,
+                                              direct_code, direct_method,
+                                              false) &&
                                               !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
   return (((type == kDirect) || (type == kStatic)) &&
           fast_path && ((direct_code == 0) || (direct_method == 0)));

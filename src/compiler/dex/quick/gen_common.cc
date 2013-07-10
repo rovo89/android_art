@@ -16,8 +16,10 @@
 
 #include "compiler/dex/compiler_ir.h"
 #include "compiler/dex/compiler_internals.h"
+#include "compiler/dex/quick/mir_to_lir-inl.h"
 #include "mirror/array.h"
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -881,23 +883,81 @@ void Mir2Lir::GenThrow(RegLocation rl_src)
   CallRuntimeHelperRegLocation(ENTRYPOINT_OFFSET(pDeliverException), rl_src, true);
 }
 
-void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
-                            RegLocation rl_src)
-{
+// For final classes there are no sub-classes to check and so we can answer the instance-of
+// question with simple comparisons.
+void Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx, RegLocation rl_dest,
+                                 RegLocation rl_src) {
+  RegLocation object = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  int result_reg = rl_result.low_reg;
+  if (result_reg == object.low_reg) {
+    result_reg = AllocTypedTemp(false, kCoreReg);
+  }
+  LoadConstant(result_reg, 0);     // assume false
+  LIR* null_branchover = OpCmpImmBranch(kCondEq, object.low_reg, 0, NULL);
+
+  int check_class = AllocTypedTemp(false, kCoreReg);
+  int object_class = AllocTypedTemp(false, kCoreReg);
+
+  LoadCurrMethodDirect(check_class);
+  if (use_declaring_class) {
+    LoadWordDisp(check_class, mirror::AbstractMethod::DeclaringClassOffset().Int32Value(),
+                 check_class);
+    LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
+  } else {
+    LoadWordDisp(check_class, mirror::AbstractMethod::DexCacheResolvedTypesOffset().Int32Value(),
+                 check_class);
+    LoadWordDisp(object.low_reg,  mirror::Object::ClassOffset().Int32Value(), object_class);
+    int32_t offset_of_type =
+      mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
+      (sizeof(mirror::Class*) * type_idx);
+    LoadWordDisp(check_class, offset_of_type, check_class);
+  }
+
+  LIR* ne_branchover = NULL;
+  if (cu_->instruction_set == kThumb2) {
+    OpRegReg(kOpCmp, check_class, object_class);  // Same?
+    OpIT(kCondEq, "");   // if-convert the test
+    LoadConstant(result_reg, 1);     // .eq case - load true
+  } else {
+    ne_branchover = OpCmpBranch(kCondNe, check_class, object_class, NULL);
+    LoadConstant(result_reg, 1);     // eq case - load true
+  }
+  LIR* target = NewLIR0(kPseudoTargetLabel);
+  null_branchover->target = target;
+  if (ne_branchover != NULL) {
+    ne_branchover->target = target;
+  }
+  FreeTemp(object_class);
+  FreeTemp(check_class);
+  if (IsTemp(result_reg)) {
+    OpRegCopy(rl_result.low_reg, result_reg);
+    FreeTemp(result_reg);
+  }
+  StoreValue(rl_dest, rl_result);
+}
+
+void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_known_final,
+                                         bool type_known_abstract, bool use_declaring_class,
+                                         bool can_assume_type_is_in_dex_cache,
+                                         uint32_t type_idx, RegLocation rl_dest,
+                                         RegLocation rl_src) {
   FlushAllRegs();
   // May generate a call - use explicit registers
   LockCallTemps();
   LoadCurrMethodDirect(TargetReg(kArg1));  // kArg1 <= current Method*
   int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*
-  if (!cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
-                                                   *cu_->dex_file,
-                                                   type_idx)) {
+  if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kArg0
     CallRuntimeHelperImm(ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
                          type_idx, true);
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
+  } else if (use_declaring_class) {
+    LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
+    LoadWordDisp(TargetReg(kArg1),
+                 mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadValueDirectFixed(rl_src, TargetReg(kArg0));  // kArg0 <= ref
@@ -907,8 +967,7 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() + (sizeof(mirror::Class*)
         * type_idx);
     LoadWordDisp(class_reg, offset_of_type, class_reg);
-    if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(
-        *cu_->dex_file, type_idx)) {
+    if (!can_assume_type_is_in_dex_cache) {
       // Need to test presence of type in dex cache at runtime
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Not resolved
@@ -924,65 +983,120 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest,
   /* kArg0 is ref, kArg2 is class. If ref==null, use directly as bool result */
   RegLocation rl_result = GetReturn(false);
   if (cu_->instruction_set == kMips) {
-    LoadConstant(rl_result.low_reg, 0);  // store false result for if branch is taken
+    // On MIPS rArg0 != rl_result, place false in result if branch is taken.
+    LoadConstant(rl_result.low_reg, 0);
   }
   LIR* branch1 = OpCmpImmBranch(kCondEq, TargetReg(kArg0), 0, NULL);
+
   /* load object->klass_ */
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
   LoadWordDisp(TargetReg(kArg0),  mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg0 is ref, kArg1 is ref->klass_, kArg2 is class */
-  LIR* call_inst;
   LIR* branchover = NULL;
-  if (cu_->instruction_set == kThumb2) {
-    /* Uses conditional nullification */
-    int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
-    OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
-    OpIT(kCondEq, "EE");   // if-convert the test
-    LoadConstant(TargetReg(kArg0), 1);     // .eq case - load true
-    OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
-    call_inst = OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
-    FreeTemp(r_tgt);
+  if (type_known_final) {
+    // rl_result == ref == null == 0.
+    if (cu_->instruction_set == kThumb2) {
+      OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
+      OpIT(kCondEq, "E");   // if-convert the test
+      LoadConstant(rl_result.low_reg, 1);     // .eq case - load true
+      LoadConstant(rl_result.low_reg, 0);     // .ne case - load false
+    } else {
+      LoadConstant(rl_result.low_reg, 0);     // ne case - load false
+      branchover = OpCmpBranch(kCondNe, TargetReg(kArg1), TargetReg(kArg2), NULL);
+      LoadConstant(rl_result.low_reg, 1);     // eq case - load true
+    }
   } else {
-    /* Uses branchovers */
-    LoadConstant(rl_result.low_reg, 1);     // assume true
-    branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
-    if (cu_->instruction_set != kX86) {
+    if (cu_->instruction_set == kThumb2) {
       int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+      if (!type_known_abstract) {
+      /* Uses conditional nullification */
+        OpRegReg(kOpCmp, TargetReg(kArg1), TargetReg(kArg2));  // Same?
+        OpIT(kCondEq, "EE");   // if-convert the test
+        LoadConstant(TargetReg(kArg0), 1);     // .eq case - load true
+      }
       OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
-      call_inst = OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+      OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
       FreeTemp(r_tgt);
     } else {
-      OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
-      call_inst = OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+      if (!type_known_abstract) {
+        /* Uses branchovers */
+        LoadConstant(rl_result.low_reg, 1);     // assume true
+        branchover = OpCmpBranch(kCondEq, TargetReg(kArg1), TargetReg(kArg2), NULL);
+      }
+      if (cu_->instruction_set != kX86) {
+        int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+        OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));    // .ne case - arg0 <= class
+        OpReg(kOpBlx, r_tgt);    // .ne case: helper(class, ref->class)
+        FreeTemp(r_tgt);
+      } else {
+        OpRegCopy(TargetReg(kArg0), TargetReg(kArg2));
+        OpThreadMem(kOpBlx, ENTRYPOINT_OFFSET(pInstanceofNonTrivialFromCode));
+      }
     }
   }
-  MarkSafepointPC(call_inst);
+  // TODO: only clobber when type isn't final?
   ClobberCalleeSave();
   /* branch targets here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   StoreValue(rl_dest, rl_result);
   branch1->target = target;
-  if (cu_->instruction_set != kThumb2) {
+  if (branchover != NULL) {
     branchover->target = target;
   }
 }
 
-void Mir2Lir::GenCheckCast(uint32_t type_idx, RegLocation rl_src)
+void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest, RegLocation rl_src) {
+  bool type_known_final, type_known_abstract, use_declaring_class;
+  bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
+                                                                              *cu_->dex_file,
+                                                                              type_idx,
+                                                                              &type_known_final,
+                                                                              &type_known_abstract,
+                                                                              &use_declaring_class);
+  bool can_assume_type_is_in_dex_cache = !needs_access_check &&
+      cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file, type_idx);
+
+  if ((use_declaring_class || can_assume_type_is_in_dex_cache) && type_known_final) {
+    GenInstanceofFinal(use_declaring_class, type_idx, rl_dest, rl_src);
+  } else {
+    GenInstanceofCallingHelper(needs_access_check, type_known_final, type_known_abstract,
+                               use_declaring_class, can_assume_type_is_in_dex_cache,
+                               type_idx, rl_dest, rl_src);
+  }
+}
+
+void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src)
 {
+  bool type_known_final, type_known_abstract, use_declaring_class;
+  bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
+                                                                              *cu_->dex_file,
+                                                                              type_idx,
+                                                                              &type_known_final,
+                                                                              &type_known_abstract,
+                                                                              &use_declaring_class);
+  // Note: currently type_known_final is unused, as optimizing will only improve the performance
+  // of the exception throw path.
+  DexCompilationUnit* cu = mir_graph_->GetCurrentDexCompilationUnit();
+  const CompilerDriver::MethodReference mr(cu->GetDexFile(), cu->GetDexMethodIndex());
+  if (!needs_access_check && cu_->compiler_driver->IsSafeCast(mr, insn_idx)) {
+    // Verifier type analysis proved this check cast would never cause an exception.
+    return;
+  }
   FlushAllRegs();
   // May generate a call - use explicit registers
   LockCallTemps();
   LoadCurrMethodDirect(TargetReg(kArg1));  // kArg1 <= current Method*
   int class_reg = TargetReg(kArg2);  // kArg2 will hold the Class*
-  if (!cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
-                                                   *cu_->dex_file,
-                                                   type_idx)) {
+  if (needs_access_check) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
     // returns Class* in kRet0
     // InitializeTypeAndVerifyAccess(idx, method)
     CallRuntimeHelperImmReg(ENTRYPOINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode),
                             type_idx, TargetReg(kArg1), true);
     OpRegCopy(class_reg, TargetReg(kRet0));  // Align usage with fast path
+  } else if (use_declaring_class) {
+    LoadWordDisp(TargetReg(kArg1),
+                 mirror::AbstractMethod::DeclaringClassOffset().Int32Value(), class_reg);
   } else {
     // Load dex cache entry into class_reg (kArg2)
     LoadWordDisp(TargetReg(kArg1),
@@ -991,8 +1105,7 @@ void Mir2Lir::GenCheckCast(uint32_t type_idx, RegLocation rl_src)
         mirror::Array::DataOffset(sizeof(mirror::Class*)).Int32Value() +
         (sizeof(mirror::Class*) * type_idx);
     LoadWordDisp(class_reg, offset_of_type, class_reg);
-    if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(
-        *cu_->dex_file, type_idx)) {
+    if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hop_branch = OpCmpImmBranch(kCondNe, class_reg, 0, NULL);
       // Not resolved
@@ -1014,25 +1127,18 @@ void Mir2Lir::GenCheckCast(uint32_t type_idx, RegLocation rl_src)
   DCHECK_EQ(mirror::Object::ClassOffset().Int32Value(), 0);
   LoadWordDisp(TargetReg(kArg0), mirror::Object::ClassOffset().Int32Value(), TargetReg(kArg1));
   /* kArg1 now contains object->klass_ */
-  LIR* branch2;
-  if (cu_->instruction_set == kThumb2) {
-    int r_tgt = LoadHelper(ENTRYPOINT_OFFSET(pCheckCastFromCode));
-    OpRegReg(kOpCmp, TargetReg(kArg1), class_reg);
-    branch2 = OpCondBranch(kCondEq, NULL); /* If eq, trivial yes */
-    OpRegCopy(TargetReg(kArg0), TargetReg(kArg1));
-    OpRegCopy(TargetReg(kArg1), TargetReg(kArg2));
-    ClobberCalleeSave();
-    LIR* call_inst = OpReg(kOpBlx, r_tgt);
-    MarkSafepointPC(call_inst);
-    FreeTemp(r_tgt);
-  } else {
+  LIR* branch2 = NULL;
+  if (!type_known_abstract) {
     branch2 = OpCmpBranch(kCondEq, TargetReg(kArg1), class_reg, NULL);
-    CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCheckCastFromCode), TargetReg(kArg1), TargetReg(kArg2), true);
   }
+  CallRuntimeHelperRegReg(ENTRYPOINT_OFFSET(pCheckCastFromCode), TargetReg(kArg1), TargetReg(kArg2),
+                          true);
   /* branch target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
   branch1->target = target;
-  branch2->target = target;
+  if (branch2 != NULL) {
+    branch2->target = target;
+  }
 }
 
 void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
