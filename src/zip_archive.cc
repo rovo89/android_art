@@ -121,8 +121,8 @@ off_t ZipEntry::GetDataOffset() {
   return data_offset;
 }
 
-static bool CopyFdToMemory(MemMap& mem_map, int in, size_t count) {
-  uint8_t* dst = mem_map.Begin();
+static bool CopyFdToMemory(uint8_t* begin, size_t size, int in, size_t count) {
+  uint8_t* dst = begin;
   std::vector<uint8_t> buf(kBufSize);
   while (count != 0) {
     size_t bytes_to_read = (count > kBufSize) ? kBufSize : count;
@@ -135,7 +135,7 @@ static bool CopyFdToMemory(MemMap& mem_map, int in, size_t count) {
     dst += bytes_to_read;
     count -= bytes_to_read;
   }
-  DCHECK_EQ(dst, mem_map.End());
+  DCHECK_EQ(dst, begin + size);
   return true;
 }
 
@@ -165,8 +165,9 @@ class ZStream {
   z_stream zstream_;
 };
 
-static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length, size_t compressed_length) {
-  uint8_t* dst = mem_map.Begin();
+static bool InflateToMemory(uint8_t* begin, size_t size,
+                            int in, size_t uncompressed_length, size_t compressed_length) {
+  uint8_t* dst = begin;
   UniquePtr<uint8_t[]> read_buf(new uint8_t[kBufSize]);
   UniquePtr<uint8_t[]> write_buf(new uint8_t[kBufSize]);
   if (read_buf.get() == NULL || write_buf.get() == NULL) {
@@ -236,7 +237,7 @@ static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length,
     return false;
   }
 
-  DCHECK_EQ(dst, mem_map.End());
+  DCHECK_EQ(dst, begin + size);
   return true;
 }
 
@@ -254,10 +255,10 @@ bool ZipEntry::ExtractToFile(File& file) {
     return false;
   }
 
-  return ExtractToMemory(*map.get());
+  return ExtractToMemory(map->Begin(), map->Size());
 }
 
-bool ZipEntry::ExtractToMemory(MemMap& mem_map) {
+bool ZipEntry::ExtractToMemory(uint8_t* begin, size_t size) {
   off_t data_offset = GetDataOffset();
   if (data_offset == -1) {
     LOG(WARNING) << "Zip: data_offset=" << data_offset;
@@ -272,13 +273,36 @@ bool ZipEntry::ExtractToMemory(MemMap& mem_map) {
   // for uncompressed data).
   switch (GetCompressionMethod()) {
     case kCompressStored:
-      return CopyFdToMemory(mem_map, zip_archive_->fd_, GetUncompressedLength());
+      return CopyFdToMemory(begin, size, zip_archive_->fd_, GetUncompressedLength());
     case kCompressDeflated:
-      return InflateToMemory(mem_map, zip_archive_->fd_, GetUncompressedLength(), GetCompressedLength());
+      return InflateToMemory(begin, size, zip_archive_->fd_,
+                             GetUncompressedLength(), GetCompressedLength());
     default:
       LOG(WARNING) << "Zip: unknown compression method " << std::hex << GetCompressionMethod();
       return false;
   }
+}
+
+MemMap* ZipEntry::ExtractToMemMap(const char* entry_filename) {
+  std::string name(entry_filename);
+  name += " extracted in memory from ";
+  name += entry_filename;
+  UniquePtr<MemMap> map(MemMap::MapAnonymous(name.c_str(),
+                                             NULL,
+                                             GetUncompressedLength(),
+                                             PROT_READ | PROT_WRITE));
+  if (map.get() == NULL) {
+    LOG(ERROR) << "Zip: mmap for '" << entry_filename << "' failed";
+    return NULL;
+  }
+
+  bool success = ExtractToMemory(map->Begin(), map->Size());
+  if (!success) {
+    LOG(ERROR) << "Zip: Failed to extract '" << entry_filename << "' to memory";
+    return NULL;
+  }
+
+  return map.release();
 }
 
 static void SetCloseOnExec(int fd) {

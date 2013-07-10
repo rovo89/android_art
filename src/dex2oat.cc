@@ -18,8 +18,9 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -164,25 +165,52 @@ class Dex2Oat {
 
 
   // Reads the class names (java.lang.Object) and returns as set of class descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClasses(const char* image_classes_filename) {
+  CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
     if (image_classes_file.get() == NULL) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return NULL;
     }
+    UniquePtr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file.get()));
+    image_classes_file->close();
+    return result.release();
+  }
 
+  CompilerDriver::DescriptorSet* ReadImageClasses(std::istream& image_classes_stream) {
     UniquePtr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
-    while (image_classes_file->good()) {
+    while (image_classes_stream.good()) {
       std::string dot;
-      std::getline(*image_classes_file.get(), dot);
+      std::getline(image_classes_stream, dot);
       if (StartsWith(dot, "#") || dot.empty()) {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
       image_classes->insert(descriptor);
     }
-    image_classes_file->close();
     return image_classes.release();
+  }
+
+  // Reads the class names (java.lang.Object) and returns as set of class descriptors (Ljava/lang/Object;)
+  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const std::string& zip_filename, const char* image_classes_filename) {
+    UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename));
+    if (zip_archive.get() == NULL) {
+      LOG(ERROR) << "Failed to open zip file " << zip_filename;
+      return NULL;
+    }
+    UniquePtr<ZipEntry> zip_entry(zip_archive->Find(image_classes_filename));
+    if (zip_entry.get() == NULL) {
+      LOG(ERROR) << "Failed to find " << image_classes_filename << " within " << zip_filename;
+      return NULL;
+    }
+    UniquePtr<MemMap> image_classes_file(zip_entry->ExtractToMemMap(image_classes_filename));
+    if (image_classes_file.get() == NULL) {
+      LOG(ERROR) << "Failed to extract " << image_classes_filename << " from " << zip_filename;
+      return NULL;
+    }
+    const std::string image_classes_string(reinterpret_cast<char*>(image_classes_file->Begin()),
+                                           image_classes_file->Size());
+    std::istringstream image_classes_stream(image_classes_string);
+    return ReadImageClasses(image_classes_stream);
   }
 
   const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
@@ -558,6 +586,7 @@ static int dex2oat(int argc, char** argv) {
   std::string oat_location;
   int oat_fd = -1;
   std::string bitcode_filename;
+  const char* image_classes_zip_filename = NULL;
   const char* image_classes_filename = NULL;
   std::string image_filename;
   std::string boot_image_filename;
@@ -632,6 +661,8 @@ static int dex2oat(int argc, char** argv) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--image-classes=")) {
       image_classes_filename = option.substr(strlen("--image-classes=")).data();
+    } else if (option.starts_with("--image-classes-zip=")) {
+      image_classes_zip_filename = option.substr(strlen("--image-classes-zip=")).data();
     } else if (option.starts_with("--base=")) {
       const char* image_base_str = option.substr(strlen("--base=")).data();
       char* end;
@@ -733,6 +764,10 @@ static int dex2oat(int argc, char** argv) {
 
   if (image_classes_filename != NULL && !boot_image_option.empty()) {
     Usage("--image-classes should not be used with --boot-image");
+  }
+
+  if (image_classes_zip_filename != NULL && image_classes_filename == NULL) {
+    Usage("--image-classes-zip should be used with --image-classes");
   }
 
   if (dex_filenames.empty() && zip_fd == -1) {
@@ -846,7 +881,12 @@ static int dex2oat(int argc, char** argv) {
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<CompilerDriver::DescriptorSet> image_classes(NULL);
   if (image_classes_filename != NULL) {
-    image_classes.reset(dex2oat->ReadImageClasses(image_classes_filename));
+    if (image_classes_zip_filename != NULL) {
+      image_classes.reset(dex2oat->ReadImageClassesFromZip(image_classes_zip_filename,
+                                                           image_classes_filename));
+    } else {
+      image_classes.reset(dex2oat->ReadImageClassesFromFile(image_classes_filename));
+    }
     if (image_classes.get() == NULL) {
       LOG(ERROR) << "Failed to create list of image classes from " << image_classes_filename;
       return EXIT_FAILURE;
@@ -860,7 +900,7 @@ static int dex2oat(int argc, char** argv) {
     if (dex_filenames.empty()) {
       UniquePtr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd));
       if (zip_archive.get() == NULL) {
-        LOG(ERROR) << "Failed to zip from file descriptor for " << zip_location;
+        LOG(ERROR) << "Failed to open zip from file descriptor for " << zip_location;
         return EXIT_FAILURE;
       }
       const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location);
