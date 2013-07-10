@@ -53,7 +53,7 @@ namespace art {
 class ScopedContentionRecorder;
 class Thread;
 
-const bool kDebugLocking = true || kIsDebugBuild;
+const bool kDebugLocking = kIsDebugBuild;
 
 // Base class for all Mutex implementations
 class BaseMutex {
