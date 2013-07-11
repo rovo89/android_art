@@ -3650,111 +3650,111 @@ jbyteArray Dbg::GetRecentAllocations() {
   }
 
   Thread* self = Thread::Current();
-  MutexLock mu(self, gAllocTrackerLock);
-
-  //
-  // Part 1: generate string tables.
-  //
-  StringTable class_names;
-  StringTable method_names;
-  StringTable filenames;
-
-  int count = gAllocRecordCount;
-  int idx = HeadIndex();
-  while (count--) {
-    AllocRecord* record = &recent_allocation_records_[idx];
-
-    class_names.Add(ClassHelper(record->type).GetDescriptor());
-
-    MethodHelper mh;
-    for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
-      mirror::AbstractMethod* m = record->stack[i].method;
-      if (m != NULL) {
-        mh.ChangeMethod(m);
-        class_names.Add(mh.GetDeclaringClassDescriptor());
-        method_names.Add(mh.GetName());
-        filenames.Add(mh.GetDeclaringClassSourceFile());
-      }
-    }
-
-    idx = (idx + 1) & (kNumAllocRecords-1);
-  }
-
-  LOG(INFO) << "allocation records: " << gAllocRecordCount;
-
-  //
-  // Part 2: allocate a buffer and generate the output.
-  //
   std::vector<uint8_t> bytes;
+  {
+    MutexLock mu(self, gAllocTrackerLock);
+    //
+    // Part 1: generate string tables.
+    //
+    StringTable class_names;
+    StringTable method_names;
+    StringTable filenames;
 
-  // (1b) message header len (to allow future expansion); includes itself
-  // (1b) entry header len
-  // (1b) stack frame len
-  const int kMessageHeaderLen = 15;
-  const int kEntryHeaderLen = 9;
-  const int kStackFrameLen = 8;
-  JDWP::Append1BE(bytes, kMessageHeaderLen);
-  JDWP::Append1BE(bytes, kEntryHeaderLen);
-  JDWP::Append1BE(bytes, kStackFrameLen);
+    int count = gAllocRecordCount;
+    int idx = HeadIndex();
+    while (count--) {
+      AllocRecord* record = &recent_allocation_records_[idx];
 
-  // (2b) number of entries
-  // (4b) offset to string table from start of message
-  // (2b) number of class name strings
-  // (2b) number of method name strings
-  // (2b) number of source file name strings
-  JDWP::Append2BE(bytes, gAllocRecordCount);
-  size_t string_table_offset = bytes.size();
-  JDWP::Append4BE(bytes, 0); // We'll patch this later...
-  JDWP::Append2BE(bytes, class_names.Size());
-  JDWP::Append2BE(bytes, method_names.Size());
-  JDWP::Append2BE(bytes, filenames.Size());
+      class_names.Add(ClassHelper(record->type).GetDescriptor());
 
-  count = gAllocRecordCount;
-  idx = HeadIndex();
-  ClassHelper kh;
-  while (count--) {
-    // For each entry:
-    // (4b) total allocation size
-    // (2b) thread id
-    // (2b) allocated object's class name index
-    // (1b) stack depth
-    AllocRecord* record = &recent_allocation_records_[idx];
-    size_t stack_depth = record->GetDepth();
-    kh.ChangeClass(record->type);
-    size_t allocated_object_class_name_index = class_names.IndexOf(kh.GetDescriptor());
-    JDWP::Append4BE(bytes, record->byte_count);
-    JDWP::Append2BE(bytes, record->thin_lock_id);
-    JDWP::Append2BE(bytes, allocated_object_class_name_index);
-    JDWP::Append1BE(bytes, stack_depth);
+      MethodHelper mh;
+      for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
+        mirror::AbstractMethod* m = record->stack[i].method;
+        if (m != NULL) {
+          mh.ChangeMethod(m);
+          class_names.Add(mh.GetDeclaringClassDescriptor());
+          method_names.Add(mh.GetName());
+          filenames.Add(mh.GetDeclaringClassSourceFile());
+        }
+      }
 
-    MethodHelper mh;
-    for (size_t stack_frame = 0; stack_frame < stack_depth; ++stack_frame) {
-      // For each stack frame:
-      // (2b) method's class name
-      // (2b) method name
-      // (2b) method source file
-      // (2b) line number, clipped to 32767; -2 if native; -1 if no source
-      mh.ChangeMethod(record->stack[stack_frame].method);
-      size_t class_name_index = class_names.IndexOf(mh.GetDeclaringClassDescriptor());
-      size_t method_name_index = method_names.IndexOf(mh.GetName());
-      size_t file_name_index = filenames.IndexOf(mh.GetDeclaringClassSourceFile());
-      JDWP::Append2BE(bytes, class_name_index);
-      JDWP::Append2BE(bytes, method_name_index);
-      JDWP::Append2BE(bytes, file_name_index);
-      JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
+      idx = (idx + 1) & (kNumAllocRecords-1);
     }
 
-    idx = (idx + 1) & (kNumAllocRecords-1);
+    LOG(INFO) << "allocation records: " << gAllocRecordCount;
+
+    //
+    // Part 2: Generate the output and store it in the buffer.
+    //
+
+    // (1b) message header len (to allow future expansion); includes itself
+    // (1b) entry header len
+    // (1b) stack frame len
+    const int kMessageHeaderLen = 15;
+    const int kEntryHeaderLen = 9;
+    const int kStackFrameLen = 8;
+    JDWP::Append1BE(bytes, kMessageHeaderLen);
+    JDWP::Append1BE(bytes, kEntryHeaderLen);
+    JDWP::Append1BE(bytes, kStackFrameLen);
+
+    // (2b) number of entries
+    // (4b) offset to string table from start of message
+    // (2b) number of class name strings
+    // (2b) number of method name strings
+    // (2b) number of source file name strings
+    JDWP::Append2BE(bytes, gAllocRecordCount);
+    size_t string_table_offset = bytes.size();
+    JDWP::Append4BE(bytes, 0); // We'll patch this later...
+    JDWP::Append2BE(bytes, class_names.Size());
+    JDWP::Append2BE(bytes, method_names.Size());
+    JDWP::Append2BE(bytes, filenames.Size());
+
+    count = gAllocRecordCount;
+    idx = HeadIndex();
+    ClassHelper kh;
+    while (count--) {
+      // For each entry:
+      // (4b) total allocation size
+      // (2b) thread id
+      // (2b) allocated object's class name index
+      // (1b) stack depth
+      AllocRecord* record = &recent_allocation_records_[idx];
+      size_t stack_depth = record->GetDepth();
+      kh.ChangeClass(record->type);
+      size_t allocated_object_class_name_index = class_names.IndexOf(kh.GetDescriptor());
+      JDWP::Append4BE(bytes, record->byte_count);
+      JDWP::Append2BE(bytes, record->thin_lock_id);
+      JDWP::Append2BE(bytes, allocated_object_class_name_index);
+      JDWP::Append1BE(bytes, stack_depth);
+
+      MethodHelper mh;
+      for (size_t stack_frame = 0; stack_frame < stack_depth; ++stack_frame) {
+        // For each stack frame:
+        // (2b) method's class name
+        // (2b) method name
+        // (2b) method source file
+        // (2b) line number, clipped to 32767; -2 if native; -1 if no source
+        mh.ChangeMethod(record->stack[stack_frame].method);
+        size_t class_name_index = class_names.IndexOf(mh.GetDeclaringClassDescriptor());
+        size_t method_name_index = method_names.IndexOf(mh.GetName());
+        size_t file_name_index = filenames.IndexOf(mh.GetDeclaringClassSourceFile());
+        JDWP::Append2BE(bytes, class_name_index);
+        JDWP::Append2BE(bytes, method_name_index);
+        JDWP::Append2BE(bytes, file_name_index);
+        JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
+      }
+
+      idx = (idx + 1) & (kNumAllocRecords-1);
+    }
+
+    // (xb) class name strings
+    // (xb) method name strings
+    // (xb) source file strings
+    JDWP::Set4BE(&bytes[string_table_offset], bytes.size());
+    class_names.WriteTo(bytes);
+    method_names.WriteTo(bytes);
+    filenames.WriteTo(bytes);
   }
-
-  // (xb) class name strings
-  // (xb) method name strings
-  // (xb) source file strings
-  JDWP::Set4BE(&bytes[string_table_offset], bytes.size());
-  class_names.WriteTo(bytes);
-  method_names.WriteTo(bytes);
-  filenames.WriteTo(bytes);
-
   JNIEnv* env = self->GetJniEnv();
   jbyteArray result = env->NewByteArray(bytes.size());
   if (result != NULL) {
