@@ -124,7 +124,7 @@ static int dalvikvm(int argc, char** argv) {
   //
   // [Do we need to catch & handle "-jar" here?]
   bool need_extra = false;
-  const char* lib = "libdvm.so";
+  const char* lib = NULL;
   const char* what = NULL;
   int curr_opt, arg_idx;
   for (curr_opt = arg_idx = 0; arg_idx < argc; arg_idx++) {
