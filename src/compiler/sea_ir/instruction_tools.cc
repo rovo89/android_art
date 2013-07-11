@@ -369,7 +369,7 @@ const int InstructionTools::instruction_attributes_[] = {
   DF_FORMAT_35C | DF_UMS,
 
   // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
-  DF_FORMAT_35C | DF_UMS,
+  DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
   // 73 UNUSED_73
   DF_NOP,
@@ -387,7 +387,7 @@ const int InstructionTools::instruction_attributes_[] = {
   DF_FORMAT_3RC | DF_UMS,
 
   // 78 INVOKE_INTERFACE_RANGE {vCCCC .. vNNNN}
-  DF_FORMAT_3RC | DF_UMS,
+  DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
   // 79 UNUSED_79
   DF_NOP,
