@@ -24,7 +24,7 @@
 #include "compiler/llvm/compiler_llvm.h"
 #include "compiler/llvm/ir_builder.h"
 #include "compiler/llvm/llvm_compilation_unit.h"
-#include "compiler/llvm/runtime_support_func.h"
+#include "compiler/llvm/runtime_support_llvm_func.h"
 #include "compiler/llvm/utils_llvm.h"
 #include "dex_file-inl.h"
 #include "mirror/abstract_method.h"

@@ -51,7 +51,7 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/dex/mir_graph.cc \
 	src/compiler/dex/vreg_analysis.cc \
 	src/compiler/dex/ssa_transformation.cc \
-	src/compiler/dex/write_elf.cc \
+	src/compiler/driver/compiler_driver.cc \
 	src/compiler/driver/dex_compilation_unit.cc \
 	src/compiler/jni/portable/jni_compiler.cc \
 	src/compiler/jni/quick/arm/calling_convention_arm.cc \
@@ -70,11 +70,14 @@ LIBART_COMPILER_SRC_FILES := \
 	src/compiler/llvm/runtime_support_builder_arm.cc \
 	src/compiler/llvm/runtime_support_builder_thumb2.cc \
 	src/compiler/llvm/runtime_support_builder_x86.cc \
-	src/compiler/llvm/runtime_support_llvm.cc \
-	src/elf_fixup.cc \
-	src/elf_stripper.cc \
-	src/elf_writer.cc \
-	src/elf_writer_quick.cc
+        src/compiler/stubs/portable/stubs.cc \
+        src/compiler/stubs/quick/stubs.cc \
+	src/compiler/elf_fixup.cc \
+	src/compiler/elf_stripper.cc \
+	src/compiler/elf_writer.cc \
+	src/compiler/elf_writer_quick.cc \
+	src/compiler/image_writer.cc \
+	src/compiler/oat_writer.cc
 
 ifeq ($(ART_SEA_IR_MODE),true)
 LIBART_COMPILER_SRC_FILES += \
@@ -83,7 +86,7 @@ endif
 
 LIBART_COMPILER_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_COMPILER_SRC_FILES += src/elf_writer_mclinker.cc
+  LIBART_COMPILER_SRC_FILES += src/compiler/elf_writer_mclinker.cc
   LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
@@ -161,6 +164,8 @@ define build-libart-compiler
   else # host
     LOCAL_LDLIBS := -ldl -lpthread
   endif
+  LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.libart-compiler.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils
     include $(LLVM_GEN_INTRINSICS_MK)

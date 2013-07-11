@@ -23,7 +23,7 @@ namespace runtime_support {
 
   enum RuntimeId {
 #define DEFINE_RUNTIME_SUPPORT_FUNC_ID(ID, NAME) ID,
-#include "runtime_support_func_list.h"
+#include "runtime_support_llvm_func_list.h"
     RUNTIME_SUPPORT_FUNC_LIST(DEFINE_RUNTIME_SUPPORT_FUNC_ID)
 #undef RUNTIME_SUPPORT_FUNC_LIST
 #undef DEFINE_RUNTIME_SUPPORT_FUNC_ID

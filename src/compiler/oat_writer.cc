@@ -161,7 +161,7 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         num_methods = num_direct_methods + num_virtual_methods;
       }
 
-      CompilerDriver::ClassReference class_ref = CompilerDriver::ClassReference(dex_file, class_def_index);
+      ClassReference class_ref(dex_file, class_def_index);
       CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
       mirror::Class::Status status;
       if (compiled_class != NULL) {
@@ -303,7 +303,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 #endif
 
   CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
 #if defined(ART_USE_PORTABLE_COMPILER)
     compiled_method->AddOatdataOffsetToCompliledCodeOffset(
@@ -366,7 +366,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if !defined(NDEBUG)
     // We expect GC maps except when the class hasn't been verified or the method is native
-    CompilerDriver::ClassReference class_ref = CompilerDriver::ClassReference(dex_file, class_def_index);
+    ClassReference class_ref(dex_file, class_def_index);
     CompiledClass* compiled_class = compiler_driver_->GetCompiledClass(class_ref);
     mirror::Class::Status status;
     if (compiled_class != NULL) {
@@ -670,7 +670,7 @@ size_t OatWriter::WriteCodeMethod(OutputStream& out, size_t offset, size_t oat_c
                                   size_t class_def_method_index, bool is_static,
                                   uint32_t method_idx, const DexFile& dex_file) {
   const CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(MethodReference(&dex_file, method_idx));
 
   OatMethodOffsets method_offsets =
       oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];

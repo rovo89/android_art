@@ -134,9 +134,11 @@ class Runtime {
     return is_concurrent_gc_enabled_;
   }
 
+#ifdef ART_SEA_IR_MODE
   bool IsSeaIRMode() const {
     return sea_ir_mode_;
   }
+#endif
 
   void SetSeaIRMode(bool sea_ir_mode) {
     sea_ir_mode_ = sea_ir_mode;

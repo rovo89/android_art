@@ -23,10 +23,11 @@
 #include "base/casts.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
-#include "compiler/driver/compiler_driver.h"
+#include "class_reference.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "instruction_flags.h"
+#include "method_reference.h"
 #include "mirror/object.h"
 #include "reg_type.h"
 #include "reg_type_cache-inl.h"
@@ -184,17 +185,15 @@ class MethodVerifier {
   // information
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static const std::vector<uint8_t>* GetDexGcMap(CompilerDriver::MethodReference ref)
+  static const std::vector<uint8_t>* GetDexGcMap(MethodReference ref)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
-  static const CompilerDriver::MethodReference* GetDevirtMap(const CompilerDriver::MethodReference& ref,
-                                                             uint32_t dex_pc)
+  static const MethodReference* GetDevirtMap(const MethodReference& ref, uint32_t dex_pc)
       LOCKS_EXCLUDED(devirt_maps_lock_);
 
   // Returns true if the cast can statically be verified to be redundant
   // by using the check-cast elision peephole optimization in the verifier
-  static bool IsSafeCast(CompilerDriver::MethodReference ref, uint32_t pc)
-        LOCKS_EXCLUDED(safecast_map_lock_);
+  static bool IsSafeCast(MethodReference ref, uint32_t pc) LOCKS_EXCLUDED(safecast_map_lock_);
 
   // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
   // to the locks held at 'dex_pc' in method 'm'.
@@ -217,7 +216,7 @@ class MethodVerifier {
   static void Init() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void Shutdown();
 
-  static bool IsClassRejected(CompilerDriver::ClassReference ref)
+  static bool IsClassRejected(ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
 
   bool CanLoadClasses() const {
@@ -622,42 +621,42 @@ class MethodVerifier {
   InstructionFlags* CurrentInsnFlags();
 
   // All the GC maps that the verifier has created
-  typedef SafeMap<const CompilerDriver::MethodReference, const std::vector<uint8_t>*,
-      CompilerDriver::MethodReferenceComparator> DexGcMapTable;
+  typedef SafeMap<const MethodReference, const std::vector<uint8_t>*,
+      MethodReferenceComparator> DexGcMapTable;
   static ReaderWriterMutex* dex_gc_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DexGcMapTable* dex_gc_maps_ GUARDED_BY(dex_gc_maps_lock_);
-  static void SetDexGcMap(CompilerDriver::MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
+  static void SetDexGcMap(MethodReference ref, const std::vector<uint8_t>& dex_gc_map)
       LOCKS_EXCLUDED(dex_gc_maps_lock_);
 
 
   // Cast elision types.
   typedef std::set<uint32_t> MethodSafeCastSet;
-  typedef SafeMap<const CompilerDriver::MethodReference, const MethodSafeCastSet*,
-      CompilerDriver::MethodReferenceComparator> SafeCastMap;
+  typedef SafeMap<const MethodReference, const MethodSafeCastSet*,
+      MethodReferenceComparator> SafeCastMap;
   MethodVerifier::MethodSafeCastSet* GenerateSafeCastSet()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void SetSafeCastMap(CompilerDriver::MethodReference ref, const MethodSafeCastSet* mscs);
+  static void SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* mscs);
       LOCKS_EXCLUDED(safecast_map_lock_);
   static Mutex* safecast_map_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static SafeCastMap* safecast_map_ GUARDED_BY(safecast_map_lock_);
 
   // Devirtualization map.
-  typedef SafeMap<const uint32_t, CompilerDriver::MethodReference> PcToConcreteMethodMap;
-  typedef SafeMap<const CompilerDriver::MethodReference, const PcToConcreteMethodMap*,
-      CompilerDriver::MethodReferenceComparator> DevirtualizationMapTable;
+  typedef SafeMap<const uint32_t, MethodReference> PcToConcreteMethodMap;
+  typedef SafeMap<const MethodReference, const PcToConcreteMethodMap*,
+      MethodReferenceComparator> DevirtualizationMapTable;
   MethodVerifier::PcToConcreteMethodMap* GenerateDevirtMap()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static ReaderWriterMutex* devirt_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static DevirtualizationMapTable* devirt_maps_ GUARDED_BY(devirt_maps_lock_);
-  static void SetDevirtMap(CompilerDriver::MethodReference ref,
+  static void SetDevirtMap(MethodReference ref,
                            const PcToConcreteMethodMap* pc_method_map)
         LOCKS_EXCLUDED(devirt_maps_lock_);
-  typedef std::set<CompilerDriver::ClassReference> RejectedClassesTable;
+  typedef std::set<ClassReference> RejectedClassesTable;
   static Mutex* rejected_classes_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   static RejectedClassesTable* rejected_classes_;
 
-  static void AddRejectedClass(CompilerDriver::ClassReference ref)
+  static void AddRejectedClass(ClassReference ref)
       LOCKS_EXCLUDED(rejected_classes_lock_);
 
   RegTypeCache reg_types_;

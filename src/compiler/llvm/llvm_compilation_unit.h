@@ -25,7 +25,7 @@
 #include "instruction_set.h"
 #include "compiler/driver/dex_compilation_unit.h"
 #include "runtime_support_builder.h"
-#include "runtime_support_func.h"
+#include "runtime_support_llvm_func.h"
 #include "safe_map.h"
 
 #include <UniquePtr.h>

@@ -16,6 +16,39 @@
 
 ########################################################################
 
+# subdirectories of test/ which are used as inputs for gtests
+TEST_DEX_DIRECTORIES := \
+	AbstractMethod \
+	AllFields \
+	CreateMethodSignature \
+	ExceptionHandle \
+	Interfaces \
+	Main \
+	MyClass \
+	MyClassNatives \
+	Nested \
+	NonStaticLeafMethods \
+	ProtoCompare \
+	ProtoCompare2 \
+	StaticLeafMethods \
+	Statics \
+	StaticsFromCode \
+	XandY
+
+# subdirectories of test/ which are used with test-art-target-oat
+# Declare the simplest tests (Main, HelloWorld) first, the rest are alphabetical
+TEST_OAT_DIRECTORIES := \
+	Main \
+	HelloWorld \
+	\
+	ParallelGC \
+	ReferenceMap \
+	StackWalk \
+	ThreadStress
+
+# TODO: Enable when the StackWalk2 tests are passing
+#	StackWalk2 \
+
 ART_TEST_TARGET_DEX_FILES :=
 ART_TEST_HOST_DEX_FILES :=
 
@@ -33,6 +66,8 @@ define build-art-test-dex
     LOCAL_MODULE_PATH := $(3)
     LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
     LOCAL_DEX_PREOPT := false
+    LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
+    LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.oattest.mk
     include $(BUILD_JAVA_LIBRARY)
     ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
   endif
@@ -45,6 +80,8 @@ define build-art-test-dex
     LOCAL_NO_STANDARD_LIBRARIES := true
     LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_OUT)
     LOCAL_BUILD_HOST_DEX := true
+    LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
+    LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.oattest.mk
     include $(BUILD_HOST_JAVA_LIBRARY)
     ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
   endif

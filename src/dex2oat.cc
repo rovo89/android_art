@@ -30,17 +30,19 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/elf_fixup.h"
+#include "compiler/elf_stripper.h"
+#include "compiler/image_writer.h"
+#include "compiler/oat_writer.h"
 #include "dex_file-inl.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
-#include "image_writer.h"
 #include "leb128.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "oat_writer.h"
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
@@ -325,7 +327,7 @@ class Dex2Oat {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
     }
-    if (!compiler.FixupElf(oat_file.get(), oat_data_begin)) {
+    if (!ElfFixup::Fixup(oat_file.get(), oat_data_begin)) {
       LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
       return false;
     }
@@ -1044,7 +1046,7 @@ static int dex2oat(int argc, char** argv) {
   // Strip unneeded sections for target
   off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
   CHECK_EQ(0, seek_actual);
-  compiler->StripElf(oat_file.get());
+  ElfStripper::Strip(oat_file.get());
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully (stripped): " << oat_location;

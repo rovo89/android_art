@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 
+LIBARTTEST_COMMON_SRC_FILES := \
+	test/ReferenceMap/stack_walk_refmap_jni.cc \
+	test/StackWalk/stack_walk_jni.cc
+
 # $(1): target or host
 define build-libarttest
   ifneq ($(1),target)
@@ -37,6 +41,8 @@ define build-libarttest
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
   LOCAL_SHARED_LIBRARIES := libartd
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.libarttest.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_CLANG := $(ART_TARGET_CLANG)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)

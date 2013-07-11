@@ -18,11 +18,12 @@
 #include <vector>
 
 #include "common_test.h"
-#include "image.h"
-#include "image_writer.h"
-#include "oat_writer.h"
-#include "signal_catcher.h"
+#include "compiler/elf_fixup.h"
+#include "compiler/image_writer.h"
+#include "compiler/oat_writer.h"
 #include "gc/space/image_space.h"
+#include "image.h"
+#include "signal_catcher.h"
 #include "UniquePtr.h"
 #include "utils.h"
 #include "vector_output_stream.h"
@@ -72,7 +73,7 @@ TEST_F(ImageTest, WriteRead) {
     bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
                                       tmp_oat->GetPath(), tmp_oat->GetPath());
     ASSERT_TRUE(success_image);
-    bool success_fixup = compiler_driver_->FixupElf(tmp_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = ElfFixup::Fixup(tmp_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
   }
 
