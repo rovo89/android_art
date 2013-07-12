@@ -20,6 +20,7 @@
 
 #include <set>
 
+#include "cutils/properties.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -53,7 +54,7 @@
 namespace art {
 
 static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
-static const size_t kNumAllocRecords = 512; // Must be a power of 2.
+static const size_t kDefaultNumAllocRecords = 64*1024; // Must be a power of 2.
 
 struct AllocRecordStackTraceElement {
   mirror::AbstractMethod* method;
@@ -183,6 +184,7 @@ static ObjectRegistry* gRegistry = NULL;
 // Recent allocation tracking.
 static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER ("AllocTracker lock");
 AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL; // TODO: CircularBuffer<AllocRecord>
+static size_t gAllocRecordMax GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 
@@ -3437,15 +3439,38 @@ void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
 }
 
+static size_t GetAllocTrackerMax() {
+#ifdef HAVE_ANDROID_OS
+  // Check whether there's a system property overriding the number of records.
+  const char* propertyName = "dalvik.vm.allocTrackerMax";
+  char allocRecordMaxString[PROPERTY_VALUE_MAX];
+  if (property_get(propertyName, allocRecordMaxString, "") > 0) {
+    char* end;
+    size_t value = strtoul(allocRecordMaxString, &end, 10);
+    if (*end != '\0') {
+      ALOGE("Ignoring %s '%s' --- invalid", propertyName, allocRecordMaxString);
+      return kDefaultNumAllocRecords;
+    }
+    if (!IsPowerOfTwo(value)) {
+      ALOGE("Ignoring %s '%s' --- not power of two", propertyName, allocRecordMaxString);
+      return kDefaultNumAllocRecords;
+    }
+    return value;
+  }
+#endif
+  return kDefaultNumAllocRecords;
+}
+
 void Dbg::SetAllocTrackingEnabled(bool enabled) {
   MutexLock mu(Thread::Current(), gAllocTrackerLock);
   if (enabled) {
     if (recent_allocation_records_ == NULL) {
-      LOG(INFO) << "Enabling alloc tracker (" << kNumAllocRecords << " entries, "
-                << kMaxAllocRecordStackDepth << " frames --> "
-                << (sizeof(AllocRecord) * kNumAllocRecords) << " bytes)";
+      gAllocRecordMax = GetAllocTrackerMax();
+      LOG(INFO) << "Enabling alloc tracker (" << gAllocRecordMax << " entries of "
+                << kMaxAllocRecordStackDepth << " frames, taking "
+                << PrettySize(sizeof(AllocRecord) * gAllocRecordMax) << ")";
       gAllocRecordHead = gAllocRecordCount = 0;
-      recent_allocation_records_ = new AllocRecord[kNumAllocRecords];
+      recent_allocation_records_ = new AllocRecord[gAllocRecordMax];
       CHECK(recent_allocation_records_ != NULL);
     }
   } else {
@@ -3496,7 +3521,7 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   }
 
   // Advance and clip.
-  if (++gAllocRecordHead == kNumAllocRecords) {
+  if (++gAllocRecordHead == gAllocRecordMax) {
     gAllocRecordHead = 0;
   }
 
@@ -3510,7 +3535,7 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
   AllocRecordStackVisitor visitor(self, record);
   visitor.WalkStack();
 
-  if (gAllocRecordCount < kNumAllocRecords) {
+  if (gAllocRecordCount < gAllocRecordMax) {
     ++gAllocRecordCount;
   }
 }
@@ -3522,9 +3547,9 @@ void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
 // from it.
 //
 // We need to handle underflow in our circular buffer, so we add
-// kNumAllocRecords and then mask it back down.
+// gAllocRecordMax and then mask it back down.
 static inline int HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(gAllocTrackerLock) {
-  return (gAllocRecordHead+1 + kNumAllocRecords - gAllocRecordCount) & (kNumAllocRecords-1);
+  return (gAllocRecordHead+1 + gAllocRecordMax - gAllocRecordCount) & (gAllocRecordMax-1);
 }
 
 void Dbg::DumpRecentAllocations() {
@@ -3560,7 +3585,7 @@ void Dbg::DumpRecentAllocations() {
       usleep(40000);
     }
 
-    i = (i + 1) & (kNumAllocRecords-1);
+    i = (i + 1) & (gAllocRecordMax-1);
   }
 }
 
@@ -3632,7 +3657,7 @@ class StringTable {
  * followed by UTF-16 data.
  *
  * We send up 16-bit unsigned indexes into string tables.  In theory there
- * can be (kMaxAllocRecordStackDepth * kNumAllocRecords) unique strings in
+ * can be (kMaxAllocRecordStackDepth * gAllocRecordMax) unique strings in
  * each table, but in practice there should be far fewer.
  *
  * The chief reason for using a string table here is to keep the size of
@@ -3678,7 +3703,7 @@ jbyteArray Dbg::GetRecentAllocations() {
         }
       }
 
-      idx = (idx + 1) & (kNumAllocRecords-1);
+      idx = (idx + 1) & (gAllocRecordMax-1);
     }
 
     LOG(INFO) << "allocation records: " << gAllocRecordCount;
@@ -3744,7 +3769,7 @@ jbyteArray Dbg::GetRecentAllocations() {
         JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
       }
 
-      idx = (idx + 1) & (kNumAllocRecords-1);
+      idx = (idx + 1) & (gAllocRecordMax-1);
     }
 
     // (xb) class name strings
