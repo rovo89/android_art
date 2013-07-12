@@ -20,7 +20,6 @@
 
 #include <set>
 
-#include "cutils/properties.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -50,6 +49,10 @@
 #include "throw_location.h"
 #include "utf.h"
 #include "well_known_classes.h"
+
+#ifdef HAVE_ANDROID_OS
+#include "cutils/properties.h"
+#endif
 
 namespace art {
 
