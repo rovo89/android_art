@@ -233,7 +233,7 @@ void ElfWriterMclinker::AddMethodInputs(const std::vector<const DexFile*>& dex_f
     const DexFile& dex_file = it.GetDexFile();
     uint32_t method_idx = it.GetMemberIndex();
     const CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(MethodReference(&dex_file, method_idx));
     if (compiled_method != NULL) {
       AddCompiledCodeInput(*compiled_method);
     }
@@ -355,7 +355,7 @@ void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>&
       CHECK(method != NULL);
     }
     const CompiledMethod* compiled_method =
-      compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file, method_idx));
+      compiler_driver_->GetCompiledMethod(MethodReference(&dex_file, method_idx));
     if (compiled_method != NULL) {
       uint32_t offset = FixupCompiledCodeOffset(*elf_file.get(), oatdata_address, *compiled_method);
       // Don't overwrite static method trampoline

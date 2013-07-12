@@ -60,7 +60,7 @@
 #include "runtime.h"
 #include "runtime_support.h"
 #if defined(ART_USE_PORTABLE_COMPILER)
-#include "compiler/llvm/runtime_support_llvm.h"
+#include "runtime_support_llvm.h"
 #endif
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
