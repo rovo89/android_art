@@ -215,6 +215,7 @@ class Instruction {
   }
 
   // VRegA
+  bool HasVRegA() const;
   int32_t VRegA() const;
   int8_t VRegA_10t() const;
   uint8_t VRegA_10x() const;
@@ -242,6 +243,7 @@ class Instruction {
   uint8_t VRegA_51l() const;
 
   // VRegB
+  bool HasVRegB() const;
   int32_t VRegB() const;
   int4_t VRegB_11n() const;
   uint4_t VRegB_12x() const;
@@ -264,6 +266,7 @@ class Instruction {
   uint64_t VRegB_51l() const;  // vB_wide
 
   // VRegC
+  bool HasVRegC() const;
   int32_t VRegC() const;
   int8_t VRegC_22b() const;
   uint16_t VRegC_22c() const;
