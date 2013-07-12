@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include "compiler/oat_writer.h"
 #include "mirror/abstract_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "oat_file.h"
-#include "oat_writer.h"
 #include "vector_output_stream.h"
 
 #include "common_test.h"
@@ -33,8 +33,8 @@ class OatTest : public CommonTest {
                    const DexFile* dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const CompiledMethod* compiled_method =
-        compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(dex_file,
-                                                               method->GetDexMethodIndex()));
+        compiler_driver_->GetCompiledMethod(MethodReference(dex_file,
+                                                            method->GetDexMethodIndex()));
 
     if (compiled_method == NULL) {
       EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "

@@ -100,7 +100,7 @@ class MIRGraph;
 class Mir2Lir;
 
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
-                            const CompilerDriver::MethodReference& target_method,
+                            const MethodReference& target_method,
                             uint32_t method_idx, uintptr_t direct_code,
                             uintptr_t direct_method, InvokeType type);
 
@@ -467,13 +467,13 @@ class Mir2Lir : public Backend {
     void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                              NextCallInsn next_call_insn,
-                             const CompilerDriver::MethodReference& target_method,
+                             const MethodReference& target_method,
                              uint32_t vtable_idx,
                              uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                              bool skip_this);
     int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
                            NextCallInsn next_call_insn,
-                           const CompilerDriver::MethodReference& target_method,
+                           const MethodReference& target_method,
                            uint32_t vtable_idx,
                            uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                            bool skip_this);
@@ -495,7 +495,7 @@ class Mir2Lir : public Backend {
     bool GenIntrinsic(CallInfo* info);
     int LoadArgRegs(CallInfo* info, int call_state,
                     NextCallInsn next_call_insn,
-                    const CompilerDriver::MethodReference& target_method,
+                    const MethodReference& target_method,
                     uint32_t vtable_idx,
                     uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                     bool skip_this);

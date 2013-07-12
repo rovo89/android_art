@@ -18,7 +18,6 @@
 
 #include <vector>
 
-#include <dlfcn.h>
 #include <unistd.h>
 
 #include "base/stl_util.h"
@@ -48,8 +47,10 @@
 #include "thread_pool.h"
 #include "verifier/method_verifier.h"
 
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
+#if defined(ART_USE_PORTABLE_COMPILER)
+#include "compiler/elf_writer_mclinker.h"
+#else
+#include "compiler/elf_writer_quick.h"
 #endif
 
 namespace art {
@@ -281,48 +282,57 @@ class AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
-static std::string MakeCompilerSoName(CompilerBackend compiler_backend) {
+extern "C" void ArtInitCompilerContext(art::CompilerDriver& driver);
+extern "C" void ArtInitQuickCompilerContext(art::CompilerDriver& compiler);
 
-  // Bad things happen if we pull in the libartd-compiler to a libart dex2oat or vice versa,
-  // because we end up with both libart and libartd in the same address space!
-  const char* suffix = (kIsDebugBuild ? "d" : "");
+extern "C" void ArtUnInitCompilerContext(art::CompilerDriver& driver);
+extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver& compiler);
 
-  // Work out the filename for the compiler library.
-  std::string library_name(StringPrintf("art%s-compiler", suffix));
-  std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
+extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
+                                                 const art::DexFile::CodeItem* code_item,
+                                                 uint32_t access_flags,
+                                                 art::InvokeType invoke_type,
+                                                 uint32_t class_def_idx,
+                                                 uint32_t method_idx,
+                                                 jobject class_loader,
+                                                 const art::DexFile& dex_file);
+extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver& compiler,
+                                                      const art::DexFile::CodeItem* code_item,
+                                                      uint32_t access_flags,
+                                                      art::InvokeType invoke_type,
+                                                      uint32_t class_def_idx,
+                                                      uint32_t method_idx,
+                                                      jobject class_loader,
+                                                      const art::DexFile& dex_file);
 
-#if defined(__APPLE__)
-  // On Linux, dex2oat will have been built with an RPATH of $ORIGIN/../lib, so dlopen(3) will find
-  // the .so by itself. On Mac OS, there isn't really an equivalent, so we have to manually do the
-  // same work.
-  uint32_t executable_path_length = 0;
-  _NSGetExecutablePath(NULL, &executable_path_length);
-  std::string path(executable_path_length, static_cast<char>(0));
-  CHECK_EQ(_NSGetExecutablePath(&path[0], &executable_path_length), 0);
+extern "C" art::CompiledMethod* ArtCompileDEX(art::CompilerDriver& compiler,
+                                              const art::DexFile::CodeItem* code_item,
+                                              uint32_t access_flags,
+                                              art::InvokeType invoke_type,
+                                              uint32_t class_def_idx,
+                                              uint32_t method_idx,
+                                              jobject class_loader,
+                                              const art::DexFile& dex_file);
 
-  // Strip the "/dex2oat".
-  size_t last_slash = path.find_last_of('/');
-  CHECK_NE(last_slash, std::string::npos) << path;
-  path.resize(last_slash);
+extern "C" art::CompiledMethod* SeaIrCompileMethod(art::CompilerDriver& compiler,
+                                                   const art::DexFile::CodeItem* code_item,
+                                                   uint32_t access_flags,
+                                                   art::InvokeType invoke_type,
+                                                   uint32_t class_def_idx,
+                                                   uint32_t method_idx,
+                                                   jobject class_loader,
+                                                   const art::DexFile& dex_file);
 
-  // Strip the "/bin".
-  last_slash = path.find_last_of('/');
-  path.resize(last_slash);
+extern "C" art::CompiledMethod* ArtLLVMJniCompileMethod(art::CompilerDriver& driver,
+                                                        uint32_t access_flags, uint32_t method_idx,
+                                                        const art::DexFile& dex_file);
 
-  filename = path + "/lib/" + filename;
-#endif
-  return filename;
-}
+extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver& compiler,
+                                                         uint32_t access_flags, uint32_t method_idx,
+                                                         const art::DexFile& dex_file);
 
-template<typename Fn>
-static Fn FindFunction(const std::string& compiler_so_name, void* library, const char* name) {
-  Fn fn = reinterpret_cast<Fn>(dlsym(library, name));
-  if (fn == NULL) {
-    LOG(FATAL) << "Couldn't find \"" << name << "\" in compiler library " << compiler_so_name << ": " << dlerror();
-  }
-  VLOG(compiler) << "Found \"" << name << "\" at " << reinterpret_cast<void*>(fn);
-  return fn;
-}
+extern "C" void compilerLLVMSetBitcodeFileName(art::CompilerDriver& driver,
+                                               std::string const& filename);
 
 CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet instruction_set,
                                bool image, DescriptorSet* image_classes,
@@ -349,13 +359,6 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
       compiler_get_method_code_addr_(NULL),
       support_boot_image_fixup_(true)
 {
-  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
-  compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
-  if (compiler_library_ == NULL) {
-    LOG(FATAL) << "Couldn't find compiler library " << compiler_so_name << ": " << dlerror();
-  }
-  VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
-
   CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, NULL), "compiler tls key");
 
   // TODO: more work needed to combine initializations and allow per-method backend selection
@@ -363,28 +366,28 @@ CompilerDriver::CompilerDriver(CompilerBackend compiler_backend, InstructionSet 
   InitCompilerContextFn init_compiler_context;
   if (compiler_backend_ == kPortable){
     // Initialize compiler_context_
-    init_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
-                                                  compiler_library_, "ArtInitCompilerContext");
-    compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
+    init_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtInitCompilerContext);
+    compiler_ = reinterpret_cast<CompilerFn>(ArtCompileMethod);
   } else {
-    init_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
-                                                  compiler_library_, "ArtInitQuickCompilerContext");
-    compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtQuickCompileMethod");
+    init_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtInitQuickCompilerContext);
+    compiler_ = reinterpret_cast<CompilerFn>(ArtQuickCompileMethod);
   }
 
-  dex_to_dex_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileDEX");
+  dex_to_dex_compiler_ = reinterpret_cast<CompilerFn>(ArtCompileDEX);
 
+#ifdef ART_SEA_IR_MODE
   sea_ir_compiler_ = NULL;
   if (Runtime::Current()->IsSeaIRMode()) {
-    sea_ir_compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "SeaIrCompileMethod");
+    sea_ir_compiler_ = reinterpret_cast<CompilerFn>(SeaIrCompileMethod);
   }
+#endif
 
   init_compiler_context(*this);
 
   if (compiler_backend_ == kPortable) {
-    jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtLLVMJniCompileMethod");
+    jni_compiler_ = reinterpret_cast<JniCompilerFn>(ArtLLVMJniCompileMethod);
   } else {
-    jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtQuickJniCompileMethod");
+    jni_compiler_ = reinterpret_cast<JniCompilerFn>(ArtQuickJniCompileMethod);
   }
 
   CHECK(!Runtime::Current()->IsStarted());
@@ -413,39 +416,15 @@ CompilerDriver::~CompilerDriver() {
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
   typedef void (*UninitCompilerContextFn)(CompilerDriver&);
-  std::string compiler_so_name(MakeCompilerSoName(compiler_backend_));
   UninitCompilerContextFn uninit_compiler_context;
   // Uninitialize compiler_context_
   // TODO: rework to combine initialization/uninitialization
   if (compiler_backend_ == kPortable) {
-    uninit_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
-                                                    compiler_library_, "ArtUnInitCompilerContext");
+    uninit_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtUnInitCompilerContext);
   } else {
-    uninit_compiler_context = FindFunction<void (*)(CompilerDriver&)>(compiler_so_name,
-                                                    compiler_library_, "ArtUnInitQuickCompilerContext");
+    uninit_compiler_context = reinterpret_cast<void (*)(CompilerDriver&)>(ArtUnInitQuickCompilerContext);
   }
   uninit_compiler_context(*this);
-#if 0
-  if (compiler_library_ != NULL) {
-    VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
-    /*
-     * FIXME: Temporary workaround
-     * Apparently, llvm is adding dctors to atexit, but if we unload
-     * the library here the code will no longer be around at exit time
-     * and we die a flaming death in __cxa_finalize().  Apparently, some
-     * dlclose() implementations will scan the atexit list on unload and
-     * handle any associated with the soon-to-be-unloaded library.
-     * However, this is not required by POSIX and we don't do it.
-     * See: http://b/issue?id=4998315
-     * What's the right thing to do here?
-     *
-     * This has now been completely disabled because mclinker was
-     * closing stdout on exit, which was affecting both quick and
-     * portable.
-     */
-    dlclose(compiler_library_);
-  }
-#endif
 }
 
 CompilerTls* CompilerDriver::GetTls() {
@@ -1217,9 +1196,8 @@ bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const ui
         if (kEnableVerifierBasedSharpening && (invoke_type == kVirtual ||
                                                invoke_type == kInterface)) {
           // Did the verifier record a more precise invoke target based on its type information?
-          const CompilerDriver::MethodReference caller_method(mUnit->GetDexFile(),
-                                                              mUnit->GetDexMethodIndex());
-          const CompilerDriver::MethodReference* devirt_map_target =
+          const MethodReference caller_method(mUnit->GetDexFile(), mUnit->GetDexMethodIndex());
+          const MethodReference* devirt_map_target =
               verifier::MethodVerifier::GetDevirtMap(caller_method, dex_pc);
           if (devirt_map_target != NULL) {
             mirror::DexCache* target_dex_cache =
@@ -2138,7 +2116,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     }
     // Record the final class status if necessary.
     mirror::Class::Status status = klass->GetStatus();
-    CompilerDriver::ClassReference ref(manager->GetDexFile(), class_def_index);
+    ClassReference ref(manager->GetDexFile(), class_def_index);
     CompiledClass* compiled_class = manager->GetCompiler()->GetCompiledClass(ref);
     if (compiled_class == NULL) {
       compiled_class = new CompiledClass(status);
@@ -2287,21 +2265,16 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
       dont_compile = false;
     }
     if (!dont_compile) {
-      bool use_sea = false;
-
-      if (Runtime::Current()->IsSeaIRMode()) {
-        use_sea = true;
-      }
+      CompilerFn compiler = compiler_;
+#ifdef ART_SEA_IR_MODE
+      bool use_sea = Runtime::Current()->IsSeaIRMode();
+      use_sea &&= (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
       if (use_sea) {
-        use_sea = (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
+        compiler = sea_ir_compiler_;
       }
-      if (!use_sea) {
-        compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
-                                     method_idx, class_loader, dex_file);
-      } else {
-        compiled_method = (*sea_ir_compiler_)(*this, code_item, access_flags, invoke_type, class_def_idx,
-                                             method_idx, class_loader, dex_file);
-      }
+#endif
+      compiled_method = (*compiler)(*this, code_item, access_flags, invoke_type, class_def_idx,
+                                    method_idx, class_loader, dex_file);
       CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
     } else if (allow_dex_to_dex_compilation) {
       // TODO: add a mode to disable DEX-to-DEX compilation ?
@@ -2365,8 +2338,7 @@ void CompilerDriver::SetBitcodeFileName(std::string const& filename) {
   typedef void (*SetBitcodeFileNameFn)(CompilerDriver&, std::string const&);
 
   SetBitcodeFileNameFn set_bitcode_file_name =
-    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
-                                       "compilerLLVMSetBitcodeFileName");
+    reinterpret_cast<SetBitcodeFileNameFn>(compilerLLVMSetBitcodeFileName);
 
   set_bitcode_file_name(*this, filename);
 }
@@ -2386,45 +2358,16 @@ bool CompilerDriver::RequiresConstructorBarrier(Thread* self, const DexFile* dex
 
 bool CompilerDriver::WriteElf(const std::string& android_root,
                               bool is_host,
-                              const std::vector<const DexFile*>& dex_files,
+                              const std::vector<const art::DexFile*>& dex_files,
                               std::vector<uint8_t>& oat_contents,
-                              File* file) {
-  typedef bool (*WriteElfFn)(CompilerDriver&,
-                             const std::string& android_root,
-                             bool is_host,
-                             const std::vector<const DexFile*>& dex_files,
-                             std::vector<uint8_t>&,
-                             File*);
-  WriteElfFn WriteElf =
-    FindFunction<WriteElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "WriteElf");
-  Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-  return WriteElf(*this, android_root, is_host, dex_files, oat_contents, file);
+                              art::File* file)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(ART_USE_PORTABLE_COMPILER)
+  return art::ElfWriterMclinker::Create(file, oat_contents, dex_files, android_root, is_host, *this);
+#else
+  return art::ElfWriterQuick::Create(file, oat_contents, dex_files, android_root, is_host, *this);
+#endif
 }
-
-bool CompilerDriver::FixupElf(File* file, uintptr_t oat_data_begin) const {
-  typedef bool (*FixupElfFn)(File*, uintptr_t oat_data_begin);
-  FixupElfFn FixupElf =
-    FindFunction<FixupElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "FixupElf");
-  return FixupElf(file, oat_data_begin);
-}
-
-void CompilerDriver::GetOatElfInformation(File* file,
-                                          size_t& oat_loaded_size,
-                                          size_t& oat_data_offset) const {
-  typedef bool (*GetOatElfInformationFn)(File*, size_t& oat_loaded_size, size_t& oat_data_offset);
-  GetOatElfInformationFn GetOatElfInformation =
-    FindFunction<GetOatElfInformationFn>(MakeCompilerSoName(compiler_backend_), compiler_library_,
-                                         "GetOatElfInformation");
-  GetOatElfInformation(file, oat_loaded_size, oat_data_offset);
-}
-
-bool CompilerDriver::StripElf(File* file) const {
-  typedef bool (*StripElfFn)(File*);
-  StripElfFn StripElf =
-    FindFunction<StripElfFn>(MakeCompilerSoName(compiler_backend_), compiler_library_, "StripElf");
-  return StripElf(file);
-}
-
 void CompilerDriver::InstructionSetToLLVMTarget(InstructionSet instruction_set,
                                                 std::string& target_triple,
                                                 std::string& target_cpu,

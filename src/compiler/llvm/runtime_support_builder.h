@@ -19,7 +19,7 @@
 
 #include "backend_types.h"
 #include "base/logging.h"
-#include "runtime_support_func.h"
+#include "runtime_support_llvm_func.h"
 
 #include <stdint.h>
 

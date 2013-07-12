@@ -1225,7 +1225,7 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
       return false;
   }
   DexCompilationUnit m_unit(cu_);
-  CompilerDriver::MethodReference target_method(cu_->dex_file, mir->dalvikInsn.vB);
+  MethodReference target_method(cu_->dex_file, mir->dalvikInsn.vB);
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;

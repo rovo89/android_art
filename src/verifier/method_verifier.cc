@@ -22,7 +22,6 @@
 #include "base/mutex-inl.h"
 #include "base/stringpiece.h"
 #include "class_linker.h"
-#include "compiler/driver/compiler_driver.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction_visitor.h"
@@ -426,7 +425,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
       if (Runtime::Current()->IsCompiler()) {
-        CompilerDriver::ClassReference ref(dex_file_, class_def_idx_);
+        ClassReference ref(dex_file_, class_def_idx_);
         AddRejectedClass(ref);
       }
       have_pending_hard_failure_ = true;
@@ -1001,9 +1000,6 @@ bool MethodVerifier::VerifyCodeFlow() {
     return false;
   }
 
-  CompilerDriver::MethodReference ref(dex_file_, dex_method_idx_);
-
-
   /* Generate a register map and add it to the method. */
   UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
   if (map.get() == NULL) {
@@ -1013,6 +1009,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   if (kIsDebugBuild) {
     VerifyGcMap(*map);
   }
+  MethodReference ref(dex_file_, dex_method_idx_);
   const std::vector<uint8_t>* dex_gc_map = CreateLengthPrefixedDexGcMap(*(map.get()));
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
@@ -3820,7 +3817,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
       if (pc_to_concrete_method_map.get() == NULL) {
         pc_to_concrete_method_map.reset(new PcToConcreteMethodMap());
       }
-      CompilerDriver::MethodReference concrete_ref(
+      MethodReference concrete_ref(
           concrete_method->GetDeclaringClass()->GetDexCache()->GetDexFile(),
           concrete_method->GetDexMethodIndex());
       pc_to_concrete_method_map->Put(dex_pc, concrete_ref);
@@ -3918,8 +3915,7 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref,
-                                 const std::vector<uint8_t>& gc_map) {
+void MethodVerifier::SetDexGcMap(MethodReference ref, const std::vector<uint8_t>& gc_map) {
   {
     WriterMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
     DexGcMapTable::iterator it = dex_gc_maps_->find(ref);
@@ -3933,8 +3929,7 @@ void MethodVerifier::SetDexGcMap(CompilerDriver::MethodReference ref,
 }
 
 
-void  MethodVerifier::SetSafeCastMap(CompilerDriver::MethodReference ref,
-                                     const MethodSafeCastSet* cast_set) {
+void  MethodVerifier::SetSafeCastMap(MethodReference ref, const MethodSafeCastSet* cast_set) {
   MutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::iterator it = safecast_map_->find(ref);
   if (it != safecast_map_->end()) {
@@ -3946,7 +3941,7 @@ void  MethodVerifier::SetSafeCastMap(CompilerDriver::MethodReference ref,
   CHECK(safecast_map_->find(ref) != safecast_map_->end());
 }
 
-bool MethodVerifier::IsSafeCast(CompilerDriver::MethodReference ref, uint32_t pc) {
+bool MethodVerifier::IsSafeCast(MethodReference ref, uint32_t pc) {
   MutexLock mu(Thread::Current(), *safecast_map_lock_);
   SafeCastMap::const_iterator it = safecast_map_->find(ref);
   if (it == safecast_map_->end()) {
@@ -3958,7 +3953,7 @@ bool MethodVerifier::IsSafeCast(CompilerDriver::MethodReference ref, uint32_t pc
   return cast_it != it->second->end();
 }
 
-const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodReference ref) {
+const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(MethodReference ref) {
   ReaderMutexLock mu(Thread::Current(), *dex_gc_maps_lock_);
   DexGcMapTable::const_iterator it = dex_gc_maps_->find(ref);
   if (it == dex_gc_maps_->end()) {
@@ -3969,7 +3964,7 @@ const std::vector<uint8_t>* MethodVerifier::GetDexGcMap(CompilerDriver::MethodRe
   return it->second;
 }
 
-void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref,
+void  MethodVerifier::SetDevirtMap(MethodReference ref,
                                    const PcToConcreteMethodMap* devirt_map) {
   WriterMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::iterator it = devirt_maps_->find(ref);
@@ -3982,7 +3977,7 @@ void  MethodVerifier::SetDevirtMap(CompilerDriver::MethodReference ref,
   CHECK(devirt_maps_->find(ref) != devirt_maps_->end());
 }
 
-const CompilerDriver::MethodReference* MethodVerifier::GetDevirtMap(const CompilerDriver::MethodReference& ref,
+const MethodReference* MethodVerifier::GetDevirtMap(const MethodReference& ref,
                                                                     uint32_t dex_pc) {
   ReaderMutexLock mu(Thread::Current(), *devirt_maps_lock_);
   DevirtualizationMapTable::const_iterator it = devirt_maps_->find(ref);
@@ -4114,7 +4109,7 @@ void MethodVerifier::Shutdown() {
   verifier::RegTypeCache::ShutDown();
 }
 
-void MethodVerifier::AddRejectedClass(CompilerDriver::ClassReference ref) {
+void MethodVerifier::AddRejectedClass(ClassReference ref) {
   {
     MutexLock mu(Thread::Current(), *rejected_classes_lock_);
     rejected_classes_->insert(ref);
@@ -4122,7 +4117,7 @@ void MethodVerifier::AddRejectedClass(CompilerDriver::ClassReference ref) {
   CHECK(IsClassRejected(ref));
 }
 
-bool MethodVerifier::IsClassRejected(CompilerDriver::ClassReference ref) {
+bool MethodVerifier::IsClassRejected(ClassReference ref) {
   MutexLock mu(Thread::Current(), *rejected_classes_lock_);
   return (rejected_classes_->find(ref) != rejected_classes_->end());
 }

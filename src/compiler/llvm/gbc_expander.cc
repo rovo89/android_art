@@ -19,6 +19,7 @@
 #include "dex_file-inl.h"
 #include "intrinsic_helper.h"
 #include "ir_builder.h"
+#include "method_reference.h"
 #include "mirror/abstract_method.h"
 #include "mirror/array.h"
 #include "mirror/string.h"
@@ -776,8 +777,8 @@ llvm::Value* GBCExpanderPass::EmitInvoke(llvm::CallInst& call_inst) {
   art::InvokeType invoke_type =
       static_cast<art::InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
   bool is_static = (invoke_type == art::kStatic);
-  art::CompilerDriver::MethodReference target_method(dex_compilation_unit_->GetDexFile(),
-                                                     LV2UInt(call_inst.getArgOperand(1)));
+  art::MethodReference target_method(dex_compilation_unit_->GetDexFile(),
+                                     LV2UInt(call_inst.getArgOperand(1)));
 
   // Load *this* actual parameter
   llvm::Value* this_addr = (!is_static) ? call_inst.getArgOperand(3) : NULL;

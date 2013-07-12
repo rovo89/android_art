@@ -188,8 +188,8 @@ class CommonTest : public testing::Test {
       const mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
       const DexFile& dex_file = *dex_cache->GetDexFile();
       compiled_method =
-          compiler_driver_->GetCompiledMethod(CompilerDriver::MethodReference(&dex_file,
-                                                                              method->GetDexMethodIndex()));
+          compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
+                                                              method->GetDexMethodIndex()));
 
 #ifndef ART_LIGHT_MODE
       CHECK(compiled_method != NULL) << PrettyMethod(method);

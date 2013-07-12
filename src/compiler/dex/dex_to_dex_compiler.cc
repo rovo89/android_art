@@ -250,7 +250,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
     return;
   }
   uint32_t method_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CompilerDriver::MethodReference target_method(&GetDexFile(), method_idx);
+  MethodReference target_method(&GetDexFile(), method_idx);
   InvokeType invoke_type = kVirtual;
   InvokeType original_invoke_type = invoke_type;
   int vtable_idx;

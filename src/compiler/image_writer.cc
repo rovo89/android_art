@@ -25,6 +25,7 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler/driver/compiler_driver.h"
+#include "compiler/elf_writer.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -115,7 +116,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   Thread::Current()->TransitionFromSuspendedToRunnable();
   size_t oat_loaded_size = 0;
   size_t oat_data_offset = 0;
-  compiler_driver_.GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
+  ElfWriter::GetOatElfInformation(oat_file.get(), oat_loaded_size, oat_data_offset);
   CalculateNewObjectOffsets(oat_loaded_size, oat_data_offset);
   CopyAndFixupObjects();
   PatchOatCodeAndMethods();

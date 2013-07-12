@@ -22,7 +22,7 @@
 #include "intrinsic_helper.h"
 #include "md_builder.h"
 #include "runtime_support_builder.h"
-#include "runtime_support_func.h"
+#include "runtime_support_llvm_func.h"
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>

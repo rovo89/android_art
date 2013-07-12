@@ -632,7 +632,7 @@ void Mir2Lir::CreateNativeGcMap() {
       max_native_offset = native_offset;
     }
   }
-  CompilerDriver::MethodReference method_ref(cu_->dex_file, cu_->method_idx);
+  MethodReference method_ref(cu_->dex_file, cu_->method_idx);
   const std::vector<uint8_t>* gc_map_raw = verifier::MethodVerifier::GetDexGcMap(method_ref);
   verifier::DexPcToReferenceMap dex_gc_map(&(*gc_map_raw)[4], gc_map_raw->size() - 4);
   // Compute native offset to references size.

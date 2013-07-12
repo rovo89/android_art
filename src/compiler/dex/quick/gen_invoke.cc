@@ -313,7 +313,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method)
  * emit the next instruction in static & direct invoke sequences.
  */
 static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
-                          int state, const CompilerDriver::MethodReference& target_method,
+                          int state, const MethodReference& target_method,
                           uint32_t unused,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type)
@@ -418,7 +418,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
  * kArg1 here rather than the standard LoadArgRegs.
  */
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
-                         int state, const CompilerDriver::MethodReference& target_method,
+                         int state, const MethodReference& target_method,
                          uint32_t method_idx, uintptr_t unused, uintptr_t unused2,
                          InvokeType unused3)
 {
@@ -467,7 +467,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
  * which will locate the target and continue on via a tail call.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
-                                 const CompilerDriver::MethodReference& target_method,
+                                 const MethodReference& target_method,
                                  uint32_t unused, uintptr_t unused2,
                                  uintptr_t direct_method, InvokeType unused4)
 {
@@ -535,7 +535,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 }
 
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
-                            int state, const CompilerDriver::MethodReference& target_method,
+                            int state, const MethodReference& target_method,
                             uint32_t method_idx)
 {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
@@ -558,7 +558,7 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
 
 static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 int state,
-                                const CompilerDriver::MethodReference& target_method,
+                                const MethodReference& target_method,
                                 uint32_t method_idx,
                                 uintptr_t unused, uintptr_t unused2,
                                 InvokeType unused3)
@@ -568,7 +568,7 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
 }
 
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                                const CompilerDriver::MethodReference& target_method,
+                                const MethodReference& target_method,
                                 uint32_t method_idx, uintptr_t unused,
                                 uintptr_t unused2, InvokeType unused3)
 {
@@ -577,7 +577,7 @@ static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 }
 
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                               const CompilerDriver::MethodReference& target_method,
+                               const MethodReference& target_method,
                                uint32_t method_idx, uintptr_t unused,
                                uintptr_t unused2, InvokeType unused3)
 {
@@ -586,7 +586,7 @@ static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 }
 
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
-                           const CompilerDriver::MethodReference& target_method,
+                           const MethodReference& target_method,
                            uint32_t method_idx, uintptr_t unused,
                            uintptr_t unused2, InvokeType unused3)
 {
@@ -596,7 +596,7 @@ static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 
 static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 CallInfo* info, int state,
-                                                const CompilerDriver::MethodReference& target_method,
+                                                const MethodReference& target_method,
                                                 uint32_t unused,
                                                 uintptr_t unused2, uintptr_t unused3,
                                                 InvokeType unused4)
@@ -607,7 +607,7 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
 
 int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
                          NextCallInsn next_call_insn,
-                         const CompilerDriver::MethodReference& target_method,
+                         const MethodReference& target_method,
                          uint32_t vtable_idx, uintptr_t direct_code,
                          uintptr_t direct_method, InvokeType type, bool skip_this)
 {
@@ -647,7 +647,7 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
  */
 int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                   int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
-                                  const CompilerDriver::MethodReference& target_method,
+                                  const MethodReference& target_method,
                                   uint32_t vtable_idx, uintptr_t direct_code,
                                   uintptr_t direct_method, InvokeType type, bool skip_this)
 {
@@ -747,7 +747,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
  */
 int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                 LIR** pcrLabel, NextCallInsn next_call_insn,
-                                const CompilerDriver::MethodReference& target_method,
+                                const MethodReference& target_method,
                                 uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
                                 InvokeType type, bool skip_this)
 {
@@ -1373,7 +1373,7 @@ void Mir2Lir::GenInvoke(CallInfo* info)
   LockCallTemps();
 
   DexCompilationUnit* cUnit = mir_graph_->GetCurrentDexCompilationUnit();
-  CompilerDriver::MethodReference target_method(cUnit->GetDexFile(), info->index);
+  MethodReference target_method(cUnit->GetDexFile(), info->index);
   int vtable_idx;
   uintptr_t direct_code;
   uintptr_t direct_method;

@@ -22,11 +22,13 @@
 #include <vector>
 
 #include "base/mutex.h"
+#include "class_reference.h"
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "dex_file.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
+#include "method_reference.h"
 #include "oat_file.h"
 #include "runtime.h"
 #include "safe_map.h"
@@ -114,29 +116,8 @@ class CompilerDriver {
   const std::vector<uint8_t>* CreateInterpreterToQuickEntry() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
-  typedef std::pair<const DexFile*, uint32_t> ClassReference;
-
   CompiledClass* GetCompiledClass(ClassReference ref) const
       LOCKS_EXCLUDED(compiled_classes_lock_);
-
-  // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
-  struct MethodReference {
-    MethodReference(const DexFile* file, uint32_t index) : dex_file(file), dex_method_index(index) {
-    }
-    const DexFile* dex_file;
-    uint32_t dex_method_index;
-  };
-
-  struct MethodReferenceComparator {
-    bool operator()(MethodReference mr1, MethodReference mr2) const {
-      if (mr1.dex_file == mr2.dex_file) {
-        return mr1.dex_method_index < mr2.dex_method_index;
-      } else {
-        return mr1.dex_file < mr2.dex_file;
-      }
-    }
-  };
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
@@ -212,15 +193,11 @@ class CompilerDriver {
   }
 
 
-  // TODO: remove these Elf wrappers when libart links against LLVM (when separate compiler library is gone)
   bool WriteElf(const std::string& android_root,
                 bool is_host,
                 const std::vector<const DexFile*>& dex_files,
                 std::vector<uint8_t>& oat_contents,
                 File* file);
-  bool FixupElf(File* file, uintptr_t oat_data_begin) const;
-  void GetOatElfInformation(File* file, size_t& oat_loaded_size, size_t& oat_data_offset) const;
-  bool StripElf(File* file) const;
 
   // TODO: move to a common home for llvm helpers once quick/portable are merged
   static void InstructionSetToLLVMTarget(InstructionSet instruction_set,
@@ -404,7 +381,9 @@ class CompilerDriver {
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
   CompilerFn compiler_;
+#ifdef ART_SEA_IR_MODE
   CompilerFn sea_ir_compiler_;
+#endif
 
   CompilerFn dex_to_dex_compiler_;
 
@@ -428,16 +407,6 @@ class CompilerDriver {
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };
-
-inline bool operator<(const CompilerDriver::ClassReference& lhs, const CompilerDriver::ClassReference& rhs) {
-  if (lhs.second < rhs.second) {
-    return true;
-  } else if (lhs.second > rhs.second) {
-    return false;
-  } else {
-    return (lhs.first < rhs.first);
-  }
-}
 
 }  // namespace art
 
