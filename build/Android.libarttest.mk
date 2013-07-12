@@ -40,7 +40,7 @@ define build-libarttest
   endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
   LOCAL_SHARED_LIBRARIES := libartd
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.libarttest.mk
   ifeq ($$(art_target_or_host),target)

@@ -14,11 +14,7 @@
 # limitations under the License.
 #
 
-DEX2OAT_SRC_FILES := \
-	src/dex2oat.cc
-
-OATDUMP_SRC_FILES := \
-	src/oatdump.cc
+include art/build/Android.common.mk
 
 ART_HOST_EXECUTABLES :=
 ART_TARGET_EXECUTABLES :=
@@ -30,26 +26,28 @@ endif
 
 # $(1): executable ("d" will be appended for debug version)
 # $(2): source
-# $(3): shared libraries
-# $(4): target or host
-# $(5): ndebug or debug
+# $(3): extra shared libraries
+# $(4): extra include directories
+# $(5): target or host
+# $(6): ndebug or debug
 define build-art-executable
-  ifneq ($(4),target)
-    ifneq ($(4),host)
-      $$(error expected target or host for argument 4, received $(4))
+  ifneq ($(5),target)
+    ifneq ($(5),host)
+      $$(error expected target or host for argument 5, received $(5))
     endif
   endif
-  ifneq ($(5),ndebug)
-    ifneq ($(5),debug)
-      $$(error expected ndebug or debug for argument 5, received $(5))
+  ifneq ($(6),ndebug)
+    ifneq ($(6),debug)
+      $$(error expected ndebug or debug for argument 6, received $(6))
     endif
   endif
 
   art_executable := $(1)
   art_source := $(2)
   art_shared_libraries := $(3)
-  art_target_or_host := $(4)
-  art_ndebug_or_debug := $(5)
+  art_c_includes := $(4)
+  art_target_or_host := $(5)
+  art_ndebug_or_debug := $(6)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -59,7 +57,7 @@ define build-art-executable
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE_TAGS := optional
   LOCAL_SRC_FILES := $$(art_source)
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime $$(art_c_includes)
   LOCAL_SHARED_LIBRARIES := $$(art_shared_libraries) # libnativehelper
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
@@ -97,8 +95,8 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libstlport
   endif
 
-  LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
-  LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.executable.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.executable.mk
 
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
@@ -109,27 +107,3 @@ define build-art-executable
   endif
 
 endef
-
-ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart-compiler,target,ndebug))
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,target,ndebug))
-endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd-compiler,target,debug))
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,target,debug))
-endif
-
-# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart-compiler,host,ndebug))
-endif
-ifeq ($(ART_BUILD_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd-compiler,host,debug))
-endif
-
-ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,host,ndebug))
-endif
-ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),,host,debug))
-endif

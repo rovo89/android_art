@@ -8,7 +8,9 @@ LOCAL_SRC_FILES:= \
 	Net.cpp
 
 LOCAL_C_INCLUDES += \
-	art/src
+	art/runtime
+
+LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 
 LOCAL_MODULE := jdwpspy
 

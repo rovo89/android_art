@@ -158,8 +158,9 @@ def ProcessFile(filename):
     _ENUMS[enum_name].append((enum_value, enum_text))
 
 def main():
+  local_path = sys.argv[1]
   header_files = []
-  for header_file in sys.argv[1:]:
+  for header_file in sys.argv[2:]:
     header_files.append(header_file)
     ProcessFile(header_file)
 
@@ -167,9 +168,7 @@ def main():
   print
 
   for header_file in header_files:
-    # Make gives us paths relative to the top of the tree, but our -I is art/.
-    # We also have -I art/src/, but icu4c is higher on the include path and has a "mutex.h" too.
-    header_file = header_file.replace('art/', '')
+    header_file = header_file.replace(local_path + '/', '')
     print '#include "%s"' % header_file
 
   print

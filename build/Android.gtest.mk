@@ -14,53 +14,55 @@
 # limitations under the License.
 #
 
+LOCAL_PATH := art
+
 TEST_COMMON_SRC_FILES := \
-	src/barrier_test.cc \
-	src/base/histogram_test.cc \
-	src/base/mutex_test.cc \
-	src/base/unix_file/fd_file_test.cc \
-	src/base/unix_file/mapped_file_test.cc \
-	src/base/unix_file/null_file_test.cc \
-	src/base/unix_file/random_access_file_utils_test.cc \
-	src/base/unix_file/string_file_test.cc \
-	src/class_linker_test.cc \
-	src/compiler/driver/compiler_driver_test.cc \
-	src/compiler/elf_writer_test.cc \
-	src/compiler/jni/jni_compiler_test.cc \
-	src/dex_file_test.cc \
-	src/dex_instruction_visitor_test.cc \
-	src/dex_method_iterator_test.cc \
-	src/exception_test.cc \
-	src/gc/accounting/space_bitmap_test.cc \
-	src/gc/heap_test.cc \
-	src/gc/space/space_test.cc \
-	src/gtest_test.cc \
-	src/image_test.cc \
-	src/indenter_test.cc \
-	src/indirect_reference_table_test.cc \
-	src/intern_table_test.cc \
-	src/jni_internal_test.cc \
-	src/mirror/dex_cache_test.cc \
-	src/mirror/object_test.cc \
-	src/oat/utils/arm/managed_register_arm_test.cc \
-	src/oat/utils/x86/managed_register_x86_test.cc \
-	src/oat_test.cc \
-	src/output_stream_test.cc \
-	src/reference_table_test.cc \
-	src/runtime_support_test.cc \
-	src/runtime_test.cc \
-	src/thread_pool_test.cc \
-	src/utils_test.cc \
-	src/verifier/method_verifier_test.cc \
-	src/verifier/reg_type_test.cc \
-	src/zip_archive_test.cc
+	runtime/barrier_test.cc \
+	runtime/base/histogram_test.cc \
+	runtime/base/mutex_test.cc \
+	runtime/base/unix_file/fd_file_test.cc \
+	runtime/base/unix_file/mapped_file_test.cc \
+	runtime/base/unix_file/null_file_test.cc \
+	runtime/base/unix_file/random_access_file_utils_test.cc \
+	runtime/base/unix_file/string_file_test.cc \
+	runtime/class_linker_test.cc \
+	runtime/dex_file_test.cc \
+	runtime/dex_instruction_visitor_test.cc \
+	runtime/dex_method_iterator_test.cc \
+	runtime/exception_test.cc \
+	runtime/gc/accounting/space_bitmap_test.cc \
+	runtime/gc/heap_test.cc \
+	runtime/gc/space/space_test.cc \
+	runtime/gtest_test.cc \
+	runtime/image_test.cc \
+	runtime/indenter_test.cc \
+	runtime/indirect_reference_table_test.cc \
+	runtime/intern_table_test.cc \
+	runtime/jni_internal_test.cc \
+	runtime/mirror/dex_cache_test.cc \
+	runtime/mirror/object_test.cc \
+	runtime/oat/utils/arm/managed_register_arm_test.cc \
+	runtime/oat/utils/x86/managed_register_x86_test.cc \
+	runtime/oat_test.cc \
+	runtime/output_stream_test.cc \
+	runtime/reference_table_test.cc \
+	runtime/runtime_support_test.cc \
+	runtime/runtime_test.cc \
+	runtime/thread_pool_test.cc \
+	runtime/utils_test.cc \
+	runtime/verifier/method_verifier_test.cc \
+	runtime/verifier/reg_type_test.cc \
+	runtime/zip_archive_test.cc \
+	compiler/driver/compiler_driver_test.cc \
+	compiler/elf_writer_test.cc \
+	compiler/jni/jni_compiler_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)
 
 TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
-	src/oat/utils/x86/assembler_x86_test.cc
+	runtime/oat/utils/x86/assembler_x86_test.cc
 
 ART_HOST_TEST_EXECUTABLES :=
 ART_TARGET_TEST_EXECUTABLES :=
@@ -96,11 +98,11 @@ define build-art-test
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TAGS := tests
   endif
-  LOCAL_SRC_FILES := $$(art_gtest_filename) src/common_test.cc
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_SRC_FILES := $$(art_gtest_filename) runtime/common_test.cc
+  LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/compiler
   LOCAL_SHARED_LIBRARIES := libartd-compiler libartd
-  LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/build/Android.common.mk
-  LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/build/Android.gtest.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 
   # Mac OS linker doesn't understand --export-dynamic.
   ifneq ($(HOST_OS)-$$(art_target_or_host),darwin-host)
