@@ -113,8 +113,9 @@ class ElfFile {
   // Returns the expected size when the file is loaded at runtime
   size_t GetLoadedSize();
 
-  // Load segments into memory based on PT_LOAD program headers
-  bool Load();
+  // Load segments into memory based on PT_LOAD program headers.
+  // executable is true at run time, false at compile time.
+  bool Load(bool executable);
 
  private:
   ElfFile();

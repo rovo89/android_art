@@ -102,7 +102,7 @@ TEST_F(OatTest, WriteRead) {
   if (compile) {  // OatWriter strips the code, regenerate to compare
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL));
+  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
