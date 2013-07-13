@@ -172,7 +172,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
     LOCAL_SHARED_LIBRARIES += libart
   endif
-  LOCAL_SHARED_LIBRARIES += libbcc libLLVM
+  LOCAL_SHARED_LIBRARIES += libbcc libbcinfo libLLVM
 
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
