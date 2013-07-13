@@ -59,29 +59,30 @@ OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
 
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base) {
+                       byte* requested_base,
+                       bool executable) {
   CHECK(!filename.empty()) << location;
   CheckLocation(filename);
-  OatFile* result = OpenDlopen(filename, location, requested_base);
-  if (result != NULL) {
-    return result;
+  // If we are trying to execute, we need to use dlopen.
+  if (executable) {
+    return OpenDlopen(filename, location, requested_base);
   }
-  // On target, only used dlopen to load.
-  if (kIsTargetBuild) {
-    return NULL;
-  }
+  // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
+  //
+  // On target, dlopen may fail when compiling due to selinux restrictions on installd.
+  //
   // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
   // This won't work for portable runtime execution because it doesn't process relocations.
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false, false));
   if (file.get() == NULL) {
     return NULL;
   }
-  return OpenElfFile(file.get(), location, requested_base, false);
+  return OpenElfFile(file.get(), location, requested_base, false, executable);
 }
 
 OatFile* OatFile::OpenWritable(File* file, const std::string& location) {
   CheckLocation(location);
-  return OpenElfFile(file, location, NULL, true);
+  return OpenElfFile(file, location, NULL, true, false);
 }
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
@@ -98,9 +99,10 @@ OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
 OatFile* OatFile::OpenElfFile(File* file,
                               const std::string& location,
                               byte* requested_base,
-                              bool writable) {
+                              bool writable,
+                              bool executable) {
   UniquePtr<OatFile> oat_file(new OatFile(location));
-  bool success = oat_file->ElfFileOpen(file, requested_base, writable);
+  bool success = oat_file->ElfFileOpen(file, requested_base, writable, executable);
   if (!success) {
     return NULL;
   }
@@ -154,13 +156,13 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
   return Setup();
 }
 
-bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable) {
+bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable) {
   elf_file_.reset(ElfFile::Open(file, writable, true));
   if (elf_file_.get() == NULL) {
     PLOG(WARNING) << "Failed to create ELF file for " << file->GetPath();
     return false;
   }
-  bool loaded = elf_file_->Load();
+  bool loaded = elf_file_->Load(executable);
   if (!loaded) {
     LOG(WARNING) << "Failed to load ELF file " << file->GetPath();
     return false;

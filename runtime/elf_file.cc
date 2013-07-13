@@ -587,7 +587,7 @@ size_t ElfFile::GetLoadedSize() {
   return loaded_size;
 }
 
-bool ElfFile::Load() {
+bool ElfFile::Load(bool executable) {
   // TODO: actually return false error
   CHECK(program_header_only_) << file_->GetPath();
   for (llvm::ELF::Elf32_Word i = 0; i < GetProgramHeaderNum(); i++) {
@@ -630,7 +630,7 @@ bool ElfFile::Load() {
     }
     byte* p_vaddr = base_address_ + program_header.p_vaddr;
     int prot = 0;
-    if ((program_header.p_flags & llvm::ELF::PF_X) != 0) {
+    if (executable && ((program_header.p_flags & llvm::ELF::PF_X) != 0)) {
       prot |= PROT_EXEC;
     }
     if ((program_header.p_flags & llvm::ELF::PF_W) != 0) {

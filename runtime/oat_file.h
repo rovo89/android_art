@@ -44,7 +44,8 @@ class OatFile {
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base);
+                       byte* requested_base,
+                       bool executable);
 
   // Open an oat file from an already opened File.
   // Does not use dlopen underneath so cannot be used for runtime use
@@ -215,11 +216,12 @@ class OatFile {
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
                               byte* requested_base,
-                              bool writable);
+                              bool writable,
+                              bool executable);
 
   explicit OatFile(const std::string& filename);
   bool Dlopen(const std::string& elf_filename, byte* requested_base);
-  bool ElfFileOpen(File* file, byte* requested_base, bool writable);
+  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable);
   bool Setup();
 
   const byte* Begin() const;
