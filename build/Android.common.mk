@@ -14,6 +14,36 @@
 # limitations under the License.
 #
 
+# These can be overridden via the environment or by editing to
+# enable/disable certain build configuration.
+#
+# For example, to disable everything but the host debug build you use:
+#
+# (export ART_BUILD_TARGET_NDEBUG=false && export ART_BUILD_TARGET_DEBUG=false && export ART_BUILD_HOST_NDEBUG=false && ...)
+#
+# Beware that tests may use the non-debug build for performance, notable 055-enum-performance
+#
+ART_BUILD_TARGET_NDEBUG ?= true
+ART_BUILD_TARGET_DEBUG ?= true
+ART_BUILD_HOST_NDEBUG ?= true
+ART_BUILD_HOST_DEBUG ?= true
+
+ifeq ($(ART_BUILD_TARGET_NDEBUG),false)
+$(info Disabling ART_BUILD_TARGET_NDEBUG)
+endif
+ifeq ($(ART_BUILD_TARGET_DEBUG),false)
+$(info Disabling ART_BUILD_TARGET_DEBUG)
+endif
+ifeq ($(ART_BUILD_HOST_NDEBUG),false)
+$(info Disabling ART_BUILD_HOST_NDEBUG)
+endif
+ifeq ($(ART_BUILD_HOST_DEBUG),false)
+$(info Disabling ART_BUILD_HOST_DEBUG)
+endif
+
+#
+# Used to enable smart mode
+#
 ART_SMALL_MODE := false
 ifneq ($(wildcard art/SMALL_ART),)
 $(info Enabling ART_SMALL_MODE because of existence of art/SMALL_ART)
@@ -23,6 +53,9 @@ ifeq ($(WITH_ART_SMALL_MODE), true)
 ART_SMALL_MODE := true
 endif
 
+#
+# Used to enable SEA mode
+#
 ART_SEA_IR_MODE := false
 ifneq ($(wildcard art/SEA_IR_ART),)
 $(info Enabling ART_SEA_IR_MODE because of existence of art/SEA_IR_ART)
@@ -32,6 +65,9 @@ ifeq ($(WITH_ART_SEA_IR_MODE), true)
 ART_SEA_IR_MODE := true
 endif
 
+#
+# Used to enable portable mode
+#
 ART_USE_PORTABLE_COMPILER := false
 ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
 $(info Enabling ART_USE_PORTABLE_COMPILER because of existence of art/USE_PORTABLE_COMPILER)
@@ -59,12 +95,14 @@ ART_TEST_OUT := $(TARGET_OUT_DATA)/art-test
 
 ART_CPP_EXTENSION := .cc
 
+ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
+ART_HOST_SHLIB_EXTENSION ?= .so
+
 ART_C_INCLUDES := \
 	external/gtest/include \
 	external/valgrind/main/include \
 	external/zlib \
-	frameworks/compile/mclinker/include \
-	art/src
+	frameworks/compile/mclinker/include
 
 art_cflags := \
 	-fno-rtti \
@@ -125,8 +163,11 @@ ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
 else
   # Warn if not using GCC 4.6 for target builds when not doing a top-level or 'mma' build.
   ifneq ($(ONE_SHOT_MAKEFILE),)
-    # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
-    $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
+    ifneq ($(ART_THREAD_SAFETY_CHECK_WARNING),true)
+      # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
+      $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
+      ART_THREAD_SAFETY_CHECK_WARNING := true
+    endif
   endif
 endif
 # We build with GCC 4.6 on the host.

@@ -16,38 +16,8 @@
 
 LOCAL_PATH := $(call my-dir)
 
-# These can be overridden via the environment or by editing to
-# enable/disable certain build configuration.
-#
-# For example, to disable everything but the host debug build you use:
-#
-# (export ART_BUILD_TARGET_NDEBUG=false && export ART_BUILD_TARGET_DEBUG=false && export ART_BUILD_HOST_NDEBUG=false && ...)
-#
-# Beware that tests may use the non-debug build for performance, notable 055-enum-performance
-#
-ART_BUILD_TARGET_NDEBUG ?= true
-ART_BUILD_TARGET_DEBUG ?= true
-ART_BUILD_HOST_NDEBUG ?= true
-ART_BUILD_HOST_DEBUG ?= true
-
-ifeq ($(ART_BUILD_TARGET_NDEBUG),false)
-$(info Disabling ART_BUILD_TARGET_NDEBUG)
-endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),false)
-$(info Disabling ART_BUILD_TARGET_DEBUG)
-endif
-ifeq ($(ART_BUILD_HOST_NDEBUG),false)
-$(info Disabling ART_BUILD_HOST_NDEBUG)
-endif
-ifeq ($(ART_BUILD_HOST_DEBUG),false)
-$(info Disabling ART_BUILD_HOST_DEBUG)
-endif
-
-ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
-ART_HOST_SHLIB_EXTENSION ?= .so
-
-build_path := $(LOCAL_PATH)/build
-include $(build_path)/Android.common.mk
+art_path := $(LOCAL_PATH)
+art_build_path := $(art_path)/build
 
 ########################################################################
 # clean-oat targets
@@ -111,17 +81,18 @@ clean-oat-target:
 # we aren't building most of art on darwin right now, but we do need to build new dalvikvm
 ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
 art_dont_bother := true
-include $(LOCAL_PATH)/dalvikvm/Android.mk
+include $(art_path)/dalvikvm/Android.mk
 endif
 
 ifneq ($(art_dont_bother),true)
 
 ########################################################################
 # product targets
-include $(build_path)/Android.libart.mk
-include $(build_path)/Android.libart-compiler.mk
-include $(build_path)/Android.executable.mk
-include $(build_path)/Android.oat.mk
+include $(art_path)/runtime/Android.mk
+include $(art_path)/compiler/Android.mk
+include $(art_path)/dex2oat/Android.mk
+include $(art_path)/oatdump/Android.mk
+include $(art_build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
@@ -131,8 +102,8 @@ ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES
 ########################################################################
 # test targets
 
-include $(build_path)/Android.oattest.mk
-include $(build_path)/Android.gtest.mk
+include $(art_path)/test/Android.mk
+include $(art_build_path)/Android.gtest.mk
 
 # The ART_*_TEST_DEPENDENCIES definitions:
 # - depend on Android.oattest.mk above for ART_TEST_*_DEX_FILES
@@ -140,7 +111,7 @@ include $(build_path)/Android.gtest.mk
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
 
-include $(build_path)/Android.libarttest.mk
+include $(art_build_path)/Android.libarttest.mk
 
 # "m build-art" for quick minimal build
 .PHONY: build-art
@@ -386,6 +357,7 @@ use-dalvik:
 
 ########################################################################
 
-include $(call all-makefiles-under,$(LOCAL_PATH))
+include $(art_path)/dalvikvm/Android.mk
+include $(art_path)/jdwpspy/Android.mk
 
 endif # !art_dont_bother
