@@ -1416,7 +1416,7 @@ static int oatdump(int argc, char** argv) {
 
   if (oat_filename != NULL) {
     OatFile* oat_file =
-        OatFile::Open(oat_filename, oat_filename, NULL);
+        OatFile::Open(oat_filename, oat_filename, NULL, false);
     if (oat_file == NULL) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;

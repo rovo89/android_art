@@ -82,7 +82,7 @@ TEST_F(ElfWriterTest, dlsym) {
   {
     UniquePtr<ElfFile> ef(ElfFile::Open(file.get(), false, true));
     CHECK(ef.get() != NULL);
-    ef->Load();
+    ef->Load(false);
     EXPECT_EQ(dl_oatdata, ef->FindDynamicSymbolAddress("oatdata"));
     EXPECT_EQ(dl_oatexec, ef->FindDynamicSymbolAddress("oatexec"));
     EXPECT_EQ(dl_oatlastword, ef->FindDynamicSymbolAddress("oatlastword"));

@@ -212,7 +212,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an odex file next to the dex file.
   std::string odex_filename(OatFile::DexFilenameToOdexFilename(filename.c_str()));
-  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL));
+  UniquePtr<const OatFile> oat_file(OatFile::Open(odex_filename, odex_filename, NULL, false));
   if (oat_file.get() != NULL) {
     ScopedObjectAccess soa(env);
     const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
@@ -242,7 +242,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an oat file in the cache
   std::string cache_location(GetDalvikCacheFilenameOrDie(filename.c_str()));
-  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL));
+  oat_file.reset(OatFile::Open(cache_location, filename.c_str(), NULL, false));
   if (oat_file.get() == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " does not exist for " << filename.c_str();
