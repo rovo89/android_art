@@ -307,11 +307,7 @@ class Heap {
 
   // Implements java.lang.Runtime.totalMemory, returning the amount of memory consumed by an
   // application.
-  int64_t GetTotalMemory() const {
-    // TODO: we use the footprint limit here which is conservative wrt number of pages really used.
-    //       We could implement a more accurate count across all spaces.
-    return max_allowed_footprint_;
-  }
+  int64_t GetTotalMemory() const;
 
   // Implements java.lang.Runtime.freeMemory.
   int64_t GetFreeMemory() const {
