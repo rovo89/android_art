@@ -27,7 +27,6 @@
 #include "mirror/abstract_method-inl.h"
 #include "mirror/object-inl.h"
 #include "oat.h"
-#include "oat_file.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

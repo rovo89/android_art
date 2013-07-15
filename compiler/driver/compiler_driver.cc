@@ -26,7 +26,6 @@
 #include "dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"
-#include "oat_file.h"
 #include "object_utils.h"
 #include "runtime.h"
 #include "gc/accounting/card_table-inl.h"

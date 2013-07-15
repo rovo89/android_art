@@ -20,6 +20,9 @@
 #include "space.h"
 
 namespace art {
+
+class OatFile;
+
 namespace gc {
 namespace space {
 
@@ -34,8 +37,20 @@ class ImageSpace : public MemMapSpace {
     return kSpaceTypeImageSpace;
   }
 
-  // create a Space from an image file. cannot be used for future allocation or collected.
+  // Create a Space from an image file. Cannot be used for future
+  // allocation or collected.
+  //
+  // Create also opens the OatFile associated with the image file so
+  // that it be contiguously allocated with the image before the
+  // creation of the alloc space. The ReleaseOatFile will later be
+  // used to transfer ownership of the OatFile to the ClassLinker when
+  // it is initialized.
   static ImageSpace* Create(const std::string& image)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Releases the OatFile from the ImageSpace so it can be transfer to
+  // the caller, presumably the ClassLinker.
+  OatFile& ReleaseOatFile()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const ImageHeader& GetImageHeader() const {
@@ -63,6 +78,23 @@ class ImageSpace : public MemMapSpace {
   void Dump(std::ostream& os) const;
 
  private:
+
+  // Tries to initialize an ImageSpace from the given image path,
+  // returning NULL on error.
+  //
+  // If validate_oat_file is false (for /system), do not verify that
+  // image's OatFile is up-to-date relative to its DexFile
+  // inputs. Otherwise (for /data), validate the inputs and generate
+  // the OatFile in /data/dalvik-cache if necessary.
+  static ImageSpace* Init(const std::string& image, bool validate_oat_file)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  OatFile* OpenOatFile() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool ValidateOatFile() const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   friend class Space;
 
   static size_t bitmap_index_;
@@ -70,6 +102,11 @@ class ImageSpace : public MemMapSpace {
   UniquePtr<accounting::SpaceBitmap> live_bitmap_;
 
   ImageSpace(const std::string& name, MemMap* mem_map);
+
+  // The OatFile associated with the image during early startup to
+  // reserve space contiguous to the image. It is later released to
+  // the ClassLinker during it's initialization.
+  UniquePtr<OatFile> oat_file_;
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };

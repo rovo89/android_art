@@ -680,35 +680,12 @@ void ClassLinker::RegisterOatFileLocked(const OatFile& oat_file) {
   oat_files_.push_back(&oat_file);
 }
 
-OatFile* ClassLinker::OpenOat(const gc::space::ImageSpace* space) {
+OatFile& ClassLinker::GetImageOatFile(gc::space::ImageSpace* space) {
+  VLOG(startup) << "ClassLinker::GetImageOatFile entering";
+  OatFile& oat_file = space->ReleaseOatFile();
   WriterMutexLock mu(Thread::Current(), dex_lock_);
-  const Runtime* runtime = Runtime::Current();
-  const ImageHeader& image_header = space->GetImageHeader();
-  // Grab location but don't use Object::AsString as we haven't yet initialized the roots to
-  // check the down cast
-  mirror::String* oat_location =
-      down_cast<mirror::String*>(image_header.GetImageRoot(ImageHeader::kOatLocation));
-  std::string oat_filename;
-  oat_filename += runtime->GetHostPrefix();
-  oat_filename += oat_location->ToModifiedUtf8();
-  runtime->GetHeap()->UnReserveOatFileAddressRange();
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
-                                    !Runtime::Current()->IsCompiler());
-  VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
-  if (oat_file == NULL) {
-    LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
-    return NULL;
-  }
-  uint32_t oat_checksum = oat_file->GetOatHeader().GetChecksum();
-  uint32_t image_oat_checksum = image_header.GetOatChecksum();
-  if (oat_checksum != image_oat_checksum) {
-    LOG(ERROR) << "Failed to match oat file checksum " << std::hex << oat_checksum
-               << " to expected oat checksum " << std::hex << image_oat_checksum
-               << " in image";
-    return NULL;
-  }
-  RegisterOatFileLocked(*oat_file);
-  VLOG(startup) << "ClassLinker::OpenOat exiting";
+  RegisterOatFileLocked(oat_file);
+  VLOG(startup) << "ClassLinker::GetImageOatFile exiting";
   return oat_file;
 }
 
@@ -952,13 +929,13 @@ void ClassLinker::InitFromImage() {
 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   gc::space::ImageSpace* space = heap->GetImageSpace();
-  OatFile* oat_file = OpenOat(space);
-  CHECK(oat_file != NULL) << "Failed to open oat file for image";
-  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
-  CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
-  CHECK(oat_file->GetOatHeader().GetImageFileLocation().empty());
-  portable_resolution_trampoline_ = oat_file->GetOatHeader().GetPortableResolutionTrampoline();
-  quick_resolution_trampoline_ = oat_file->GetOatHeader().GetQuickResolutionTrampoline();
+  CHECK(space != NULL);
+  OatFile& oat_file = GetImageOatFile(space);
+  CHECK_EQ(oat_file.GetOatHeader().GetImageFileLocationOatChecksum(), 0U);
+  CHECK_EQ(oat_file.GetOatHeader().GetImageFileLocationOatDataBegin(), 0U);
+  CHECK(oat_file.GetOatHeader().GetImageFileLocation().empty());
+  portable_resolution_trampoline_ = oat_file.GetOatHeader().GetPortableResolutionTrampoline();
+  quick_resolution_trampoline_ = oat_file.GetOatHeader().GetQuickResolutionTrampoline();
   mirror::Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   mirror::ObjectArray<mirror::DexCache>* dex_caches =
       dex_caches_object->AsObjectArray<mirror::DexCache>();
@@ -971,18 +948,18 @@ void ClassLinker::InitFromImage() {
   // as being Strings or not
   mirror::String::SetClass(GetClassRoot(kJavaLangString));
 
-  CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
+  CHECK_EQ(oat_file.GetOatHeader().GetDexFileCount(),
            static_cast<uint32_t>(dex_caches->GetLength()));
   Thread* self = Thread::Current();
   for (int i = 0; i < dex_caches->GetLength(); i++) {
     SirtRef<mirror::DexCache> dex_cache(self, dex_caches->Get(i));
     const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
-    CHECK(oat_dex_file != NULL) << oat_file->GetLocation() << " " << dex_file_location;
+    const OatFile::OatDexFile* oat_dex_file = oat_file.GetOatDexFile(dex_file_location);
+    CHECK(oat_dex_file != NULL) << oat_file.GetLocation() << " " << dex_file_location;
     const DexFile* dex_file = oat_dex_file->OpenDexFile();
     if (dex_file == NULL) {
       LOG(FATAL) << "Failed to open dex file " << dex_file_location
-                 << " from within oat file " << oat_file->GetLocation();
+                 << " from within oat file " << oat_file.GetLocation();
     }
 
     CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
