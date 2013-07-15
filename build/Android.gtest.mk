@@ -101,7 +101,9 @@ define build-art-test
   LOCAL_SRC_FILES := $$(art_gtest_filename) runtime/common_test.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/compiler
   LOCAL_SHARED_LIBRARIES := libartd-compiler libartd
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := dex2oatd # needed to go libartd-compilerd and libartd
+
+  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 
   # Mac OS linker doesn't understand --export-dynamic.
