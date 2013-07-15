@@ -95,7 +95,7 @@ TEST_F(ThreadPoolTest, StopStart) {
   EXPECT_EQ(0, bad_count);
   // Allow tasks to finish up and delete themselves.
   thread_pool.StartWorkers(self);
-  while (count.get() != num_tasks && bad_count.get() != 1) {
+  while (count.load() != num_tasks && bad_count.load() != 1) {
     usleep(200);
   }
   thread_pool.StopWorkers(self);

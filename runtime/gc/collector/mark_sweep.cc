@@ -852,8 +852,8 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   // AllocSpace::FreeList clears the value in ptrs, so perform after clearing the live bit
   size_t freed_bytes = space->FreeList(self, num_ptrs, ptrs);
   heap->RecordFree(freed_objects, freed_bytes);
-  mark_sweep->freed_objects_ += freed_objects;
-  mark_sweep->freed_bytes_ += freed_bytes;
+  mark_sweep->freed_objects_.fetch_add(freed_objects);
+  mark_sweep->freed_bytes_.fetch_add(freed_bytes);
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
@@ -918,8 +918,8 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   VLOG(heap) << "Freed " << freed_objects << "/" << count
              << " objects with size " << PrettySize(freed_bytes);
   heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
-  freed_objects_ += freed_objects;
-  freed_bytes_ += freed_bytes;
+  freed_objects_.fetch_add(freed_objects);
+  freed_bytes_.fetch_add(freed_bytes);
 
   timings_.NewSplit("ResetStack");
   allocations->Reset();
@@ -997,8 +997,8 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
       ++freed_objects;
     }
   }
-  freed_objects_ += freed_objects;
-  freed_bytes_ += freed_bytes;
+  freed_objects_.fetch_add(freed_objects);
+  freed_bytes_.fetch_add(freed_bytes);
   GetHeap()->RecordFree(freed_objects, freed_bytes);
 }
 
@@ -1205,7 +1205,7 @@ class MarkStackChunk : public Task {
       thread_pool_->AddTask(Thread::Current(), output_);
       output_ = NULL;
       if (kMeasureOverhead) {
-        mark_sweep_->overhead_time_ += NanoTime() - start;
+        mark_sweep_->overhead_time_.fetch_add(NanoTime() - start);
       }
     }
   }
@@ -1217,7 +1217,7 @@ class MarkStackChunk : public Task {
     }
     output_ = new MarkStackChunk(thread_pool_, mark_sweep_, NULL, NULL);
     if (kMeasureOverhead) {
-      mark_sweep_->overhead_time_ += NanoTime() - start;
+      mark_sweep_->overhead_time_.fetch_add(NanoTime() - start);
     }
   }
 

@@ -29,47 +29,51 @@ class AtomicInteger {
   AtomicInteger(int32_t value) : value_(value) { }
 
   // Unsafe = operator for non atomic operations on the integer.
-  AtomicInteger& operator = (int32_t new_value) {
-    value_ = new_value;
+  void store(int32_t desired) {
+    value_ = desired;
+  }
+
+  AtomicInteger& operator=(int32_t desired) {
+    store(desired);
     return *this;
   }
 
-  operator int32_t () const {
+  int32_t load() const {
     return value_;
   }
 
-  int32_t get() const {
-    return value_;
+  operator int32_t() const {
+    return load();
   }
 
-  int32_t operator += (const int32_t value) {
+  int32_t fetch_add(const int32_t value) {
     return android_atomic_add(value, &value_);
   }
 
-  int32_t operator -= (const int32_t value) {
+  int32_t fetch_sub(const int32_t value) {
     return android_atomic_add(-value, &value_);
   }
 
-  int32_t operator |= (const int32_t value) {
-    return android_atomic_or(value, &value_);
-  }
-
-  int32_t operator &= (const int32_t value) {
-    return android_atomic_and(-value, &value_);
-  }
-
-  int32_t operator ++ () {
+  int32_t operator++() {
     return android_atomic_inc(&value_) + 1;
   }
 
-  int32_t operator -- () {
+  int32_t operator++(int32_t) {
+    return android_atomic_inc(&value_);
+  }
+
+  int32_t operator--() {
     return android_atomic_dec(&value_) - 1;
   }
 
-  bool CompareAndSwap(int expected_value, int new_value) {
-    bool success = android_atomic_cas(expected_value, new_value, &value_) == 0;
-    return success;
+  int32_t operator--(int32_t) {
+    return android_atomic_dec(&value_);
   }
+
+  bool compare_and_swap(int32_t expected_value, int32_t desired_value) {
+    return android_atomic_cas(expected_value, desired_value, &value_) == 0;
+  }
+
  private:
   volatile int32_t value_;
 };

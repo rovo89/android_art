@@ -36,7 +36,7 @@ enum LockLevel {
   kUnexpectedSignalLock,
   kThreadSuspendCountLock,
   kAbortLock,
-  kJdwpSerialSocketLock,
+  kJdwpSocketLock,
   kAllocSpaceLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,

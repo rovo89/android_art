@@ -580,7 +580,7 @@ mirror::Object* Heap::AllocObject(Thread* self, mirror::Class* c, size_t byte_co
     VerifyObject(obj);
 
     if (measure_allocation_time_) {
-      total_allocation_time_ += NanoTime() / kTimeAdjust - allocation_start;
+      total_allocation_time_.fetch_add(NanoTime() / kTimeAdjust - allocation_start);
     }
 
     return obj;
@@ -729,7 +729,7 @@ void Heap::VerifyHeap() {
 void Heap::RecordAllocation(size_t size, mirror::Object* obj) {
   DCHECK(obj != NULL);
   DCHECK_GT(size, 0u);
-  num_bytes_allocated_ += size;
+  num_bytes_allocated_.fetch_add(size);
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
@@ -751,7 +751,7 @@ void Heap::RecordAllocation(size_t size, mirror::Object* obj) {
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   DCHECK_LE(freed_bytes, static_cast<size_t>(num_bytes_allocated_));
-  num_bytes_allocated_ -= freed_bytes;
+  num_bytes_allocated_.fetch_sub(freed_bytes);
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
@@ -1984,7 +1984,7 @@ bool Heap::IsGCRequestPending() const {
 
 void Heap::RegisterNativeAllocation(int bytes) {
   // Total number of native bytes allocated.
-  native_bytes_allocated_ += bytes;
+  native_bytes_allocated_.fetch_add(bytes);
   Thread* self = Thread::Current();
   if (static_cast<size_t>(native_bytes_allocated_) > native_footprint_gc_watermark_) {
     // The second watermark is higher than the gc watermark. If you hit this it means you are
@@ -2027,14 +2027,14 @@ void Heap::RegisterNativeAllocation(int bytes) {
 void Heap::RegisterNativeFree(int bytes) {
   int expected_size, new_size;
   do {
-      expected_size = native_bytes_allocated_.get();
+      expected_size = native_bytes_allocated_.load();
       new_size = expected_size - bytes;
       if (new_size < 0) {
         ThrowRuntimeException("attempted to free %d native bytes with only %d native bytes registered as allocated",
                               bytes, expected_size);
         break;
       }
-  } while (!native_bytes_allocated_.CompareAndSwap(expected_size, new_size));
+  } while (!native_bytes_allocated_.compare_and_swap(expected_size, new_size));
 }
 
 }  // namespace gc

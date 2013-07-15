@@ -66,7 +66,7 @@ class AtomicStack {
         // Stack overflow.
         return false;
       }
-    } while(!back_index_.CompareAndSwap(index, index + 1));
+    } while(!back_index_.compare_and_swap(index, index + 1));
     begin_[index] = value;
     return true;
   }
@@ -89,7 +89,7 @@ class AtomicStack {
   // Take an item from the front of the stack.
   T PopFront() {
     int32_t index = front_index_;
-    DCHECK_LT(index, back_index_.get());
+    DCHECK_LT(index, back_index_.load());
     front_index_ = front_index_ + 1;
     return begin_[index];
   }
@@ -123,12 +123,12 @@ class AtomicStack {
 
   void Sort() {
     if (!is_sorted_) {
-      int32_t start_back_index = back_index_.get();
-      int32_t start_front_index = front_index_.get();
+      int32_t start_back_index = back_index_.load();
+      int32_t start_front_index = front_index_.load();
       is_sorted_ = true;
       std::sort(Begin(), End());
-      CHECK_EQ(start_back_index, back_index_.get());
-      CHECK_EQ(start_front_index, front_index_.get());
+      CHECK_EQ(start_back_index, back_index_.load());
+      CHECK_EQ(start_front_index, front_index_.load());
     }
   }
 
