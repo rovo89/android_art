@@ -1476,7 +1476,6 @@ static JdwpError DDM_Chunk(JdwpState* state, Request& request, ExpandBuf* pReply
     // instead of copying it into the expanding buffer.  The reduction in
     // heap requirements is probably more valuable than the efficiency.
     CHECK_GT(replyLen, 0);
-    CHECK_LT(replyLen, 1*1024*1024);
     memcpy(expandBufAddSpace(pReply, replyLen), replyBuf, replyLen);
     free(replyBuf);
   }
