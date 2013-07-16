@@ -26,4 +26,41 @@ int Thread::GetNativePriority() {
   return kNormThreadPriority;
 }
 
+static void SigAltStack(stack_t* new_stack, stack_t* old_stack) {
+  if (sigaltstack(new_stack, old_stack) == -1) {
+    PLOG(FATAL) << "sigaltstack failed";
+  }
+}
+
+void Thread::SetUpAlternateSignalStack() {
+  // Create and set an alternate signal stack.
+  stack_t ss;
+  ss.ss_sp = new uint8_t[SIGSTKSZ];
+  ss.ss_size = SIGSTKSZ;
+  ss.ss_flags = 0;
+  CHECK(ss.ss_sp != NULL);
+  SigAltStack(&ss, NULL);
+
+  // Double-check that it worked.
+  ss.ss_sp = NULL;
+  SigAltStack(NULL, &ss);
+  VLOG(threads) << "Alternate signal stack is " << PrettySize(ss.ss_size) << " at " << ss.ss_sp;
+}
+
+void Thread::TearDownAlternateSignalStack() {
+  // Get the pointer so we can free the memory.
+  stack_t ss;
+  SigAltStack(NULL, &ss);
+  uint8_t* allocated_signal_stack = reinterpret_cast<uint8_t*>(ss.ss_sp);
+
+  // Tell the kernel to stop using it.
+  ss.ss_sp = NULL;
+  ss.ss_flags = SS_DISABLE;
+  ss.ss_size = SIGSTKSZ; // Avoid ENOMEM failure with Mac OS' buggy libc.
+  SigAltStack(&ss, NULL);
+
+  // Free it.
+  delete[] allocated_signal_stack;
+}
+
 }  // namespace art
