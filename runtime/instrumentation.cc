@@ -59,7 +59,9 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
     if (!method->IsAbstract()) {
       const void* new_code;
       if (uninstall) {
-        if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
+        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+          new_code = GetInterpreterEntryPoint();
+        } else if (is_initialized || !method->IsStatic() || method->IsConstructor()) {
           new_code = class_linker->GetOatCodeFor(method);
         } else {
           new_code = GetResolutionTrampoline(class_linker);
@@ -79,7 +81,11 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
     if (!method->IsAbstract()) {
       const void* new_code;
       if (uninstall) {
-        new_code = class_linker->GetOatCodeFor(method);
+        if (forced_interpret_only_ && !method->IsNative() && !method->IsProxyMethod()) {
+          new_code = GetInterpreterEntryPoint();
+        } else {
+          new_code = class_linker->GetOatCodeFor(method);
+        }
       } else {  // !uninstall
         if (!interpreter_stubs_installed_ || method->IsNative()) {
           new_code = GetInstrumentationEntryPoint();
@@ -376,6 +382,12 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
 void Instrumentation::UpdateMethodsCode(mirror::AbstractMethod* method, const void* code) const {
   if (LIKELY(!instrumentation_stubs_installed_)) {
     method->SetEntryPointFromCompiledCode(code);
+  } else {
+    if (!interpreter_stubs_installed_ || method->IsNative()) {
+      method->SetEntryPointFromCompiledCode(GetInstrumentationEntryPoint());
+    } else {
+      method->SetEntryPointFromCompiledCode(GetInterpreterEntryPoint());
+    }
   }
 }
 
@@ -396,9 +408,14 @@ void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_
                                            const mirror::AbstractMethod* method,
                                            uint32_t dex_pc) const {
   typedef std::list<InstrumentationListener*>::const_iterator It; // TODO: C++0x auto
-  for (It it = method_entry_listeners_.begin(), end = method_entry_listeners_.end(); it != end;
-      ++it) {
-    (*it)->MethodEntered(thread, this_object, method, dex_pc);
+  It it = method_entry_listeners_.begin();
+  bool is_end = (it == method_entry_listeners_.end());
+  // Implemented this way to prevent problems caused by modification of the list while iterating.
+  while (!is_end) {
+    InstrumentationListener* cur = *it;
+    ++it;
+    is_end = (it == method_entry_listeners_.end());
+    cur->MethodEntered(thread, this_object, method, dex_pc);
   }
 }
 
@@ -406,9 +423,14 @@ void Instrumentation::MethodExitEventImpl(Thread* thread, mirror::Object* this_o
                                           const mirror::AbstractMethod* method,
                                           uint32_t dex_pc, const JValue& return_value) const {
   typedef std::list<InstrumentationListener*>::const_iterator It; // TODO: C++0x auto
-  for (It it = method_exit_listeners_.begin(), end = method_exit_listeners_.end(); it != end;
-      ++it) {
-    (*it)->MethodExited(thread, this_object, method, dex_pc, return_value);
+  It it = method_exit_listeners_.begin();
+  bool is_end = (it == method_exit_listeners_.end());
+  // Implemented this way to prevent problems caused by modification of the list while iterating.
+  while (!is_end) {
+    InstrumentationListener* cur = *it;
+    ++it;
+    is_end = (it == method_exit_listeners_.end());
+    cur->MethodExited(thread, this_object, method, dex_pc, return_value);
   }
 }
 

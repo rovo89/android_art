@@ -114,17 +114,21 @@ inline void AbstractMethod::AssertPcIsWithinCode(uintptr_t pc) const {
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
     return;
   }
-  if (GetEntryPointFromCompiledCode() == GetInterpreterEntryPoint()) {
+  if (pc == GetInstrumentationExitPc()) {
+    return;
+  }
+  const void* code = GetEntryPointFromCompiledCode();
+  if (code == GetInterpreterEntryPoint() || code == GetInstrumentationEntryPoint()) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (GetEntryPointFromCompiledCode() == GetResolutionTrampoline(class_linker)) {
-      return;
+  if (code == GetResolutionTrampoline(class_linker)) {
+    return;
   }
   DCHECK(IsWithinCode(pc))
       << PrettyMethod(this)
       << " pc=" << std::hex << pc
-      << " code=" << GetEntryPointFromCompiledCode()
+      << " code=" << code
       << " size=" << GetCodeSize();
 }
 

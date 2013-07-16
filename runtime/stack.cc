@@ -289,7 +289,6 @@ void StackVisitor::WalkStack(bool include_transitions) {
       DCHECK(current_fragment->GetTopShadowFrame() == NULL);
       mirror::AbstractMethod* method = *cur_quick_frame_;
       while (method != NULL) {
-        DCHECK(cur_quick_frame_pc_ != GetInstrumentationExitPc());
         SanityCheckFrame();
         bool should_continue = VisitFrame();
         if (UNLIKELY(!should_continue)) {
@@ -312,9 +311,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
             instrumentation_stack_depth++;
             if (instrumentation_frame.interpreter_entry_) {
               mirror::AbstractMethod* callee = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
-              if (GetMethod() != callee) {
-                LOG(FATAL) << "Expected: " << callee << " Found: " << PrettyMethod(GetMethod());
-              }
+              CHECK_EQ(GetMethod(), callee);
             } else if (instrumentation_frame.method_ != GetMethod()) {
               LOG(FATAL)  << "Expected: " << PrettyMethod(instrumentation_frame.method_)
                 << " Found: " << PrettyMethod(GetMethod());
