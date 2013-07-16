@@ -48,6 +48,12 @@ enum CompilerBackend {
   kNoBackend
 };
 
+enum DexToDexCompilationLevel {
+  kDontDexToDexCompile,   // Only meaning wrt image time interpretation.
+  kRequired,              // Dex-to-dex compilation required for correctness.
+  kOptimize               // Perform required transformation and peep-hole optimizations.
+};
+
 // Thread-local storage compiler worker threads
 class CompilerTls {
   public:
@@ -324,7 +330,7 @@ class CompilerDriver {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
-                     bool allow_dex_to_dex_compilation)
+                     DexToDexCompilationLevel dex_to_dex_compilation_level)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
@@ -375,12 +381,19 @@ class CompilerDriver {
                                         uint32_t access_flags, InvokeType invoke_type,
                                         uint32_t class_dex_idx, uint32_t method_idx,
                                         jobject class_loader, const DexFile& dex_file);
+
+  typedef void (*DexToDexCompilerFn)(CompilerDriver& driver,
+                                     const DexFile::CodeItem* code_item,
+                                     uint32_t access_flags, InvokeType invoke_type,
+                                     uint32_t class_dex_idx, uint32_t method_idx,
+                                     jobject class_loader, const DexFile& dex_file,
+                                     DexToDexCompilationLevel dex_to_dex_compilation_level);
   CompilerFn compiler_;
 #ifdef ART_SEA_IR_MODE
   CompilerFn sea_ir_compiler_;
 #endif
 
-  CompilerFn dex_to_dex_compiler_;
+  DexToDexCompilerFn dex_to_dex_compiler_;
 
   void* compiler_context_;
 
