@@ -107,13 +107,9 @@ define build-art-test
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/compiler
   LOCAL_SHARED_LIBRARIES := libartd-compiler libartd
   # dex2oatd is needed to go libartd-compiler and libartd
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_EXECUTABLES)/dex2oatd 
-  else
-    LOCAL_ADDITIONAL_DEPENDENCIES := $(HOST_OUT_EXECUTABLES)/dex2oatd
-  endif
+  LOCAL_REQUIRED_MODULES := dex2oatd 
 
-  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 
   # Mac OS linker doesn't understand --export-dynamic.
