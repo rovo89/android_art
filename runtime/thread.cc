@@ -921,7 +921,13 @@ void Thread::Startup() {
   CHECK(!is_started_);
   is_started_ = true;
   {
-    MutexLock mu(Thread::Current(), *Locks::thread_suspend_count_lock_);  // Keep GCC happy.
+    // MutexLock to keep annotalysis happy.
+    //
+    // Note we use NULL for the thread because Thread::Current can
+    // return garbage since (is_started_ == true) and
+    // Thread::pthread_key_self_ is not yet initialized.
+    // This was seen on glibc.
+    MutexLock mu(NULL, *Locks::thread_suspend_count_lock_);
     resume_cond_ = new ConditionVariable("Thread resumption condition variable",
                                          *Locks::thread_suspend_count_lock_);
   }
