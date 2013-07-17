@@ -101,7 +101,7 @@ define build-art-test
   LOCAL_SRC_FILES := $$(art_gtest_filename) runtime/common_test.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime art/compiler
   LOCAL_SHARED_LIBRARIES := libartd-compiler libartd
-  # dex2oatd is needed to go libartd-compilerd and libartd
+  # dex2oatd is needed to go libartd-compiler and libartd
   ifeq ($$(art_target_or_host),target)
     LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_EXECUTABLES)/dex2oatd 
   else
