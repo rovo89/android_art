@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_
-#define BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_
+#ifndef ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_
+#define ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_
 
 namespace unix_file {
 
@@ -27,4 +27,4 @@ bool CopyFile(const RandomAccessFile& src, RandomAccessFile* dst);
 
 }  // namespace unix_file
 
-#endif  // BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_
+#endif  // ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_UTILS_H_

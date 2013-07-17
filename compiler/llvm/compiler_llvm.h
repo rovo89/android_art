@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
-#define ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
+#ifndef ART_COMPILER_LLVM_COMPILER_LLVM_H_
+#define ART_COMPILER_LLVM_COMPILER_LLVM_H_
 
 #include "base/macros.h"
 #include "dex_file.h"
@@ -100,4 +100,4 @@ class CompilerLLVM {
 } // namespace llvm
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
+#endif  // ART_COMPILER_LLVM_COMPILER_LLVM_H_

@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef ART_SRC_BASE_HISTOGRAM_H_
-#define ART_SRC_BASE_HISTOGRAM_H_
+#ifndef ART_RUNTIME_BASE_HISTOGRAM_H_
+#define ART_RUNTIME_BASE_HISTOGRAM_H_
 
 #include <vector>
 #include <string>
@@ -117,4 +117,4 @@ template <class Value> class Histogram {
 };
 }
 
-#endif  // ART_SRC_BASE_HISTOGRAM_H_
+#endif  // ART_RUNTIME_BASE_HISTOGRAM_H_

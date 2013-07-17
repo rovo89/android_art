@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_BASE_STL_UTIL_H_
-#define ART_SRC_BASE_STL_UTIL_H_
+#ifndef ART_RUNTIME_BASE_STL_UTIL_H_
+#define ART_RUNTIME_BASE_STL_UTIL_H_
 
 #include <algorithm>
 #include <sstream>
@@ -94,4 +94,4 @@ std::string ToString(const T& v) {
 
 }  // namespace art
 
-#endif  // ART_SRC_BASE_STL_UTIL_H_
+#endif  // ART_RUNTIME_BASE_STL_UTIL_H_

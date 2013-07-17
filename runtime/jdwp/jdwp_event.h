@@ -16,8 +16,8 @@
 /*
  * Handle registration of events, and debugger event notification.
  */
-#ifndef ART_JDWP_JDWPEVENT_H_
-#define ART_JDWP_JDWPEVENT_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_EVENT_H_
+#define ART_RUNTIME_JDWP_JDWP_EVENT_H_
 
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_constants.h"
@@ -110,4 +110,4 @@ void EventFree(JdwpEvent* pEvent);
 
 }  // namespace art
 
-#endif  // ART_JDWP_JDWPEVENT_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_EVENT_H_

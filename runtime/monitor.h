@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MONITOR_H_
-#define ART_SRC_MONITOR_H_
+#ifndef ART_RUNTIME_MONITOR_H_
+#define ART_RUNTIME_MONITOR_H_
 
 #include <pthread.h>
 #include <stdint.h>
@@ -208,4 +208,4 @@ class MonitorInfo {
 
 }  // namespace art
 
-#endif  // ART_SRC_MONITOR_H_
+#endif  // ART_RUNTIME_MONITOR_H_

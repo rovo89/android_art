@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MODIFIERS_H_
-#define ART_SRC_MODIFIERS_H_
+#ifndef ART_RUNTIME_MODIFIERS_H_
+#define ART_RUNTIME_MODIFIERS_H_
 
 #include <stdint.h>
 
@@ -63,5 +63,5 @@ static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
                                                 | kAccClassIsFinalizerReference
                                                 | kAccClassIsPhantomReference);
 
-#endif  // ART_SRC_MODIFIERS_H_
+#endif  // ART_RUNTIME_MODIFIERS_H_
 

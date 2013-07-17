@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_LEB128_H_
-#define ART_SRC_LEB128_H_
+#ifndef ART_RUNTIME_LEB128_H_
+#define ART_RUNTIME_LEB128_H_
 
 #include "globals.h"
 
@@ -121,4 +121,4 @@ static inline uint8_t* WriteUnsignedLeb128(uint8_t* ptr, uint32_t data) {
 
 }  // namespace art
 
-#endif  // ART_SRC_LEB128_H_
+#endif  // ART_RUNTIME_LEB128_H_

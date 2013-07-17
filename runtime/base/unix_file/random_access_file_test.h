@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_
-#define BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_
+#ifndef ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_
+#define ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_
 
 #include <errno.h>
 
@@ -169,4 +169,4 @@ class RandomAccessFileTest : public testing::Test {
 
 }  // namespace unix_file
 
-#endif  // BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_
+#endif  // ART_RUNTIME_BASE_UNIX_FILE_RANDOM_ACCESS_FILE_TEST_H_

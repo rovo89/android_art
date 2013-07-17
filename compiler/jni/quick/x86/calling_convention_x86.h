@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
-#define ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
+#ifndef ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_
+#define ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_
 
 #include "jni/quick/calling_convention.h"
 
@@ -80,4 +80,4 @@ class X86JniCallingConvention : public JniCallingConvention {
 }  // namespace x86
 }  // namespace art
 
-#endif  // ART_SRC_OAT_JNI_X86_CALLING_CONVENTION_X86_H_
+#endif  // ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_

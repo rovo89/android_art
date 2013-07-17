@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OBJECT_UTILS_H_
-#define ART_SRC_OBJECT_UTILS_H_
+#ifndef ART_RUNTIME_OBJECT_UTILS_H_
+#define ART_RUNTIME_OBJECT_UTILS_H_
 
 #include "class_linker-inl.h"
 #include "dex_file.h"
@@ -684,4 +684,4 @@ class MethodHelper {
 
 }  // namespace art
 
-#endif  // ART_SRC_OBJECT_UTILS_H_
+#endif  // ART_RUNTIME_OBJECT_UTILS_H_

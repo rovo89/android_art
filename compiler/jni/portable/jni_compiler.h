@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
-#define ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
+#ifndef ART_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
+#define ART_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
 
 #include <stdint.h>
 
@@ -84,4 +84,4 @@ class JniCompiler {
 }  // namespace art
 
 
-#endif  // ART_SRC_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_
+#endif  // ART_COMPILER_JNI_PORTABLE_JNI_COMPILER_H_

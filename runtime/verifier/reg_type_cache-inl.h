@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VERIFIER_REG_TYPE_CACHE_INL_H_
-#define ART_SRC_VERIFIER_REG_TYPE_CACHE_INL_H_
+#ifndef ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_
+#define ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_
 
 #include "reg_type.h"
 #include "reg_type_cache.h"
@@ -43,4 +43,4 @@ inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const 
 }
 }  // namespace verifier
 }  // namespace art
-#endif  // ART_SRC_VERIFIER_REG_TYPE_CACHE_INL_H_
+#endif  // ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_

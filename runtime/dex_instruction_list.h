@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ART_RUNTIME_DEX_INSTRUCTION_LIST_H_
+#define ART_RUNTIME_DEX_INSTRUCTION_LIST_H_
+
 #define DEX_INSTRUCTION_LIST(V) \
   V(0x00, NOP, "nop", k10x, false, kNone, kContinue, kVerifyNone) \
   V(0x01, MOVE, "move", k12x, true, kNone, kContinue, kVerifyRegA | kVerifyRegB) \
@@ -297,3 +300,6 @@
   V(k35c) \
   V(k3rc) \
   V(k51l)
+
+#endif  // ART_RUNTIME_DEX_INSTRUCTION_LIST_H_
+#undef ART_RUNTIME_DEX_INSTRUCTION_LIST_H_ // the guard in this file is just for cpplint

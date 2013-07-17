@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_FIELD_INL_H_
-#define ART_SRC_MIRROR_FIELD_INL_H_
+#ifndef ART_RUNTIME_MIRROR_FIELD_INL_H_
+#define ART_RUNTIME_MIRROR_FIELD_INL_H_
 
 #include "field.h"
 
@@ -218,4 +218,4 @@ inline void Field::SetObject(Object* object, const Object* l) const {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_FIELD_INL_H_
+#endif  // ART_RUNTIME_MIRROR_FIELD_INL_H_

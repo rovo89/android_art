@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_
+#define ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_
+
 #define RUNTIME_SUPPORT_FUNC_LIST(V) \
   V(LockObject, art_portable_lock_object_from_code) \
   V(UnlockObject, art_portable_unlock_object_from_code) \
@@ -74,3 +77,6 @@
   V(JniMethodEndSynchronized,              art_portable_jni_method_end_synchronized) \
   V(JniMethodEndWithReference,             art_portable_jni_method_end_with_reference) \
   V(JniMethodEndWithReferenceSynchronized, art_portable_jni_method_end_with_reference_synchronized)
+
+#endif  // ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_
+#undef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_FUNC_LIST_H_ // the guard in this file is just for cpplint

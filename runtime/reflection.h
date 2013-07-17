@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_REFLECTION_H_
-#define ART_SRC_REFLECTION_H_
+#ifndef ART_RUNTIME_REFLECTION_H_
+#define ART_RUNTIME_REFLECTION_H_
 
 #include "jni.h"
 #include "primitive.h"
@@ -56,4 +56,4 @@ bool VerifyObjectInClass(mirror::Object* o, mirror::Class* c)
 
 }  // namespace art
 
-#endif  // ART_SRC_REFLECTION_H_
+#endif  // ART_RUNTIME_REFLECTION_H_

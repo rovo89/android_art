@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BASE_UNIX_FILE_NULL_FILE_H_
-#define BASE_UNIX_FILE_NULL_FILE_H_
+#ifndef ART_RUNTIME_BASE_UNIX_FILE_NULL_FILE_H_
+#define ART_RUNTIME_BASE_UNIX_FILE_NULL_FILE_H_
 
 #include "base/unix_file/random_access_file.h"
 #include "base/macros.h"
@@ -47,4 +47,4 @@ class NullFile : public RandomAccessFile {
 
 }  // namespace unix_file
 
-#endif  // BASE_UNIX_FILE_NULL_FILE_H_
+#endif  // ART_RUNTIME_BASE_UNIX_FILE_NULL_FILE_H_

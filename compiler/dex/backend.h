@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_BACKEND_H_
-#define ART_SRC_COMPILER_DEX_BACKEND_H_
+#ifndef ART_COMPILER_DEX_BACKEND_H_
+#define ART_COMPILER_DEX_BACKEND_H_
 
 #include "compiled_method.h"
 #include "arena_allocator.h"
@@ -37,4 +37,4 @@ class Backend {
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_BACKEND_H_
+#endif  // ART_COMPILER_DEX_BACKEND_H_

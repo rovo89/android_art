@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_JNI_INTERNAL_H_
-#define ART_SRC_JNI_INTERNAL_H_
+#ifndef ART_RUNTIME_JNI_INTERNAL_H_
+#define ART_RUNTIME_JNI_INTERNAL_H_
 
 #include "jni.h"
 
@@ -198,4 +198,4 @@ class ScopedJniEnvLocalRefState {
 
 std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs);
 
-#endif  // ART_SRC_JNI_INTERNAL_H_
+#endif  // ART_RUNTIME_JNI_INTERNAL_H_

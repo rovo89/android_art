@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ATOMIC_INTEGER_H_
-#define ART_SRC_ATOMIC_INTEGER_H_
+#ifndef ART_RUNTIME_ATOMIC_INTEGER_H_
+#define ART_RUNTIME_ATOMIC_INTEGER_H_
 
 #include "cutils/atomic.h"
 #include "cutils/atomic-inline.h"
@@ -76,4 +76,4 @@ class AtomicInteger {
 
 }
 
-#endif  // ART_SRC_ATOMIC_INTEGER_H_
+#endif  // ART_RUNTIME_ATOMIC_INTEGER_H_

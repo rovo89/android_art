@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CONSTANTS_ARM_H_
-#define ART_SRC_CONSTANTS_ARM_H_
+#ifndef ART_RUNTIME_CONSTANTS_ARM_H_
+#define ART_RUNTIME_CONSTANTS_ARM_H_
 
 #include <stdint.h>
 
@@ -516,4 +516,4 @@ class Instr {
 }  // namespace arm
 }  // namespace art
 
-#endif  // ART_SRC_CONSTANTS_ARM_H_
+#endif  // ART_RUNTIME_CONSTANTS_ARM_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_DEX_INSTRUCTION_H_
-#define ART_SRC_DEX_INSTRUCTION_H_
+#ifndef ART_RUNTIME_DEX_INSTRUCTION_H_
+#define ART_RUNTIME_DEX_INSTRUCTION_H_
 
 #include "base/logging.h"
 #include "base/macros.h"
@@ -443,4 +443,4 @@ struct DecodedInstruction {
 
 }  // namespace art
 
-#endif  // ART_SRC_DEX_INSTRUCTION_H_
+#endif  // ART_RUNTIME_DEX_INSTRUCTION_H_

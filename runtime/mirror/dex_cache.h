@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_DEX_CACHE_H_
-#define ART_SRC_MIRROR_DEX_CACHE_H_
+#ifndef ART_RUNTIME_MIRROR_DEX_CACHE_H_
+#define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
 #include "abstract_method.h"
 #include "class.h"
@@ -179,4 +179,4 @@ class MANAGED DexCache : public Object {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_DEX_CACHE_H_
+#endif  // ART_RUNTIME_MIRROR_DEX_CACHE_H_

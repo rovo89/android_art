@@ -726,7 +726,11 @@ class FileInfo:
           os.path.exists(os.path.join(root_dir, ".hg")) or
           os.path.exists(os.path.join(root_dir, ".svn"))):
         prefix = os.path.commonprefix([root_dir, project_dir])
-        return fullname[len(prefix) + 1:]
+        # BEGIN android-changed
+        # return fullname[len(prefix) + 1:]
+        return "art/" + fullname[len(prefix) + 1:]
+        # END android-changed
+
 
     # Don't know what to do; header guard warnings may be wrong...
     return fullname
@@ -1032,7 +1036,6 @@ def GetHeaderGuardCPPVariable(filename):
   # Restores original filename in case that cpplint is invoked from Emacs's
   # flymake.
   filename = re.sub(r'_flymake\.h$', '.h', filename)
-
   fileinfo = FileInfo(filename)
   return re.sub(r'[-./\s]', '_', fileinfo.RepositoryName()).upper() + '_'
 

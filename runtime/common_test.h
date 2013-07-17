@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ART_RUNTIME_COMMON_TEST_H_
+#define ART_RUNTIME_COMMON_TEST_H_
+
 #include <dirent.h>
 #include <dlfcn.h>
 #include <sys/mman.h>
@@ -586,3 +589,5 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& rhs) {
 }
 
 }  // namespace std
+
+#endif  // ART_RUNTIME_COMMON_TEST_H_

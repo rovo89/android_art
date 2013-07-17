@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_IFTABLE_H_
-#define ART_SRC_MIRROR_IFTABLE_H_
+#ifndef ART_RUNTIME_MIRROR_IFTABLE_H_
+#define ART_RUNTIME_MIRROR_IFTABLE_H_
 
 #include "object_array.h"
 
@@ -76,4 +76,4 @@ class MANAGED IfTable : public ObjectArray<Object> {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_IFTABLE_H_
+#endif  // ART_RUNTIME_MIRROR_IFTABLE_H_

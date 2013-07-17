@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_GROWABLE_LIST_H_
-#define ART_SRC_COMPILER_DEX_GROWABLE_LIST_H_
+#ifndef ART_COMPILER_DEX_GROWABLE_ARRAY_H_
+#define ART_COMPILER_DEX_GROWABLE_ARRAY_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -168,4 +168,4 @@ class GrowableArray {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_GROWABLE_LIST_H_
+#endif  // ART_COMPILER_DEX_GROWABLE_ARRAY_H_

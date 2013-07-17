@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_UTILS_ASSEMBLER_H_
-#define ART_SRC_OAT_UTILS_ASSEMBLER_H_
+#ifndef ART_RUNTIME_OAT_UTILS_ASSEMBLER_H_
+#define ART_RUNTIME_OAT_UTILS_ASSEMBLER_H_
 
 #include <vector>
 
@@ -456,4 +456,4 @@ class Assembler {
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_UTILS_ASSEMBLER_H_
+#endif  // ART_RUNTIME_OAT_UTILS_ASSEMBLER_H_

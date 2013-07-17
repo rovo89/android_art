@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_X86_CODEGENX86_H_
-#define ART_SRC_COMPILER_DEX_QUICK_X86_CODEGENX86_H_
+#ifndef ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
+#define ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 
 #include "dex/compiler_internals.h"
 #include "x86_lir.h"
@@ -202,4 +202,4 @@ class X86Mir2Lir : public Mir2Lir {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_QUICK_X86_CODEGENX86_H_
+#endif  // ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_

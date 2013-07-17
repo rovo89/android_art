@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_STRUTIL_H_
-#define ART_SRC_STRUTIL_H_
+#ifndef ART_RUNTIME_STRUTIL_H_
+#define ART_RUNTIME_STRUTIL_H_
 
 #include <string.h>
 
@@ -37,4 +37,4 @@ struct CStringEq {
 
 }  // namespace art
 
-#endif  // ART_SRC_STRUTIL_H_
+#endif  // ART_RUNTIME_STRUTIL_H_

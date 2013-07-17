@@ -16,8 +16,8 @@
 /*
  * Expanding byte buffer, with primitives for appending basic data types.
  */
-#ifndef ART_JDWP_EXPANDBUF_H_
-#define ART_JDWP_EXPANDBUF_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_EXPAND_BUF_H_
+#define ART_RUNTIME_JDWP_JDWP_EXPAND_BUF_H_
 
 #include <string>
 
@@ -67,4 +67,4 @@ void expandBufAddLocation(ExpandBuf* pReply, const JdwpLocation& location);
 
 }  // namespace art
 
-#endif  // ART_JDWP_EXPANDBUF_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_EXPAND_BUF_H_

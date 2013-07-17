@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_ARRAY_INL_H_
-#define ART_SRC_MIRROR_ARRAY_INL_H_
+#ifndef ART_RUNTIME_MIRROR_ARRAY_INL_H_
+#define ART_RUNTIME_MIRROR_ARRAY_INL_H_
 
 #include "array.h"
 
@@ -36,4 +36,4 @@ inline size_t Array::SizeOf() const {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_ARRAY_INL_H_
+#endif  // ART_RUNTIME_MIRROR_ARRAY_INL_H_

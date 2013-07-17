@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_THREAD_POOL_H_
-#define ART_SRC_THREAD_POOL_H_
+#ifndef ART_RUNTIME_THREAD_POOL_H_
+#define ART_RUNTIME_THREAD_POOL_H_
 
 #include <deque>
 #include <vector>
@@ -177,4 +177,4 @@ class WorkStealingThreadPool : public ThreadPool {
 
 }  // namespace art
 
-#endif  // ART_SRC_THREAD_POOL_H_
+#endif  // ART_RUNTIME_THREAD_POOL_H_

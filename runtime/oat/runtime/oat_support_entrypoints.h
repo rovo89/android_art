@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
-#define ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
+#ifndef ART_RUNTIME_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
+#define ART_RUNTIME_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
 
 #include "dex_file-inl.h"
 #include "runtime.h"
@@ -174,4 +174,4 @@ void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled);
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_
+#endif  // ART_RUNTIME_OAT_RUNTIME_OAT_SUPPORT_ENTRYPOINTS_H_

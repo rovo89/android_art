@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_ALLOCATOR_DLMALLOC_H_
-#define ART_SRC_GC_ALLOCATOR_DLMALLOC_H_
+#ifndef ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
+#define ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
 
 // Configure dlmalloc for mspaces.
 #define HAVE_MMAP 0
@@ -37,4 +37,4 @@ extern "C" int  dlmalloc_trim(size_t);
 // pages back to the kernel.
 extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_bytes, void* /*arg*/);
 
-#endif  // ART_SRC_GC_ALLOCATOR_DLMALLOC_H_
+#endif  // ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_

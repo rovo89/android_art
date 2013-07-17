@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_INL_H_
-#define ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_INL_H_
+#ifndef ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_INL_H_
+#define ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_INL_H_
 
 #include "heap_bitmap.h"
 
@@ -47,4 +47,4 @@ inline void HeapBitmap::Visit(const Visitor& visitor) {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_INL_H_
+#endif  // ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_INL_H_

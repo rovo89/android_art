@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_IMAGE_H_
-#define ART_SRC_IMAGE_H_
+#ifndef ART_RUNTIME_IMAGE_H_
+#define ART_RUNTIME_IMAGE_H_
 
 #include <string.h>
 
@@ -131,4 +131,4 @@ class PACKED(4) ImageHeader {
 
 }  // namespace art
 
-#endif  // ART_SRC_IMAGE_H_
+#endif  // ART_RUNTIME_IMAGE_H_

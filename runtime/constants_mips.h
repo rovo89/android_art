@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CONSTANTS_MIPS_H_
-#define ART_SRC_CONSTANTS_MIPS_H_
+#ifndef ART_RUNTIME_CONSTANTS_MIPS_H_
+#define ART_RUNTIME_CONSTANTS_MIPS_H_
 
 #include <iosfwd>
 
@@ -183,4 +183,4 @@ class Instr {
 }  // namespace mips
 }  // namespace art
 
-#endif  // ART_SRC_CONSTANTS_MIPS_H_
+#endif  // ART_RUNTIME_CONSTANTS_MIPS_H_

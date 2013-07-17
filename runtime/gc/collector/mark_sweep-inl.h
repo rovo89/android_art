@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_MARK_SWEEP_INL_H_
-#define ART_SRC_GC_MARK_SWEEP_INL_H_
+#ifndef ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_INL_H_
+#define ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_INL_H_
 
 #include "gc/collector/mark_sweep.h"
 
@@ -162,4 +162,4 @@ inline void MarkSweep::VisitObjectArrayReferences(const mirror::ObjectArray<mirr
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_MARK_SWEEP_INL_H_
+#endif  // ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_INL_H_

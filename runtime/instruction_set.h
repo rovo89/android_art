@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INSTRUCTION_SET_H_
-#define ART_SRC_INSTRUCTION_SET_H_
+#ifndef ART_RUNTIME_INSTRUCTION_SET_H_
+#define ART_RUNTIME_INSTRUCTION_SET_H_
 
 #include <iosfwd>
 
@@ -33,4 +33,4 @@ std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
 }  // namespace art
 
-#endif  // ART_SRC_INSTRUCTION_SET_H_
+#endif  // ART_RUNTIME_INSTRUCTION_SET_H_

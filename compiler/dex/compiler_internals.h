@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_COMPILER_INTERNAL_H_
-#define ART_SRC_COMPILER_DEX_COMPILER_INTERNAL_H_
+#ifndef ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+#define ART_COMPILER_DEX_COMPILER_INTERNALS_H_
 
 #include <assert.h>
 #include <stdbool.h>
@@ -33,4 +33,4 @@
 #include "thread.h"
 #include "utils.h"
 
-#endif  // ART_SRC_COMPILER_DEX_COMPILER_INTERNAL_H_
+#endif  // ART_COMPILER_DEX_COMPILER_INTERNALS_H_

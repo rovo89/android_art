@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ELF_FILE_H_
-#define ART_SRC_ELF_FILE_H_
+#ifndef ART_RUNTIME_ELF_FILE_H_
+#define ART_RUNTIME_ELF_FILE_H_
 
 #include <map>
 #include <vector>
@@ -172,4 +172,4 @@ class ElfFile {
 
 }  // namespace art
 
-#endif  // ART_SRC_ELF_FILE_H_
+#endif  // ART_RUNTIME_ELF_FILE_H_

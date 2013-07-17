@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_COLLECTOR_GC_TYPE_H_
-#define ART_SRC_GC_COLLECTOR_GC_TYPE_H_
+#ifndef ART_RUNTIME_GC_COLLECTOR_GC_TYPE_H_
+#define ART_RUNTIME_GC_COLLECTOR_GC_TYPE_H_
 
 #include <ostream>
 
@@ -43,4 +43,4 @@ std::ostream& operator<<(std::ostream& os, const GcType& policy);
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_COLLECTOR_GC_TYPE_H_
+#endif  // ART_RUNTIME_GC_COLLECTOR_GC_TYPE_H_

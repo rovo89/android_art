@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_GARBAGE_COLLECTOR_H_
-#define ART_SRC_GC_GARBAGE_COLLECTOR_H_
+#ifndef ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
+#define ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_
 
 #include "gc_type.h"
 #include "locks.h"
@@ -119,4 +119,4 @@ class GarbageCollector {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_GARBAGE_COLLECTOR_H_
+#endif  // ART_RUNTIME_GC_COLLECTOR_GARBAGE_COLLECTOR_H_

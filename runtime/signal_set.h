@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SIGNAL_SET_H_
-#define ART_SRC_SIGNAL_SET_H_
+#ifndef ART_RUNTIME_SIGNAL_SET_H_
+#define ART_RUNTIME_SIGNAL_SET_H_
 
 #include <signal.h>
 
@@ -59,4 +59,4 @@ class SignalSet {
 
 }  // namespace art
 
-#endif  // ART_SRC_SIGNAL_SET_H_
+#endif  // ART_RUNTIME_SIGNAL_SET_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_JDWP_BITS_H_
-#define ART_JDWP_BITS_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_BITS_H_
+#define ART_RUNTIME_JDWP_JDWP_BITS_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -121,4 +121,4 @@ static inline void Write8BE(uint8_t** dst, uint64_t value) {
 
 }  // namespace art
 
-#endif  // ART_JDWP_BITS_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_BITS_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_LOCKS_H_
-#define ART_SRC_LOCKS_H_
+#ifndef ART_RUNTIME_LOCKS_H_
+#define ART_RUNTIME_LOCKS_H_
 
 #include <ostream>
 
@@ -165,4 +165,4 @@ class Locks {
 
 }  // namespace art
 
-#endif  // ART_SRC_LOCKS_H_
+#endif  // ART_RUNTIME_LOCKS_H_

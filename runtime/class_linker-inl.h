@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CLASS_LINKER_INL_H_
-#define ART_SRC_CLASS_LINKER_INL_H_
+#ifndef ART_RUNTIME_CLASS_LINKER_INL_H_
+#define ART_RUNTIME_CLASS_LINKER_INL_H_
 
 #include "class_linker.h"
 
@@ -143,4 +143,4 @@ inline mirror::Class* ClassLinker::GetClassRoot(ClassRoot class_root)
 
 }  // namespace art
 
-#endif  // ART_SRC_CLASS_LINKER_INL_H_
+#endif  // ART_RUNTIME_CLASS_LINKER_INL_H_

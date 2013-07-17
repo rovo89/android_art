@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_DEX_QUICK_CODEGEN_MIPS_CODEGENMIPS_H_
-#define ART_SRC_DEX_QUICK_CODEGEN_MIPS_CODEGENMIPS_H_
+#ifndef ART_COMPILER_DEX_QUICK_MIPS_CODEGEN_MIPS_H_
+#define ART_COMPILER_DEX_QUICK_MIPS_CODEGEN_MIPS_H_
 
 #include "dex/compiler_internals.h"
 #include "mips_lir.h"
@@ -180,4 +180,4 @@ class MipsMir2Lir : public Mir2Lir {
 
 }  // namespace art
 
-#endif  // ART_SRC_DEX_QUICK_CODEGEN_MIPS_CODEGENMIPS_H_
+#endif  // ART_COMPILER_DEX_QUICK_MIPS_CODEGEN_MIPS_H_

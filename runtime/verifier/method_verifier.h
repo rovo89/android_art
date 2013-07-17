@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VERIFIER_METHOD_VERIFIER_H_
-#define ART_SRC_VERIFIER_METHOD_VERIFIER_H_
+#ifndef ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
+#define ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 
 #include <set>
 #include <vector>
@@ -723,4 +723,4 @@ std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rh
 }  // namespace verifier
 }  // namespace art
 
-#endif  // ART_SRC_VERIFIER_METHOD_VERIFIER_H_
+#endif  // ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_

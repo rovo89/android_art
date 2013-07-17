@@ -25,8 +25,8 @@
 // Systematic usage of StringPiece is encouraged as it will reduce unnecessary
 // conversions from "const char*" to "string" and back again.
 
-#ifndef ART_SRC_BASE_STRINGPIECE_H_
-#define ART_SRC_BASE_STRINGPIECE_H_
+#ifndef ART_RUNTIME_BASE_STRINGPIECE_H_
+#define ART_RUNTIME_BASE_STRINGPIECE_H_
 
 #include <string.h>
 #include <algorithm>
@@ -223,4 +223,4 @@ struct StringPieceHash {
 
 }  // namespace art
 
-#endif  // ART_SRC_BASE_STRINGPIECE_H_
+#endif  // ART_RUNTIME_BASE_STRINGPIECE_H_

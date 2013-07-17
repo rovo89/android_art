@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INVOKE_ARG_ARRAY_BUILDER_H_
-#define ART_SRC_INVOKE_ARG_ARRAY_BUILDER_H_
+#ifndef ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
+#define ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
 
 #include "mirror/object.h"
 #include "scoped_thread_state_change.h"
@@ -180,4 +180,4 @@ class ArgArray {
 
 }  // namespace art
 
-#endif  // ART_SRC_INVOKE_ARG_ARRAY_BUILDER_H_
+#endif  // ART_RUNTIME_INVOKE_ARG_ARRAY_BUILDER_H_
