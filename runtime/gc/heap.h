@@ -377,9 +377,6 @@ class Heap {
 
   void DumpSpaces();
 
-  // UnReserve the address range where the oat file will be placed.
-  void UnReserveOatFileAddressRange();
-
   // GC performance measuring
   void DumpGcPerformanceInfo(std::ostream& os);
 
@@ -614,9 +611,6 @@ class Heap {
   HeapVerificationMode verify_object_mode_;
 
   std::vector<collector::MarkSweep*> mark_sweep_collectors_;
-
-  // A map that we use to temporarily reserve address range for the oat file.
-  UniquePtr<MemMap> oat_file_map_;
 
   friend class collector::MarkSweep;
   friend class VerifyReferenceCardVisitor;

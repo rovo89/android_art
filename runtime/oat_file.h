@@ -166,17 +166,24 @@ class OatFile {
 
   class OatDexFile {
    public:
+    // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
     const DexFile* OpenDexFile() const;
-    const OatClass* GetOatClass(uint32_t class_def_index) const;
+
+    // Returns the size of the DexFile refered to by this OatDexFile.
     size_t FileSize() const;
 
+    // Returns original path of DexFile that was the source of this OatDexFile.
     const std::string& GetDexFileLocation() const {
       return dex_file_location_;
     }
 
+    // Returns checksum of original DexFile that was the source of this OatDexFile;
     uint32_t GetDexFileLocationChecksum() const {
       return dex_file_location_checksum_;
     }
+
+    // Returns the OatClass for the class specified by the given DexFile class_def_index.
+    const OatClass* GetOatClass(uint32_t class_def_index) const;
 
     ~OatDexFile();
 

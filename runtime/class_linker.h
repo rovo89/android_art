@@ -359,7 +359,7 @@ class ClassLinker {
 
   // Initialize class linker from one or more images.
   void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  OatFile* OpenOat(const gc::space::ImageSpace* space)
+  OatFile& GetImageOatFile(gc::space::ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void InitFromImageCallback(mirror::Object* obj, void* arg)

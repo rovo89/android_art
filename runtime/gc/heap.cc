@@ -18,8 +18,6 @@
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
 #include <cutils/trace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 #include <limits>
 #include <vector>
@@ -66,96 +64,6 @@ static const bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static const size_t kMinConcurrentRemainingBytes = 128 * KB;
 const double Heap::kDefaultTargetUtilization = 0.5;
-
-static bool GenerateImage(const std::string& image_file_name) {
-  const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
-  std::vector<std::string> boot_class_path;
-  Split(boot_class_path_string, ':', boot_class_path);
-  if (boot_class_path.empty()) {
-    LOG(FATAL) << "Failed to generate image because no boot class path specified";
-  }
-
-  std::vector<char*> arg_vector;
-
-  std::string dex2oat_string(GetAndroidRoot());
-  dex2oat_string += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
-  const char* dex2oat = dex2oat_string.c_str();
-  arg_vector.push_back(strdup(dex2oat));
-
-  std::string image_option_string("--image=");
-  image_option_string += image_file_name;
-  const char* image_option = image_option_string.c_str();
-  arg_vector.push_back(strdup(image_option));
-
-  arg_vector.push_back(strdup("--runtime-arg"));
-  arg_vector.push_back(strdup("-Xms64m"));
-
-  arg_vector.push_back(strdup("--runtime-arg"));
-  arg_vector.push_back(strdup("-Xmx64m"));
-
-  for (size_t i = 0; i < boot_class_path.size(); i++) {
-    std::string dex_file_option_string("--dex-file=");
-    dex_file_option_string += boot_class_path[i];
-    const char* dex_file_option = dex_file_option_string.c_str();
-    arg_vector.push_back(strdup(dex_file_option));
-  }
-
-  std::string oat_file_option_string("--oat-file=");
-  oat_file_option_string += image_file_name;
-  oat_file_option_string.erase(oat_file_option_string.size() - 3);
-  oat_file_option_string += "oat";
-  const char* oat_file_option = oat_file_option_string.c_str();
-  arg_vector.push_back(strdup(oat_file_option));
-
-  std::string base_option_string(StringPrintf("--base=0x%x", ART_BASE_ADDRESS));
-  arg_vector.push_back(strdup(base_option_string.c_str()));
-
-  if (kIsTargetBuild) {
-    arg_vector.push_back(strdup("--image-classes-zip=/system/framework/framework.jar"));
-    arg_vector.push_back(strdup("--image-classes=preloaded-classes"));
-  } else {
-    arg_vector.push_back(strdup("--host"));
-  }
-
-  std::string command_line(Join(arg_vector, ' '));
-  LOG(INFO) << command_line;
-
-  arg_vector.push_back(NULL);
-  char** argv = &arg_vector[0];
-
-  // fork and exec dex2oat
-  pid_t pid = fork();
-  if (pid == 0) {
-    // no allocation allowed between fork and exec
-
-    // change process groups, so we don't get reaped by ProcessManager
-    setpgid(0, 0);
-
-    execv(dex2oat, argv);
-
-    PLOG(FATAL) << "execv(" << dex2oat << ") failed";
-    return false;
-  } else {
-    STLDeleteElements(&arg_vector);
-
-    // wait for dex2oat to finish
-    int status;
-    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-    if (got_pid != pid) {
-      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
-      return false;
-    }
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      LOG(ERROR) << dex2oat << " failed: " << command_line;
-      return false;
-    }
-  }
-  return true;
-}
-
-void Heap::UnReserveOatFileAddressRange() {
-  oat_file_map_.reset(NULL);
-}
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, size_t capacity,
@@ -210,45 +118,20 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
 
   // Requested begin for the alloc space, to follow the mapped image and oat files
-  byte* requested_begin = NULL;
+  byte* requested_alloc_space_begin = NULL;
   std::string image_file_name(original_image_file_name);
   if (!image_file_name.empty()) {
-    space::ImageSpace* image_space = NULL;
-
-    if (OS::FileExists(image_file_name.c_str())) {
-      // If the /system file exists, it should be up-to-date, don't try to generate
-      image_space = space::ImageSpace::Create(image_file_name);
-    } else {
-      // If the /system file didn't exist, we need to use one from the dalvik-cache.
-      // If the cache file exists, try to open, but if it fails, regenerate.
-      // If it does not exist, generate.
-      image_file_name = GetDalvikCacheFilenameOrDie(image_file_name);
-      if (OS::FileExists(image_file_name.c_str())) {
-        image_space = space::ImageSpace::Create(image_file_name);
-      }
-      if (image_space == NULL) {
-        CHECK(GenerateImage(image_file_name)) << "Failed to generate image: " << image_file_name;
-        image_space = space::ImageSpace::Create(image_file_name);
-      }
-    }
-
-    CHECK(image_space != NULL) << "Failed to create space from " << image_file_name;
+    space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name);
+    CHECK(image_space != NULL) << "Failed to create space for " << image_file_name;
     AddContinuousSpace(image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
     byte* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
     CHECK_GT(oat_file_end_addr, image_space->End());
-
-    // Reserve address range from image_space->End() to image_space->GetImageHeader().GetOatEnd()
-    uintptr_t reserve_begin = RoundUp(reinterpret_cast<uintptr_t>(image_space->End()), kPageSize);
-    uintptr_t reserve_end = RoundUp(reinterpret_cast<uintptr_t>(oat_file_end_addr), kPageSize);
-    oat_file_map_.reset(MemMap::MapAnonymous("oat file reserve",
-                                             reinterpret_cast<byte*>(reserve_begin),
-                                             reserve_end - reserve_begin, PROT_NONE));
-
-    if (oat_file_end_addr > requested_begin) {
-      requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_file_end_addr),
-                                                          kPageSize));
+    if (oat_file_end_addr > requested_alloc_space_begin) {
+      requested_alloc_space_begin =
+          reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_file_end_addr),
+                                          kPageSize));
     }
   }
 
@@ -265,7 +148,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   alloc_space_ = space::DlMallocSpace::Create("alloc space",
                                               initial_size,
                                               growth_limit, capacity,
-                                              requested_begin);
+                                              requested_alloc_space_begin);
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   alloc_space_->SetFootprintLimit(alloc_space_->Capacity());
   AddContinuousSpace(alloc_space_);

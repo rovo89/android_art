@@ -29,7 +29,7 @@
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
-#include "oat_file.h"
+#include "os.h"
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
