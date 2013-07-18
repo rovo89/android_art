@@ -1431,6 +1431,10 @@ static int oatdump(int argc, char** argv) {
   std::string oat_option;
   std::string boot_image_option;
   std::string boot_oat_option;
+
+  // We are more like a compiler than a run-time. We don't want to execute code.
+  options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
+
   if (boot_image_filename != NULL) {
     boot_image_option += "-Ximage:";
     boot_image_option += boot_image_filename;
