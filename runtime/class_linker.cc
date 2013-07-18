@@ -2321,6 +2321,12 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
 
 
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
+  // Make this work with gtests, which do not set up the image properly.
+  // TODO: we should clean up gtests to set up the image path properly.
+  if (Runtime::Current()->IsCompiler() && (oat_file == NULL)) {
+    return false;
+  }
+
   CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
   CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << PrettyClass(klass);
