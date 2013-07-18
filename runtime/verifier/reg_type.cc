@@ -211,7 +211,7 @@ void LongHiType::Destroy() {
 }
 
 LongLoType* LongLoType::GetInstance() {
-  CHECK (instance_ != NULL);
+  CHECK(instance_ != NULL);
   return instance_;
 }
 
@@ -355,7 +355,7 @@ BooleanType* BooleanType::GetInstance() {
 }
 
 void BooleanType::Destroy() {
-  if(BooleanType::instance != NULL) {
+  if (BooleanType::instance != NULL) {
     delete instance;
     instance = NULL;
   }

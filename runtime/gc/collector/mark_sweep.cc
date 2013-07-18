@@ -72,7 +72,7 @@ class SetFingerVisitor {
  public:
   explicit SetFingerVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
-  void operator ()(void* finger) const {
+  void operator()(void* finger) const {
     mark_sweep_->SetFinger(reinterpret_cast<Object*>(finger));
   }
 
@@ -524,7 +524,7 @@ class CheckObjectVisitor {
  public:
   explicit CheckObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
-  void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
+  void operator()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
       NO_THREAD_SAFETY_ANALYSIS {
     if (kDebugLocking) {
       Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
@@ -565,7 +565,7 @@ class ScanObjectVisitor {
   explicit ScanObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (kDebugLocking) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
@@ -609,7 +609,7 @@ class CheckBitmapVisitor {
  public:
   explicit CheckBitmapVisitor(MarkSweep* mark_sweep) : mark_sweep_(mark_sweep) {}
 
-  void operator ()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
     if (kDebugLocking) {
       Locks::heap_bitmap_lock_->AssertSharedHeld(Thread::Current());
     }
@@ -1081,8 +1081,8 @@ class MarkObjectVisitor {
   explicit MarkObjectVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {}
 
   // TODO: Fixme when anotatalysis works with visitors.
-  void operator ()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */,
-                   bool /* is_static */) const
+  void operator()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */,
+                  bool /* is_static */) const
       NO_THREAD_SAFETY_ANALYSIS {
     if (kDebugLocking) {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
@@ -1148,8 +1148,8 @@ class MarkStackChunk : public Task {
    public:
     explicit MarkObjectParallelVisitor(MarkStackChunk* chunk_task) : chunk_task_(chunk_task) {}
 
-    void operator ()(const Object* /* obj */, const Object* ref,
-                     const MemberOffset& /* offset */, bool /* is_static */) const {
+    void operator()(const Object* /* obj */, const Object* ref,
+                    const MemberOffset& /* offset */, bool /* is_static */) const {
       if (ref != NULL && chunk_task_->mark_sweep_->MarkObjectParallel(ref)) {
         chunk_task_->MarkStackPush(ref);
       }

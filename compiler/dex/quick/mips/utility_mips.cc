@@ -107,7 +107,7 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
 }
 
 LIR* MipsMir2Lir::OpUnconditionalBranch(LIR* target) {
-  LIR* res = NewLIR1(kMipsB, 0 /* offset to be patched during assembly*/ );
+  LIR* res = NewLIR1(kMipsB, 0 /* offset to be patched during assembly*/);
   res->target = target;
   return res;
 }
@@ -642,8 +642,8 @@ LIR* MipsMir2Lir::OpMem(OpKind op, int rBase, int disp) {
   return NULL;
 }
 
-LIR* MipsMir2Lir::StoreBaseIndexedDisp( int rBase, int r_index, int scale, int displacement,
-                                        int r_src, int r_src_hi, OpSize size, int s_reg) {
+LIR* MipsMir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
+                                       int r_src, int r_src_hi, OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }

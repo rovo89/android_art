@@ -34,7 +34,7 @@ class AtomicInteger {
     return *this;
   }
 
-  operator int32_t () const {
+  operator int32_t() const {
     return value_;
   }
 

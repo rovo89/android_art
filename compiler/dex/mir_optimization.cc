@@ -228,7 +228,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
             MIR* mir_next = mir->next;
             Instruction::Code br_opcode = mir_next->dalvikInsn.opcode;
             ConditionCode ccode = kCondNv;
-            switch(br_opcode) {
+            switch (br_opcode) {
               case Instruction::IF_EQZ:
                 ccode = kCondEq;
                 break;
@@ -255,7 +255,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 (mir->ssa_rep->defs[0] == mir_next->ssa_rep->uses[0]) &&
                 (GetSSAUseCount(mir->ssa_rep->defs[0]) == 1)) {
               mir_next->dalvikInsn.arg[0] = ccode;
-              switch(opcode) {
+              switch (opcode) {
                 case Instruction::CMPL_FLOAT:
                   mir_next->dalvikInsn.opcode =
                       static_cast<Instruction::Code>(kMirOpFusedCmplFloat);

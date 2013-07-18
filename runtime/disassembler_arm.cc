@@ -1184,7 +1184,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         ThumbRegister Rm(instr, 6);
         ThumbRegister Rn(instr, 3);
         ThumbRegister Rt(instr, 0);
-        switch(opB) {
+        switch (opB) {
           case 0: opcode << "str"; break;
           case 1: opcode << "strh"; break;
           case 2: opcode << "strb"; break;
@@ -1206,7 +1206,7 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         uint16_t opB = (instr >> 11) & 1;
         ThumbRegister Rn(instr, 3);
         ThumbRegister Rt(instr, 0);
-        switch(opA) {
+        switch (opA) {
           case 6:
             imm5 <<= 2;
             opcode << (opB == 0 ? "str" : "ldr");

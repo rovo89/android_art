@@ -55,7 +55,7 @@ bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volat
 }
 
 /* Convert an instruction to a NOP */
-void Mir2Lir::NopLIR( LIR* lir) {
+void Mir2Lir::NopLIR(LIR* lir) {
   lir->flags.is_nop = true;
 }
 
@@ -190,10 +190,10 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
   }
 
   if (lir->use_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask((LIR* ) lir, lir->use_mask, "use"));
+    DUMP_RESOURCE_MASK(DumpResourceMask((LIR*) lir, lir->use_mask, "use"));
   }
   if (lir->def_mask && (!lir->flags.is_nop || dump_nop)) {
-    DUMP_RESOURCE_MASK(DumpResourceMask((LIR* ) lir, lir->def_mask, "def"));
+    DUMP_RESOURCE_MASK(DumpResourceMask((LIR*) lir, lir->def_mask, "def"));
   }
 }
 
@@ -336,10 +336,10 @@ LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi) {
 }
 
 static void PushWord(std::vector<uint8_t>&buf, int data) {
-  buf.push_back( data & 0xff);
-  buf.push_back( (data >> 8) & 0xff);
-  buf.push_back( (data >> 16) & 0xff);
-  buf.push_back( (data >> 24) & 0xff);
+  buf.push_back(data & 0xff);
+  buf.push_back((data >> 8) & 0xff);
+  buf.push_back((data >> 16) & 0xff);
+  buf.push_back((data >> 24) & 0xff);
 }
 
 static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
@@ -454,8 +454,8 @@ void Mir2Lir::InstallFillArrayData() {
     if (tab_rec == NULL) break;
     AlignBuffer(code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
-      code_buffer_.push_back( tab_rec->table[i] & 0xFF);
-      code_buffer_.push_back( (tab_rec->table[i] >> 8) & 0xFF);
+      code_buffer_.push_back(tab_rec->table[i] & 0xFF);
+      code_buffer_.push_back((tab_rec->table[i] >> 8) & 0xFF);
     }
   }
 }

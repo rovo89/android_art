@@ -399,8 +399,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          fp_spill_mask,
                          mapping_table_offset,
                          vmap_table_offset,
-                         gc_map_offset
-                         );
+                         gc_map_offset);
 
   if (compiler_driver_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();

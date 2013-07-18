@@ -230,7 +230,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   // Create Trace object.
   {
     MutexLock mu(self, *Locks::trace_lock_);
-    if(the_trace_ != NULL) {
+    if (the_trace_ != NULL) {
       LOG(ERROR) << "Trace already in progress, ignoring this request";
     } else {
       the_trace_ = new Trace(trace_file.release(), buffer_size, flags);

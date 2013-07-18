@@ -228,7 +228,7 @@ void Heap::DeleteThreadPool() {
 
 // Sort spaces based on begin address
 struct ContinuousSpaceSorter {
-  bool operator ()(const space::ContinuousSpace* a, const space::ContinuousSpace* b) const {
+  bool operator()(const space::ContinuousSpace* a, const space::ContinuousSpace* b) const {
     return a->Begin() < b->Begin();
   }
 };
@@ -894,8 +894,8 @@ class ReferringObjectsFinder {
   }
 
   // For MarkSweep::VisitObjectReferences.
-  void operator ()(const mirror::Object* referrer, const mirror::Object* object,
-                   const MemberOffset&, bool) const {
+  void operator()(const mirror::Object* referrer, const mirror::Object* object,
+                  const MemberOffset&, bool) const {
     if (object == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
       referring_objects_.push_back(const_cast<mirror::Object*>(referrer));
     }
@@ -1165,7 +1165,7 @@ static void RootMatchesObjectVisitor(const mirror::Object* root, void* arg) {
 
 class ScanVisitor {
  public:
-  void operator ()(const mirror::Object* obj) const {
+  void operator()(const mirror::Object* obj) const {
     LOG(INFO) << "Would have rescanned object " << obj;
   }
 };
@@ -1183,8 +1183,8 @@ class VerifyReferenceVisitor {
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for smarter
   // analysis on visitors.
-  void operator ()(const mirror::Object* obj, const mirror::Object* ref,
-                   const MemberOffset& offset, bool /* is_static */) const
+  void operator()(const mirror::Object* obj, const mirror::Object* ref,
+                  const MemberOffset& offset, bool /* is_static */) const
       NO_THREAD_SAFETY_ANALYSIS {
     // Verify that the reference is live.
     if (UNLIKELY(ref != NULL && !IsLive(ref))) {
@@ -1264,7 +1264,7 @@ class VerifyObjectVisitor {
  public:
   explicit VerifyObjectVisitor(Heap* heap) : heap_(heap), failed_(false) {}
 
-  void operator ()(const mirror::Object* obj) const
+  void operator()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
@@ -1311,8 +1311,8 @@ class VerifyReferenceCardVisitor {
 
   // TODO: Fix lock analysis to not use NO_THREAD_SAFETY_ANALYSIS, requires support for
   // annotalysis on visitors.
-  void operator ()(const mirror::Object* obj, const mirror::Object* ref, const MemberOffset& offset,
-                   bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
+  void operator()(const mirror::Object* obj, const mirror::Object* ref, const MemberOffset& offset,
+                  bool is_static) const NO_THREAD_SAFETY_ANALYSIS {
     // Filter out class references since changing an object's class does not mark the card as dirty.
     // Also handles large objects, since the only reference they hold is a class reference.
     if (ref != NULL && !ref->IsClass()) {
@@ -1378,7 +1378,7 @@ class VerifyLiveStackReferences {
       : heap_(heap),
         failed_(false) {}
 
-  void operator ()(const mirror::Object* obj) const
+  void operator()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
     collector::MarkSweep::VisitObjectReferences(obj, visitor);

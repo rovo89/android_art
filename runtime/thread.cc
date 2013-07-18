@@ -1816,7 +1816,7 @@ class CatchBlockStackVisitor : public StackVisitor {
                                       m->GetDexMethodIndex(), m, m->GetAccessFlags(), false, true);
     verifier.Verify();
     std::vector<int32_t> kinds = verifier.DescribeVRegs(dex_pc);
-    for(uint16_t reg = 0; reg < num_regs; reg++) {
+    for (uint16_t reg = 0; reg < num_regs; reg++) {
       VRegKind kind = static_cast<VRegKind>(kinds.at(reg * 2));
       switch (kind) {
         case kUndefined:

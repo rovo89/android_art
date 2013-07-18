@@ -53,7 +53,7 @@ LLVMInfo::LLVMInfo() {
   llvm_module_ = new ::llvm::Module("art", *llvm_context_);
   ::llvm::StructType::create(*llvm_context_, "JavaObject");
   art::llvm::makeLLVMModuleContents(llvm_module_);
-  intrinsic_helper_.reset( new art::llvm::IntrinsicHelper(*llvm_context_, *llvm_module_));
+  intrinsic_helper_.reset(new art::llvm::IntrinsicHelper(*llvm_context_, *llvm_module_));
   ir_builder_.reset(new art::llvm::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
 }
 
@@ -276,7 +276,7 @@ CompiledMethod* CompileOneMethod(CompilerDriver& compiler,
 #if defined(ART_USE_PORTABLE_COMPILER)
                        , llvm_compilation_unit
 #endif
-                       );
+                       ); // NOLINT(whitespace/parens)
 }
 
 }  // namespace art

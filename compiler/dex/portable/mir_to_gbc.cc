@@ -297,7 +297,7 @@ void MirConverter::EmitSuspendCheck() {
                                    ::llvm::Value* src1, ::llvm::Value* src2) {
   ::llvm::Value* res = NULL;
   DCHECK_EQ(src1->getType(), src2->getType());
-  switch(cc) {
+  switch (cc) {
     case kCondEq: res = irb_->CreateICmpEQ(src1, src2); break;
     case kCondNe: res = irb_->CreateICmpNE(src1, src2); break;
     case kCondLt: res = irb_->CreateICmpSLT(src1, src2); break;
@@ -369,7 +369,7 @@ void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
 ::llvm::Value* MirConverter::GenArithOp(OpKind op, bool is_long,
                                ::llvm::Value* src1, ::llvm::Value* src2) {
   ::llvm::Value* res = NULL;
-  switch(op) {
+  switch (op) {
     case kOpAdd: res = irb_->CreateAdd(src1, src2); break;
     case kOpSub: res = irb_->CreateSub(src1, src2); break;
     case kOpRsub: res = irb_->CreateSub(src2, src1); break;
@@ -393,7 +393,7 @@ void MirConverter::ConvertFPArithOp(OpKind op, RegLocation rl_dest,
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
   ::llvm::Value* src2 = GetLLVMValue(rl_src2.orig_sreg);
   ::llvm::Value* res = NULL;
-  switch(op) {
+  switch (op) {
     case kOpAdd: res = irb_->CreateFAdd(src1, src2); break;
     case kOpSub: res = irb_->CreateFSub(src1, src2); break;
     case kOpMul: res = irb_->CreateFMul(src1, src2); break;
@@ -1781,7 +1781,7 @@ char RemapShorty(char shorty_type) {
    * types (which is valid so long as we always do a real expansion of passed
    * arguments and field loads).
    */
-  switch(shorty_type) {
+  switch (shorty_type) {
     case 'Z' : shorty_type = 'I'; break;
     case 'B' : shorty_type = 'I'; break;
     case 'S' : shorty_type = 'I'; break;

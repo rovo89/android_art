@@ -266,7 +266,7 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
 void MIRGraph::InitializeDominationInfo(BasicBlock* bb) {
   int num_total_blocks = GetBasicBlockListCount();
 
-  if (bb->dominators == NULL ) {
+  if (bb->dominators == NULL) {
     bb->dominators = new (arena_) ArenaBitVector(arena_, num_total_blocks,
                                                  false /* expandable */, kBitMapDominators);
     bb->i_dominated = new (arena_) ArenaBitVector(arena_, num_total_blocks,

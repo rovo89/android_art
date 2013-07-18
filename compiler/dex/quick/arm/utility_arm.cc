@@ -549,7 +549,7 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
   ArmOpcode opcode = kThumbBkpt;
   switch (op) {
     case kOpAdd:
-      if ( !neg && (r_dest_src1 == r13sp) && (value <= 508)) { /* sp */
+      if (!neg && (r_dest_src1 == r13sp) && (value <= 508)) { /* sp */
         DCHECK_EQ((value & 0x3), 0);
         return NewLIR1(kThumbAddSpI7, value >> 2);
       } else if (short_form) {

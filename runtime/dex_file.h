@@ -1039,7 +1039,7 @@ class ClassDataItemIterator {
   }
   InvokeType GetMethodInvokeType(const DexFile::ClassDef& class_def) const {
     if (HasNextDirectMethod()) {
-      if ((GetMemberAccessFlags() & kAccStatic) != 0 ) {
+      if ((GetMemberAccessFlags() & kAccStatic) != 0) {
         return kStatic;
       } else {
         return kDirect;

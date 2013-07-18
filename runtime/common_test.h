@@ -178,8 +178,7 @@ class CommonTest : public testing::Test {
                                 fp_spill_mask,
                                 reinterpret_cast<uint32_t>(mapping_table),
                                 reinterpret_cast<uint32_t>(vmap_table),
-                                reinterpret_cast<uint32_t>(gc_map)
-                                );
+                                reinterpret_cast<uint32_t>(gc_map));
   }
 
   void MakeExecutable(mirror::AbstractMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -308,7 +307,7 @@ class CommonTest : public testing::Test {
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(min_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(max_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
-    if(!Runtime::Create(options, false)) {
+    if (!Runtime::Create(options, false)) {
       LOG(FATAL) << "Failed to create runtime";
       return;
     }

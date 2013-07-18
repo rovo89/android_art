@@ -352,18 +352,18 @@ bool IsValidOatFilename(const std::string& filename);
 class VoidFunctor {
  public:
   template <typename A>
-  inline void operator () (A a) const {
+  inline void operator() (A a) const {
     UNUSED(a);
   }
 
   template <typename A, typename B>
-  inline void operator () (A a, B b) const {
+  inline void operator() (A a, B b) const {
     UNUSED(a);
     UNUSED(b);
   }
 
   template <typename A, typename B, typename C>
-  inline void operator () (A a, B b, C c) const {
+  inline void operator() (A a, B b, C c) const {
     UNUSED(a);
     UNUSED(b);
     UNUSED(c);

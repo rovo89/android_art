@@ -148,7 +148,7 @@ inline void ReaderWriterMutex::SharedLock(Thread* self) {
       }
       android_atomic_dec(&num_pending_readers_);
     }
-  } while(!done);
+  } while (!done);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_rdlock, (&rwlock_));
 #endif
@@ -176,7 +176,7 @@ inline void ReaderWriterMutex::SharedUnlock(Thread* self) {
     } else {
       LOG(FATAL) << "Unexpected state_:" << cur_state << " for " << name_;
     }
-  } while(!done);
+  } while (!done);
 #else
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
 #endif

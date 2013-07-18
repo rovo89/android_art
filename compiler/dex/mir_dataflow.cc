@@ -1122,9 +1122,9 @@ void MIRGraph::CompilerInitializeSSAConversion() {
   size_t num_dalvik_reg = cu_->num_dalvik_registers;
 
   ssa_base_vregs_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
-                                            kGrowableArraySSAtoDalvikMap);
+                                                    kGrowableArraySSAtoDalvikMap);
   ssa_subscripts_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
-                                            kGrowableArraySSAtoDalvikMap);
+                                                    kGrowableArraySSAtoDalvikMap);
   /*
    * Initial number of SSA registers is equal to the number of Dalvik
    * registers.

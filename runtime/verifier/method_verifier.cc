@@ -1014,12 +1014,12 @@ bool MethodVerifier::VerifyCodeFlow() {
   verifier::MethodVerifier::SetDexGcMap(ref, *dex_gc_map);
 
   MethodVerifier::MethodSafeCastSet* method_to_safe_casts = GenerateSafeCastSet();
-  if(method_to_safe_casts != NULL ) {
+  if (method_to_safe_casts != NULL) {
     SetSafeCastMap(ref, method_to_safe_casts);
   }
 
   MethodVerifier::PcToConcreteMethodMap* pc_to_concrete_method = GenerateDevirtMap();
-  if(pc_to_concrete_method != NULL ) {
+  if (pc_to_concrete_method != NULL) {
     SetDevirtMap(ref, pc_to_concrete_method);
   }
   return true;
@@ -1824,7 +1824,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       uint32_t instance_of_idx = 0;
       if (0 != work_insn_idx_) {
         instance_of_idx = work_insn_idx_ - 1;
-        while(0 != instance_of_idx && !insn_flags_[instance_of_idx].IsOpcode()) {
+        while (0 != instance_of_idx && !insn_flags_[instance_of_idx].IsOpcode()) {
           instance_of_idx--;
         }
         CHECK(insn_flags_[instance_of_idx].IsOpcode());
@@ -1854,7 +1854,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         // which is not done because of the multiple inheritance implications.
         const RegType& cast_type = ResolveClassAndCheckAccess(instance_of_inst->VRegC_22c());
 
-        if(!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
+        if (!cast_type.IsUnresolvedTypes() && !cast_type.GetClass()->IsInterface()) {
           RegisterLine* update_line = new RegisterLine(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
@@ -1868,7 +1868,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             // register encoding space of instance-of, and propagate type information to the source
             // of the move-object.
             uint32_t move_idx = instance_of_idx - 1;
-            while(0 != move_idx && !insn_flags_[move_idx].IsOpcode()) {
+            while (0 != move_idx && !insn_flags_[move_idx].IsOpcode()) {
               move_idx--;
             }
             CHECK(insn_flags_[move_idx].IsOpcode());
@@ -3766,7 +3766,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
     bool is_interface = (inst->Opcode() == Instruction::INVOKE_INTERFACE) ||
         (inst->Opcode() == Instruction::INVOKE_INTERFACE_RANGE);
 
-    if(!is_interface && !is_virtual) {
+    if (!is_interface && !is_virtual) {
       continue;
     }
     // Get reg type for register holding the reference to the object that will be dispatched upon.
@@ -3792,7 +3792,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
     }
     mirror::AbstractMethod* abstract_method =
         dex_cache_->GetResolvedMethod(is_range ? inst->VRegB_3rc() : inst->VRegB_35c());
-    if(abstract_method == NULL) {
+    if (abstract_method == NULL) {
       // If the method is not found in the cache this means that it was never found
       // by ResolveMethodAndCheckAccess() called when verifying invoke_*.
       continue;
@@ -3986,7 +3986,7 @@ const MethodReference* MethodVerifier::GetDevirtMap(const MethodReference& ref,
 
   // Look up the PC in the map, get the concrete method to execute and return its reference.
   MethodVerifier::PcToConcreteMethodMap::const_iterator pc_to_concrete_method = it->second->find(dex_pc);
-  if(pc_to_concrete_method != it->second->end()) {
+  if (pc_to_concrete_method != it->second->end()) {
     return &(pc_to_concrete_method->second);
   } else {
     return NULL;

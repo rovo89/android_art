@@ -937,14 +937,14 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322
-  EXPECT_FALSE(                   s0->GetBoolean(statics));
-  EXPECT_EQ(6,                    s1->GetByte(statics));
-  EXPECT_EQ('b',                  s2->GetChar(statics));
-  EXPECT_EQ(-535,                 s3->GetShort(statics));
-  EXPECT_EQ(2000000001,           s4->GetInt(statics));
+  EXPECT_FALSE(s0->GetBoolean(statics));
+  EXPECT_EQ(6, s1->GetByte(statics));
+  EXPECT_EQ('b', s2->GetChar(statics));
+  EXPECT_EQ(-535, s3->GetShort(statics));
+  EXPECT_EQ(2000000001, s4->GetInt(statics));
   EXPECT_EQ(0x34567890abcdef12LL, s5->GetLong(statics));
-  EXPECT_EQ(0.75,                 s6->GetFloat(statics));
-  EXPECT_EQ(16777219,             s7->GetDouble(statics));
+  EXPECT_EQ(0.75, s6->GetFloat(statics));
+  EXPECT_EQ(16777219, s7->GetDouble(statics));
   EXPECT_TRUE(s8->GetObject(statics)->AsString()->Equals("robot"));
 }
 

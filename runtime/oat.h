@@ -97,8 +97,7 @@ class PACKED(4) OatMethodOffsets {
                    uint32_t fp_spill_mask,
                    uint32_t mapping_table_offset,
                    uint32_t vmap_table_offset,
-                   uint32_t gc_map_offset
-                   );
+                   uint32_t gc_map_offset);
 
   ~OatMethodOffsets();
 

@@ -100,7 +100,7 @@ LIR* X86Mir2Lir::LoadConstantNoClobber(int r_dest, int value) {
 }
 
 LIR* X86Mir2Lir::OpUnconditionalBranch(LIR* target) {
-  LIR* res = NewLIR1(kX86Jmp8, 0 /* offset to be patched during assembly*/ );
+  LIR* res = NewLIR1(kX86Jmp8, 0 /* offset to be patched during assembly*/);
   res->target = target;
   return res;
 }

@@ -233,7 +233,7 @@ class Mir2Lir : public Backend {
 
     RegisterClass oat_reg_class_by_size(OpSize size) {
       return (size == kUnsignedHalf || size == kSignedHalf || size == kUnsignedByte ||
-              size == kSignedByte ) ? kCoreReg : kAnyReg;
+              size == kSignedByte) ? kCoreReg : kAnyReg;
     }
 
     size_t CodeBufferSizeInBytes() {

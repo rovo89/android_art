@@ -410,7 +410,7 @@ void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset
       (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
       kPackedSwitch : kSparseSwitch;
   cur_block->successor_block_list.blocks =
-      new (arena_)GrowableArray<SuccessorBlockInfo*>(arena_, size, kGrowableArraySuccessorBlocks);
+      new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, size, kGrowableArraySuccessorBlocks);
 
   for (i = 0; i < size; i++) {
     BasicBlock *case_block = FindBlock(cur_offset + target_table[i], /* split */ true,
@@ -427,8 +427,8 @@ void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset
   }
 
   /* Fall-through case */
-  BasicBlock* fallthrough_block = FindBlock( cur_offset +  width, /* split */ false,
-                                           /* create */ true, /* immed_pred_block_p */ NULL);
+  BasicBlock* fallthrough_block = FindBlock(cur_offset +  width, /* split */ false,
+                                            /* create */ true, /* immed_pred_block_p */ NULL);
   cur_block->fall_through = fallthrough_block;
   fallthrough_block->predecessors->Insert(cur_block);
 }
@@ -1146,8 +1146,9 @@ BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   bb->block_type = block_type;
   bb->id = block_id;
   // TUNING: better estimate of the exit block predecessors?
-  bb->predecessors = new (arena_)
-      GrowableArray<BasicBlock*>(arena_, (block_type == kExitBlock) ? 2048 : 2, kGrowableArrayPredecessors);
+  bb->predecessors = new (arena_) GrowableArray<BasicBlock*>(arena_,
+                                                             (block_type == kExitBlock) ? 2048 : 2,
+                                                             kGrowableArrayPredecessors);
   bb->successor_block_list.block_list_type = kNotUsed;
   block_id_map_.Put(block_id, block_id);
   return bb;

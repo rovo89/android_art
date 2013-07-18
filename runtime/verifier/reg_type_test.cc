@@ -405,7 +405,7 @@ TEST_F(RegTypeReferenceTest, Dump) {
   std::string expected = "Unresolved Reference: java.lang.DoesNotExist";
   EXPECT_EQ(expected, unresolved_ref.Dump());
   expected = "Precise Reference: java.lang.String";
-  EXPECT_EQ( expected, resolved_ref.Dump());
+  EXPECT_EQ(expected, resolved_ref.Dump());
   expected ="Uninitialized Reference: java.lang.String Allocation PC: 10";
   EXPECT_EQ(expected, resolved_unintialiesd.Dump());
   expected = "Unresolved And Uninitialized Reference: java.lang.DoesNotExist Allocation PC: 12";

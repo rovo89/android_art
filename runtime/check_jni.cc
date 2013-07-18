@@ -401,7 +401,7 @@ class ScopedCheck {
    *
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
-  void Check(bool entry, const char* fmt0, ...) SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
+  void Check(bool entry, const char* fmt0, ...) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     va_list ap;
 
     const mirror::AbstractMethod* traceMethod = NULL;

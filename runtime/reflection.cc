@@ -206,8 +206,7 @@ bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_r
     ThrowClassCastException(throw_location,
                             StringPrintf("Couldn't convert result of type %s to %s",
                                          PrettyDescriptor(srcType).c_str(),
-                                         PrettyDescriptor(dstType).c_str()
-                                         ).c_str());
+                                         PrettyDescriptor(dstType).c_str()).c_str());
   }
   return false;
 }
@@ -297,8 +296,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
         ThrowClassCastException(throw_location,
                                 StringPrintf("Couldn't convert result of type %s to %s",
                                              PrettyTypeOf(o).c_str(),
-                                             PrettyDescriptor(dst_class).c_str()
-                                             ).c_str());
+                                             PrettyDescriptor(dst_class).c_str()).c_str());
       }
       return false;
     }
@@ -359,8 +357,7 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
                                   StringPrintf("%s has type %s, got %s",
                                                UnboxingFailureKind(m, index, f).c_str(),
                                                PrettyDescriptor(dst_class).c_str(),
-                                               PrettyDescriptor(src_descriptor.c_str()).c_str()
-                                               ).c_str());
+                                               PrettyDescriptor(src_descriptor.c_str()).c_str()).c_str());
     return false;
   }
 
