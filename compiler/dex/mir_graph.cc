@@ -922,7 +922,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     str.append(StringPrintf(" %s = (%s",
                GetSSANameWithConst(ssa_rep->defs[0], true).c_str(),
                GetSSANameWithConst(ssa_rep->uses[0], true).c_str()));
-    str.append(StringPrintf(":%d",incoming[0]));
+    str.append(StringPrintf(":%d", incoming[0]));
     int i;
     for (i = 1; i < uses; i++) {
       str.append(StringPrintf(", %s:%d",
@@ -1011,8 +1011,8 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
 /* Turn method name into a legal Linux file name */
 void MIRGraph::ReplaceSpecialChars(std::string& str) {
   static const struct { const char before; const char after; } match[] =
-      {{'/','-'}, {';','#'}, {' ','#'}, {'$','+'},
-       {'(','@'}, {')','@'}, {'<','='}, {'>','='}};
+      {{'/', '-'}, {';', '#'}, {' ', '#'}, {'$', '+'},
+       {'(', '@'}, {')', '@'}, {'<', '='}, {'>', '='}};
   for (unsigned int i = 0; i < sizeof(match)/sizeof(match[0]); i++) {
     std::replace(str.begin(), str.end(), match[i].before, match[i].after);
   }
@@ -1036,7 +1036,7 @@ std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
       return StringPrintf("v%d_%d#0x%llx", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
                           ConstantValueWide(reg_location_[ssa_reg]));
     } else {
-      return StringPrintf("v%d_%d#0x%x", SRegToVReg(ssa_reg),GetSSASubscript(ssa_reg),
+      return StringPrintf("v%d_%d#0x%x", SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
                           ConstantValue(reg_location_[ssa_reg]));
     }
   } else {

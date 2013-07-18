@@ -240,7 +240,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
                 reg_location_[ssa_rep->uses[i+1]].wide = true;
                 reg_location_[ssa_rep->uses[i+1]].high_word = true;
                 DCHECK_EQ(SRegToVReg(ssa_rep->uses[i])+1, SRegToVReg(ssa_rep->uses[i+1]));
-                changed |= SetCore(ssa_rep->uses[i],true);
+                changed |= SetCore(ssa_rep->uses[i], true);
                 i++;
                 break;
               case 'F':

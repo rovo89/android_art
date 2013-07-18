@@ -183,7 +183,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   int dest_sreg = mir->ssa_rep->defs[0];
   if ((dest_sreg < 0) || (dest_sreg >= mir_graph_->GetNumSSARegs())) {
     LOG(INFO) << "Bad target sreg: " << dest_sreg << ", in "
-              << PrettyMethod(cu_->method_idx,*cu_->dex_file);
+              << PrettyMethod(cu_->method_idx, *cu_->dex_file);
     LOG(INFO) << "at dex offset 0x" << std::hex << mir->offset;
     LOG(INFO) << "vreg = " << mir_graph_->SRegToVReg(dest_sreg);
     LOG(INFO) << "num uses = " << mir->ssa_rep->num_uses;

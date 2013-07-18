@@ -123,7 +123,7 @@ namespace art {
  * rework is done in this area.  Also, it is a good reminder in the calling
  * code that reg locations always describe doubles as a pair of singles.
  */
-#define X86_S2D(x,y) ((x) | X86_FP_DOUBLE)
+#define X86_S2D(x, y) ((x) | X86_FP_DOUBLE)
 /* Mask to strip off fp flags */
 #define X86_FP_REG_MASK 0xF
 

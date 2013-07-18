@@ -105,7 +105,7 @@ namespace art {
  * rework is done in this area.  Also, it is a good reminder in the calling
  * code that reg locations always describe doubles as a pair of singles.
  */
-#define MIPS_S2D(x,y) ((x) | MIPS_FP_DOUBLE)
+#define MIPS_S2D(x, y) ((x) | MIPS_FP_DOUBLE)
 // Mask to strip off fp flags.
 #define MIPS_FP_REG_MASK (MIPS_FP_REG_OFFSET-1)
 
@@ -148,7 +148,7 @@ namespace art {
                                  INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define MIPS_LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_RESULT0, \
                                 r_RESULT1, INVALID_SREG, INVALID_SREG}
-#define MIPS_LOC_C_RETURN_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0,\
+#define MIPS_LOC_C_RETURN_DOUBLE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_FRESULT0, \
                                   r_FRESULT1, INVALID_SREG, INVALID_SREG}
 
 enum MipsResourceEncodingPos {

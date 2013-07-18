@@ -875,7 +875,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumb2Dmb,         0xf3bf8f50,
                  kFmtBitBlt, 3, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP,
-                 "dmb","#!0B",4),
+                 "dmb", "#!0B", 4),
     ENCODING_MAP(kThumb2LdrPcReln12,       0xf85f0000,
                  kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,

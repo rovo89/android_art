@@ -272,7 +272,7 @@ static char* DecodeRegList(int opcode, int vector, char* buf) {
 static char*  DecodeFPCSRegList(int count, int base, char* buf) {
   sprintf(buf, "s%d", base);
   for (int i = 1; i < count; i++) {
-    sprintf(buf + strlen(buf), ", s%d",base + i);
+    sprintf(buf + strlen(buf), ", s%d", base + i);
   }
   return buf;
 }
@@ -296,8 +296,8 @@ static int ExpandImmediate(int value) {
   return bits >> (((value & 0xf80) >> 7) - 8);
 }
 
-const char* cc_names[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
-                         "hi","ls","ge","lt","gt","le","al","nv"};
+const char* cc_names[] = {"eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc",
+                         "hi", "ls", "ge", "lt", "gt", "le", "al", "nv"};
 /*
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
@@ -324,9 +324,9 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
          switch (*fmt++) {
            case 'H':
              if (operand != 0) {
-               sprintf(tbuf, ", %s %d",shift_names[operand & 0x3], operand >> 2);
+               sprintf(tbuf, ", %s %d", shift_names[operand & 0x3], operand >> 2);
              } else {
-               strcpy(tbuf,"");
+               strcpy(tbuf, "");
              }
              break;
            case 'B':
@@ -356,7 +356,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              strcpy(tbuf, name);
              break;
            case 'b':
-             strcpy(tbuf,"0000");
+             strcpy(tbuf, "0000");
              for (i=3; i>= 0; i--) {
                tbuf[i] += operand & 1;
                operand >>= 1;
@@ -364,41 +364,41 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              break;
            case 'n':
              operand = ~ExpandImmediate(operand);
-             sprintf(tbuf,"%d [%#x]", operand, operand);
+             sprintf(tbuf, "%d [%#x]", operand, operand);
              break;
            case 'm':
              operand = ExpandImmediate(operand);
-             sprintf(tbuf,"%d [%#x]", operand, operand);
+             sprintf(tbuf, "%d [%#x]", operand, operand);
              break;
            case 's':
-             sprintf(tbuf,"s%d",operand & ARM_FP_REG_MASK);
+             sprintf(tbuf, "s%d", operand & ARM_FP_REG_MASK);
              break;
            case 'S':
-             sprintf(tbuf,"d%d",(operand & ARM_FP_REG_MASK) >> 1);
+             sprintf(tbuf, "d%d", (operand & ARM_FP_REG_MASK) >> 1);
              break;
            case 'h':
-             sprintf(tbuf,"%04x", operand);
+             sprintf(tbuf, "%04x", operand);
              break;
            case 'M':
            case 'd':
-             sprintf(tbuf,"%d", operand);
+             sprintf(tbuf, "%d", operand);
              break;
            case 'C':
              DCHECK_LT(operand, static_cast<int>(
                  sizeof(core_reg_names)/sizeof(core_reg_names[0])));
-             sprintf(tbuf,"%s",core_reg_names[operand]);
+             sprintf(tbuf, "%s", core_reg_names[operand]);
              break;
            case 'E':
-             sprintf(tbuf,"%d", operand*4);
+             sprintf(tbuf, "%d", operand*4);
              break;
            case 'F':
-             sprintf(tbuf,"%d", operand*2);
+             sprintf(tbuf, "%d", operand*2);
              break;
            case 'c':
              strcpy(tbuf, cc_names[operand]);
              break;
            case 't':
-             sprintf(tbuf,"0x%08x (L%p)",
+             sprintf(tbuf, "0x%08x (L%p)",
                  reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
                  (operand << 1),
                  lir->target);
@@ -428,7 +428,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              DecodeFPCSRegList(operand, 0, tbuf);
              break;
            default:
-             strcpy(tbuf,"DecodeError1");
+             strcpy(tbuf, "DecodeError1");
              break;
         }
         buf += tbuf;
