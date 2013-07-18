@@ -87,14 +87,28 @@ void InitLogging(char* argv[]) {
     std::string spec(specs[i]);
     if (spec.size() == 3 && StartsWith(spec, "*:")) {
       switch (spec[2]) {
-        case 'v': gMinimumLogSeverity = VERBOSE; continue;
-        case 'd': gMinimumLogSeverity = DEBUG; continue;
-        case 'i': gMinimumLogSeverity = INFO; continue;
-        case 'w': gMinimumLogSeverity = WARNING; continue;
-        case 'e': gMinimumLogSeverity = ERROR; continue;
-        case 'f': gMinimumLogSeverity = FATAL; continue;
+        case 'v':
+          gMinimumLogSeverity = VERBOSE;
+          continue;
+        case 'd':
+          gMinimumLogSeverity = DEBUG;
+          continue;
+        case 'i':
+          gMinimumLogSeverity = INFO;
+          continue;
+        case 'w':
+          gMinimumLogSeverity = WARNING;
+          continue;
+        case 'e':
+          gMinimumLogSeverity = ERROR;
+          continue;
+        case 'f':
+          gMinimumLogSeverity = FATAL;
+          continue;
         // liblog will even suppress FATAL if you say 's' for silent, but that's crazy!
-        case 's': gMinimumLogSeverity = FATAL; continue;
+        case 's':
+          gMinimumLogSeverity = FATAL;
+          continue;
       }
     }
     LOG(FATAL) << "unsupported '" << spec << "' in ANDROID_LOG_TAGS (" << tags << ")";

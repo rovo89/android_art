@@ -1538,7 +1538,7 @@ collector::GcType Heap::WaitForConcurrentGcToComplete(Thread* self) {
           gc_complete_cond_->Wait(self);
         }
         last_gc_type = last_gc_type_;
-        wait_time = NanoTime() - wait_start;;
+        wait_time = NanoTime() - wait_start;
         total_wait_time_ += wait_time;
       }
       if (wait_time > kLongGcPauseThreshold) {

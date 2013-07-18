@@ -238,7 +238,7 @@ class Dbg {
   static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId field_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId field_id)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);;
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetFieldValue(JDWP::ObjectId object_id, JDWP::FieldId field_id,
                                        JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

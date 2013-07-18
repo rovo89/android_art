@@ -223,11 +223,14 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   { // NOLINT(whitespace/braces)
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
-        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
+        cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        break;
       case kMips:
-        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
+        cu->cg.reset(MipsCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        break;
       case kX86:
-        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena)); break;
+        cu->cg.reset(X86CodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
+        break;
       default:
         LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
     }
