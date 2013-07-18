@@ -315,7 +315,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
       fmt++;
       DCHECK_LT(fmt, fmt_end);
       nc = *fmt++;
-      if (nc=='!') {
+      if (nc == '!') {
         strcpy(tbuf, "!");
       } else {
          DCHECK_LT(fmt, fmt_end);
@@ -357,7 +357,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
              break;
            case 'b':
              strcpy(tbuf, "0000");
-             for (i=3; i>= 0; i--) {
+             for (i = 3; i >= 0; i--) {
                tbuf[i] += operand & 1;
                operand >>= 1;
              }
