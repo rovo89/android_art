@@ -24,7 +24,7 @@ namespace art {
 LIR* MipsMir2Lir::OpFpRegCopy(int r_dest, int r_src) {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(MIPS_DOUBLEREG(r_dest),MIPS_DOUBLEREG(r_src));
+  DCHECK_EQ(MIPS_DOUBLEREG(r_dest), MIPS_DOUBLEREG(r_src));
   if (MIPS_DOUBLEREG(r_dest)) {
     opcode = kMipsFmovd;
   } else {

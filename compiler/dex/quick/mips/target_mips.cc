@@ -172,41 +172,41 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
          operand = lir->operands[nc-'0'];
          switch (*fmt++) {
            case 'b':
-             strcpy(tbuf,"0000");
+             strcpy(tbuf, "0000");
              for (i=3; i>= 0; i--) {
                tbuf[i] += operand & 1;
                operand >>= 1;
              }
              break;
            case 's':
-             sprintf(tbuf,"$f%d",operand & MIPS_FP_REG_MASK);
+             sprintf(tbuf, "$f%d", operand & MIPS_FP_REG_MASK);
              break;
            case 'S':
              DCHECK_EQ(((operand & MIPS_FP_REG_MASK) & 1), 0);
-             sprintf(tbuf,"$f%d",operand & MIPS_FP_REG_MASK);
+             sprintf(tbuf, "$f%d", operand & MIPS_FP_REG_MASK);
              break;
            case 'h':
-             sprintf(tbuf,"%04x", operand);
+             sprintf(tbuf, "%04x", operand);
              break;
            case 'M':
            case 'd':
-             sprintf(tbuf,"%d", operand);
+             sprintf(tbuf, "%d", operand);
              break;
            case 'D':
-             sprintf(tbuf,"%d", operand+1);
+             sprintf(tbuf, "%d", operand+1);
              break;
            case 'E':
-             sprintf(tbuf,"%d", operand*4);
+             sprintf(tbuf, "%d", operand*4);
              break;
            case 'F':
-             sprintf(tbuf,"%d", operand*2);
+             sprintf(tbuf, "%d", operand*2);
              break;
            case 't':
-             sprintf(tbuf,"0x%08x (L%p)", reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
+             sprintf(tbuf, "0x%08x (L%p)", reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 +
                      (operand << 2), lir->target);
              break;
            case 'T':
-             sprintf(tbuf,"0x%08x", operand << 2);
+             sprintf(tbuf, "0x%08x", operand << 2);
              break;
            case 'u': {
              int offset_1 = lir->operands[0];
@@ -231,7 +231,7 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
              strcpy(tbuf, ";  nop");
              break;
            default:
-             strcpy(tbuf,"DecodeError");
+             strcpy(tbuf, "DecodeError");
              break;
          }
          buf += tbuf;

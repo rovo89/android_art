@@ -889,7 +889,7 @@ class UnresolvedMergedType : public UnresolvedType {
   UnresolvedMergedType(uint16_t left_id, uint16_t right_id, const RegTypeCache* reg_type_cache,
                        uint16_t cache_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : UnresolvedType("", cache_id), reg_type_cache_(reg_type_cache) ,merged_types_(left_id, right_id) {
+      : UnresolvedType("", cache_id), reg_type_cache_(reg_type_cache), merged_types_(left_id, right_id) {
     if (kIsDebugBuild) {
       CheckInvariants();
     }

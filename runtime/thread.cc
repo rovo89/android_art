@@ -626,7 +626,7 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
         ScopedLocalRef<jstring> scoped_name_string(env,
                                                    (jstring)env->GetObjectField(peer,
                                                               WellKnownClasses::java_lang_Thread_name));
-        ScopedUtfChars scoped_name_chars(env,scoped_name_string.get());
+        ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
         if (scoped_name_chars.c_str() == NULL) {
             LOG(WARNING) << "No such thread for suspend: " << peer;
             env->ExceptionClear();

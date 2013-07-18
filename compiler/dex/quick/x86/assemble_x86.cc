@@ -323,7 +323,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD | REG_USE0,        { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD | REG_USE01,       { 0,             0, 0xFF, 0,    0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
   { kX86CallT, kCall, IS_UNARY_OP  | IS_BRANCH | IS_LOAD,                   { THREAD_PREFIX, 0, 0xFF, 0,    0, 2, 0, 0 }, "CallT", "fs:[!0d]" },
-  { kX86Ret,   kNullary,NO_OPERAND | IS_BRANCH,                             { 0,             0, 0xC3, 0,    0, 0, 0, 0 }, "Ret", "" },
+  { kX86Ret,   kNullary, NO_OPERAND | IS_BRANCH,                            { 0,             0, 0xC3, 0,    0, 0, 0, 0 }, "Ret", "" },
 
   { kX86StartOfMethod, kMacro,  IS_UNARY_OP | SETS_CCODES,             { 0, 0, 0,    0, 0, 0, 0, 0 }, "StartOfMethod", "!0r" },
   { kX86PcRelLoadRA,   kPcRel,  IS_LOAD | IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8B, 0, 0, 0, 0, 0 }, "PcRelLoadRA",   "!0r,[!1r+!2r<<!3d+!4p]" },

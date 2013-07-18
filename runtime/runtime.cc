@@ -709,7 +709,7 @@ void Runtime::EndThreadBirth() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_
 // Do zygote-mode-only initialization.
 bool Runtime::InitZygote() {
   // zygote goes into its own process group
-  setpgid(0,0);
+  setpgid(0, 0);
 
   // See storage config details at http://source.android.com/tech/storage/
   // Create private mount namespace shared by all children

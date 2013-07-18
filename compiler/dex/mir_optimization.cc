@@ -64,7 +64,7 @@ void MIRGraph::DoConstantPropogation(BasicBlock* bb) {
             SetConstantWide(mir->ssa_rep->defs[0], static_cast<int64_t>(vB));
             break;
           case Instruction::CONST_WIDE:
-            SetConstantWide(mir->ssa_rep->defs[0],d_insn->vB_wide);
+            SetConstantWide(mir->ssa_rep->defs[0], d_insn->vB_wide);
             break;
           case Instruction::CONST_WIDE_HIGH16:
             SetConstantWide(mir->ssa_rep->defs[0], static_cast<int64_t>(vB) << 48);

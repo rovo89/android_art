@@ -334,7 +334,7 @@ endif
 .PHONY: cpplint-art
 cpplint-art:
 	./art/tools/cpplint.py \
-	    --filter=-,+build/header_guard,+whitespace/braces \
+	    --filter=-,+build/header_guard,+whitespace/braces,+whitespace/comma,+runtime/explicit \
 	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION))
 
 # "mm cpplint-art-aspirational" to see warnings we would like to fix

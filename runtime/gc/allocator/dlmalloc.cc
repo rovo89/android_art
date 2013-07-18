@@ -27,7 +27,7 @@ extern "C" void* art_heap_morecore(void* m, intptr_t increment);
 static void art_heap_corruption(const char* function);
 static void art_heap_usage_error(const char* function, void* p);
 #define CORRUPTION_ERROR_ACTION(m) art_heap_corruption(__FUNCTION__)
-#define USAGE_ERROR_ACTION(m,p) art_heap_usage_error(__FUNCTION__, p)
+#define USAGE_ERROR_ACTION(m, p) art_heap_usage_error(__FUNCTION__, p)
 
 // Ugly inclusion of C file so that ART specific #defines configure dlmalloc for our use for
 // mspaces (regular dlmalloc is still declared in bionic).
