@@ -22,8 +22,7 @@ namespace art {
 
 /* This file contains codegen for the X86 ISA */
 
-LIR* X86Mir2Lir::OpFpRegCopy(int r_dest, int r_src)
-{
+LIR* X86Mir2Lir::OpFpRegCopy(int r_dest, int r_src) {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
   DCHECK_EQ(X86_DOUBLEREG(r_dest), X86_DOUBLEREG(r_src));
@@ -49,23 +48,19 @@ LIR* X86Mir2Lir::OpFpRegCopy(int r_dest, int r_src)
   return res;
 }
 
-bool X86Mir2Lir::InexpensiveConstantInt(int32_t value)
-{
+bool X86Mir2Lir::InexpensiveConstantInt(int32_t value) {
   return true;
 }
 
-bool X86Mir2Lir::InexpensiveConstantFloat(int32_t value)
-{
+bool X86Mir2Lir::InexpensiveConstantFloat(int32_t value) {
   return false;
 }
 
-bool X86Mir2Lir::InexpensiveConstantLong(int64_t value)
-{
+bool X86Mir2Lir::InexpensiveConstantLong(int64_t value) {
   return true;
 }
 
-bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value)
-{
+bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value) {
   return false; // TUNING
 }
 
@@ -78,8 +73,7 @@ bool X86Mir2Lir::InexpensiveConstantDouble(int64_t value)
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* X86Mir2Lir::LoadConstantNoClobber(int r_dest, int value)
-{
+LIR* X86Mir2Lir::LoadConstantNoClobber(int r_dest, int value) {
   int r_dest_save = r_dest;
   if (X86_FPREG(r_dest)) {
     if (value == 0) {
@@ -105,23 +99,20 @@ LIR* X86Mir2Lir::LoadConstantNoClobber(int r_dest, int value)
   return res;
 }
 
-LIR* X86Mir2Lir::OpUnconditionalBranch(LIR* target)
-{
+LIR* X86Mir2Lir::OpUnconditionalBranch(LIR* target) {
   LIR* res = NewLIR1(kX86Jmp8, 0 /* offset to be patched during assembly*/ );
   res->target = target;
   return res;
 }
 
-LIR* X86Mir2Lir::OpCondBranch(ConditionCode cc, LIR* target)
-{
+LIR* X86Mir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
   LIR* branch = NewLIR2(kX86Jcc8, 0 /* offset to be patched */,
                         X86ConditionEncoding(cc));
   branch->target = target;
   return branch;
 }
 
-LIR* X86Mir2Lir::OpReg(OpKind op, int r_dest_src)
-{
+LIR* X86Mir2Lir::OpReg(OpKind op, int r_dest_src) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpNeg: opcode = kX86Neg32R; break;
@@ -133,8 +124,7 @@ LIR* X86Mir2Lir::OpReg(OpKind op, int r_dest_src)
   return NewLIR1(opcode, r_dest_src);
 }
 
-LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value)
-{
+LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
   X86OpCode opcode = kX86Bkpt;
   bool byte_imm = IS_SIMM8(value);
   DCHECK(!X86_FPREG(r_dest_src1));
@@ -160,8 +150,7 @@ LIR* X86Mir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value)
   return NewLIR2(opcode, r_dest_src1, value);
 }
 
-LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
-{
+LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
     X86OpCode opcode = kX86Nop;
     bool src2_must_be_cx = false;
     switch (op) {
@@ -207,8 +196,7 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
 }
 
 LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
-              int offset)
-{
+              int offset) {
   X86OpCode opcode = kX86Nop;
   switch (op) {
       // X86 binary opcodes
@@ -231,8 +219,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
 }
 
 LIR* X86Mir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1,
-                 int r_src2)
-{
+                 int r_src2) {
   if (r_dest != r_src1 && r_dest != r_src2) {
     if (op == kOpAdd) { // lea special case, except can't encode rbp as base
       if (r_src1 == r_src2) {
@@ -280,8 +267,7 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1,
 }
 
 LIR* X86Mir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src,
-                 int value)
-{
+                 int value) {
   if (op == kOpMul) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return NewLIR3(opcode, r_dest, r_src, value);
@@ -306,8 +292,7 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src,
   return OpRegImm(op, r_dest, value);
 }
 
-LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset)
-{
+LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpBlx: opcode = kX86CallT;  break;
@@ -318,8 +303,7 @@ LIR* X86Mir2Lir::OpThreadMem(OpKind op, int thread_offset)
   return NewLIR1(opcode, thread_offset);
 }
 
-LIR* X86Mir2Lir::OpMem(OpKind op, int rBase, int disp)
-{
+LIR* X86Mir2Lir::OpMem(OpKind op, int rBase, int disp) {
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpBlx: opcode = kX86CallM;  break;
@@ -330,8 +314,7 @@ LIR* X86Mir2Lir::OpMem(OpKind op, int rBase, int disp)
   return NewLIR2(opcode, rBase, disp);
 }
 
-LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value)
-{
+LIR* X86Mir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
     int32_t val_lo = Low32Bits(value);
     int32_t val_hi = High32Bits(value);
     LIR *res;
@@ -558,23 +541,20 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(int rBase, int r_index, int scale,
 
 /* store value base base + scaled index. */
 LIR* X86Mir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
-                      int scale, OpSize size)
-{
+                      int scale, OpSize size) {
   return StoreBaseIndexedDisp(rBase, r_index, scale, 0,
                               r_src, INVALID_REG, size, INVALID_SREG);
 }
 
 LIR* X86Mir2Lir::StoreBaseDisp(int rBase, int displacement,
-                               int r_src, OpSize size)
-{
+                               int r_src, OpSize size) {
     return StoreBaseIndexedDisp(rBase, INVALID_REG, 0,
                                 displacement, r_src, INVALID_REG, size,
                                 INVALID_SREG);
 }
 
 LIR* X86Mir2Lir::StoreBaseDispWide(int rBase, int displacement,
-                                   int r_src_lo, int r_src_hi)
-{
+                                   int r_src_lo, int r_src_hi) {
   return StoreBaseIndexedDisp(rBase, INVALID_REG, 0, displacement,
                               r_src_lo, r_src_hi, kLong, INVALID_SREG);
 }

@@ -358,8 +358,7 @@ OatFile::OatMethod::OatMethod(const byte* base,
     fp_spill_mask_(fp_spill_mask),
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
-    native_gc_map_offset_(gc_map_offset)
-{
+    native_gc_map_offset_(gc_map_offset) {
 #ifndef NDEBUG
   if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
     if (vmap_table_offset_ == 0) {

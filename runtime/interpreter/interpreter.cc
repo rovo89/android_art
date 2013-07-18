@@ -2574,7 +2574,7 @@ static JValue ExecuteImpl(Thread* self, MethodHelper& mh, const DexFile::CodeIte
         POSSIBLY_HANDLE_PENDING_EXCEPTION(Next_1xx);
         break;
       }
-      case Instruction::SHL_INT_2ADDR:{
+      case Instruction::SHL_INT_2ADDR: {
         PREAMBLE();
         uint32_t vregA = inst->VRegA_12x();
         shadow_frame.SetVReg(vregA,

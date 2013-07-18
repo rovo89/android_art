@@ -34,26 +34,22 @@ static int core_temps[] = {r0, r1, r2, r3, r12};
 static int fp_temps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                         fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15};
 
-RegLocation ArmMir2Lir::LocCReturn()
-{
+RegLocation ArmMir2Lir::LocCReturn() {
   RegLocation res = ARM_LOC_C_RETURN;
   return res;
 }
 
-RegLocation ArmMir2Lir::LocCReturnWide()
-{
+RegLocation ArmMir2Lir::LocCReturnWide() {
   RegLocation res = ARM_LOC_C_RETURN_WIDE;
   return res;
 }
 
-RegLocation ArmMir2Lir::LocCReturnFloat()
-{
+RegLocation ArmMir2Lir::LocCReturnFloat() {
   RegLocation res = ARM_LOC_C_RETURN_FLOAT;
   return res;
 }
 
-RegLocation ArmMir2Lir::LocCReturnDouble()
-{
+RegLocation ArmMir2Lir::LocCReturnDouble() {
   RegLocation res = ARM_LOC_C_RETURN_DOUBLE;
   return res;
 }
@@ -85,28 +81,24 @@ int ArmMir2Lir::TargetReg(SpecialTargetRegister reg) {
 
 
 // Create a double from a pair of singles.
-int ArmMir2Lir::S2d(int low_reg, int high_reg)
-{
+int ArmMir2Lir::S2d(int low_reg, int high_reg) {
   return ARM_S2D(low_reg, high_reg);
 }
 
 // Return mask to strip off fp reg flags and bias.
-uint32_t ArmMir2Lir::FpRegMask()
-{
+uint32_t ArmMir2Lir::FpRegMask() {
   return ARM_FP_REG_MASK;
 }
 
 // True if both regs single, both core or both double.
-bool ArmMir2Lir::SameRegType(int reg1, int reg2)
-{
+bool ArmMir2Lir::SameRegType(int reg1, int reg2) {
   return (ARM_REGTYPE(reg1) == ARM_REGTYPE(reg2));
 }
 
 /*
  * Decode the register id.
  */
-uint64_t ArmMir2Lir::GetRegMaskCommon(int reg)
-{
+uint64_t ArmMir2Lir::GetRegMaskCommon(int reg) {
   uint64_t seed;
   int shift;
   int reg_id;
@@ -122,13 +114,11 @@ uint64_t ArmMir2Lir::GetRegMaskCommon(int reg)
   return (seed << shift);
 }
 
-uint64_t ArmMir2Lir::GetPCUseDefEncoding()
-{
+uint64_t ArmMir2Lir::GetPCUseDefEncoding() {
   return ENCODE_ARM_REG_PC;
 }
 
-void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir)
-{
+void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
 
   // Thumb2 specific setup
@@ -203,8 +193,7 @@ void ArmMir2Lir::SetupTargetResourceMasks(LIR* lir)
   }
 }
 
-ArmConditionCode ArmMir2Lir::ArmConditionEncoding(ConditionCode ccode)
-{
+ArmConditionCode ArmMir2Lir::ArmConditionEncoding(ConditionCode ccode) {
   ArmConditionCode res;
   switch (ccode) {
     case kCondEq: res = kArmCondEq; break;
@@ -257,8 +246,7 @@ static const char* shift_names[4] = {
   "ror"};
 
 /* Decode and print a ARM register name */
-static char* DecodeRegList(int opcode, int vector, char* buf)
-{
+static char* DecodeRegList(int opcode, int vector, char* buf) {
   int i;
   bool printed = false;
   buf[0] = 0;
@@ -281,8 +269,7 @@ static char* DecodeRegList(int opcode, int vector, char* buf)
   return buf;
 }
 
-static char*  DecodeFPCSRegList(int count, int base, char* buf)
-{
+static char*  DecodeFPCSRegList(int count, int base, char* buf) {
   sprintf(buf, "s%d", base);
   for (int i = 1; i < count; i++) {
     sprintf(buf + strlen(buf), ", s%d",base + i);
@@ -290,8 +277,7 @@ static char*  DecodeFPCSRegList(int count, int base, char* buf)
   return buf;
 }
 
-static int ExpandImmediate(int value)
-{
+static int ExpandImmediate(int value) {
   int mode = (value & 0xf00) >> 8;
   uint32_t bits = value & 0xff;
   switch (mode) {
@@ -316,8 +302,7 @@ const char* cc_names[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr)
-{
+std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char* base_addr) {
   std::string buf;
   int i;
   const char* fmt_end = &fmt[strlen(fmt)];
@@ -455,8 +440,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
   return buf;
 }
 
-void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix)
-{
+void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefix) {
   char buf[256];
   buf[0] = 0;
 
@@ -501,8 +485,7 @@ void ArmMir2Lir::DumpResourceMask(LIR* arm_lir, uint64_t mask, const char* prefi
   }
 }
 
-bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir)
-{
+bool ArmMir2Lir::IsUnconditionalBranch(LIR* lir) {
   return ((lir->opcode == kThumbBUncond) || (lir->opcode == kThumb2BUncond));
 }
 
@@ -527,8 +510,7 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
  * Alloc a pair of core registers, or a double.  Low reg in low byte,
  * high reg in next byte.
  */
-int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class)
-{
+int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class) {
   int high_reg;
   int low_reg;
   int res = 0;
@@ -544,15 +526,13 @@ int ArmMir2Lir::AllocTypedTempPair(bool fp_hint, int reg_class)
   return res;
 }
 
-int ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class)
-{
+int ArmMir2Lir::AllocTypedTemp(bool fp_hint, int reg_class) {
   if (((reg_class == kAnyReg) && fp_hint) || (reg_class == kFPReg))
     return AllocTempFloat();
   return AllocTemp();
 }
 
-void ArmMir2Lir::CompilerInitializeRegAlloc()
-{
+void ArmMir2Lir::CompilerInitializeRegAlloc() {
   int num_regs = sizeof(core_regs)/sizeof(*core_regs);
   int num_reserved = sizeof(ReservedRegs)/sizeof(*ReservedRegs);
   int num_temps = sizeof(core_temps)/sizeof(*core_temps);
@@ -591,8 +571,7 @@ void ArmMir2Lir::CompilerInitializeRegAlloc()
 }
 
 void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep,
-                     RegLocation rl_free)
-{
+                     RegLocation rl_free) {
   if ((rl_free.low_reg != rl_keep.low_reg) && (rl_free.low_reg != rl_keep.high_reg) &&
     (rl_free.high_reg != rl_keep.low_reg) && (rl_free.high_reg != rl_keep.high_reg)) {
     // No overlap, free both
@@ -606,8 +585,7 @@ void ArmMir2Lir::FreeRegLocTemps(RegLocation rl_keep,
  * machinery is in place, always spill lr.
  */
 
-void ArmMir2Lir::AdjustSpillMask()
-{
+void ArmMir2Lir::AdjustSpillMask() {
   core_spill_mask_ |= (1 << rARM_LR);
   num_core_spills_++;
 }
@@ -618,8 +596,7 @@ void ArmMir2Lir::AdjustSpillMask()
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void ArmMir2Lir::MarkPreservedSingle(int v_reg, int reg)
-{
+void ArmMir2Lir::MarkPreservedSingle(int v_reg, int reg) {
   DCHECK_GE(reg, ARM_FP_REG_MASK + ARM_FP_CALLEE_SAVE_BASE);
   reg = (reg & ARM_FP_REG_MASK) - ARM_FP_CALLEE_SAVE_BASE;
   // Ensure fp_vmap_table is large enough
@@ -634,8 +611,7 @@ void ArmMir2Lir::MarkPreservedSingle(int v_reg, int reg)
   fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << ARM_FP_CALLEE_SAVE_BASE;
 }
 
-void ArmMir2Lir::FlushRegWide(int reg1, int reg2)
-{
+void ArmMir2Lir::FlushRegWide(int reg1, int reg2) {
   RegisterInfo* info1 = GetRegInfo(reg1);
   RegisterInfo* info2 = GetRegInfo(reg2);
   DCHECK(info1 && info2 && info1->pair && info2->pair &&
@@ -657,8 +633,7 @@ void ArmMir2Lir::FlushRegWide(int reg1, int reg2)
   }
 }
 
-void ArmMir2Lir::FlushReg(int reg)
-{
+void ArmMir2Lir::FlushReg(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
   if (info->live && info->dirty) {
     info->dirty = false;
@@ -673,8 +648,7 @@ bool ArmMir2Lir::IsFpReg(int reg) {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void ArmMir2Lir::ClobberCalleeSave()
-{
+void ArmMir2Lir::ClobberCalleeSave() {
   Clobber(r0);
   Clobber(r1);
   Clobber(r2);
@@ -699,8 +673,7 @@ void ArmMir2Lir::ClobberCalleeSave()
   Clobber(fr15);
 }
 
-RegLocation ArmMir2Lir::GetReturnWideAlt()
-{
+RegLocation ArmMir2Lir::GetReturnWideAlt() {
   RegLocation res = LocCReturnWide();
   res.low_reg = r2;
   res.high_reg = r3;
@@ -712,8 +685,7 @@ RegLocation ArmMir2Lir::GetReturnWideAlt()
   return res;
 }
 
-RegLocation ArmMir2Lir::GetReturnAlt()
-{
+RegLocation ArmMir2Lir::GetReturnAlt() {
   RegLocation res = LocCReturn();
   res.low_reg = r1;
   Clobber(r1);
@@ -721,15 +693,13 @@ RegLocation ArmMir2Lir::GetReturnAlt()
   return res;
 }
 
-ArmMir2Lir::RegisterInfo* ArmMir2Lir::GetRegInfo(int reg)
-{
+ArmMir2Lir::RegisterInfo* ArmMir2Lir::GetRegInfo(int reg) {
   return ARM_FPREG(reg) ? &reg_pool_->FPRegs[reg & ARM_FP_REG_MASK]
       : &reg_pool_->core_regs[reg];
 }
 
 /* To be used when explicitly managing register use */
-void ArmMir2Lir::LockCallTemps()
-{
+void ArmMir2Lir::LockCallTemps() {
   LockTemp(r0);
   LockTemp(r1);
   LockTemp(r2);
@@ -737,32 +707,27 @@ void ArmMir2Lir::LockCallTemps()
 }
 
 /* To be used when explicitly managing register use */
-void ArmMir2Lir::FreeCallTemps()
-{
+void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(r0);
   FreeTemp(r1);
   FreeTemp(r2);
   FreeTemp(r3);
 }
 
-int ArmMir2Lir::LoadHelper(int offset)
-{
+int ArmMir2Lir::LoadHelper(int offset) {
   LoadWordDisp(rARM_SELF, offset, rARM_LR);
   return rARM_LR;
 }
 
-uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode)
-{
+uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode) {
   return ArmMir2Lir::EncodingMap[opcode].flags;
 }
 
-const char* ArmMir2Lir::GetTargetInstName(int opcode)
-{
+const char* ArmMir2Lir::GetTargetInstName(int opcode) {
   return ArmMir2Lir::EncodingMap[opcode].name;
 }
 
-const char* ArmMir2Lir::GetTargetInstFmt(int opcode)
-{
+const char* ArmMir2Lir::GetTargetInstFmt(int opcode) {
   return ArmMir2Lir::EncodingMap[opcode].fmt;
 }
 

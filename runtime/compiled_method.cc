@@ -19,8 +19,7 @@
 namespace art {
 
 CompiledCode::CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code)
-    : instruction_set_(instruction_set), code_(code)
-{
+    : instruction_set_(instruction_set), code_(code) {
   CHECK_NE(code.size(), 0U);
 }
 
@@ -118,8 +117,7 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint8_t>& native_gc_map)
     : CompiledCode(instruction_set, code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-      gc_map_(native_gc_map)
-{
+      gc_map_(native_gc_map) {
   DCHECK_EQ(vmap_table.size(),
             static_cast<uint32_t>(__builtin_popcount(core_spill_mask)
                                   + __builtin_popcount(fp_spill_mask)));

@@ -42,7 +42,7 @@ namespace art {
   class DataflowIterator {
     public:
 
-      virtual ~DataflowIterator(){}
+      virtual ~DataflowIterator() {}
 
       // Return the next BasicBlock* to visit.
       BasicBlock* Next() {

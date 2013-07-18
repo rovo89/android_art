@@ -262,7 +262,7 @@ void AbstractMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JV
 
   Runtime* runtime = Runtime::Current();
   // Call the invoke stub, passing everything as arguments.
-  if (UNLIKELY(!runtime->IsStarted())){
+  if (UNLIKELY(!runtime->IsStarted())) {
     LOG(INFO) << "Not invoking " << PrettyMethod(this) << " for a runtime that isn't started";
     if (result != NULL) {
       result->SetJ(0);

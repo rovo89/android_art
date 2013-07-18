@@ -26,16 +26,14 @@ typedef uint64_t u8;
 /*
  * Get 1 byte.  (Included to make the code more legible.)
  */
-INLINE u1 get1(unsigned const char* pSrc)
-{
+INLINE u1 get1(unsigned const char* pSrc) {
     return *pSrc;
 }
 
 /*
  * Get 2 big-endian bytes.
  */
-INLINE u2 get2BE(unsigned char const* pSrc)
-{
+INLINE u2 get2BE(unsigned char const* pSrc) {
     u2 result;
 
     result = *pSrc++ << 8;
@@ -47,8 +45,7 @@ INLINE u2 get2BE(unsigned char const* pSrc)
 /*
  * Get 4 big-endian bytes.
  */
-INLINE u4 get4BE(unsigned char const* pSrc)
-{
+INLINE u4 get4BE(unsigned char const* pSrc) {
     u4 result;
 
     result = *pSrc++ << 24;
@@ -62,8 +59,7 @@ INLINE u4 get4BE(unsigned char const* pSrc)
 /*
  * Get 8 big-endian bytes.
  */
-INLINE u8 get8BE(unsigned char const* pSrc)
-{
+INLINE u8 get8BE(unsigned char const* pSrc) {
     u8 result;
 
     result = (u8) *pSrc++ << 56;

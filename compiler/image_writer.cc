@@ -108,7 +108,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
 #ifndef NDEBUG
-  {
+  { // NOLINT(whitespace/braces)
     ScopedObjectAccess soa(Thread::Current());
     CheckNonImageClassesRemoved();
   }

@@ -23,8 +23,7 @@
 
 namespace art {
 
-bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src)
-{
+bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
   bool res = false;
   if (rl_src.is_const) {
     if (rl_src.wide) {
@@ -44,27 +43,23 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src)
   return res;
 }
 
-void Mir2Lir::MarkSafepointPC(LIR* inst)
-{
+void Mir2Lir::MarkSafepointPC(LIR* inst) {
   inst->def_mask = ENCODE_ALL;
   LIR* safepoint_pc = NewLIR0(kPseudoSafepointPC);
   DCHECK_EQ(safepoint_pc->def_mask, ENCODE_ALL);
 }
 
-bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put)
-{
+bool Mir2Lir::FastInstance(uint32_t field_idx, int& field_offset, bool& is_volatile, bool is_put) {
   return cu_->compiler_driver->ComputeInstanceFieldInfo(
       field_idx, mir_graph_->GetCurrentDexCompilationUnit(), field_offset, is_volatile, is_put);
 }
 
 /* Convert an instruction to a NOP */
-void Mir2Lir::NopLIR( LIR* lir)
-{
+void Mir2Lir::NopLIR( LIR* lir) {
   lir->flags.is_nop = true;
 }
 
-void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type)
-{
+void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type) {
   uint64_t *mask_ptr;
   uint64_t mask = ENCODE_MEM;;
   DCHECK(GetTargetInstFlags(lir->opcode) & (IS_LOAD | IS_STORE));
@@ -101,8 +96,7 @@ void Mir2Lir::SetMemRefType(LIR* lir, bool is_load, int mem_type)
  * Mark load/store instructions that access Dalvik registers through the stack.
  */
 void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
-                                      bool is64bit)
-{
+                                      bool is64bit) {
   SetMemRefType(lir, is_load, kDalvikReg);
 
   /*
@@ -118,8 +112,7 @@ void Mir2Lir::AnnotateDalvikRegAccess(LIR* lir, int reg_id, bool is_load,
 #define DUMP_RESOURCE_MASK(X)
 
 /* Pretty-print a LIR instruction */
-void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr)
-{
+void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
   int offset = lir->offset;
   int dest = lir->operands[0];
   const bool dump_nop = (cu_->enable_debug & (1 << kDebugShowNops));
@@ -204,8 +197,7 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr)
   }
 }
 
-void Mir2Lir::DumpPromotionMap()
-{
+void Mir2Lir::DumpPromotionMap() {
   int num_regs = cu_->num_dalvik_registers + cu_->num_compiler_temps + 1;
   for (int i = 0; i < num_regs; i++) {
     PromotionMap v_reg_map = promotion_map_[i];
@@ -249,8 +241,7 @@ void Mir2Lir::DumpMappingTable(const char* table_name, const std::string& descri
 }
 
 /* Dump instructions and constant pool contents */
-void Mir2Lir::CodegenDump()
-{
+void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   LIR* lir_insn;
@@ -291,8 +282,7 @@ void Mir2Lir::CodegenDump()
  * Search the existing constants in the literal pool for an exact or close match
  * within specified delta (greater or equal to 0).
  */
-LIR* Mir2Lir::ScanLiteralPool(LIR* data_target, int value, unsigned int delta)
-{
+LIR* Mir2Lir::ScanLiteralPool(LIR* data_target, int value, unsigned int delta) {
   while (data_target) {
     if ((static_cast<unsigned>(value - data_target->operands[0])) <= delta)
       return data_target;
@@ -302,8 +292,7 @@ LIR* Mir2Lir::ScanLiteralPool(LIR* data_target, int value, unsigned int delta)
 }
 
 /* Search the existing constants in the literal pool for an exact wide match */
-LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
-{
+LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
   bool lo_match = false;
   LIR* lo_target = NULL;
   while (data_target) {
@@ -328,8 +317,7 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi)
  */
 
 /* Add a 32-bit constant to the constant pool */
-LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value)
-{
+LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
   /* Add the constant to the literal pool */
   if (constant_list_p) {
     LIR* new_value = static_cast<LIR*>(arena_->NewMem(sizeof(LIR), true, ArenaAllocator::kAllocData));
@@ -342,8 +330,7 @@ LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value)
 }
 
 /* Add a 64-bit constant to the constant pool or mixed with code */
-LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi)
-{
+LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi) {
   AddWordData(constant_list_p, val_hi);
   return AddWordData(constant_list_p, val_lo);
 }
@@ -362,8 +349,7 @@ static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
 }
 
 /* Write the literal pool to the output stream */
-void Mir2Lir::InstallLiteralPools()
-{
+void Mir2Lir::InstallLiteralPools() {
   AlignBuffer(code_buffer_, data_offset_);
   LIR* data_lir = literal_list_;
   while (data_lir != NULL) {
@@ -404,8 +390,7 @@ void Mir2Lir::InstallLiteralPools()
 }
 
 /* Write the switch tables to the output stream */
-void Mir2Lir::InstallSwitchTables()
-{
+void Mir2Lir::InstallSwitchTables() {
   GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
     Mir2Lir::SwitchTable* tab_rec = iterator.Next();
@@ -462,8 +447,7 @@ void Mir2Lir::InstallSwitchTables()
 }
 
 /* Write the fill array dta to the output stream */
-void Mir2Lir::InstallFillArrayData()
-{
+void Mir2Lir::InstallFillArrayData() {
   GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
   while (true) {
     Mir2Lir::FillArrayData *tab_rec = iterator.Next();
@@ -476,8 +460,7 @@ void Mir2Lir::InstallFillArrayData()
   }
 }
 
-static int AssignLiteralOffsetCommon(LIR* lir, int offset)
-{
+static int AssignLiteralOffsetCommon(LIR* lir, int offset) {
   for (;lir != NULL; lir = lir->next) {
     lir->offset = offset;
     offset += 4;
@@ -486,8 +469,7 @@ static int AssignLiteralOffsetCommon(LIR* lir, int offset)
 }
 
 // Make sure we have a code address for every declared catch entry
-bool Mir2Lir::VerifyCatchEntries()
-{
+bool Mir2Lir::VerifyCatchEntries() {
   bool success = true;
   for (std::set<uint32_t>::const_iterator it = mir_graph_->catches_.begin();
        it != mir_graph_->catches_.end(); ++it) {
@@ -521,8 +503,7 @@ bool Mir2Lir::VerifyCatchEntries()
 }
 
 
-void Mir2Lir::CreateMappingTables()
-{
+void Mir2Lir::CreateMappingTables() {
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       pc2dex_mapping_table_.push_back(tgt_lir->offset);
@@ -650,16 +631,14 @@ void Mir2Lir::CreateNativeGcMap() {
 }
 
 /* Determine the offset of each literal field */
-int Mir2Lir::AssignLiteralOffset(int offset)
-{
+int Mir2Lir::AssignLiteralOffset(int offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
   offset = AssignLiteralOffsetCommon(code_literal_list_, offset);
   offset = AssignLiteralOffsetCommon(method_literal_list_, offset);
   return offset;
 }
 
-int Mir2Lir::AssignSwitchTablesOffset(int offset)
-{
+int Mir2Lir::AssignSwitchTablesOffset(int offset) {
   GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
     Mir2Lir::SwitchTable *tab_rec = iterator.Next();
@@ -676,8 +655,7 @@ int Mir2Lir::AssignSwitchTablesOffset(int offset)
   return offset;
 }
 
-int Mir2Lir::AssignFillArrayDataOffset(int offset)
-{
+int Mir2Lir::AssignFillArrayDataOffset(int offset) {
   GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
   while (true) {
     Mir2Lir::FillArrayData *tab_rec = iterator.Next();
@@ -691,8 +669,7 @@ int Mir2Lir::AssignFillArrayDataOffset(int offset)
 }
 
 // LIR offset assignment.
-int Mir2Lir::AssignInsnOffsets()
-{
+int Mir2Lir::AssignInsnOffsets() {
   LIR* lir;
   int offset = 0;
 
@@ -720,8 +697,7 @@ int Mir2Lir::AssignInsnOffsets()
  * Walk the compilation unit and assign offsets to instructions
  * and literals and compute the total size of the compiled unit.
  */
-void Mir2Lir::AssignOffsets()
-{
+void Mir2Lir::AssignOffsets() {
   int offset = AssignInsnOffsets();
 
   /* Const values have to be word aligned */
@@ -744,8 +720,7 @@ void Mir2Lir::AssignOffsets()
  * before sending them off to the assembler. If out-of-range branch distance is
  * seen rearrange the instructions a bit to correct it.
  */
-void Mir2Lir::AssembleLIR()
-{
+void Mir2Lir::AssembleLIR() {
   AssignOffsets();
   int assembler_retries = 0;
   /*
@@ -791,8 +766,7 @@ void Mir2Lir::AssembleLIR()
  * all resource flags on this to prevent code motion across
  * target boundaries.  KeyVal is just there for debugging.
  */
-LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal)
-{
+LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal) {
   SafeMap<unsigned int, LIR*>::iterator it;
   it = boundary_map_.find(vaddr);
   if (it == boundary_map_.end()) {
@@ -806,8 +780,7 @@ LIR* Mir2Lir::InsertCaseLabel(int vaddr, int keyVal)
   return new_label;
 }
 
-void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec)
-{
+void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
   const int *targets = reinterpret_cast<const int*>(&table[4]);
@@ -818,8 +791,7 @@ void Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable *tab_rec)
   }
 }
 
-void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec)
-{
+void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec) {
   const uint16_t* table = tab_rec->table;
   int base_vaddr = tab_rec->vaddr;
   int entries = table[1];
@@ -830,8 +802,7 @@ void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable *tab_rec)
   }
 }
 
-void Mir2Lir::ProcessSwitchTables()
-{
+void Mir2Lir::ProcessSwitchTables() {
   GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
   while (true) {
     Mir2Lir::SwitchTable *tab_rec = iterator.Next();
@@ -846,7 +817,7 @@ void Mir2Lir::ProcessSwitchTables()
   }
 }
 
-void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table)
+void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table) {
   /*
    * Sparse switch data format:
    *  ushort ident = 0x0200   magic value
@@ -856,7 +827,6 @@ void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table)
    *
    * Total size is (2+size*4) 16-bit code units.
    */
-{
   uint16_t ident = table[0];
   int entries = table[1];
   const int* keys = reinterpret_cast<const int*>(&table[2]);
@@ -868,7 +838,7 @@ void Mir2Lir::DumpSparseSwitchTable(const uint16_t* table)
   }
 }
 
-void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table)
+void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
   /*
    * Packed switch data format:
    *  ushort ident = 0x0100   magic value
@@ -878,7 +848,6 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table)
    *
    * Total size is (4+size*2) 16-bit code units.
    */
-{
   uint16_t ident = table[0];
   const int* targets = reinterpret_cast<const int*>(&table[4]);
   int entries = table[1];
@@ -897,8 +866,7 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table)
  * which we split a single Dalvik instruction, only the first MIR op
  * associated with a Dalvik PC should be entered into the map.
  */
-LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str)
-{
+LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str) {
   LIR* res = NewLIR1(kPseudoDalvikByteCodeBoundary, reinterpret_cast<uintptr_t>(inst_str));
   if (boundary_map_.find(offset) == boundary_map_.end()) {
     boundary_map_.Put(offset, res);
@@ -906,8 +874,7 @@ LIR* Mir2Lir::MarkBoundary(int offset, const char* inst_str)
   return res;
 }
 
-bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2)
-{
+bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {
   bool is_taken;
   switch (opcode) {
     case Instruction::IF_EQ: is_taken = (src1 == src2); break;
@@ -971,8 +938,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       core_spill_mask_(0),
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
-      last_lir_insn_(NULL)
- {
+      last_lir_insn_(NULL) {
   promotion_map_ = static_cast<PromotionMap*>
       (arena_->NewMem((cu_->num_dalvik_registers  + cu_->num_compiler_temps + 1) *
                       sizeof(promotion_map_[0]), true, ArenaAllocator::kAllocRegAlloc));
@@ -1060,8 +1026,7 @@ int Mir2Lir::ComputeFrameSize() {
  * Append an LIR instruction to the LIR list maintained by a compilation
  * unit
  */
-void Mir2Lir::AppendLIR(LIR* lir)
-{
+void Mir2Lir::AppendLIR(LIR* lir) {
   if (first_lir_insn_ == NULL) {
     DCHECK(last_lir_insn_ == NULL);
     last_lir_insn_ = first_lir_insn_ = lir;
@@ -1080,8 +1045,7 @@ void Mir2Lir::AppendLIR(LIR* lir)
  *
  * prev_lir <-> new_lir <-> current_lir
  */
-void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir)
-{
+void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir) {
   DCHECK(current_lir->prev != NULL);
   LIR *prev_lir = current_lir->prev;
 
@@ -1097,8 +1061,7 @@ void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir)
  *
  * current_lir -> new_lir -> old_next
  */
-void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir)
-{
+void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir) {
   new_lir->prev = current_lir;
   new_lir->next = current_lir->next;
   current_lir->next = new_lir;

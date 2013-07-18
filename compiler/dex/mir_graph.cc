@@ -107,8 +107,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       method_sreg_(0),
       attributes_(METHOD_IS_LEAF),  // Start with leaf assumption, change on encountering invoke.
       checkstats_(NULL),
-      arena_(arena)
-      {
+      arena_(arena) {
   try_block_addr_ = new (arena_) ArenaBitVector(arena_, 0, true /* expandable */);
 }
 
@@ -129,8 +128,7 @@ bool MIRGraph::ContentIsInsn(const uint16_t* code_ptr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-int MIRGraph::ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction)
-{
+int MIRGraph::ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_instruction) {
   // Don't parse instruction data
   if (!ContentIsInsn(code_ptr)) {
     return 0;
@@ -145,8 +143,7 @@ int MIRGraph::ParseInsn(const uint16_t* code_ptr, DecodedInstruction* decoded_in
 
 /* Split an existing block from the specified code offset into two */
 BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
-                                 BasicBlock* orig_block, BasicBlock** immed_pred_block_p)
-{
+                                 BasicBlock* orig_block, BasicBlock** immed_pred_block_p) {
   MIR* insn = orig_block->first_mir_insn;
   while (insn) {
     if (insn->offset == code_offset) break;
@@ -224,8 +221,7 @@ BasicBlock* MIRGraph::SplitBlock(unsigned int code_offset,
  * Utilizes a map for fast lookup of the typical cases.
  */
 BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool create,
-                                BasicBlock** immed_pred_block_p)
-{
+                                BasicBlock** immed_pred_block_p) {
   BasicBlock* bb;
   unsigned int i;
   SafeMap<unsigned int, BasicBlock*>::iterator it;
@@ -260,8 +256,7 @@ BasicBlock* MIRGraph::FindBlock(unsigned int code_offset, bool split, bool creat
 }
 
 /* Identify code range in try blocks and set up the empty catch blocks */
-void MIRGraph::ProcessTryCatchBlocks()
-{
+void MIRGraph::ProcessTryCatchBlocks() {
   int tries_size = current_code_item_->tries_size_;
   int offset;
 
@@ -296,8 +291,7 @@ void MIRGraph::ProcessTryCatchBlocks()
 /* Process instructions with the kBranch flag */
 BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
                                        int flags, const uint16_t* code_ptr,
-                                       const uint16_t* code_end)
-{
+                                       const uint16_t* code_end) {
   int target = cur_offset;
   switch (insn->dalvikInsn.opcode) {
     case Instruction::GOTO:
@@ -365,8 +359,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, int cur
 
 /* Process instructions with the kSwitch flag */
 void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
-                                int flags)
-{
+                                int flags) {
   const uint16_t* switch_data =
       reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset + insn->dalvikInsn.vB);
   int size;
@@ -443,8 +436,7 @@ void MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, int cur_offset
 /* Process instructions with the kThrow flag */
 BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_offset, int width,
                                       int flags, ArenaBitVector* try_block_addr,
-                                      const uint16_t* code_ptr, const uint16_t* code_end)
-{
+                                      const uint16_t* code_ptr, const uint16_t* code_end) {
   bool in_try_block = try_block_addr->IsBitSet(cur_offset);
 
   /* In try block */
@@ -483,7 +475,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
     eh_block->predecessors->Insert(cur_block);
   }
 
-  if (insn->dalvikInsn.opcode == Instruction::THROW){
+  if (insn->dalvikInsn.opcode == Instruction::THROW) {
     cur_block->explicit_throw = true;
     if ((code_ptr < code_end) && ContentIsInsn(code_ptr)) {
       // Force creation of new block following THROW via side-effect
@@ -529,8 +521,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
 /* Parse a Dex method and insert it into the MIRGraph at the current insert point. */
 void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                            InvokeType invoke_type, uint32_t class_def_idx,
-                           uint32_t method_idx, jobject class_loader, const DexFile& dex_file)
-{
+                           uint32_t method_idx, jobject class_loader, const DexFile& dex_file) {
   current_code_item_ = code_item;
   method_stack_.push_back(std::make_pair(current_method_, current_offset_));
   current_method_ = m_units_.size();
@@ -705,8 +696,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   }
 }
 
-void MIRGraph::ShowOpcodeStats()
-{
+void MIRGraph::ShowOpcodeStats() {
   DCHECK(opcode_count_ != NULL);
   LOG(INFO) << "Opcode Count";
   for (int i = 0; i < kNumPackedOpcodes; i++) {
@@ -719,8 +709,7 @@ void MIRGraph::ShowOpcodeStats()
 
 // TODO: use a configurable base prefix, and adjust callers to supply pass name.
 /* Dump the CFG into a DOT graph */
-void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
-{
+void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks) {
   FILE* file;
   std::string fname(PrettyMethod(cu_->method_idx, *cu_->dex_file));
   ReplaceSpecialChars(fname);
@@ -849,8 +838,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks)
 }
 
 /* Insert an MIR instruction to the end of a basic block */
-void MIRGraph::AppendMIR(BasicBlock* bb, MIR* mir)
-{
+void MIRGraph::AppendMIR(BasicBlock* bb, MIR* mir) {
   if (bb->first_mir_insn == NULL) {
     DCHECK(bb->last_mir_insn == NULL);
     bb->last_mir_insn = bb->first_mir_insn = mir;
@@ -864,8 +852,7 @@ void MIRGraph::AppendMIR(BasicBlock* bb, MIR* mir)
 }
 
 /* Insert an MIR instruction to the head of a basic block */
-void MIRGraph::PrependMIR(BasicBlock* bb, MIR* mir)
-{
+void MIRGraph::PrependMIR(BasicBlock* bb, MIR* mir) {
   if (bb->first_mir_insn == NULL) {
     DCHECK(bb->last_mir_insn == NULL);
     bb->last_mir_insn = bb->first_mir_insn = mir;
@@ -879,8 +866,7 @@ void MIRGraph::PrependMIR(BasicBlock* bb, MIR* mir)
 }
 
 /* Insert a MIR instruction after the specified MIR */
-void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir)
-{
+void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir) {
   new_mir->prev = current_mir;
   new_mir->next = current_mir->next;
   current_mir->next = new_mir;
@@ -894,8 +880,7 @@ void MIRGraph::InsertMIRAfter(BasicBlock* bb, MIR* current_mir, MIR* new_mir)
   }
 }
 
-char* MIRGraph::GetDalvikDisassembly(const MIR* mir)
-{
+char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
   DecodedInstruction insn = mir->dalvikInsn;
   std::string str;
   int flags = 0;
@@ -1024,8 +1009,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir)
 }
 
 /* Turn method name into a legal Linux file name */
-void MIRGraph::ReplaceSpecialChars(std::string& str)
-{
+void MIRGraph::ReplaceSpecialChars(std::string& str) {
   static const struct { const char before; const char after; } match[] =
       {{'/','-'}, {';','#'}, {' ','#'}, {'$','+'},
        {'(','@'}, {')','@'}, {'<','='}, {'>','='}};
@@ -1034,8 +1018,7 @@ void MIRGraph::ReplaceSpecialChars(std::string& str)
   }
 }
 
-std::string MIRGraph::GetSSAName(int ssa_reg)
-{
+std::string MIRGraph::GetSSAName(int ssa_reg) {
   // TODO: This value is needed for LLVM and debugging. Currently, we compute this and then copy to
   //       the arena. We should be smarter and just place straight into the arena, or compute the
   //       value more lazily.
@@ -1043,8 +1026,7 @@ std::string MIRGraph::GetSSAName(int ssa_reg)
 }
 
 // Similar to GetSSAName, but if ssa name represents an immediate show that as well.
-std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only)
-{
+std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
   if (reg_location_ == NULL) {
     // Pre-SSA - just use the standard name
     return GetSSAName(ssa_reg);
@@ -1062,8 +1044,7 @@ std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only)
   }
 }
 
-void MIRGraph::GetBlockName(BasicBlock* bb, char* name)
-{
+void MIRGraph::GetBlockName(BasicBlock* bb, char* name) {
   switch (bb->block_type) {
     case kEntryBlock:
       snprintf(name, BLOCK_NAME_LEN, "entry_%d", bb->id);
@@ -1084,16 +1065,14 @@ void MIRGraph::GetBlockName(BasicBlock* bb, char* name)
   }
 }
 
-const char* MIRGraph::GetShortyFromTargetIdx(int target_idx)
-{
+const char* MIRGraph::GetShortyFromTargetIdx(int target_idx) {
   // FIXME: use current code unit for inline support.
   const DexFile::MethodId& method_id = cu_->dex_file->GetMethodId(target_idx);
   return cu_->dex_file->GetShorty(method_id.proto_idx_);
 }
 
 /* Debug Utility - dump a compilation unit */
-void MIRGraph::DumpMIRGraph()
-{
+void MIRGraph::DumpMIRGraph() {
   BasicBlock* bb;
   const char* block_type_names[] = {
     "Entry Block",
@@ -1135,8 +1114,7 @@ void MIRGraph::DumpMIRGraph()
  * MOVE_RESULT and incorporate it into the invoke.
  */
 CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
-                                  bool is_range)
-{
+                                  bool is_range) {
   CallInfo* info = static_cast<CallInfo*>(arena_->NewMem(sizeof(CallInfo), true,
                                                          ArenaAllocator::kAllocMisc));
   MIR* move_result_mir = FindMoveResult(bb, mir);
@@ -1163,8 +1141,7 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
 }
 
 // Allocate a new basic block.
-BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id)
-{
+BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
   BasicBlock* bb = static_cast<BasicBlock*>(arena_->NewMem(sizeof(BasicBlock), true,
                                                            ArenaAllocator::kAllocBB));
   bb->block_type = block_type;

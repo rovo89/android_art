@@ -226,7 +226,7 @@ class Mir2Lir : public Backend {
       bool first_in_pair;
     };
 
-    virtual ~Mir2Lir(){};
+    virtual ~Mir2Lir() {};
 
     int32_t s4FromSwitchData(const void* switch_data) {
       return *reinterpret_cast<const int32_t*>(switch_data);

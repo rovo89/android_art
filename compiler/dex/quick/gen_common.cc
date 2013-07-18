@@ -33,8 +33,7 @@ namespace art {
  * Generate an kPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
-void Mir2Lir::GenBarrier()
-{
+void Mir2Lir::GenBarrier() {
   LIR* barrier = NewLIR0(kPseudoBarrier);
   /* Mark all resources as being clobbered */
   barrier->def_mask = -1;
@@ -42,8 +41,7 @@ void Mir2Lir::GenBarrier()
 
 // FIXME: need to do some work to split out targets with
 // condition codes and those without
-LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind)
-{
+LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind) {
   DCHECK_NE(cu_->instruction_set, kMips);
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_);
   LIR* branch = OpCondBranch(c_code, tgt);
@@ -52,8 +50,7 @@ LIR* Mir2Lir::GenCheck(ConditionCode c_code, ThrowKind kind)
   return branch;
 }
 
-LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKind kind)
-{
+LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKind kind) {
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, reg, imm_val);
   LIR* branch;
   if (c_code == kCondAl) {
@@ -67,8 +64,7 @@ LIR* Mir2Lir::GenImmedCheck(ConditionCode c_code, int reg, int imm_val, ThrowKin
 }
 
 /* Perform null-check on a register.  */
-LIR* Mir2Lir::GenNullCheck(int s_reg, int m_reg, int opt_flags)
-{
+LIR* Mir2Lir::GenNullCheck(int s_reg, int m_reg, int opt_flags) {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
     opt_flags & MIR_IGNORE_NULL_CHECK) {
     return NULL;
@@ -78,8 +74,7 @@ LIR* Mir2Lir::GenNullCheck(int s_reg, int m_reg, int opt_flags)
 
 /* Perform check on two registers */
 LIR* Mir2Lir::GenRegRegCheck(ConditionCode c_code, int reg1, int reg2,
-                             ThrowKind kind)
-{
+                             ThrowKind kind) {
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind, current_dalvik_offset_, reg1, reg2);
   LIR* branch = OpCmpBranch(c_code, reg1, reg2, tgt);
   // Remember branch target - will process later
@@ -89,8 +84,7 @@ LIR* Mir2Lir::GenRegRegCheck(ConditionCode c_code, int reg1, int reg2,
 
 void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                                   RegLocation rl_src2, LIR* taken,
-                                  LIR* fall_through)
-{
+                                  LIR* fall_through) {
   ConditionCode cond;
   switch (opcode) {
     case Instruction::IF_EQ:
@@ -143,8 +137,7 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
 }
 
 void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
-                                      LIR* fall_through)
-{
+                                      LIR* fall_through) {
   ConditionCode cond;
   rl_src = LoadValue(rl_src, kCoreReg);
   switch (opcode) {
@@ -174,8 +167,7 @@ void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_s
   OpUnconditionalBranch(fall_through);
 }
 
-void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src)
-{
+void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (rl_src.location == kLocPhysReg) {
     OpRegCopy(rl_result.low_reg, rl_src.low_reg);
@@ -187,8 +179,7 @@ void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src)
 }
 
 void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
-                              RegLocation rl_src)
-{
+                              RegLocation rl_src) {
    rl_src = LoadValue(rl_src, kCoreReg);
    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
    OpKind op = kOpInvalid;
@@ -215,8 +206,7 @@ void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
  * Note: AllocFromCode will handle checks for errNegativeArraySize.
  */
 void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
-                          RegLocation rl_src)
-{
+                          RegLocation rl_src) {
   FlushAllRegs();  /* Everything to home location */
   int func_offset;
   if (cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx, *cu_->dex_file,
@@ -236,8 +226,7 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
  * code throws runtime exception "bad Filled array req" for 'D' and 'J'.
  * Current code also throws internal unimp if not 'L', '[' or 'I'.
  */
-void Mir2Lir::GenFilledNewArray(CallInfo* info)
-{
+void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   int elems = info->num_arg_words;
   int type_idx = info->index;
   FlushAllRegs();  /* Everything to home location */
@@ -342,8 +331,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info)
 }
 
 void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_double,
-                      bool is_object)
-{
+                      bool is_object) {
   int field_offset;
   int ssb_index;
   bool is_volatile;
@@ -428,8 +416,7 @@ void Mir2Lir::GenSput(uint32_t field_idx, RegLocation rl_src, bool is_long_or_do
 }
 
 void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
-                      bool is_long_or_double, bool is_object)
-{
+                      bool is_long_or_double, bool is_object) {
   int field_offset;
   int ssb_index;
   bool is_volatile;
@@ -510,8 +497,7 @@ void Mir2Lir::GenSget(uint32_t field_idx, RegLocation rl_dest,
   }
 }
 
-void Mir2Lir::HandleSuspendLaunchPads()
-{
+void Mir2Lir::HandleSuspendLaunchPads() {
   int num_elems = suspend_launchpads_.Size();
   int helper_offset = ENTRYPOINT_OFFSET(pTestSuspendFromCode);
   for (int i = 0; i < num_elems; i++) {
@@ -527,8 +513,7 @@ void Mir2Lir::HandleSuspendLaunchPads()
   }
 }
 
-void Mir2Lir::HandleIntrinsicLaunchPads()
-{
+void Mir2Lir::HandleIntrinsicLaunchPads() {
   int num_elems = intrinsic_launchpads_.Size();
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
@@ -546,8 +531,7 @@ void Mir2Lir::HandleIntrinsicLaunchPads()
   }
 }
 
-void Mir2Lir::HandleThrowLaunchPads()
-{
+void Mir2Lir::HandleThrowLaunchPads() {
   int num_elems = throw_launchpads_.Size();
   for (int i = 0; i < num_elems; i++) {
     ResetRegPool();
@@ -636,8 +620,7 @@ void Mir2Lir::HandleThrowLaunchPads()
 
 void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
                       RegLocation rl_dest, RegLocation rl_obj, bool is_long_or_double,
-                      bool is_object)
-{
+                      bool is_object) {
   int field_offset;
   bool is_volatile;
 
@@ -697,8 +680,7 @@ void Mir2Lir::GenIGet(uint32_t field_idx, int opt_flags, OpSize size,
 
 void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
                       RegLocation rl_src, RegLocation rl_obj, bool is_long_or_double,
-                      bool is_object)
-{
+                      bool is_object) {
   int field_offset;
   bool is_volatile;
 
@@ -744,8 +726,7 @@ void Mir2Lir::GenIPut(uint32_t field_idx, int opt_flags, OpSize size,
   }
 }
 
-void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest)
-{
+void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
   RegLocation rl_method = LoadCurrMethod();
   int res_reg = AllocTemp();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -803,8 +784,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest)
   }
 }
 
-void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest)
-{
+void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
   /* NOTE: Most strings should be available at compile time */
   int32_t offset_of_string = mirror::Array::DataOffset(sizeof(mirror::String*)).Int32Value() +
                  (sizeof(mirror::String*) * string_idx);
@@ -860,8 +840,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest)
  * Let helper function take care of everything.  Will
  * call Class::NewInstanceFromCode(type_idx, method);
  */
-void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest)
-{
+void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest) {
   FlushAllRegs();  /* Everything to home location */
   // alloc will always check for resolution, do we also need to verify
   // access because the verifier was unable to?
@@ -877,8 +856,7 @@ void Mir2Lir::GenNewInstance(uint32_t type_idx, RegLocation rl_dest)
   StoreValue(rl_dest, rl_result);
 }
 
-void Mir2Lir::GenThrow(RegLocation rl_src)
-{
+void Mir2Lir::GenThrow(RegLocation rl_src) {
   FlushAllRegs();
   CallRuntimeHelperRegLocation(ENTRYPOINT_OFFSET(pDeliverException), rl_src, true);
 }
@@ -1065,8 +1043,7 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest, RegLocation 
   }
 }
 
-void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src)
-{
+void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src) {
   bool type_known_final, type_known_abstract, use_declaring_class;
   bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
                                                                               *cu_->dex_file,
@@ -1142,8 +1119,7 @@ void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_
 }
 
 void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2)
-{
+                           RegLocation rl_src1, RegLocation rl_src2) {
   RegLocation rl_result;
   if (cu_->instruction_set == kThumb2) {
     /*
@@ -1161,7 +1137,7 @@ void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_des
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
   // The longs may overlap - use intermediate temp if so
-  if ((rl_result.low_reg == rl_src1.high_reg) || (rl_result.low_reg == rl_src2.high_reg)){
+  if ((rl_result.low_reg == rl_src1.high_reg) || (rl_result.low_reg == rl_src2.high_reg)) {
     int t_reg = AllocTemp();
     OpRegRegReg(first_op, t_reg, rl_src1.low_reg, rl_src2.low_reg);
     OpRegRegReg(second_op, rl_result.high_reg, rl_src1.high_reg, rl_src2.high_reg);
@@ -1190,8 +1166,7 @@ void Mir2Lir::GenLong3Addr(OpKind first_op, OpKind second_op, RegLocation rl_des
 
 
 void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_shift)
-{
+                             RegLocation rl_src1, RegLocation rl_shift) {
   int func_offset = -1; // Make gcc happy
 
   switch (opcode) {
@@ -1218,8 +1193,7 @@ void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
 
 
 void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2)
-{
+                            RegLocation rl_src1, RegLocation rl_src2) {
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
   bool check_zero = false;
@@ -1353,14 +1327,12 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
  * or produce corresponding Thumb instructions directly.
  */
 
-static bool IsPowerOfTwo(int x)
-{
+static bool IsPowerOfTwo(int x) {
   return (x & (x - 1)) == 0;
 }
 
 // Returns true if no more than two bits are set in 'x'.
-static bool IsPopCountLE2(unsigned int x)
-{
+static bool IsPopCountLE2(unsigned int x) {
   x &= x - 1;
   return (x & (x - 1)) == 0;
 }
@@ -1382,8 +1354,7 @@ static int LowestSetBit(unsigned int x) {
 // Returns true if it added instructions to 'cu' to divide 'rl_src' by 'lit'
 // and store the result in 'rl_dest'.
 bool Mir2Lir::HandleEasyDivide(Instruction::Code dalvik_opcode,
-                               RegLocation rl_src, RegLocation rl_dest, int lit)
-{
+                               RegLocation rl_src, RegLocation rl_dest, int lit) {
   if ((lit < 2) || ((cu_->instruction_set != kThumb2) && !IsPowerOfTwo(lit))) {
     return false;
   }
@@ -1435,8 +1406,7 @@ bool Mir2Lir::HandleEasyDivide(Instruction::Code dalvik_opcode,
 
 // Returns true if it added instructions to 'cu' to multiply 'rl_src' by 'lit'
 // and store the result in 'rl_dest'.
-bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit)
-{
+bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
   // Can we simplify this multiplication?
   bool power_of_two = false;
   bool pop_count_le2 = false;
@@ -1476,8 +1446,7 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
 }
 
 void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src,
-                               int lit)
-{
+                               int lit) {
   RegLocation rl_result;
   OpKind op = static_cast<OpKind>(0);    /* Make gcc happy */
   int shift_op = false;
@@ -1613,8 +1582,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
 }
 
 void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2)
-{
+                             RegLocation rl_src1, RegLocation rl_src2) {
   RegLocation rl_result;
   OpKind first_op = kOpBkpt;
   OpKind second_op = kOpBkpt;
@@ -1741,8 +1709,7 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void Mir2Lir::GenConversionCall(int func_offset,
-                                RegLocation rl_dest, RegLocation rl_src)
-{
+                                RegLocation rl_dest, RegLocation rl_src) {
   /*
    * Don't optimize the register usage since it calls out to support
    * functions
@@ -1767,8 +1734,7 @@ void Mir2Lir::GenConversionCall(int func_offset,
 }
 
 /* Check if we need to check for pending suspend request */
-void Mir2Lir::GenSuspendTest(int opt_flags)
-{
+void Mir2Lir::GenSuspendTest(int opt_flags) {
   if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
     return;
   }
@@ -1782,8 +1748,7 @@ void Mir2Lir::GenSuspendTest(int opt_flags)
 }
 
 /* Check if we need to check for pending suspend request */
-void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target)
-{
+void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
   if (NO_SUSPEND || (opt_flags & MIR_IGNORE_SUSPEND_CHECK)) {
     OpUnconditionalBranch(target);
     return;

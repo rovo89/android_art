@@ -27,8 +27,7 @@ namespace art {
  * not affect the "liveness" of a temp register, which will stay
  * live until it is either explicitly killed or reallocated.
  */
-void Mir2Lir::ResetRegPool()
-{
+void Mir2Lir::ResetRegPool() {
   int i;
   for (i=0; i < reg_pool_->num_core_regs; i++) {
     if (reg_pool_->core_regs[i].is_temp)
@@ -48,8 +47,7 @@ void Mir2Lir::ResetRegPool()
   * Set up temp & preserved register pools specialized by target.
   * Note: num_regs may be zero.
   */
-void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num)
-{
+void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num) {
   int i;
   for (i=0; i < num; i++) {
     regs[i].reg = reg_nums[i];
@@ -62,8 +60,7 @@ void Mir2Lir::CompilerInitPool(RegisterInfo* regs, int* reg_nums, int num)
   }
 }
 
-void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs)
-{
+void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs) {
   LOG(INFO) << "================================================";
   for (int i = 0; i < num_regs; i++) {
     LOG(INFO) << StringPrintf(
@@ -75,18 +72,15 @@ void Mir2Lir::DumpRegPool(RegisterInfo* p, int num_regs)
   LOG(INFO) << "================================================";
 }
 
-void Mir2Lir::DumpCoreRegPool()
-{
+void Mir2Lir::DumpCoreRegPool() {
   DumpRegPool(reg_pool_->core_regs, reg_pool_->num_core_regs);
 }
 
-void Mir2Lir::DumpFpRegPool()
-{
+void Mir2Lir::DumpFpRegPool() {
   DumpRegPool(reg_pool_->FPRegs, reg_pool_->num_fp_regs);
 }
 
-void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
-{
+void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg) {
   int i;
   for (i=0; i< num_regs; i++) {
     if (p[i].s_reg == s_reg) {
@@ -110,8 +104,7 @@ void Mir2Lir::ClobberSRegBody(RegisterInfo* p, int num_regs, int s_reg)
  * changes (for example: INT_TO_FLOAT v1, v1).  Revisit when improved register allocation is
  * addressed.
  */
-void Mir2Lir::ClobberSReg(int s_reg)
-{
+void Mir2Lir::ClobberSReg(int s_reg) {
   /* Reset live temp tracking sanity checker */
   if (kIsDebugBuild) {
     if (s_reg == live_sreg_) {
@@ -131,8 +124,7 @@ void Mir2Lir::ClobberSReg(int s_reg)
  * ssa name (above the last original Dalvik register).  This function
  * maps SSA names to positions in the promotion_map array.
  */
-int Mir2Lir::SRegToPMap(int s_reg)
-{
+int Mir2Lir::SRegToPMap(int s_reg) {
   DCHECK_LT(s_reg, mir_graph_->GetNumSSARegs());
   DCHECK_GE(s_reg, 0);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
@@ -146,8 +138,7 @@ int Mir2Lir::SRegToPMap(int s_reg)
   }
 }
 
-void Mir2Lir::RecordCorePromotion(int reg, int s_reg)
-{
+void Mir2Lir::RecordCorePromotion(int reg, int s_reg) {
   int p_map_idx = SRegToPMap(s_reg);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   GetRegInfo(reg)->in_use = true;
@@ -160,8 +151,7 @@ void Mir2Lir::RecordCorePromotion(int reg, int s_reg)
 }
 
 /* Reserve a callee-save register.  Return -1 if none available */
-int Mir2Lir::AllocPreservedCoreReg(int s_reg)
-{
+int Mir2Lir::AllocPreservedCoreReg(int s_reg) {
   int res = -1;
   RegisterInfo* core_regs = reg_pool_->core_regs;
   for (int i = 0; i < reg_pool_->num_core_regs; i++) {
@@ -174,8 +164,7 @@ int Mir2Lir::AllocPreservedCoreReg(int s_reg)
   return res;
 }
 
-void Mir2Lir::RecordFpPromotion(int reg, int s_reg)
-{
+void Mir2Lir::RecordFpPromotion(int reg, int s_reg) {
   int p_map_idx = SRegToPMap(s_reg);
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   GetRegInfo(reg)->in_use = true;
@@ -189,8 +178,7 @@ void Mir2Lir::RecordFpPromotion(int reg, int s_reg)
  * even/odd  allocation, but go ahead and allocate anything if not
  * available.  If nothing's available, return -1.
  */
-int Mir2Lir::AllocPreservedSingle(int s_reg, bool even)
-{
+int Mir2Lir::AllocPreservedSingle(int s_reg, bool even) {
   int res = -1;
   RegisterInfo* FPRegs = reg_pool_->FPRegs;
   for (int i = 0; i < reg_pool_->num_fp_regs; i++) {
@@ -212,8 +200,7 @@ int Mir2Lir::AllocPreservedSingle(int s_reg, bool even)
  * allocate if we can't meet the requirements for the pair of
  * s_reg<=sX[even] & (s_reg+1)<= sX+1.
  */
-int Mir2Lir::AllocPreservedDouble(int s_reg)
-{
+int Mir2Lir::AllocPreservedDouble(int s_reg) {
   int res = -1; // Assume failure
   int v_reg = mir_graph_->SRegToVReg(s_reg);
   int p_map_idx = SRegToPMap(s_reg);
@@ -269,8 +256,7 @@ int Mir2Lir::AllocPreservedDouble(int s_reg)
  * single regs (but if can't still attempt to allocate a single, preferring
  * first to allocate an odd register.
  */
-int Mir2Lir::AllocPreservedFPReg(int s_reg, bool double_start)
-{
+int Mir2Lir::AllocPreservedFPReg(int s_reg, bool double_start) {
   int res = -1;
   if (double_start) {
     res = AllocPreservedDouble(s_reg);
@@ -284,8 +270,7 @@ int Mir2Lir::AllocPreservedFPReg(int s_reg, bool double_start)
 }
 
 int Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
-                           bool required)
-{
+                           bool required) {
   int i;
   int next = *next_temp;
   for (i=0; i< num_regs; i++) {
@@ -323,8 +308,7 @@ int Mir2Lir::AllocTempBody(RegisterInfo* p, int num_regs, int* next_temp,
 }
 
 //REDO: too many assumptions.
-int Mir2Lir::AllocTempDouble()
-{
+int Mir2Lir::AllocTempDouble() {
   RegisterInfo* p = reg_pool_->FPRegs;
   int num_regs = reg_pool_->num_fp_regs;
   /* Start looking at an even reg */
@@ -377,29 +361,25 @@ int Mir2Lir::AllocTempDouble()
 }
 
 /* Return a temp if one is available, -1 otherwise */
-int Mir2Lir::AllocFreeTemp()
-{
+int Mir2Lir::AllocFreeTemp() {
   return AllocTempBody(reg_pool_->core_regs,
              reg_pool_->num_core_regs,
              &reg_pool_->next_core_reg, true);
 }
 
-int Mir2Lir::AllocTemp()
-{
+int Mir2Lir::AllocTemp() {
   return AllocTempBody(reg_pool_->core_regs,
              reg_pool_->num_core_regs,
              &reg_pool_->next_core_reg, true);
 }
 
-int Mir2Lir::AllocTempFloat()
-{
+int Mir2Lir::AllocTempFloat() {
   return AllocTempBody(reg_pool_->FPRegs,
              reg_pool_->num_fp_regs,
              &reg_pool_->next_fp_reg, true);
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int s_reg)
-{
+Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int s_reg) {
   int i;
   if (s_reg == -1)
     return NULL;
@@ -413,8 +393,7 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLiveBody(RegisterInfo* p, int num_regs, int
   return NULL;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class)
-{
+Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class) {
   RegisterInfo* res = NULL;
   switch (reg_class) {
     case kAnyReg:
@@ -437,8 +416,7 @@ Mir2Lir::RegisterInfo* Mir2Lir::AllocLive(int s_reg, int reg_class)
   return res;
 }
 
-void Mir2Lir::FreeTemp(int reg)
-{
+void Mir2Lir::FreeTemp(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
   int i;
@@ -465,8 +443,7 @@ void Mir2Lir::FreeTemp(int reg)
   LOG(FATAL) << "Tried to free a non-existant temp: r" << reg;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg)
-{
+Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
   int i;
@@ -485,20 +462,17 @@ Mir2Lir::RegisterInfo* Mir2Lir::IsLive(int reg)
   return NULL;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg)
-{
+Mir2Lir::RegisterInfo* Mir2Lir::IsTemp(int reg) {
   RegisterInfo* p = GetRegInfo(reg);
   return (p->is_temp) ? p : NULL;
 }
 
-Mir2Lir::RegisterInfo* Mir2Lir::IsPromoted(int reg)
-{
+Mir2Lir::RegisterInfo* Mir2Lir::IsPromoted(int reg) {
   RegisterInfo* p = GetRegInfo(reg);
   return (p->is_temp) ? NULL : p;
 }
 
-bool Mir2Lir::IsDirty(int reg)
-{
+bool Mir2Lir::IsDirty(int reg) {
   RegisterInfo* p = GetRegInfo(reg);
   return p->dirty;
 }
@@ -508,8 +482,7 @@ bool Mir2Lir::IsDirty(int reg)
  * register.  No check is made to see if the register was previously
  * allocated.  Use with caution.
  */
-void Mir2Lir::LockTemp(int reg)
-{
+void Mir2Lir::LockTemp(int reg) {
   RegisterInfo* p = reg_pool_->core_regs;
   int num_regs = reg_pool_->num_core_regs;
   int i;
@@ -534,13 +507,11 @@ void Mir2Lir::LockTemp(int reg)
   LOG(FATAL) << "Tried to lock a non-existant temp: r" << reg;
 }
 
-void Mir2Lir::ResetDef(int reg)
-{
+void Mir2Lir::ResetDef(int reg) {
   ResetDefBody(GetRegInfo(reg));
 }
 
-void Mir2Lir::NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2)
-{
+void Mir2Lir::NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2) {
   if (start && finish) {
     LIR *p;
     DCHECK_EQ(s_reg1, s_reg2);
@@ -557,8 +528,7 @@ void Mir2Lir::NullifyRange(LIR *start, LIR *finish, int s_reg1, int s_reg2)
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-void Mir2Lir::MarkDef(RegLocation rl, LIR *start, LIR *finish)
-{
+void Mir2Lir::MarkDef(RegLocation rl, LIR *start, LIR *finish) {
   DCHECK(!rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
@@ -572,8 +542,7 @@ void Mir2Lir::MarkDef(RegLocation rl, LIR *start, LIR *finish)
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-void Mir2Lir::MarkDefWide(RegLocation rl, LIR *start, LIR *finish)
-{
+void Mir2Lir::MarkDefWide(RegLocation rl, LIR *start, LIR *finish) {
   DCHECK(rl.wide);
   DCHECK(start && start->next);
   DCHECK(finish);
@@ -583,8 +552,7 @@ void Mir2Lir::MarkDefWide(RegLocation rl, LIR *start, LIR *finish)
   p->def_end = finish;
 }
 
-RegLocation Mir2Lir::WideToNarrow(RegLocation rl)
-{
+RegLocation Mir2Lir::WideToNarrow(RegLocation rl) {
   DCHECK(rl.wide);
   if (rl.location == kLocPhysReg) {
     RegisterInfo* info_lo = GetRegInfo(rl.low_reg);
@@ -604,8 +572,7 @@ RegLocation Mir2Lir::WideToNarrow(RegLocation rl)
   return rl;
 }
 
-void Mir2Lir::ResetDefLoc(RegLocation rl)
-{
+void Mir2Lir::ResetDefLoc(RegLocation rl) {
   DCHECK(!rl.wide);
   RegisterInfo* p = IsTemp(rl.low_reg);
   if (p && !(cu_->disable_opt & (1 << kSuppressLoads))) {
@@ -615,8 +582,7 @@ void Mir2Lir::ResetDefLoc(RegLocation rl)
   ResetDef(rl.low_reg);
 }
 
-void Mir2Lir::ResetDefLocWide(RegLocation rl)
-{
+void Mir2Lir::ResetDefLocWide(RegLocation rl) {
   DCHECK(rl.wide);
   RegisterInfo* p_low = IsTemp(rl.low_reg);
   RegisterInfo* p_high = IsTemp(rl.high_reg);
@@ -631,8 +597,7 @@ void Mir2Lir::ResetDefLocWide(RegLocation rl)
   ResetDef(rl.high_reg);
 }
 
-void Mir2Lir::ResetDefTracking()
-{
+void Mir2Lir::ResetDefTracking() {
   int i;
   for (i=0; i< reg_pool_->num_core_regs; i++) {
     ResetDefBody(&reg_pool_->core_regs[i]);
@@ -642,8 +607,7 @@ void Mir2Lir::ResetDefTracking()
   }
 }
 
-void Mir2Lir::ClobberAllRegs()
-{
+void Mir2Lir::ClobberAllRegs() {
   int i;
   for (i=0; i< reg_pool_->num_core_regs; i++) {
     ClobberBody(&reg_pool_->core_regs[i]);
@@ -654,8 +618,7 @@ void Mir2Lir::ClobberAllRegs()
 }
 
 // Make sure nothing is live and dirty
-void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs)
-{
+void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs) {
   int i;
   for (i=0; i < num_regs; i++) {
     if (info[i].live && info[i].dirty) {
@@ -668,8 +631,7 @@ void Mir2Lir::FlushAllRegsBody(RegisterInfo* info, int num_regs)
   }
 }
 
-void Mir2Lir::FlushAllRegs()
-{
+void Mir2Lir::FlushAllRegs() {
   FlushAllRegsBody(reg_pool_->core_regs,
            reg_pool_->num_core_regs);
   FlushAllRegsBody(reg_pool_->FPRegs,
@@ -679,8 +641,7 @@ void Mir2Lir::FlushAllRegs()
 
 
 //TUNING: rewrite all of this reg stuff.  Probably use an attribute table
-bool Mir2Lir::RegClassMatches(int reg_class, int reg)
-{
+bool Mir2Lir::RegClassMatches(int reg_class, int reg) {
   if (reg_class == kAnyReg) {
     return true;
   } else if (reg_class == kCoreReg) {
@@ -690,8 +651,7 @@ bool Mir2Lir::RegClassMatches(int reg_class, int reg)
   }
 }
 
-void Mir2Lir::MarkLive(int reg, int s_reg)
-{
+void Mir2Lir::MarkLive(int reg, int s_reg) {
   RegisterInfo* info = GetRegInfo(reg);
   if ((info->reg == reg) && (info->s_reg == s_reg) && info->live) {
     return;  /* already live */
@@ -708,20 +668,17 @@ void Mir2Lir::MarkLive(int reg, int s_reg)
   info->s_reg = s_reg;
 }
 
-void Mir2Lir::MarkTemp(int reg)
-{
+void Mir2Lir::MarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
   info->is_temp = true;
 }
 
-void Mir2Lir::UnmarkTemp(int reg)
-{
+void Mir2Lir::UnmarkTemp(int reg) {
   RegisterInfo* info = GetRegInfo(reg);
   info->is_temp = false;
 }
 
-void Mir2Lir::MarkPair(int low_reg, int high_reg)
-{
+void Mir2Lir::MarkPair(int low_reg, int high_reg) {
   RegisterInfo* info_lo = GetRegInfo(low_reg);
   RegisterInfo* info_hi = GetRegInfo(high_reg);
   info_lo->pair = info_hi->pair = true;
@@ -729,8 +686,7 @@ void Mir2Lir::MarkPair(int low_reg, int high_reg)
   info_hi->partner = low_reg;
 }
 
-void Mir2Lir::MarkClean(RegLocation loc)
-{
+void Mir2Lir::MarkClean(RegLocation loc) {
   RegisterInfo* info = GetRegInfo(loc.low_reg);
   info->dirty = false;
   if (loc.wide) {
@@ -739,8 +695,7 @@ void Mir2Lir::MarkClean(RegLocation loc)
   }
 }
 
-void Mir2Lir::MarkDirty(RegLocation loc)
-{
+void Mir2Lir::MarkDirty(RegLocation loc) {
   if (loc.home) {
     // If already home, can't be dirty
     return;
@@ -753,14 +708,12 @@ void Mir2Lir::MarkDirty(RegLocation loc)
   }
 }
 
-void Mir2Lir::MarkInUse(int reg)
-{
+void Mir2Lir::MarkInUse(int reg) {
     RegisterInfo* info = GetRegInfo(reg);
     info->in_use = true;
 }
 
-void Mir2Lir::CopyRegInfo(int new_reg, int old_reg)
-{
+void Mir2Lir::CopyRegInfo(int new_reg, int old_reg) {
   RegisterInfo* new_info = GetRegInfo(new_reg);
   RegisterInfo* old_info = GetRegInfo(old_reg);
   // Target temp status must not change
@@ -771,8 +724,7 @@ void Mir2Lir::CopyRegInfo(int new_reg, int old_reg)
   new_info->reg = new_reg;
 }
 
-bool Mir2Lir::CheckCorePoolSanity()
-{
+bool Mir2Lir::CheckCorePoolSanity() {
    for (static int i = 0; i < reg_pool_->num_core_regs; i++) {
      if (reg_pool_->core_regs[i].pair) {
        static int my_reg = reg_pool_->core_regs[i].reg;
@@ -808,8 +760,7 @@ bool Mir2Lir::CheckCorePoolSanity()
  * if it's worthwhile trying to be more clever here.
  */
 
-RegLocation Mir2Lir::UpdateLoc(RegLocation loc)
-{
+RegLocation Mir2Lir::UpdateLoc(RegLocation loc) {
   DCHECK(!loc.wide);
   DCHECK(CheckCorePoolSanity());
   if (loc.location != kLocPhysReg) {
@@ -832,8 +783,7 @@ RegLocation Mir2Lir::UpdateLoc(RegLocation loc)
 }
 
 /* see comments for update_loc */
-RegLocation Mir2Lir::UpdateLocWide(RegLocation loc)
-{
+RegLocation Mir2Lir::UpdateLocWide(RegLocation loc) {
   DCHECK(loc.wide);
   DCHECK(CheckCorePoolSanity());
   if (loc.location != kLocPhysReg) {
@@ -886,16 +836,14 @@ RegLocation Mir2Lir::UpdateLocWide(RegLocation loc)
 
 
 /* For use in cases we don't know (or care) width */
-RegLocation Mir2Lir::UpdateRawLoc(RegLocation loc)
-{
+RegLocation Mir2Lir::UpdateRawLoc(RegLocation loc) {
   if (loc.wide)
     return UpdateLocWide(loc);
   else
     return UpdateLoc(loc);
 }
 
-RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update)
-{
+RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update) {
   DCHECK(loc.wide);
   int new_regs;
   int low_reg;
@@ -942,8 +890,7 @@ RegLocation Mir2Lir::EvalLocWide(RegLocation loc, int reg_class, bool update)
   return loc;
 }
 
-RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update)
-{
+RegLocation Mir2Lir::EvalLoc(RegLocation loc, int reg_class, bool update) {
   int new_reg;
 
   if (loc.wide)
@@ -992,15 +939,13 @@ void Mir2Lir::CountRefs(RefCounts* core_counts, RefCounts* fp_counts) {
 }
 
 /* qsort callback function, sort descending */
-static int SortCounts(const void *val1, const void *val2)
-{
+static int SortCounts(const void *val1, const void *val2) {
   const Mir2Lir::RefCounts* op1 = reinterpret_cast<const Mir2Lir::RefCounts*>(val1);
   const Mir2Lir::RefCounts* op2 = reinterpret_cast<const Mir2Lir::RefCounts*>(val2);
   return (op1->count == op2->count) ? 0 : (op1->count < op2->count ? 1 : -1);
 }
 
-void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg)
-{
+void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg) {
   LOG(INFO) << msg;
   for (int i = 0; i < size; i++) {
     LOG(INFO) << "s_reg[" << arr[i].s_reg << "]: " << arr[i].count;
@@ -1011,8 +956,7 @@ void Mir2Lir::DumpCounts(const RefCounts* arr, int size, const char* msg)
  * Note: some portions of this code required even if the kPromoteRegs
  * optimization is disabled.
  */
-void Mir2Lir::DoPromotion()
-{
+void Mir2Lir::DoPromotion() {
   int reg_bias = cu_->num_compiler_temps + 1;
   int dalvik_regs = cu_->num_dalvik_registers;
   int num_regs = dalvik_regs + reg_bias;
@@ -1158,21 +1102,18 @@ void Mir2Lir::DoPromotion()
 }
 
 /* Returns sp-relative offset in bytes for a VReg */
-int Mir2Lir::VRegOffset(int v_reg)
-{
+int Mir2Lir::VRegOffset(int v_reg) {
   return StackVisitor::GetVRegOffset(cu_->code_item, core_spill_mask_,
                                      fp_spill_mask_, frame_size_, v_reg);
 }
 
 /* Returns sp-relative offset in bytes for a SReg */
-int Mir2Lir::SRegOffset(int s_reg)
-{
+int Mir2Lir::SRegOffset(int s_reg) {
   return VRegOffset(mir_graph_->SRegToVReg(s_reg));
 }
 
 /* Mark register usage state and return long retloc */
-RegLocation Mir2Lir::GetReturnWide(bool is_double)
-{
+RegLocation Mir2Lir::GetReturnWide(bool is_double) {
   RegLocation gpr_res = LocCReturnWide();
   RegLocation fpr_res = LocCReturnDouble();
   RegLocation res = is_double ? fpr_res : gpr_res;
@@ -1184,8 +1125,7 @@ RegLocation Mir2Lir::GetReturnWide(bool is_double)
   return res;
 }
 
-RegLocation Mir2Lir::GetReturn(bool is_float)
-{
+RegLocation Mir2Lir::GetReturn(bool is_float) {
   RegLocation gpr_res = LocCReturn();
   RegLocation fpr_res = LocCReturnFloat();
   RegLocation res = is_float ? fpr_res : gpr_res;
@@ -1198,8 +1138,7 @@ RegLocation Mir2Lir::GetReturn(bool is_float)
   return res;
 }
 
-void Mir2Lir::SimpleRegAlloc()
-{
+void Mir2Lir::SimpleRegAlloc() {
   DoPromotion();
 
   if (cu_->verbose && !(cu_->disable_opt & (1 << kPromoteRegs))) {

@@ -1002,8 +1002,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
  * discover that pc-relative displacements may not fit the selected
  * instruction.
  */
-AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr)
-{
+AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr) {
   LIR* lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1389,8 +1388,7 @@ AssemblerStatus ArmMir2Lir::AssembleInstructions(uintptr_t start_addr)
   return res;
 }
 
-int ArmMir2Lir::GetInsnSize(LIR* lir)
-{
+int ArmMir2Lir::GetInsnSize(LIR* lir) {
   return EncodingMap[lir->opcode].size;
 }
 

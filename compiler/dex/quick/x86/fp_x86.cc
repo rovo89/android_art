@@ -349,8 +349,7 @@ void X86Mir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias,
   OpCondBranch(ccode, taken);
 }
 
-void X86Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
-{
+void X86Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValue(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -358,8 +357,7 @@ void X86Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src)
   StoreValue(rl_dest, rl_result);
 }
 
-void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src)
-{
+void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
   rl_result = EvalLoc(rl_dest, kCoreReg, true);

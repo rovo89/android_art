@@ -23,8 +23,7 @@
 namespace art {
 
 void X86Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                SpecialCaseHandler special_case)
-{
+                                SpecialCaseHandler special_case) {
   // TODO
 }
 
@@ -33,8 +32,7 @@ void X86Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  * pairs.
  */
 void X86Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src)
-{
+                                 RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -69,8 +67,7 @@ void X86Mir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
  * done:
  */
 void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src)
-{
+                                 RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -130,8 +127,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
-{
+void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
@@ -156,8 +152,7 @@ void X86Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src)
                           rX86_ARG1, true);
 }
 
-void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
-{
+void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, rCX);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
@@ -174,8 +169,7 @@ void X86Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src)
   branch->target = NewLIR0(kPseudoTargetLabel);
 }
 
-void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
-{
+void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
   FlushAllRegs();
   LoadValueDirectFixed(rl_src, rAX);  // Get obj
   LockCallTemps();  // Prepare for explicit register usage
@@ -195,8 +189,7 @@ void X86Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src)
   branch2->target = NewLIR0(kPseudoTargetLabel);
 }
 
-void X86Mir2Lir::GenMoveException(RegLocation rl_dest)
-{
+void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   int ex_offset = Thread::ExceptionOffset().Int32Value();
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   NewLIR2(kX86Mov32RT, rl_result.low_reg, ex_offset);
@@ -207,8 +200,7 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest)
 /*
  * Mark garbage collection card. Skip if the value we're storing is null.
  */
-void X86Mir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
-{
+void X86Mir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg) {
   int reg_card_base = AllocTemp();
   int reg_card_no = AllocTemp();
   LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
@@ -222,8 +214,7 @@ void X86Mir2Lir::MarkGCCard(int val_reg, int tgt_addr_reg)
   FreeTemp(reg_card_no);
 }
 
-void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
-{
+void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   /*
    * On entry, rX86_ARG0, rX86_ARG1, rX86_ARG2 are live.  Let the register
    * allocation mechanism know so it doesn't try to use any of them when

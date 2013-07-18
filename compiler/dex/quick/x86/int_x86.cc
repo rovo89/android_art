@@ -27,8 +27,7 @@ namespace art {
  * Perform register memory operation.
  */
 LIR* X86Mir2Lir::GenRegMemCheck(ConditionCode c_code,
-                                int reg1, int base, int offset, ThrowKind kind)
-{
+                                int reg1, int base, int offset, ThrowKind kind) {
   LIR* tgt = RawLIR(0, kPseudoThrowTarget, kind,
                     current_dalvik_offset_, reg1, base, offset);
   OpRegMem(kOpCmp, reg1, base, offset);
@@ -45,8 +44,7 @@ LIR* X86Mir2Lir::GenRegMemCheck(ConditionCode c_code,
  *    x > y     return  1
  */
 void X86Mir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage
   LoadValueDirectWideFixed(rl_src1, r0, r1);
@@ -88,8 +86,7 @@ X86ConditionCode X86ConditionEncoding(ConditionCode cond) {
 }
 
 LIR* X86Mir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2,
-                             LIR* target)
-{
+                             LIR* target) {
   NewLIR2(kX86Cmp32RR, src1, src2);
   X86ConditionCode cc = X86ConditionEncoding(cond);
   LIR* branch = NewLIR2(kX86Jcc8, 0 /* lir operand for Jcc offset */ ,
@@ -99,8 +96,7 @@ LIR* X86Mir2Lir::OpCmpBranch(ConditionCode cond, int src1, int src2,
 }
 
 LIR* X86Mir2Lir::OpCmpImmBranch(ConditionCode cond, int reg,
-                                int check_value, LIR* target)
-{
+                                int check_value, LIR* target) {
   if ((check_value == 0) && (cond == kCondEq || cond == kCondNe)) {
     // TODO: when check_value == 0 and reg is rCX, use the jcxz/nz opcode
     NewLIR2(kX86Test32RR, reg, reg);
@@ -113,8 +109,7 @@ LIR* X86Mir2Lir::OpCmpImmBranch(ConditionCode cond, int reg,
   return branch;
 }
 
-LIR* X86Mir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
-{
+LIR* X86Mir2Lir::OpRegCopyNoInsert(int r_dest, int r_src) {
   if (X86_FPREG(r_dest) || X86_FPREG(r_src))
     return OpFpRegCopy(r_dest, r_src);
   LIR* res = RawLIR(current_dalvik_offset_, kX86Mov32RR,
@@ -125,16 +120,14 @@ LIR* X86Mir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
   return res;
 }
 
-LIR* X86Mir2Lir::OpRegCopy(int r_dest, int r_src)
-{
+LIR* X86Mir2Lir::OpRegCopy(int r_dest, int r_src) {
   LIR *res = OpRegCopyNoInsert(r_dest, r_src);
   AppendLIR(res);
   return res;
 }
 
 void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
-                               int src_lo, int src_hi)
-{
+                               int src_lo, int src_hi) {
   bool dest_fp = X86_FPREG(dest_lo) && X86_FPREG(dest_hi);
   bool src_fp = X86_FPREG(src_lo) && X86_FPREG(src_hi);
   assert(X86_FPREG(src_lo) == X86_FPREG(src_hi));
@@ -168,8 +161,7 @@ void X86Mir2Lir::OpRegCopyWide(int dest_lo, int dest_hi,
   }
 }
 
-void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir)
-{
+void X86Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for GenSelect";
 }
 
@@ -213,21 +205,18 @@ void X86Mir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
 }
 
 RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, int reg_lo,
-                                     int lit, bool is_div)
-{
+                                     int lit, bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for x86";
   return rl_dest;
 }
 
 RegLocation X86Mir2Lir::GenDivRem(RegLocation rl_dest, int reg_lo,
-                                  int reg_hi, bool is_div)
-{
+                                  int reg_hi, bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRem for x86";
   return rl_dest;
 }
 
-bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min)
-{
+bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   DCHECK_EQ(cu_->instruction_set, kX86);
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
@@ -247,13 +236,11 @@ bool X86Mir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min)
   return true;
 }
 
-void X86Mir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset)
-{
+void X86Mir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   NewLIR5(kX86Lea32RA, rBase, reg1, reg2, scale, offset);
 }
 
-void X86Mir2Lir::OpTlsCmp(int offset, int val)
-{
+void X86Mir2Lir::OpTlsCmp(int offset, int val) {
   NewLIR2(kX86Cmp16TI8, offset, val);
 }
 
@@ -267,22 +254,19 @@ LIR* X86Mir2Lir::OpPcRelLoad(int reg, LIR* target) {
   return NULL;
 }
 
-LIR* X86Mir2Lir::OpVldm(int rBase, int count)
-{
+LIR* X86Mir2Lir::OpVldm(int rBase, int count) {
   LOG(FATAL) << "Unexpected use of OpVldm for x86";
   return NULL;
 }
 
-LIR* X86Mir2Lir::OpVstm(int rBase, int count)
-{
+LIR* X86Mir2Lir::OpVstm(int rBase, int count) {
   LOG(FATAL) << "Unexpected use of OpVstm for x86";
   return NULL;
 }
 
 void X86Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
-                                               int first_bit, int second_bit)
-{
+                                               int first_bit, int second_bit) {
   int t_reg = AllocTemp();
   OpRegRegImm(kOpLsl, t_reg, rl_src.low_reg, second_bit - first_bit);
   OpRegRegReg(kOpAdd, rl_result.low_reg, rl_src.low_reg, t_reg);
@@ -292,8 +276,7 @@ void X86Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
   }
 }
 
-void X86Mir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
-{
+void X86Mir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi) {
   int t_reg = AllocTemp();
   OpRegRegReg(kOpOr, t_reg, reg_lo, reg_hi);
   GenImmedCheck(kCondEq, t_reg, 0, kThrowDivZero);
@@ -301,40 +284,34 @@ void X86Mir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* X86Mir2Lir::OpTestSuspend(LIR* target)
-{
+LIR* X86Mir2Lir::OpTestSuspend(LIR* target) {
   OpTlsCmp(Thread::ThreadFlagsOffset().Int32Value(), 0);
   return OpCondBranch((target == NULL) ? kCondNe : kCondEq, target);
 }
 
 // Decrement register and branch on condition
-LIR* X86Mir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target)
-{
+LIR* X86Mir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   OpRegImm(kOpSub, reg, 1);
   return OpCmpImmBranch(c_code, reg, 0, target);
 }
 
 bool X86Mir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
-                                    RegLocation rl_src, RegLocation rl_dest, int lit)
-{
+                                    RegLocation rl_src, RegLocation rl_dest, int lit) {
   LOG(FATAL) << "Unexpected use of smallLiteralDive in x86";
   return false;
 }
 
-LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide)
-{
+LIR* X86Mir2Lir::OpIT(ConditionCode cond, const char* guide) {
   LOG(FATAL) << "Unexpected use of OpIT in x86";
   return NULL;
 }
 
 void X86Mir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenX86Long for x86";
 }
 void X86Mir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
-                         RegLocation rl_src2)
-{
+                         RegLocation rl_src2) {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
   // enough.
   FlushAllRegs();
@@ -350,8 +327,7 @@ void X86Mir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void X86Mir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
   // enough.
   FlushAllRegs();
@@ -367,8 +343,7 @@ void X86Mir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void X86Mir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
   // enough.
   FlushAllRegs();
@@ -384,8 +359,7 @@ void X86Mir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void X86Mir2Lir::GenOrLong(RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2)
-{
+                           RegLocation rl_src1, RegLocation rl_src2) {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
   // enough.
   FlushAllRegs();
@@ -401,8 +375,7 @@ void X86Mir2Lir::GenOrLong(RegLocation rl_dest,
 }
 
 void X86Mir2Lir::GenXorLong(RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2)
-{
+                            RegLocation rl_src1, RegLocation rl_src2) {
   // TODO: fixed register usage here as we only have 4 temps and temporary allocation isn't smart
   // enough.
   FlushAllRegs();
@@ -417,8 +390,7 @@ void X86Mir2Lir::GenXorLong(RegLocation rl_dest,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src)
-{
+void X86Mir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   FlushAllRegs();
   LockCallTemps();  // Prepare for explicit register usage
   LoadValueDirectWideFixed(rl_src, r0, r1);
@@ -447,8 +419,7 @@ void X86Mir2Lir::OpRegThreadMem(OpKind op, int r_dest, int thread_offset) {
  * Generate array load
  */
 void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale)
-{
+                          RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -495,8 +466,7 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                             RegLocation rl_index, RegLocation rl_src, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -539,8 +509,7 @@ void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void X86Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                             RegLocation rl_index, RegLocation rl_src, int scale) {
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
 
@@ -590,15 +559,13 @@ void X86Mir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 }
 
 void X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                   RegLocation rl_src1, RegLocation rl_shift)
-{
+                                   RegLocation rl_src1, RegLocation rl_shift) {
   // Default implementation is just to ignore the constant case.
   GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
 }
 
 void X86Mir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   // Default - bail to non-const handler.
   GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
 }

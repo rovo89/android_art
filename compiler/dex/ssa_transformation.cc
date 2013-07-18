@@ -37,8 +37,7 @@ BasicBlock* MIRGraph::NeedsVisit(BasicBlock* bb) {
   return bb;
 }
 
-BasicBlock* MIRGraph::NextUnvisitedSuccessor(BasicBlock* bb)
-{
+BasicBlock* MIRGraph::NextUnvisitedSuccessor(BasicBlock* bb) {
   BasicBlock* res = NeedsVisit(bb->fall_through);
   if (res == NULL) {
     res = NeedsVisit(bb->taken);
@@ -57,15 +56,13 @@ BasicBlock* MIRGraph::NextUnvisitedSuccessor(BasicBlock* bb)
   return res;
 }
 
-void MIRGraph::MarkPreOrder(BasicBlock* block)
-{
+void MIRGraph::MarkPreOrder(BasicBlock* block) {
   block->visited = true;
   /* Enqueue the pre_order block id */
   dfs_order_->Insert(block->id);
 }
 
-void MIRGraph::RecordDFSOrders(BasicBlock* block)
-{
+void MIRGraph::RecordDFSOrders(BasicBlock* block) {
   std::vector<BasicBlock*> succ;
   MarkPreOrder(block);
   succ.push_back(block);
@@ -84,8 +81,7 @@ void MIRGraph::RecordDFSOrders(BasicBlock* block)
 }
 
 /* Sort the blocks by the Depth-First-Search */
-void MIRGraph::ComputeDFSOrders()
-{
+void MIRGraph::ComputeDFSOrders() {
   /* Initialize or reset the DFS pre_order list */
   if (dfs_order_ == NULL) {
     dfs_order_ = new (arena_) GrowableArray<int>(arena_, GetNumBlocks(), kGrowableArrayDfsOrder);
@@ -115,8 +111,7 @@ void MIRGraph::ComputeDFSOrders()
  * Mark block bit on the per-Dalvik register vector to denote that Dalvik
  * register idx is defined in BasicBlock bb.
  */
-bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb)
-{
+bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
   if (bb->data_flow_info == NULL) return false;
 
   ArenaBitVector::Iterator iterator(bb->data_flow_info->def_v);
@@ -129,8 +124,7 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb)
   return true;
 }
 
-void MIRGraph::ComputeDefBlockMatrix()
-{
+void MIRGraph::ComputeDefBlockMatrix() {
   int num_registers = cu_->num_dalvik_registers;
   /* Allocate num_dalvik_registers bit vector pointers */
   def_block_matrix_ = static_cast<ArenaBitVector**>
@@ -203,8 +197,7 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
 }
 
 void MIRGraph::CheckForDominanceFrontier(BasicBlock* dom_bb,
-                                         const BasicBlock* succ_bb)
-{
+                                         const BasicBlock* succ_bb) {
   /*
    * TODO - evaluate whether phi will ever need to be inserted into exit
    * blocks.
@@ -217,8 +210,7 @@ void MIRGraph::CheckForDominanceFrontier(BasicBlock* dom_bb,
 }
 
 /* Worker function to compute the dominance frontier */
-bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb)
-{
+bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb) {
   /* Calculate DF_local */
   if (bb->taken) {
     CheckForDominanceFrontier(bb, bb->taken);
@@ -257,8 +249,7 @@ bool MIRGraph::ComputeDominanceFrontier(BasicBlock* bb)
 }
 
 /* Worker function for initializing domination-related data structures */
-void MIRGraph::InitializeDominationInfo(BasicBlock* bb)
-{
+void MIRGraph::InitializeDominationInfo(BasicBlock* bb) {
   int num_total_blocks = GetBasicBlockListCount();
 
   if (bb->dominators == NULL ) {
@@ -284,8 +275,7 @@ void MIRGraph::InitializeDominationInfo(BasicBlock* bb)
  * Given the ordering of i_dom_list, this common parent represents the
  * last element of the intersection of block1 and block2 dominators.
   */
-int MIRGraph::FindCommonParent(int block1, int block2)
-{
+int MIRGraph::FindCommonParent(int block1, int block2) {
   while (block1 != block2) {
     while (block1 < block2) {
       block1 = i_dom_list_[block1];
@@ -300,8 +290,7 @@ int MIRGraph::FindCommonParent(int block1, int block2)
 }
 
 /* Worker function to compute each block's immediate dominator */
-bool MIRGraph::ComputeblockIDom(BasicBlock* bb)
-{
+bool MIRGraph::ComputeblockIDom(BasicBlock* bb) {
   /* Special-case entry block */
   if (bb == GetEntryBlock()) {
     return false;
@@ -343,8 +332,7 @@ bool MIRGraph::ComputeblockIDom(BasicBlock* bb)
 }
 
 /* Worker function to compute each block's domintors */
-bool MIRGraph::ComputeBlockDominators(BasicBlock* bb)
-{
+bool MIRGraph::ComputeBlockDominators(BasicBlock* bb) {
   if (bb == GetEntryBlock()) {
     bb->dominators->ClearAllBits();
   } else {
@@ -354,8 +342,7 @@ bool MIRGraph::ComputeBlockDominators(BasicBlock* bb)
   return false;
 }
 
-bool MIRGraph::SetDominators(BasicBlock* bb)
-{
+bool MIRGraph::SetDominators(BasicBlock* bb) {
   if (bb != GetEntryBlock()) {
     int idom_dfs_idx = i_dom_list_[bb->dfs_id];
     DCHECK_NE(idom_dfs_idx, NOTVISITED);
@@ -369,8 +356,7 @@ bool MIRGraph::SetDominators(BasicBlock* bb)
 }
 
 /* Compute dominators, immediate dominator, and dominance fronter */
-void MIRGraph::ComputeDominators()
-{
+void MIRGraph::ComputeDominators() {
   int num_reachable_blocks = num_reachable_blocks_;
   int num_total_blocks = GetBasicBlockListCount();
 
@@ -435,8 +421,7 @@ void MIRGraph::ComputeDominators()
  * This is probably not general enough to be placed in BitVector.[ch].
  */
 void MIRGraph::ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
-                                 const ArenaBitVector* src2)
-{
+                                 const ArenaBitVector* src2) {
   if (dest->GetStorageSize() != src1->GetStorageSize() ||
       dest->GetStorageSize() != src2->GetStorageSize() ||
       dest->IsExpandable() != src1->IsExpandable() ||
@@ -455,8 +440,7 @@ void MIRGraph::ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src
  * The calculated result is used for phi-node pruning - where we only need to
  * insert a phi node if the variable is live-in to the block.
  */
-bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb)
-{
+bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
   ArenaBitVector* temp_dalvik_register_v = temp_dalvik_register_v_;
 
   if (bb->data_flow_info == NULL) return false;
@@ -487,8 +471,7 @@ bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb)
 }
 
 /* Insert phi nodes to for each variable to the dominance frontiers */
-void MIRGraph::InsertPhiNodes()
-{
+void MIRGraph::InsertPhiNodes() {
   int dalvik_reg;
   ArenaBitVector* phi_blocks =
       new (arena_) ArenaBitVector(arena_, GetNumBlocks(), false, kBitMapPhi);
@@ -569,8 +552,7 @@ void MIRGraph::InsertPhiNodes()
  * Worker function to insert phi-operands with latest SSA names from
  * predecessor blocks
  */
-bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb)
-{
+bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
   MIR *mir;
   std::vector<int> uses;
   std::vector<int> incoming_arc;
@@ -622,8 +604,7 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb)
   return true;
 }
 
-void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block)
-{
+void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
 
   if (block->visited || block->hidden) return;
   block->visited = true;
@@ -663,8 +644,7 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block)
 }
 
 /* Perform SSA transformation for the whole method */
-void MIRGraph::SSATransformation()
-{
+void MIRGraph::SSATransformation() {
   /* Compute the DFS order */
   ComputeDFSOrders();
 

@@ -849,8 +849,7 @@ int MIRGraph::SRegToVReg(int ssa_reg) const {
 
 /* Any register that is used before being defined is considered live-in */
 void MIRGraph::HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
-                            ArenaBitVector* live_in_v, int dalvik_reg_id)
-{
+                            ArenaBitVector* live_in_v, int dalvik_reg_id) {
   use_v->SetBit(dalvik_reg_id);
   if (!def_v->IsBitSet(dalvik_reg_id)) {
     live_in_v->SetBit(dalvik_reg_id);
@@ -858,8 +857,7 @@ void MIRGraph::HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
 }
 
 /* Mark a reg as being defined */
-void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id)
-{
+void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id) {
   def_v->SetBit(dalvik_reg_id);
 }
 
@@ -867,8 +865,7 @@ void MIRGraph::HandleDef(ArenaBitVector* def_v, int dalvik_reg_id)
  * Find out live-in variables for natural loops. Variables that are live-in in
  * the main loop body are considered to be defined in the entry block.
  */
-bool MIRGraph::FindLocalLiveIn(BasicBlock* bb)
-{
+bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
   MIR* mir;
   ArenaBitVector *use_v, *def_v, *live_in_v;
 
@@ -925,8 +922,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb)
   return true;
 }
 
-int MIRGraph::AddNewSReg(int v_reg)
-{
+int MIRGraph::AddNewSReg(int v_reg) {
   // Compiler temps always have a subscript of 0
   int subscript = (v_reg < 0) ? 0 : ++ssa_last_defs_[v_reg];
   int ssa_reg = GetNumSSARegs();
@@ -938,15 +934,13 @@ int MIRGraph::AddNewSReg(int v_reg)
 }
 
 /* Find out the latest SSA register for a given Dalvik register */
-void MIRGraph::HandleSSAUse(int* uses, int dalvik_reg, int reg_index)
-{
+void MIRGraph::HandleSSAUse(int* uses, int dalvik_reg, int reg_index) {
   DCHECK((dalvik_reg >= 0) && (dalvik_reg < cu_->num_dalvik_registers));
   uses[reg_index] = vreg_to_ssa_map_[dalvik_reg];
 }
 
 /* Setup a new SSA register for a given Dalvik register */
-void MIRGraph::HandleSSADef(int* defs, int dalvik_reg, int reg_index)
-{
+void MIRGraph::HandleSSADef(int* defs, int dalvik_reg, int reg_index) {
   DCHECK((dalvik_reg >= 0) && (dalvik_reg < cu_->num_dalvik_registers));
   int ssa_reg = AddNewSReg(dalvik_reg);
   vreg_to_ssa_map_[dalvik_reg] = ssa_reg;
@@ -954,8 +948,7 @@ void MIRGraph::HandleSSADef(int* defs, int dalvik_reg, int reg_index)
 }
 
 /* Look up new SSA names for format_35c instructions */
-void MIRGraph::DataFlowSSAFormat35C(MIR* mir)
-{
+void MIRGraph::DataFlowSSAFormat35C(MIR* mir) {
   DecodedInstruction *d_insn = &mir->dalvikInsn;
   int num_uses = d_insn->vA;
   int i;
@@ -973,8 +966,7 @@ void MIRGraph::DataFlowSSAFormat35C(MIR* mir)
 }
 
 /* Look up new SSA names for format_3rc instructions */
-void MIRGraph::DataFlowSSAFormat3RC(MIR* mir)
-{
+void MIRGraph::DataFlowSSAFormat3RC(MIR* mir) {
   DecodedInstruction *d_insn = &mir->dalvikInsn;
   int num_uses = d_insn->vA;
   int i;
@@ -992,8 +984,7 @@ void MIRGraph::DataFlowSSAFormat3RC(MIR* mir)
 }
 
 /* Entry function to convert a block into SSA representation */
-bool MIRGraph::DoSSAConversion(BasicBlock* bb)
-{
+bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
   MIR* mir;
 
   if (bb->data_flow_info == NULL) return false;
@@ -1127,8 +1118,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb)
 }
 
 /* Setup the basic data structures for SSA conversion */
-void MIRGraph::CompilerInitializeSSAConversion()
-{
+void MIRGraph::CompilerInitializeSSAConversion() {
   size_t num_dalvik_reg = cu_->num_dalvik_registers;
 
   ssa_base_vregs_ = new (arena_) GrowableArray<int>(arena_, num_dalvik_reg + GetDefCount() + 128,
@@ -1196,8 +1186,7 @@ void MIRGraph::CompilerInitializeSSAConversion()
  * and attempting to do would involve more complexity than it's
  * worth.
  */
-bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
-{
+bool MIRGraph::InvokeUsesMethodStar(MIR* mir) {
   InvokeType type;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
   switch (opcode) {
@@ -1246,8 +1235,7 @@ bool MIRGraph::InvokeUsesMethodStar(MIR* mir)
  * counts explicitly used s_regs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.
  */
-bool MIRGraph::CountUses(struct BasicBlock* bb)
-{
+bool MIRGraph::CountUses(struct BasicBlock* bb) {
   if (bb->block_type != kDalvikByteCode) {
     return false;
   }
@@ -1286,8 +1274,7 @@ bool MIRGraph::CountUses(struct BasicBlock* bb)
   return false;
 }
 
-void MIRGraph::MethodUseCount()
-{
+void MIRGraph::MethodUseCount() {
   // Now that we know, resize the lists.
   int num_ssa_regs = GetNumSSARegs();
   use_counts_.Resize(num_ssa_regs + 32);
@@ -1307,8 +1294,7 @@ void MIRGraph::MethodUseCount()
 }
 
 /* Verify if all the successor is connected with all the claimed predecessors */
-bool MIRGraph::VerifyPredInfo(BasicBlock* bb)
-{
+bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
   GrowableArray<BasicBlock*>::Iterator iter(bb->predecessors);
 
   while (true) {
@@ -1343,8 +1329,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb)
   return true;
 }
 
-void MIRGraph::VerifyDataflow()
-{
+void MIRGraph::VerifyDataflow() {
     /* Verify if all blocks are connected as claimed */
   AllNodesIterator iter(this, false /* not iterative */);
   for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {

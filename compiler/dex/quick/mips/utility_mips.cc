@@ -21,8 +21,7 @@
 namespace art {
 
 /* This file contains codegen for the MIPS32 ISA. */
-LIR* MipsMir2Lir::OpFpRegCopy(int r_dest, int r_src)
-{
+LIR* MipsMir2Lir::OpFpRegCopy(int r_dest, int r_src) {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
   DCHECK_EQ(MIPS_DOUBLEREG(r_dest),MIPS_DOUBLEREG(r_src));
@@ -51,23 +50,19 @@ LIR* MipsMir2Lir::OpFpRegCopy(int r_dest, int r_src)
   return res;
 }
 
-bool MipsMir2Lir::InexpensiveConstantInt(int32_t value)
-{
+bool MipsMir2Lir::InexpensiveConstantInt(int32_t value) {
   return ((value == 0) || IsUint(16, value) || ((value < 0) && (value >= -32768)));
 }
 
-bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value)
-{
+bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value) {
   return false;  // TUNING
 }
 
-bool MipsMir2Lir::InexpensiveConstantLong(int64_t value)
-{
+bool MipsMir2Lir::InexpensiveConstantLong(int64_t value) {
   return false;  // TUNING
 }
 
-bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value)
-{
+bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value) {
   return false; // TUNING
 }
 
@@ -80,8 +75,7 @@ bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value)
  * 1) r_dest is freshly returned from AllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value)
-{
+LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value) {
   LIR *res;
 
   int r_dest_save = r_dest;
@@ -112,15 +106,13 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(int r_dest, int value)
   return res;
 }
 
-LIR* MipsMir2Lir::OpUnconditionalBranch(LIR* target)
-{
+LIR* MipsMir2Lir::OpUnconditionalBranch(LIR* target) {
   LIR* res = NewLIR1(kMipsB, 0 /* offset to be patched during assembly*/ );
   res->target = target;
   return res;
 }
 
-LIR* MipsMir2Lir::OpReg(OpKind op, int r_dest_src)
-{
+LIR* MipsMir2Lir::OpReg(OpKind op, int r_dest_src) {
   MipsOpCode opcode = kMipsNop;
   switch (op) {
     case kOpBlx:
@@ -136,8 +128,7 @@ LIR* MipsMir2Lir::OpReg(OpKind op, int r_dest_src)
 }
 
 LIR* MipsMir2Lir::OpRegImm(OpKind op, int r_dest_src1,
-          int value)
-{
+          int value) {
   LIR *res;
   bool neg = (value < 0);
   int abs_value = (neg) ? -value : value;
@@ -167,8 +158,7 @@ LIR* MipsMir2Lir::OpRegImm(OpKind op, int r_dest_src1,
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2)
-{
+LIR* MipsMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2) {
   MipsOpCode opcode = kMipsNop;
   switch (op) {
     case kOpAdd:
@@ -209,8 +199,7 @@ LIR* MipsMir2Lir::OpRegRegReg(OpKind op, int r_dest, int r_src1, int r_src2)
   return NewLIR3(opcode, r_dest, r_src1, r_src2);
 }
 
-LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value)
-{
+LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
   LIR *res;
   MipsOpCode opcode = kMipsNop;
   bool short_form = true;
@@ -298,8 +287,7 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value)
   return res;
 }
 
-LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
-{
+LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2) {
   MipsOpCode opcode = kMipsNop;
   LIR *res;
   switch (op) {
@@ -342,8 +330,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, int r_dest_src1, int r_src2)
   return NewLIR2(opcode, r_dest_src1, r_src2);
 }
 
-LIR* MipsMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value)
-{
+LIR* MipsMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value) {
   LIR *res;
   res = LoadConstantNoClobber(r_dest_lo, Low32Bits(value));
   LoadConstantNoClobber(r_dest_hi, High32Bits(value));
@@ -352,8 +339,7 @@ LIR* MipsMir2Lir::LoadConstantWide(int r_dest_lo, int r_dest_hi, int64_t value)
 
 /* Load value from base + scaled index. */
 LIR* MipsMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
-                                  int scale, OpSize size)
-{
+                                  int scale, OpSize size) {
   LIR *first = NULL;
   LIR *res;
   MipsOpCode opcode = kMipsNop;
@@ -405,8 +391,7 @@ LIR* MipsMir2Lir::LoadBaseIndexed(int rBase, int r_index, int r_dest,
 
 /* store value base base + scaled index. */
 LIR* MipsMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
-                                   int scale, OpSize size)
-{
+                                   int scale, OpSize size) {
   LIR *first = NULL;
   MipsOpCode opcode = kMipsNop;
   int r_new_index = r_index;
@@ -452,7 +437,7 @@ LIR* MipsMir2Lir::StoreBaseIndexed(int rBase, int r_index, int r_src,
 }
 
 LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
-                                   int r_dest_hi, OpSize size, int s_reg)
+                                   int r_dest_hi, OpSize size, int s_reg) {
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -461,7 +446,6 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
  * and base and dest are the same, spill some other register to
  * rlp and then restore.
  */
-{
   LIR *res;
   LIR *load = NULL;
   LIR *load2 = NULL;
@@ -551,21 +535,18 @@ LIR* MipsMir2Lir::LoadBaseDispBody(int rBase, int displacement, int r_dest,
 }
 
 LIR* MipsMir2Lir::LoadBaseDisp(int rBase, int displacement, int r_dest,
-                               OpSize size, int s_reg)
-{
+                               OpSize size, int s_reg) {
   return LoadBaseDispBody(rBase, displacement, r_dest, -1,
                           size, s_reg);
 }
 
 LIR* MipsMir2Lir::LoadBaseDispWide(int rBase, int displacement,
-                                   int r_dest_lo, int r_dest_hi, int s_reg)
-{
+                                   int r_dest_lo, int r_dest_hi, int s_reg) {
   return LoadBaseDispBody(rBase, displacement, r_dest_lo, r_dest_hi, kLong, s_reg);
 }
 
 LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
-                                    int r_src, int r_src_hi, OpSize size)
-{
+                                    int r_src, int r_src_hi, OpSize size) {
   LIR *res;
   LIR *store = NULL;
   LIR *store2 = NULL;
@@ -647,52 +628,44 @@ LIR* MipsMir2Lir::StoreBaseDispBody(int rBase, int displacement,
 }
 
 LIR* MipsMir2Lir::StoreBaseDisp(int rBase, int displacement, int r_src,
-                                OpSize size)
-{
+                                OpSize size) {
   return StoreBaseDispBody(rBase, displacement, r_src, -1, size);
 }
 
 LIR* MipsMir2Lir::StoreBaseDispWide(int rBase, int displacement,
-                                    int r_src_lo, int r_src_hi)
-{
+                                    int r_src_lo, int r_src_hi) {
   return StoreBaseDispBody(rBase, displacement, r_src_lo, r_src_hi, kLong);
 }
 
-LIR* MipsMir2Lir::OpThreadMem(OpKind op, int thread_offset)
-{
+LIR* MipsMir2Lir::OpThreadMem(OpKind op, int thread_offset) {
   LOG(FATAL) << "Unexpected use of OpThreadMem for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpMem(OpKind op, int rBase, int disp)
-{
+LIR* MipsMir2Lir::OpMem(OpKind op, int rBase, int disp) {
   LOG(FATAL) << "Unexpected use of OpMem for MIPS";
   return NULL;
 }
 
 LIR* MipsMir2Lir::StoreBaseIndexedDisp( int rBase, int r_index, int scale, int displacement,
-                                        int r_src, int r_src_hi, OpSize size, int s_reg)
-{
+                                        int r_src, int r_src_hi, OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
   return NULL;
 }
 
 LIR* MipsMir2Lir::OpRegMem(OpKind op, int r_dest, int rBase,
-              int offset)
-{
+              int offset) {
   LOG(FATAL) << "Unexpected use of OpRegMem for MIPS";
   return NULL;
 }
 
 LIR* MipsMir2Lir::LoadBaseIndexedDisp(int rBase, int r_index, int scale, int displacement,
-                                      int r_dest, int r_dest_hi, OpSize size, int s_reg)
-{
+                                      int r_dest, int r_dest_hi, OpSize size, int s_reg) {
   LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
   return NULL;
 }
 
-LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc, LIR* target)
-{
+LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpCondBranch for MIPS";
   return NULL;
 }

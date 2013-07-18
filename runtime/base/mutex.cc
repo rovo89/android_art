@@ -465,7 +465,7 @@ ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level) :
 #if ART_USE_FUTEXES
     , state_(0), exclusive_owner_(0), num_pending_readers_(0), num_pending_writers_(0)
 #endif
-{
+{ // NOLINT(whitespace/braces)
 #if !ART_USE_FUTEXES
   CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, NULL));
 #endif

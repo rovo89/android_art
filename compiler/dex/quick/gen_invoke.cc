@@ -37,14 +37,12 @@ namespace art {
  * has a memory call operation, part 1 is a NOP for x86.  For other targets,
  * load arguments between the two parts.
  */
-int Mir2Lir::CallHelperSetup(int helper_offset)
-{
+int Mir2Lir::CallHelperSetup(int helper_offset) {
   return (cu_->instruction_set == kX86) ? 0 : LoadHelper(helper_offset);
 }
 
 /* NOTE: if r_tgt is a temp, it will be freed following use */
-LIR* Mir2Lir::CallHelper(int r_tgt, int helper_offset, bool safepoint_pc)
-{
+LIR* Mir2Lir::CallHelper(int r_tgt, int helper_offset, bool safepoint_pc) {
   LIR* call_inst;
   if (cu_->instruction_set == kX86) {
     call_inst = OpThreadMem(kOpBlx, helper_offset);
@@ -233,8 +231,7 @@ void Mir2Lir::CallRuntimeHelperImmRegLocationRegLocation(int helper_offset,
  * ArgLocs is an array of location records describing the incoming arguments
  * with one location record per word of argument.
  */
-void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method)
-{
+void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   /*
    * Dummy up a RegLocation for the incoming Method*
    * It will attempt to keep kArg0 live (or copy it to home location
@@ -316,8 +313,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           int state, const MethodReference& target_method,
                           uint32_t unused,
                           uintptr_t direct_code, uintptr_t direct_method,
-                          InvokeType type)
-{
+                          InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (cu->instruction_set != kThumb2) {
     // Disable sharpening
@@ -420,8 +416,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
                          int state, const MethodReference& target_method,
                          uint32_t method_idx, uintptr_t unused, uintptr_t unused2,
-                         InvokeType unused3)
-{
+                         InvokeType unused3) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
    * This is the fast path in which the target virtual method is
@@ -469,8 +464,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  const MethodReference& target_method,
                                  uint32_t unused, uintptr_t unused2,
-                                 uintptr_t direct_method, InvokeType unused4)
-{
+                                 uintptr_t direct_method, InvokeType unused4) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (cu->instruction_set != kThumb2) {
     // Disable sharpening
@@ -536,8 +530,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info, int trampoline,
                             int state, const MethodReference& target_method,
-                            uint32_t method_idx)
-{
+                            uint32_t method_idx) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
    * This handles the case in which the base method is not fully
@@ -561,8 +554,7 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 const MethodReference& target_method,
                                 uint32_t method_idx,
                                 uintptr_t unused, uintptr_t unused2,
-                                InvokeType unused3)
-{
+                                InvokeType unused3) {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -570,8 +562,7 @@ static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
                                 uint32_t method_idx, uintptr_t unused,
-                                uintptr_t unused2, InvokeType unused3)
-{
+                                uintptr_t unused2, InvokeType unused3) {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -579,8 +570,7 @@ static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
                                uint32_t method_idx, uintptr_t unused,
-                               uintptr_t unused2, InvokeType unused3)
-{
+                               uintptr_t unused2, InvokeType unused3) {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -588,8 +578,7 @@ static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
                            uint32_t method_idx, uintptr_t unused,
-                           uintptr_t unused2, InvokeType unused3)
-{
+                           uintptr_t unused2, InvokeType unused3) {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -599,8 +588,7 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 const MethodReference& target_method,
                                                 uint32_t unused,
                                                 uintptr_t unused2, uintptr_t unused3,
-                                                InvokeType unused4)
-{
+                                                InvokeType unused4) {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
   return NextInvokeInsnSP(cu, info, trampoline, state, target_method, 0);
 }
@@ -609,8 +597,7 @@ int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
                          NextCallInsn next_call_insn,
                          const MethodReference& target_method,
                          uint32_t vtable_idx, uintptr_t direct_code,
-                         uintptr_t direct_method, InvokeType type, bool skip_this)
-{
+                         uintptr_t direct_method, InvokeType type, bool skip_this) {
   int last_arg_reg = TargetReg(kArg3);
   int next_reg = TargetReg(kArg1);
   int next_arg = 0;
@@ -649,8 +636,7 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
                                   int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
                                   const MethodReference& target_method,
                                   uint32_t vtable_idx, uintptr_t direct_code,
-                                  uintptr_t direct_method, InvokeType type, bool skip_this)
-{
+                                  uintptr_t direct_method, InvokeType type, bool skip_this) {
   RegLocation rl_arg;
 
   /* If no arguments, just return */
@@ -749,8 +735,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                 LIR** pcrLabel, NextCallInsn next_call_insn,
                                 const MethodReference& target_method,
                                 uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
-                                InvokeType type, bool skip_this)
-{
+                                InvokeType type, bool skip_this) {
 
   // If we can treat it as non-range (Jumbo ops will use range form)
   if (info->num_arg_words <= 5)
@@ -833,8 +818,7 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   return call_state;
 }
 
-RegLocation Mir2Lir::InlineTarget(CallInfo* info)
-{
+RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
     res = GetReturn(false);
@@ -844,8 +828,7 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info)
   return res;
 }
 
-RegLocation Mir2Lir::InlineTargetWide(CallInfo* info)
-{
+RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
     res = GetReturnWide(false);
@@ -855,8 +838,7 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info)
   return res;
 }
 
-bool Mir2Lir::GenInlinedCharAt(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -932,8 +914,7 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info)
 }
 
 // Generates an inlined String.is_empty or String.length.
-bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty)
-{
+bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -961,8 +942,7 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty)
   return true;
 }
 
-bool Mir2Lir::GenInlinedAbsInt(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -980,8 +960,7 @@ bool Mir2Lir::GenInlinedAbsInt(CallInfo* info)
   return true;
 }
 
-bool Mir2Lir::GenInlinedAbsLong(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1022,8 +1001,7 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info)
   }
 }
 
-bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1034,8 +1012,7 @@ bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info)
   return true;
 }
 
-bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1050,8 +1027,7 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info)
  * Fast string.index_of(I) & (II).  Tests for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
  */
-bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based)
-{
+bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1094,8 +1070,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based)
 }
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
-bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info)
-{
+bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1211,8 +1186,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
   return true;
 }
 
-bool Mir2Lir::GenIntrinsic(CallInfo* info)
-{
+bool Mir2Lir::GenIntrinsic(CallInfo* info) {
   if (info->opt_flags & MIR_INLINED) {
     return false;
   }
@@ -1358,8 +1332,7 @@ bool Mir2Lir::GenIntrinsic(CallInfo* info)
   return false;
 }
 
-void Mir2Lir::GenInvoke(CallInfo* info)
-{
+void Mir2Lir::GenInvoke(CallInfo* info) {
   if (GenIntrinsic(info)) {
     return;
   }

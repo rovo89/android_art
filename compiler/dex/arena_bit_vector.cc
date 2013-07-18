@@ -114,8 +114,7 @@ void ArenaBitVector::Union(const ArenaBitVector* src) {
 }
 
 // Count the number of bits that are set.
-int ArenaBitVector::NumSetBits()
-{
+int ArenaBitVector::NumSetBits() {
   unsigned int count = 0;
 
   for (unsigned int word = 0; word < storage_size_; word++) {
@@ -129,8 +128,7 @@ int ArenaBitVector::NumSetBits()
  * since there might be unused bits - setting those to one will confuse the
  * iterator.
  */
-void ArenaBitVector::SetInitialBits(unsigned int num_bits)
-{
+void ArenaBitVector::SetInitialBits(unsigned int num_bits) {
   DCHECK_LE(((num_bits + 31) >> 5), storage_size_);
   unsigned int idx;
   for (idx = 0; idx < (num_bits >> 5); idx++) {

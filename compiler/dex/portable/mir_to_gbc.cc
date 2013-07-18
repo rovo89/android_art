@@ -42,18 +42,15 @@ const char kCatchBlock = 'C';
 
 namespace art {
 
-::llvm::BasicBlock* MirConverter::GetLLVMBlock(int id)
-{
+::llvm::BasicBlock* MirConverter::GetLLVMBlock(int id) {
   return id_to_block_map_.Get(id);
 }
 
-::llvm::Value* MirConverter::GetLLVMValue(int s_reg)
-{
+::llvm::Value* MirConverter::GetLLVMValue(int s_reg) {
   return llvm_values_.Get(s_reg);
 }
 
-void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg)
-{
+void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg) {
   // Set vreg for debugging
   art::llvm::IntrinsicHelper::IntrinsicId id = art::llvm::IntrinsicHelper::SetVReg;
   ::llvm::Function* func = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -64,8 +61,7 @@ void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg)
 }
 
 // Replace the placeholder value with the real definition
-void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg)
-{
+void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg) {
   ::llvm::Value* placeholder = GetLLVMValue(s_reg);
   if (placeholder == NULL) {
     // This can happen on instruction rewrite on verification failure
@@ -81,14 +77,12 @@ void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg)
 
 }
 
-void MirConverter::DefineValue(::llvm::Value* val, int s_reg)
-{
+void MirConverter::DefineValue(::llvm::Value* val, int s_reg) {
   DefineValueOnly(val, s_reg);
   SetVregOnValue(val, s_reg);
 }
 
-::llvm::Type* MirConverter::LlvmTypeFromLocRec(RegLocation loc)
-{
+::llvm::Type* MirConverter::LlvmTypeFromLocRec(RegLocation loc) {
   ::llvm::Type* res = NULL;
   if (loc.wide) {
     if (loc.fp)
@@ -108,8 +102,7 @@ void MirConverter::DefineValue(::llvm::Value* val, int s_reg)
   return res;
 }
 
-void MirConverter::InitIR()
-{
+void MirConverter::InitIR() {
   if (llvm_info_ == NULL) {
     CompilerTls* tls = cu_->compiler_driver->GetTls();
     CHECK(tls != NULL);
@@ -125,16 +118,14 @@ void MirConverter::InitIR()
   irb_ = llvm_info_->GetIRBuilder();
 }
 
-::llvm::BasicBlock* MirConverter::FindCaseTarget(uint32_t vaddr)
-{
+::llvm::BasicBlock* MirConverter::FindCaseTarget(uint32_t vaddr) {
   BasicBlock* bb = mir_graph_->FindBlock(vaddr);
   DCHECK(bb != NULL);
   return GetLLVMBlock(bb->id);
 }
 
 void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
-                                int32_t table_offset, RegLocation rl_src)
-{
+                                int32_t table_offset, RegLocation rl_src) {
   const Instruction::PackedSwitchPayload* payload =
       reinterpret_cast<const Instruction::PackedSwitchPayload*>(
       cu_->insns + current_dalvik_offset_ + table_offset);
@@ -158,8 +149,7 @@ void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
 }
 
 void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
-                                int32_t table_offset, RegLocation rl_src)
-{
+                                int32_t table_offset, RegLocation rl_src) {
   const Instruction::SparseSwitchPayload* payload =
       reinterpret_cast<const Instruction::SparseSwitchPayload*>(
       cu_->insns + current_dalvik_offset_ + table_offset);
@@ -186,8 +176,7 @@ void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
 }
 
 void MirConverter::ConvertSget(int32_t field_index,
-                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
-{
+                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest) {
   ::llvm::Constant* field_idx = irb_->getInt32(field_index);
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::Value* res = irb_->CreateCall(intr, field_idx);
@@ -195,8 +184,7 @@ void MirConverter::ConvertSget(int32_t field_index,
 }
 
 void MirConverter::ConvertSput(int32_t field_index,
-                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_src)
-{
+                        art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_src) {
   ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(irb_->getInt32(field_index));
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -204,8 +192,7 @@ void MirConverter::ConvertSput(int32_t field_index,
   irb_->CreateCall(intr, args);
 }
 
-void MirConverter::ConvertFillArrayData(int32_t offset, RegLocation rl_array)
-{
+void MirConverter::ConvertFillArrayData(int32_t offset, RegLocation rl_array) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   id = art::llvm::IntrinsicHelper::HLFillArrayData;
   ::llvm::SmallVector< ::llvm::Value*, 2> args;
@@ -216,8 +203,7 @@ void MirConverter::ConvertFillArrayData(int32_t offset, RegLocation rl_array)
 }
 
 ::llvm::Value* MirConverter::EmitConst(::llvm::ArrayRef< ::llvm::Value*> src,
-                              RegLocation loc)
-{
+                              RegLocation loc) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
@@ -238,16 +224,14 @@ void MirConverter::ConvertFillArrayData(int32_t offset, RegLocation rl_array)
   return irb_->CreateCall(intr, src);
 }
 
-void MirConverter::EmitPopShadowFrame()
-{
+void MirConverter::EmitPopShadowFrame() {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(
       art::llvm::IntrinsicHelper::PopShadowFrame);
   irb_->CreateCall(intr);
 }
 
 ::llvm::Value* MirConverter::EmitCopy(::llvm::ArrayRef< ::llvm::Value*> src,
-                             RegLocation loc)
-{
+                             RegLocation loc) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   if (loc.wide) {
     if (loc.fp) {
@@ -268,16 +252,14 @@ void MirConverter::EmitPopShadowFrame()
   return irb_->CreateCall(intr, src);
 }
 
-void MirConverter::ConvertMoveException(RegLocation rl_dest)
-{
+void MirConverter::ConvertMoveException(RegLocation rl_dest) {
   ::llvm::Function* func = intrinsic_helper_->GetIntrinsicFunction(
       art::llvm::IntrinsicHelper::GetException);
   ::llvm::Value* res = irb_->CreateCall(func);
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertThrow(RegLocation rl_src)
-{
+void MirConverter::ConvertThrow(RegLocation rl_src) {
   ::llvm::Value* src = GetLLVMValue(rl_src.orig_sreg);
   ::llvm::Function* func = intrinsic_helper_->GetIntrinsicFunction(
       art::llvm::IntrinsicHelper::HLThrowException);
@@ -286,8 +268,7 @@ void MirConverter::ConvertThrow(RegLocation rl_src)
 
 void MirConverter::ConvertMonitorEnterExit(int opt_flags,
                                     art::llvm::IntrinsicHelper::IntrinsicId id,
-                                    RegLocation rl_src)
-{
+                                    RegLocation rl_src) {
   ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -296,8 +277,7 @@ void MirConverter::ConvertMonitorEnterExit(int opt_flags,
 }
 
 void MirConverter::ConvertArrayLength(int opt_flags,
-                               RegLocation rl_dest, RegLocation rl_src)
-{
+                               RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::SmallVector< ::llvm::Value*, 2> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -307,8 +287,7 @@ void MirConverter::ConvertArrayLength(int opt_flags,
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::EmitSuspendCheck()
-{
+void MirConverter::EmitSuspendCheck() {
   art::llvm::IntrinsicHelper::IntrinsicId id =
       art::llvm::IntrinsicHelper::CheckSuspend;
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -316,8 +295,7 @@ void MirConverter::EmitSuspendCheck()
 }
 
 ::llvm::Value* MirConverter::ConvertCompare(ConditionCode cc,
-                                   ::llvm::Value* src1, ::llvm::Value* src2)
-{
+                                   ::llvm::Value* src1, ::llvm::Value* src2) {
   ::llvm::Value* res = NULL;
   DCHECK_EQ(src1->getType(), src2->getType());
   switch(cc) {
@@ -333,8 +311,7 @@ void MirConverter::EmitSuspendCheck()
 }
 
 void MirConverter::ConvertCompareAndBranch(BasicBlock* bb, MIR* mir,
-                                    ConditionCode cc, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                    ConditionCode cc, RegLocation rl_src1, RegLocation rl_src2) {
   if (bb->taken->start_offset <= mir->offset) {
     EmitSuspendCheck();
   }
@@ -349,8 +326,7 @@ void MirConverter::ConvertCompareAndBranch(BasicBlock* bb, MIR* mir,
 }
 
 void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
-                                        MIR* mir, ConditionCode cc, RegLocation rl_src1)
-{
+                                        MIR* mir, ConditionCode cc, RegLocation rl_src1) {
   if (bb->taken->start_offset <= mir->offset) {
     EmitSuspendCheck();
   }
@@ -369,8 +345,7 @@ void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
 }
 
 ::llvm::Value* MirConverter::GenDivModOp(bool is_div, bool is_long,
-                                ::llvm::Value* src1, ::llvm::Value* src2)
-{
+                                ::llvm::Value* src1, ::llvm::Value* src2) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   if (is_long) {
     if (is_div) {
@@ -393,8 +368,7 @@ void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
 }
 
 ::llvm::Value* MirConverter::GenArithOp(OpKind op, bool is_long,
-                               ::llvm::Value* src1, ::llvm::Value* src2)
-{
+                               ::llvm::Value* src1, ::llvm::Value* src2) {
   ::llvm::Value* res = NULL;
   switch(op) {
     case kOpAdd: res = irb_->CreateAdd(src1, src2); break;
@@ -416,8 +390,7 @@ void MirConverter::ConvertCompareZeroAndBranch(BasicBlock* bb,
 }
 
 void MirConverter::ConvertFPArithOp(OpKind op, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2)
-{
+                             RegLocation rl_src1, RegLocation rl_src2) {
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
   ::llvm::Value* src2 = GetLLVMValue(rl_src2.orig_sreg);
   ::llvm::Value* res = NULL;
@@ -434,8 +407,7 @@ void MirConverter::ConvertFPArithOp(OpKind op, RegLocation rl_dest,
 }
 
 void MirConverter::ConvertShift(art::llvm::IntrinsicHelper::IntrinsicId id,
-                         RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                         RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::SmallVector< ::llvm::Value*, 2>args;
   args.push_back(GetLLVMValue(rl_src1.orig_sreg));
@@ -445,8 +417,7 @@ void MirConverter::ConvertShift(art::llvm::IntrinsicHelper::IntrinsicId id,
 }
 
 void MirConverter::ConvertShiftLit(art::llvm::IntrinsicHelper::IntrinsicId id,
-                            RegLocation rl_dest, RegLocation rl_src, int shift_amount)
-{
+                            RegLocation rl_dest, RegLocation rl_src, int shift_amount) {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::SmallVector< ::llvm::Value*, 2>args;
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -456,8 +427,7 @@ void MirConverter::ConvertShiftLit(art::llvm::IntrinsicHelper::IntrinsicId id,
 }
 
 void MirConverter::ConvertArithOp(OpKind op, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2)
-{
+                           RegLocation rl_src1, RegLocation rl_src2) {
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
   ::llvm::Value* src2 = GetLLVMValue(rl_src2.orig_sreg);
   DCHECK_EQ(src1->getType(), src2->getType());
@@ -466,8 +436,7 @@ void MirConverter::ConvertArithOp(OpKind op, RegLocation rl_dest,
 }
 
 void MirConverter::ConvertArithOpLit(OpKind op, RegLocation rl_dest,
-                              RegLocation rl_src1, int32_t imm)
-{
+                              RegLocation rl_src1, int32_t imm) {
   ::llvm::Value* src1 = GetLLVMValue(rl_src1.orig_sreg);
   ::llvm::Value* src2 = irb_->getInt32(imm);
   ::llvm::Value* res = GenArithOp(op, rl_dest.wide, src1, src2);
@@ -480,8 +449,7 @@ void MirConverter::ConvertArithOpLit(OpKind op, RegLocation rl_dest,
  * The requirements are similar.
  */
 void MirConverter::ConvertInvoke(BasicBlock* bb, MIR* mir,
-                          InvokeType invoke_type, bool is_range, bool is_filled_new_array)
-{
+                          InvokeType invoke_type, bool is_range, bool is_filled_new_array) {
   CallInfo* info = mir_graph_->NewMemCallInfo(bb, mir, invoke_type, is_range);
   ::llvm::SmallVector< ::llvm::Value*, 10> args;
   // Insert the invoke_type
@@ -529,16 +497,14 @@ void MirConverter::ConvertInvoke(BasicBlock* bb, MIR* mir,
 }
 
 void MirConverter::ConvertConstObject(uint32_t idx,
-                               art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest)
-{
+                               art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest) {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::Value* index = irb_->getInt32(idx);
   ::llvm::Value* res = irb_->CreateCall(intr, index);
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertCheckCast(uint32_t type_idx, RegLocation rl_src)
-{
+void MirConverter::ConvertCheckCast(uint32_t type_idx, RegLocation rl_src) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   id = art::llvm::IntrinsicHelper::HLCheckCast;
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -548,8 +514,7 @@ void MirConverter::ConvertCheckCast(uint32_t type_idx, RegLocation rl_src)
   irb_->CreateCall(intr, args);
 }
 
-void MirConverter::ConvertNewInstance(uint32_t type_idx, RegLocation rl_dest)
-{
+void MirConverter::ConvertNewInstance(uint32_t type_idx, RegLocation rl_dest) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   id = art::llvm::IntrinsicHelper::NewInstance;
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -559,8 +524,7 @@ void MirConverter::ConvertNewInstance(uint32_t type_idx, RegLocation rl_dest)
 }
 
 void MirConverter::ConvertNewArray(uint32_t type_idx,
-                            RegLocation rl_dest, RegLocation rl_src)
-{
+                            RegLocation rl_dest, RegLocation rl_src) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   id = art::llvm::IntrinsicHelper::NewArray;
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -573,8 +537,7 @@ void MirConverter::ConvertNewArray(uint32_t type_idx,
 
 void MirConverter::ConvertAget(int opt_flags,
                         art::llvm::IntrinsicHelper::IntrinsicId id,
-                        RegLocation rl_dest, RegLocation rl_array, RegLocation rl_index)
-{
+                        RegLocation rl_dest, RegLocation rl_array, RegLocation rl_index) {
   ::llvm::SmallVector< ::llvm::Value*, 3> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_array.orig_sreg));
@@ -586,8 +549,7 @@ void MirConverter::ConvertAget(int opt_flags,
 
 void MirConverter::ConvertAput(int opt_flags,
                         art::llvm::IntrinsicHelper::IntrinsicId id,
-                        RegLocation rl_src, RegLocation rl_array, RegLocation rl_index)
-{
+                        RegLocation rl_src, RegLocation rl_array, RegLocation rl_index) {
   ::llvm::SmallVector< ::llvm::Value*, 4> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -599,8 +561,7 @@ void MirConverter::ConvertAput(int opt_flags,
 
 void MirConverter::ConvertIget(int opt_flags,
                         art::llvm::IntrinsicHelper::IntrinsicId id,
-                        RegLocation rl_dest, RegLocation rl_obj, int field_index)
-{
+                        RegLocation rl_dest, RegLocation rl_obj, int field_index) {
   ::llvm::SmallVector< ::llvm::Value*, 3> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_obj.orig_sreg));
@@ -612,8 +573,7 @@ void MirConverter::ConvertIget(int opt_flags,
 
 void MirConverter::ConvertIput(int opt_flags,
                         art::llvm::IntrinsicHelper::IntrinsicId id,
-                        RegLocation rl_src, RegLocation rl_obj, int field_index)
-{
+                        RegLocation rl_src, RegLocation rl_obj, int field_index) {
   ::llvm::SmallVector< ::llvm::Value*, 4> args;
   args.push_back(irb_->getInt32(opt_flags));
   args.push_back(GetLLVMValue(rl_src.orig_sreg));
@@ -624,8 +584,7 @@ void MirConverter::ConvertIput(int opt_flags,
 }
 
 void MirConverter::ConvertInstanceOf(uint32_t type_idx,
-                              RegLocation rl_dest, RegLocation rl_src)
-{
+                              RegLocation rl_dest, RegLocation rl_src) {
   art::llvm::IntrinsicHelper::IntrinsicId id;
   id = art::llvm::IntrinsicHelper::InstanceOf;
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -636,29 +595,25 @@ void MirConverter::ConvertInstanceOf(uint32_t type_idx,
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertIntToLong(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertIntToLong(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* res = irb_->CreateSExt(GetLLVMValue(rl_src.orig_sreg),
                                             irb_->getInt64Ty());
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertLongToInt(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertLongToInt(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* src = GetLLVMValue(rl_src.orig_sreg);
   ::llvm::Value* res = irb_->CreateTrunc(src, irb_->getInt32Ty());
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertFloatToDouble(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertFloatToDouble(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* src = GetLLVMValue(rl_src.orig_sreg);
   ::llvm::Value* res = irb_->CreateFPExt(src, irb_->getDoubleTy());
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertDoubleToFloat(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertDoubleToFloat(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* src = GetLLVMValue(rl_src.orig_sreg);
   ::llvm::Value* res = irb_->CreateFPTrunc(src, irb_->getFloatTy());
   DefineValue(res, rl_dest.orig_sreg);
@@ -666,8 +621,7 @@ void MirConverter::ConvertDoubleToFloat(RegLocation rl_dest, RegLocation rl_src)
 
 void MirConverter::ConvertWideComparison(art::llvm::IntrinsicHelper::IntrinsicId id,
                                          RegLocation rl_dest, RegLocation rl_src1,
-                                         RegLocation rl_src2)
-{
+                                         RegLocation rl_src2) {
   DCHECK_EQ(rl_src1.fp, rl_src2.fp);
   DCHECK_EQ(rl_src1.wide, rl_src2.wide);
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
@@ -679,23 +633,20 @@ void MirConverter::ConvertWideComparison(art::llvm::IntrinsicHelper::IntrinsicId
 }
 
 void MirConverter::ConvertIntNarrowing(RegLocation rl_dest, RegLocation rl_src,
-                                art::llvm::IntrinsicHelper::IntrinsicId id)
-{
+                                art::llvm::IntrinsicHelper::IntrinsicId id) {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::Value* res =
       irb_->CreateCall(intr, GetLLVMValue(rl_src.orig_sreg));
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertNeg(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertNeg(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* res = irb_->CreateNeg(GetLLVMValue(rl_src.orig_sreg));
   DefineValue(res, rl_dest.orig_sreg);
 }
 
 void MirConverter::ConvertIntToFP(::llvm::Type* ty, RegLocation rl_dest,
-                           RegLocation rl_src)
-{
+                           RegLocation rl_src) {
   ::llvm::Value* res =
       irb_->CreateSIToFP(GetLLVMValue(rl_src.orig_sreg), ty);
   DefineValue(res, rl_dest.orig_sreg);
@@ -703,23 +654,20 @@ void MirConverter::ConvertIntToFP(::llvm::Type* ty, RegLocation rl_dest,
 
 void MirConverter::ConvertFPToInt(art::llvm::IntrinsicHelper::IntrinsicId id,
                            RegLocation rl_dest,
-                    RegLocation rl_src)
-{
+                    RegLocation rl_src) {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::Value* res = irb_->CreateCall(intr, GetLLVMValue(rl_src.orig_sreg));
   DefineValue(res, rl_dest.orig_sreg);
 }
 
 
-void MirConverter::ConvertNegFP(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertNegFP(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* res =
       irb_->CreateFNeg(GetLLVMValue(rl_src.orig_sreg));
   DefineValue(res, rl_dest.orig_sreg);
 }
 
-void MirConverter::ConvertNot(RegLocation rl_dest, RegLocation rl_src)
-{
+void MirConverter::ConvertNot(RegLocation rl_dest, RegLocation rl_src) {
   ::llvm::Value* src = GetLLVMValue(rl_src.orig_sreg);
   ::llvm::Value* res = irb_->CreateXor(src, static_cast<uint64_t>(-1));
   DefineValue(res, rl_dest.orig_sreg);
@@ -737,8 +685,7 @@ void MirConverter::EmitConstructorBarrier() {
  * when necessary.
  */
 bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
-                           ::llvm::BasicBlock* llvm_bb)
-{
+                           ::llvm::BasicBlock* llvm_bb) {
   bool res = false;   // Assume success
   RegLocation rl_src[3];
   RegLocation rl_dest = mir_graph_->GetBadLoc();
@@ -1556,8 +1503,7 @@ bool MirConverter::ConvertMIRNode(MIR* mir, BasicBlock* bb,
   return res;
 }
 
-void MirConverter::SetDexOffset(int32_t offset)
-{
+void MirConverter::SetDexOffset(int32_t offset) {
   current_dalvik_offset_ = offset;
   ::llvm::SmallVector< ::llvm::Value*, 1> array_ref;
   array_ref.push_back(irb_->getInt32(offset));
@@ -1566,8 +1512,7 @@ void MirConverter::SetDexOffset(int32_t offset)
 }
 
 // Attach method info as metadata to special intrinsic
-void MirConverter::SetMethodInfo()
-{
+void MirConverter::SetMethodInfo() {
   // We don't want dex offset on this
   irb_->SetDexOffset(NULL);
   art::llvm::IntrinsicHelper::IntrinsicId id;
@@ -1585,8 +1530,7 @@ void MirConverter::SetMethodInfo()
   SetDexOffset(current_dalvik_offset_);
 }
 
-void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb)
-{
+void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb) {
   SetDexOffset(bb->start_offset);
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
@@ -1636,8 +1580,7 @@ void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb)
 
 /* Extended MIR instructions like PHI */
 void MirConverter::ConvertExtendedMIR(BasicBlock* bb, MIR* mir,
-                               ::llvm::BasicBlock* llvm_bb)
-{
+                               ::llvm::BasicBlock* llvm_bb) {
 
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpPhi: {
@@ -1684,8 +1627,7 @@ void MirConverter::ConvertExtendedMIR(BasicBlock* bb, MIR* mir,
 }
 
 /* Handle the content in each basic block */
-bool MirConverter::BlockBitcodeConversion(BasicBlock* bb)
-{
+bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
   if (bb->block_type == kDead) return false;
   ::llvm::BasicBlock* llvm_bb = GetLLVMBlock(bb->id);
   if (llvm_bb == NULL) {
@@ -1901,8 +1843,7 @@ bool MirConverter::CreateFunction() {
   return true;
 }
 
-bool MirConverter::CreateLLVMBasicBlock(BasicBlock* bb)
-{
+bool MirConverter::CreateLLVMBasicBlock(BasicBlock* bb) {
   // Skip the exit block
   if ((bb->block_type == kDead) ||(bb->block_type == kExitBlock)) {
     id_to_block_map_.Put(bb->id, NULL);
@@ -1933,8 +1874,7 @@ bool MirConverter::CreateLLVMBasicBlock(BasicBlock* bb)
  *  o Iterate through the MIR a basic block at a time, setting arguments
  *    to recovered ssa name.
  */
-void MirConverter::MethodMIR2Bitcode()
-{
+void MirConverter::MethodMIR2Bitcode() {
   InitIR();
 
   // Create the function

@@ -25,8 +25,7 @@
 namespace art {
 
 LIR* ArmMir2Lir::OpCmpBranch(ConditionCode cond, int src1,
-         int src2, LIR* target)
-{
+         int src2, LIR* target) {
   OpRegReg(kOpCmp, src1, src2);
   return OpCondBranch(cond, target);
 }
@@ -41,8 +40,7 @@ LIR* ArmMir2Lir::OpCmpBranch(ConditionCode cond, int src1,
  * met, and an "E" means the instruction is executed if the condition
  * is not met.
  */
-LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide)
-{
+LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   int mask;
   int mask3 = 0;
   int mask2 = 0;
@@ -86,8 +84,7 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide)
  * done:
  */
 void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LIR* target1;
   LIR* target2;
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
@@ -121,8 +118,7 @@ void ArmMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
-                                          int64_t val, ConditionCode ccode)
-{
+                                          int64_t val, ConditionCode ccode) {
   int32_t val_lo = Low32Bits(val);
   int32_t val_hi = High32Bits(val);
   DCHECK(ModifiedImmediate(val_lo) >= 0);
@@ -180,8 +176,7 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
   OpCmpImmBranch(ccode, low_reg, val_lo, taken);
 }
 
-void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir)
-{
+void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   // Temporary debugging code
@@ -249,8 +244,7 @@ void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir)
   StoreValue(rl_dest, rl_result);
 }
 
-void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir)
-{
+void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
   RegLocation rl_src1 = mir_graph_->GetSrcWide(mir, 0);
   RegLocation rl_src2 = mir_graph_->GetSrcWide(mir, 2);
   // Normalize such that if either operand is constant, src2 will be constant.
@@ -315,8 +309,7 @@ void ArmMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir)
  * is responsible for setting branch target field.
  */
 LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
-                                LIR* target)
-{
+                                LIR* target) {
   LIR* branch;
   int mod_imm;
   ArmConditionCode arm_cond = ArmConditionEncoding(cond);
@@ -341,8 +334,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, int reg, int check_value,
   return branch;
 }
 
-LIR* ArmMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
-{
+LIR* ArmMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src) {
   LIR* res;
   int opcode;
   if (ARM_FPREG(r_dest) || ARM_FPREG(r_src))
@@ -362,16 +354,14 @@ LIR* ArmMir2Lir::OpRegCopyNoInsert(int r_dest, int r_src)
   return res;
 }
 
-LIR* ArmMir2Lir::OpRegCopy(int r_dest, int r_src)
-{
+LIR* ArmMir2Lir::OpRegCopy(int r_dest, int r_src) {
   LIR* res = OpRegCopyNoInsert(r_dest, r_src);
   AppendLIR(res);
   return res;
 }
 
 void ArmMir2Lir::OpRegCopyWide(int dest_lo, int dest_hi, int src_lo,
-                               int src_hi)
-{
+                               int src_hi) {
   bool dest_fp = ARM_FPREG(dest_lo) && ARM_FPREG(dest_hi);
   bool src_fp = ARM_FPREG(src_lo) && ARM_FPREG(src_hi);
   DCHECK_EQ(ARM_FPREG(src_lo), ARM_FPREG(src_hi));
@@ -426,8 +416,7 @@ static const MagicTable magic_table[] = {
 
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
 bool ArmMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
-                                    RegLocation rl_src, RegLocation rl_dest, int lit)
-{
+                                    RegLocation rl_src, RegLocation rl_dest, int lit) {
   if ((lit < 0) || (lit >= static_cast<int>(sizeof(magic_table)/sizeof(magic_table[0])))) {
     return false;
   }
@@ -471,28 +460,24 @@ bool ArmMir2Lir::SmallLiteralDivide(Instruction::Code dalvik_opcode,
 }
 
 LIR* ArmMir2Lir::GenRegMemCheck(ConditionCode c_code,
-                    int reg1, int base, int offset, ThrowKind kind)
-{
+                    int reg1, int base, int offset, ThrowKind kind) {
   LOG(FATAL) << "Unexpected use of GenRegMemCheck for Arm";
   return NULL;
 }
 
 RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, int reg1, int lit,
-                                     bool is_div)
-{
+                                     bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm";
   return rl_dest;
 }
 
 RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, int reg1, int reg2,
-                                  bool is_div)
-{
+                                  bool is_div) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
   return rl_dest;
 }
 
-bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min)
-{
+bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
@@ -509,13 +494,11 @@ bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min)
   return true;
 }
 
-void ArmMir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset)
-{
+void ArmMir2Lir::OpLea(int rBase, int reg1, int reg2, int scale, int offset) {
   LOG(FATAL) << "Unexpected use of OpLea for Arm";
 }
 
-void ArmMir2Lir::OpTlsCmp(int offset, int val)
-{
+void ArmMir2Lir::OpTlsCmp(int offset, int val) {
   LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
 }
 
@@ -577,25 +560,21 @@ bool ArmMir2Lir::GenInlinedCas32(CallInfo* info, bool need_write_barrier) {
   return true;
 }
 
-LIR* ArmMir2Lir::OpPcRelLoad(int reg, LIR* target)
-{
+LIR* ArmMir2Lir::OpPcRelLoad(int reg, LIR* target) {
   return RawLIR(current_dalvik_offset_, kThumb2LdrPcRel12, reg, 0, 0, 0, 0, target);
 }
 
-LIR* ArmMir2Lir::OpVldm(int rBase, int count)
-{
+LIR* ArmMir2Lir::OpVldm(int rBase, int count) {
   return NewLIR3(kThumb2Vldms, rBase, fr0, count);
 }
 
-LIR* ArmMir2Lir::OpVstm(int rBase, int count)
-{
+LIR* ArmMir2Lir::OpVstm(int rBase, int count) {
   return NewLIR3(kThumb2Vstms, rBase, fr0, count);
 }
 
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
-                                               int first_bit, int second_bit)
-{
+                                               int first_bit, int second_bit) {
   OpRegRegRegShift(kOpAdd, rl_result.low_reg, rl_src.low_reg, rl_src.low_reg,
                    EncodeShift(kArmLsl, second_bit - first_bit));
   if (first_bit != 0) {
@@ -603,8 +582,7 @@ void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
   }
 }
 
-void ArmMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
-{
+void ArmMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi) {
   int t_reg = AllocTemp();
   NewLIR4(kThumb2OrrRRRs, t_reg, reg_lo, reg_hi, 0);
   FreeTemp(t_reg);
@@ -612,22 +590,19 @@ void ArmMir2Lir::GenDivZeroCheck(int reg_lo, int reg_hi)
 }
 
 // Test suspend flag, return target of taken suspend branch
-LIR* ArmMir2Lir::OpTestSuspend(LIR* target)
-{
+LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
   NewLIR2(kThumbSubRI8, rARM_SUSPEND, 1);
   return OpCondBranch((target == NULL) ? kCondEq : kCondNe, target);
 }
 
 // Decrement register and branch on condition
-LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target)
-{
+LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, int reg, LIR* target) {
   // Combine sub & test using sub setflags encoding here
   NewLIR3(kThumb2SubsRRI12, reg, reg, 1);
   return OpCondBranch(c_code, target);
 }
 
-void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
-{
+void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 #if ANDROID_SMP != 0
   int dmb_flavor;
   // TODO: revisit Arm barrier kinds
@@ -646,8 +621,7 @@ void ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind)
 #endif
 }
 
-void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src)
-{
+void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   int z_reg = AllocTemp();
@@ -672,16 +646,14 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src)
   * is not usual for dx to generate, but it is legal (for now).  In a future rev of
   * dex, we'll want to make this case illegal.
   */
-bool ArmMir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest)
-{
+bool ArmMir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
   DCHECK(rl_src.wide);
   DCHECK(rl_dest.wide);
   return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
 }
 
 void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
     /*
      * To pull off inline multiply, we have a worst-case requirement of 8 temporary
      * registers.  Normally for Arm, we get 5.  We can get to 6 by including
@@ -754,32 +726,27 @@ void ArmMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1,
 }
 
 void ArmMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAddLong for Arm";
 }
 
 void ArmMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenSubLong for Arm";
 }
 
 void ArmMir2Lir::GenAndLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenAndLong for Arm";
 }
 
 void ArmMir2Lir::GenOrLong(RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2)
-{
+                           RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of GenOrLong for Arm";
 }
 
 void ArmMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
-                            RegLocation rl_src2)
-{
+                            RegLocation rl_src2) {
   LOG(FATAL) << "Unexpected use of genXoLong for Arm";
 }
 
@@ -787,8 +754,7 @@ void ArmMir2Lir::GenXorLong(RegLocation rl_dest, RegLocation rl_src1,
  * Generate array load
  */
 void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale)
-{
+                          RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -878,8 +844,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                          RegLocation rl_index, RegLocation rl_src, int scale) {
   RegisterClass reg_class = oat_reg_class_by_size(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -968,8 +933,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void ArmMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
-                             RegLocation rl_index, RegLocation rl_src, int scale)
-{
+                             RegLocation rl_index, RegLocation rl_src, int scale) {
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset = mirror::Array::DataOffset(sizeof(mirror::Object*)).Int32Value();
 
@@ -1025,8 +989,7 @@ void ArmMir2Lir::GenArrayObjPut(int opt_flags, RegLocation rl_array,
 }
 
 void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift)
-{
+                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   // Per spec, we only care about low 6 bits of shift amount.
   int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
@@ -1099,8 +1062,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
 }
 
 void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2)
-{
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   if ((opcode == Instruction::SUB_LONG_2ADDR) || (opcode == Instruction::SUB_LONG)) {
     if (!rl_src2.is_const) {
       // Don't bother with special handling for subtract from immediate.

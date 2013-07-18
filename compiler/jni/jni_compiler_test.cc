@@ -68,7 +68,7 @@ class JniCompilerTest : public CommonTest {
   void SetUpForTest(bool direct, const char* method_name, const char* method_sig,
                     void* native_fnptr) {
     // Initialize class loader and compile method when runtime not started.
-    if (!runtime_->IsStarted()){
+    if (!runtime_->IsStarted()) {
       {
         ScopedObjectAccess soa(Thread::Current());
         class_loader_ = LoadDex("MyClassNatives");
