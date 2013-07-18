@@ -27,13 +27,13 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 
-using namespace llvm;
+using ::llvm::BasicBlock;
+using ::llvm::CallInst;
+using ::llvm::Function;
+using ::llvm::Value;
 
 namespace art {
 namespace llvm {
-
-using namespace runtime_support;
-
 
 RuntimeSupportBuilder::RuntimeSupportBuilder(::llvm::LLVMContext& context,
                                              ::llvm::Module& module,

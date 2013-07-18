@@ -50,17 +50,16 @@ static void art_heap_usage_error(const char* function, void* p) {
 #include "utils.h"
 #include <sys/mman.h>
 
-using namespace art;
 extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_bytes, void* arg) {
   // Is this chunk in use?
   if (used_bytes != 0) {
     return;
   }
   // Do we have any whole pages to give back?
-  start = reinterpret_cast<void*>(RoundUp(reinterpret_cast<uintptr_t>(start), kPageSize));
-  end = reinterpret_cast<void*>(RoundDown(reinterpret_cast<uintptr_t>(end), kPageSize));
+  start = reinterpret_cast<void*>(art::RoundUp(reinterpret_cast<uintptr_t>(start), art::kPageSize));
+  end = reinterpret_cast<void*>(art::RoundDown(reinterpret_cast<uintptr_t>(end), art::kPageSize));
   if (end > start) {
-    size_t length = reinterpret_cast<byte*>(end) - reinterpret_cast<byte*>(start);
+    size_t length = reinterpret_cast<uint8_t*>(end) - reinterpret_cast<uint8_t*>(start);
     int rc = madvise(start, length, MADV_DONTNEED);
     if (UNLIKELY(rc != 0)) {
       errno = rc;

@@ -40,7 +40,21 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 
-using namespace art::mirror;
+using ::art::mirror::AbstractMethod;
+using ::art::mirror::Array;
+using ::art::mirror::BooleanArray;
+using ::art::mirror::ByteArray;
+using ::art::mirror::CharArray;
+using ::art::mirror::Class;
+using ::art::mirror::ClassLoader;
+using ::art::mirror::Field;
+using ::art::mirror::IntArray;
+using ::art::mirror::LongArray;
+using ::art::mirror::Object;
+using ::art::mirror::ObjectArray;
+using ::art::mirror::ShortArray;
+using ::art::mirror::String;
+using ::art::mirror::Throwable;
 
 namespace art {
 

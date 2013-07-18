@@ -28,11 +28,17 @@
 
 #include <vector>
 
-using namespace llvm;
+using ::llvm::CallInst;
+using ::llvm::Function;
+using ::llvm::FunctionType;
+using ::llvm::InlineAsm;
+using ::llvm::IntegerType;
+using ::llvm::Type;
+using ::llvm::Value;
 
 namespace {
 
-char LDRSTRSuffixByType(art::llvm::IRBuilder& irb, ::llvm::Type* type) {
+char LDRSTRSuffixByType(art::llvm::IRBuilder& irb, Type* type) {
   int width = type->isPointerTy() ?
               irb.getSizeOfPtrEquivInt()*8 :
               ::llvm::cast<IntegerType>(type)->getBitWidth();
@@ -53,7 +59,7 @@ namespace llvm {
 
 /* Thread */
 
-::llvm::Value* RuntimeSupportBuilderARM::EmitGetCurrentThread() {
+Value* RuntimeSupportBuilderARM::EmitGetCurrentThread() {
   Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
   InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), "mov $0, r9", "=r", false);
   CallInst* thread = irb_.CreateCall(func);
@@ -62,8 +68,8 @@ namespace llvm {
   return thread;
 }
 
-::llvm::Value* RuntimeSupportBuilderARM::EmitLoadFromThreadOffset(int64_t offset, ::llvm::Type* type,
-                                                                TBAASpecialType s_ty) {
+Value* RuntimeSupportBuilderARM::EmitLoadFromThreadOffset(int64_t offset, ::llvm::Type* type,
+                                                          TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/type,
                                             /*isVarArg=*/false);
   std::string inline_asm(StringPrintf("ldr%c $0, [r9, #%d]",
@@ -76,7 +82,7 @@ namespace llvm {
   return result;
 }
 
-void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, ::llvm::Value* value,
+void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, Value* value,
                                                        TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*Params=*/value->getType(),
@@ -89,8 +95,7 @@ void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, ::llvm::V
   irb_.SetTBAA(call_inst, s_ty);
 }
 
-::llvm::Value*
-RuntimeSupportBuilderARM::EmitSetCurrentThread(::llvm::Value* thread) {
+Value* RuntimeSupportBuilderARM::EmitSetCurrentThread(Value* thread) {
   // Separate to two InlineAsm: The first one produces the return value, while the second,
   // sets the current thread.
   // LLVM can delete the first one if the caller in LLVM IR doesn't use the return value.
@@ -114,7 +119,7 @@ RuntimeSupportBuilderARM::EmitSetCurrentThread(::llvm::Value* thread) {
 
 /* Monitor */
 
-void RuntimeSupportBuilderARM::EmitLockObject(::llvm::Value* object) {
+void RuntimeSupportBuilderARM::EmitLockObject(Value* object) {
   RuntimeSupportBuilder::EmitLockObject(object);
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*isVarArg=*/false);
@@ -122,7 +127,7 @@ void RuntimeSupportBuilderARM::EmitLockObject(::llvm::Value* object) {
   irb_.CreateCall(func);
 }
 
-void RuntimeSupportBuilderARM::EmitUnlockObject(::llvm::Value* object) {
+void RuntimeSupportBuilderARM::EmitUnlockObject(Value* object) {
   RuntimeSupportBuilder::EmitUnlockObject(object);
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*isVarArg=*/false);

@@ -29,13 +29,19 @@
 
 #include <vector>
 
-using namespace llvm;
+using ::llvm::CallInst;
+using ::llvm::Function;
+using ::llvm::FunctionType;
+using ::llvm::InlineAsm;
+using ::llvm::Type;
+using ::llvm::UndefValue;
+using ::llvm::Value;
 
 namespace art {
 namespace llvm {
 
 
-::llvm::Value* RuntimeSupportBuilderX86::EmitGetCurrentThread() {
+Value* RuntimeSupportBuilderX86::EmitGetCurrentThread() {
   Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
   std::string inline_asm(StringPrintf("mov %%fs:%d, $0", Thread::SelfOffset().Int32Value()));
   InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), inline_asm, "=r", false);
@@ -45,8 +51,8 @@ namespace llvm {
   return thread;
 }
 
-::llvm::Value* RuntimeSupportBuilderX86::EmitLoadFromThreadOffset(int64_t offset, ::llvm::Type* type,
-                                                                TBAASpecialType s_ty) {
+Value* RuntimeSupportBuilderX86::EmitLoadFromThreadOffset(int64_t offset, Type* type,
+                                                          TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/type,
                                             /*isVarArg=*/false);
   std::string inline_asm(StringPrintf("mov %%fs:%d, $0", static_cast<int>(offset)));
@@ -57,7 +63,7 @@ namespace llvm {
   return result;
 }
 
-void RuntimeSupportBuilderX86::EmitStoreToThreadOffset(int64_t offset, ::llvm::Value* value,
+void RuntimeSupportBuilderX86::EmitStoreToThreadOffset(int64_t offset, Value* value,
                                                        TBAASpecialType s_ty) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
                                             /*Params=*/value->getType(),
@@ -68,9 +74,9 @@ void RuntimeSupportBuilderX86::EmitStoreToThreadOffset(int64_t offset, ::llvm::V
   irb_.SetTBAA(call_inst, s_ty);
 }
 
-::llvm::Value* RuntimeSupportBuilderX86::EmitSetCurrentThread(::llvm::Value*) {
+Value* RuntimeSupportBuilderX86::EmitSetCurrentThread(Value*) {
   /* Nothing to be done. */
-  return ::llvm::UndefValue::get(irb_.getJObjectTy());
+  return UndefValue::get(irb_.getJObjectTy());
 }
 
 

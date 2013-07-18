@@ -31,13 +31,18 @@
 #include <inttypes.h>
 #include <vector>
 
-using namespace llvm;
+using ::llvm::BasicBlock;
+using ::llvm::Function;
+using ::llvm::FunctionType;
+using ::llvm::InlineAsm;
+using ::llvm::Type;
+using ::llvm::Value;
 
 namespace art {
 namespace llvm {
 
 
-void RuntimeSupportBuilderThumb2::EmitLockObject(::llvm::Value* object) {
+void RuntimeSupportBuilderThumb2::EmitLockObject(Value* object) {
   FunctionType* func_ty = FunctionType::get(/*Result=*/irb_.getInt32Ty(),
                                             /*Params=*/irb_.getJObjectTy(),
                                             /*isVarArg=*/false);
@@ -58,10 +63,10 @@ void RuntimeSupportBuilderThumb2::EmitLockObject(::llvm::Value* object) {
 
   InlineAsm* func = InlineAsm::get(func_ty, asms, "=&l,l,~l,~l", true);
 
-  ::llvm::Value* retry_slow_path = irb_.CreateCall(func, object);
+  Value* retry_slow_path = irb_.CreateCall(func, object);
   retry_slow_path = irb_.CreateICmpNE(retry_slow_path, irb_.getJInt(0));
 
-  ::llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  Function* parent_func = irb_.GetInsertBlock()->getParent();
   BasicBlock* basic_block_lock = BasicBlock::Create(context_, "lock", parent_func);
   BasicBlock* basic_block_cont = BasicBlock::Create(context_, "lock_cont", parent_func);
   irb_.CreateCondBr(retry_slow_path, basic_block_lock, basic_block_cont, kUnlikely);

@@ -41,7 +41,13 @@
 namespace art {
 namespace llvm {
 
-using namespace runtime_support;
+using ::art::llvm::runtime_support::JniMethodEnd;
+using ::art::llvm::runtime_support::JniMethodEndSynchronized;
+using ::art::llvm::runtime_support::JniMethodEndWithReference;
+using ::art::llvm::runtime_support::JniMethodEndWithReferenceSynchronized;
+using ::art::llvm::runtime_support::JniMethodStart;
+using ::art::llvm::runtime_support::JniMethodStartSynchronized;
+using ::art::llvm::runtime_support::RuntimeId;
 
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
                          const CompilerDriver& driver,

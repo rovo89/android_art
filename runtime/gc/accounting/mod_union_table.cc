@@ -30,7 +30,7 @@
 #include "thread.h"
 #include "UniquePtr.h"
 
-using namespace art::mirror;
+using ::art::mirror::Object;
 
 namespace art {
 namespace gc {
@@ -141,7 +141,7 @@ void ModUnionTableReferenceCache::ClearCards(space::ContinuousSpace* space) {
 class AddToReferenceArrayVisitor {
  public:
   explicit AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
-                                      std::vector<const mirror::Object*>* references)
+                                      std::vector<const Object*>* references)
     : mod_union_table_(mod_union_table),
       references_(references) {
   }
@@ -157,13 +157,13 @@ class AddToReferenceArrayVisitor {
 
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
-  std::vector<const mirror::Object*>* const references_;
+  std::vector<const Object*>* const references_;
 };
 
 class ModUnionReferenceVisitor {
  public:
   explicit ModUnionReferenceVisitor(ModUnionTableReferenceCache* const mod_union_table,
-                                    std::vector<const mirror::Object*>* references)
+                                    std::vector<const Object*>* references)
     : mod_union_table_(mod_union_table),
       references_(references) {
   }
@@ -178,7 +178,7 @@ class ModUnionReferenceVisitor {
   }
  private:
   ModUnionTableReferenceCache* const mod_union_table_;
-  std::vector<const mirror::Object*>* const references_;
+  std::vector<const Object*>* const references_;
 };
 
 class CheckReferenceVisitor {
@@ -237,8 +237,8 @@ class ModUnionCheckReferences {
 void ModUnionTableReferenceCache::Verify() {
   // Start by checking that everything in the mod union table is marked.
   Heap* heap = GetHeap();
-  typedef SafeMap<const byte*, std::vector<const mirror::Object*> >::const_iterator It;
-  typedef std::vector<const mirror::Object*>::const_iterator It2;
+  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It;
+  typedef std::vector<const Object*>::const_iterator It2;
   for (It it = references_.begin(), end = references_.end(); it != end; ++it) {
     for (It2 it_ref = it->second.begin(), end_ref = it->second.end(); it_ref != end_ref;
         ++it_ref ) {
@@ -277,13 +277,13 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << ",";
   }
   os << "]\nModUnionTable references: [";
-  typedef SafeMap<const byte*, std::vector<const mirror::Object*> >::const_iterator It2;
+  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It2;
   for (It2 it = references_.begin(); it != references_.end(); ++it) {
     const byte* card = &*it->first;
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "->{";
-    typedef std::vector<const mirror::Object*>::const_iterator It3;
+    typedef std::vector<const Object*>::const_iterator It3;
     for (It3 itr = it->second.begin(); itr != it->second.end();++itr) {
       os << reinterpret_cast<const void*>(*itr) << ",";
     }
@@ -295,7 +295,7 @@ void ModUnionTableReferenceCache::Update() {
   Heap* heap = GetHeap();
   CardTable* card_table = heap->GetCardTable();
 
-  std::vector<const mirror::Object*> cards_references;
+  std::vector<const Object*> cards_references;
   ModUnionReferenceVisitor visitor(this, &cards_references);
 
   typedef std::set<byte*>::iterator It;
@@ -311,7 +311,7 @@ void ModUnionTableReferenceCache::Update() {
 
     // Update the corresponding references for the card.
     // TODO: C++0x auto
-    SafeMap<const byte*, std::vector<const mirror::Object*> >::iterator
+    SafeMap<const byte*, std::vector<const Object*> >::iterator
         found = references_.find(card);
     if (found == references_.end()) {
       if (cards_references.empty()) {
@@ -330,9 +330,9 @@ void ModUnionTableReferenceCache::MarkReferences(collector::MarkSweep* mark_swee
   // TODO: C++0x auto
   size_t count = 0;
 
-  typedef SafeMap<const byte*, std::vector<const mirror::Object*> >::const_iterator It;
+  typedef SafeMap<const byte*, std::vector<const Object*> >::const_iterator It;
   for (It it = references_.begin(); it != references_.end(); ++it) {
-    typedef std::vector<const mirror::Object*>::const_iterator It2;
+    typedef std::vector<const Object*>::const_iterator It2;
     for (It2 it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref) {
       mark_sweep->MarkRoot(*it_ref);
       ++count;
