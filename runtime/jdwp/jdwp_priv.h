@@ -53,7 +53,7 @@ bool InitAdbTransport(JdwpState*, const JdwpOptions*);
  */
 class JdwpNetStateBase {
  public:
-  JdwpNetStateBase(JdwpState*);
+  explicit JdwpNetStateBase(JdwpState*);
   virtual ~JdwpNetStateBase();
 
   virtual bool Accept() = 0;

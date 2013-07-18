@@ -33,7 +33,7 @@ typedef SafeMap<uint32_t, uint16_t> MemoryVersionMap;
 
 class LocalValueNumbering {
  public:
-  LocalValueNumbering(CompilationUnit* cu) : cu_(cu) {};
+  explicit LocalValueNumbering(CompilationUnit* cu) : cu_(cu) {};
 
   static uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     return (static_cast<uint64_t>(op) << 48 | static_cast<uint64_t>(operand1) << 32 |

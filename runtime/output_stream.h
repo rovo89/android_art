@@ -33,7 +33,7 @@ enum Whence {
 
 class OutputStream {
  public:
-  OutputStream(const std::string& location) : location_(location) {}
+  explicit OutputStream(const std::string& location) : location_(location) {}
 
   virtual ~OutputStream() {}
 

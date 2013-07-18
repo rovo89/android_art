@@ -49,7 +49,7 @@ class GrowableArray {
 
     class Iterator {
       public:
-        Iterator(GrowableArray* g_list)
+        explicit Iterator(GrowableArray* g_list)
           : idx_(0),
             g_list_(g_list) {};
 

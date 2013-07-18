@@ -28,8 +28,7 @@ namespace accounting {
 // A mod-union table to record image references to the Zygote and alloc space.
 class ModUnionTableToZygoteAllocspace : public ModUnionTableReferenceCache {
 public:
-  ModUnionTableToZygoteAllocspace(Heap* heap) : ModUnionTableReferenceCache(heap) {
-  }
+  explicit ModUnionTableToZygoteAllocspace(Heap* heap) : ModUnionTableReferenceCache(heap) {}
 
   bool AddReference(const mirror::Object* /* obj */, const mirror::Object* ref) {
     const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();
@@ -48,8 +47,7 @@ public:
 // A mod-union table to record Zygote references to the alloc space.
 class ModUnionTableToAllocspace : public ModUnionTableReferenceCache {
  public:
-  ModUnionTableToAllocspace(Heap* heap) : ModUnionTableReferenceCache(heap) {
-  }
+  explicit ModUnionTableToAllocspace(Heap* heap) : ModUnionTableReferenceCache(heap) {}
 
   bool AddReference(const mirror::Object* /* obj */, const mirror::Object* ref) {
     const std::vector<space::ContinuousSpace*>& spaces = GetHeap()->GetContinuousSpaces();

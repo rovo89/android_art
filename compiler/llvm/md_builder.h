@@ -35,7 +35,7 @@ typedef ::llvm::MDBuilder LLVMMDBuilder;
 
 class MDBuilder : public LLVMMDBuilder {
  public:
-  MDBuilder(::llvm::LLVMContext& context)
+  explicit MDBuilder(::llvm::LLVMContext& context)
      : LLVMMDBuilder(context), tbaa_root_(createTBAARoot("Art TBAA Root")) {
     std::memset(tbaa_special_type_, 0, sizeof(tbaa_special_type_));
     std::memset(tbaa_memory_jtype_, 0, sizeof(tbaa_memory_jtype_));

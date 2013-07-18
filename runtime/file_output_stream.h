@@ -25,7 +25,7 @@ namespace art {
 
 class FileOutputStream : public OutputStream {
  public:
-  FileOutputStream(File* file);
+  explicit FileOutputStream(File* file);
 
   virtual ~FileOutputStream() {}
 

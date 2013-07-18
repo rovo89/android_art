@@ -25,7 +25,7 @@ namespace art {
 
 class DexMethodIterator {
  public:
-  DexMethodIterator(const std::vector<const DexFile*>& dex_files)
+  explicit DexMethodIterator(const std::vector<const DexFile*>& dex_files)
       : dex_files_(dex_files),
         found_next_(false),
         dex_file_index_(0),

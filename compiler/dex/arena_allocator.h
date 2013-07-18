@@ -47,7 +47,7 @@ class ArenaAllocator {
       kNumAllocKinds
     };
 
-  ArenaAllocator(size_t default_size = ARENA_DEFAULT_BLOCK_SIZE);
+  explicit ArenaAllocator(size_t default_size = ARENA_DEFAULT_BLOCK_SIZE);
   ~ArenaAllocator();
   void* NewMem(size_t size, bool zero, ArenaAllocKind kind);
   size_t BytesAllocated() {
@@ -86,7 +86,7 @@ struct MemStats {
      void Dump(std::ostream& os) const {
        arena_.DumpMemStats(os);
      }
-     MemStats(const ArenaAllocator &arena) : arena_(arena) {};
+     explicit MemStats(const ArenaAllocator &arena) : arena_(arena) {};
   private:
     const ArenaAllocator &arena_;
 }; // MemStats

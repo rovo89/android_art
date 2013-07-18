@@ -27,7 +27,7 @@ namespace art {
 // Lightweight wrapper for native PC offset to reference bit maps.
 class NativePcOffsetToReferenceMap {
  public:
-  NativePcOffsetToReferenceMap(const uint8_t* data) : data_(data) {
+  explicit NativePcOffsetToReferenceMap(const uint8_t* data) : data_(data) {
     CHECK(data_ != NULL);
   }
 

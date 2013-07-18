@@ -30,7 +30,7 @@ class Backend {
     virtual CompiledMethod* GetCompiledMethod() = 0;
 
   protected:
-    Backend(ArenaAllocator* arena) : arena_(arena) {};
+    explicit Backend(ArenaAllocator* arena) : arena_(arena) {};
     ArenaAllocator* const arena_;
 
 };  // Class Backend

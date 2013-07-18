@@ -94,7 +94,7 @@ std::set<BaseMutex*>* all_mutexes_;
 
 class ScopedAllMutexesLock {
  public:
-  ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
+  explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
     while (!all_mutexes_guard_.CompareAndSwap(0, reinterpret_cast<int32_t>(mutex))) {
       NanoSleep(100);
     }

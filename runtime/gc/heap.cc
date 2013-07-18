@@ -1173,10 +1173,9 @@ class ScanVisitor {
 // Verify a reference from an object.
 class VerifyReferenceVisitor {
  public:
-  VerifyReferenceVisitor(Heap* heap)
+  explicit VerifyReferenceVisitor(Heap* heap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
-      : heap_(heap), failed_(false) {
-  }
+      : heap_(heap), failed_(false) {}
 
   bool Failed() const {
     return failed_;
@@ -1263,8 +1262,7 @@ class VerifyReferenceVisitor {
 // Verify all references within an object, for use with HeapBitmap::Visit.
 class VerifyObjectVisitor {
  public:
-  VerifyObjectVisitor(Heap* heap) : heap_(heap), failed_(false) {
-  }
+  explicit VerifyObjectVisitor(Heap* heap) : heap_(heap), failed_(false) {}
 
   void operator ()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -1376,11 +1374,9 @@ class VerifyReferenceCardVisitor {
 
 class VerifyLiveStackReferences {
  public:
-  VerifyLiveStackReferences(Heap* heap)
+  explicit VerifyLiveStackReferences(Heap* heap)
       : heap_(heap),
-        failed_(false) {
-
-  }
+        failed_(false) {}
 
   void operator ()(const mirror::Object* obj) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {

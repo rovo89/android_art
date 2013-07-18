@@ -26,7 +26,7 @@ class AtomicInteger {
  public:
   AtomicInteger() : value_(0) { }
 
-  AtomicInteger(int32_t value) : value_(value) { }
+  explicit AtomicInteger(int32_t value) : value_(value) { }
 
   // Unsafe = operator for non atomic operations on the integer.
   AtomicInteger& operator = (int32_t new_value) {
