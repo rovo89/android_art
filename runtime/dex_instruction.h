@@ -88,7 +88,7 @@ class Instruction {
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_ENUM
-  } ;
+  };
 
   enum Format {
     k10x,  // op

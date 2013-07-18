@@ -66,7 +66,7 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   EXPECT_TRUE(space_bitmap.get() != NULL);
 
   // Set all the odd bits in the first BitsPerWord * 3 to one.
-  for (size_t j = 0;j < kBitsPerWord * 3; ++j) {
+  for (size_t j = 0; j < kBitsPerWord * 3; ++j) {
     const mirror::Object* obj =
         reinterpret_cast<mirror::Object*>(heap_begin + j * SpaceBitmap::kAlignment);
     if (reinterpret_cast<uintptr_t>(obj) & 0xF) {

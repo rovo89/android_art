@@ -252,7 +252,7 @@ void ModUnionTableReferenceCache::Verify() {
     const byte* card = &*it->first;
     if (*card == CardTable::kCardClean) {
       std::set<const Object*> reference_set;
-      for (It2 itr = it->second.begin(); itr != it->second.end();++itr) {
+      for (It2 itr = it->second.begin(); itr != it->second.end(); ++itr) {
         reference_set.insert(*itr);
       }
       ModUnionCheckReferences visitor(this, reference_set);
@@ -284,7 +284,7 @@ void ModUnionTableReferenceCache::Dump(std::ostream& os) {
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "->{";
     typedef std::vector<const Object*>::const_iterator It3;
-    for (It3 itr = it->second.begin(); itr != it->second.end();++itr) {
+    for (It3 itr = it->second.begin(); itr != it->second.end(); ++itr) {
       os << reinterpret_cast<const void*>(*itr) << ",";
     }
     os << "},";

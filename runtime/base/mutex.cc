@@ -460,8 +460,8 @@ std::ostream& operator<<(std::ostream& os, const Mutex& mu) {
   return os;
 }
 
-ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level) :
-    BaseMutex(name, level)
+ReaderWriterMutex::ReaderWriterMutex(const char* name, LockLevel level)
+    : BaseMutex(name, level)
 #if ART_USE_FUTEXES
     , state_(0), exclusive_owner_(0), num_pending_readers_(0), num_pending_writers_(0)
 #endif

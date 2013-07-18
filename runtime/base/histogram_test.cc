@@ -129,7 +129,6 @@ TEST(Histtest, UpdateRange) {
   EXPECT_GE(PerValue, 132);
   EXPECT_LE(PerValue, 145);
 }
-;
 
 TEST(Histtest, Reset) {
   UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("Reset"));
@@ -173,7 +172,6 @@ TEST(Histtest, Reset) {
   EXPECT_GE(PerValue, 132);
   EXPECT_LE(PerValue, 145);
 }
-;
 
 TEST(Histtest, MultipleCreateHist) {
   UniquePtr<Histogram<uint64_t> > hist(new Histogram<uint64_t>("MultipleCreateHist"));

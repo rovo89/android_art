@@ -58,7 +58,7 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InstructionFlags* fl
         interesting = flags[i].IsOpcode();
         break;
       case kTrackCompilerInterestPoints:
-        interesting = flags[i].IsCompileTimeInfoPoint() || flags[i].IsBranchTarget() ;
+        interesting = flags[i].IsCompileTimeInfoPoint() || flags[i].IsBranchTarget();
         break;
       case kTrackRegsBranches:
         interesting = flags[i].IsBranchTarget();
@@ -3756,7 +3756,7 @@ MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
   }
 
   UniquePtr<PcToConcreteMethodMap> pc_to_concrete_method_map;
-  const uint16_t* insns = code_item_->insns_ ;
+  const uint16_t* insns = code_item_->insns_;
   const Instruction* inst = Instruction::At(insns);
   const Instruction* end = Instruction::At(insns + code_item_->insns_size_in_code_units_);
 

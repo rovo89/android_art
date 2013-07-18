@@ -354,7 +354,7 @@ static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mut
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessUnchecked& soa, const char* shorty,
                                     jobject rcvr_jobj, jobject interface_method_jobj,
                                     std::vector<jvalue>& args)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ;
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Entry point for deoptimization.
 static inline uintptr_t GetDeoptimizationEntryPoint() {

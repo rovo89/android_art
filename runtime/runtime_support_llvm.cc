@@ -105,7 +105,6 @@ class ShadowFrameCopyVisitor : public StackVisitor {
 }  // namespace art
 
 extern "C" {
-
 using ::art::CatchHandlerIterator;
 using ::art::DexFile;
 using ::art::FindFieldFast;
@@ -923,5 +922,4 @@ void art_portable_proxy_invoke_handler_from_code(AbstractMethod* proxy_method, .
 void art_portable_constructor_barrier() {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
-
 }  // extern "C"

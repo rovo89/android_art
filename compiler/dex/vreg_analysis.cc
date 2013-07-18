@@ -282,7 +282,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb) {
         bool defined_ref = rl_temp.defined && rl_temp.ref;
         bool is_wide = rl_temp.wide || ((attrs & DF_A_WIDE) != 0);
         bool is_high = is_phi && rl_temp.wide && rl_temp.high_word;
-        for (int i = 0; i < ssa_rep->num_uses;i++) {
+        for (int i = 0; i < ssa_rep->num_uses; i++) {
           rl_temp = reg_location_[ssa_rep->uses[i]];
           defined_fp |= rl_temp.defined && rl_temp.fp;
           defined_core |= rl_temp.defined && rl_temp.core;

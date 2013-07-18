@@ -453,7 +453,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, int cur_
     cur_block->successor_block_list.blocks =
         new (arena_) GrowableArray<SuccessorBlockInfo*>(arena_, 2, kGrowableArraySuccessorBlocks);
 
-    for (;iterator.HasNext(); iterator.Next()) {
+    for (; iterator.HasNext(); iterator.Next()) {
       BasicBlock *catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
                                          false /* creat */, NULL  /* immed_pred_block_p */);
       catch_block->catch_entry = true;
@@ -994,9 +994,10 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
       case Instruction::k22b:
         str.append(StringPrintf(", #%d", insn.vC));
         break;
-      default:
-        ; // Nothing left to print
+      default: {
+        // Nothing left to print
       }
+    }
   }
   if (nop) {
     str.append("]--optimized away");

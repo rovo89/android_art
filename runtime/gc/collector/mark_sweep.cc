@@ -894,7 +894,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
 
   // Empty the allocation stack.
   Thread* self = Thread::Current();
-  for (size_t i = 0;i < count;++i) {
+  for (size_t i = 0; i < count; ++i) {
     Object* obj = objects[i];
     // There should only be objects in the AllocSpace/LargeObjectSpace in the allocation stack.
     if (LIKELY(mark_bitmap->HasAddress(obj))) {
@@ -1271,7 +1271,7 @@ void MarkSweep::ProcessMarkStack() {
     const size_t fifo_size = 4;
     const size_t fifo_mask = fifo_size - 1;
     const Object* fifo[fifo_size];
-    for (size_t i = 0;i < fifo_size;++i) {
+    for (size_t i = 0; i < fifo_size; ++i) {
       fifo[i] = NULL;
     }
     size_t fifo_pos = 0;
