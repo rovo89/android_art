@@ -3791,7 +3791,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
   }
   UNIMPLEMENTED(FATAL) << "Unexpected GBC intrinsic: " << static_cast<int>(intr_id);
   return NULL;
-}
+}  // NOLINT(readability/fn_size)
 
 } // anonymous namespace
 
