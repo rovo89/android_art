@@ -57,7 +57,7 @@ namespace gc {
 
 // When to create a log message about a slow GC, 100ms.
 static const uint64_t kSlowGcThreshold = MsToNs(100);
-// When to create a log message about a slow pause, 5ms.
+// When to create a log message about a long pause, 5ms.
 static const uint64_t kLongGcPauseThreshold = MsToNs(5);
 static const bool kDumpGcPerformanceOnShutdown = false;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
@@ -84,6 +84,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_objects_freed_ever_(0),
       large_object_threshold_(3 * kPageSize),
       num_bytes_allocated_(0),
+      process_state_(PROCESS_STATE_TOP),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(false),
@@ -232,6 +233,10 @@ struct ContinuousSpaceSorter {
     return a->Begin() < b->Begin();
   }
 };
+
+void Heap::UpdateProcessState(ProcessState process_state) {
+  process_state_ = process_state;
+}
 
 void Heap::AddContinuousSpace(space::ContinuousSpace* space) {
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
