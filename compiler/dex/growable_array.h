@@ -50,7 +50,7 @@ class GrowableArray {
       public:
         explicit Iterator(GrowableArray* g_list)
           : idx_(0),
-            g_list_(g_list) {};
+            g_list_(g_list) {}
 
         // NOTE: returns 0/NULL when no next.
         // TODO: redo to make usage consistent with other iterators.
@@ -69,7 +69,7 @@ class GrowableArray {
         static void* operator new(size_t size, ArenaAllocator* arena) {
           return arena->NewMem(sizeof(GrowableArray::Iterator), true, ArenaAllocator::kAllocGrowableArray);
         };
-        static void operator delete(void* p) {};  // Nop.
+        static void operator delete(void* p) {}  // Nop.
 
       private:
         size_t idx_;
@@ -155,7 +155,7 @@ class GrowableArray {
     static void* operator new(size_t size, ArenaAllocator* arena) {
       return arena->NewMem(sizeof(GrowableArray<T>), true, ArenaAllocator::kAllocGrowableArray);
     };
-    static void operator delete(void* p) {};  // Nop.
+    static void operator delete(void* p) {}  // Nop.
 
   private:
     ArenaAllocator* const arena_;

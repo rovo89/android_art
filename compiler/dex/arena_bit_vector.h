@@ -36,7 +36,7 @@ class ArenaBitVector {
           : p_bits_(bit_vector),
             bit_storage_(bit_vector->GetRawStorage()),
             bit_index_(0),
-            bit_size_(p_bits_->storage_size_ * sizeof(uint32_t) * 8) {};
+            bit_size_(p_bits_->storage_size_ * sizeof(uint32_t) * 8) {}
 
         // Return the position of the next set bit.  -1 means end-of-element reached.
         int Next() {
@@ -70,7 +70,7 @@ class ArenaBitVector {
           return arena->NewMem(sizeof(ArenaBitVector::Iterator), true,
                                ArenaAllocator::kAllocGrowableBitMap);
         };
-        static void operator delete(void* p) {};  // Nop.
+        static void operator delete(void* p) {}  // Nop.
 
       private:
         ArenaBitVector* const p_bits_;
@@ -81,12 +81,12 @@ class ArenaBitVector {
 
     ArenaBitVector(ArenaAllocator* arena, unsigned int start_bits, bool expandable,
                    OatBitMapKind kind = kBitMapMisc);
-    ~ArenaBitVector() {};
+    ~ArenaBitVector() {}
 
     static void* operator new(size_t size, ArenaAllocator* arena) {
       return arena->NewMem(sizeof(ArenaBitVector), true, ArenaAllocator::kAllocGrowableBitMap);
     }
-    static void operator delete(void* p) {};  // Nop.
+    static void operator delete(void* p) {}  // Nop.
 
     void SetBit(unsigned int num);
     void ClearBit(unsigned int num);

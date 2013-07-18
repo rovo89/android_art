@@ -218,9 +218,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
   if (compiler_backend == kPortable) {
     cu->cg.reset(PortableCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena,
                                        llvm_compilation_unit));
-  } else
+  } else {
 #endif
-  { // NOLINT(whitespace/braces)
     switch (compiler.GetInstructionSet()) {
       case kThumb2:
         cu->cg.reset(ArmCodeGenerator(cu.get(), cu->mir_graph.get(), &cu->arena));
@@ -234,7 +233,9 @@ static CompiledMethod* CompileMethod(CompilerDriver& compiler,
       default:
         LOG(FATAL) << "Unexpected instruction set: " << compiler.GetInstructionSet();
     }
+#if defined(ART_USE_PORTABLE_COMPILER)
   }
+#endif
 
   cu->cg->Materialize();
 

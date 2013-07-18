@@ -145,9 +145,9 @@ LIR* MipsMir2Lir::OpRegImm(OpKind op, int r_dest_src1,
       LOG(FATAL) << "Bad case in OpRegImm";
       break;
   }
-  if (short_form)
+  if (short_form) {
     res = NewLIR2(opcode, r_dest_src1, abs_value);
-  else {
+  } else {
     int r_scratch = AllocTemp();
     res = LoadConstant(r_scratch, value);
     if (op == kOpCmp)
@@ -267,9 +267,9 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, int r_dest, int r_src1, int value) {
       break;
   }
 
-  if (short_form)
+  if (short_form) {
     res = NewLIR3(opcode, r_dest, r_src1, value);
-  else {
+  } else {
     if (r_dest != r_src1) {
       res = LoadConstant(r_dest, value);
       NewLIR3(opcode, r_dest, r_src1, r_dest);

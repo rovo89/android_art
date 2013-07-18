@@ -1009,9 +1009,10 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
 
 /* Turn method name into a legal Linux file name */
 void MIRGraph::ReplaceSpecialChars(std::string& str) {
-  static const struct { const char before; const char after; } match[] =
-      {{'/', '-'}, {';', '#'}, {' ', '#'}, {'$', '+'},
-       {'(', '@'}, {')', '@'}, {'<', '='}, {'>', '='}};
+  static const struct { const char before; const char after; } match[] = {
+    {'/', '-'}, {';', '#'}, {' ', '#'}, {'$', '+'},
+    {'(', '@'}, {')', '@'}, {'<', '='}, {'>', '='}
+  };
   for (unsigned int i = 0; i < sizeof(match)/sizeof(match[0]); i++) {
     std::replace(str.begin(), str.end(), match[i].before, match[i].after);
   }

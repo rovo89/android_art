@@ -329,16 +329,17 @@ LIR* ArmMir2Lir::OpRegRegShift(OpKind op, int r_dest_src1, int r_src2,
       break;
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
-  if (EncodingMap[opcode].flags & IS_BINARY_OP)
+  if (EncodingMap[opcode].flags & IS_BINARY_OP) {
     return NewLIR2(opcode, r_dest_src1, r_src2);
-  else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
-    if (EncodingMap[opcode].field_loc[2].kind == kFmtShift)
+  } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
+    if (EncodingMap[opcode].field_loc[2].kind == kFmtShift) {
       return NewLIR3(opcode, r_dest_src1, r_src2, shift);
-    else
+    } else {
       return NewLIR3(opcode, r_dest_src1, r_dest_src1, r_src2);
-  } else if (EncodingMap[opcode].flags & IS_QUAD_OP)
+    }
+  } else if (EncodingMap[opcode].flags & IS_QUAD_OP) {
     return NewLIR4(opcode, r_dest_src1, r_dest_src1, r_src2, shift);
-  else {
+  } else {
     LOG(FATAL) << "Unexpected encoding operand count";
     return NULL;
   }
@@ -406,9 +407,9 @@ LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, int r_dest, int r_src1,
       break;
   }
   DCHECK_GE(static_cast<int>(opcode), 0);
-  if (EncodingMap[opcode].flags & IS_QUAD_OP)
+  if (EncodingMap[opcode].flags & IS_QUAD_OP) {
     return NewLIR4(opcode, r_dest, r_src1, r_src2, shift);
-  else {
+  } else {
     DCHECK(EncodingMap[opcode].flags & IS_TERTIARY_OP);
     return NewLIR3(opcode, r_dest, r_src1, r_src2);
   }
@@ -565,11 +566,11 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
       }
       break;
     case kOpCmp:
-      if (ARM_LOWREG(r_dest_src1) && short_form)
+      if (ARM_LOWREG(r_dest_src1) && short_form) {
         opcode = (short_form) ?  kThumbCmpRI8 : kThumbCmpRR;
-      else if (ARM_LOWREG(r_dest_src1))
+      } else if (ARM_LOWREG(r_dest_src1)) {
         opcode = kThumbCmpRR;
-      else {
+      } else {
         short_form = false;
         opcode = kThumbCmpHL;
       }
@@ -579,9 +580,9 @@ LIR* ArmMir2Lir::OpRegImm(OpKind op, int r_dest_src1, int value) {
       short_form = false;
       break;
   }
-  if (short_form)
+  if (short_form) {
     return NewLIR2(opcode, r_dest_src1, abs_value);
-  else {
+  } else {
     return OpRegRegImm(op, r_dest_src1, r_dest_src1, value);
   }
 }
