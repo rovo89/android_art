@@ -60,4 +60,4 @@ Barrier::~Barrier() {
   CHECK(!count_) << "Attempted to destroy barrier with non zero count";
 }
 
-}
+}  // namespace art

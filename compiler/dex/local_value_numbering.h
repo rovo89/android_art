@@ -135,7 +135,6 @@ class LocalValueNumbering {
   ValueMap value_map_;
   MemoryVersionMap memory_version_map_;
   std::set<uint16_t> null_checked_;
-
 };
 
 } // namespace art

@@ -18,13 +18,10 @@
 #define ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
 
 extern "C" {
-
 //----------------------------------------------------------------------------
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------
-
 void* art_portable_find_runtime_support_func(void* context, const char* name);
-
 }  // extern "C"
 
 #endif  // ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_

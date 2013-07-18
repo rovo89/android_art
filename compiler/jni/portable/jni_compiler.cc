@@ -46,11 +46,10 @@ using namespace runtime_support;
 JniCompiler::JniCompiler(LlvmCompilationUnit* cunit,
                          const CompilerDriver& driver,
                          const DexCompilationUnit* dex_compilation_unit)
-: cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
-  context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
-  dex_compilation_unit_(dex_compilation_unit),
-  func_(NULL), elf_func_idx_(0) {
-
+    : cunit_(cunit), driver_(&driver), module_(cunit_->GetModule()),
+      context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
+      dex_compilation_unit_(dex_compilation_unit),
+      func_(NULL), elf_func_idx_(0) {
   // Check: Ensure that JNI compiler will only get "native" method
   CHECK(dex_compilation_unit->IsNative());
 }

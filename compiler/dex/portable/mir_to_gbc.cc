@@ -74,7 +74,6 @@ void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg) {
   ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
-
 }
 
 void MirConverter::DefineValue(::llvm::Value* val, int s_reg) {
@@ -1580,8 +1579,7 @@ void MirConverter::HandlePhiNodes(BasicBlock* bb, ::llvm::BasicBlock* llvm_bb) {
 
 /* Extended MIR instructions like PHI */
 void MirConverter::ConvertExtendedMIR(BasicBlock* bb, MIR* mir,
-                               ::llvm::BasicBlock* llvm_bb) {
-
+                                      ::llvm::BasicBlock* llvm_bb) {
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpPhi: {
       // The llvm Phi node already emitted - just DefineValue() here.
@@ -1706,7 +1704,6 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
   HandlePhiNodes(bb, llvm_bb);
 
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-
     SetDexOffset(mir->offset);
 
     int opcode = mir->dalvikInsn.opcode;
@@ -1795,7 +1792,6 @@ char RemapShorty(char shorty_type) {
 }
 
 ::llvm::FunctionType* MirConverter::GetFunctionType() {
-
   // Get return type
   ::llvm::Type* ret_type = irb_->getJType(RemapShorty(cu_->shorty[0]));
 

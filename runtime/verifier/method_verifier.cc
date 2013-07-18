@@ -3749,7 +3749,6 @@ MethodVerifier::MethodSafeCastSet* MethodVerifier::GenerateSafeCastSet() {
 }
 
 MethodVerifier::PcToConcreteMethodMap* MethodVerifier::GenerateDevirtMap() {
-
   // It is risky to rely on reg_types for sharpening in cases of soft
   // verification, we might end up sharpening to a wrong implementation. Just abort.
   if (!failure_messages_.empty()) {

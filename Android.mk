@@ -334,15 +334,15 @@ endif
 .PHONY: cpplint-art
 cpplint-art:
 	./art/tools/cpplint.py \
-	    --filter=-,+build/header_guard,+whitespace/braces,+whitespace/comma,+runtime/explicit,+whitespace/newline \
-	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION))
+	    --filter=-,+build/header_guard,+whitespace/braces,+whitespace/comma,+runtime/explicit,+whitespace/newline,+whitespace/parens \
+	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION) | grep -v art/compiler/llvm/generated/)
 
 # "mm cpplint-art-aspirational" to see warnings we would like to fix
 .PHONY: cpplint-art-aspirational
 cpplint-art-aspirational:
 	./art/tools/cpplint.py \
 	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references \
-	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION))
+	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION) | grep -v art/compiler/llvm/generated/)
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart

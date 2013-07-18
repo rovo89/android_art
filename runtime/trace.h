@@ -78,6 +78,7 @@ class Trace : public instrumentation::InstrumentationListener {
                                mirror::AbstractMethod* catch_method, uint32_t catch_dex_pc,
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags);
 

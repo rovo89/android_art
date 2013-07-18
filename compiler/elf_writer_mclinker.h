@@ -38,7 +38,6 @@ class CompiledCode;
 
 class ElfWriterMclinker : public ElfWriter {
  public:
-
   // Write an ELF file. Returns true on success, false on failure.
   static bool Create(File* file,
                      std::vector<uint8_t>& oat_contents,

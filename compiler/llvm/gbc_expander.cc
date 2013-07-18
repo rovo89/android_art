@@ -361,7 +361,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                llvm::CallInst& call_inst);
-
 };
 
 char GBCExpanderPass::ID = 0;
@@ -710,7 +709,6 @@ llvm::Value* GBCExpanderPass::EmitLoadArrayLength(llvm::Value* array) {
                                    art::mirror::Array::LengthOffset().Int32Value(),
                                    irb_.getJIntTy(),
                                    kTBAAConstJObject);
-
 }
 
 llvm::Value*
@@ -751,7 +749,6 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx, llvm::Value* this_addr) {
 llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
                                            llvm::Value* index_value,
                                            JType elem_jty) {
-
   int data_offset;
   if (elem_jty == kLong || elem_jty == kDouble ||
       (elem_jty == kObject && sizeof(uint64_t) == sizeof(art::mirror::Object*))) {
@@ -1426,7 +1423,6 @@ llvm::Value* GBCExpanderPass::Expand_LongCompare(llvm::Value* src1_value, llvm::
 
 llvm::Value* GBCExpanderPass::EmitCompareResultSelection(llvm::Value* cmp_eq,
                                                          llvm::Value* cmp_lt) {
-
   llvm::Constant* zero = irb_.getJInt(0);
   llvm::Constant* pos1 = irb_.getJInt(1);
   llvm::Constant* neg1 = irb_.getJInt(-1);
@@ -2437,7 +2433,6 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
                                          llvm::Value* this_addr,
                                          uint32_t dex_pc,
                                          bool is_fast_path) {
-
   llvm::Function* runtime_func = NULL;
 
   switch (invoke_type) {

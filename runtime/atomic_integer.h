@@ -70,10 +70,11 @@ class AtomicInteger {
     bool success = android_atomic_cas(expected_value, new_value, &value_) == 0;
     return success;
   }
+
  private:
   volatile int32_t value_;
 };
 
-}
+}  // namespace art
 
 #endif  // ART_RUNTIME_ATOMIC_INTEGER_H_

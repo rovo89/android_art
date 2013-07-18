@@ -122,7 +122,6 @@ OatFile::~OatFile() {
 }
 
 bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base) {
-
   char* absolute_path = realpath(elf_filename.c_str(), NULL);
   if (absolute_path == NULL) {
     return false;

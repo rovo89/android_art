@@ -199,7 +199,6 @@ class QuickArgumentVisitor {
     uint64_t low_half = *reinterpret_cast<uint32_t*>(GetParamAddress());
     uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args_);
     return (low_half & 0xffffffffULL) | (high_half << 32);
-
   }
 
   void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -244,6 +243,6 @@ class QuickArgumentVisitor {
   bool is_split_long_or_double_;
 };
 
-}
+}  // namespace art
 
 #endif  // ART_RUNTIME_OAT_RUNTIME_ARGUMENT_VISITOR_H_

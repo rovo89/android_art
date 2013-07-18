@@ -23,7 +23,6 @@
 namespace art {
 
 class Backend {
-
   public:
     virtual ~Backend() {};
     virtual void Materialize() = 0;
@@ -32,7 +31,6 @@ class Backend {
   protected:
     explicit Backend(ArenaAllocator* arena) : arena_(arena) {};
     ArenaAllocator* const arena_;
-
 };  // Class Backend
 
 }  // namespace art

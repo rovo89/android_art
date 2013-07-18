@@ -969,7 +969,6 @@ void Mir2Lir::Materialize() {
 
   /* Method is not empty */
   if (first_lir_insn_) {
-
     // mark the targets of switch statement case labels
     ProcessSwitchTables();
 
@@ -979,9 +978,7 @@ void Mir2Lir::Materialize() {
     if (cu_->verbose) {
       CodegenDump();
     }
-
   }
-
 }
 
 CompiledMethod* Mir2Lir::GetCompiledMethod() {

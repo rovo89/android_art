@@ -24,7 +24,6 @@ namespace art {
 
 class MipsMir2Lir : public Mir2Lir {
   public:
-
     MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
     // Required for target - codegen utilities.
@@ -175,7 +174,6 @@ class MipsMir2Lir : public Mir2Lir {
 
   private:
     void ConvertShortToLongBranch(LIR* lir);
-
 };
 
 }  // namespace art

@@ -366,7 +366,6 @@ static void InterpreterJni(Thread* self, AbstractMethod* method, StringPiece sho
       {
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), rcvr.get(), arg0.get());
-
       }
       result->SetL(soa.Decode<Object*>(jresult));
       ScopedThreadStateChange tsc(self, kNative);

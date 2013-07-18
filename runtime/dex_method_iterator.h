@@ -120,7 +120,6 @@ class DexMethodIterator {
   }
 
  private:
-
   ClassDataItemIterator& GetIterator() const {
     CHECK(it_.get() != NULL);
     return *it_.get();

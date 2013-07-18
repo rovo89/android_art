@@ -736,7 +736,6 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
                                 const MethodReference& target_method,
                                 uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
                                 InvokeType type, bool skip_this) {
-
   // If we can treat it as non-range (Jumbo ops will use range form)
   if (info->num_arg_words <= 5)
     return GenDalvikArgsNoRange(info, call_state, pcrLabel,

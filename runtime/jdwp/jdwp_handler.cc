@@ -361,7 +361,6 @@ static JdwpError VM_Capabilities(JdwpState*, Request&, ExpandBuf* reply)
 
 static JdwpError VM_CapabilitiesNew(JdwpState*, Request& request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-
   // The first few capabilities are the same as those reported by the older call.
   VM_Capabilities(NULL, request, reply);
 

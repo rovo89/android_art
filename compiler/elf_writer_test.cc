@@ -22,7 +22,6 @@
 namespace art {
 
 class ElfWriterTest : public CommonTest {
-
  protected:
   virtual void SetUp() {
     ReserveImageSpace();

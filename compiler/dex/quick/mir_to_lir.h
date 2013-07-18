@@ -166,7 +166,6 @@ Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 #define is_pseudo_opcode(opcode) (static_cast<int>(opcode) < 0)
 
 class Mir2Lir : public Backend {
-
   public:
     struct SwitchTable {
       int offset;

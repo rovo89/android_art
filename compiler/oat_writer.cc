@@ -83,7 +83,6 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_dex_file_methods_offsets_(0),
     size_oat_class_status_(0),
     size_oat_class_method_offsets_(0) {
-
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);

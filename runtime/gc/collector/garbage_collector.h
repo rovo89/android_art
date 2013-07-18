@@ -79,7 +79,6 @@ class GarbageCollector {
   void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
  protected:
-
   // The initial phase. Done without mutators paused.
   virtual void InitializePhase() = 0;
 

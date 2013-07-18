@@ -155,7 +155,6 @@ class DebugInstrumentationListener : public instrumentation::InstrumentationList
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::PostException(thread, throw_location, catch_method, catch_dex_pc, exception_object);
   }
-
 } gDebugInstrumentationListener;
 
 // JDWP is allowed unless the Zygote forbids it.
@@ -761,7 +760,6 @@ JDWP::JdwpError Dbg::GetContendedMonitor(JDWP::ObjectId thread_id, JDWP::ObjectI
 JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class_ids,
                                        std::vector<uint64_t>& counts)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-
   std::vector<mirror::Class*> classes;
   counts.clear();
   for (size_t i = 0; i < class_ids.size(); ++i) {

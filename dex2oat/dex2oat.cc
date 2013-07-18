@@ -440,7 +440,6 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
 // during development when fatal aborts lead to a cascade of failures
 // that result in a deadlock.
 class WatchDog {
-
 // WatchDog defines its own CHECK_PTHREAD_CALL to avoid using Log which uses locks
 #undef CHECK_PTHREAD_CALL
 #define CHECK_WATCH_DOG_PTHREAD_CALL(call, args, what) \

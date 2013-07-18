@@ -28,7 +28,6 @@ namespace art {
 
 class ArenaAllocator {
   public:
-
     // Type of allocation for memory tuning.
     enum ArenaAllocKind {
       kAllocMisc,
@@ -57,7 +56,6 @@ class ArenaAllocator {
   void DumpMemStats(std::ostream& os) const;
 
   private:
-
     // Variable-length allocation block.
     struct ArenaMemBlock {
       size_t block_size;
@@ -77,7 +75,6 @@ class ArenaAllocator {
     uint32_t alloc_stats_[kNumAllocKinds];   // Bytes used by various allocation kinds.
     uint32_t lost_bytes_;                    // Lost memory at end of too-small region
     uint32_t num_allocations_;
-
 };  // ArenaAllocator
 
 

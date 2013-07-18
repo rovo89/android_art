@@ -50,9 +50,7 @@ namespace base {
 }  // namespace base
 
 class CumulativeLogger {
-
  public:
-
   explicit CumulativeLogger(const std::string& name);
   void prepare_stats();
   ~CumulativeLogger();
@@ -68,7 +66,6 @@ class CumulativeLogger {
   void AddNewLogger(const base::NewTimingLogger& logger) LOCKS_EXCLUDED(lock_);
 
  private:
-
   void AddPair(const std::string &label, uint64_t delta_time)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   void DumpHistogram(std::ostream &os) EXCLUSIVE_LOCKS_REQUIRED(lock_);

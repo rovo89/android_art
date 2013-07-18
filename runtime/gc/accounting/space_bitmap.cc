@@ -64,9 +64,7 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
 }
 
 // Clean up any resources associated with the bitmap.
-SpaceBitmap::~SpaceBitmap() {
-
-}
+SpaceBitmap::~SpaceBitmap() {}
 
 void SpaceBitmap::SetHeapLimit(uintptr_t new_end) {
   DCHECK(IsAligned<kBitsPerWord * kAlignment>(new_end));

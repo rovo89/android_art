@@ -32,9 +32,7 @@ class CheckWaitTask : public Task {
       : barrier_(barrier),
         count1_(count1),
         count2_(count2),
-        count3_(count3) {
-
-  }
+        count3_(count3) {}
 
   void Run(Thread* self) {
     LOG(INFO) << "Before barrier 1 " << *self;
@@ -50,6 +48,7 @@ class CheckWaitTask : public Task {
   virtual void Finalize() {
     delete this;
   }
+
  private:
   Barrier* const barrier_;
   AtomicInteger* const count1_;
@@ -100,9 +99,7 @@ class CheckPassTask : public Task {
   CheckPassTask(Barrier* barrier, AtomicInteger* count, size_t subtasks)
       : barrier_(barrier),
         count_(count),
-        subtasks_(subtasks) {
-
-  }
+        subtasks_(subtasks) {}
 
   void Run(Thread* self) {
     for (size_t i = 0; i < subtasks_; ++i) {

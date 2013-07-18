@@ -73,11 +73,14 @@ void Mir2Lir::ConvertMemOpIntoMove(LIR* orig_lir, int dest, int src) {
 void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
   LIR* this_lir;
 
-  if (head_lir == tail_lir) return;
+  if (head_lir == tail_lir) {
+    return;
+  }
 
   for (this_lir = PREV_LIR(tail_lir); this_lir != head_lir; this_lir = PREV_LIR(this_lir)) {
-
-    if (is_pseudo_opcode(this_lir->opcode)) continue;
+    if (is_pseudo_opcode(this_lir->opcode)) {
+      continue;
+    }
 
     int sink_distance = 0;
 
@@ -110,7 +113,9 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
      * Currently only eliminate redundant ld/st for constant and Dalvik
      * register accesses.
      */
-    if (!(this_mem_mask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) continue;
+    if (!(this_mem_mask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) {
+      continue;
+    }
 
     uint64_t stop_def_reg_mask = this_lir->def_mask & ~ENCODE_MEM;
     uint64_t stop_use_reg_mask;
@@ -127,12 +132,13 @@ void Mir2Lir::ApplyLoadStoreElimination(LIR* head_lir, LIR* tail_lir) {
     }
 
     for (check_lir = NEXT_LIR(this_lir); check_lir != tail_lir; check_lir = NEXT_LIR(check_lir)) {
-
       /*
        * Skip already dead instructions (whose dataflow information is
        * outdated and misleading).
        */
-      if (check_lir->flags.is_nop || is_pseudo_opcode(check_lir->opcode)) continue;
+      if (check_lir->flags.is_nop || is_pseudo_opcode(check_lir->opcode)) {
+        continue;
+      }
 
       uint64_t check_mem_mask = (check_lir->use_mask | check_lir->def_mask) & ENCODE_MEM;
       uint64_t alias_condition = this_mem_mask & check_mem_mask;
@@ -274,12 +280,15 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
   LIR* prev_inst_list[MAX_HOIST_DISTANCE];
 
   /* Empty block */
-  if (head_lir == tail_lir) return;
+  if (head_lir == tail_lir) {
+    return;
+  }
 
   /* Start from the second instruction */
   for (this_lir = NEXT_LIR(head_lir); this_lir != tail_lir; this_lir = NEXT_LIR(this_lir)) {
-
-    if (is_pseudo_opcode(this_lir->opcode)) continue;
+    if (is_pseudo_opcode(this_lir->opcode)) {
+      continue;
+    }
 
     uint64_t target_flags = GetTargetInstFlags(this_lir->opcode);
     /* Skip non-interesting instructions */
@@ -312,12 +321,13 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
 
     /* Try to hoist the load to a good spot */
     for (check_lir = PREV_LIR(this_lir); check_lir != head_lir; check_lir = PREV_LIR(check_lir)) {
-
       /*
        * Skip already dead instructions (whose dataflow information is
        * outdated and misleading).
        */
-      if (check_lir->flags.is_nop) continue;
+      if (check_lir->flags.is_nop) {
+        continue;
+      }
 
       uint64_t check_mem_mask = check_lir->def_mask & ENCODE_MEM;
       uint64_t alias_condition = stop_use_all_mask & check_mem_mask;
@@ -355,7 +365,9 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
        */
       if (stop_here || !is_pseudo_opcode(check_lir->opcode)) {
         prev_inst_list[next_slot++] = check_lir;
-        if (next_slot == MAX_HOIST_DISTANCE) break;
+        if (next_slot == MAX_HOIST_DISTANCE) {
+          break;
+        }
       }
 
       /* Found a new place to put the load - move it here */
@@ -400,12 +412,16 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
            * If the first instruction is a load, don't hoist anything
            * above it since it is unlikely to be beneficial.
            */
-          if (GetTargetInstFlags(cur_lir->opcode) & IS_LOAD) continue;
+          if (GetTargetInstFlags(cur_lir->opcode) & IS_LOAD) {
+            continue;
+          }
           /*
            * If the remaining number of slots is less than LD_LATENCY,
            * insert the hoisted load here.
            */
-          if (slot < LD_LATENCY) break;
+          if (slot < LD_LATENCY) {
+            break;
+          }
         }
 
         // Don't look across a barrier label
@@ -461,7 +477,6 @@ void Mir2Lir::RemoveRedundantBranches() {
   LIR* this_lir;
 
   for (this_lir = first_lir_insn_; this_lir != last_lir_insn_; this_lir = NEXT_LIR(this_lir)) {
-
     /* Branch to the next instruction */
     if (IsUnconditionalBranch(this_lir)) {
       LIR* next_lir = this_lir;

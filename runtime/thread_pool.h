@@ -124,9 +124,7 @@ class ThreadPool {
 
 class WorkStealingTask : public Task {
  public:
-  WorkStealingTask() : ref_count_(0) {
-
-  }
+  WorkStealingTask() : ref_count_(0) {}
 
   size_t GetRefCount() const {
     return ref_count_;

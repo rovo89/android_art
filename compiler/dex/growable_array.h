@@ -46,7 +46,6 @@ enum OatListKind {
 template<typename T>
 class GrowableArray {
   public:
-
     class Iterator {
       public:
         explicit Iterator(GrowableArray* g_list)

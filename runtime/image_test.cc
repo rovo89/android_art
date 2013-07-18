@@ -31,7 +31,6 @@
 namespace art {
 
 class ImageTest : public CommonTest {
-
  protected:
   virtual void SetUp() {
     ReserveImageSpace();

@@ -553,7 +553,6 @@ class MIRGraph {
    static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
 
  private:
-
    int FindCommonParent(int block1, int block2);
    void ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src1,
                           const ArenaBitVector* src2);
