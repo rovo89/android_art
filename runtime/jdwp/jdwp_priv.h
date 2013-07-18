@@ -16,8 +16,8 @@
 /*
  * JDWP internal interfaces.
  */
-#ifndef ART_JDWP_JDWPPRIV_H_
-#define ART_JDWP_JDWPPRIV_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_PRIV_H_
+#define ART_RUNTIME_JDWP_JDWP_PRIV_H_
 
 #include "debugger.h"
 #include "jdwp/jdwp.h"
@@ -101,4 +101,4 @@ class JdwpNetStateBase {
 
 }  // namespace art
 
-#endif  // ART_JDWP_JDWPPRIV_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_PRIV_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_UTILS_X86_ASSEMBLER_X86_H_
-#define ART_SRC_OAT_UTILS_X86_ASSEMBLER_X86_H_
+#ifndef ART_RUNTIME_OAT_UTILS_X86_ASSEMBLER_X86_H_
+#define ART_RUNTIME_OAT_UTILS_X86_ASSEMBLER_X86_H_
 
 #include <vector>
 #include "base/macros.h"
@@ -652,4 +652,4 @@ class X86ExceptionSlowPath : public SlowPath {
 }  // namespace x86
 }  // namespace art
 
-#endif  // ART_SRC_OAT_UTILS_X86_ASSEMBLER_X86_H_
+#endif  // ART_RUNTIME_OAT_UTILS_X86_ASSEMBLER_X86_H_

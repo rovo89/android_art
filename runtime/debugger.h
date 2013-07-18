@@ -18,8 +18,8 @@
  * Dalvik-specific side of debugger support.  (The JDWP code is intended to
  * be relatively generic.)
  */
-#ifndef ART_DEBUGGER_H_
-#define ART_DEBUGGER_H_
+#ifndef ART_RUNTIME_DEBUGGER_H_
+#define ART_RUNTIME_DEBUGGER_H_
 
 #include <pthread.h>
 
@@ -429,4 +429,4 @@ class Dbg {
 
 }  // namespace art
 
-#endif  // ART_DEBUGGER_H_
+#endif  // ART_RUNTIME_DEBUGGER_H_

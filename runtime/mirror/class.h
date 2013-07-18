@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_CLASS_H_
-#define ART_SRC_MIRROR_CLASS_H_
+#ifndef ART_RUNTIME_MIRROR_CLASS_H_
+#define ART_RUNTIME_MIRROR_CLASS_H_
 
 #include "modifiers.h"
 #include "object.h"
@@ -882,4 +882,4 @@ class MANAGED ClassClass : public Class {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_CLASS_H_
+#endif  // ART_RUNTIME_MIRROR_CLASS_H_

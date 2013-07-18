@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_BASE_LOGGING_H_
-#define ART_SRC_BASE_LOGGING_H_
+#ifndef ART_RUNTIME_BASE_LOGGING_H_
+#define ART_RUNTIME_BASE_LOGGING_H_
 
 #include <cerrno>
 #include <cstring>
@@ -334,4 +334,4 @@ extern const char* ProgramInvocationShortName();
 
 }  // namespace art
 
-#endif  // ART_SRC_BASE_LOGGING_H_
+#endif  // ART_RUNTIME_BASE_LOGGING_H_

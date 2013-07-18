@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_METHOD_H_
-#define ART_SRC_MIRROR_METHOD_H_
+#ifndef ART_RUNTIME_MIRROR_ABSTRACT_METHOD_H_
+#define ART_RUNTIME_MIRROR_ABSTRACT_METHOD_H_
 
 #include "class.h"
 #include "dex_file.h"
@@ -515,4 +515,4 @@ class MANAGED AbstractMethodClass : public Class {
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_METHOD_H_
+#endif  // ART_RUNTIME_MIRROR_ABSTRACT_METHOD_H_

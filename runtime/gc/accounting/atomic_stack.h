@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_ACCOUNTING_ATOMIC_STACK_H_
-#define ART_SRC_GC_ACCOUNTING_ATOMIC_STACK_H_
+#ifndef ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
+#define ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_
 
 #include <string>
 
@@ -189,4 +189,4 @@ typedef AtomicStack<mirror::Object*> ObjectStack;
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_ACCOUNTING_ATOMIC_STACK_H_
+#endif  // ART_RUNTIME_GC_ACCOUNTING_ATOMIC_STACK_H_

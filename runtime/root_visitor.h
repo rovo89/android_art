@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ROOT_VISITOR_H_
-#define ART_SRC_ROOT_VISITOR_H_
+#ifndef ART_RUNTIME_ROOT_VISITOR_H_
+#define ART_RUNTIME_ROOT_VISITOR_H_
 
 namespace art {
 namespace mirror {
@@ -30,4 +30,4 @@ typedef bool (IsMarkedTester)(const mirror::Object* object, void* arg);
 
 }  // namespace art
 
-#endif  // ART_SRC_ROOT_VISITOR_H_
+#endif  // ART_RUNTIME_ROOT_VISITOR_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_JDWP_JDWP_H_
-#define ART_JDWP_JDWP_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_H_
+#define ART_RUNTIME_JDWP_JDWP_H_
 
 #include "atomic_integer.h"
 #include "base/mutex.h"
@@ -429,4 +429,4 @@ class Request {
 
 }  // namespace art
 
-#endif  // ART_JDWP_JDWP_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_H_

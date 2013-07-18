@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
-#define ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
+#ifndef ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_
+#define ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_
 
 #include "base/casts.h"
 #include "jni_internal.h"
@@ -306,4 +306,4 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
 
 }  // namespace art
 
-#endif  // ART_SRC_SCOPED_THREAD_STATE_CHANGE_H_
+#endif  // ART_RUNTIME_SCOPED_THREAD_STATE_CHANGE_H_

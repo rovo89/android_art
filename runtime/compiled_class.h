@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILED_CLASS_H_
-#define ART_SRC_COMPILED_CLASS_H_
+#ifndef ART_RUNTIME_COMPILED_CLASS_H_
+#define ART_RUNTIME_COMPILED_CLASS_H_
 
 #include "mirror/class.h"
 
@@ -34,4 +34,4 @@ class CompiledClass {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILED_CLASS_H_
+#endif  // ART_RUNTIME_COMPILED_CLASS_H_

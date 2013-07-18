@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
-#define ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
+#ifndef ART_RUNTIME_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
+#define ART_RUNTIME_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
 
 #include "base/mutex.h"
 #include "thread-inl.h"
@@ -38,4 +38,4 @@ static void FinishCalleeSaveFrameSetup(Thread* self, mirror::AbstractMethod** sp
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
+#endif  // ART_RUNTIME_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_

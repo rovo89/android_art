@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_
-#define ART_SRC_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_
+#ifndef ART_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_
+#define ART_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_
 
 #include "dataflow_iterator.h"
 
@@ -65,4 +65,4 @@ inline BasicBlock* AllNodesIterator::NextBody(bool had_change) {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_
+#endif  // ART_COMPILER_DEX_DATAFLOW_ITERATOR_INL_H_

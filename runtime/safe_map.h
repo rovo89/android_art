@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SAFE_MAP_H_
-#define ART_SRC_SAFE_MAP_H_
+#ifndef ART_RUNTIME_SAFE_MAP_H_
+#define ART_RUNTIME_SAFE_MAP_H_
 
 #include <map>
 
@@ -102,4 +102,4 @@ bool operator!=(const SafeMap<K, V, Comparator>& lhs, const SafeMap<K, V, Compar
 
 }  // namespace art
 
-#endif  // ART_SRC_SAFE_MAP_H_
+#endif  // ART_RUNTIME_SAFE_MAP_H_

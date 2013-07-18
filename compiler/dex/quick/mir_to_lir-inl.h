@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
-#define ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
+#ifndef ART_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
+#define ART_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
 
 #include "mir_to_lir.h"
 
@@ -198,4 +198,4 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
+#endif  // ART_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_

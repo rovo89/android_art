@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_BASE_HISTOGRAM_INL_H_
-#define SRC_BASE_HISTOGRAM_INL_H_
+#ifndef ART_RUNTIME_BASE_HISTOGRAM_INL_H_
+#define ART_RUNTIME_BASE_HISTOGRAM_INL_H_
 
 #include "histogram.h"
 
@@ -251,5 +251,5 @@ inline double Histogram<Value>::Percentile(double per) const {
 }
 
 }  // namespace art
-#endif  // SRC_BASE_HISTOGRAM_INL_H_
+#endif  // ART_RUNTIME_BASE_HISTOGRAM_INL_H_
 

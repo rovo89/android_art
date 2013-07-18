@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_UTILS_H_
-#define ART_SRC_UTILS_H_
+#ifndef ART_RUNTIME_UTILS_H_
+#define ART_RUNTIME_UTILS_H_
 
 #include <pthread.h>
 
@@ -372,4 +372,4 @@ class VoidFunctor {
 
 }  // namespace art
 
-#endif  // ART_SRC_UTILS_H_
+#endif  // ART_RUNTIME_UTILS_H_

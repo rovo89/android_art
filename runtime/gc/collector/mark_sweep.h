@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_MARK_SWEEP_H_
-#define ART_SRC_GC_MARK_SWEEP_H_
+#ifndef ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
+#define ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_
 
 #include "atomic_integer.h"
 #include "barrier.h"
@@ -450,4 +450,4 @@ class MarkSweep : public GarbageCollector {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_MARK_SWEEP_H_
+#endif  // ART_RUNTIME_GC_COLLECTOR_MARK_SWEEP_H_

@@ -15,8 +15,8 @@
  */
 
 
-#ifndef SEA_IR_H_
-#define SEA_IR_H_
+#ifndef ART_COMPILER_SEA_IR_SEA_H_
+#define ART_COMPILER_SEA_IR_SEA_H_
 
 #include <set>
 #include <map>
@@ -333,4 +333,4 @@ class SeaGraph {
   std::vector<Region*> regions_;
 };
 } // end namespace sea_ir
-#endif
+#endif  // ART_COMPILER_SEA_IR_SEA_H_

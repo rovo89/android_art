@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_RUNTIME_SUPPORT_H_
-#define ART_SRC_RUNTIME_SUPPORT_H_
+#ifndef ART_RUNTIME_RUNTIME_SUPPORT_H_
+#define ART_RUNTIME_RUNTIME_SUPPORT_H_
 
 #include "class_linker.h"
 #include "common_throws.h"
@@ -412,4 +412,4 @@ static inline void* GetJniDlsymLookupStub() {
 
 }  // namespace art
 
-#endif  // ART_SRC_RUNTIME_SUPPORT_H_
+#endif  // ART_RUNTIME_RUNTIME_SUPPORT_H_

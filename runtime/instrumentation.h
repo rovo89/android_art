@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INSTRUMENTATION_H_
-#define ART_SRC_INSTRUMENTATION_H_
+#ifndef ART_RUNTIME_INSTRUMENTATION_H_
+#define ART_RUNTIME_INSTRUMENTATION_H_
 
 #include "base/macros.h"
 #include "locks.h"
@@ -290,4 +290,4 @@ struct InstrumentationStackFrame {
 }  // namespace instrumentation
 }  // namespace art
 
-#endif  // ART_SRC_INSTRUMENTATION_H_
+#endif  // ART_RUNTIME_INSTRUMENTATION_H_

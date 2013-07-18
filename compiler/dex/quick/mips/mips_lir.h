@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_QUICK_MIPS_MIPSLIR_H_
-#define ART_SRC_COMPILER_DEX_QUICK_MIPS_MIPSLIR_H_
+#ifndef ART_COMPILER_DEX_QUICK_MIPS_MIPS_LIR_H_
+#define ART_COMPILER_DEX_QUICK_MIPS_MIPS_LIR_H_
 
 #include "dex/compiler_internals.h"
 
@@ -429,4 +429,4 @@ extern MipsEncodingMap EncodingMap[kMipsLast];
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_QUICK_MIPS_MIPSLIR_H_
+#endif  // ART_COMPILER_DEX_QUICK_MIPS_MIPS_LIR_H_

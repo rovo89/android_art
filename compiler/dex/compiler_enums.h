@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_COMPILERENUMS_H_
-#define ART_SRC_COMPILER_DEX_COMPILERENUMS_H_
+#ifndef ART_COMPILER_DEX_COMPILER_ENUMS_H_
+#define ART_COMPILER_DEX_COMPILER_ENUMS_H_
 
 #include "dex_instruction.h"
 
@@ -414,4 +414,4 @@ std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_COMPILERENUMS_H_
+#endif  // ART_COMPILER_DEX_COMPILER_ENUMS_H_

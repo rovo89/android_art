@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_BASE_MACROS_H_
-#define ART_SRC_BASE_MACROS_H_
+#ifndef ART_RUNTIME_BASE_MACROS_H_
+#define ART_RUNTIME_BASE_MACROS_H_
 
 #include <stddef.h>  // for size_t
 
@@ -198,4 +198,4 @@ template<typename T> void UNUSED(const T&) {}
 
 #endif // defined(__SUPPORT_TS_ANNOTATION__)
 
-#endif  // ART_SRC_BASE_MACROS_H_
+#endif  // ART_RUNTIME_BASE_MACROS_H_

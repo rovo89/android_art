@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_METHOD_REFERENCE_H_
-#define ART_SRC_METHOD_REFERENCE_H_
+#ifndef ART_RUNTIME_METHOD_REFERENCE_H_
+#define ART_RUNTIME_METHOD_REFERENCE_H_
 
 namespace art {
 
@@ -44,4 +44,4 @@ struct MethodReferenceComparator {
 
 }  // namespace art
 
-#endif  // ART_SRC_METHOD_REFERENCE_H_
+#endif  // ART_RUNTIME_METHOD_REFERENCE_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INTERN_TABLE_H_
-#define ART_SRC_INTERN_TABLE_H_
+#ifndef ART_RUNTIME_INTERN_TABLE_H_
+#define ART_RUNTIME_INTERN_TABLE_H_
 
 #include "base/mutex.h"
 #include "root_visitor.h"
@@ -95,4 +95,4 @@ class InternTable {
 
 }  // namespace art
 
-#endif  // ART_SRC_CLASS_LINKER_H_
+#endif  // ART_RUNTIME_INTERN_TABLE_H_

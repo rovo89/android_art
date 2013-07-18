@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_BASE_MUTEX_INL_H_
-#define ART_SRC_BASE_MUTEX_INL_H_
+#ifndef ART_RUNTIME_BASE_MUTEX_INL_H_
+#define ART_RUNTIME_BASE_MUTEX_INL_H_
 
 #include "mutex.h"
 
@@ -184,4 +184,4 @@ inline void ReaderWriterMutex::SharedUnlock(Thread* self) {
 
 }  // namespace art
 
-#endif  // ART_SRC_BASE_MUTEX_INL_H_
+#endif  // ART_RUNTIME_BASE_MUTEX_INL_H_

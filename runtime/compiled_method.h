@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILED_METHOD_H_
-#define ART_SRC_COMPILED_METHOD_H_
+#ifndef ART_RUNTIME_COMPILED_METHOD_H_
+#define ART_RUNTIME_COMPILED_METHOD_H_
 
 #include <string>
 #include <vector>
@@ -177,4 +177,4 @@ class CompiledMethod : public CompiledCode {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILED_METHOD_H_
+#endif  // ART_RUNTIME_COMPILED_METHOD_H_

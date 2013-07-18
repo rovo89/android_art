@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_DISASSEMBLER_ARM_H_
-#define ART_SRC_DISASSEMBLER_ARM_H_
+#ifndef ART_RUNTIME_DISASSEMBLER_ARM_H_
+#define ART_RUNTIME_DISASSEMBLER_ARM_H_
 
 #include <vector>
 
@@ -48,4 +48,4 @@ class DisassemblerArm : public Disassembler {
 }  // namespace arm
 }  // namespace art
 
-#endif  // ART_SRC_DISASSEMBLER_ARM_H_
+#endif  // ART_RUNTIME_DISASSEMBLER_ARM_H_

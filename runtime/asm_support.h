@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ASM_SUPPORT_H_
-#define ART_SRC_ASM_SUPPORT_H_
+#ifndef ART_RUNTIME_ASM_SUPPORT_H_
+#define ART_RUNTIME_ASM_SUPPORT_H_
 
 // Value loaded into rSUSPEND for quick. When this value is counted down to zero we do a suspend
 // check.
@@ -55,4 +55,4 @@
 #define THREAD_EXCEPTION_OFFSET 12
 #endif
 
-#endif  // ART_SRC_ASM_SUPPORT_H_
+#endif  // ART_RUNTIME_ASM_SUPPORT_H_

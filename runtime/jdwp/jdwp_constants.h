@@ -16,8 +16,8 @@
 /*
  * These come out of the JDWP documentation.
  */
-#ifndef ART_JDWP_JDWPCONSTANTS_H_
-#define ART_JDWP_JDWPCONSTANTS_H_
+#ifndef ART_RUNTIME_JDWP_JDWP_CONSTANTS_H_
+#define ART_RUNTIME_JDWP_JDWP_CONSTANTS_H_
 
 #include <iosfwd>
 
@@ -246,4 +246,4 @@ std::ostream& operator<<(std::ostream& os, const JdwpTag& value);
 
 }  // namespace art
 
-#endif  // ART_JDWP_JDWPCONSTANTS_H_
+#endif  // ART_RUNTIME_JDWP_JDWP_CONSTANTS_H_

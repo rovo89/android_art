@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_PORTABLE_MIRTOGBC_H_
-#define ART_SRC_COMPILER_DEX_PORTABLE_MIRTOGBC_H_
+#ifndef ART_COMPILER_DEX_PORTABLE_MIR_TO_GBC_H_
+#define ART_COMPILER_DEX_PORTABLE_MIR_TO_GBC_H_
 
 #include "invoke_type.h"
 #include "compiled_method.h"
@@ -192,4 +192,4 @@ class MirConverter : public Backend {
 
 }  // namespace art
 
-#endif // ART_SRC_COMPILER_DEX_PORTABLE_MIRTOGBC_H_
+#endif  // ART_COMPILER_DEX_PORTABLE_MIR_TO_GBC_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_WELL_KNOWN_CLASSES_H_
-#define ART_SRC_WELL_KNOWN_CLASSES_H_
+#ifndef ART_RUNTIME_WELL_KNOWN_CLASSES_H_
+#define ART_RUNTIME_WELL_KNOWN_CLASSES_H_
 
 #include "base/mutex.h"
 #include "jni.h"
@@ -108,4 +108,4 @@ struct WellKnownClasses {
 
 }  // namespace art
 
-#endif  // ART_SRC_WELL_KNOWN_CLASSES_H_
+#endif  // ART_RUNTIME_WELL_KNOWN_CLASSES_H_

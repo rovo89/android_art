@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INTERPRETER_INTERPRETER_H_
-#define ART_SRC_INTERPRETER_INTERPRETER_H_
+#ifndef ART_RUNTIME_INTERPRETER_INTERPRETER_H_
+#define ART_RUNTIME_INTERPRETER_INTERPRETER_H_
 
 #include "dex_file.h"
 #include "locks.h"
@@ -55,4 +55,4 @@ extern "C" void artInterpreterToInterpreterEntry(Thread* self, MethodHelper& mh,
 }  // namespace interpreter
 }  // namespace art
 
-#endif  // ART_SRC_INTERPRETER_INTERPRETER_H_
+#endif  // ART_RUNTIME_INTERPRETER_INTERPRETER_H_

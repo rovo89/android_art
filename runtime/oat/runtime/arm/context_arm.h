@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
-#define ART_SRC_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
+#ifndef ART_RUNTIME_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
+#define ART_RUNTIME_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
 
 #include "locks.h"
 #include "constants_arm.h"
@@ -64,4 +64,4 @@ class ArmContext : public Context {
 }  // namespace arm
 }  // namespace art
 
-#endif  // ART_SRC_OAT_RUNTIME_ARM_CONTEXT_ARM_H_
+#endif  // ART_RUNTIME_OAT_RUNTIME_ARM_CONTEXT_ARM_H_

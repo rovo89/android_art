@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VECTOR_OUTPUT_STREAM_H_
-#define ART_SRC_VECTOR_OUTPUT_STREAM_H_
+#ifndef ART_RUNTIME_VECTOR_OUTPUT_STREAM_H_
+#define ART_RUNTIME_VECTOR_OUTPUT_STREAM_H_
 
 #include "output_stream.h"
 
@@ -62,4 +62,4 @@ class VectorOutputStream : public OutputStream {
 
 }  // namespace art
 
-#endif  // ART_SRC_VECTOR_OUTPUT_STREAM_H_
+#endif  // ART_RUNTIME_VECTOR_OUTPUT_STREAM_H_

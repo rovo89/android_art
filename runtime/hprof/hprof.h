@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef HPROF_HPROF_H_
-#define HPROF_HPROF_H_
+#ifndef ART_RUNTIME_HPROF_HPROF_H_
+#define ART_RUNTIME_HPROF_HPROF_H_
 
 namespace art {
 
@@ -27,4 +27,4 @@ void DumpHeap(const char* filename, int fd, bool direct_to_ddms);
 
 }  // namespace art
 
-#endif  // HPROF_HPROF_H_
+#endif  // ART_RUNTIME_HPROF_HPROF_H_

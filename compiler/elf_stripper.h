@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ELF_STRIPPER_H_
-#define ART_SRC_ELF_STRIPPER_H_
+#ifndef ART_COMPILER_ELF_STRIPPER_H_
+#define ART_COMPILER_ELF_STRIPPER_H_
 
 #include "base/macros.h"
 #include "os.h"
@@ -34,4 +34,4 @@ class ElfStripper {
 
 }  // namespace art
 
-#endif  // ART_SRC_ELF_STRIPPER_H_
+#endif  // ART_COMPILER_ELF_STRIPPER_H_

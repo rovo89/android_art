@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INDENTER_H_
-#define ART_SRC_INDENTER_H_
+#ifndef ART_RUNTIME_INDENTER_H_
+#define ART_RUNTIME_INDENTER_H_
 
 #include "base/macros.h"
 #include <streambuf>
@@ -60,4 +60,4 @@ class Indenter : public std::streambuf {
   DISALLOW_COPY_AND_ASSIGN(Indenter);
 };
 
-#endif // ART_SRC_INDENTER_H_
+#endif  // ART_RUNTIME_INDENTER_H_

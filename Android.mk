@@ -78,8 +78,11 @@ clean-oat-target:
 	adb shell rm system/app/*.odex
 	adb shell rm data/run-test/test-*/dalvik-cache/*@classes.dex
 
+########################################################################
+# darwin build
+
 # we aren't building most of art on darwin right now, but we do need to build new dalvikvm
-ifeq ($(HOST_OS)-$(HOST_ARCH),darwin-x86)
+ifeq ($(HOST_OS),darwin)
 art_dont_bother := true
 include $(art_path)/dalvikvm/Android.mk
 endif
@@ -325,14 +328,21 @@ dump-oat-Calculator: $(TARGET_OUT_APPS)/Calculator.odex $(TARGET_BOOT_IMG_OUT) $
 endif
 
 ########################################################################
-# cpplint target
+# cpplint targets to style check art source files
 
-# "mm cpplint-art" to style check art source files
+# "mm cpplint-art" to verify we aren't regressing
 .PHONY: cpplint-art
 cpplint-art:
 	./art/tools/cpplint.py \
-	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-build/header_guard,-readability/function,-readability/streams,-readability/todo,-runtime/references \
-	    $(ANDROID_BUILD_TOP)/art/src/*.h $(ANDROID_BUILD_TOP)/art/src/*.cc
+	    --filter=-,+build/header_guard, \
+	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION))
+
+# "mm cpplint-art-aspirational" to see warnings we would like to fix
+.PHONY: cpplint-art-aspirational
+cpplint-art-aspirational:
+	./art/tools/cpplint.py \
+	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references \
+	    $(shell find art -name *.h -o -name *$(ART_CPP_EXTENSION))
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart

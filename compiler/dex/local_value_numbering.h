@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
-#define ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
+#ifndef ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
+#define ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
 
 #include "compiler_internals.h"
 
@@ -140,4 +140,4 @@ class LocalValueNumbering {
 
 } // namespace art
 
-#endif   // ART_SRC_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_
+#endif  // ART_COMPILER_DEX_LOCAL_VALUE_NUMBERING_H_

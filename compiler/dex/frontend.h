@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_COMPILER_H_
-#define ART_SRC_COMPILER_DEX_COMPILER_H_
+#ifndef ART_COMPILER_DEX_FRONTEND_H_
+#define ART_COMPILER_DEX_FRONTEND_H_
 
 #include "dex_file.h"
 #include "dex_instruction.h"
@@ -123,4 +123,4 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::CompilerDriver& driver,
 
 
 
-#endif // ART_SRC_COMPILER_DEX_COMPILER_H_
+#endif  // ART_COMPILER_DEX_FRONTEND_H_

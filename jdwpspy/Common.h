@@ -3,8 +3,8 @@
  *
  * jdwpspy common stuff.
  */
-#ifndef _JDWPSPY_COMMON
-#define _JDWPSPY_COMMON
+#ifndef ART_JDWPSPY_COMMON_H_
+#define ART_JDWPSPY_COMMON_H_
 
 #include <stdint.h>
 #include <stdio.h>
@@ -99,4 +99,4 @@ void printHexDump2(const void* vaddr, size_t length, const char* prefix);
 void printHexDumpEx(FILE* fp, const void* vaddr, size_t length,
     HexDumpMode mode, const char* prefix);
 
-#endif /*_JDWPSPY_COMMON*/
+#endif  // ART_JDWPSPY_COMMON_H_

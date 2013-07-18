@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_MD_BUILDER_H_
-#define ART_SRC_COMPILER_LLVM_MD_BUILDER_H_
+#ifndef ART_COMPILER_LLVM_MD_BUILDER_H_
+#define ART_COMPILER_LLVM_MD_BUILDER_H_
 
 #include "backend_types.h"
 
@@ -68,4 +68,4 @@ class MDBuilder : public LLVMMDBuilder {
 } // namespace llvm
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_MD_BUILDER_H_
+#endif  // ART_COMPILER_LLVM_MD_BUILDER_H_

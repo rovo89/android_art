@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_CONTEXT_H_
-#define ART_SRC_OAT_RUNTIME_CONTEXT_H_
+#ifndef ART_RUNTIME_OAT_RUNTIME_CONTEXT_H_
+#define ART_RUNTIME_OAT_RUNTIME_CONTEXT_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -67,4 +67,4 @@ class Context {
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_RUNTIME_CONTEXT_H_
+#endif  // ART_RUNTIME_OAT_RUNTIME_CONTEXT_H_

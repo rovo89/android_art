@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#ifndef ART_RUNTIME_JDWP_OBJECT_REGISTRY_H_
+#define ART_RUNTIME_JDWP_OBJECT_REGISTRY_H_
+
 #include <stdint.h>
 
 #include <map>
@@ -98,3 +101,5 @@ class ObjectRegistry {
 };
 
 }  // namespace art
+
+#endif  // ART_RUNTIME_JDWP_OBJECT_REGISTRY_H_

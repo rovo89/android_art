@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_H_
-#define ART_SRC_OAT_H_
+#ifndef ART_RUNTIME_OAT_H_
+#define ART_RUNTIME_OAT_H_
 
 #include <vector>
 
@@ -113,4 +113,4 @@ class PACKED(4) OatMethodOffsets {
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_H_
+#endif  // ART_RUNTIME_OAT_H_

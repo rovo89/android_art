@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_FILE_H_
-#define ART_SRC_OAT_FILE_H_
+#ifndef ART_RUNTIME_OAT_FILE_H_
+#define ART_RUNTIME_OAT_FILE_H_
 
 #include <string>
 #include <vector>
@@ -265,4 +265,4 @@ class OatFile {
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_WRITER_H_
+#endif  // ART_RUNTIME_OAT_FILE_H_

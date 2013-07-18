@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ZIP_ARCHIVE_H_
-#define ART_SRC_ZIP_ARCHIVE_H_
+#ifndef ART_RUNTIME_ZIP_ARCHIVE_H_
+#define ART_RUNTIME_ZIP_ARCHIVE_H_
 
 #include <stdint.h>
 #include <zlib.h>
@@ -129,4 +129,4 @@ class ZipArchive {
 
 }  // namespace art
 
-#endif  // ART_SRC_ZIP_ARCHIVE_H_
+#endif  // ART_RUNTIME_ZIP_ARCHIVE_H_

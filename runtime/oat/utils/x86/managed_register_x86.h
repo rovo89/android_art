@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_
-#define ART_SRC_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_
+#ifndef ART_RUNTIME_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_
+#define ART_RUNTIME_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_
 
 #include "constants_x86.h"
 #include "oat/utils/managed_register.h"
@@ -215,4 +215,4 @@ inline x86::X86ManagedRegister ManagedRegister::AsX86() const {
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_
+#endif  // ART_RUNTIME_OAT_UTILS_X86_MANAGED_REGISTER_X86_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VERIFIER_REGISTER_LINE_INL_H_
-#define ART_SRC_VERIFIER_REGISTER_LINE_INL_H_
+#ifndef ART_RUNTIME_VERIFIER_REGISTER_LINE_INL_H_
+#define ART_RUNTIME_VERIFIER_REGISTER_LINE_INL_H_
 
 #include "register_line.h"
 #include "method_verifier.h"
@@ -32,4 +32,4 @@ inline const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
 }  // namespace verifier
 }  // namespace art
 
-#endif  // ART_SRC_VERIFIER_REGISTER_LINE_INL_H_
+#endif  // ART_RUNTIME_VERIFIER_REGISTER_LINE_INL_H_

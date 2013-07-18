@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_COMPILER_ARENA_ALLOCATOR_H_
-#define ART_SRC_COMPILER_DEX_COMPILER_ARENA_ALLOCATOR_H_
+#ifndef ART_COMPILER_DEX_ARENA_ALLOCATOR_H_
+#define ART_COMPILER_DEX_ARENA_ALLOCATOR_H_
 
 #include <stdint.h>
 #include <stddef.h>
@@ -93,4 +93,4 @@ struct MemStats {
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_COMPILER_ARENA_ALLOCATOR_H_
+#endif  // ART_COMPILER_DEX_ARENA_ALLOCATOR_H_

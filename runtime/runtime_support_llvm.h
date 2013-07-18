@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
-#define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
+#ifndef ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
+#define ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_
 
 extern "C" {
 
@@ -27,4 +27,4 @@ void* art_portable_find_runtime_support_func(void* context, const char* name);
 
 }  // extern "C"
 
-#endif  // ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
+#endif  // ART_RUNTIME_RUNTIME_SUPPORT_LLVM_H_

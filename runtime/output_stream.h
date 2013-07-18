@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OUTPUT_STREAM_H_
-#define ART_SRC_OUTPUT_STREAM_H_
+#ifndef ART_RUNTIME_OUTPUT_STREAM_H_
+#define ART_RUNTIME_OUTPUT_STREAM_H_
 
 #include <stdint.h>
 
@@ -53,4 +53,4 @@ class OutputStream {
 
 }  // namespace art
 
-#endif  // ART_SRC_OUTPUT_STREAM_H_
+#endif  // ART_RUNTIME_OUTPUT_STREAM_H_

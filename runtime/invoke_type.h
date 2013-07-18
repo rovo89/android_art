@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_INVOKE_TYPE_H_
-#define ART_SRC_INVOKE_TYPE_H_
+#ifndef ART_RUNTIME_INVOKE_TYPE_H_
+#define ART_RUNTIME_INVOKE_TYPE_H_
 
 #include <iosfwd>
 
@@ -34,4 +34,4 @@ std::ostream& operator<<(std::ostream& os, const InvokeType& rhs);
 
 }  // namespace art
 
-#endif  // ART_SRC_INVOKE_TYPE_H_
+#endif  // ART_RUNTIME_INVOKE_TYPE_H_

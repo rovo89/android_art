@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_DEX_DEX_COMPILATION_UNIT_H_
-#define ART_SRC_COMPILER_DEX_DEX_COMPILATION_UNIT_H_
+#ifndef ART_COMPILER_DRIVER_DEX_COMPILATION_UNIT_H_
+#define ART_COMPILER_DRIVER_DEX_COMPILATION_UNIT_H_
 
 #include <stdint.h>
 
@@ -113,4 +113,4 @@ class DexCompilationUnit {
 
 } // namespace art
 
-#endif  // ART_SRC_COMPILER_DEX_DEX_COMPILATION_UNIT_H_
+#endif  // ART_COMPILER_DRIVER_DEX_COMPILATION_UNIT_H_

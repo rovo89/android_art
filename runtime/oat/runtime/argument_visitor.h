@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_ARGUMENT_VISITOR_H_
-#define ART_SRC_OAT_RUNTIME_ARGUMENT_VISITOR_H_
+#ifndef ART_RUNTIME_OAT_RUNTIME_ARGUMENT_VISITOR_H_
+#define ART_RUNTIME_OAT_RUNTIME_ARGUMENT_VISITOR_H_
 
 #include "object_utils.h"
 
@@ -246,4 +246,4 @@ class QuickArgumentVisitor {
 
 }
 
-#endif  // ART_SRC_OAT_RUNTIME_ARGUMENT_VISITOR_H_
+#endif  // ART_RUNTIME_OAT_RUNTIME_ARGUMENT_VISITOR_H_

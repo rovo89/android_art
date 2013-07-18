@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_VERIFIER_REGISTER_LINE_H_
-#define ART_SRC_VERIFIER_REGISTER_LINE_H_
+#ifndef ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
+#define ART_RUNTIME_VERIFIER_REGISTER_LINE_H_
 
 #include <deque>
 #include <vector>
@@ -355,4 +355,4 @@ std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
 }  // namespace verifier
 }  // namespace art
 
-#endif  // ART_SRC_VERIFIER_REGISTER_LINE_H_
+#endif  // ART_RUNTIME_VERIFIER_REGISTER_LINE_H_

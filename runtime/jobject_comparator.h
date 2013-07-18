@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_JOBJECT_COMPARATOR_H_
-#define ART_SRC_JOBJECT_COMPARATOR_H_
+#ifndef ART_RUNTIME_JOBJECT_COMPARATOR_H_
+#define ART_RUNTIME_JOBJECT_COMPARATOR_H_
 
 #include <jni.h>
 
@@ -27,4 +27,4 @@ struct JobjectComparator {
 
 }  // namespace art
 
-#endif  // ART_SRC_JOBJECT_COMPARATOR_H_
+#endif  // ART_RUNTIME_JOBJECT_COMPARATOR_H_

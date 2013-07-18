@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_
-#define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_
+#ifndef ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_
+#define ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_
 
 #include "runtime_support_builder.h"
 
@@ -39,4 +39,4 @@ class RuntimeSupportBuilderX86 : public RuntimeSupportBuilder {
 } // namespace llvm
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_
+#endif  // ART_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_X86_H_

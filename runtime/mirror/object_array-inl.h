@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_MIRROR_OBJECT_ARRAY_INL_H_
-#define ART_SRC_MIRROR_OBJECT_ARRAY_INL_H_
+#ifndef ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
+#define ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_
 
 #include "object_array.h"
 
@@ -142,4 +142,4 @@ inline ObjectArray<T>* ObjectArray<T>::CopyOf(Thread* self, int32_t new_length) 
 }  // namespace mirror
 }  // namespace art
 
-#endif  // ART_SRC_MIRROR_OBJET_ARRAY_INL_H_
+#endif  // ART_RUNTIME_MIRROR_OBJECT_ARRAY_INL_H_

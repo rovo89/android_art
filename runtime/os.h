@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OS_H_
-#define ART_SRC_OS_H_
+#ifndef ART_RUNTIME_OS_H_
+#define ART_RUNTIME_OS_H_
 
 namespace unix_file {
 class FdFile;
@@ -41,4 +41,4 @@ class OS {
 
 }  // namespace art
 
-#endif  // ART_SRC_OS_H_
+#endif  // ART_RUNTIME_OS_H_

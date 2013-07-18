@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef BASE_UNIX_FILE_STRING_FILE_H_
-#define BASE_UNIX_FILE_STRING_FILE_H_
+#ifndef ART_RUNTIME_BASE_UNIX_FILE_STRING_FILE_H_
+#define ART_RUNTIME_BASE_UNIX_FILE_STRING_FILE_H_
 
 #include <stdint.h>
 
@@ -56,4 +56,4 @@ class StringFile : public RandomAccessFile {
 
 }  // namespace unix_file
 
-#endif  // BASE_UNIX_FILE_STRING_FILE_H_
+#endif  // ART_RUNTIME_BASE_UNIX_FILE_STRING_FILE_H_

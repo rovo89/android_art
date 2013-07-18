@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_H_
-#define ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_H_
+#ifndef ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_
+#define ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_
 
 #include "base/logging.h"
 #include "locks.h"
@@ -126,4 +126,4 @@ class HeapBitmap {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_ACCOUNTING_HEAP_BITMAP_H_
+#endif  // ART_RUNTIME_GC_ACCOUNTING_HEAP_BITMAP_H_

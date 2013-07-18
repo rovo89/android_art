@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef BASE_LOG_SEVERITY_H_
-#define BASE_LOG_SEVERITY_H_
+#ifndef ART_RUNTIME_LOG_SEVERITY_H_
+#define ART_RUNTIME_LOG_SEVERITY_H_
 
 typedef int LogSeverity;
 
 const int VERBOSE = 0, DEBUG = 1, INFO = 2, WARNING = 3, ERROR = 4, FATAL = 5;
 const int INTERNAL_FATAL = 6; // For Runtime::Abort.
 
-#endif  // BASE_LOG_SEVERITY_H_
+#endif  // ART_RUNTIME_LOG_SEVERITY_H_

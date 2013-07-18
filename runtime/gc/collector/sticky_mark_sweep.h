@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_STICKY_MARK_SWEEP_H_
-#define ART_SRC_GC_STICKY_MARK_SWEEP_H_
+#ifndef ART_RUNTIME_GC_COLLECTOR_STICKY_MARK_SWEEP_H_
+#define ART_RUNTIME_GC_COLLECTOR_STICKY_MARK_SWEEP_H_
 
 #include "base/macros.h"
 #include "locks.h"
@@ -52,4 +52,4 @@ protected:
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_STICKY_MARK_SWEEP_H_
+#endif  // ART_RUNTIME_GC_COLLECTOR_STICKY_MARK_SWEEP_H_

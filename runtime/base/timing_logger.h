@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_TIMING_LOGGER_H_
-#define ART_SRC_TIMING_LOGGER_H_
+#ifndef ART_RUNTIME_BASE_TIMING_LOGGER_H_
+#define ART_RUNTIME_BASE_TIMING_LOGGER_H_
 
 #include "base/histogram.h"
 #include "base/macros.h"
@@ -139,4 +139,4 @@ class NewTimingLogger {
 }  // namespace base
 }  // namespace art
 
-#endif  // ART_SRC_TIMING_LOGGER_H_
+#endif  // ART_RUNTIME_BASE_TIMING_LOGGER_H_

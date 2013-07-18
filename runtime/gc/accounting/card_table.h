@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GC_CARDTABLE_H_
-#define ART_SRC_GC_CARDTABLE_H_
+#ifndef ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
+#define ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_
 
 #include "globals.h"
 #include "locks.h"
@@ -153,4 +153,4 @@ class CardTable {
 }  // namespace gc
 }  // namespace art
 
-#endif  // ART_SRC_GC_CARDTABLE_H_
+#endif  // ART_RUNTIME_GC_ACCOUNTING_CARD_TABLE_H_

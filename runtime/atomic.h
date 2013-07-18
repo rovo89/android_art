@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_ATOMIC_H_
-#define ART_SRC_ATOMIC_H_
+#ifndef ART_RUNTIME_ATOMIC_H_
+#define ART_RUNTIME_ATOMIC_H_
 
 #include <stdint.h>
 
@@ -54,4 +54,4 @@ class QuasiAtomic {
 
 }  // namespace art
 
-#endif  // ART_SRC_ATOMIC_H_
+#endif  // ART_RUNTIME_ATOMIC_H_
